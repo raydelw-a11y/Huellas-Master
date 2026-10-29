@@ -1580,90 +1580,6 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Si es documental largo, incluye antes del segundo 30 el slogan en párrafo aparte y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
 - Extensión aproximada calibrada: ~${targetChars} caracteres.`;
     } else if (stageNumber === 5) {
-      stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
-Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
-"""
-${doc.voiceoverScript || doc.sectionsStructure || ''}
-"""
-Genera la ETAPA 5: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
-- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
-- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
-    } else if (stageNumber === 6) {
-      stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
-Título del video: ${doc.title || ''}
-Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
-Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
-Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [Título Gancho intrigante y cinematográfico]
-REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura.`;
-    } else if (stageNumber === 7) {
-      const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
-      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 7: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
-Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
-Sincronización de Clip 1 y Entrada de Voz: ${
-        doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-          ? `Clip 1 de 00:00 a 00:0${c1Dur} (${c1Dur}s sin voz). Clip 2 comienza en 00:0${clip2StartSec} y la voz narrativa entra en el segundo ${voiceEntrySec} del video (segundo 2 del Clip 2).`
-          : `Clip 1 creado de ${c1Dur}s y ralentizado en CapCut a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec} sin voz). Clip 2 comienza en 00:0${clip2StartSec} con la entrada de la voz.`
-      }
-Regla de Duración Aproximada: La duración total del video es aproximada a la pedida (~${doc.targetDurationSeconds || 120}s); todos los clips del 2 al final mantienen su duración estándar de ${clipDurationLabel} sin forzar micro-clips de relleno de 2s o 4s al final.
-Texto en pantalla Clip 1: ${doc.clip1Line1LocationTime} — ${doc.clip1Line2Hook}
-Referencias creadas: ${(doc.references || []).map((r: any) => r.tag).join(', ')}
-
-Timeline de la Voz Narrativa:
-"""
-${doc.timelineFormattedText || doc.voiceoverScript || ''}
-"""
-
-OBLIGACIÓN INQUEBRANTABLE DEL PÁRRAFO INICIAL DE 9 LÍNEAS:
-Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas (sin omitir ninguna línea) antes de "Image 1: Create an image":
-${opHeader}
-
-Inmediatamente después del párrafo inicial de 9 líneas, entrega cada Clip (empezando por Clip 1 sin voz narrativa, y luego Clip 2 en adelante siguiendo el timeline) cumpliendo esta REGLA INQUEBRANTABLE DE SIMPLICIDAD Y PRECISIÓN (para evitar que la IA de video cometa errores, deformaciones o alucinaciones):
-- Image [N]: Concisa, directa y clara (~20 a 35 palabras), describiendo únicamente el sujeto/escena principal, época y lugar (${doc.historicalTime}, ${doc.historicalLocation}), e iluminación, cerrando con "cinematic lighting, historical accuracy, no text."
-- Clip [N] ([MM:SS - MM:SS]): Como la IA de video ya usa Image [N] como primer fotograma, NO repitas toda la descripción de vestuario o arquitectura. Describe en UNA SOLA ORACIÓN SIMPLE Y DIRECTA (~12 a 22 palabras) únicamente UN movimiento de cámara suave (ej. slow zoom-in, panning slowly, gliding slowly, slow tilt-up) y UNA micro-acción física natural sobre la imagen inicial, seguido de "Ambient Foley: [2-3 sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text." ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? 'seguido de la oración de la voz narrativa correspondiente y' : 'y'} cerrando con "fix the name".
-
-Formato exacto de ejemplo:
-Image [N]: Create an image of [escena clara con época y lugar], cinematic lighting, historical accuracy, no text.
-
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
-    } else if (stageNumber === 9) {
-      stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
-Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
-Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
-
-Genera la ETAPA 9: BANDA SONORA PARA SUNO cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
-1. Límites de Suno: mínimo 1:00 min y máximo 6:00 min por pista.
-2. SILENCIOS OBLIGATORIOS ENTRE CADA CANCIÓN:
-   - Queda terminantemente prohibido pegar una canción inmediatamente después de otra sin descanso.
-   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical (de unos 10 a 20 segundos sin música, donde el video queda solo con la voz narrativa y el Foley ambiental).
-   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito ese espacio de silencio entre canción y canción (ej. si Canción 1 cubre 00:00 - 04:45, deja silencio de 04:45 - 05:00 y Canción 2 inicia en 05:00).
-3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (01:30):
-   - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (1 minuto y 30 segundos), cubriendo exactamente el último minuto y medio del video hasta el segundo final (${doc.confirmedFinalDuration || '02:00'}).
-4. Entrega cada canción con los 6 campos exactos en este orden:
-1. Título: [Título]
-2. Duración: [Duración exacta en Suno; la última canción OBLIGATORIAMENTE 1:30]
-3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (indicando el silencio musical antes de la siguiente canción)]
-4. Prompt de Lyrics: [Metatags instrumentales en corchetes sin voz]
-5. Prompt de Style: [Prompt técnico 100% en inglés para Suno con instrumentos auténticos de la época, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
-6. Explicación de la Canción: [Explicación de cómo suena, instrumentos e intención dramática]`;
-    } else if (stageNumber === 101) {
-      stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
-Título del video: ${doc.title || ''}
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
-
-TAREA OBLIGATORIA:
-Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial del video.
-REGLAS INQUEBRANTABLES:
-1. Cada opción debe tener estrictamente de 1 a 3 palabras contundentes en ESPAÑOL y en MAYÚSCULAS (ejemplo: EL PACTO OCULTO, TRAICIÓN REAL, LA NOCHE FINAL).
-2. PROHIBICIÓN ESTRICTA DE REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS: Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura, el Título del video ("${doc.title || ''}") y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"). Cada opción debe ser completamente distinta y complementarlos psicológicamente sin repetir lo mismo.
-3. Entrega ÚNICAMENTE las 3 opciones, una por línea, sin numeración, sin viñetas, sin comillas y sin explicaciones adicionales.`;
-    } else if (stageNumber === 10) {
       const thumbOrientation =
         doc.thumbnailOrientation ||
         (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
@@ -1706,6 +1622,90 @@ REGLAS OBLIGATORIAS E INQUEBRANTABLES DEL PROMPT EN INGLÉS (NANO BANANA 2.1):
    Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
 7. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 Entrega únicamente el prompt listo para copiar y pegar.`;
+    } else if (stageNumber === 6) {
+      stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
+Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
+"""
+${doc.voiceoverScript || doc.sectionsStructure || ''}
+"""
+Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
+- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
+- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
+    } else if (stageNumber === 7) {
+      stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
+Título del video: ${doc.title || ''}
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
+Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
+Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
+Línea 2: [Título Gancho intrigante y cinematográfico]
+REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura.`;
+    } else if (stageNumber === 8) {
+      const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
+      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
+Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
+Sincronización de Clip 1 y Entrada de Voz: ${
+        doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+          ? `Clip 1 de 00:00 a 00:0${c1Dur} (${c1Dur}s sin voz). Clip 2 comienza en 00:0${clip2StartSec} y la voz narrativa entra en el segundo ${voiceEntrySec} del video (segundo 2 del Clip 2).`
+          : `Clip 1 creado de ${c1Dur}s y ralentizado en CapCut a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec} sin voz). Clip 2 comienza en 00:0${clip2StartSec} con la entrada de la voz.`
+      }
+Regla de Duración Aproximada: La duración total del video es aproximada a la pedida (~${doc.targetDurationSeconds || 120}s); todos los clips del 2 al final mantienen su duración estándar de ${clipDurationLabel} sin forzar micro-clips de relleno de 2s o 4s al final.
+Texto en pantalla Clip 1: ${doc.clip1Line1LocationTime} — ${doc.clip1Line2Hook}
+Referencias creadas: ${(doc.references || []).map((r: any) => r.tag).join(', ')}
+
+Timeline de la Voz Narrativa:
+"""
+${doc.timelineFormattedText || doc.voiceoverScript || ''}
+"""
+
+OBLIGACIÓN INQUEBRANTABLE DEL PÁRRAFO INICIAL DE 9 LÍNEAS:
+Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas (sin omitir ninguna línea) antes de "Image 1: Create an image":
+${opHeader}
+
+Inmediatamente después del párrafo inicial de 9 líneas, entrega cada Clip (empezando por Clip 1 sin voz narrativa, y luego Clip 2 en adelante siguiendo el timeline) cumpliendo esta REGLA INQUEBRANTABLE DE SIMPLICIDAD Y PRECISIÓN (para evitar que la IA de video cometa errores, deformaciones o alucinaciones):
+- Image [N]: Concisa, directa y clara (~20 a 35 palabras), describiendo únicamente el sujeto/escena principal, época y lugar (${doc.historicalTime}, ${doc.historicalLocation}), e iluminación, cerrando con "cinematic lighting, historical accuracy, no text."
+- Clip [N] ([MM:SS - MM:SS]): Como la IA de video ya usa Image [N] como primer fotograma, NO repitas toda la descripción de vestuario o arquitectura. Describe en UNA SOLA ORACIÓN SIMPLE Y DIRECTA (~12 a 22 palabras) únicamente UN movimiento de cámara suave (ej. slow zoom-in, panning slowly, gliding slowly, slow tilt-up) y UNA micro-acción física natural sobre la imagen inicial, seguido de "Ambient Foley: [2-3 sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text." ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? 'seguido de la oración de la voz narrativa correspondiente y' : 'y'} cerrando con "fix the name".
+
+Formato exacto de ejemplo:
+Image [N]: Create an image of [escena clara con época y lugar], cinematic lighting, historical accuracy, no text.
+
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
+    } else if (stageNumber === 10) {
+      stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
+Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+
+Genera la ETAPA 10: BANDA SONORA PARA SUNO cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
+1. Límites de Suno: mínimo 1:00 min y máximo 6:00 min por pista.
+2. SILENCIOS OBLIGATORIOS ENTRE CADA CANCIÓN:
+   - Queda terminantemente prohibido pegar una canción inmediatamente después de otra sin descanso.
+   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical (de unos 10 a 20 segundos sin música, donde el video queda solo con la voz narrativa y el Foley ambiental).
+   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito ese espacio de silencio entre canción y canción (ej. si Canción 1 cubre 00:00 - 04:45, deja silencio de 04:45 - 05:00 y Canción 2 inicia en 05:00).
+3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (01:30):
+   - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (1 minuto y 30 segundos), cubriendo exactamente el último minuto y medio del video hasta el segundo final (${doc.confirmedFinalDuration || '02:00'}).
+4. Entrega cada canción con los 6 campos exactos en este orden:
+1. Título: [Título]
+2. Duración: [Duración exacta en Suno; la última canción OBLIGATORIAMENTE 1:30]
+3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (indicando el silencio musical antes de la siguiente canción)]
+4. Prompt de Lyrics: [Metatags instrumentales en corchetes sin voz]
+5. Prompt de Style: [Prompt técnico 100% en inglés para Suno con instrumentos auténticos de la época, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
+6. Explicación de la Canción: [Explicación de cómo suena, instrumentos e intención dramática]`;
+    } else if (stageNumber === 101) {
+      stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
+Título del video: ${doc.title || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+
+TAREA OBLIGATORIA:
+Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial del video.
+REGLAS INQUEBRANTABLES:
+1. Cada opción debe tener estrictamente de 1 a 3 palabras contundentes en ESPAÑOL y en MAYÚSCULAS (ejemplo: EL PACTO OCULTO, TRAICIÓN REAL, LA NOCHE FINAL).
+2. PROHIBICIÓN ESTRICTA DE REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS: Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura, el Título del video ("${doc.title || ''}") y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"). Cada opción debe ser completamente distinta y complementarlos psicológicamente sin repetir lo mismo.
+3. Entrega ÚNICAMENTE las 3 opciones, una por línea, sin numeración, sin viñetas, sin comillas y sin explicaciones adicionales.`;
     } else if (stageNumber === 11 || stageNumber === 111) {
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
@@ -1804,7 +1804,7 @@ Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas i
       throw new Error(lastError?.message || 'No se pudo generar respuesta con Gemini.');
     }
 
-    if (stageNumber === 7) {
+    if (stageNumber === 8) {
       outputText = ensureOperationalHeaderText(outputText, doc.operationalHeader);
     }
 

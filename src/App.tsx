@@ -87,7 +87,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:03 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:45 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -241,12 +241,12 @@ const STAGES_LIST = [
   { num: 2, title: '2. Tema y Duración', subtitle: 'Tipología, época y tiempos', icon: BookOpen },
   { num: 3, title: '3. Investigación', subtitle: 'Estructura y Deep Research', icon: Search },
   { num: 4, title: '4. Guion + VoxFlow + Timeline', subtitle: 'Voz en off, TTS y timestamps', icon: Volume2 },
-  { num: 5, title: '5. Referencias (@)', subtitle: '@Personas y Lugares en Banana 2.1', icon: ImageIcon },
-  { num: 6, title: '6. Texto Clip 1 (6s)', subtitle: 'Ciudad, País, Año y Gancho', icon: Film },
-  { num: 7, title: '7. Producción', subtitle: 'Voz Raw, Timestamps, Clips y Timeline', icon: Layers },
-  { num: 8, title: '8. Subtítulos .SRT', subtitle: 'Corrector automático para CapCut', icon: Subtitles },
-  { num: 9, title: '9. Música (Suno)', subtitle: 'Prompts de 6 campos y pistas MP3', icon: Music },
-  { num: 10, title: '10. Miniatura Oficial', subtitle: 'Nano Banana 2.1 (8K / HD)', icon: ImageIcon },
+  { num: 5, title: '5. Miniatura Oficial', subtitle: 'Nano Banana 2.1 (8K / HD)', icon: ImageIcon },
+  { num: 6, title: '6. Referencias (@)', subtitle: '@Personas y Lugares en Banana 2.1', icon: ImageIcon },
+  { num: 7, title: '7. Texto Clip 1 (6s)', subtitle: 'Ciudad, País, Año y Gancho', icon: Film },
+  { num: 8, title: '8. Producción', subtitle: 'Voz Raw, Timestamps, Clips y Timeline', icon: Layers },
+  { num: 9, title: '9. Subtítulos .SRT', subtitle: 'Corrector automático para CapCut', icon: Subtitles },
+  { num: 10, title: '10. Música (Suno)', subtitle: 'Prompts de 6 campos y pistas MP3', icon: Music },
   { num: 11, title: '11. Metadata y Subida', subtitle: 'Todo Corrido, Capítulos y Tags', icon: Share2 },
   { num: 12, title: '12. Comentarios Audiencia', subtitle: 'Capturas y respuestas certeras', icon: FileText },
 ];
@@ -742,12 +742,12 @@ export default function App() {
       !!(doc.topic && doc.targetDurationSeconds > 0),
       !!(doc.sectionsStructure || doc.deepResearchResult),
       !!(doc.voiceoverScript && (doc.audioTracks?.length > 0 || doc.timelineSentences?.length > 0)),
+      !!(doc.thumbnailPrompt || doc.thumbnailImageUrl),
       (doc.references?.length || 0) > 0 || !!doc.rawReferencePrompts,
       !!(doc.clip1Line1LocationTime || doc.clip1Line2Hook || doc.clip1OptionsRaw),
       (doc.clips?.length || 0) > 0,
       !!doc.correctedSrt,
       (doc.sunoTracks?.length || 0) > 0 || !!doc.rawSunoText,
-      !!(doc.thumbnailPrompt || doc.thumbnailImageUrl),
       !!(doc.rawMetadataText || doc.publishDescription),
     ];
     const completed = checks.filter(Boolean).length;
@@ -765,17 +765,17 @@ export default function App() {
       case 4:
         return !!(doc.voiceoverScript && (doc.audioTracks?.length > 0 || doc.timelineSentences?.length > 0));
       case 5:
-        return (doc.references?.length || 0) > 0 || !!doc.rawReferencePrompts;
-      case 6:
-        return !!(doc.clip1Line1LocationTime || doc.clip1Line2Hook || doc.clip1OptionsRaw);
-      case 7:
-        return (doc.clips?.length || 0) > 0;
-      case 8:
-        return !!doc.correctedSrt;
-      case 9:
-        return (doc.sunoTracks?.length || 0) > 0 || !!doc.rawSunoText;
-      case 10:
         return !!(doc.thumbnailPrompt || doc.thumbnailImageUrl);
+      case 6:
+        return (doc.references?.length || 0) > 0 || !!doc.rawReferencePrompts;
+      case 7:
+        return !!(doc.clip1Line1LocationTime || doc.clip1Line2Hook || doc.clip1OptionsRaw);
+      case 8:
+        return (doc.clips?.length || 0) > 0;
+      case 9:
+        return !!doc.correctedSrt;
+      case 10:
+        return (doc.sunoTracks?.length || 0) > 0 || !!doc.rawSunoText;
       case 11:
         return !!(doc.rawMetadataText || doc.publishDescription);
       case 12:
@@ -809,7 +809,7 @@ export default function App() {
   // Hybrid AI Generator handler (Local Server + Mobile Client-Side Fallback)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
-    if (stageNum === 10 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
+    if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
       alert(
         '⚠️ Obligatorio: Primero debes escribir el Texto en Pantalla en la Imagen antes de generar el prompt de la miniatura.'
       );
@@ -817,10 +817,10 @@ export default function App() {
       if (inputEl) inputEl.focus();
       return;
     }
-    const orientationFor10 = getDefaultThumbnailOrientation(activeDoc);
+    const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
     const docForPayload =
-      stageNum === 10
-        ? { ...activeDoc, thumbnailOrientation: orientationFor10 }
+      stageNum === 5
+        ? { ...activeDoc, thumbnailOrientation: orientationForThumb }
         : activeDoc;
 
     setAiGenerating(true);
@@ -858,14 +858,25 @@ export default function App() {
       } else if (stageNum === 4) {
         updateActiveDoc({ voiceoverScript: normalizeQuantitiesToMil(text) });
       } else if (stageNum === 5) {
+        const normalizedThumbPrompt = buildOrUpdateThumbnailPrompt(
+          text,
+          orientationForThumb,
+          activeDoc.thumbnailTextOverlay || '',
+          activeDoc
+        );
+        updateActiveDoc({
+          thumbnailOrientation: orientationForThumb,
+          thumbnailPrompt: normalizedThumbPrompt,
+        });
+      } else if (stageNum === 6) {
         const parsedRefs = parseReferencesFromRawText(text);
         updateActiveDoc({
           rawReferencePrompts: text,
           references: parsedRefs.length > 0 ? parsedRefs : activeDoc.references,
         });
-      } else if (stageNum === 6) {
-        updateActiveDoc({ clip1OptionsRaw: text });
       } else if (stageNum === 7) {
+        updateActiveDoc({ clip1OptionsRaw: text });
+      } else if (stageNum === 8) {
         const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
         const syncedClips = syncAndAuditProductionClips({
           rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
@@ -879,22 +890,11 @@ export default function App() {
           rawClipsText: textWithHeader,
           clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
         });
-      } else if (stageNum === 9) {
+      } else if (stageNum === 10) {
         const parsedTracks = parseSunoTracksFromRawText(text);
         updateActiveDoc({
           rawSunoText: text,
           sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
-        });
-      } else if (stageNum === 10) {
-        const normalizedThumbPrompt = buildOrUpdateThumbnailPrompt(
-          text,
-          orientationFor10,
-          activeDoc.thumbnailTextOverlay || '',
-          activeDoc
-        );
-        updateActiveDoc({
-          thumbnailOrientation: orientationFor10,
-          thumbnailPrompt: normalizedThumbPrompt,
         });
       } else if (stageNum === 11 || stageNum === 111) {
         updateActiveDoc({ rawYoutubeMetadata: text, rawMetadataText: text });
@@ -1347,19 +1347,24 @@ export default function App() {
       lines.push(doc.timelineFormattedText);
       lines.push('');
     }
+    if (doc.thumbnailPrompt) {
+      lines.push(`--- ETAPA 5: PROMPT DE MINIATURA ---`);
+      lines.push(doc.thumbnailPrompt);
+      lines.push('');
+    }
     if (doc.references?.length > 0) {
-      lines.push(`--- ETAPA 5: REFERENCIAS (@PERSONAS Y LUGARES) ---`);
+      lines.push(`--- ETAPA 6: REFERENCIAS (@PERSONAS Y LUGARES) ---`);
       doc.references.forEach((r) => {
         lines.push(`${r.tag} (${r.category}): ${r.prompt}`);
       });
       lines.push('');
     }
     if (doc.clip1Line1LocationTime || doc.clip1Line2Hook) {
-      lines.push(`--- ETAPA 6: TEXTO EN PANTALLA CLIP 1 (PRIMEROS 6s) ---`);
+      lines.push(`--- ETAPA 7: TEXTO EN PANTALLA CLIP 1 (PRIMEROS 6s) ---`);
       lines.push(`${doc.clip1Line1LocationTime}\n${doc.clip1Line2Hook}\n`);
     }
     if (doc.clips?.length > 0) {
-      lines.push(`--- ETAPA 7: PROMPTS DE IMÁGENES INICIALES Y CLIPS ---`);
+      lines.push(`--- ETAPA 8: PROMPTS DE IMÁGENES INICIALES Y CLIPS ---`);
       lines.push(doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER);
       lines.push('');
       doc.clips.forEach((c) => {
@@ -1370,7 +1375,7 @@ export default function App() {
       });
     }
     if (doc.sunoTracks?.length > 0 || doc.rawSunoText) {
-      lines.push(`--- ETAPA 9: BANDA SONORA (SUNO) ---`);
+      lines.push(`--- ETAPA 10: BANDA SONORA (SUNO) ---`);
       if (doc.sunoTracks?.length > 0) {
         doc.sunoTracks.forEach((t) => {
           lines.push(`1. Título: ${t.title}`);
@@ -1383,11 +1388,6 @@ export default function App() {
       } else {
         lines.push(doc.rawSunoText);
       }
-      lines.push('');
-    }
-    if (doc.thumbnailPrompt) {
-      lines.push(`--- ETAPA 10: PROMPT DE MINIATURA ---`);
-      lines.push(doc.thumbnailPrompt);
       lines.push('');
     }
     if (
@@ -2125,7 +2125,7 @@ export default function App() {
             <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                  Etapa {activeStage} de 11 — {activeDoc.title}
+                  Etapa {activeStage} de 12 — {activeDoc.title}
                 </span>
                 <h2 className="text-xl font-bold text-slate-100 mt-0.5">
                   {STAGES_LIST[activeStage - 1]?.title} — {STAGES_LIST[activeStage - 1]?.subtitle}
@@ -2140,7 +2140,7 @@ export default function App() {
                     ← Etapa Anterior
                   </button>
                 )}
-                {activeStage < 11 && (
+                {activeStage < 12 && (
                   <button
                     onClick={() => setActiveStage((s) => s + 1)}
                     className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
@@ -3007,11 +3007,11 @@ export default function App() {
                                   clip1SyncMode: activeDoc.clip1SyncMode || 'RALENTIZAR_CAPCUT',
                                 });
                                 updateActiveDoc({ clips: synced });
-                                setActiveStage(7);
+                                setActiveStage(8);
                               }}
                               className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
                             >
-                              Ir a 7. Producción y Armar Timeline <ArrowRight className="w-3 h-3" />
+                              Ir a 8. Producción y Armar Timeline <ArrowRight className="w-3 h-3" />
                             </button>
                           )}
                         </div>
@@ -3033,9 +3033,319 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 5: IMÁGENES MODELO DE REFERENCIA (@PERSONAS Y LUGARES)
+                ETAPA 5: MINIATURA OFICIAL (NANO BANANA 2.1)
             =============================================================== */}
-            {activeStage === 5 && (
+            {activeStage === 5 && (() => {
+              const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
+              const hasOverlayText = Boolean((activeDoc.thumbnailTextOverlay || '').trim());
+
+              const handleSelectThumbnailOrientation = (
+                newOrientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16'
+              ) => {
+                const updatedPrompt = buildOrUpdateThumbnailPrompt(
+                  activeDoc.thumbnailPrompt || '',
+                  newOrientation,
+                  activeDoc.thumbnailTextOverlay || '',
+                  activeDoc
+                );
+                updateActiveDoc({
+                  thumbnailOrientation: newOrientation,
+                  thumbnailPrompt: updatedPrompt,
+                });
+              };
+
+              const handleChangeThumbnailTextOverlay = (newText: string) => {
+                if ((activeDoc.thumbnailPrompt || '').trim()) {
+                  const updatedPrompt = buildOrUpdateThumbnailPrompt(
+                    activeDoc.thumbnailPrompt,
+                    currentOrientation,
+                    newText,
+                    activeDoc
+                  );
+                  updateActiveDoc({
+                    thumbnailTextOverlay: newText,
+                    thumbnailOrientation: currentOrientation,
+                    thumbnailPrompt: updatedPrompt,
+                  });
+                } else {
+                  updateActiveDoc({
+                    thumbnailTextOverlay: newText,
+                    thumbnailOrientation: currentOrientation,
+                  });
+                }
+              };
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-5">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div>
+                        <h3 className="text-base font-bold text-amber-300">
+                          Prompt Técnico de la Miniatura (Nano Banana 2.1)
+                        </h3>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          1) Genera o escribe el texto en pantalla obligatorio y 2) selecciona Horizontal o Vertical para insertar sus características automáticamente.
+                        </p>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={thumbOptionsGenerating}
+                          onClick={handleGenerateThumbnailTextOptions}
+                          className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                          title="Generar 3 opciones de texto en pantalla (1 a 3 palabras) para la miniatura"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+                          {thumbOptionsGenerating
+                            ? 'Generando 3 Opciones...'
+                            : '3 Opciones de Texto en Pantalla'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={aiGenerating}
+                          onClick={() => handleGenerateWithGemini(5)}
+                          className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
+                            hasOverlayText
+                              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20'
+                              : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
+                          }`}
+                          title={
+                            hasOverlayText
+                              ? 'Generar prompt técnico en inglés con Gemini'
+                              : 'Primero debes ingresar el Texto en Pantalla en la Imagen (Obligatorio)'
+                          }
+                        >
+                          <Wand2 className="w-3.5 h-3.5" />
+                          {aiGenerating ? 'Generando Miniatura...' : 'Generar Prompt con Gemini'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* PASO 1 OBLIGATORIO: TEXTO EN PANTALLA EN LA IMAGEN */}
+                    <div
+                      className={`p-4 rounded-xl border transition-all ${
+                        hasOverlayText
+                          ? 'bg-slate-950/80 border-emerald-500/40'
+                          : 'bg-amber-500/5 border-amber-500/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <label
+                          htmlFor="thumbnail-text-overlay-input"
+                          className="text-xs font-bold text-amber-300 flex items-center gap-2"
+                        >
+                          <span>1. Texto en Pantalla en la Imagen</span>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider ${
+                              hasOverlayText
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                            }`}
+                          >
+                            {hasOverlayText ? '✓ Listo' : 'Obligatorio antes de generar'}
+                          </span>
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          1 a 3 palabras contundentes (sin repetir Título ni Texto de los primeros 8s)
+                        </span>
+                      </div>
+                      <input
+                        id="thumbnail-text-overlay-input"
+                        type="text"
+                        value={activeDoc.thumbnailTextOverlay || ''}
+                        onChange={(e) => handleChangeThumbnailTextOverlay(e.target.value)}
+                        placeholder="Ej. EL SECRETO PROHIBIDO"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-300 outline-none"
+                      />
+                      {(activeDoc.thumbnailTextOptions || []).length > 0 && (
+                        <div className="mt-2.5 space-y-1.5">
+                          <span className="block text-[11px] text-indigo-300 font-semibold">
+                            Opciones sugeridas (haz clic en una para usarla en la miniatura):
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {(activeDoc.thumbnailTextOptions || []).map((opt, idx) => {
+                              const isSelected =
+                                (activeDoc.thumbnailTextOverlay || '').trim().toUpperCase() ===
+                                opt.trim().toUpperCase();
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleChangeThumbnailTextOverlay(opt)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer border ${
+                                    isSelected
+                                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-amber-200 border-slate-700'
+                                  }`}
+                                >
+                                  {idx + 1}. {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {!hasOverlayText && (
+                        <p className="text-[11px] text-amber-300/90 mt-1.5 font-medium">
+                          ⚠️ Obligatorio: Debes proveer el texto en pantalla en la imagen (o generar las 3 opciones arriba) antes de generar el prompt de la miniatura.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* PASO 2: DOS OPCIONES SELECCIONABLES (HORIZONTAL 16:9 VS VERTICAL 9:16) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-200">
+                          2. Orientación de Miniatura (Inserta automáticamente sus características en el prompt):
+                        </label>
+                        <span className="text-[11px] text-amber-400 font-semibold">
+                          Click para insertar en el prompt
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* OPCIÓN HORIZONTAL 16:9 */}
+                        <button
+                          type="button"
+                          onClick={() => handleSelectThumbnailOrientation('HORIZONTAL_16X9')}
+                          className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                            currentOrientation === 'HORIZONTAL_16X9'
+                              ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
+                              : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
+                              <span
+                                className={`w-2.5 h-2.5 rounded-full ${
+                                  currentOrientation === 'HORIZONTAL_16X9'
+                                    ? 'bg-amber-400'
+                                    : 'bg-slate-600'
+                                }`}
+                              />
+                              Horizontal (16:9)
+                            </span>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Logo Der: 8K
+                            </span>
+                          </div>
+                          <ul className="text-[11px] text-slate-300 space-y-1 leading-snug">
+                            <li>• <strong className="text-amber-200">Texto:</strong> Abajo a la izquierda</li>
+                            <li>• <strong className="text-amber-200">Logo Sup. Derecho (5%):</strong> &quot;8K&quot; en dorado metálico</li>
+                            <li>• <strong className="text-amber-200">Logo Sup. Izquierdo (5%):</strong> Oficial &quot;Huellas de la Humanidad&quot;</li>
+                          </ul>
+                        </button>
+
+                        {/* OPCIÓN VERTICAL 9:16 */}
+                        <button
+                          type="button"
+                          onClick={() => handleSelectThumbnailOrientation('VERTICAL_9X16')}
+                          className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                            currentOrientation === 'VERTICAL_9X16'
+                              ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
+                              : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
+                              <span
+                                className={`w-2.5 h-2.5 rounded-full ${
+                                  currentOrientation === 'VERTICAL_9X16'
+                                    ? 'bg-amber-400'
+                                    : 'bg-slate-600'
+                                }`}
+                              />
+                              Vertical (9:16)
+                            </span>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Logo Der: HD
+                            </span>
+                          </div>
+                          <ul className="text-[11px] text-slate-300 space-y-1 leading-snug">
+                            <li>• <strong className="text-amber-200">Texto:</strong> Centrado y justificado en el medio de la imagen</li>
+                            <li>• <strong className="text-amber-200">Logo Sup. Derecho (5%):</strong> &quot;HD&quot; en dorado metálico</li>
+                            <li>• <strong className="text-amber-200">Logo Sup. Izquierdo (5%):</strong> Oficial &quot;Huellas de la Humanidad&quot;</li>
+                          </ul>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center flex-wrap gap-2">
+                        <label className="text-xs font-semibold text-slate-300">
+                          Prompt en Inglés ({currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16: Texto Centrado en el Medio + Logo HD Der' : 'Horizontal 16:9: Texto Abajo Izq + Logo 8K Der'} + Logo Oficial 5% Izq):
+                        </label>
+                        <button
+                          onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
+                          className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded cursor-pointer"
+                        >
+                          {copiedId === 'copy-thumb' ? '✓ Copiado' : '📋 Copiar Prompt'}
+                        </button>
+                      </div>
+                      <textarea
+                        rows={8}
+                        value={activeDoc.thumbnailPrompt}
+                        onChange={(e) => updateActiveDoc({ thumbnailPrompt: e.target.value })}
+                        placeholder="Thumbnail: Create an image ..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Upload & Preview Official Thumbnail */}
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-bold text-amber-300">
+                        Miniatura Final Guardada en el Expediente
+                      </h3>
+                      <span className="text-[11px] text-slate-400 font-semibold">
+                        Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'}
+                      </span>
+                    </div>
+                    <div
+                      className={`${
+                        currentOrientation === 'VERTICAL_9X16'
+                          ? 'aspect-[9/16] max-h-[420px] mx-auto'
+                          : 'aspect-video w-full'
+                      } bg-slate-950 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative`}
+                    >
+                      {activeDoc.thumbnailImageUrl ? (
+                        <img
+                          src={activeDoc.thumbnailImageUrl}
+                          alt="Miniatura Oficial"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-500 px-4 text-center">
+                          Sube aquí la miniatura generada con Nano Banana 2.1
+                        </span>
+                      )}
+                    </div>
+                    <label className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
+                      <Upload className="w-4 h-4" /> Subir Imagen de Miniatura Oficial
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const url = await uploadAssetFile(file);
+                          if (url) {
+                            updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ===============================================================
+                ETAPA 6: IMÁGENES MODELO DE REFERENCIA (@PERSONAS Y LUGARES)
+            =============================================================== */}
+            {activeStage === 6 && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -3052,7 +3362,7 @@ export default function App() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         disabled={aiGenerating}
-                        onClick={() => handleGenerateWithGemini(5)}
+                        onClick={() => handleGenerateWithGemini(6)}
                         className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
@@ -3241,9 +3551,9 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 6: TEXTO EN PANTALLA DEL CLIP 1 (PRIMEROS 6 SEGUNDOS)
+                ETAPA 7: TEXTO EN PANTALLA DEL CLIP 1 (PRIMEROS 6 SEGUNDOS)
             =============================================================== */}
-            {activeStage === 6 && (
+            {activeStage === 7 && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
                   <div className="flex items-center justify-between">
@@ -3252,7 +3562,7 @@ export default function App() {
                     </h3>
                     <button
                       disabled={aiGenerating}
-                      onClick={() => handleGenerateWithGemini(6)}
+                      onClick={() => handleGenerateWithGemini(7)}
                       className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <Wand2 className="w-3.5 h-3.5" /> Proponer 3 Opciones con IA
@@ -3333,16 +3643,16 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 7: PRODUCCIÓN (VOZ RAW CON PAUSAS + TIMESTAMPS + CLIPS + AUDITORÍA)
+                ETAPA 8: PRODUCCIÓN (VOZ RAW CON PAUSAS + TIMESTAMPS + CLIPS + AUDITORÍA)
             =============================================================== */}
-            {activeStage === 7 && (
+            {activeStage === 8 && (
               <div className="space-y-6">
                 {/* Header & Operational 9-Line Order Collapsible Bar */}
                 <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-5 space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                       <h3 className="text-base font-bold text-amber-300 flex items-center gap-2">
-                        🎬 7. Centro de Producción: Voz Raw con Pausas + Timestamps + Prompts de Clips
+                        🎬 8. Centro de Producción: Voz Raw con Pausas + Timestamps + Prompts de Clips
                       </h3>
                       <p className="text-xs text-slate-400">
                         Pega o edita las 3 fuentes de tu documental, arma el Timeline Visual de todo el video y
@@ -3486,7 +3796,7 @@ export default function App() {
                         </div>
                         <button
                           disabled={aiGenerating}
-                          onClick={() => handleGenerateWithGemini(7)}
+                          onClick={() => handleGenerateWithGemini(8)}
                           className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center gap-1 cursor-pointer shrink-0"
                         >
                           <Wand2 className="w-3 h-3" />
@@ -4058,9 +4368,9 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 8: CORRECTOR AUTOMÁTICO DE CAPTIONS .SRT DE CAPCUT
+                ETAPA 9: CORRECTOR AUTOMÁTICO DE CAPTIONS .SRT DE CAPCUT
             =============================================================== */}
-            {activeStage === 8 && (
+            {activeStage === 9 && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -4344,9 +4654,9 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 9: BANDA SONORA (SUNO - 6 CAMPOS OBLIGATORIOS)
+                ETAPA 10: BANDA SONORA (SUNO - 6 CAMPOS OBLIGATORIOS)
             =============================================================== */}
-            {activeStage === 9 && (
+            {activeStage === 10 && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -4367,7 +4677,7 @@ export default function App() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         disabled={aiGenerating}
-                        onClick={() => handleGenerateWithGemini(9)}
+                        onClick={() => handleGenerateWithGemini(10)}
                         className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
@@ -4420,7 +4730,7 @@ export default function App() {
                     rows={4}
                     value={activeDoc.rawSunoText}
                     onChange={(e) => updateActiveDoc({ rawSunoText: e.target.value })}
-                    placeholder="Pega aquí la entrega de la Etapa 9 (con sus 6 campos por pista) para separarla en tarjetas..."
+                    placeholder="Pega aquí la entrega de la Etapa 10 (con sus 6 campos por pista) para separarla en tarjetas..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300"
                   />
                 </div>
@@ -4525,316 +4835,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {/* ===============================================================
-                ETAPA 10: MINIATURA OFICIAL (NANO BANANA 2.1)
-            =============================================================== */}
-            {activeStage === 10 && (() => {
-              const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
-              const hasOverlayText = Boolean((activeDoc.thumbnailTextOverlay || '').trim());
-
-              const handleSelectThumbnailOrientation = (
-                newOrientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16'
-              ) => {
-                const updatedPrompt = buildOrUpdateThumbnailPrompt(
-                  activeDoc.thumbnailPrompt || '',
-                  newOrientation,
-                  activeDoc.thumbnailTextOverlay || '',
-                  activeDoc
-                );
-                updateActiveDoc({
-                  thumbnailOrientation: newOrientation,
-                  thumbnailPrompt: updatedPrompt,
-                });
-              };
-
-              const handleChangeThumbnailTextOverlay = (newText: string) => {
-                if ((activeDoc.thumbnailPrompt || '').trim()) {
-                  const updatedPrompt = buildOrUpdateThumbnailPrompt(
-                    activeDoc.thumbnailPrompt,
-                    currentOrientation,
-                    newText,
-                    activeDoc
-                  );
-                  updateActiveDoc({
-                    thumbnailTextOverlay: newText,
-                    thumbnailOrientation: currentOrientation,
-                    thumbnailPrompt: updatedPrompt,
-                  });
-                } else {
-                  updateActiveDoc({
-                    thumbnailTextOverlay: newText,
-                    thumbnailOrientation: currentOrientation,
-                  });
-                }
-              };
-
-              return (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-5">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                      <div>
-                        <h3 className="text-base font-bold text-amber-300">
-                          Prompt Técnico de la Miniatura (Nano Banana 2.1)
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          1) Genera o escribe el texto en pantalla obligatorio y 2) selecciona Horizontal o Vertical para insertar sus características automáticamente.
-                        </p>
-                      </div>
-                      <div className="flex items-center flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={thumbOptionsGenerating}
-                          onClick={handleGenerateThumbnailTextOptions}
-                          className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
-                          title="Generar 3 opciones de texto en pantalla (1 a 3 palabras) para la miniatura"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-                          {thumbOptionsGenerating
-                            ? 'Generando 3 Opciones...'
-                            : '3 Opciones de Texto en Pantalla'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={aiGenerating}
-                          onClick={() => handleGenerateWithGemini(10)}
-                          className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
-                            hasOverlayText
-                              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20'
-                              : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
-                          }`}
-                          title={
-                            hasOverlayText
-                              ? 'Generar prompt técnico en inglés con Gemini'
-                              : 'Primero debes ingresar el Texto en Pantalla en la Imagen (Obligatorio)'
-                          }
-                        >
-                          <Wand2 className="w-3.5 h-3.5" />
-                          {aiGenerating ? 'Generando Miniatura...' : 'Generar Prompt con Gemini'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* PASO 1 OBLIGATORIO: TEXTO EN PANTALLA EN LA IMAGEN */}
-                    <div
-                      className={`p-4 rounded-xl border transition-all ${
-                        hasOverlayText
-                          ? 'bg-slate-950/80 border-emerald-500/40'
-                          : 'bg-amber-500/5 border-amber-500/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <label
-                          htmlFor="thumbnail-text-overlay-input"
-                          className="text-xs font-bold text-amber-300 flex items-center gap-2"
-                        >
-                          <span>1. Texto en Pantalla en la Imagen</span>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider ${
-                              hasOverlayText
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
-                            }`}
-                          >
-                            {hasOverlayText ? '✓ Listo' : 'Obligatorio antes de generar'}
-                          </span>
-                        </label>
-                        <span className="text-[11px] text-slate-400">
-                          1 a 3 palabras contundentes (sin repetir Título ni Texto de los primeros 8s)
-                        </span>
-                      </div>
-                      <input
-                        id="thumbnail-text-overlay-input"
-                        type="text"
-                        value={activeDoc.thumbnailTextOverlay || ''}
-                        onChange={(e) => handleChangeThumbnailTextOverlay(e.target.value)}
-                        placeholder="Ej. EL SECRETO PROHIBIDO"
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-300 outline-none"
-                      />
-                      {(activeDoc.thumbnailTextOptions || []).length > 0 && (
-                        <div className="mt-2.5 space-y-1.5">
-                          <span className="block text-[11px] text-indigo-300 font-semibold">
-                            Opciones sugeridas (haz clic en una para usarla en la miniatura):
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {(activeDoc.thumbnailTextOptions || []).map((opt, idx) => {
-                              const isSelected =
-                                (activeDoc.thumbnailTextOverlay || '').trim().toUpperCase() ===
-                                opt.trim().toUpperCase();
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleChangeThumbnailTextOverlay(opt)}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer border ${
-                                    isSelected
-                                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                                      : 'bg-slate-900 hover:bg-slate-800 text-amber-200 border-slate-700'
-                                  }`}
-                                >
-                                  {idx + 1}. {opt}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {!hasOverlayText && (
-                        <p className="text-[11px] text-amber-300/90 mt-1.5 font-medium">
-                          ⚠️ Obligatorio: Debes proveer el texto en pantalla en la imagen (o generar las 3 opciones arriba) antes de generar el prompt de la miniatura.
-                        </p>
-                      )}
-                    </div>
-
-                    {/* PASO 2: DOS OPCIONES SELECCIONABLES (HORIZONTAL 16:9 VS VERTICAL 9:16) */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-200">
-                          2. Orientación de Miniatura (Inserta automáticamente sus características en el prompt):
-                        </label>
-                        <span className="text-[11px] text-amber-400 font-semibold">
-                          Click para insertar en el prompt
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* OPCIÓN HORIZONTAL 16:9 */}
-                        <button
-                          type="button"
-                          onClick={() => handleSelectThumbnailOrientation('HORIZONTAL_16X9')}
-                          className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                            currentOrientation === 'HORIZONTAL_16X9'
-                              ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
-                              : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
-                              <span
-                                className={`w-2.5 h-2.5 rounded-full ${
-                                  currentOrientation === 'HORIZONTAL_16X9'
-                                    ? 'bg-amber-400'
-                                    : 'bg-slate-600'
-                                }`}
-                              />
-                              Horizontal (16:9)
-                            </span>
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              Logo Der: 8K
-                            </span>
-                          </div>
-                          <ul className="text-[11px] text-slate-300 space-y-1 leading-snug">
-                            <li>• <strong className="text-amber-200">Texto:</strong> Abajo a la izquierda</li>
-                            <li>• <strong className="text-amber-200">Logo Sup. Derecho (5%):</strong> &quot;8K&quot; en dorado metálico</li>
-                            <li>• <strong className="text-amber-200">Logo Sup. Izquierdo (5%):</strong> Oficial &quot;Huellas de la Humanidad&quot;</li>
-                          </ul>
-                        </button>
-
-                        {/* OPCIÓN VERTICAL 9:16 */}
-                        <button
-                          type="button"
-                          onClick={() => handleSelectThumbnailOrientation('VERTICAL_9X16')}
-                          className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                            currentOrientation === 'VERTICAL_9X16'
-                              ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
-                              : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
-                              <span
-                                className={`w-2.5 h-2.5 rounded-full ${
-                                  currentOrientation === 'VERTICAL_9X16'
-                                    ? 'bg-amber-400'
-                                    : 'bg-slate-600'
-                                }`}
-                              />
-                              Vertical (9:16)
-                            </span>
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              Logo Der: HD
-                            </span>
-                          </div>
-                          <ul className="text-[11px] text-slate-300 space-y-1 leading-snug">
-                            <li>• <strong className="text-amber-200">Texto:</strong> Centrado y justificado en el medio de la imagen</li>
-                            <li>• <strong className="text-amber-200">Logo Sup. Derecho (5%):</strong> &quot;HD&quot; en dorado metálico</li>
-                            <li>• <strong className="text-amber-200">Logo Sup. Izquierdo (5%):</strong> Oficial &quot;Huellas de la Humanidad&quot;</li>
-                          </ul>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center flex-wrap gap-2">
-                        <label className="text-xs font-semibold text-slate-300">
-                          Prompt en Inglés ({currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16: Texto Centrado en el Medio + Logo HD Der' : 'Horizontal 16:9: Texto Abajo Izq + Logo 8K Der'} + Logo Oficial 5% Izq):
-                        </label>
-                        <button
-                          onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
-                          className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded cursor-pointer"
-                        >
-                          {copiedId === 'copy-thumb' ? '✓ Copiado' : '📋 Copiar Prompt'}
-                        </button>
-                      </div>
-                      <textarea
-                        rows={8}
-                        value={activeDoc.thumbnailPrompt}
-                        onChange={(e) => updateActiveDoc({ thumbnailPrompt: e.target.value })}
-                        placeholder="Thumbnail: Create an image ..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Upload & Preview Official Thumbnail */}
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-amber-300">
-                        Miniatura Final Guardada en el Expediente
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-semibold">
-                        Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'}
-                      </span>
-                    </div>
-                    <div
-                      className={`${
-                        currentOrientation === 'VERTICAL_9X16'
-                          ? 'aspect-[9/16] max-h-[420px] mx-auto'
-                          : 'aspect-video w-full'
-                      } bg-slate-950 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative`}
-                    >
-                      {activeDoc.thumbnailImageUrl ? (
-                        <img
-                          src={activeDoc.thumbnailImageUrl}
-                          alt="Miniatura Oficial"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs text-slate-500 px-4 text-center">
-                          Sube aquí la miniatura generada con Nano Banana 2.1
-                        </span>
-                      )}
-                    </div>
-                    <label className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
-                      <Upload className="w-4 h-4" /> Subir Imagen de Miniatura Oficial
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const url = await uploadAssetFile(file);
-                          if (url) {
-                            updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ===============================================================
                 ETAPA 11: METADATA DE PUBLICACIÓN (4 SECCIONES: YOUTUBE, FACEBOOK, COMENTARIO FIJADO Y TAGS YOUTUBE)

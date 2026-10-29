@@ -379,53 +379,6 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Cierra con el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
 - Extensión aproximada calibrada: ~${targetChars} caracteres.`;
   } else if (stageNumber === 5) {
-    stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
-Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
-"""
-${doc.voiceoverScript || doc.sectionsStructure || ''}
-"""
-Genera la ETAPA 5: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
-- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
-- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
-  } else if (stageNumber === 6) {
-    stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
-Título del video: ${doc.title || ''}
-Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
-Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
-Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [Título Gancho intrigante y cinematográfico]
-REGLA INQUEBRANTABLE DE NO REPETICIÓN: No repitas lo mismo que el Título del video ni el Texto de la Miniatura.`;
-  } else if (stageNumber === 7) {
-    const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
-    stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 7: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
-Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 2 comienza en 00:0${clip2StartSec}.
-Timeline de la Voz Narrativa:
-"""
-${doc.timelineFormattedText || doc.voiceoverScript || ''}
-"""
-Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
-${opHeader}
-
-Formato exacto simple y conciso por cada clip:
-Image [N]: Create an image of [escena clara ~20-35 palabras con época y lugar], cinematic lighting, historical accuracy, no text.
-
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial, ~12-22 palabras]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
-  } else if (stageNumber === 9) {
-    stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
-Guion: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
-Genera la ETAPA 9: BANDA SONORA PARA SUNO dejando silencios de 10-20s entre cada canción y haciendo que la última canción dure obligatoriamente 1:30. Entrega cada canción con sus 6 campos exactos (1. Título, 2. Duración, 3. De dónde a dónde cubre en el video en tiempo, 4. Prompt de Lyrics, 5. Prompt de Style, 6. Explicación de la Canción).`;
-  } else if (stageNumber === 101) {
-    stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para "Huellas de la Humanidad".
-Título del video: ${doc.title || ''}
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial (1 a 3 palabras en ESPAÑOL y MAYÚSCULAS, sin repetir el título ni el Clip 1), una por línea, sin numeración ni comillas.`;
-  } else if (stageNumber === 10) {
     const thumbOrientation =
       doc.thumbnailOrientation ||
       (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
@@ -440,6 +393,53 @@ Redacta el prompt 100% en inglés iniciando con "Thumbnail: Create an image " en
     }, incluyendo el texto "${overlayText}", el logo "${
       isThumbHorizontal ? '8K' : 'HD'
     }" en dorado arriba a la derecha al 5%, y el logo oficial arriba a la izquierda al 5% con el texto "Huellas de la Humanidad".`;
+  } else if (stageNumber === 6) {
+    stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
+Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
+"""
+${doc.voiceoverScript || doc.sectionsStructure || ''}
+"""
+Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
+- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
+- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
+  } else if (stageNumber === 7) {
+    stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
+Título del video: ${doc.title || ''}
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
+Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
+Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
+Línea 2: [Título Gancho intrigante y cinematográfico]
+REGLA INQUEBRANTABLE DE NO REPETICIÓN: No repitas lo mismo que el Título del video ni el Texto de la Miniatura.`;
+  } else if (stageNumber === 8) {
+    const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+    stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
+Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 2 comienza en 00:0${clip2StartSec}.
+Timeline de la Voz Narrativa:
+"""
+${doc.timelineFormattedText || doc.voiceoverScript || ''}
+"""
+Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
+${opHeader}
+
+Formato exacto simple y conciso por cada clip:
+Image [N]: Create an image of [escena clara ~20-35 palabras con época y lugar], cinematic lighting, historical accuracy, no text.
+
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial, ~12-22 palabras]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
+  } else if (stageNumber === 10) {
+    stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
+Guion: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+Genera la ETAPA 10: BANDA SONORA PARA SUNO dejando silencios de 10-20s entre cada canción y haciendo que la última canción dure obligatoriamente 1:30. Entrega cada canción con sus 6 campos exactos (1. Título, 2. Duración, 3. De dónde a dónde cubre en el video en tiempo, 4. Prompt de Lyrics, 5. Prompt de Style, 6. Explicación de la Canción).`;
+  } else if (stageNumber === 101) {
+    stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para "Huellas de la Humanidad".
+Título del video: ${doc.title || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial (1 a 3 palabras en ESPAÑOL y MAYÚSCULAS, sin repetir el título ni el Clip 1), una por línea, sin numeración ni comillas.`;
   } else if (stageNumber === 11 || stageNumber === 111) {
     stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
@@ -460,7 +460,7 @@ Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corr
   }
 
   const out = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
-  if (stageNumber === 7) {
+  if (stageNumber === 8) {
     return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
   }
   return out;
