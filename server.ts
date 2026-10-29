@@ -1,0 +1,2063 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { exec, execSync, spawn, ChildProcess } from 'child_process';
+import multer from 'multer';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import { GoogleGenAI, Type } from '@google/genai';
+import speech from '@google-cloud/speech';
+import textToSpeech from '@google-cloud/text-to-speech';
+import { createServer as createViteServer } from 'vite';
+import ffmpegStatic from 'ffmpeg-static';
+
+// Load local .env first
+dotenv.config();
+
+// Auto-discover credentials from sibling apps (VoxFlow & Narration-Timeline-Extractor) without modifying them
+const SIBLING_VOXFLOW_DIR = path.resolve(process.cwd(), '..', 'VoxFlow');
+const SIBLING_EXTRACTOR_DIR = path.resolve(process.cwd(), '..', 'Narration-Timeline-Extractor');
+
+function loadSiblingEnv(envPath: string) {
+  try {
+    if (fs.existsSync(envPath)) {
+      const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'));
+      for (const [k, v] of Object.entries(parsed)) {
+        if (!process.env[k] && v) {
+          process.env[k] = v;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Init] Warning reading sibling env:', envPath);
+  }
+}
+
+loadSiblingEnv(path.join(SIBLING_VOXFLOW_DIR, '.env'));
+loadSiblingEnv(path.join(SIBLING_EXTRACTOR_DIR, '.env'));
+
+process.on('uncaughtException', (err) => {
+  console.error('[Huellas Master Server] Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Huellas Master Server] Unhandled Rejection:', reason);
+});
+
+const app = express();
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4200;
+
+app.use(cors({ origin: '*', optionsSuccessStatus: 200 }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Initialize Local Database Directories inside Huellas Master/data
+const DATA_DIR = path.join(process.cwd(), 'data');
+const TTS_DIR = path.join(DATA_DIR, 'tts-files');
+const ASSETS_DIR = path.join(DATA_DIR, 'assets');
+const CHUNK_DIR = path.join(os.tmpdir(), 'huellas-master-chunks');
+const DOCS_FILE = path.join(DATA_DIR, 'documentaries.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const CUSTOM_VOICES_FILE = path.join(DATA_DIR, 'custom_voices.json');
+
+for (const dir of [DATA_DIR, TTS_DIR, ASSETS_DIR, CHUNK_DIR]) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+// Seed config.json & custom_voices.json from VoxFlow if not yet created locally
+try {
+  const voxConfig = path.join(SIBLING_VOXFLOW_DIR, 'data', 'config.json');
+  if (!fs.existsSync(CONFIG_FILE) && fs.existsSync(voxConfig)) {
+    fs.copyFileSync(voxConfig, CONFIG_FILE);
+  }
+  const voxVoices = path.join(SIBLING_VOXFLOW_DIR, 'data', 'custom_voices.json');
+  if (!fs.existsSync(CUSTOM_VOICES_FILE) && fs.existsSync(voxVoices)) {
+    fs.copyFileSync(voxVoices, CUSTOM_VOICES_FILE);
+  }
+} catch (e) {
+  console.warn('[Init] Could not seed initial config from VoxFlow:', e);
+}
+
+// Serve static local audio & asset files
+app.use('/tts-files', express.static(TTS_DIR));
+app.use('/assets', express.static(ASSETS_DIR));
+
+// Probe FFmpeg & FFprobe
+let ffmpegAvailable = !!ffmpegStatic;
+let ffprobeAvailable = false;
+
+exec(`"${ffmpegStatic}" -version`, (err) => {
+  if (!err) ffmpegAvailable = true;
+});
+exec('ffprobe -version', (err) => {
+  if (!err) ffprobeAvailable = true;
+});
+
+function getFfmpegPath(): string {
+  if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return ffmpegStatic;
+  return 'ffmpeg';
+}
+
+// ============================================================================
+// CREDENTIALS & GEMINI CLIENT MANAGEMENT
+// ============================================================================
+function getMaskedKey(key: string): string {
+  if (!key || key.length < 8) return '';
+  return `${key.slice(0, 6)}••••••••••••••••••••••••••${key.slice(-4)}`;
+}
+
+function getSavedGeminiKey(): string {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      if (cfg.geminiApiKey && typeof cfg.geminiApiKey === 'string' && !cfg.geminiApiKey.startsWith('AQ.')) {
+        return cfg.geminiApiKey.trim();
+      }
+    }
+  } catch {}
+
+  const candidates = [
+    process.env.GEMINI_API_KEY,
+    process.env.GCP_API_KEY,
+    process.env.GOOGLE_CLOUD_API_KEY,
+    process.env.API_KEY,
+  ];
+  for (const c of candidates) {
+    if (c && c.trim() && !c.trim().startsWith('AQ.')) {
+      return c.trim();
+    }
+  }
+  return '';
+}
+
+function saveGeminiKey(key: string) {
+  const cleanKey = key.trim();
+  process.env.GEMINI_API_KEY = cleanKey;
+  let cfg: any = {};
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    } catch {}
+  }
+  cfg.geminiApiKey = cleanKey;
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+}
+
+function getGeminiClient(): GoogleGenAI | null {
+  const key = getSavedGeminiKey();
+  if (!key) return null;
+  try {
+    return new GoogleGenAI({
+      apiKey: key,
+      httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+    });
+  } catch (e) {
+    console.error('Error creating GoogleGenAI client:', e);
+    return null;
+  }
+}
+
+app.get('/api/status', (req, res) => {
+  const activeKey = getSavedGeminiKey();
+  const hasGeminiKey = !!activeKey;
+  const maskedKey = hasGeminiKey ? getMaskedKey(activeKey) : '';
+  res.json({
+    hasGeminiKey,
+    maskedKey,
+    gcsBucket: null,
+    storageMode: 'local',
+    authMethod: hasGeminiKey ? `Activa (${maskedKey})` : null,
+    hasElevenLabsKey: !!process.env.ELEVENLABS_API_KEY,
+    hasGoogleTts: true,
+    ffmpegAvailable,
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    ffmpeg_available: ffmpegAvailable,
+    ffprobe_available: ffprobeAvailable,
+    model_available: !!(getSavedGeminiKey() || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+  });
+});
+
+app.post('/api/settings/gemini-key', async (req, res) => {
+  try {
+    const { key } = req.body;
+    if (!key || typeof key !== 'string' || !key.trim()) {
+      res.status(400).json({ error: 'La clave API no puede estar vacía.' });
+      return;
+    }
+    const cleanKey = key.trim();
+    saveGeminiKey(cleanKey);
+    res.json({
+      success: true,
+      maskedKey: getMaskedKey(cleanKey),
+      message: '¡Gemini API Key guardada y activada en Huellas Master!',
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Error al guardar la clave.' });
+  }
+});
+
+// ============================================================================
+// DOCUMENTARIES DATABASE CRUD (/api/documentaries)
+// ============================================================================
+function ensureOperationalHeaderText(rawText: string, operationalHeader?: string): string {
+  const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
+  const trimmed = (rawText || '').trim();
+  if (!trimmed) return '';
+  if (
+    /^Act[uú]a como un historiador/i.test(trimmed) ||
+    trimmed.includes('Cambia los nombres de los clips a las primeras 6 palabras')
+  ) {
+    return trimmed;
+  }
+  return `${header}\n\n${trimmed}`;
+}
+
+function readDocumentaries(): any[] {
+  try {
+    if (fs.existsSync(DOCS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+      if (Array.isArray(data)) {
+        let modified = false;
+        for (const doc of data) {
+          if (doc && typeof doc.rawClipsText === 'string' && doc.rawClipsText.trim()) {
+            const fixed = ensureOperationalHeaderText(doc.rawClipsText, doc.operationalHeader);
+            if (fixed !== doc.rawClipsText) {
+              doc.rawClipsText = fixed;
+              modified = true;
+            }
+          }
+        }
+        if (modified) {
+          fs.writeFileSync(DOCS_FILE, JSON.stringify(data, null, 2), 'utf8');
+        }
+        return data;
+      }
+    }
+  } catch (e) {
+    console.error('Error reading documentaries.json:', e);
+  }
+  return [];
+}
+
+const GITHUB_OWNER = 'raydelw-a11y';
+const GITHUB_REPO = 'Huellas-Master';
+const GITHUB_BRANCH = 'main';
+
+function getLocalGitHubToken(): string {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      if (cfg.githubToken && typeof cfg.githubToken === 'string' && cfg.githubToken.trim()) {
+        return cfg.githubToken.trim();
+      }
+    }
+  } catch {}
+
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+    return process.env.GITHUB_TOKEN.trim();
+  }
+
+  try {
+    const out = execSync(
+      'printf "protocol=https\\nhost=github.com\\n\\n" | git credential-osxkeychain get',
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }
+    );
+    for (const line of out.split(/\r?\n/)) {
+      if (line.startsWith('password=')) {
+        return line.slice('password='.length).trim();
+      }
+    }
+  } catch {}
+
+  return '';
+}
+
+function writeDocumentaries(list: any[], skipCloudPush = false) {
+  const jsonStr = JSON.stringify(list, null, 2);
+  fs.writeFileSync(DOCS_FILE, jsonStr, 'utf8');
+  try {
+    const docsDataDir = path.join(process.cwd(), 'docs', 'data');
+    if (fs.existsSync(docsDataDir)) {
+      fs.writeFileSync(path.join(docsDataDir, 'documentaries.json'), jsonStr, 'utf8');
+    }
+  } catch {}
+  if (!skipCloudPush) {
+    scheduleGitHubPush();
+  }
+}
+
+let githubPushTimer: NodeJS.Timeout | null = null;
+function scheduleGitHubPush() {
+  if (githubPushTimer) clearTimeout(githubPushTimer);
+  githubPushTimer = setTimeout(() => {
+    syncDocumentariesWithGitHubServer(false).catch((e) =>
+      console.warn('[CloudSync] Auto push warning:', e?.message || e)
+    );
+  }, 2500);
+}
+
+async function getServerGitHubFileSha(filePath: string, token: string): Promise<string | null> {
+  try {
+    const dirPath = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : '';
+    const fileName = filePath.split('/').pop() || filePath;
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${dirPath}?ref=${GITHUB_BRANCH}&t=${Date.now()}`;
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'HuellasMaster-Studio',
+    };
+    if (token) headers['Authorization'] = `token ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) return null;
+    const items: any = await res.json();
+    if (Array.isArray(items)) {
+      const found = items.find((it: any) => it && it.name === fileName);
+      return found?.sha || null;
+    }
+  } catch {}
+  return null;
+}
+
+async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
+  synced: boolean;
+  total: number;
+  error?: string;
+}> {
+  const token = getLocalGitHubToken();
+  const localList = readDocumentaries();
+  if (!token) {
+    return { synced: false, total: localList.length, error: 'No GitHub token found' };
+  }
+
+  let mergedList = localList;
+  if (pullFirst) {
+    try {
+      const sha = await getServerGitHubFileSha('data/documentaries.json', token);
+      if (sha) {
+        const blobRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs/${sha}?t=${Date.now()}`,
+          {
+            headers: {
+              Accept: 'application/vnd.github.raw+json',
+              Authorization: `token ${token}`,
+              'User-Agent': 'HuellasMaster-Studio',
+            },
+          }
+        );
+        if (blobRes.ok) {
+          const remoteList: any = await blobRes.json();
+          if (Array.isArray(remoteList)) {
+            const byId = new Map<string, any>();
+            for (const r of remoteList) {
+              if (r && r.id) byId.set(r.id, r);
+            }
+            for (const l of localList) {
+              if (!l || !l.id) continue;
+              const existing = byId.get(l.id);
+              if (!existing) {
+                byId.set(l.id, l);
+              } else {
+                const lTime = Date.parse(l.updatedAt || l.createdAt || '') || 0;
+                const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+                if (lTime >= rTime) byId.set(l.id, l);
+              }
+            }
+            mergedList = Array.from(byId.values()).sort((a, b) => {
+              const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+              const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+              return tB - tA;
+            });
+            writeDocumentaries(mergedList, true);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[CloudSync] Pull warning:', e);
+    }
+  }
+
+  try {
+    const jsonStr = JSON.stringify(mergedList, null, 2);
+    const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `token ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'HuellasMaster-Studio',
+    };
+
+    for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
+      const existingSha = await getServerGitHubFileSha(targetPath, token);
+      const bodyObj: Record<string, any> = {
+        message: `Sync ${targetPath} (${mergedList.length} documentales)`,
+        content: encodedContent,
+        branch: GITHUB_BRANCH,
+      };
+      if (existingSha) bodyObj.sha = existingSha;
+
+      await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${targetPath}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(bodyObj),
+      });
+    }
+    return { synced: true, total: mergedList.length };
+  } catch (e: any) {
+    return { synced: false, total: mergedList.length, error: e?.message || 'Error pushing to GitHub' };
+  }
+}
+
+app.get('/api/cloud/setup-link', (req, res) => {
+  const g = getSavedGeminiKey();
+  const h = getLocalGitHubToken();
+  const payload = Buffer.from(JSON.stringify({ g, h }), 'utf8').toString('base64');
+  const url = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/#setup=${payload}`;
+  res.json({
+    url,
+    publicUrl: `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/`,
+    hasGeminiKey: !!g,
+    hasGitHubToken: !!h,
+  });
+});
+
+app.post('/api/cloud/sync', async (req, res) => {
+  const result = await syncDocumentariesWithGitHubServer(true);
+  res.json({
+    ...result,
+    documentaries: readDocumentaries(),
+  });
+});
+
+app.get('/api/documentaries', (req, res) => {
+  res.json(readDocumentaries());
+});
+
+app.get('/api/documentaries/:id', (req, res) => {
+  const list = readDocumentaries();
+  const doc = list.find((d) => d.id === req.params.id);
+  if (!doc) {
+    res.status(404).json({ error: 'Documental no encontrado.' });
+    return;
+  }
+  res.json(doc);
+});
+
+app.post('/api/documentaries', (req, res) => {
+  const list = readDocumentaries();
+  const now = new Date().toISOString();
+  const body = req.body || {};
+  const newDoc = {
+    id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: body.title || 'Nuevo Documental — Huellas de la Humanidad',
+    subtitle: body.subtitle || '',
+    productionType: body.productionType || 'DOCUMENTAL_16X9',
+    status: body.status || 'planificacion',
+    createdAt: now,
+    updatedAt: now,
+    promptConfig: body.promptConfig || {
+      TIPO_PRODUCCION: 'REELS',
+      SUB_OPCION_POST: 'EXPECTATIVA_ESTRENO',
+      SUB_OPCION_REELS: body.productionType === 'REEL_9X16' ? '9X16' : '16X9',
+      SINCRONIZACION_CLIP_1: 'VOZ_EN_CLIP_2',
+      TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
+      DURACION_CLIP_1: '6',
+      DURACION_CLIPS: '10_SEGUNDOS',
+      VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+    },
+    compiledMasterPrompt: body.compiledMasterPrompt || '',
+    topic: body.topic || '',
+    typology: body.typology || 'Un suceso histórico',
+    historicalTime: body.historicalTime || '',
+    historicalLocation: body.historicalLocation || '',
+    targetDurationSeconds: body.targetDurationSeconds || 120,
+    clipDurationMode: body.clipDurationMode || '10_SEGUNDOS',
+    clip1SyncMode: body.clip1SyncMode || 'VOZ_EN_CLIP_2',
+    clip1DurationSeconds: body.clip1DurationSeconds || 6,
+    sectionsStructure: body.sectionsStructure || '',
+    deepResearchPrompt: body.deepResearchPrompt || '',
+    deepResearchResult: body.deepResearchResult || '',
+    voiceoverScript: body.voiceoverScript || '',
+    selectedVoice: body.selectedVoice || 'Charon',
+    selectedStyle: body.selectedStyle || 'dramatic',
+    selectedSpeed: body.selectedSpeed || 'medium',
+    selectedLanguage: body.selectedLanguage || 'es-la',
+    audioTracks: body.audioTracks || [],
+    masterAudioUrl: body.masterAudioUrl || '',
+    timelineSentences: body.timelineSentences || [],
+    timelineFormattedText: body.timelineFormattedText || '',
+    timelineSettings: body.timelineSettings || {
+      language: 'es',
+      customLanguage: '',
+      quality: 'high',
+      outputStyle: 'timeline',
+      timestampFormat: 'MM:SS',
+      sentenceMode: 'split-10-seconds',
+      noBlankLines: true,
+      strictNarration: false,
+      removeFiller: false,
+      mergeShort: false,
+      preservePunctuation: true,
+      includeLineNumbers: true,
+    },
+    rawReferencePrompts: body.rawReferencePrompts || '',
+    references: body.references || [],
+    clip1TextMode: body.clip1TextMode || 'CAPCUT_MANUAL',
+    clip1Line1LocationTime: body.clip1Line1LocationTime || '',
+    clip1Line2Hook: body.clip1Line2Hook || '',
+    clip1OptionsRaw: body.clip1OptionsRaw || '',
+    operationalHeader: body.operationalHeader || '',
+    rawClipsText: body.rawClipsText || '',
+    clips: body.clips || [],
+    capcutRawSrt: body.capcutRawSrt || '',
+    correctedSrt: body.correctedSrt || '',
+    srtFileName: body.srtFileName || 'captions_corregidos',
+    confirmedFinalDuration: body.confirmedFinalDuration || '02:00',
+    rawSunoText: body.rawSunoText || '',
+    sunoTracks: body.sunoTracks || [],
+    thumbnailOrientation:
+      body.thumbnailOrientation ||
+      (body.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9'),
+    thumbnailTextOptions: body.thumbnailTextOptions || [],
+    thumbnailPrompt: body.thumbnailPrompt || '',
+    thumbnailTextOverlay: body.thumbnailTextOverlay || '',
+    thumbnailImageUrl: body.thumbnailImageUrl || '',
+    thumbnailReady: false,
+    platform: body.platform || 'YOUTUBE',
+    rawMetadataText: body.rawMetadataText || '',
+    rawYoutubeMetadata: body.rawYoutubeMetadata || body.rawMetadataText || '',
+    rawFacebookMetadata: body.rawFacebookMetadata || '',
+    publishTitle: body.publishTitle || '',
+    publishDescription: body.publishDescription || '',
+    youtubeChapters: body.youtubeChapters || '',
+    aiNote: body.aiNote || '',
+    slogan: body.slogan || 'Cada historia deja una huella. Aquí seguimos sus rastros.',
+    hashtags: body.hashtags || '',
+    youtubeTags: body.youtubeTags || '',
+    pinnedComment: body.pinnedComment || '',
+  };
+
+  list.unshift(newDoc);
+  writeDocumentaries(list);
+  res.json(newDoc);
+});
+
+app.put('/api/documentaries/:id', (req, res) => {
+  const list = readDocumentaries();
+  const idx = list.findIndex((d) => d.id === req.params.id);
+  if (idx === -1) {
+    res.status(404).json({ error: 'Documental no encontrado.' });
+    return;
+  }
+  const updated = {
+    ...list[idx],
+    ...req.body,
+    id: list[idx].id,
+    updatedAt: new Date().toISOString(),
+  };
+  list[idx] = updated;
+  writeDocumentaries(list);
+  res.json(updated);
+});
+
+app.delete('/api/documentaries/:id', (req, res) => {
+  let list = readDocumentaries();
+  list = list.filter((d) => d.id !== req.params.id);
+  writeDocumentaries(list);
+  res.json({ success: true });
+});
+
+app.post('/api/documentaries/:id/duplicate', (req, res) => {
+  const list = readDocumentaries();
+  const orig = list.find((d) => d.id === req.params.id);
+  if (!orig) {
+    res.status(404).json({ error: 'Documental no encontrado.' });
+    return;
+  }
+  const now = new Date().toISOString();
+  const copy = {
+    ...JSON.parse(JSON.stringify(orig)),
+    id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: `${orig.title} (Copia)`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  list.unshift(copy);
+  writeDocumentaries(list);
+  res.json(copy);
+});
+
+// ============================================================================
+// ASSET UPLOAD API (Reference Images, Thumbnails, Suno MP3s, CapCut Audios)
+// ============================================================================
+const assetStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, ASSETS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.bin';
+    const safeBase = path
+      .basename(file.originalname, ext)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 45);
+    cb(null, `asset-${Date.now()}-${safeBase}${ext}`);
+  },
+});
+const uploadAsset = multer({ storage: assetStorage, limits: { fileSize: 150 * 1024 * 1024 } });
+
+app.post('/api/assets/upload', uploadAsset.single('file'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No se recibió ningún archivo.' });
+    return;
+  }
+  const url = `/assets/${req.file.filename}`;
+  res.json({
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    url,
+  });
+});
+
+// ============================================================================
+// VOXFLOW TTS ENGINE INTEGRATED (/api/tts, /api/custom-voices)
+// ============================================================================
+function getCustomVoices(): any[] {
+  try {
+    if (fs.existsSync(CUSTOM_VOICES_FILE)) {
+      return JSON.parse(fs.readFileSync(CUSTOM_VOICES_FILE, 'utf8'));
+    }
+  } catch {}
+  return [];
+}
+
+app.get('/api/custom-voices', (req, res) => {
+  res.json({ voices: getCustomVoices() });
+});
+
+app.post('/api/custom-voices', (req, res) => {
+  const { name, styleDescription, baseVoice, speed, prompt } = req.body;
+  const voices = getCustomVoices();
+  const newVoice = {
+    id: `voice_${Date.now()}`,
+    name: (name || 'Voz Personalizada').trim(),
+    styleDescription: (styleDescription || '').trim(),
+    baseVoice: baseVoice || 'Charon',
+    speed: speed || 'medium',
+    prompt: prompt || '',
+    createdAt: new Date().toISOString(),
+  };
+  voices.unshift(newVoice);
+  fs.writeFileSync(CUSTOM_VOICES_FILE, JSON.stringify(voices, null, 2), 'utf8');
+  res.json({ voice: newVoice, voices });
+});
+
+function pcmToWav(pcmBuffer: Buffer, sampleRate: number = 24000): Buffer {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const wavHeader = Buffer.alloc(44);
+  wavHeader.write('RIFF', 0);
+  wavHeader.writeUInt32LE(36 + pcmBuffer.length, 4);
+  wavHeader.write('WAVE', 8);
+  wavHeader.write('fmt ', 12);
+  wavHeader.writeUInt32LE(16, 16);
+  wavHeader.writeUInt16LE(1, 20);
+  wavHeader.writeUInt16LE(numChannels, 22);
+  wavHeader.writeUInt32LE(sampleRate, 24);
+  wavHeader.writeUInt32LE(byteRate, 28);
+  wavHeader.writeUInt16LE(blockAlign, 32);
+  wavHeader.writeUInt16LE(bitsPerSample, 34);
+  wavHeader.write('data', 36);
+  wavHeader.writeUInt32LE(pcmBuffer.length, 40);
+  return Buffer.concat([wavHeader, pcmBuffer]);
+}
+
+function extractPcmFromWav(wavBuffer: Buffer): Buffer {
+  let current = wavBuffer;
+  let guard = 0;
+  while (
+    current.length >= 12 &&
+    current.toString('binary', 0, 4) === 'RIFF' &&
+    current.toString('binary', 8, 12) === 'WAVE' &&
+    guard < 5
+  ) {
+    guard++;
+    let foundData = false;
+    let index = 12;
+    while (index < current.length - 8) {
+      const chunkName = current.toString('binary', index, index + 4);
+      let chunkSize = 0;
+      try {
+        chunkSize = current.readUInt32LE(index + 4);
+      } catch {
+        break;
+      }
+      if (chunkName === 'data') {
+        const dataStart = index + 8;
+        const dataEnd = Math.min(dataStart + chunkSize, current.length);
+        current = current.subarray(dataStart, dataEnd);
+        foundData = true;
+        break;
+      }
+      index += 8 + chunkSize + (chunkSize % 2);
+      if (chunkSize <= 0 || index <= 12) break;
+    }
+    if (!foundData) {
+      if (current.length >= 44) current = current.subarray(44);
+      else break;
+    }
+  }
+  return current;
+}
+
+function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 240): Buffer {
+  const numSamples = Math.floor(pcmBuffer.length / 2);
+  if (numSamples < fadeSamples * 2) return pcmBuffer;
+  const out = Buffer.from(pcmBuffer);
+  for (let i = 0; i < fadeSamples; i++) {
+    const factor = i / fadeSamples;
+    const sample = out.readInt16LE(i * 2);
+    out.writeInt16LE(Math.round(sample * factor), i * 2);
+  }
+  for (let i = 0; i < fadeSamples; i++) {
+    const factor = (fadeSamples - i) / fadeSamples;
+    const idx = (numSamples - fadeSamples + i) * 2;
+    const sample = out.readInt16LE(idx);
+    out.writeInt16LE(Math.round(sample * factor), idx);
+  }
+  return out;
+}
+
+function getAudioDurationInSeconds(buffer: Buffer, defaultSampleRate: number = 24000): number {
+  try {
+    if (
+      buffer.length >= 44 &&
+      buffer.toString('binary', 0, 4) === 'RIFF' &&
+      buffer.toString('binary', 8, 12) === 'WAVE'
+    ) {
+      const sampleRate = buffer.readUInt32LE(24) || defaultSampleRate;
+      const numChannels = buffer.readUInt16LE(22) || 1;
+      const bitsPerSample = buffer.readUInt16LE(34) || 16;
+      const byteRate = buffer.readUInt32LE(28) || sampleRate * numChannels * (bitsPerSample / 8);
+      const pcmData = extractPcmFromWav(buffer);
+      if (byteRate > 0 && pcmData.length > 0) {
+        return parseFloat((pcmData.length / byteRate).toFixed(2));
+      }
+    }
+  } catch {}
+  return parseFloat(((buffer.length > 44 ? buffer.length - 44 : buffer.length) / 48000).toFixed(2));
+}
+
+interface TextOrPauseSegment {
+  type: 'text' | 'pause';
+  text?: string;
+  duration?: number;
+}
+
+// Reconoce [1s], [2s], [3s], [1.5s], [1], [2], [3], [1}, [2}, {2s], [pausa: 2s], [pausa 2], [silencio: 2s], <break time="2s"/>
+const UNIVERSAL_PAUSE_REGEX =
+  /[\[{]\s*(?:(?:pausa|pause|silencio)\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos|ms|milisegundos)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*[\]}]|<break\s+time=["']?([0-9]+(?:\.[0-9]+)?)(s|ms)["']?\s*\/?>/gi;
+
+function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
+  if (!rawText) return [];
+  const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
+  const segments: TextOrPauseSegment[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pauseRegex.exec(rawText)) !== null) {
+    const textBefore = rawText.slice(lastIndex, match.index);
+    if (textBefore.trim()) {
+      segments.push({ type: 'text', text: textBefore.trim() });
+    }
+    let durationSec = 1.5;
+    if (match[1] !== undefined) {
+      const val = parseFloat(match[1].replace(',', '.'));
+      const unit = (match[2] || 's').toLowerCase();
+      durationSec = unit.startsWith('ms') || unit.startsWith('mili') ? val / 1000 : val;
+    } else if (match[3] !== undefined) {
+      const val = parseFloat(match[3].replace(',', '.'));
+      const unit = (match[4] || 's').toLowerCase();
+      durationSec = unit === 'ms' ? val / 1000 : val;
+    }
+    durationSec = Math.max(0.1, Math.min(30, durationSec));
+    segments.push({ type: 'pause', duration: durationSec });
+    lastIndex = match.index + match[0].length;
+  }
+
+  const remainingText = rawText.slice(lastIndex);
+  if (remainingText.trim()) {
+    segments.push({ type: 'text', text: remainingText.trim() });
+  }
+  return segments;
+}
+
+let gcloudTtsClient: any = null;
+function getGcloudTtsClient() {
+  if (!gcloudTtsClient) {
+    try {
+      const defaultJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+      if (defaultJson) {
+        const credentials = JSON.parse(defaultJson);
+        gcloudTtsClient = new textToSpeech.TextToSpeechClient({ credentials });
+      } else {
+        gcloudTtsClient = new textToSpeech.TextToSpeechClient();
+      }
+    } catch (e) {
+      console.warn('Error initializing Google Cloud TTS Client:', e);
+    }
+  }
+  return gcloudTtsClient;
+}
+
+async function synthesizeSpeechCore({
+  text,
+  voice = 'Charon',
+  style = 'dramatic',
+  speed = 'medium',
+  language = 'es-la',
+  consistencyMode = true,
+  customStyleDescription,
+}: {
+  text: string;
+  voice?: string;
+  style?: string;
+  speed?: string;
+  language?: string;
+  consistencyMode?: boolean;
+  customStyleDescription?: string;
+}): Promise<{ buffer: Buffer; providerUsed: string }> {
+  const cleanText = text
+    .replace(new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi'), '')
+    .trim();
+  if (!cleanText) {
+    return { buffer: pcmToWav(Buffer.alloc(4800), 24000), providerUsed: 'Silencio' };
+  }
+
+  const ai = getGeminiClient();
+  const physicalVoices: Record<string, string> = {
+    Kore: 'Kore', Aoede: 'Aoede', Puck: 'Puck', Charon: 'Charon', Fenrir: 'Fenrir', Zephyr: 'Zephyr',
+    Adam: 'Fenrir', Antoni: 'Zephyr', Bella: 'Aoede', Domi: 'Kore', Grace: 'Aoede', Michael: 'Charon', Rachel: 'Aoede', Serena: 'Kore',
+    Journey_F: 'Aoede', Journey_M: 'Charon', Wavenet_A: 'Kore', Wavenet_B: 'Fenrir', Neural2_F: 'Kore', Neural2_M: 'Zephyr',
+  };
+  const physicalVoice = physicalVoices[voice] || 'Charon';
+
+  const languageInstructions: Record<string, string> = {
+    es: 'Speak in Spanish with native European Spanish pronunciation.',
+    'es-la': 'Speak in Spanish with a neutral, solemn, warm Latin American documentary accent (Español Neutro). Do NOT use European Spanish ceceo.',
+    en: 'Speak in English with a native accent.',
+    pt: 'Speak in Portuguese with a native accent.',
+    fr: 'Speak in French with a native accent.',
+    de: 'Speak in German with a native accent.',
+  };
+
+  const styleDescriptions: Record<string, string> = {
+    standard: 'Speak clearly with a professional documentary narrator cadence.',
+    dramatic: 'Speak with deep cinematic documentary gravitas, emotional resonance, and deliberate pacing.',
+    formal: 'Speak formally with historical rigor, solemn tone, and crisp articulation.',
+    whisper: 'Speak in a soft, intimate, mysterious low-volume voice.',
+    cheerful: 'Speak with bright, engaging enthusiasm.',
+  };
+
+  const speedDescriptions: Record<string, string> = {
+    slow: 'Speak slowly and deliberately.',
+    medium: 'Speak at a measured, natural documentary narration speed.',
+    fast: 'Speak at a brisk, dynamic pace while keeping every word clear.',
+  };
+
+  const langInstr = languageInstructions[language] || languageInstructions['es-la'];
+  const speedInstr = speedDescriptions[speed] || speedDescriptions.medium;
+  const styleInstr = customStyleDescription || styleDescriptions[style] || styleDescriptions.dramatic;
+
+  // ElevenLabs direct path if configured and selected
+  const elevenVoices: Record<string, string> = {
+    Adam: 'pNInz6obpg7ANgmeW148', Antoni: 'ErXwobaYiN019vkySvjV', Bella: 'EXAVITQu4vr4xnSDxMaL',
+    Domi: 'AZnzlk1XvdvUeBnXmlld', Grace: 'oWA07Hg9P7m8COV6hTh7', Michael: 'flq6f7yk4E4fJM5XTYuz',
+    Rachel: '21m00Tcm4TlvDq8ikWAM', Serena: 'pMs2g854xbocwMw7G8S4',
+  };
+  if (elevenVoices[voice] && process.env.ELEVENLABS_API_KEY) {
+    try {
+      const resEl = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${elevenVoices[voice]}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: { stability: 0.55, similarity_boost: 0.78 },
+        }),
+      });
+      if (resEl.ok) {
+        const ab = await resEl.arrayBuffer();
+        return { buffer: Buffer.from(ab), providerUsed: 'ElevenLabs API' };
+      }
+    } catch (e) {
+      console.warn('ElevenLabs fallback to Gemini:', e);
+    }
+  }
+
+  if (!ai) {
+    throw new Error('Configura tu Gemini API Key en el botón de llave superior para sintetizar voz.');
+  }
+
+  const fullPrompt = `[DIRECTOR_INSTRUCTION]
+Vocal Character Profile: "${voice}" (Physical base "${physicalVoice}")
+Mood, Emotion & Delivery: ${styleInstr} ${consistencyMode ? 'Maintain strict vocal consistency and uniform documentary pitch.' : ''}
+Vocal Speed: ${speedInstr}
+Accent & Language Vibe: ${langInstr}
+
+ACTOR INSTRUCTION: Deliver the exact text inside [TEXT] once from beginning to end. Never repeat sentences, never read markup tags or brackets.
+
+[TEXT]
+${cleanText}`;
+
+  // Usar EXCLUSIVAMENTE el último modelo TTS oficial (gemini-3.8-flash-tts) sin caer en modelos anteriores
+  const targetModel = 'gemini-3.8-flash-tts';
+  let generation: any = null;
+  let lastErr: any = null;
+  let usedModel = '';
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      generation = await ai.models.generateContent({
+        model: targetModel,
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: physicalVoice as any },
+            },
+          },
+        },
+      });
+      if (generation?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+        const rawData = generation.candidates[0].content.parts[0].inlineData.data;
+        const tempBuffer = Buffer.from(rawData, 'base64');
+        const tempSec = tempBuffer.length / 48000;
+        const wCount = cleanText.split(/\s+/).filter(Boolean).length;
+        const expectedSec = wCount / 2.0;
+
+        if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 3) {
+          console.warn(
+            `[Gemini TTS] Posible duplicación detectada en ${targetModel} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando con ${targetModel}...`
+          );
+          await new Promise((r) => setTimeout(r, 800));
+          continue;
+        }
+
+        usedModel = targetModel;
+        break;
+      }
+    } catch (e: any) {
+      lastErr = e;
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      break;
+    }
+  }
+
+  const base64Audio = generation?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!base64Audio) {
+    throw new Error(`Error al sintetizar audio con ${targetModel}: ${lastErr?.message || 'Sin datos de audio'}`);
+  }
+
+  const rawPcmBuffer = Buffer.from(base64Audio, 'base64');
+  const buffer =
+    rawPcmBuffer.length >= 12 &&
+    rawPcmBuffer.toString('binary', 0, 4) === 'RIFF' &&
+    rawPcmBuffer.toString('binary', 8, 12) === 'WAVE'
+      ? rawPcmBuffer
+      : pcmToWav(rawPcmBuffer, 24000);
+
+  return {
+    buffer,
+    providerUsed: 'Gemini 3.8 Flash TTS',
+  };
+}
+
+function convertWavToMp3(wavPath: string, mp3Path: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const ffmpegBin = getFfmpegPath();
+    exec(`"${ffmpegBin}" -y -i "${wavPath}" -codec:a libmp3lame -b:a 192k "${mp3Path}"`, (err) => {
+      resolve(!err && fs.existsSync(mp3Path));
+    });
+  });
+}
+
+app.post('/api/tts', async (req, res) => {
+  try {
+    const {
+      text,
+      voice = 'Charon',
+      style = 'dramatic',
+      speed = 'medium',
+      language = 'es-la',
+      consistencyMode = true,
+      label = '',
+      customStyleDescription,
+    } = req.body;
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      res.status(400).json({ error: 'El texto del guion es requerido para generar la locución.' });
+      return;
+    }
+
+    const segments = parseTextWithPauses(text);
+    const hasPauses = segments.some((s) => s.type === 'pause');
+
+    let buffer: Buffer;
+    let providerUsed = 'Gemini TTS';
+
+    if (!hasPauses) {
+      const result = await synthesizeSpeechCore({
+        text,
+        voice,
+        style,
+        speed,
+        language,
+        consistencyMode,
+        customStyleDescription,
+      });
+      buffer = result.buffer;
+      providerUsed = result.providerUsed;
+    } else {
+      const pauseCount = segments.filter((s) => s.type === 'pause').length;
+      const totalPauseSec = segments
+        .filter((s) => s.type === 'pause')
+        .reduce((acc, s) => acc + (s.duration || 0), 0);
+      console.log(
+        `[TTS Pauses] Detectadas ${pauseCount} pausas (${totalPauseSec.toFixed(1)}s totales). Sintetizando segmentos con silencios PCM exactos...`
+      );
+      const pcmBuffers: Buffer[] = [];
+      for (const seg of segments) {
+        if (seg.type === 'pause' && seg.duration) {
+          const pauseSamples = Math.round(24000 * seg.duration);
+          pcmBuffers.push(Buffer.alloc(pauseSamples * 2));
+        } else if (seg.type === 'text' && seg.text) {
+          const result = await synthesizeSpeechCore({
+            text: seg.text,
+            voice,
+            style,
+            speed,
+            language,
+            consistencyMode,
+            customStyleDescription,
+          });
+          providerUsed = result.providerUsed;
+          const pcm = extractPcmFromWav(result.buffer);
+          pcmBuffers.push(applyMicroFade(pcm, 240));
+        }
+      }
+      buffer = pcmToWav(Buffer.concat(pcmBuffers), 24000);
+      providerUsed = `${providerUsed} (${pauseCount} Pausas · ${totalPauseSec.toFixed(1)}s)`;
+    }
+
+    const wordCount = text
+      .replace(new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi'), '')
+      .split(/\s+/)
+      .filter(Boolean).length;
+    const fileId = `tts-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const wavFilename = `${fileId}.wav`;
+    const mp3Filename = `${fileId}.mp3`;
+    const localWavPath = path.join(TTS_DIR, wavFilename);
+    const localMp3Path = path.join(TTS_DIR, mp3Filename);
+    fs.writeFileSync(localWavPath, buffer);
+
+    const mp3Success = await convertWavToMp3(localWavPath, localMp3Path);
+    const filename = mp3Success ? mp3Filename : wavFilename;
+
+    const actualDuration = getAudioDurationInSeconds(buffer);
+    const newRecord = {
+      id: fileId,
+      label: label || `Locución (${voice})`,
+      text,
+      voice,
+      style,
+      speed,
+      language,
+      consistencyMode,
+      filename,
+      audioUrl: `/tts-files/${filename}`,
+      createdAt: new Date().toISOString(),
+      storageMode: 'local',
+      wordCount,
+      duration: actualDuration,
+      providerUsed,
+    };
+
+    res.json(newRecord);
+  } catch (error: any) {
+    console.error('Error en /api/tts:', error);
+    res.status(500).json({ error: error.message || 'Error interno al sintetizar locución.' });
+  }
+});
+
+// Merge multiple TTS tracks into a single Master Narration MP3
+app.post('/api/tts/merge', async (req, res) => {
+  try {
+    const { filenames, text, voice, style, speed, language, label } = req.body;
+    if (!Array.isArray(filenames) || filenames.length === 0) {
+      res.status(400).json({ error: 'Selecciona al menos 2 pistas para fusionar.' });
+      return;
+    }
+    const pcmBuffers: Buffer[] = [];
+    for (const name of filenames) {
+      const safeName = path.basename(name);
+      const baseWithoutExt = safeName.replace(/\.(?:wav|mp3)$/i, '');
+      const wavCandidate = path.join(TTS_DIR, `${baseWithoutExt}.wav`);
+      const exactCandidate = path.join(TTS_DIR, safeName);
+      const targetWavPath = fs.existsSync(wavCandidate) ? wavCandidate : exactCandidate;
+      if (!fs.existsSync(targetWavPath)) {
+        res.status(404).json({ error: `Archivo no encontrado: ${safeName}` });
+        return;
+      }
+      pcmBuffers.push(extractPcmFromWav(fs.readFileSync(targetWavPath)));
+    }
+
+    const pauseSamples = Math.round(24000 * 0.25);
+    const silenceBuffer = Buffer.alloc(pauseSamples * 2);
+    const combinedChunks: Buffer[] = [];
+    pcmBuffers.forEach((b, idx) => {
+      combinedChunks.push(applyMicroFade(b, 240));
+      if (idx < pcmBuffers.length - 1) combinedChunks.push(silenceBuffer);
+    });
+
+    const combinedWav = pcmToWav(Buffer.concat(combinedChunks), 24000);
+    const fileId = `tts-master-${Date.now()}`;
+    const wavFilename = `${fileId}.wav`;
+    const mp3Filename = `${fileId}.mp3`;
+    const localWavPath = path.join(TTS_DIR, wavFilename);
+    const localMp3Path = path.join(TTS_DIR, mp3Filename);
+    fs.writeFileSync(localWavPath, combinedWav);
+
+    const mp3Success = await convertWavToMp3(localWavPath, localMp3Path);
+    const filename = mp3Success ? mp3Filename : wavFilename;
+
+    const duration = getAudioDurationInSeconds(combinedWav);
+    res.json({
+      id: fileId,
+      label: label || 'Voz Narrativa Video',
+      text: text || 'Audio Maestro Fusionado',
+      voice: voice || 'Charon',
+      style: style || 'dramatic',
+      speed: speed || 'medium',
+      language: language || 'es-la',
+      filename,
+      audioUrl: `/tts-files/${filename}`,
+      createdAt: new Date().toISOString(),
+      storageMode: 'local',
+      wordCount: (text || '').split(/\s+/).filter(Boolean).length,
+      duration,
+      providerUsed: 'VoxFlow Master Merge',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error al fusionar audios.' });
+  }
+});
+
+// Download any TTS voiceover track guaranteed in MP3 format
+app.get('/api/tts/download-mp3', async (req, res) => {
+  try {
+    const rawFile = String(req.query.file || '').trim();
+    const rawDownloadName = String(req.query.name || 'Voz Narrativa Video.mp3').trim();
+    if (!rawFile) {
+      res.status(400).json({ error: 'Se requiere el parámetro file.' });
+      return;
+    }
+
+    const safeBase = path.basename(rawFile).replace(/\.(?:wav|mp3)$/i, '');
+    const mp3Path = path.join(TTS_DIR, `${safeBase}.mp3`);
+    const wavPath = path.join(TTS_DIR, `${safeBase}.wav`);
+
+    if (!fs.existsSync(mp3Path)) {
+      if (!fs.existsSync(wavPath)) {
+        res.status(404).json({ error: 'El archivo de audio no existe en el servidor.' });
+        return;
+      }
+      const converted = await convertWavToMp3(wavPath, mp3Path);
+      if (!converted || !fs.existsSync(mp3Path)) {
+        res.status(500).json({ error: 'No se pudo convertir el audio a MP3.' });
+        return;
+      }
+    }
+
+    const finalDownloadName = rawDownloadName.toLowerCase().endsWith('.mp3')
+      ? rawDownloadName
+      : `${rawDownloadName.replace(/\.wav$/i, '')}.mp3`;
+
+    res.download(mp3Path, finalDownloadName);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error al descargar el audio en MP3.' });
+  }
+});
+
+// ============================================================================
+// NARRATION TIMELINE EXTRACTOR ENGINE INTEGRATED
+// ============================================================================
+const chunkUpload = multer({
+  dest: CHUNK_DIR,
+  limits: { fileSize: 150 * 1024 * 1024 },
+});
+
+app.post('/api/upload-chunk', chunkUpload.single('chunk'), (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks } = req.body;
+    if (!uploadId || !req.file) {
+      res.status(400).json({ error: 'Falta uploadId o archivo chunk.' });
+      return;
+    }
+    const finalFilePath = path.join(CHUNK_DIR, `${path.basename(uploadId)}`);
+    const chunkData = fs.readFileSync(req.file.path);
+    fs.appendFileSync(finalFilePath, chunkData);
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, uploadedChunk: chunkIndex, totalChunks });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error al subir chunk: ' + err.message });
+  }
+});
+
+function convertToLinear16Raw(inputPath: string, outputPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const ffmpegBin = getFfmpegPath();
+    exec(`"${ffmpegBin}" -y -i "${inputPath}" -ar 16000 -ac 1 -f s16le -c:a pcm_s16le "${outputPath}"`, (err) => {
+      resolve(!err);
+    });
+  });
+}
+
+function parseTimeString(timeObj: any): number {
+  if (timeObj == null) return 0;
+  if (typeof timeObj === 'number') return timeObj;
+  if (typeof timeObj === 'string') return parseFloat(timeObj.replace('s', ''));
+  let sec = 0;
+  if (timeObj.seconds !== undefined && timeObj.seconds !== null) {
+    if (typeof timeObj.seconds === 'number') sec = timeObj.seconds;
+    else if (typeof timeObj.seconds === 'string') sec = parseInt(timeObj.seconds, 10);
+    else if (timeObj.seconds.low !== undefined) sec = timeObj.seconds.low;
+  }
+  let nanos = 0;
+  if (timeObj.nanos !== undefined && timeObj.nanos !== null) {
+    if (typeof timeObj.nanos === 'number') nanos = timeObj.nanos;
+    else if (typeof timeObj.nanos === 'string') nanos = parseInt(timeObj.nanos, 10);
+    else if (timeObj.nanos.low !== undefined) nanos = timeObj.nanos.low;
+  }
+  const result = sec + nanos / 1e9;
+  return isNaN(result) ? 0 : result;
+}
+
+function splitSegmentsIntoInterval(segments: any[], interval: number): any[] {
+  if (segments.length === 0) return [];
+  interface WordEstimate {
+    text: string;
+    start: number;
+    end: number;
+  }
+  const wordsList: WordEstimate[] = [];
+  for (const seg of segments) {
+    if (seg.words && seg.words.length > 0) {
+      seg.words.forEach((w: any) => {
+        wordsList.push({ text: w.word, start: w.start, end: w.end });
+      });
+    } else {
+      const rawWords = seg.text.trim().split(/\s+/).filter(Boolean);
+      if (rawWords.length === 0) continue;
+      const duration = seg.end - seg.start;
+      const avgDuration = duration > 0 ? duration / rawWords.length : 1 / rawWords.length;
+      rawWords.forEach((wordText: string, idx: number) => {
+        wordsList.push({
+          text: wordText,
+          start: seg.start + idx * avgDuration,
+          end: seg.start + (idx + 1) * avgDuration,
+        });
+      });
+    }
+  }
+  if (wordsList.length === 0) return [];
+
+  const resultChunks: any[] = [];
+  let firstWordChunkIdx = Math.floor(wordsList[0].start / interval);
+  if (wordsList[0].end > (firstWordChunkIdx + 1) * interval) {
+    firstWordChunkIdx = Math.floor(wordsList[0].end / interval);
+  }
+  let chunkIndex = firstWordChunkIdx;
+  let currentWords: string[] = [];
+
+  wordsList.forEach((word) => {
+    let wordChunkIdx = Math.floor(word.start / interval);
+    const targetBoundary = (wordChunkIdx + 1) * interval;
+    if (word.end > targetBoundary) {
+      wordChunkIdx = Math.floor(word.end / interval);
+    }
+    if (wordChunkIdx > chunkIndex && currentWords.length > 0) {
+      resultChunks.push({
+        index: resultChunks.length + 1,
+        start: chunkIndex * interval,
+        end: (chunkIndex + 1) * interval,
+        text: currentWords.join(' '),
+      });
+      currentWords = [];
+      chunkIndex = wordChunkIdx;
+    }
+    if (currentWords.length === 0) {
+      chunkIndex = wordChunkIdx;
+    }
+    currentWords.push(word.text);
+  });
+
+  if (currentWords.length > 0) {
+    resultChunks.push({
+      index: resultChunks.length + 1,
+      start: chunkIndex * interval,
+      end: (chunkIndex + 1) * interval,
+      text: currentWords.join(' '),
+    });
+  }
+  return resultChunks;
+}
+
+async function runTranscriptionOnFile(
+  sourcePath: string,
+  originalName: string,
+  options: {
+    language?: string;
+    customLanguage?: string;
+    sentenceMode?: string;
+    preservePunctuation?: boolean;
+  }
+) {
+  const { language = 'es', customLanguage = '', sentenceMode = 'split-10-seconds', preservePunctuation = true } = options;
+  const convertedRawPath = `${sourcePath}.raw`;
+
+  try {
+    const success = await convertToLinear16Raw(sourcePath, convertedRawPath);
+    if (!success || !fs.existsSync(convertedRawPath)) {
+      throw new Error('FFmpeg no pudo convertir el archivo de audio a PCM 16kHz.');
+    }
+
+    const audioBuffer = fs.readFileSync(convertedRawPath);
+    const durationSeconds = audioBuffer.length / 32000;
+
+    let languageCode = 'es-ES';
+    if (language === 'en') languageCode = 'en-US';
+    else if (language === 'custom' && customLanguage) languageCode = customLanguage;
+
+    let speechClient: any = null;
+    try {
+      const defaultJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+      if (defaultJson) {
+        const credentials = JSON.parse(defaultJson);
+        speechClient = new speech.SpeechClient({ credentials, fallback: 'rest' });
+      } else {
+        const apiKey = process.env.GCP_API_KEY || process.env.GOOGLE_CLOUD_API_KEY || getSavedGeminiKey();
+        speechClient = apiKey
+          ? new speech.SpeechClient({ apiKey, fallback: 'rest' })
+          : new speech.SpeechClient();
+      }
+    } catch (e) {
+      console.warn('SpeechClient init warning:', e);
+    }
+
+    const audioConfig: any = {
+      encoding: 'LINEAR16',
+      sampleRateHertz: 16000,
+      languageCode,
+      enableWordTimeOffsets: true,
+      enableAutomaticPunctuation: preservePunctuation !== false,
+    };
+
+    const CHUNK_DURATION_SEC = 12;
+    const OVERLAP_SEC = 2;
+    const STEP_SEC = CHUNK_DURATION_SEC - OVERLAP_SEC;
+    const BYTES_PER_SEC = 32000;
+    const STEP_BYTES = STEP_SEC * BYTES_PER_SEC;
+    const CHUNK_SIZE_BYTES = CHUNK_DURATION_SEC * BYTES_PER_SEC;
+
+    const chunksCount = Math.ceil(audioBuffer.length / STEP_BYTES);
+    const sentences: any[] = [];
+    let sentenceIndex = 1;
+
+    for (let i = 0; i < chunksCount; i++) {
+      const startByte = i * STEP_BYTES;
+      const endByte = Math.min(startByte + CHUNK_SIZE_BYTES, audioBuffer.length);
+      const chunkBuffer = audioBuffer.subarray(startByte, endByte);
+      const audioContent = chunkBuffer.toString('base64');
+      const chunkTimeOffset = i * STEP_SEC;
+
+      let textResponse: any = null;
+      if (speechClient) {
+        const [response] = await speechClient.recognize({
+          config: audioConfig,
+          audio: { content: audioContent },
+        });
+        textResponse = response;
+      }
+
+      if (textResponse && textResponse.results) {
+        for (const result of textResponse.results) {
+          if (result.alternatives && result.alternatives.length > 0) {
+            const alternative = result.alternatives[0];
+            const words = alternative.words || [];
+            let startSeconds = chunkTimeOffset;
+            let endSeconds = chunkTimeOffset + 5;
+            let validWords: any[] = [];
+            let transcriptText = '';
+            const isLastChunk = i === chunksCount - 1;
+
+            if (words.length > 0) {
+              validWords = words.filter((w: any) => {
+                const wStart = parseTimeString(w.startTime) + chunkTimeOffset;
+                return isLastChunk || wStart < chunkTimeOffset + STEP_SEC;
+              });
+              if (validWords.length === 0) continue;
+              transcriptText = validWords.map((w: any) => w.word).join(' ');
+              startSeconds = parseTimeString(validWords[0].startTime) + chunkTimeOffset;
+              endSeconds = parseTimeString(validWords[validWords.length - 1].endTime) + chunkTimeOffset;
+            } else {
+              transcriptText = alternative.transcript ? alternative.transcript.trim() : '';
+              if (!transcriptText) continue;
+            }
+
+            sentences.push({
+              index: sentenceIndex++,
+              start: Number(startSeconds),
+              end: Number(endSeconds),
+              text: transcriptText,
+              words: validWords.map((w: any) => ({
+                word: w.word,
+                start: parseTimeString(w.startTime) + chunkTimeOffset,
+                end: parseTimeString(w.endTime) + chunkTimeOffset,
+              })),
+            });
+          }
+        }
+      }
+    }
+
+    let finalSentences = sentences;
+    if (sentenceMode === 'split-10-seconds') {
+      finalSentences = splitSegmentsIntoInterval(sentences, 10);
+    } else if (sentenceMode === 'split-8-seconds') {
+      finalSentences = splitSegmentsIntoInterval(sentences, 8);
+    } else if (sentenceMode === 'split-4-seconds') {
+      finalSentences = splitSegmentsIntoInterval(sentences, 4);
+    }
+
+    return {
+      file_name: originalName,
+      duration_seconds: durationSeconds,
+      language: languageCode,
+      sentences: finalSentences,
+    };
+  } finally {
+    if (fs.existsSync(convertedRawPath)) {
+      try {
+        fs.unlinkSync(convertedRawPath);
+      } catch {}
+    }
+  }
+}
+
+app.post('/api/transcribe-process', async (req, res) => {
+  const { uploadId, originalName, language, customLanguage, sentenceMode, preservePunctuation } = req.body;
+  if (!uploadId) {
+    res.status(400).json({ error: 'Falta uploadId' });
+    return;
+  }
+  const sourcePath = path.join(CHUNK_DIR, `${path.basename(uploadId)}`);
+  if (!fs.existsSync(sourcePath)) {
+    res.status(404).json({ error: 'Archivo subido no encontrado.' });
+    return;
+  }
+  try {
+    const result = await runTranscriptionOnFile(sourcePath, originalName || 'audio.wav', {
+      language,
+      customLanguage,
+      sentenceMode,
+      preservePunctuation,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error al extraer el timeline.' });
+  } finally {
+    if (fs.existsSync(sourcePath)) {
+      try {
+        fs.unlinkSync(sourcePath);
+      } catch {}
+    }
+  }
+});
+
+// Direct 1-click timeline extraction from any audio track generated in VoxFlow!
+app.post('/api/transcribe-tts-file', async (req, res) => {
+  const { filename, language = 'es', sentenceMode = 'split-10-seconds', preservePunctuation = true } = req.body;
+  if (!filename) {
+    res.status(400).json({ error: 'Se requiere el nombre del archivo de audio de VoxFlow.' });
+    return;
+  }
+  const safeName = path.basename(filename);
+  const sourcePath = path.join(TTS_DIR, safeName);
+  if (!fs.existsSync(sourcePath)) {
+    res.status(404).json({ error: 'El archivo de audio no existe en la biblioteca local.' });
+    return;
+  }
+  try {
+    const result = await runTranscriptionOnFile(sourcePath, safeName, {
+      language,
+      sentenceMode,
+      preservePunctuation,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error al extraer el timeline desde el audio de VoxFlow.' });
+  }
+});
+
+// ============================================================================
+// HYBRID AI COPILOT FOR ANY DOCUMENTARY STAGE (/api/ai/generate-stage)
+// ============================================================================
+app.post('/api/ai/generate-stage', async (req, res) => {
+  try {
+    const { stageNumber, documentary, customInstruction } = req.body;
+    const ai = getGeminiClient();
+    if (!ai) {
+      res.status(400).json({
+        error: 'No hay Gemini API Key activa. Configúrala en el botón de llave superior.',
+      });
+      return;
+    }
+
+    const doc = documentary || {};
+    const clipDurationLabel = doc.clipDurationMode === '8_SEGUNDOS' ? '8 segundos' : '10 segundos';
+    const is16x9 = doc.productionType === 'DOCUMENTAL_16X9' || doc.productionType === 'NOTEBOOKLM';
+    const c1Dur = Number(doc.clip1DurationSeconds) || (doc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4);
+    const voiceEntrySec = c1Dur + 2;
+    const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
+    const youtubeViralLink = (doc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+    const viralContextBlock = youtubeViralLink
+      ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n`
+      : '';
+
+    let stagePrompt = '';
+    if (stageNumber === 2 || stageNumber === 3) {
+      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".${viralContextBlock}
+Tema del documental: ${doc.topic || doc.title || 'Por definir'}
+Tipología: ${doc.typology || 'Suceso histórico'}
+Tiempo histórico: ${doc.historicalTime || 'Por definir'}
+Lugar histórico: ${doc.historicalLocation || 'Por definir'}
+Duración aproximada objetivo: ~${doc.targetDurationSeconds || 120} segundos (la duración total no tiene que ser exacta al segundo, sino aproximada a la pedida).
+
+Genera la ETAPA 3 completa:
+1. Recuento estructural de secciones cronológicas del documental.
+2. Datos insólitos, curiosidades verificadas y contradicciones históricas centrales.
+3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM).`;
+    } else if (stageNumber === 4) {
+      const targetChars = Math.round(((doc.targetDurationSeconds || 120) - voiceEntrySec) * 13.5);
+      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
+Estructura e Investigación previa:
+${doc.sectionsStructure || ''}
+${doc.deepResearchResult || ''}
+
+Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
+- Sincronización de Entrada de Voz: ${
+        doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+          ? `El Clip 1 dura ${c1Dur}s (00:00 - 00:0${c1Dur}) sin voz y los primeros 2s del Clip 2 (00:0${c1Dur} - 00:0${voiceEntrySec}) tampoco llevan voz; por lo tanto, los primeros ${voiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${voiceEntrySec} del video (que es el segundo 2 del segundo clip).`
+          : `El Clip 1 de ${c1Dur}s se ralentiza en edición a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec}) sin voz; la voz narrativa entra en el segundo ${voiceEntrySec} del video (al inicio del Clip 2).`
+      }
+- La duración total del guion NO tiene que ser exacta al segundo, sino APROXIMADA a la duración pedida (~${doc.targetDurationSeconds || 120}s).
+- Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
+- Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
+- Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
+- Si es documental largo, incluye antes del segundo 30 el slogan en párrafo aparte y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
+- Extensión aproximada calibrada: ~${targetChars} caracteres.`;
+    } else if (stageNumber === 5) {
+      stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
+Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
+"""
+${doc.voiceoverScript || doc.sectionsStructure || ''}
+"""
+Genera la ETAPA 5: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
+- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
+- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
+    } else if (stageNumber === 6) {
+      stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
+Título del video: ${doc.title || ''}
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
+Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
+Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
+Línea 2: [Título Gancho intrigante y cinematográfico]
+REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura.`;
+    } else if (stageNumber === 7) {
+      const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
+      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
+Genera la ETAPA 7: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
+Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
+Sincronización de Clip 1 y Entrada de Voz: ${
+        doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+          ? `Clip 1 de 00:00 a 00:0${c1Dur} (${c1Dur}s sin voz). Clip 2 comienza en 00:0${clip2StartSec} y la voz narrativa entra en el segundo ${voiceEntrySec} del video (segundo 2 del Clip 2).`
+          : `Clip 1 creado de ${c1Dur}s y ralentizado en CapCut a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec} sin voz). Clip 2 comienza en 00:0${clip2StartSec} con la entrada de la voz.`
+      }
+Regla de Duración Aproximada: La duración total del video es aproximada a la pedida (~${doc.targetDurationSeconds || 120}s); todos los clips del 2 al final mantienen su duración estándar de ${clipDurationLabel} sin forzar micro-clips de relleno de 2s o 4s al final.
+Texto en pantalla Clip 1: ${doc.clip1Line1LocationTime} — ${doc.clip1Line2Hook}
+Referencias creadas: ${(doc.references || []).map((r: any) => r.tag).join(', ')}
+
+Timeline de la Voz Narrativa:
+"""
+${doc.timelineFormattedText || doc.voiceoverScript || ''}
+"""
+
+OBLIGACIÓN INQUEBRANTABLE DEL PÁRRAFO INICIAL DE 9 LÍNEAS:
+Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas (sin omitir ninguna línea) antes de "Image 1: Create an image":
+${opHeader}
+
+Inmediatamente después del párrafo inicial de 9 líneas, entrega cada Clip (empezando por Clip 1 sin voz narrativa, y luego Clip 2 en adelante siguiendo el timeline) cumpliendo esta REGLA INQUEBRANTABLE DE SIMPLICIDAD Y PRECISIÓN (para evitar que la IA de video cometa errores, deformaciones o alucinaciones):
+- Image [N]: Concisa, directa y clara (~20 a 35 palabras), describiendo únicamente el sujeto/escena principal, época y lugar (${doc.historicalTime}, ${doc.historicalLocation}), e iluminación, cerrando con "cinematic lighting, historical accuracy, no text."
+- Clip [N] ([MM:SS - MM:SS]): Como la IA de video ya usa Image [N] como primer fotograma, NO repitas toda la descripción de vestuario o arquitectura. Describe en UNA SOLA ORACIÓN SIMPLE Y DIRECTA (~12 a 22 palabras) únicamente UN movimiento de cámara suave (ej. slow zoom-in, panning slowly, gliding slowly, slow tilt-up) y UNA micro-acción física natural sobre la imagen inicial, seguido de "Ambient Foley: [2-3 sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text." ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? 'seguido de la oración de la voz narrativa correspondiente y' : 'y'} cerrando con "fix the name".
+
+Formato exacto de ejemplo:
+Image [N]: Create an image of [escena clara con época y lugar], cinematic lighting, historical accuracy, no text.
+
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
+    } else if (stageNumber === 9) {
+      stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
+Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+
+Genera la ETAPA 9: BANDA SONORA PARA SUNO cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
+1. Límites de Suno: mínimo 1:00 min y máximo 6:00 min por pista.
+2. SILENCIOS OBLIGATORIOS ENTRE CADA CANCIÓN:
+   - Queda terminantemente prohibido pegar una canción inmediatamente después de otra sin descanso.
+   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical (de unos 10 a 20 segundos sin música, donde el video queda solo con la voz narrativa y el Foley ambiental).
+   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito ese espacio de silencio entre canción y canción (ej. si Canción 1 cubre 00:00 - 04:45, deja silencio de 04:45 - 05:00 y Canción 2 inicia en 05:00).
+3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (01:30):
+   - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (1 minuto y 30 segundos), cubriendo exactamente el último minuto y medio del video hasta el segundo final (${doc.confirmedFinalDuration || '02:00'}).
+4. Entrega cada canción con los 6 campos exactos en este orden:
+1. Título: [Título]
+2. Duración: [Duración exacta en Suno; la última canción OBLIGATORIAMENTE 1:30]
+3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (indicando el silencio musical antes de la siguiente canción)]
+4. Prompt de Lyrics: [Metatags instrumentales en corchetes sin voz]
+5. Prompt de Style: [Prompt técnico 100% en inglés para Suno con instrumentos auténticos de la época, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
+6. Explicación de la Canción: [Explicación de cómo suena, instrumentos e intención dramática]`;
+    } else if (stageNumber === 101) {
+      stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
+Título del video: ${doc.title || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+
+TAREA OBLIGATORIA:
+Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial del video.
+REGLAS INQUEBRANTABLES:
+1. Cada opción debe tener estrictamente de 1 a 3 palabras contundentes en ESPAÑOL y en MAYÚSCULAS (ejemplo: EL PACTO OCULTO, TRAICIÓN REAL, LA NOCHE FINAL).
+2. PROHIBICIÓN ESTRICTA DE REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS: Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura, el Título del video ("${doc.title || ''}") y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"). Cada opción debe ser completamente distinta y complementarlos psicológicamente sin repetir lo mismo.
+3. Entrega ÚNICAMENTE las 3 opciones, una por línea, sin numeración, sin viñetas, sin comillas y sin explicaciones adicionales.`;
+    } else if (stageNumber === 10) {
+      const thumbOrientation =
+        doc.thumbnailOrientation ||
+        (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
+      const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
+      const overlayText = (doc.thumbnailTextOverlay || '').trim();
+      if (!overlayText) {
+        res.status(400).json({
+          error:
+            'Antes de generar el prompt de la miniatura, es obligatorio proveer el Texto en Pantalla en la imagen.',
+        });
+        return;
+      }
+      stagePrompt = `Actúa como diseñador de miniaturas cinematográficas de alto CTR para "Huellas de la Humanidad".
+Tema del episodio: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+Orientación seleccionada: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
+Texto en pantalla obligatorio proporcionado por el director: "${overlayText}"
+
+REGLAS OBLIGATORIAS E INQUEBRANTABLES DEL PROMPT EN INGLÉS (NANO BANANA 2.1):
+1. El prompt debe redactarse 100% en inglés (excepto el texto en pantalla "${overlayText}" y el nombre del logo "Huellas de la Humanidad") e iniciar con: "Thumbnail: Create an image "
+2. Relación de aspecto: ${
+        isThumbHorizontal
+          ? '16:9 horizontal aspect ratio'
+          : '9:16 vertical aspect ratio'
+      }
+3. Escena histórica de alto impacto psicológico y contradicción visual, anclando época y lugar, con personaje principal expresivo e iluminación dramática de claroscuro.
+4. POSICIÓN Y TEXTO EN PANTALLA OBLIGATORIO:
+   ${
+     isThumbHorizontal
+       ? `Al ser HORIZONTAL (16:9), el texto en pantalla "${overlayText}" debe ir OBLIGATORIAMENTE ABAJO A LA IZQUIERDA: incluye textualmente 'bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image reading "${overlayText}"'.`
+       : `Al ser VERTICAL (9:16), el texto en pantalla "${overlayText}" debe ir OBLIGATORIAMENTE CENTRADO Y JUSTIFICADO EN EL MEDIO DE LA IMAGEN: incluye textualmente 'bold high-contrast cinematic documentary typography text overlay centered and middle-justified right in the middle center of the image reading "${overlayText}"'.`
+   }
+5. LOGO SUPERIOR DERECHO AL 5% EN DORADO:
+   ${
+     isThumbHorizontal
+       ? `Al ser HORIZONTAL (16:9), el logo superior derecho es "8K": incluye textualmente 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold'.`
+       : `Al ser VERTICAL (9:16), el logo superior derecho es "HD": incluye textualmente 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'.`
+   }
+6. LOGO OFICIAL SUPERIOR IZQUIERDO AL 5% (IMAGEN DE REFERENCIA):
+   Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
+7. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
+Entrega únicamente el prompt listo para copiar y pegar.`;
+    } else if (stageNumber === 11 || stageNumber === 111) {
+      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
+Plataforma: YOUTUBE
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 1500)}
+
+Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
+1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
+2. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
+3. REGLA INQUEBRANTABLE DE NO REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS:
+   - Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura ("${doc.thumbnailTextOverlay || ''}"), el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}").
+   - El Título directo (con años en dígitos y siglos/nombres con número en números romanos) debe ser completamente distinto a la Miniatura y al Texto en pantalla de los primeros ${voiceEntrySec} segundos.
+4. LIBERTAD EN EL RESTO DE LA METADATA Y DESCRIPCIÓN EN 3 PÁRRAFOS:
+   - En lo demás de la metadata (los 3 párrafos de la descripción, capítulos, etc.) NO importa que se repitan algunas palabras del guion o del tema.
+   - La descripción debe estar dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
+5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
+6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno (concluyendo aquí el bloque para copiar directo en la descripción de YouTube, ya que los Tags y el Comentario Fijado tienen sus propias secciones dedicadas).`;
+    } else if (stageNumber === 112) {
+      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
+Plataforma: FACEBOOK
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 1500)}
+
+Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
+1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:").
+2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
+3. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
+4. REGLA INQUEBRANTABLE DE NO REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS:
+   - Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura ("${doc.thumbnailTextOverlay || ''}"), el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}").
+   - El Título directo (con años en dígitos y siglos/nombres con número en números romanos) debe ser completamente distinto a la Miniatura y al Texto en pantalla de los primeros ${voiceEntrySec} segundos.
+5. LIBERTAD EN EL RESTO DE LA METADATA Y DESCRIPCIÓN EN 3 PÁRRAFOS:
+   - En lo demás de la metadata (los 3 párrafos de la descripción, etc.) NO importa que se repitan algunas palabras del guion o del tema.
+   - La descripción debe estar dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
+6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno (concluyendo aquí el bloque para copiar directo en Facebook, ya que el Comentario Fijado tiene su propia sección dedicada).`;
+    } else if (stageNumber === 113) {
+      stagePrompt = `Actúa como estratega de comunidad y retención de "Huellas de la Humanidad".
+Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+
+Genera EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO cumpliendo estas reglas inquebrantables:
+1. Entrega el texto directo sin ningún encabezado ni etiqueta (prohibido poner "Comentario Fijado:" o comillas).
+2. Formula una reflexión histórica magnética seguida de un llamado a la acción (CTA) natural que invite a la audiencia a debatir, opinar o compartir una experiencia/vivencia vinculada al hecho histórico.
+3. Queda terminantemente prohibido pedir genéricamente "dale like" o "suscríbete", y prohibido usar signos de exclamación (!).
+4. Escribe todos los años en dígitos y los siglos/nombres con número en números romanos.`;
+    } else if (stageNumber === 114) {
+      stagePrompt = `Actúa como especialista en SEO de YouTube para "Huellas de la Humanidad".
+Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+
+Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas inquebrantables:
+1. Entrega ÚNICAMENTE las etiquetas separadas por comas, en un solo bloque continuo, sin ningún encabezado (prohibido poner "Tags:" o "Tags SEO:").
+2. La longitud total del bloque debe ser de aproximadamente 460 a 500 caracteres contando espacios y comas (nunca superar los 500 caracteres).
+3. Incluye palabras clave de alto volumen de búsqueda en español sobre el tema histórico, personajes, época, lugar y documentales de historia.`;
+    }
+
+    if (customInstruction) {
+      stagePrompt += `\n\nInstrucción adicional del director: ${customInstruction}`;
+    }
+
+    const models = [
+      'gemini-3.1-pro-preview',
+      'gemini-3.6-flash',
+      'gemini-3-flash-preview',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+    ];
+    let outputText = '';
+    let lastError: any = null;
+
+    for (const m of models) {
+      try {
+        const resp = await ai.models.generateContent({
+          model: m,
+          contents: [{ role: 'user', parts: [{ text: stagePrompt }] }],
+        });
+        if (resp.text) {
+          outputText = resp.text;
+          break;
+        }
+      } catch (e: any) {
+        lastError = e;
+      }
+    }
+
+    if (!outputText) {
+      throw new Error(lastError?.message || 'No se pudo generar respuesta con Gemini.');
+    }
+
+    if (stageNumber === 7) {
+      outputText = ensureOperationalHeaderText(outputText, doc.operationalHeader);
+    }
+
+    res.json({ text: outputText });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error al generar etapa con IA.' });
+  }
+});
+
+// ============================================================================
+// AI PRODUCTION AUDITOR: VERIFY VOICEOVER vs CLIPS & SUGGEST IMPROVEMENTS
+// ============================================================================
+app.post('/api/ai/audit-clips', async (req, res) => {
+  try {
+    const { documentary } = req.body;
+    const ai = getGeminiClient();
+    if (!ai) {
+      res.status(400).json({
+        error: 'No hay Gemini API Key activa. Configúrala en el botón de llave superior.',
+      });
+      return;
+    }
+
+    const doc = documentary || {};
+    const clipsList = Array.isArray(doc.clips) ? doc.clips : [];
+    if (clipsList.length === 0) {
+      res.status(400).json({ error: 'No hay clips cargados para auditar.' });
+      return;
+    }
+
+    const includeVoiceInClips = doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR';
+
+    const auditPrompt = `Actúa como Director de Cine, Historiador y Supervisor de Continuidad de "Huellas de la Humanidad".
+Tu tarea es auditar la coherencia entre:
+1) La VOZ NARRATIVA RAW CON PAUSAS:
+"""
+${doc.voiceoverScript || ''}
+"""
+
+2) La VOZ NARRATIVA CON TIMESTAMPS (Narration Timeline Extractor):
+"""
+${doc.timelineFormattedText || ''}
+"""
+
+3) Los CLIPS ACTUALES DEL DOCUMENTAL (Tema: "${doc.topic || doc.title}", Época: "${doc.historicalTime}", Lugar: "${doc.historicalLocation}"):
+${JSON.stringify(
+  clipsList.map((c: any) => ({
+    clipNumber: c.clipNumber,
+    timeRange: c.timeRange,
+    narrationSegment: c.narrationSegment,
+    pauseNotes: c.pauseNotes,
+    imagePrompt: c.imagePrompt,
+    videoPrompt: c.videoPrompt,
+  })),
+  null,
+  2
+)}
+
+REGLAS DE AUDITORÍA CLIP POR CLIP:
+- Para el Clip 1 (00:00 - 00:04 / 00:06): Es el Hook visual sin voz narrativa, con audio Foley. Verifica que sea impactante y acorde al tema.
+- Para cada Clip del 2 en adelante:
+  1. Revisa si lo que describe el Prompt de Imagen Inicial (Image N) y el Prompt de Video (Clip N) HACE SENTIDO VISUAL Y NARRATIVO con lo que dice exactamente la voz narrativa ("narrationSegment") en ese intervalo de tiempo ("timeRange").
+  2. Si la voz narrativa habla de una cosa (ej. el interior de un laboratorio o un documento específico, o la mesa del historiador cuando dice el slogan inicial "En los próximos minutos...") pero el prompt del clip muestra otra cosa desconectada o repetitiva, márcalo como "mismatch" o "warning".
+  3. Revisa las pausas ([pausa: Xs]): Si a mitad del clip la voz narrativa hace una pausa y cambia a otra escena distinta, sugiere en "suggestedVideoPrompt" usar 2 shots de 5 segundos ("two-shot sequence of 5 seconds each: Shot 1 [0s-5s]...; Shot 2 [5s-10s]: clean cinematic cut at second 5 to..."). En caso contrario, mantén 1 solo shot continuo ("single continuous shot, strictly no shot changes").
+  4. Si el clip tiene prompts vacíos, sobrecargados o mejorables, redacta "suggestedImagePrompt" (iniciando con "Image [N]: Create an image of ...", conciso de ~20-35 palabras con época, lugar, sujeto claro y cerrando con "cinematic lighting, historical accuracy, no text.") y "suggestedVideoPrompt" (iniciando con "Clip [N] ([timeRange]): Create a video showing ...", manteniendo el prompt de video MUY SIMPLE Y DIRECTO: 1 sola oración corta con 1 movimiento de cámara + 1 micro-acción física sobre la imagen inicial para que la IA generadora de clips no cometa errores, seguido de "Ambient Foley: [2-3 sonidos], single continuous shot, strictly no shot changes, no music, no speech, no text.", ${includeVoiceInClips ? 'la oración de la voz narrativa sin comillas ni paréntesis,' : ''} y terminando con "fix the name").
+  5. Si el clip ya es coherente y cumple todas las reglas, pon auditStatus: "ok", explica brevemente por qué encaja bien en "auditReason", y deja "suggestedImagePrompt" y "suggestedVideoPrompt" vacíos ("").
+
+Devuelve EXCLUSIVAMENTE un objeto JSON válido con la propiedad "audits" (array):
+{
+  "summary": "Resumen general en español de la revisión del timeline",
+  "audits": [
+    {
+      "clipNumber": 1,
+      "auditStatus": "ok" | "warning" | "mismatch",
+      "auditReason": "Explicación clara en español de si el clip hace sentido con la voz narrativa o qué cambio se sugiere",
+      "suggestedImagePrompt": "Image N: Create an image ... (solo si requiere cambio o estaba vacío, sino string vacío)",
+      "suggestedVideoPrompt": "Clip N (MM:SS - MM:SS): Create a video ... fix the name (solo si requiere cambio o estaba vacío, sino string vacío)"
+    }
+  ]
+}`;
+
+    const models = [
+      'gemini-3.1-pro-preview',
+      'gemini-3.6-flash',
+      'gemini-3-flash-preview',
+      'gemini-2.5-flash',
+    ];
+    let responseText = '';
+    let lastErr: any = null;
+
+    for (const m of models) {
+      try {
+        const resp = await ai.models.generateContent({
+          model: m,
+          contents: [{ role: 'user', parts: [{ text: auditPrompt }] }],
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        if (resp.text) {
+          responseText = resp.text;
+          break;
+        }
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+
+    if (!responseText) {
+      throw new Error(lastErr?.message || 'No se recibió respuesta del modelo al auditar los clips.');
+    }
+
+    const parsed = JSON.parse(responseText.trim());
+    res.json(parsed);
+  } catch (err: any) {
+    console.error('Error en /api/ai/audit-clips:', err);
+    res.status(500).json({ error: err.message || 'Error al auditar coherencia de los clips.' });
+  }
+});
+
+// ============================================================================
+// ETAPA 12: POST-PRODUCTION AUDIENCE COMMENT REPLIES (SCREENSHOTS OR TEXT)
+// ============================================================================
+app.post('/api/ai/reply-comments', async (req, res) => {
+  try {
+    const { documentary, commentText, imageBase64, mimeType, customInstruction } = req.body;
+    const ai = getGeminiClient();
+    if (!ai) {
+      res.status(400).json({
+        error: 'No hay Gemini API Key activa. Configúrala en el botón de llave superior.',
+      });
+      return;
+    }
+
+    if (!commentText && !imageBase64) {
+      res.status(400).json({
+        error: 'Envía una captura de pantalla de los comentarios o escribe el texto del comentario.',
+      });
+      return;
+    }
+
+    const doc = documentary || {};
+    const promptText = `Actúa como el historiador principal y director de "Huellas de la Humanidad".
+Contexto del documental publicado:
+- Título / Tema: ${doc.publishTitle || doc.topic || doc.title || 'Documental Histórico'}
+- Época y Lugar: ${doc.historicalTime || ''} | ${doc.historicalLocation || ''}
+- Resumen / Guion de referencia:
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || doc.publishDescription || '').slice(0, 3500)}
+"""
+
+${commentText ? `Comentario(s) enviado(s) en texto por el usuario:\n"""\n${commentText}\n"""\n` : ''}
+${customInstruction ? `Enfoque o instrucción adicional del director: ${customInstruction}\n` : ''}
+
+TU TAREA (ETAPA 12 POST-PRODUCCIÓN — RESPONDER COMENTARIOS DE LA AUDIENCIA DE FORMA CERTERA Y CONCISA):
+1. Si se adjuntó una captura de pantalla, transcribe fielmente cada comentario visible de la audiencia (incluyendo el @usuario si aparece). Si se envió texto, úsalo directamente.
+2. Para cada comentario (sea duda histórica, debate, corrección, escepticismo o elogio), redacta:
+   - "replyConcise": Una respuesta **certera, históricamente rigurosa y concisa** (1 a 3 oraciones máximo, directa al grano, elegante, con autoridad académica pero cercana, que aporte un dato histórico verificado del episodio o aclare la duda con precisión quirúrgica).
+   - "replyAlternative": Una segunda opción de respuesta breve que cierre con una pregunta sutil o reflexión histórica para impulsar el engagement en el hilo de comentarios.
+   - "historicalContextNote": Nota interna brevísima para el creador confirmando el dato histórico exacto utilizado.
+3. REGLAS DE FORMATO OBLIGATORIAS DE LA MARCA:
+   - Años siempre en dígitos numéricos (ej. 1888, 1943).
+   - Siglos y nombres de monarcas/papas/emperadores con número en números romanos (ej. siglo XIX, Felipe II, Luis XIV).
+   - Cantidades en miles con dígitos seguidos de la palabra "mil" (ej. 70 mil).
+   - CERO signos de exclamación (¡!) en las respuestas.
+
+Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura:
+{
+  "replies": [
+    {
+      "author": "@usuario o Audiencia",
+      "commentText": "Texto exacto del comentario detectado",
+      "replyConcise": "Respuesta principal certera y concisa (1-3 oraciones, sin signos de exclamación)",
+      "replyAlternative": "Opción alternativa breve con cierre de engagement (sin signos de exclamación)",
+      "historicalContextNote": "Dato histórico de respaldo"
+    }
+  ]
+}`;
+
+    const parts: any[] = [{ text: promptText }];
+    if (imageBase64) {
+      const cleanBase64 = String(imageBase64).replace(/^data:[^;]+;base64,/, '');
+      parts.push({
+        inlineData: {
+          data: cleanBase64,
+          mimeType: mimeType || 'image/png',
+        },
+      });
+    }
+
+    const models = [
+      'gemini-3.1-pro-preview',
+      'gemini-3.6-flash',
+      'gemini-3-flash-preview',
+      'gemini-2.5-flash',
+    ];
+    let responseText = '';
+    let lastErr: any = null;
+
+    for (const m of models) {
+      try {
+        const resp = await ai.models.generateContent({
+          model: m,
+          contents: [{ role: 'user', parts }],
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        if (resp.text) {
+          responseText = resp.text;
+          break;
+        }
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+
+    if (!responseText) {
+      throw new Error(lastErr?.message || 'No se pudo generar respuesta para los comentarios.');
+    }
+
+    const parsed = JSON.parse(responseText.trim());
+    res.json(parsed);
+  } catch (err: any) {
+    console.error('Error en /api/ai/reply-comments:', err);
+    res.status(500).json({ error: err.message || 'Error al procesar los comentarios de la audiencia.' });
+  }
+});
+
+// Setup Vite Dev Server or Production static serving
+async function bootstrap() {
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ['**/data/**', '**/dist/**', '**/*.log'],
+        },
+      },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Huellas Master running at http://localhost:${PORT}`);
+  });
+}
+
+bootstrap();

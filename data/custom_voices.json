@@ -1,0 +1,11 @@
+[
+  {
+    "id": "voice_1789323728959_n1fex",
+    "name": "Narrador de Documentales",
+    "styleDescription": "Speak with a deep, authoritative, and captivating tone suitable for a high-end nature or history documentary narrator. Maintain a clear, steady articulation that conveys wisdom, gravity, and calm confidence.",
+    "baseVoice": "Charon",
+    "speed": "medium",
+    "prompt": "Deep documentary commentator, normal speed",
+    "createdAt": "2026-09-13T18:22:08.959Z"
+  }
+]
