@@ -87,7 +87,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:58 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:03 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -375,15 +375,49 @@ export default function App() {
   };
 
   const cloudPushTimerRef = React.useRef<any>(null);
+  const lastLocalEditAtRef = React.useRef<number>(0);
+
   const triggerDebouncedCloudPush = (nextDocs: DocumentaryProject[]) => {
+    lastLocalEditAtRef.current = Date.now();
     saveLocalCachedDocumentaries(nextDocs);
     if (cloudPushTimerRef.current) clearTimeout(cloudPushTimerRef.current);
     cloudPushTimerRef.current = setTimeout(async () => {
+      cloudPushTimerRef.current = null;
       const res = await pushDocumentariesToGitHub(nextDocs);
       if (res.synced) {
         setSavingStatus('saved');
       }
     }, 1200);
+  };
+
+  const silentRealtimeSync = async () => {
+    // Do not overwrite while user is actively typing/saving within the last 3 seconds
+    if (cloudPushTimerRef.current || Date.now() - lastLocalEditAtRef.current < 3000) {
+      return;
+    }
+    try {
+      if (!isCloudMode) {
+        const res = await fetch('/api/cloud/sync', { method: 'POST' });
+        if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+          const data = await res.json();
+          if (Array.isArray(data.documentaries) && data.documentaries.length > 0) {
+            if (Date.now() - lastLocalEditAtRef.current >= 3000) {
+              setDocumentaries(data.documentaries);
+              saveLocalCachedDocumentaries(data.documentaries);
+            }
+          }
+          return;
+        }
+      }
+      const remoteDocs = await fetchRemoteDocumentariesFromGitHub();
+      if (remoteDocs && remoteDocs.length > 0 && Date.now() - lastLocalEditAtRef.current >= 3000) {
+        setDocumentaries((prev) => {
+          const merged = mergeDocumentariesLists(prev, remoteDocs, getLocalDeletedDocIds());
+          saveLocalCachedDocumentaries(merged);
+          return merged;
+        });
+      }
+    } catch {}
   };
 
   const fetchAllData = async () => {
@@ -457,52 +491,28 @@ export default function App() {
     }
   };
 
-  const handleManualCloudSync = async () => {
-    setCloudSyncing(true);
-    setCloudStatusMsg('');
-    try {
-      if (!isCloudMode) {
-        const res = await fetch('/api/cloud/sync', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && Array.isArray(data.documentaries)) {
-          setDocumentaries(data.documentaries);
-          saveLocalCachedDocumentaries(data.documentaries);
-          setCloudStatusMsg(
-            `✅ Sincronizado con GitHub (${data.documentaries.length} documentales listos en laptop y teléfono).`
-          );
-        } else {
-          setCloudStatusMsg('⚠️ ' + (data.error || 'No se pudo sincronizar con GitHub.'));
-        }
-      } else {
-        const remoteDocs = await fetchRemoteDocumentariesFromGitHub();
-        const merged = mergeDocumentariesLists(
-          documentaries,
-          remoteDocs || [],
-          getLocalDeletedDocIds()
-        );
-        setDocumentaries(merged);
-        saveLocalCachedDocumentaries(merged);
-        const pushRes = await pushDocumentariesToGitHub(merged);
-        if (pushRes.synced) {
-          setCloudStatusMsg(`✅ Sincronizado con GitHub (${merged.length} documentales).`);
-        } else {
-          setCloudStatusMsg(
-            `📥 Biblioteca actualizada desde GitHub (${merged.length} documentales).`
-          );
-        }
-      }
-    } catch (e: any) {
-      setCloudStatusMsg('❌ Error al sincronizar: ' + (e?.message || e));
-    } finally {
-      setCloudSyncing(false);
-    }
-  };
-
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchAllData();
-    }
-  }, [isAuthenticated]);
+    if (!isAuthenticated) return;
+    fetchAllData();
+
+    const intervalId = setInterval(() => {
+      silentRealtimeSync();
+    }, 12000);
+
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        silentRealtimeSync();
+      }
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    };
+  }, [isAuthenticated, isCloudMode]);
 
   const copyText = (text: string, idLabel: string) => {
     if (!text) return;
@@ -514,6 +524,7 @@ export default function App() {
   // Update active documentary in state + persist to local backend OR GitHub Cloud
   const updateActiveDoc = async (patch: Partial<DocumentaryProject>) => {
     if (!activeDoc) return;
+    lastLocalEditAtRef.current = Date.now();
     const updated: DocumentaryProject = {
       ...activeDoc,
       ...patch,
@@ -1568,18 +1579,6 @@ export default function App() {
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Prompt Maestro</span>
-          </button>
-
-          <button
-            onClick={handleManualCloudSync}
-            disabled={cloudSyncing}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-sky-950/60 hover:bg-sky-900/70 border border-sky-700/50 text-sky-300 transition cursor-pointer"
-            title="Sincronizar documentales con GitHub (Laptop ↔ Teléfono)"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${cloudSyncing ? 'animate-spin' : ''}`} />
-            <span className="hidden md:inline">
-              {cloudSyncing ? 'Sincronizando...' : 'Sincronizar Nube'}
-            </span>
           </button>
 
           <button
