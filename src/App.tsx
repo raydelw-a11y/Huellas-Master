@@ -96,7 +96,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:22 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:34 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -5770,7 +5770,9 @@ export default function App() {
             isOpen={showWebStudio}
             onClose={() => setShowWebStudio(false)}
             activeStage={activeStage}
-            stageTitle={STAGES.find((s) => s.id === activeStage)?.title || `Etapa ${activeStage}`}
+            stageTitle={
+              STAGES_LIST.find((s) => s.num === activeStage)?.title || `Etapa ${activeStage}`
+            }
             extensionInstalled={extensionInstalled}
             aiEngineMode={aiEngineMode}
             onChangeAiEngineMode={setAiEngineMode}
