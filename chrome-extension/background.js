@@ -51,6 +51,92 @@ async function ensureScriptInjected(tabId, scriptFile) {
   } catch {}
 }
 
+// Directly sync React's _valueTracker and __reactProps$.onChange in Google Flow's MAIN world
+async function syncFlowReactInputInMainWorld(tabId, promptText) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      args: [promptText],
+      func: (text) => {
+        try {
+          const oldBar = document.getElementById('huellas-flow-floating-bar');
+          if (oldBar) oldBar.remove();
+
+          const selectors = [
+            'textarea[placeholder*="prompt" i]',
+            'textarea[placeholder*="describe" i]',
+            'textarea[placeholder*="generate" i]',
+            'textarea[placeholder*="create" i]',
+            'textarea[placeholder*="video" i]',
+            'textarea[placeholder*="image" i]',
+            'textarea',
+            'div[contenteditable="true"][role="textbox"]',
+            'div[contenteditable="true"]',
+          ];
+          let inputEl = null;
+          for (const sel of selectors) {
+            const list = Array.from(document.querySelectorAll(sel));
+            for (const el of list) {
+              const r = el.getBoundingClientRect();
+              if (r.width > 80 && r.height > 14) {
+                inputEl = el;
+                break;
+              }
+            }
+            if (inputEl) break;
+          }
+          if (!inputEl) return;
+
+          inputEl.focus();
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            const proto =
+              inputEl.tagName === 'TEXTAREA'
+                ? window.HTMLTextAreaElement.prototype
+                : window.HTMLInputElement.prototype;
+            const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (inputEl._valueTracker) {
+              inputEl._valueTracker.setValue('');
+            }
+            if (nativeSetter) {
+              nativeSetter.call(inputEl, text);
+            } else {
+              inputEl.value = text;
+            }
+            const inputEv = new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'insertText',
+              data: text,
+            });
+            inputEl.dispatchEvent(inputEv);
+
+            const reactPropsKey = Object.keys(inputEl).find((k) =>
+              k.startsWith('__reactProps$')
+            );
+            if (reactPropsKey && typeof inputEl[reactPropsKey]?.onChange === 'function') {
+              inputEl[reactPropsKey].onChange({
+                target: inputEl,
+                currentTarget: inputEl,
+                nativeEvent: inputEv,
+                preventDefault() {},
+                stopPropagation() {},
+                isDefaultPrevented() {
+                  return false;
+                },
+                isPropagationStopped() {
+                  return false;
+                },
+                persist() {},
+              });
+            }
+          }
+        } catch {}
+      },
+    });
+  } catch {}
+}
+
 function isHuellasUrl(url) {
   if (!url) return false;
   return (
@@ -60,6 +146,18 @@ function isHuellasUrl(url) {
     url.includes('huellasdelahumanidad.com')
   );
 }
+
+// One-time injection into already-open Huellas tabs when extension starts/reloads
+(async function initExistingHuellasTabsOnce() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id && isHuellasUrl(tab.url)) {
+        ensureScriptInjected(tab.id, 'huellas-bridge.js');
+      }
+    }
+  } catch {}
+})();
 
 async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
   try {
@@ -104,13 +202,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 1. Ping from Huellas Master: return ONLY Gemini & Flow tabs in the SAME window
   if (message.type === 'HUELLAS_PING_V2' || message.type === 'HUELLAS_PING') {
     getConnectedAiTabsInWindow(senderWindowId).then(async ({ geminiTabs, flowTabs }) => {
-      // Update content scripts in same-window Flow tabs to remove old floating bar immediately
       for (const ft of flowTabs) {
         if (ft.id) ensureScriptInjected(ft.id, 'flow-content.js');
       }
       sendResponse({
         ok: true,
-        version: '1.4.0',
+        version: '1.5.0',
         windowId: senderWindowId,
         geminiTabs,
         flowTabs,
@@ -167,7 +264,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
           url: defaultUrl,
-          active: targetService === 'FLOW',
+          active: true,
         });
         await new Promise((r) => setTimeout(r, 4500));
         targetTab = {
@@ -179,20 +276,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (payload.focusTab) {
+        if (payload.focusTab || (targetService === 'FLOW' && action === 'SEND_PROMPT')) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
+        if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.prompt) {
+          await syncFlowReactInputInMainWorld(targetTab.id, payload.prompt);
+        }
         await new Promise((r) => setTimeout(r, 150));
 
         chrome.tabs
           .sendMessage(targetTab.id, {
             target: targetService,
             ...payload,
-            action:
-              targetService === 'FLOW' && payload.action === 'SEND_PROMPT'
-                ? 'SEND_PROMPT_V2'
-                : payload.action,
           })
           .catch(() => {});
 
