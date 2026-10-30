@@ -1,11 +1,15 @@
 // ============================================================================
-// HUELLAS MASTER — BACKGROUND SERVICE WORKER (SAFE, ZERO-LOOP)
+// HUELLAS MASTER — BACKGROUND SERVICE WORKER (SAME-WINDOW TAB CONNECTION)
+// Connects Huellas Master strictly to Gemini Web & Google Flow tabs in the
+// SAME Chrome window (sender.tab.windowId). Never opens separate windows.
 // ============================================================================
 
-async function getConnectedAiTabs() {
+async function getConnectedAiTabsInWindow(windowId) {
   try {
-    const allTabs = await chrome.tabs.query({});
-    const geminiTabs = allTabs
+    const queryOpts = typeof windowId === 'number' ? { windowId } : { currentWindow: true };
+    const windowTabs = await chrome.tabs.query(queryOpts);
+
+    const geminiTabs = windowTabs
       .filter((t) => t.url && t.url.startsWith('https://gemini.google.com/'))
       .map((t) => ({
         id: t.id,
@@ -16,7 +20,7 @@ async function getConnectedAiTabs() {
         url: t.url,
       }));
 
-    const flowTabs = allTabs
+    const flowTabs = windowTabs
       .filter(
         (t) =>
           t.url &&
@@ -47,32 +51,63 @@ async function ensureScriptInjected(tabId, scriptFile) {
   } catch {}
 }
 
-async function broadcastToHuellasTabs(payload) {
+function isHuellasUrl(url) {
+  if (!url) return false;
+  return (
+    url.startsWith('http://localhost:4200') ||
+    url.startsWith('http://127.0.0.1:4200') ||
+    url.startsWith('https://raydelw-a11y.github.io') ||
+    url.includes('huellasdelahumanidad.com')
+  );
+}
+
+async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
   try {
-    const tabs = await chrome.tabs.query({});
+    const queryOpts = typeof windowId === 'number' ? { windowId } : {};
+    const tabs = await chrome.tabs.query(queryOpts);
     for (const tab of tabs) {
-      if (
-        tab.id &&
-        tab.url &&
-        (tab.url.startsWith('http://localhost:4200') ||
-          tab.url.startsWith('https://raydelw-a11y.github.io') ||
-          tab.url.includes('huellasdelahumanidad.com'))
-      ) {
+      if (tab.id && isHuellasUrl(tab.url)) {
         chrome.tabs.sendMessage(tab.id, payload).catch(() => {});
       }
     }
   } catch {}
 }
 
+// Keep Huellas Master updated when tabs in the same window change title or URL
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+  if (!tab || typeof tab.windowId !== 'number') return;
+  if (changeInfo.status === 'complete' || changeInfo.title) {
+    const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(tab.windowId);
+    broadcastToHuellasTabsInSameWindow(tab.windowId, {
+      type: 'HUELLAS_CONNECTED_TABS_UPDATE',
+      geminiTabs,
+      flowTabs,
+    });
+  }
+});
+
+chrome.tabs.onRemoved.addListener(async (_tabId, removeInfo) => {
+  if (!removeInfo || removeInfo.isWindowClosing || typeof removeInfo.windowId !== 'number') return;
+  const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(removeInfo.windowId);
+  broadcastToHuellasTabsInSameWindow(removeInfo.windowId, {
+    type: 'HUELLAS_CONNECTED_TABS_UPDATE',
+    geminiTabs,
+    flowTabs,
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
 
-  // 1. Lightweight Ping (NO script injection here to prevent loops)
-  if (message.type === 'HUELLAS_PING_V2') {
-    getConnectedAiTabs().then(({ geminiTabs, flowTabs }) => {
+  const senderWindowId = sender?.tab?.windowId;
+
+  // 1. Ping from Huellas Master: return ONLY Gemini & Flow tabs in the SAME window
+  if (message.type === 'HUELLAS_PING_V2' || message.type === 'HUELLAS_PING') {
+    getConnectedAiTabsInWindow(senderWindowId).then(({ geminiTabs, flowTabs }) => {
       sendResponse({
         ok: true,
-        version: '1.2.0',
+        version: '1.3.0',
+        windowId: senderWindowId,
         geminiTabs,
         flowTabs,
       });
@@ -80,96 +115,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 2. On-demand command execution
+  // 2. Command execution strictly within the SAME Chrome window
   if (message.type === 'HUELLAS_COMMAND') {
     const targetService = message.targetService === 'FLOW' ? 'FLOW' : 'GEMINI';
     const payload = message.payload || {};
     const action = payload.action;
 
     (async () => {
-      const { geminiTabs, flowTabs } = await getConnectedAiTabs();
+      const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(senderWindowId);
       const serviceTabs = targetService === 'FLOW' ? flowTabs : geminiTabs;
       const defaultUrl =
         targetService === 'FLOW' ? 'https://flow.google.com/' : 'https://gemini.google.com/app';
       const contentScriptFile =
         targetService === 'FLOW' ? 'flow-content.js' : 'gemini-content.js';
 
-      if (action === 'OPEN_DOCKED') {
-        try {
-          if (sender?.tab?.windowId) {
-            await chrome.windows
-              .update(sender.tab.windowId, {
-                state: 'normal',
-                left: 0,
-                top: 25,
-                width: 920,
-                height: 1020,
-              })
-              .catch(() => {});
-          }
-
-          const existing =
-            serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
-          if (existing && existing.id) {
-            if (sender?.tab?.windowId && existing.windowId === sender.tab.windowId) {
-              await chrome.windows.create({
-                tabId: existing.id,
-                left: 920,
-                top: 25,
-                width: 780,
-                height: 1020,
-                focused: true,
-              });
-            } else if (existing.windowId) {
-              await chrome.tabs.update(existing.id, { active: true });
-              await chrome.windows.update(existing.windowId, {
-                state: 'normal',
-                left: 920,
-                top: 25,
-                width: 780,
-                height: 1020,
-                focused: true,
-              });
-            }
-          } else {
-            await chrome.windows.create({
-              url: defaultUrl,
-              type: 'normal',
-              left: 920,
-              top: 25,
-              width: 780,
-              height: 1020,
-              focused: true,
-            });
-          }
-          sendResponse({ ok: true });
-        } catch (err) {
-          sendResponse({ ok: false, error: String(err) });
-        }
-        return;
-      }
-
-      if (action === 'FOCUS_TAB') {
+      // Focus or open tab in the SAME window (never create a new window)
+      if (action === 'FOCUS_TAB' || action === 'OPEN_DOCKED') {
         const existing =
           serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
         if (existing && existing.id) {
           await chrome.tabs.update(existing.id, { active: true });
-          if (existing.windowId) {
-            await chrome.windows.update(existing.windowId, { focused: true });
-          }
-          sendResponse({ ok: true });
+          sendResponse({ ok: true, tabId: existing.id });
         } else {
-          await chrome.tabs.create({ url: defaultUrl, active: true });
-          sendResponse({ ok: true });
+          const created = await chrome.tabs.create({
+            windowId: senderWindowId,
+            url: defaultUrl,
+            active: true,
+          });
+          sendResponse({ ok: true, tabId: created.id });
         }
         return;
       }
 
+      // Find target tab in the SAME window
       let targetTab =
         serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       if (!targetTab) {
+        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+          type: 'BRIDGE_STATUS',
+          service: targetService,
+          status: 'WORKING',
+          message: `Abriendo pestaña de ${
+            targetService === 'FLOW' ? 'Google Flow' : 'Gemini Web'
+          } en esta misma ventana...`,
+        });
         const created = await chrome.tabs.create({
+          windowId: senderWindowId,
           url: defaultUrl,
           active: targetService === 'FLOW',
         });
@@ -183,6 +175,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
+        if (payload.focusTab) {
+          await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
+        }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
         await new Promise((r) => setTimeout(r, 150));
 
@@ -195,20 +190,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
       } else {
-        sendResponse({ ok: false, error: 'No se encontró la pestaña.' });
+        sendResponse({
+          ok: false,
+          error: 'No se encontró la pestaña en esta ventana.',
+        });
       }
     })();
 
     return true;
   }
 
-  // 3. Forward status & responses from Gemini/Flow content scripts to Huellas Master
+  // 3. Forward status & responses from Gemini/Flow tab ONLY to Huellas Master in the SAME window
   if (
     message.type === 'BRIDGE_STATUS' ||
     message.type === 'GEMINI_RESPONSE_READY' ||
     message.type === 'FLOW_MEDIA_READY'
   ) {
-    broadcastToHuellasTabs(message);
+    broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });
     return true;
   }

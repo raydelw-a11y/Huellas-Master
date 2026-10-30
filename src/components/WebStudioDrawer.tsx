@@ -235,28 +235,15 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
           </button>
         </div>
 
-        {/* 50/50 Split Screen & Focus Tab Controls */}
+        {/* Refresh & Switch Tab in Same Window Controls */}
         <div className="flex items-center gap-1 pb-1">
           <button
             type="button"
             onClick={() => pingHuellasExtension()}
             className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-slate-300 border border-slate-700 flex items-center gap-1 cursor-pointer"
-            title="Actualizar lista de pestañas abiertas de Gemini y Google Flow"
+            title="Actualizar pestañas de Gemini y Google Flow abiertas en esta misma ventana"
           >
-            <RefreshCw className="w-3 h-3" />
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              sendCommandToWebBridge(activeTab === 'flow' ? 'FLOW' : 'GEMINI', {
-                action: 'OPEN_DOCKED',
-                tabId: activeTab === 'flow' ? activeFlowTab?.id : activeGeminiTab?.id,
-              })
-            }
-            className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-[11px] text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1 cursor-pointer"
-            title="Divide tu pantalla 50/50: Huellas Master a la izquierda y tu ventana real de Gemini / Google Flow a la derecha"
-          >
-            <Columns className="w-3 h-3" /> Acoplar Lado a Lado (50/50)
+            <RefreshCw className="w-3 h-3" /> Actualizar Pestañas
           </button>
           <button
             type="button"
@@ -267,9 +254,9 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
               })
             }
             className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-amber-300 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
-            title="Ir a la pestaña abierta de Gemini / Google Flow"
+            title="Cambiar a la pestaña de Gemini / Google Flow en esta misma ventana"
           >
-            <ExternalLink className="w-3 h-3" /> Ver Pestaña
+            <ExternalLink className="w-3 h-3" /> Ir a la Pestaña (Misma Ventana)
           </button>
         </div>
       </div>
@@ -310,12 +297,12 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                     activeGeminiTab ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
                   }`}
                 />
-                Chat de Gemini Web Conectado:
+                Pestaña de Gemini en esta Ventana:
               </span>
               <span className="text-[10px] text-slate-400">
                 {geminiTabs.length > 0
-                  ? `${geminiTabs.length} pestaña(s) detectada(s)`
-                  : 'Se abrirá automáticamente al enviar'}
+                  ? `${geminiTabs.length} en esta ventana`
+                  : 'Se abrirá una pestaña en esta misma ventana'}
               </span>
             </div>
 
@@ -464,12 +451,12 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                     activeFlowTab ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
                   }`}
                 />
-                Proyecto de Google Flow Conectado:
+                Pestaña de Google Flow en esta Ventana:
               </span>
               <span className="text-[10px] text-slate-400">
                 {flowTabs.length > 0
-                  ? `${flowTabs.length} pestaña(s) detectada(s)`
-                  : 'Se abrirá flow.google.com automáticamente'}
+                  ? `${flowTabs.length} en esta ventana`
+                  : 'Se abrirá una pestaña en esta misma ventana'}
               </span>
             </div>
 
@@ -542,13 +529,13 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                 type="button"
                 onClick={() =>
                   sendCommandToWebBridge('FLOW', {
-                    action: 'OPEN_DOCKED',
+                    action: 'FOCUS_TAB',
                     tabId: activeFlowTab?.id,
                   })
                 }
                 className="py-2.5 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Columns className="w-4 h-4" /> Ver Lado a Lado
+                <ExternalLink className="w-4 h-4" /> Ir a Pestaña Flow
               </button>
             </div>
           </div>
