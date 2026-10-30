@@ -1,26 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "Huellas Master — Puente Web (Gemini & Google Flow)",
-  "version": "1.0.0",
-  "description": "Conecta Huellas Master con tus cuentas web gratuitas de Gemini y Google Flow (incrustados o acoplados) sin gastar API Key.",
+  "name": "Huellas Master — Puente Web Gratis (Gemini & Google Flow)",
+  "version": "1.1.0",
+  "description": "Conecta Huellas Master con tus pestañas abiertas de Gemini Web (gemini.google.com) y Google Flow (flow.google.com) para generar texto, imágenes y clips usando tu cuota gratis sin gastar API Key.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
-    "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
     "https://*.google.com/*",
+    "https://flow.google.com/*",
+    "https://*.flow.google.com/*",
     "https://labs.google/*",
+    "https://*.labs.google/*",
     "http://localhost:4200/*",
-    "http://127.0.0.1:4200/*",
-    "https://raydelw-a11y.github.io/*"
+    "https://raydelw-a11y.github.io/*",
+    "https://huellasdelahumanidad.com/*",
+    "https://*.huellasdelahumanidad.com/*"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -30,12 +31,16 @@
       }
     ]
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
         "http://localhost:4200/*",
-        "http://127.0.0.1:4200/*",
-        "https://raydelw-a11y.github.io/*"
+        "https://raydelw-a11y.github.io/*",
+        "https://huellasdelahumanidad.com/*",
+        "https://*.huellasdelahumanidad.com/*"
       ],
       "js": ["huellas-bridge.js"],
       "run_at": "document_start"
@@ -45,16 +50,18 @@
         "https://gemini.google.com/*"
       ],
       "js": ["gemini-content.js"],
-      "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": true,
+      "run_at": "document_idle"
     },
     {
       "matches": [
+        "https://flow.google.com/*",
+        "https://*.flow.google.com/*",
         "https://labs.google/*"
       ],
       "js": ["flow-content.js"],
-      "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": true,
+      "run_at": "document_idle"
     }
   ]
 }

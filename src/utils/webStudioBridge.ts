@@ -5,16 +5,29 @@
 
 export type WebServiceTarget = 'GEMINI' | 'FLOW';
 
+export interface ConnectedAiTab {
+  id: number;
+  windowId?: number;
+  title: string;
+  url: string;
+}
+
 export interface WebBridgeCommandPayload {
-  action: 'SEND_PROMPT' | 'GRAB_LAST_RESPONSE' | 'GRAB_LAST_MEDIA' | 'OPEN_DOCKED';
+  action:
+    | 'SEND_PROMPT'
+    | 'GRAB_LAST_RESPONSE'
+    | 'GRAB_LAST_MEDIA'
+    | 'OPEN_DOCKED'
+    | 'FOCUS_TAB';
   prompt?: string;
   stageNumber?: number;
   taskType?: string;
-  clipNumber?: number;
+  clipNumber?: number | string;
   mediaType?: 'IMAGE' | 'VIDEO';
   autoSubmit?: boolean;
   preferDockedWindow?: boolean;
   focusTab?: boolean;
+  tabId?: number;
 }
 
 export function isHuellasExtensionDetected(): boolean {

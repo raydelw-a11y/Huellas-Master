@@ -88,6 +88,7 @@ import {
   PUBLIC_GITHUB_PAGES_URL,
 } from './utils/cloudSync';
 import {
+  ConnectedAiTab,
   isHuellasExtensionDetected,
   pingHuellasExtension,
   sendCommandToWebBridge,
@@ -95,7 +96,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:15 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:09 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -371,10 +372,18 @@ export default function App() {
   );
   const [aiEngineMode, setAiEngineMode] = useState<'WEB_FREE' | 'API_KEY'>(() => {
     const saved = localStorage.getItem('huellas_ai_engine_mode');
-    return saved === 'WEB_FREE' ? 'WEB_FREE' : 'API_KEY';
+    return saved === 'API_KEY' ? 'API_KEY' : 'WEB_FREE';
   });
   const [bridgeStatusMsg, setBridgeStatusMsg] = useState<string>('');
   const [bridgeStatusType, setBridgeStatusType] = useState<'IDLE' | 'WORKING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [geminiTabs, setGeminiTabs] = useState<ConnectedAiTab[]>([]);
+  const [flowTabs, setFlowTabs] = useState<ConnectedAiTab[]>([]);
+  const [selectedGeminiTabId, setSelectedGeminiTabId] = useState<number | undefined>(undefined);
+  const [selectedFlowTabId, setSelectedFlowTabId] = useState<number | undefined>(undefined);
+  const [lastMirroredGeminiText, setLastMirroredGeminiText] = useState<string>('');
+  const [lastMirroredGeminiImages, setLastMirroredGeminiImages] = useState<string[]>([]);
+  const [lastMirroredFlowVideos, setLastMirroredFlowVideos] = useState<string[]>([]);
+  const [lastMirroredFlowImages, setLastMirroredFlowImages] = useState<string[]>([]);
 
   useEffect(() => {
     localStorage.setItem('huellas_show_web_studio', String(showWebStudio));
@@ -938,11 +947,20 @@ export default function App() {
       if (!event.data || event.data.source !== 'HUELLAS_EXTENSION') return;
       const msg = event.data;
 
-      if (msg.type === 'EXTENSION_READY') {
+      if (msg.type === 'EXTENSION_READY' || msg.type === 'HUELLAS_CONNECTED_TABS_UPDATE') {
         setExtensionInstalled(true);
+        if (Array.isArray(msg.geminiTabs)) {
+          setGeminiTabs(msg.geminiTabs);
+        }
+        if (Array.isArray(msg.flowTabs)) {
+          setFlowTabs(msg.flowTabs);
+        }
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
         setBridgeStatusMsg(msg.message || '');
+        if (msg.previewText) {
+          setLastMirroredGeminiText(String(msg.previewText));
+        }
         if (msg.status === 'ERROR') {
           setBridgeStatusType('ERROR');
           setAiGenerating(false);
@@ -955,20 +973,25 @@ export default function App() {
       } else if (msg.type === 'GEMINI_RESPONSE_READY') {
         setExtensionInstalled(true);
         setAiGenerating(false);
+        setThumbOptionsGenerating(false);
         const targetStage = Number(msg.stageNumber) || activeStage;
         const text = String(msg.text || '');
         const images = Array.isArray(msg.images) ? msg.images : [];
+        if (text) setLastMirroredGeminiText(text);
+        if (images.length > 0) setLastMirroredGeminiImages(images);
         if (text || images.length > 0) {
           applyGeneratedStageText(targetStage, text, images);
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
             `✅ Respuesta de Gemini Web recibida y guardada en Etapa ${
-              targetStage > 100 ? Math.floor(targetStage / 10) : targetStage
+              targetStage === 101 ? 5 : targetStage > 100 ? Math.floor(targetStage / 10) : targetStage
             } (${text.length} caract.)`
           );
         }
       } else if (msg.type === 'FLOW_MEDIA_READY') {
         setExtensionInstalled(true);
+        if (Array.isArray(msg.videos)) setLastMirroredFlowVideos(msg.videos);
+        if (Array.isArray(msg.images)) setLastMirroredFlowImages(msg.images);
         setBridgeStatusType('SUCCESS');
         setBridgeStatusMsg('✅ Media capturada desde Google Flow.');
       }
@@ -978,7 +1001,7 @@ export default function App() {
     return () => window.removeEventListener('message', handleBridgeMessage);
   }, [activeDoc, activeStage]);
 
-  const handleSendStageToGeminiWeb = (stageNum: number) => {
+  const handleSendStageToGeminiWeb = (stageNum: number, preferredTabId?: number) => {
     if (!activeDoc) return;
     if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
       alert(
@@ -1011,20 +1034,22 @@ export default function App() {
 
     setAiGenerating(true);
     setBridgeStatusType('WORKING');
-    setBridgeStatusMsg(`🚀 Enviando prompt de Etapa ${stageNum} a tu cuenta de Gemini Web...`);
+    setBridgeStatusMsg(`🚀 Enviando prompt de Etapa ${stageNum === 101 ? 5 : stageNum} a tu chat de Gemini Web...`);
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
       prompt: promptText,
       stageNumber: stageNum,
       taskType: 'STAGE_GENERATION',
       autoSubmit: true,
+      tabId: preferredTabId || selectedGeminiTabId,
     });
   };
 
   const handleSendPromptToFlow = (
     promptText: string,
-    clipNumber?: number,
-    mediaType: 'IMAGE' | 'VIDEO' = 'VIDEO'
+    mediaType: 'IMAGE' | 'VIDEO' = 'VIDEO',
+    clipIdentifier?: string | number,
+    preferredTabId?: number
   ) => {
     if (!promptText.trim()) return;
     navigator.clipboard.writeText(promptText).catch(() => {});
@@ -1033,14 +1058,15 @@ export default function App() {
     }
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🎬 Enviando prompt ${clipNumber ? `del Clip ${clipNumber} ` : ''}a Google Flow (copiado al portapapeles)...`
+      `🎬 Enviando prompt a Google Flow (también copiado al portapapeles)...`
     );
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
-      clipNumber,
+      clipNumber: clipIdentifier,
       mediaType,
       autoSubmit: true,
+      tabId: preferredTabId || selectedFlowTabId,
     });
   };
 
@@ -5745,14 +5771,29 @@ export default function App() {
             extensionInstalled={extensionInstalled}
             aiEngineMode={aiEngineMode}
             onChangeAiEngineMode={setAiEngineMode}
-            onSendCurrentStageToGemini={() => handleSendStageToGeminiWeb(activeStage)}
-            onGrabLastGeminiResponse={() => {
-              sendCommandToWebBridge('HUELLAS_GRAB_LAST_GEMINI_RESPONSE', {
+            onSendCurrentStageToGemini={(tabId) => handleSendStageToGeminiWeb(activeStage, tabId)}
+            onGrabLastGeminiResponse={(tabId) => {
+              sendCommandToWebBridge('GEMINI', {
+                action: 'GRAB_LAST_RESPONSE',
                 stageNumber: activeStage,
+                tabId: tabId || selectedGeminiTabId,
               });
             }}
+            onSendCustomPromptToFlow={(prompt, tabId) =>
+              handleSendPromptToFlow(prompt, 'VIDEO', 'custom', tabId)
+            }
             bridgeStatusMsg={bridgeStatusMsg}
             bridgeStatusType={bridgeStatusType}
+            geminiTabs={geminiTabs}
+            flowTabs={flowTabs}
+            selectedGeminiTabId={selectedGeminiTabId}
+            onSelectGeminiTabId={setSelectedGeminiTabId}
+            selectedFlowTabId={selectedFlowTabId}
+            onSelectFlowTabId={setSelectedFlowTabId}
+            lastMirroredGeminiText={lastMirroredGeminiText}
+            lastMirroredGeminiImages={lastMirroredGeminiImages}
+            lastMirroredFlowVideos={lastMirroredFlowVideos}
+            lastMirroredFlowImages={lastMirroredFlowImages}
           />
         </div>
       )}
