@@ -44,6 +44,13 @@ export function pingHuellasExtension(): void {
     },
     '*'
   );
+  window.postMessage(
+    {
+      source: 'HUELLAS_APP',
+      type: 'HUELLAS_PING',
+    },
+    '*'
+  );
 }
 
 export function sendCommandToWebBridge(

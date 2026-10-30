@@ -24,8 +24,8 @@ async function getConnectedAiTabsInWindow(windowId) {
       .filter(
         (t) =>
           t.url &&
-          (t.url.startsWith('https://flow.google.com/') ||
-            t.url.startsWith('https://labs.google/fx/tools/flow'))
+          (t.url.includes('flow.google.com') ||
+            (t.url.includes('labs.google') && t.url.toLowerCase().includes('flow')))
       )
       .map((t) => ({
         id: t.id,
@@ -51,14 +51,14 @@ async function ensureScriptInjected(tabId, scriptFile) {
   } catch {}
 }
 
-// Directly sync React's _valueTracker and __reactProps$.onChange in Google Flow's MAIN world
-async function syncFlowReactInputInMainWorld(tabId, promptText) {
+// Directly sync React's _valueTracker, __reactProps$.onChange, and submit in Google Flow's MAIN world
+async function syncFlowReactInputInMainWorld(tabId, promptText, autoSubmit) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      args: [promptText],
-      func: (text) => {
+      args: [promptText, autoSubmit !== false],
+      func: (text, shouldSubmit) => {
         try {
           const oldBar = document.getElementById('huellas-flow-floating-bar');
           if (oldBar) oldBar.remove();
@@ -70,18 +70,21 @@ async function syncFlowReactInputInMainWorld(tabId, promptText) {
             'textarea[placeholder*="create" i]',
             'textarea[placeholder*="video" i]',
             'textarea[placeholder*="image" i]',
+            'textarea[placeholder*="genera" i]',
+            'textarea[placeholder*="crea" i]',
             'textarea',
             'div[contenteditable="true"][role="textbox"]',
             'div[contenteditable="true"]',
           ];
           let inputEl = null;
+          let bestBottom = -1;
           for (const sel of selectors) {
             const list = Array.from(document.querySelectorAll(sel));
             for (const el of list) {
               const r = el.getBoundingClientRect();
-              if (r.width > 80 && r.height > 14) {
+              if (r.width > 80 && r.height > 14 && r.bottom > bestBottom) {
+                bestBottom = r.bottom;
                 inputEl = el;
-                break;
               }
             }
             if (inputEl) break;
@@ -89,6 +92,8 @@ async function syncFlowReactInputInMainWorld(tabId, promptText) {
           if (!inputEl) return;
 
           inputEl.focus();
+          inputEl.click();
+
           if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
             const proto =
               inputEl.tagName === 'TEXTAREA'
@@ -110,6 +115,7 @@ async function syncFlowReactInputInMainWorld(tabId, promptText) {
               data: text,
             });
             inputEl.dispatchEvent(inputEv);
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
 
             const reactPropsKey = Object.keys(inputEl).find((k) =>
               k.startsWith('__reactProps$')
@@ -118,6 +124,7 @@ async function syncFlowReactInputInMainWorld(tabId, promptText) {
               inputEl[reactPropsKey].onChange({
                 target: inputEl,
                 currentTarget: inputEl,
+                type: 'change',
                 nativeEvent: inputEv,
                 preventDefault() {},
                 stopPropagation() {},
@@ -130,7 +137,114 @@ async function syncFlowReactInputInMainWorld(tabId, promptText) {
                 persist() {},
               });
             }
+          } else {
+            try {
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(inputEl);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('insertText', false, text);
+            } catch {}
           }
+
+          document.documentElement.setAttribute(
+            'data-huellas-main-synced-ts',
+            String(Date.now())
+          );
+
+          if (!shouldSubmit) return;
+
+          // In MAIN world, also trigger React's onClick / onKeyDown if still unsubmitted at 450ms
+          setTimeout(() => {
+            const currentVal = (inputEl.value ?? inputEl.innerText ?? '').trim();
+            if (!currentVal) return;
+
+            const inputRect = inputEl.getBoundingClientRect();
+            const allBtns = Array.from(
+              document.querySelectorAll('button, [role="button"], input[type="submit"]')
+            ).filter((b) => {
+              const r = b.getBoundingClientRect();
+              return (
+                r.width >= 16 &&
+                r.height >= 16 &&
+                Math.abs(r.top - inputRect.top) < 200 &&
+                r.left >= inputRect.left + inputRect.width * 0.4 &&
+                r.right <= inputRect.right + 280
+              );
+            });
+
+            let maxBottom = -1;
+            for (const b of allBtns) {
+              const r = b.getBoundingClientRect();
+              if (r.bottom > maxBottom) maxBottom = r.bottom;
+            }
+            const bottomRow = allBtns.filter(
+              (b) => b.getBoundingClientRect().bottom >= maxBottom - 55
+            );
+            let rightmostBtn = null;
+            let maxRight = -1;
+            for (const b of bottomRow) {
+              const r = b.getBoundingClientRect();
+              if (r.right >= maxRight) {
+                maxRight = r.right;
+                rightmostBtn = b;
+              }
+            }
+
+            if (rightmostBtn) {
+              const btnPropsKey = Object.keys(rightmostBtn).find((k) =>
+                k.startsWith('__reactProps$')
+              );
+              if (btnPropsKey && typeof rightmostBtn[btnPropsKey]?.onClick === 'function') {
+                try {
+                  rightmostBtn[btnPropsKey].onClick({
+                    target: rightmostBtn,
+                    currentTarget: rightmostBtn,
+                    type: 'click',
+                    button: 0,
+                    preventDefault() {},
+                    stopPropagation() {},
+                    isDefaultPrevented() {
+                      return false;
+                    },
+                    isPropagationStopped() {
+                      return false;
+                    },
+                    persist() {},
+                  });
+                } catch {}
+              }
+            }
+
+            const inputPropsKey = Object.keys(inputEl).find((k) =>
+              k.startsWith('__reactProps$')
+            );
+            if (inputPropsKey && typeof inputEl[inputPropsKey]?.onKeyDown === 'function') {
+              try {
+                inputEl[inputPropsKey].onKeyDown({
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  which: 13,
+                  shiftKey: false,
+                  ctrlKey: false,
+                  metaKey: false,
+                  target: inputEl,
+                  currentTarget: inputEl,
+                  preventDefault() {},
+                  stopPropagation() {},
+                  isDefaultPrevented() {
+                    return false;
+                  },
+                  isPropagationStopped() {
+                    return false;
+                  },
+                  persist() {},
+                });
+              } catch {}
+            }
+          }, 450);
         } catch {}
       },
     });
@@ -281,7 +395,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
         if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.prompt) {
-          await syncFlowReactInputInMainWorld(targetTab.id, payload.prompt);
+          await syncFlowReactInputInMainWorld(
+            targetTab.id,
+            payload.prompt,
+            payload.autoSubmit
+          );
         }
         await new Promise((r) => setTimeout(r, 150));
 
