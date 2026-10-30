@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini & Google Flow)",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Conecta Huellas Master con las pestañas de Gemini Web y Google Flow abiertas en la misma ventana.",
   "permissions": [
     "tabs",
@@ -12,6 +12,10 @@
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",
+    "https://*.googleusercontent.com/*",
+    "https://*.googleapis.com/*",
+    "https://*.gstatic.com/*",
+    "https://*.google.com/*",
     "http://localhost:4200/*",
     "http://127.0.0.1:4200/*",
     "https://raydelw-a11y.github.io/*",

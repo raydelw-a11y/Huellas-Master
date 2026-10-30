@@ -132,7 +132,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       sendResponse({
         ok: true,
-        version: '1.7.0',
+        version: '1.8.0',
         windowId: senderWindowId,
         geminiTabs,
         flowTabs,
@@ -230,10 +230,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (
     message.type === 'BRIDGE_STATUS' ||
     message.type === 'GEMINI_RESPONSE_READY' ||
-    message.type === 'FLOW_MEDIA_READY'
+    message.type === 'FLOW_MEDIA_READY' ||
+    message.type === 'FLOW_VIDEO_CAPTURED'
   ) {
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });
+    return true;
+  }
+
+  // 4. Fetch cross-origin video binary as base64 DataURL for frame extraction & auto-download
+  if (message.type === 'FETCH_VIDEO_BASE64' && message.url) {
+    (async () => {
+      try {
+        const resp = await fetch(message.url, { credentials: 'include' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        const b64 = btoa(binary);
+        const mime = resp.headers.get('content-type') || 'video/mp4';
+        sendResponse({ ok: true, dataUrl: `data:${mime};base64,${b64}` });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
     return true;
   }
 

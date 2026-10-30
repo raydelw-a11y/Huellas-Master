@@ -499,6 +499,79 @@ Devuelve EXCLUSIVAMENTE un JSON válido con {"summary": "...", "audits": [{"clip
   return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
 }
 
+export async function auditClipVideoClientSide(
+  doc: DocumentaryProject,
+  clip: any,
+  frames: string[],
+  attempt: number = 1
+): Promise<any> {
+  const includeVoiceInClips = doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR';
+  const promptText = `Actúa como Director de Cine, Historiador y Supervisor de Control de Calidad Visual de "Huellas de la Humanidad".
+Acabas de recibir ${frames.length} fotogramas reales (inicio, mitad y final) de un video recién generado en Google Flow para el Clip #${clip.clipNumber} (Intento #${attempt}).
+
+CONTEXTO DEL DOCUMENTAL:
+- Título / Tema: ${doc.topic || doc.title || ''}
+- Época Histórica: ${doc.historicalTime || ''}
+- Lugar Histórico: ${doc.historicalLocation || ''}
+
+DATOS DEL CLIP #${clip.clipNumber} (${clip.timeRange || ''}):
+- Voz Narrativa en este clip: "${
+    clip.clipNumber === 1
+      ? '[Clip 1 Hook inicial sin voz — Solo Foley y Texto en pantalla: ' +
+        (doc.clip1Line1LocationTime || '') +
+        ' / ' +
+        (doc.clip1Line2Hook || '') +
+        ']'
+      : clip.narrationSegment || ''
+  }"
+- Prompt de Imagen Inicial: ${clip.imagePrompt || ''}
+- Prompt de Video enviado a Google Flow: ${clip.videoPrompt || ''}
+
+TU TAREA DE AUDITORÍA VISUAL (VIDEO REAL vs PROMPT vs VOZ NARRATIVA):
+Observa detenidamente los fotogramas reales adjuntos y evalúa:
+1. COHERENCIA CON LA VOZ NARRATIVA: ¿Lo que se ve en el video acompaña y tiene sentido directo con lo que dice la Voz Narrativa en este segmento?
+2. CUMPLIMIENTO DEL PROMPT E HISTORIA: ¿Se respeta la época histórica (${doc.historicalTime || ''}), escenario y acción principal del prompt?
+3. CALIDAD VISUAL Y LIBRE DE ERRORES IA: ¿Está libre de deformaciones graves (caras/manos monstruosas), anacronismos modernos evidentes, pantallas en negro o texto basura quemado?
+
+CRITERIO DE VEREDICTO:
+- "approved": El video se ve bien, encaja con la voz narrativa y con el prompt (score >= 75).
+- "warning": El video es utilizable pero tiene un detalle menor (score 60-74).
+- "rejected": El video NO coincide con la voz narrativa, ignoró el prompt, tiene errores visuales graves o anacronismos (score < 60). Si es "rejected", redacta obligatoriamente en "fixedVideoPrompt" un prompt de video corregido, más claro y directo para Google Flow iniciando con "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." ${
+    includeVoiceInClips && clip.clipNumber > 1 && clip.narrationSegment
+      ? `incluyendo la oración narrativa "${clip.narrationSegment}" `
+      : ''
+  }y cerrando con "fix the name".
+
+Devuelve EXCLUSIVAMENTE un objeto JSON válido:
+{
+  "clipNumber": ${clip.clipNumber},
+  "verdict": "approved" | "warning" | "rejected",
+  "score": 90,
+  "narrationMatch": true,
+  "promptMatch": true,
+  "visualQualityOk": true,
+  "auditReason": "Explicación concisa en español de lo que se ve en el video y por qué aprueba o falla frente a la voz narrativa y el prompt",
+  "issues": ["Lista de fallos si los hay"],
+  "fixedVideoPrompt": "Prompt corregido listo para re-enviar a Google Flow si verdict es rejected, o string vacío si aprobó"
+}`;
+
+  const parts: any[] = [{ text: promptText }];
+  for (const frame of frames.slice(0, 4)) {
+    const cleanB64 = String(frame).replace(/^data:[^;]+;base64,/, '');
+    if (cleanB64) {
+      parts.push({
+        inlineData: {
+          data: cleanB64,
+          mimeType: 'image/jpeg',
+        },
+      });
+    }
+  }
+
+  const raw = await callGeminiGenerateContentClientSide(parts, true);
+  return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+}
+
 export async function replyCommentsClientSide(
   doc: DocumentaryProject,
   commentText: string,

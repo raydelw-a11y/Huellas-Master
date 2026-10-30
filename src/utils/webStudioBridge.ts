@@ -17,12 +17,17 @@ export interface WebBridgeCommandPayload {
     | 'SEND_PROMPT'
     | 'GRAB_LAST_RESPONSE'
     | 'GRAB_LAST_MEDIA'
+    | 'SCAN_FLOW_VIDEOS'
+    | 'STOP_FLOW_WATCHER'
     | 'OPEN_DOCKED'
     | 'FOCUS_TAB';
   prompt?: string;
   stageNumber?: number;
   taskType?: string;
   clipNumber?: number | string;
+  clipId?: string;
+  attempt?: number;
+  watchForVideo?: boolean;
   mediaType?: 'IMAGE' | 'VIDEO';
   autoSubmit?: boolean;
   preferDockedWindow?: boolean;

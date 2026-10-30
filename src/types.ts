@@ -177,6 +177,14 @@ export interface DocumentaryClip {
   auditReason?: string;
   suggestedImagePrompt?: string;
   suggestedVideoPrompt?: string;
+  // Auditoría Visual Automática del Video Real de Google Flow
+  videoAuditStatus?: 'idle' | 'generating' | 'auditing' | 'approved' | 'warning' | 'rejected';
+  videoAuditScore?: number;
+  videoAuditReason?: string;
+  videoAuditIssues?: string[];
+  videoFrames?: string[];
+  videoAttempts?: number;
+  videoSavedFileName?: string;
 }
 
 export interface SunoTrack {

@@ -79,6 +79,7 @@
       message.type === 'BRIDGE_STATUS' ||
       message.type === 'GEMINI_RESPONSE_READY' ||
       message.type === 'FLOW_MEDIA_READY' ||
+      message.type === 'FLOW_VIDEO_CAPTURED' ||
       message.type === 'HUELLAS_CONNECTED_TABS_UPDATE'
     ) {
       window.postMessage(

@@ -83,6 +83,7 @@ import {
   buildStagePromptText,
   generateStageClientSide,
   auditClipsClientSide,
+  auditClipVideoClientSide,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
   PUBLIC_GITHUB_PAGES_URL,
@@ -96,7 +97,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:04 AM - 10/30/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:02 PM - 10/30/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -385,6 +386,32 @@ export default function App() {
   const [lastMirroredFlowVideos, setLastMirroredFlowVideos] = useState<string[]>([]);
   const [lastMirroredFlowImages, setLastMirroredFlowImages] = useState<string[]>([]);
 
+  // Google Flow 100% Automatic Production + Visual Video Audit + Chosen Folder Auto-Download
+  const flowDownloadDirHandleRef = React.useRef<any>(null);
+  const [flowDownloadFolderName, setFlowDownloadFolderName] = useState<string>('');
+  const [flowServerFolderPath, setFlowServerFolderPath] = useState<string>('');
+  const [flowAutoPilotActive, setFlowAutoPilotActive] = useState<boolean>(false);
+  const flowAutoPilotActiveRef = React.useRef<boolean>(false);
+  const [flowAutoRetryEnabled, setFlowAutoRetryEnabled] = useState<boolean>(true);
+  const flowAutoRetryEnabledRef = React.useRef<boolean>(true);
+  const [flowAutoDownloadEnabled, setFlowAutoDownloadEnabled] = useState<boolean>(true);
+  const flowAutoDownloadEnabledRef = React.useRef<boolean>(true);
+  const [flowCurrentClipNum, setFlowCurrentClipNum] = useState<number | null>(null);
+  const [flowStatusLog, setFlowStatusLog] = useState<string>('');
+  const activeDocRef = React.useRef<DocumentaryProject | null>(null);
+
+  useEffect(() => {
+    flowAutoPilotActiveRef.current = flowAutoPilotActive;
+  }, [flowAutoPilotActive]);
+
+  useEffect(() => {
+    flowAutoRetryEnabledRef.current = flowAutoRetryEnabled;
+  }, [flowAutoRetryEnabled]);
+
+  useEffect(() => {
+    flowAutoDownloadEnabledRef.current = flowAutoDownloadEnabled;
+  }, [flowAutoDownloadEnabled]);
+
   useEffect(() => {
     localStorage.setItem('huellas_show_web_studio', String(showWebStudio));
   }, [showWebStudio]);
@@ -404,6 +431,10 @@ export default function App() {
     () => documentaries.find((d) => d.id === activeDocId) || null,
     [documentaries, activeDocId]
   );
+
+  useEffect(() => {
+    activeDocRef.current = activeDoc;
+  }, [activeDoc]);
 
   const handleLogin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -944,6 +975,384 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
+  // 1. Choose Destination Folder on User's Computer from the Site (Before Auto-Download)
+  const handlePickFlowDownloadFolder = async (): Promise<boolean> => {
+    try {
+      if (typeof (window as any).showDirectoryPicker === 'function') {
+        const dirHandle = await (window as any).showDirectoryPicker({
+          mode: 'readwrite',
+        });
+        if (dirHandle) {
+          flowDownloadDirHandleRef.current = dirHandle;
+          setFlowDownloadFolderName(dirHandle.name || 'Carpeta Seleccionada');
+          setFlowServerFolderPath('');
+          setFlowStatusLog(
+            `📁 Carpeta de auto-descarga lista: "${dirHandle.name}". Todos los videos aprobados se guardarán aquí automáticamente.`
+          );
+          return true;
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return false;
+      }
+    }
+
+    // Fallback to native macOS folder picker on local server if showDirectoryPicker is unavailable
+    if (!isCloudMode) {
+      try {
+        const res = await fetch('/api/system/pick-folder', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.folderPath) {
+            flowDownloadDirHandleRef.current = null;
+            setFlowServerFolderPath(data.folderPath);
+            setFlowDownloadFolderName(data.folderPath);
+            setFlowStatusLog(
+              `📁 Carpeta de auto-descarga lista: "${data.folderPath}". Todos los videos aprobados se guardarán aquí automáticamente.`
+            );
+            return true;
+          }
+        }
+      } catch {}
+    }
+
+    return false;
+  };
+
+  // 2. Save Approved Clip MP4 Directly into the User's Chosen Folder
+  const saveApprovedClipVideoToFolder = async (
+    clipNumber: number,
+    videoDataUrl?: string
+  ): Promise<string> => {
+    if (!videoDataUrl) return '';
+    const padded = String(clipNumber).padStart(2, '0');
+    const fileName = `${padded}_Clip.mp4`;
+
+    // A) Write directly via File System Access API (Chrome Directory Handle)
+    if (flowDownloadDirHandleRef.current) {
+      try {
+        const parts = videoDataUrl.split(',');
+        const bstr = atob(parts[1] || '');
+        const u8arr = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) {
+          u8arr[i] = bstr.charCodeAt(i);
+        }
+        const fileHandle = await flowDownloadDirHandleRef.current.getFileHandle(fileName, {
+          create: true,
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(u8arr);
+        await writable.close();
+        return fileName;
+      } catch (e) {
+        console.warn('Error writing via DirectoryHandle, falling back:', e);
+      }
+    }
+
+    // B) Write via local server folder path if chosen
+    if (flowServerFolderPath && !isCloudMode) {
+      try {
+        const res = await fetch('/api/flow/save-video-to-folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            folderPath: flowServerFolderPath,
+            fileName,
+            videoDataUrl,
+          }),
+        });
+        if (res.ok) {
+          return fileName;
+        }
+      } catch {}
+    }
+
+    // C) Fallback: standard anchor download
+    try {
+      const a = document.createElement('a');
+      a.href = videoDataUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return fileName;
+    } catch {
+      return '';
+    }
+  };
+
+  // 3. Send a Specific Clip to Google Flow with Automatic Video Watcher Enabled
+  const sendClipToFlowWithAutoAudit = (
+    clip: DocumentaryClip,
+    customPrompt?: string,
+    attemptNum: number = 1
+  ) => {
+    const promptToSend = (customPrompt || clip.videoPrompt || '').trim();
+    if (!promptToSend) return;
+
+    const currentDoc = activeDocRef.current;
+    if (currentDoc) {
+      const nextClips = (currentDoc.clips || []).map((c) =>
+        c.id === clip.id
+          ? {
+              ...c,
+              videoPrompt: promptToSend,
+              videoAuditStatus: 'generating' as const,
+              videoAttempts: attemptNum,
+              videoAuditReason:
+                attemptNum > 1
+                  ? `🔄 Re-intentando automáticamente en Google Flow (Intento #${attemptNum})...`
+                  : '🎬 Generando video en Google Flow y esperando para auditar...',
+            }
+          : c
+      );
+      updateActiveDoc({ clips: nextClips });
+    }
+
+    setFlowCurrentClipNum(clip.clipNumber);
+    const padded = String(clip.clipNumber).padStart(2, '0');
+    const statusText =
+      attemptNum > 1
+        ? `🔄 Clip #${padded} (Re-intento #${attemptNum}): Enviando prompt corregido a Google Flow...`
+        : `🎬 Clip #${padded}: Enviado a Google Flow. Vigilando generación en tiempo real...`;
+    setFlowStatusLog(statusText);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(statusText);
+
+    sendCommandToWebBridge('FLOW', {
+      action: 'SEND_PROMPT',
+      prompt: promptToSend,
+      clipNumber: clip.clipNumber,
+      clipId: clip.id,
+      attempt: attemptNum,
+      watchForVideo: true,
+      mediaType: 'VIDEO',
+      autoSubmit: true,
+      focusTab: false,
+      tabId: selectedFlowTabId,
+    });
+  };
+
+  // 4. Multimodal AI Visual Audit when Google Flow Finishes Generating a Video
+  const handleCapturedFlowVideoAudit = async (msg: any) => {
+    const currentDoc = activeDocRef.current;
+    if (!currentDoc || !Array.isArray(currentDoc.clips)) return;
+
+    const clipNum = Number(msg.clipNumber) || 1;
+    const targetClip =
+      currentDoc.clips.find((c) => msg.clipId && c.id === msg.clipId) ||
+      currentDoc.clips.find((c) => c.clipNumber === clipNum);
+
+    if (!targetClip) return;
+
+    const padded = String(targetClip.clipNumber).padStart(2, '0');
+    const frames: string[] = Array.isArray(msg.frames) ? msg.frames : [];
+    const videoDataUrl: string = msg.videoDataUrl || '';
+    const attempt: number = Number(msg.attempt) || 1;
+    const fromScan: boolean = Boolean(msg.fromScan);
+
+    // Immediately show the 3 extracted frames and "Auditing..." state on the clip card
+    const auditingClipsList = currentDoc.clips.map((c) =>
+      c.id === targetClip.id
+        ? {
+            ...c,
+            videoAuditStatus: 'auditing' as const,
+            videoFrames: frames.length > 0 ? frames : c.videoFrames,
+            videoAuditReason: `🔍 Auditando los ${frames.length} fotogramas del video contra el Prompt y la Voz Narrativa...`,
+          }
+        : c
+    );
+    updateActiveDoc({ clips: auditingClipsList });
+    setFlowStatusLog(
+      `🔍 Clip #${padded}: Video capturado de Google Flow. Analizando si coincide con su Prompt y Voz Narrativa...`
+    );
+
+    try {
+      let auditData: any = null;
+      if (!isCloudMode) {
+        try {
+          const res = await fetch('/api/ai/audit-clip-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documentary: currentDoc,
+              clip: targetClip,
+              frames,
+              attempt,
+            }),
+          });
+          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+            auditData = await res.json();
+          } else {
+            auditData = await auditClipVideoClientSide(currentDoc, targetClip, frames, attempt);
+          }
+        } catch {
+          auditData = await auditClipVideoClientSide(currentDoc, targetClip, frames, attempt);
+        }
+      } else {
+        auditData = await auditClipVideoClientSide(currentDoc, targetClip, frames, attempt);
+      }
+
+      const verdict: 'approved' | 'warning' | 'rejected' =
+        auditData?.verdict === 'rejected'
+          ? 'rejected'
+          : auditData?.verdict === 'warning'
+          ? 'warning'
+          : 'approved';
+      const score = Number(auditData?.score) || (verdict === 'approved' ? 90 : 50);
+      const reason =
+        auditData?.auditReason ||
+        (verdict === 'approved'
+          ? 'El video coincide con el prompt y la voz narrativa.'
+          : 'El video presenta discrepancias con el prompt o la voz narrativa.');
+      const issues: string[] = Array.isArray(auditData?.issues) ? auditData.issues : [];
+      const fixedPrompt: string = (auditData?.fixedVideoPrompt || '').trim();
+
+      // CASE A: REJECTED -> Auto-Retry with Fixed Prompt if enabled and attempts < 2
+      if (verdict === 'rejected' && !fromScan && flowAutoRetryEnabledRef.current && attempt < 2 && fixedPrompt) {
+        setFlowStatusLog(
+          `🚨 Clip #${padded} rechazado (${score}/100: ${reason}). Corrigiendo prompt y re-enviando automáticamente a Google Flow (Intento #${
+            attempt + 1
+          })...`
+        );
+        sendClipToFlowWithAutoAudit(targetClip, fixedPrompt, attempt + 1);
+        return;
+      }
+
+      // CASE B: APPROVED or WARNING -> Auto-Download to Chosen Folder
+      let savedFileName = targetClip.videoSavedFileName || '';
+      if (verdict !== 'rejected' && flowAutoDownloadEnabledRef.current && videoDataUrl) {
+        savedFileName = await saveApprovedClipVideoToFolder(targetClip.clipNumber, videoDataUrl);
+      }
+
+      const latestDoc = activeDocRef.current || currentDoc;
+      const finalClips = (latestDoc.clips || []).map((c) =>
+        c.id === targetClip.id
+          ? {
+              ...c,
+              videoReady: verdict !== 'rejected',
+              videoAuditStatus: verdict,
+              videoAuditScore: score,
+              videoAuditReason: reason,
+              videoAuditIssues: issues,
+              videoFrames: frames.length > 0 ? frames : c.videoFrames,
+              videoAttempts: attempt,
+              videoSavedFileName: savedFileName || c.videoSavedFileName,
+              ...(verdict === 'rejected' && fixedPrompt
+                ? { suggestedVideoPrompt: fixedPrompt }
+                : {}),
+            }
+          : c
+      );
+
+      updateActiveDoc({ clips: finalClips });
+
+      if (verdict !== 'rejected') {
+        setBridgeStatusType('SUCCESS');
+        const msgDone = `✅ Clip #${padded} APROBADO (${score}/100)${
+          savedFileName ? ` y guardado automáticamente como ${savedFileName}` : ''
+        }.`;
+        setFlowStatusLog(msgDone);
+        setBridgeStatusMsg(msgDone);
+      } else {
+        setBridgeStatusType('ERROR');
+        const msgFail = `🚨 Clip #${padded} NO APROBÓ (${score}/100): ${reason}`;
+        setFlowStatusLog(msgFail);
+        setBridgeStatusMsg(msgFail);
+      }
+
+      // If Autopilot Queue is running, automatically advance to the next pending clip!
+      if (flowAutoPilotActiveRef.current && !fromScan) {
+        const nextPendingClip = finalClips.find(
+          (c) => c.clipNumber > targetClip.clipNumber && !c.videoReady && (c.videoPrompt || '').trim()
+        );
+        if (nextPendingClip) {
+          setTimeout(() => {
+            if (!flowAutoPilotActiveRef.current) return;
+            sendClipToFlowWithAutoAudit(nextPendingClip, undefined, 1);
+          }, 2200);
+        } else {
+          setFlowAutoPilotActive(false);
+          setFlowCurrentClipNum(null);
+          setFlowStatusLog(
+            '🎉 ¡Piloto Automático completado! Todos los clips fueron producidos, auditados y descargados en tu carpeta.'
+          );
+        }
+      } else {
+        setFlowCurrentClipNum(null);
+      }
+    } catch (err: any) {
+      setFlowStatusLog(`⚠️ Error auditando el video del Clip #${padded}: ${err?.message || err}`);
+      setFlowCurrentClipNum(null);
+    }
+  };
+
+  // 5. Start 100% Automatic Queue (Prompt -> Flow -> Watch -> Audit -> Auto-Retry/Download -> Next Clip)
+  const handleStartFlowAutoPilot = async () => {
+    if (!activeDoc || !activeDoc.clips || activeDoc.clips.length === 0) {
+      alert('Primero genera o sincroniza los clips en la Etapa 8.');
+      return;
+    }
+
+    // Ensure user chooses the download destination folder FIRST from the site if Auto-Download is enabled
+    if (
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      const picked = await handlePickFlowDownloadFolder();
+      if (!picked) {
+        alert(
+          '📂 Por favor elige primero la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
+        );
+        return;
+      }
+    }
+
+    const firstPending = activeDoc.clips.find(
+      (c) => !c.videoReady && (c.videoPrompt || '').trim().length > 0
+    );
+    if (!firstPending) {
+      alert(
+        '✅ Todos los clips ya están marcados como Video Listo. Desmarca la casilla "Video Listo" en los clips que quieras volver a producir.'
+      );
+      return;
+    }
+
+    setFlowAutoPilotActive(true);
+    flowAutoPilotActiveRef.current = true;
+    sendClipToFlowWithAutoAudit(firstPending, undefined, 1);
+  };
+
+  const handleStopFlowAutoPilot = () => {
+    setFlowAutoPilotActive(false);
+    flowAutoPilotActiveRef.current = false;
+    setFlowCurrentClipNum(null);
+    setFlowStatusLog('⏹️ Piloto Automático detenido por el usuario.');
+    sendCommandToWebBridge('FLOW', {
+      action: 'STOP_FLOW_WATCHER',
+      tabId: selectedFlowTabId,
+    });
+  };
+
+  const handleScanExistingFlowVideosInTab = async () => {
+    if (
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      await handlePickFlowDownloadFolder();
+    }
+    setFlowStatusLog(
+      '🔍 Escaneando videos ya creados en la pestaña de Google Flow para auditarlos automáticamente...'
+    );
+    sendCommandToWebBridge('FLOW', {
+      action: 'SCAN_FLOW_VIDEOS',
+      tabId: selectedFlowTabId,
+    });
+  };
+
   // Listen for Chrome Extension Web Bridge messages (Gemini Web & Google Flow)
   useEffect(() => {
     const handleBridgeMessage = (event: MessageEvent) => {
@@ -961,6 +1370,9 @@ export default function App() {
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
         setBridgeStatusMsg(msg.message || '');
+        if (msg.service === 'FLOW' && msg.message) {
+          setFlowStatusLog(msg.message);
+        }
         if (msg.previewText) {
           setLastMirroredGeminiText(String(msg.previewText));
         }
@@ -997,6 +1409,9 @@ export default function App() {
         if (Array.isArray(msg.images)) setLastMirroredFlowImages(msg.images);
         setBridgeStatusType('SUCCESS');
         setBridgeStatusMsg('✅ Media capturada desde Google Flow.');
+      } else if (msg.type === 'FLOW_VIDEO_CAPTURED') {
+        setExtensionInstalled(true);
+        handleCapturedFlowVideoAudit(msg);
       }
     };
 
@@ -1048,7 +1463,7 @@ export default function App() {
     });
   };
 
-  const handleSendPromptToFlow = (
+  const handleSendPromptToFlow = async (
     promptText: string,
     mediaType: 'IMAGE' | 'VIDEO' = 'VIDEO',
     clipIdentifier?: string | number,
@@ -1056,6 +1471,30 @@ export default function App() {
   ) => {
     if (!promptText.trim()) return;
     navigator.clipboard.writeText(promptText).catch(() => {});
+
+    // If sending a VIDEO clip from Stage 8 and Auto-Download is enabled, make sure folder is chosen first
+    if (
+      mediaType === 'VIDEO' &&
+      clipIdentifier &&
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      const picked = await handlePickFlowDownloadFolder();
+      if (!picked) {
+        return;
+      }
+    }
+
+    const matchedClip =
+      activeDoc?.clips?.find((c) => c.id === clipIdentifier || c.clipNumber === Number(clipIdentifier)) ||
+      null;
+
+    if (matchedClip && mediaType === 'VIDEO') {
+      sendClipToFlowWithAutoAudit(matchedClip, promptText, 1);
+      return;
+    }
+
     if (!showWebStudio) {
       setShowWebStudio(true);
     }
@@ -1066,7 +1505,9 @@ export default function App() {
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
-      clipNumber: clipIdentifier,
+      clipNumber: matchedClip ? matchedClip.clipNumber : clipIdentifier,
+      clipId: matchedClip ? matchedClip.id : undefined,
+      watchForVideo: mediaType === 'VIDEO',
       mediaType,
       autoSubmit: true,
       focusTab: true,
@@ -4196,6 +4637,104 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* ===============================================================
+                    PILOTO AUTOMÁTICO GOOGLE FLOW + CARPETA ELEGIDA + AUDITOR VISUAL
+                =============================================================== */}
+                <div className="bg-gradient-to-r from-emerald-950/60 via-[#14120f] to-amber-950/40 border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
+                        🤖 Piloto Automático Google Flow: Producción + Auditoría Visual IA + Auto-Descarga
+                      </h4>
+                      <p className="text-xs text-slate-300">
+                        1️⃣ Elige primero tu carpeta de descarga. 2️⃣ El sistema envía cada clip a Google Flow, captura el
+                        video apenas termina, lo compara contra su <strong>Prompt</strong> y su{' '}
+                        <strong>Voz Narrativa</strong>, lo re-hace solo si sale mal y descarga los aprobados como{' '}
+                        <code className="text-amber-300">01_Clip.mp4</code>,{' '}
+                        <code className="text-amber-300">02_Clip.mp4</code>...
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Step 1: Choose Destination Folder on Computer */}
+                      <button
+                        type="button"
+                        onClick={handlePickFlowDownloadFolder}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                          flowDownloadFolderName
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30'
+                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow'
+                        }`}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        {flowDownloadFolderName
+                          ? `📁 Carpeta: ${flowDownloadFolderName} (Cambiar)`
+                          : '📂 1. Elegir Carpeta de Descarga'}
+                      </button>
+
+                      {/* Step 2: Start / Stop Full Autopilot Queue */}
+                      {!flowAutoPilotActive ? (
+                        <button
+                          type="button"
+                          onClick={handleStartFlowAutoPilot}
+                          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                        >
+                          <Film className="w-4 h-4" />
+                          🚀 2. Iniciar Producción y Auditoría Automática en Flow
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStopFlowAutoPilot}
+                          className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer animate-pulse"
+                        >
+                          ⏹️ Detener Piloto Automático (Clip #{String(flowCurrentClipNum || 1).padStart(2, '0')})
+                        </button>
+                      )}
+
+                      {/* Scan & Audit Already Generated Videos in Open Flow Tab */}
+                      <button
+                        type="button"
+                        onClick={handleScanExistingFlowVideosInTab}
+                        className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-amber-300 flex items-center gap-1.5 cursor-pointer"
+                        title="Si ya tienes videos creados en la pestaña abierta de Google Flow, los captura, audita contra sus prompts y voz narrativa, y descarga los aprobados"
+                      >
+                        🔍 Auditar Videos Actuales en Flow
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Toggles & Live Status Bar */}
+                  <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-800/80 text-xs">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={flowAutoDownloadEnabled}
+                          onChange={(e) => setFlowAutoDownloadEnabled(e.target.checked)}
+                          className="accent-emerald-500"
+                        />
+                        <span>Auto-descargar videos aprobados (✅) en la carpeta elegida</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={flowAutoRetryEnabled}
+                          onChange={(e) => setFlowAutoRetryEnabled(e.target.checked)}
+                          className="accent-amber-500"
+                        />
+                        <span>Auto-corregir prompt y re-hacer en Flow si un video falla (🚨 máx. 2 intentos)</span>
+                      </label>
+                    </div>
+
+                    {flowStatusLog && (
+                      <div className="text-xs font-mono text-emerald-300 bg-slate-950/90 border border-emerald-500/30 rounded-lg px-3 py-1">
+                        {flowStatusLog}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* AUDIT SUMMARY & 1-CLICK APPLY ALL SUGGESTIONS */}
                 {(activeDoc.clips?.length || 0) > 0 &&
                   (() => {
@@ -4464,6 +5003,36 @@ export default function App() {
                                   ⏸ {clip.pauseNotes}
                                 </span>
                               )}
+                              {clip.videoAuditStatus === 'generating' && (
+                                <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-xs font-bold animate-pulse">
+                                  🎬 Generando video en Flow...
+                                </span>
+                              )}
+                              {clip.videoAuditStatus === 'auditing' && (
+                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold animate-pulse">
+                                  🔍 Auditando video real...
+                                </span>
+                              )}
+                              {clip.videoAuditStatus === 'approved' && (
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+                                  🎥 ✅ Video Flow Aprobado ({clip.videoAuditScore ?? 92}/100)
+                                </span>
+                              )}
+                              {clip.videoAuditStatus === 'warning' && (
+                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+                                  🎥 ⚠️ Video Flow con Observación ({clip.videoAuditScore ?? 70}/100)
+                                </span>
+                              )}
+                              {clip.videoAuditStatus === 'rejected' && (
+                                <span className="px-2.5 py-1 rounded-lg bg-rose-500/25 border border-rose-500/50 text-rose-300 text-xs font-bold">
+                                  🎥 🚨 Video Flow Rechazado ({clip.videoAuditScore ?? 40}/100)
+                                </span>
+                              )}
+                              {clip.videoSavedFileName && (
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono">
+                                  💾 {clip.videoSavedFileName}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-3">
@@ -4607,6 +5176,67 @@ export default function App() {
                               />
                             </div>
                           </div>
+
+                          {/* GOOGLE FLOW REAL VIDEO AUDIT RESULT & 3-KEYFRAME STRIP */}
+                          {(clip.videoAuditReason || (clip.videoFrames && clip.videoFrames.length > 0)) && (
+                            <div
+                              className={`rounded-xl border p-3.5 space-y-2.5 ${
+                                clip.videoAuditStatus === 'rejected'
+                                  ? 'bg-rose-950/25 border-rose-500/40'
+                                  : clip.videoAuditStatus === 'approved'
+                                  ? 'bg-emerald-950/20 border-emerald-500/35'
+                                  : 'bg-slate-950/90 border-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                  🎞️ Auditoría Visual del Video Creado en Google Flow (vs. Prompt y Voz Narrativa)
+                                  {clip.videoAttempts && clip.videoAttempts > 1
+                                    ? ` • Intento #${clip.videoAttempts}`
+                                    : ''}
+                                </span>
+                                {clip.videoSavedFileName && (
+                                  <span className="text-[11px] font-mono text-emerald-300">
+                                    ✓ Descargado automáticamente: {clip.videoSavedFileName}
+                                  </span>
+                                )}
+                              </div>
+
+                              {clip.videoAuditReason && (
+                                <p className="text-xs text-slate-200 leading-relaxed">
+                                  {clip.videoAuditReason}
+                                </p>
+                              )}
+
+                              {clip.videoAuditIssues && clip.videoAuditIssues.length > 0 && (
+                                <ul className="list-disc list-inside text-xs text-rose-300 space-y-0.5">
+                                  {clip.videoAuditIssues.map((iss, iIdx) => (
+                                    <li key={iIdx}>{iss}</li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              {clip.videoFrames && clip.videoFrames.length > 0 && (
+                                <div className="grid grid-cols-3 gap-2.5 pt-1">
+                                  {clip.videoFrames.slice(0, 3).map((frameSrc, fIdx) => (
+                                    <div
+                                      key={fIdx}
+                                      className="relative rounded-lg overflow-hidden border border-slate-800 bg-black aspect-video"
+                                    >
+                                      <img
+                                        src={frameSrc}
+                                        alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-amber-300">
+                                        {fIdx === 0 ? 'Inicio' : fIdx === 1 ? 'Mitad' : 'Final'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* AI Suggested Replacement Prompts Box (if any) */}
                           {hasSuggestion && (
