@@ -31,7 +31,7 @@ export default defineConfig(() => {
     },
     server: {
       watch: {
-        ignored: ['**/data/**', '**/dist/**', '**/*.log'],
+        ignored: ['**/data/**', '**/dist/**', '**/docs/**', '**/chrome-extension/**', '**/*.log'],
       },
     },
   };

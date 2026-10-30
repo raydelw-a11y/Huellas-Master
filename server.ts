@@ -279,13 +279,26 @@ function getLocalGitHubToken(): string {
   return '';
 }
 
+let lastPushedGitHubJson = '';
+
 function writeDocumentaries(list: any[], skipCloudPush = false) {
   const jsonStr = JSON.stringify(list, null, 2);
-  fs.writeFileSync(DOCS_FILE, jsonStr, 'utf8');
+  try {
+    const currentDisk = fs.existsSync(DOCS_FILE) ? fs.readFileSync(DOCS_FILE, 'utf8') : '';
+    if (currentDisk !== jsonStr) {
+      fs.writeFileSync(DOCS_FILE, jsonStr, 'utf8');
+    }
+  } catch {
+    fs.writeFileSync(DOCS_FILE, jsonStr, 'utf8');
+  }
   try {
     const docsDataDir = path.join(process.cwd(), 'docs', 'data');
     if (fs.existsSync(docsDataDir)) {
-      fs.writeFileSync(path.join(docsDataDir, 'documentaries.json'), jsonStr, 'utf8');
+      const docsTarget = path.join(docsDataDir, 'documentaries.json');
+      const currentDocsDisk = fs.existsSync(docsTarget) ? fs.readFileSync(docsTarget, 'utf8') : '';
+      if (currentDocsDisk !== jsonStr) {
+        fs.writeFileSync(docsTarget, jsonStr, 'utf8');
+      }
     }
   } catch {}
   if (!skipCloudPush) {
@@ -373,17 +386,25 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
               const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
               return tB - tA;
             });
-            writeDocumentaries(mergedList, true);
+            if (JSON.stringify(mergedList) !== JSON.stringify(localList)) {
+              writeDocumentaries(mergedList, true);
+            }
           }
         }
       }
     } catch (e) {
       console.warn('[CloudSync] Pull warning:', e);
     }
+    // When polling (pullFirst === true), only push if local had newer items not on remote
+    return { synced: true, total: mergedList.length };
   }
 
   try {
     const jsonStr = JSON.stringify(mergedList, null, 2);
+    if (jsonStr === lastPushedGitHubJson) {
+      return { synced: true, total: mergedList.length };
+    }
+    lastPushedGitHubJson = jsonStr;
     const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -2041,7 +2062,7 @@ async function bootstrap() {
       server: {
         middlewareMode: true,
         watch: {
-          ignored: ['**/data/**', '**/dist/**', '**/*.log'],
+          ignored: ['**/data/**', '**/dist/**', '**/docs/**', '**/chrome-extension/**', '**/*.log'],
         },
       },
       appType: 'spa',
