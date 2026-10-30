@@ -68,7 +68,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
 
   // 1. Lightweight Ping (NO script injection here to prevent loops)
-  if (message.type === 'HUELLAS_PING') {
+  if (message.type === 'HUELLAS_PING_V2') {
     getConnectedAiTabs().then(({ geminiTabs, flowTabs }) => {
       sendResponse({
         ok: true,

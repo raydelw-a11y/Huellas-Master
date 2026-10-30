@@ -40,7 +40,7 @@ export function pingHuellasExtension(): void {
   window.postMessage(
     {
       source: 'HUELLAS_APP',
-      type: 'HUELLAS_PING',
+      type: 'HUELLAS_PING_V2',
     },
     '*'
   );

@@ -96,7 +96,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:17 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:22 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -1652,6 +1652,26 @@ export default function App() {
     triggerFileDownload(lines.join('\n'), `${safeTitle}_Expediente_Completo.txt`, 'text/plain;charset=utf-8');
   };
 
+  // Voiceover metrics calculation for Stage 4 (recognizes [1s], [2s], [2], [2}, [pausa: 2s], etc.)
+  const voiceoverMetrics = useMemo(() => {
+    const raw = activeDoc?.voiceoverScript || '';
+    if (!raw.trim())
+      return { cleanChars: 0, words: 0, pauseCount: 0, pauseSeconds: 0, spokenSeconds: 0, totalSeconds: 0 };
+    const pauseInfo = extractPausesInfo(raw);
+    const cleanText = stripPauseTags(raw).trim();
+    const cleanChars = cleanText.length;
+    const words = cleanText ? cleanText.split(/\s+/).filter(Boolean).length : 0;
+    const spokenSeconds = Math.round(cleanChars / 15); // 15 chars/sec standard
+    return {
+      cleanChars,
+      words,
+      pauseCount: pauseInfo.count,
+      pauseSeconds: pauseInfo.totalSeconds,
+      spokenSeconds,
+      totalSeconds: Math.round(spokenSeconds + pauseInfo.totalSeconds),
+    };
+  }, [activeDoc?.voiceoverScript]);
+
   // ============================================================================
   // PASSWORD SCREEN (ACCESO PRIVADO)
   // ============================================================================
@@ -1702,26 +1722,6 @@ export default function App() {
       </div>
     );
   }
-
-  // Voiceover metrics calculation for Stage 4 (recognizes [1s], [2s], [2], [2}, [pausa: 2s], etc.)
-  const voiceoverMetrics = useMemo(() => {
-    const raw = activeDoc?.voiceoverScript || '';
-    if (!raw.trim())
-      return { cleanChars: 0, words: 0, pauseCount: 0, pauseSeconds: 0, spokenSeconds: 0, totalSeconds: 0 };
-    const pauseInfo = extractPausesInfo(raw);
-    const cleanText = stripPauseTags(raw).trim();
-    const cleanChars = cleanText.length;
-    const words = cleanText ? cleanText.split(/\s+/).filter(Boolean).length : 0;
-    const spokenSeconds = Math.round(cleanChars / 15); // 15 chars/sec standard
-    return {
-      cleanChars,
-      words,
-      pauseCount: pauseInfo.count,
-      pauseSeconds: pauseInfo.totalSeconds,
-      spokenSeconds,
-      totalSeconds: Math.round(spokenSeconds + pauseInfo.totalSeconds),
-    };
-  }, [activeDoc?.voiceoverScript]);
 
   const filteredDocs = documentaries.filter((d) => {
     const matchesSearch =

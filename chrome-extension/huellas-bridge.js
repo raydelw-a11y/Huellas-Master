@@ -18,7 +18,7 @@
     lastPingAt = now;
 
     try {
-      chrome.runtime.sendMessage({ type: 'HUELLAS_PING' }, (response) => {
+      chrome.runtime.sendMessage({ type: 'HUELLAS_PING_V2' }, (response) => {
         if (chrome.runtime.lastError) return;
         window.postMessage(
           {
@@ -43,7 +43,7 @@
 
     const data = event.data;
 
-    if (data.type === 'HUELLAS_PING') {
+    if (data.type === 'HUELLAS_PING_V2' || data.type === 'HUELLAS_PING') {
       requestAndNotifyExtensionReady();
       return;
     }
