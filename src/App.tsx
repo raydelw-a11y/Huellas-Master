@@ -96,7 +96,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:09 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:17 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -940,9 +940,12 @@ export default function App() {
     }
   };
 
-  // Listen for Chrome Extension Web Bridge messages (Gemini Web & Google Flow)
   useEffect(() => {
     pingHuellasExtension();
+  }, []);
+
+  // Listen for Chrome Extension Web Bridge messages (Gemini Web & Google Flow)
+  useEffect(() => {
     const handleBridgeMessage = (event: MessageEvent) => {
       if (!event.data || event.data.source !== 'HUELLAS_EXTENSION') return;
       const msg = event.data;

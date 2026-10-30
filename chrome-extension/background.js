@@ -1,34 +1,41 @@
 // ============================================================================
-// HUELLAS MASTER — BACKGROUND SERVICE WORKER (Manifest V3)
-// Connects Huellas Master to real open Gemini Web & Google Flow tabs/windows
+// HUELLAS MASTER — BACKGROUND SERVICE WORKER (SAFE, ZERO-LOOP)
 // ============================================================================
 
 async function getConnectedAiTabs() {
-  const allTabs = await chrome.tabs.query({});
-  const geminiTabs = allTabs
-    .filter((t) => t.url && t.url.startsWith('https://gemini.google.com/'))
-    .map((t) => ({
-      id: t.id,
-      windowId: t.windowId,
-      title: (t.title || 'Google Gemini').replace(/ - Google Gemini$/i, '').trim() || 'Google Gemini',
-      url: t.url,
-    }));
+  try {
+    const allTabs = await chrome.tabs.query({});
+    const geminiTabs = allTabs
+      .filter((t) => t.url && t.url.startsWith('https://gemini.google.com/'))
+      .map((t) => ({
+        id: t.id,
+        windowId: t.windowId,
+        title:
+          (t.title || 'Google Gemini').replace(/ - Google Gemini$/i, '').trim() ||
+          'Google Gemini',
+        url: t.url,
+      }));
 
-  const flowTabs = allTabs
-    .filter(
-      (t) =>
-        t.url &&
-        (t.url.startsWith('https://flow.google.com/') ||
-          t.url.startsWith('https://labs.google/fx/tools/flow'))
-    )
-    .map((t) => ({
-      id: t.id,
-      windowId: t.windowId,
-      title: (t.title || 'Google Flow').replace(/^Google Flow - /i, '').trim() || 'Google Flow',
-      url: t.url,
-    }));
+    const flowTabs = allTabs
+      .filter(
+        (t) =>
+          t.url &&
+          (t.url.startsWith('https://flow.google.com/') ||
+            t.url.startsWith('https://labs.google/fx/tools/flow'))
+      )
+      .map((t) => ({
+        id: t.id,
+        windowId: t.windowId,
+        title:
+          (t.title || 'Google Flow').replace(/^Google Flow - /i, '').trim() ||
+          'Google Flow',
+        url: t.url,
+      }));
 
-  return { geminiTabs, flowTabs };
+    return { geminiTabs, flowTabs };
+  } catch {
+    return { geminiTabs: [], flowTabs: [] };
+  }
 }
 
 async function ensureScriptInjected(tabId, scriptFile) {
@@ -37,86 +44,35 @@ async function ensureScriptInjected(tabId, scriptFile) {
       target: { tabId },
       files: [scriptFile],
     });
-  } catch {
-    // Ignore if already injected
-  }
+  } catch {}
 }
 
-async function injectIntoExistingTabs() {
+async function broadcastToHuellasTabs(payload) {
   try {
-    const allTabs = await chrome.tabs.query({});
-    for (const tab of allTabs) {
-      if (!tab.id || !tab.url) continue;
-      if (tab.url.startsWith('https://gemini.google.com/')) {
-        ensureScriptInjected(tab.id, 'gemini-content.js');
-      } else if (
-        tab.url.startsWith('https://flow.google.com/') ||
-        tab.url.startsWith('https://labs.google/')
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (
+        tab.id &&
+        tab.url &&
+        (tab.url.startsWith('http://localhost:4200') ||
+          tab.url.startsWith('https://raydelw-a11y.github.io') ||
+          tab.url.includes('huellasdelahumanidad.com'))
       ) {
-        ensureScriptInjected(tab.id, 'flow-content.js');
-      } else if (
-        tab.url.startsWith('http://localhost:4200') ||
-        tab.url.startsWith('https://raydelw-a11y.github.io') ||
-        tab.url.includes('huellasdelahumanidad.com')
-      ) {
-        ensureScriptInjected(tab.id, 'huellas-bridge.js');
+        chrome.tabs.sendMessage(tab.id, payload).catch(() => {});
       }
     }
   } catch {}
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  injectIntoExistingTabs();
-});
-
-chrome.runtime.onStartup.addListener(() => {
-  injectIntoExistingTabs();
-});
-
-async function broadcastToHuellasTabs(payload) {
-  const tabs = await chrome.tabs.query({});
-  for (const tab of tabs) {
-    if (
-      tab.id &&
-      tab.url &&
-      (tab.url.startsWith('http://localhost:4200') ||
-        tab.url.startsWith('https://raydelw-a11y.github.io') ||
-        tab.url.includes('huellasdelahumanidad.com'))
-    ) {
-      chrome.tabs.sendMessage(tab.id, payload).catch(() => {});
-    }
-  }
-}
-
-async function broadcastTabsUpdate() {
-  const { geminiTabs, flowTabs } = await getConnectedAiTabs();
-  broadcastToHuellasTabs({
-    type: 'HUELLAS_CONNECTED_TABS_UPDATE',
-    geminiTabs,
-    flowTabs,
-  });
-}
-
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-  if (changeInfo.status === 'complete' || changeInfo.title) {
-    broadcastTabsUpdate();
-  }
-});
-
-chrome.tabs.onRemoved.addListener(() => {
-  broadcastTabsUpdate();
-});
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
 
-  // 1. Ping from Huellas Master
+  // 1. Lightweight Ping (NO script injection here to prevent loops)
   if (message.type === 'HUELLAS_PING') {
-    injectIntoExistingTabs();
     getConnectedAiTabs().then(({ geminiTabs, flowTabs }) => {
       sendResponse({
         ok: true,
-        version: '1.1.0',
+        version: '1.2.0',
         geminiTabs,
         flowTabs,
       });
@@ -124,7 +80,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 2. Unified HUELLAS_COMMAND handler
+  // 2. On-demand command execution
   if (message.type === 'HUELLAS_COMMAND') {
     const targetService = message.targetService === 'FLOW' ? 'FLOW' : 'GEMINI';
     const payload = message.payload || {};
@@ -138,7 +94,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const contentScriptFile =
         targetService === 'FLOW' ? 'flow-content.js' : 'gemini-content.js';
 
-      // A) OPEN_DOCKED: Split screen 50/50 (Huellas Master on Left, Gemini/Flow on Right)
       if (action === 'OPEN_DOCKED') {
         try {
           if (sender?.tab?.windowId) {
@@ -187,7 +142,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               focused: true,
             });
           }
-          broadcastTabsUpdate();
           sendResponse({ ok: true });
         } catch (err) {
           sendResponse({ ok: false, error: String(err) });
@@ -195,7 +149,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      // B) FOCUS_TAB: Bring existing Gemini/Flow tab to front (or open a new tab)
       if (action === 'FOCUS_TAB') {
         const existing =
           serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
@@ -212,19 +165,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      // C) SEND_PROMPT, GRAB_LAST_RESPONSE, GRAB_LAST_MEDIA
       let targetTab =
         serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       if (!targetTab) {
-        broadcastToHuellasTabs({
-          type: 'BRIDGE_STATUS',
-          service: targetService,
-          status: 'WORKING',
-          message: `Abriendo pestaña de ${
-            targetService === 'FLOW' ? 'Google Flow' : 'Gemini Web'
-          }...`,
-        });
         const created = await chrome.tabs.create({
           url: defaultUrl,
           active: targetService === 'FLOW',
@@ -236,13 +180,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           title: created.title || targetService,
           url: created.url || defaultUrl,
         };
-        broadcastTabsUpdate();
       }
 
       if (targetTab && targetTab.id) {
-        if (payload.focusTab) {
-          await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
-        }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
         await new Promise((r) => setTimeout(r, 150));
 
@@ -251,18 +191,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             target: targetService,
             ...payload,
           })
-          .catch((err) => {
-            broadcastToHuellasTabs({
-              type: 'BRIDGE_STATUS',
-              service: targetService,
-              status: 'ERROR',
-              message: `Error al comunicar con la pestaña (${targetTab.title}): ${String(err)}`,
-            });
-          });
+          .catch(() => {});
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
       } else {
-        sendResponse({ ok: false, error: 'No se encontró ni se pudo abrir la pestaña.' });
+        sendResponse({ ok: false, error: 'No se encontró la pestaña.' });
       }
     })();
 

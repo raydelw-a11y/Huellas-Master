@@ -1,46 +1,41 @@
 // ============================================================================
-// HUELLAS MASTER — PAGE BRIDGE CONTENT SCRIPT
-// Injected into Huellas Master (localhost:4200, raydelw-a11y.github.io, huellasdelahumanidad.com)
+// HUELLAS MASTER — PAGE BRIDGE CONTENT SCRIPT (SAFE, SINGLE-INSTANCE)
 // ============================================================================
 
 (function () {
+  if (window.__HUELLAS_BRIDGE_LOADED__) return;
+  window.__HUELLAS_BRIDGE_LOADED__ = true;
+
   try {
     document.documentElement.setAttribute('data-huellas-extension', 'installed');
   } catch {}
 
+  let lastPingAt = 0;
+
   function requestAndNotifyExtensionReady() {
+    const now = Date.now();
+    if (now - lastPingAt < 1500) return;
+    lastPingAt = now;
+
     try {
       chrome.runtime.sendMessage({ type: 'HUELLAS_PING' }, (response) => {
+        if (chrome.runtime.lastError) return;
         window.postMessage(
           {
             source: 'HUELLAS_EXTENSION',
             type: 'EXTENSION_READY',
-            version: response?.version || '1.1.0',
+            version: response?.version || '1.2.0',
             geminiTabs: response?.geminiTabs || [],
             flowTabs: response?.flowTabs || [],
           },
           '*'
         );
       });
-    } catch {
-      window.postMessage(
-        {
-          source: 'HUELLAS_EXTENSION',
-          type: 'EXTENSION_READY',
-          version: '1.1.0',
-          geminiTabs: [],
-          flowTabs: [],
-        },
-        '*'
-      );
-    }
+    } catch {}
   }
 
   requestAndNotifyExtensionReady();
-  window.addEventListener('DOMContentLoaded', requestAndNotifyExtensionReady);
-  window.addEventListener('load', requestAndNotifyExtensionReady);
 
-  // Listen for messages from the Huellas Master React app
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data || event.data.source !== 'HUELLAS_APP') {
       return;
@@ -62,6 +57,7 @@
             payload: data.payload,
           },
           (response) => {
+            if (chrome.runtime.lastError) return;
             window.postMessage(
               {
                 source: 'HUELLAS_EXTENSION',
@@ -73,21 +69,10 @@
             );
           }
         );
-      } catch (err) {
-        window.postMessage(
-          {
-            source: 'HUELLAS_EXTENSION',
-            type: 'BRIDGE_STATUS',
-            status: 'ERROR',
-            message: 'Recarga la pestaña de Huellas Master para reconectar con la extensión.',
-          },
-          '*'
-        );
-      }
+      } catch {}
     }
   });
 
-  // Listen for updates from background.js (Gemini responses, Flow media, status, connected tabs)
   chrome.runtime.onMessage.addListener((message) => {
     if (!message || typeof message !== 'object') return false;
     if (

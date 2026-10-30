@@ -1,36 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini & Google Flow)",
-  "version": "1.1.0",
-  "description": "Conecta Huellas Master con tus pestañas abiertas de Gemini Web (gemini.google.com) y Google Flow (flow.google.com) para generar texto, imágenes y clips usando tu cuota gratis sin gastar API Key.",
+  "version": "1.2.0",
+  "description": "Conecta Huellas Master con tus pestañas abiertas de Gemini Web y Google Flow usando tu cuota gratis.",
   "permissions": [
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess",
     "tabs",
-    "scripting",
-    "storage"
+    "scripting"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
-    "https://*.google.com/*",
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",
-    "https://*.labs.google/*",
     "http://localhost:4200/*",
     "https://raydelw-a11y.github.io/*",
     "https://huellasdelahumanidad.com/*",
     "https://*.huellasdelahumanidad.com/*"
   ],
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "allow_iframe_embedding",
-        "enabled": true,
-        "path": "rules.json"
-      }
-    ]
-  },
   "background": {
     "service_worker": "background.js"
   },
@@ -43,14 +29,13 @@
         "https://*.huellasdelahumanidad.com/*"
       ],
       "js": ["huellas-bridge.js"],
-      "run_at": "document_start"
+      "run_at": "document_idle"
     },
     {
       "matches": [
         "https://gemini.google.com/*"
       ],
       "js": ["gemini-content.js"],
-      "all_frames": true,
       "run_at": "document_idle"
     },
     {
@@ -60,7 +45,6 @@
         "https://labs.google/*"
       ],
       "js": ["flow-content.js"],
-      "all_frames": true,
       "run_at": "document_idle"
     }
   ]
