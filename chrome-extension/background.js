@@ -261,13 +261,21 @@ function isHuellasUrl(url) {
   );
 }
 
-// One-time injection into already-open Huellas tabs when extension starts/reloads
+// One-time injection into already-open tabs when extension starts/reloads
 (async function initExistingHuellasTabsOnce() {
   try {
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
-      if (tab.id && isHuellasUrl(tab.url)) {
+      if (!tab.id || !tab.url) continue;
+      if (isHuellasUrl(tab.url)) {
         ensureScriptInjected(tab.id, 'huellas-bridge.js');
+      } else if (tab.url.startsWith('https://gemini.google.com/')) {
+        ensureScriptInjected(tab.id, 'gemini-content.js');
+      } else if (
+        tab.url.includes('flow.google.com') ||
+        (tab.url.includes('labs.google') && tab.url.toLowerCase().includes('flow'))
+      ) {
+        ensureScriptInjected(tab.id, 'flow-content.js');
       }
     }
   } catch {}
@@ -316,12 +324,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 1. Ping from Huellas Master: return ONLY Gemini & Flow tabs in the SAME window
   if (message.type === 'HUELLAS_PING_V2' || message.type === 'HUELLAS_PING') {
     getConnectedAiTabsInWindow(senderWindowId).then(async ({ geminiTabs, flowTabs }) => {
+      for (const gt of geminiTabs) {
+        if (gt.id) ensureScriptInjected(gt.id, 'gemini-content.js');
+      }
       for (const ft of flowTabs) {
         if (ft.id) ensureScriptInjected(ft.id, 'flow-content.js');
       }
       sendResponse({
         ok: true,
-        version: '1.5.0',
+        version: '1.5.1',
         windowId: senderWindowId,
         geminiTabs,
         flowTabs,

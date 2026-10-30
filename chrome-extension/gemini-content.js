@@ -4,6 +4,12 @@
 // ============================================================================
 
 (function () {
+  // Always remove any old floating bar immediately (even if script was already loaded)
+  const oldGeminiBar = document.getElementById('huellas-gemini-floating-bar');
+  if (oldGeminiBar) {
+    oldGeminiBar.remove();
+  }
+
   if (window.__HUELLAS_GEMINI_SCRIPT_LOADED__) return;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
@@ -294,57 +300,6 @@
 
     return false;
   });
-
-  // Inject floating quick-action bar inside Gemini Web
-  function injectHuellasFloatingBadge() {
-    if (document.getElementById('huellas-gemini-floating-bar')) return;
-    const bar = document.createElement('div');
-    bar.id = 'huellas-gemini-floating-bar';
-    bar.style.cssText =
-      'position:fixed;bottom:14px;right:16px;z-index:999999;display:flex;align-items:center;gap:8px;background:#14120f;border:1px solid rgba(245,158,11,0.5);color:#fde68a;padding:6px 12px;border-radius:999px;font-family:system-ui,sans-serif;font-size:12px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,0.6);';
-
-    const dot = document.createElement('span');
-    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;';
-
-    const label = document.createElement('span');
-    label.textContent = 'Huellas Master Conectado';
-
-    const btn = document.createElement('button');
-    btn.textContent = '📥 Enviar Última Respuesta a Huellas';
-    btn.style.cssText =
-      'background:#f59e0b;color:#09090b;border:none;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;';
-    btn.onclick = () => {
-      const latest = extractLatestGeminiResponse();
-      if (!latest.text && latest.images.length === 0) {
-        btn.textContent = '⚠️ Sin respuesta aún';
-        setTimeout(() => {
-          btn.textContent = '📥 Enviar Última Respuesta a Huellas';
-        }, 1800);
-        return;
-      }
-      chrome.runtime.sendMessage({
-        type: 'GEMINI_RESPONSE_READY',
-        taskType: 'MANUAL_GRAB',
-        text: latest.text,
-        images: latest.images,
-      }).catch(() => {});
-      btn.textContent = '✓ ¡Enviado a Huellas!';
-      setTimeout(() => {
-        btn.textContent = '📥 Enviar Última Respuesta a Huellas';
-      }, 2000);
-    };
-
-    bar.appendChild(dot);
-    bar.appendChild(label);
-    bar.appendChild(btn);
-    document.body.appendChild(bar);
-  }
-
-  // Remove any old floating bar if present so it never covers Gemini buttons
-  const oldGeminiBar = document.getElementById('huellas-gemini-floating-bar');
-  if (oldGeminiBar) {
-    oldGeminiBar.remove();
-  }
 
   chrome.runtime.sendMessage({
     type: 'CONTENT_SCRIPT_READY',
