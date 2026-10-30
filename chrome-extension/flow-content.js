@@ -30,38 +30,48 @@
   }
 
   function findFlowPromptInput() {
-    const selectors = [
-      'textarea[placeholder*="prompt" i]',
-      'textarea[placeholder*="describe" i]',
-      'textarea[placeholder*="generate" i]',
-      'textarea[placeholder*="create" i]',
-      'textarea[placeholder*="video" i]',
-      'textarea[placeholder*="image" i]',
-      'textarea[placeholder*="ask" i]',
-      'textarea[placeholder*="type" i]',
-      'textarea[placeholder*="genera" i]',
-      'textarea[placeholder*="crea" i]',
-      'textarea',
-      'div[contenteditable="true"][role="textbox"]',
-      'div[contenteditable="true"]',
-    ];
+    const allCandidates = Array.from(
+      document.querySelectorAll(
+        'textarea, div[contenteditable="true"], [role="textbox"][contenteditable="true"]'
+      )
+    );
     let bestEl = null;
-    let bestBottom = -1;
-    for (const sel of selectors) {
-      const candidates = Array.from(document.querySelectorAll(sel));
-      for (const el of candidates) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 80 && rect.height > 14 && rect.bottom > bestBottom) {
-          bestBottom = rect.bottom;
-          bestEl = el;
-        }
+    let bestScore = -999999;
+
+    for (const el of allCandidates) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 80 || rect.height < 14) continue;
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight) continue;
+
+      // Prefer inputs lower on the screen and wider
+      let score = rect.bottom * 2 + rect.width;
+      const placeholder = (
+        el.getAttribute('placeholder') ||
+        el.getAttribute('aria-label') ||
+        ''
+      ).toLowerCase();
+      if (
+        placeholder.includes('prompt') ||
+        placeholder.includes('describe') ||
+        placeholder.includes('generate') ||
+        placeholder.includes('create') ||
+        placeholder.includes('video') ||
+        placeholder.includes('genera') ||
+        placeholder.includes('crea')
+      ) {
+        score += 1000;
       }
-      if (bestEl) return bestEl;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestEl = el;
+      }
     }
-    return null;
+    return bestEl;
   }
 
   function getButtonDescriptor(btn) {
+    if (!btn) return 'none';
     const rawText = (btn.innerText || btn.textContent || '').trim().replace(/\s+/g, ' ');
     const aria =
       btn.getAttribute('aria-label') ||
@@ -74,17 +84,15 @@
   function findFlowSubmitButtonsNearInput(inputEl) {
     const inputRect = inputEl.getBoundingClientRect();
 
-    // Find the exact prompt bar container (not a full-screen wrapper)
+    // Find prompt bar container (allow full width of prompt bar up to window.innerWidth)
     let promptCard = null;
     let curr = inputEl.parentElement;
-    for (let depth = 0; depth < 8 && curr && curr !== document.body; depth++) {
+    for (let depth = 0; depth < 9 && curr && curr !== document.body; depth++) {
       const rect = curr.getBoundingClientRect();
-      const maxAllowedWidth = Math.max(inputRect.width + 380, inputRect.width * 1.75);
       if (
         rect.height >= inputRect.height &&
-        rect.height <= 360 &&
-        rect.width >= inputRect.width * 0.9 &&
-        rect.width <= maxAllowedWidth
+        rect.height <= 420 &&
+        rect.width >= inputRect.width * 0.9
       ) {
         const btnCount = curr.querySelectorAll('button, [role="button"]').length;
         if (btnCount >= 1) {
@@ -99,6 +107,8 @@
       'texto a video',
       'frames to video',
       'ingredients to video',
+      'imagen a video',
+      'image to video',
       '16:9',
       '9:16',
       '1:1',
@@ -133,29 +143,37 @@
       'mic',
     ];
 
-    const strongSubmitKeywords = [
-      'arrow_upward',
+    const exactIconKeywords = [
       'arrow_forward',
+      'arrow_upward',
+      'send',
+      'subdirectory_arrow_left',
+      'north',
+      'east',
+      'play_arrow',
+    ];
+
+    const strongLabelKeywords = [
+      'arrow_forward',
+      'arrow_upward',
       'send',
       'submit',
       'generate',
       'generar',
       'enviar',
       'producir',
-      'play_arrow',
-      'north',
-      'east',
-      'subdirectory_arrow_left',
       'create',
       'crear',
     ];
 
+    // Collect all buttons in promptCard + any button across the entire viewport width near inputEl vertically
     const candidateSet = new Set();
     if (promptCard) {
       promptCard
         .querySelectorAll('button, [role="button"], input[type="submit"]')
         .forEach((b) => candidateSet.add(b));
     }
+
     document
       .querySelectorAll('button, [role="button"], input[type="submit"]')
       .forEach((b) => {
@@ -163,35 +181,54 @@
         if (
           r.width >= 16 &&
           r.height >= 16 &&
-          Math.abs(r.top - inputRect.top) < 200 &&
-          r.left >= inputRect.left - 30 &&
-          r.right <= inputRect.right + 280
+          Math.abs(r.top - inputRect.top) < 260 &&
+          r.left >= inputRect.left - 40
         ) {
           candidateSet.add(b);
         }
       });
 
+    // Also look for any icon element (<i>, <span>, <mat-icon>, <google-symbols>) with text 'arrow_forward' / 'arrow_upward' / 'send'
+    document
+      .querySelectorAll('i, span, mat-icon, google-symbols')
+      .forEach((ic) => {
+        const txt = (
+          ic.textContent ||
+          ic.getAttribute('data-mat-icon-name') ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+        if (exactIconKeywords.includes(txt)) {
+          const r = ic.getBoundingClientRect();
+          if (r.width >= 8 && r.height >= 8 && Math.abs(r.top - inputRect.top) < 260) {
+            const clickable =
+              ic.closest('button, [role="button"]') || ic.parentElement || ic;
+            candidateSet.add(clickable);
+          }
+        }
+      });
+
     const visibleCandidates = Array.from(candidateSet).filter((btn) => {
       const r = btn.getBoundingClientRect();
-      return r.width >= 16 && r.height >= 16;
+      return r.width >= 14 && r.height >= 14;
     });
 
-    // Identify the bottom-rightmost button on the right half of the prompt bar
-    const rightHalfButtons = visibleCandidates.filter((btn) => {
+    // Identify the bottom-rightmost button on the right side of the prompt bar
+    const rightSideButtons = visibleCandidates.filter((btn) => {
       const r = btn.getBoundingClientRect();
-      return r.left >= inputRect.left + inputRect.width * 0.4 && r.top >= inputRect.top - 30;
+      return r.left >= inputRect.left + 40 && r.top >= inputRect.top - 40;
     });
 
     let maxBottomInBar = -1;
-    for (const b of rightHalfButtons) {
+    for (const b of rightSideButtons) {
       const r = b.getBoundingClientRect();
       if (r.bottom > maxBottomInBar) maxBottomInBar = r.bottom;
     }
 
-    // Bottom-row buttons on the right side (within 55px of the lowest button in the prompt bar)
-    const bottomRowRightButtons = rightHalfButtons.filter((b) => {
+    const bottomRowRightButtons = rightSideButtons.filter((b) => {
       const r = b.getBoundingClientRect();
-      return r.bottom >= maxBottomInBar - 55;
+      return r.bottom >= maxBottomInBar - 60;
     });
 
     let bottomRightmostBtn = null;
@@ -243,17 +280,21 @@
 
       const combined = `${rawText} ${ariaLabel} ${iconTexts.join(' ')}`.trim();
 
-      const hasStrongSubmit =
+      const hasExactIcon =
+        exactIconKeywords.includes(rawText) ||
+        iconTexts.some((ic) => exactIconKeywords.includes(ic));
+
+      const hasStrongLabel =
         btn.getAttribute('type') === 'submit' ||
-        strongSubmitKeywords.some(
+        hasExactIcon ||
+        strongLabelKeywords.some(
           (kw) =>
             rawText === kw ||
-            rawText.includes(kw) ||
             ariaLabel.includes(kw) ||
-            iconTexts.some((ic) => ic === kw || ic.includes(kw))
+            iconTexts.some((ic) => ic === kw)
         );
 
-      if (!hasStrongSubmit && btn !== bottomRightmostBtn) {
+      if (!hasStrongLabel && btn !== bottomRightmostBtn) {
         const hasPopup = btn.getAttribute('aria-haspopup');
         if (
           hasPopup === 'menu' ||
@@ -269,30 +310,23 @@
 
       let score = 0;
 
-      if (btn.getAttribute('type') === 'submit') {
-        score += 300;
+      if (hasExactIcon || btn.getAttribute('type') === 'submit') {
+        score += 380;
+      } else if (hasStrongLabel) {
+        score += 280;
       }
 
-      if (hasStrongSubmit) {
-        score += 260;
-      }
-
-      // Huge bonus for being the bottom-rightmost button in the prompt bar
       if (btn === bottomRightmostBtn) {
-        score += 220;
+        score += 240;
       }
 
-      if (rect.left >= inputRect.left + inputRect.width * 0.45) {
+      if (rect.left >= inputRect.left + 40) {
         score += 65;
-        const rightOffset = Math.max(0, Math.min(800, rect.right - inputRect.left));
+        const rightOffset = Math.max(0, Math.min(1200, rect.right - inputRect.left));
         const bottomOffset = Math.max(0, Math.min(300, rect.bottom - inputRect.top));
         score += Math.round(rightOffset * 0.08) + Math.round(bottomOffset * 0.14);
       } else {
         score -= 50;
-      }
-
-      if (rect.width <= 96 && rect.height <= 72 && btn.querySelector('svg, i, span')) {
-        score += 25;
       }
 
       if (!isDisabled) {
@@ -318,7 +352,6 @@
   }
 
   function setFlowInputText(inputEl, text) {
-    // If MAIN world already synced this exact text within the last 1.5s, do NOT reset it!
     const mainSyncTs = Number(
       document.documentElement.getAttribute('data-huellas-main-synced-ts') || '0'
     );
@@ -338,7 +371,6 @@
           : window.HTMLInputElement.prototype;
       const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
 
-      // Try native Blink C++ Editor::InsertText via execCommand first
       let insertedByExec = false;
       try {
         inputEl.focus();
@@ -365,7 +397,7 @@
       return;
     }
 
-    // Contenteditable div (Slate / ProseMirror / Lexical): never overwrite textContent directly
+    // Contenteditable div (Slate / ProseMirror / Lexical)
     try {
       inputEl.focus();
       const selection = window.getSelection();

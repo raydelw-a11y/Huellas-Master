@@ -4,6 +4,21 @@
 // SAME Chrome window (sender.tab.windowId). Never opens separate windows.
 // ============================================================================
 
+async function uploadDiagToLocalServer(filename, dataObj) {
+  try {
+    const fd = new FormData();
+    fd.append(
+      'file',
+      new Blob([JSON.stringify(dataObj, null, 2)], { type: 'application/json' }),
+      filename
+    );
+    await fetch('http://127.0.0.1:4200/api/assets/upload', {
+      method: 'POST',
+      body: fd,
+    });
+  } catch {}
+}
+
 async function getConnectedAiTabsInWindow(windowId) {
   try {
     const queryOpts = typeof windowId === 'number' ? { windowId } : { currentWindow: true };
@@ -51,10 +66,10 @@ async function ensureScriptInjected(tabId, scriptFile) {
   } catch {}
 }
 
-// Directly sync React's _valueTracker, __reactProps$.onChange, and submit in Google Flow's MAIN world
+// Directly sync input and trigger submit in Google Flow's MAIN world
 async function syncFlowReactInputInMainWorld(tabId, promptText, autoSubmit) {
   try {
-    await chrome.scripting.executeScript({
+    const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       args: [promptText, autoSubmit !== false],
@@ -63,33 +78,43 @@ async function syncFlowReactInputInMainWorld(tabId, promptText, autoSubmit) {
           const oldBar = document.getElementById('huellas-flow-floating-bar');
           if (oldBar) oldBar.remove();
 
-          const selectors = [
-            'textarea[placeholder*="prompt" i]',
-            'textarea[placeholder*="describe" i]',
-            'textarea[placeholder*="generate" i]',
-            'textarea[placeholder*="create" i]',
-            'textarea[placeholder*="video" i]',
-            'textarea[placeholder*="image" i]',
-            'textarea[placeholder*="genera" i]',
-            'textarea[placeholder*="crea" i]',
-            'textarea',
-            'div[contenteditable="true"][role="textbox"]',
-            'div[contenteditable="true"]',
-          ];
+          const allInputs = Array.from(
+            document.querySelectorAll(
+              'textarea, div[contenteditable="true"], [role="textbox"][contenteditable="true"]'
+            )
+          );
           let inputEl = null;
-          let bestBottom = -1;
-          for (const sel of selectors) {
-            const list = Array.from(document.querySelectorAll(sel));
-            for (const el of list) {
-              const r = el.getBoundingClientRect();
-              if (r.width > 80 && r.height > 14 && r.bottom > bestBottom) {
-                bestBottom = r.bottom;
-                inputEl = el;
-              }
+          let bestScore = -999999;
+          for (const el of allInputs) {
+            const r = el.getBoundingClientRect();
+            if (r.width < 80 || r.height < 14) continue;
+            if (r.bottom <= 0 || r.top >= window.innerHeight) continue;
+            let s = r.bottom * 2 + r.width;
+            const ph = (
+              el.getAttribute('placeholder') ||
+              el.getAttribute('aria-label') ||
+              ''
+            ).toLowerCase();
+            if (
+              ph.includes('prompt') ||
+              ph.includes('describe') ||
+              ph.includes('generate') ||
+              ph.includes('create') ||
+              ph.includes('video') ||
+              ph.includes('genera') ||
+              ph.includes('crea')
+            ) {
+              s += 1000;
             }
-            if (inputEl) break;
+            if (s > bestScore) {
+              bestScore = s;
+              inputEl = el;
+            }
           }
-          if (!inputEl) return;
+
+          if (!inputEl) {
+            return { ok: false, reason: 'no_input_found', url: location.href };
+          }
 
           inputEl.focus();
           inputEl.click();
@@ -100,6 +125,12 @@ async function syncFlowReactInputInMainWorld(tabId, promptText, autoSubmit) {
                 ? window.HTMLTextAreaElement.prototype
                 : window.HTMLInputElement.prototype;
             const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+            try {
+              inputEl.select();
+              document.execCommand('insertText', false, text);
+            } catch {}
+
             if (inputEl._valueTracker) {
               inputEl._valueTracker.setValue('');
             }
@@ -153,102 +184,154 @@ async function syncFlowReactInputInMainWorld(tabId, promptText, autoSubmit) {
             String(Date.now())
           );
 
-          if (!shouldSubmit) return;
-
-          // In MAIN world, also trigger React's onClick / onKeyDown if still unsubmitted at 450ms
-          setTimeout(() => {
-            const currentVal = (inputEl.value ?? inputEl.innerText ?? '').trim();
-            if (!currentVal) return;
-
-            const inputRect = inputEl.getBoundingClientRect();
-            const allBtns = Array.from(
-              document.querySelectorAll('button, [role="button"], input[type="submit"]')
-            ).filter((b) => {
+          const inputRect = inputEl.getBoundingClientRect();
+          const nearBtns = Array.from(
+            document.querySelectorAll('button, [role="button"], input[type="submit"]')
+          )
+            .map((b) => {
               const r = b.getBoundingClientRect();
-              return (
-                r.width >= 16 &&
-                r.height >= 16 &&
-                Math.abs(r.top - inputRect.top) < 200 &&
-                r.left >= inputRect.left + inputRect.width * 0.4 &&
-                r.right <= inputRect.right + 280
+              if (r.width < 12 || r.height < 12) return null;
+              return {
+                tag: b.tagName,
+                type: b.getAttribute('type'),
+                disabled: Boolean(b.disabled || b.getAttribute('aria-disabled') === 'true'),
+                ariaLabel: b.getAttribute('aria-label'),
+                text: (b.innerText || b.textContent || '').trim().slice(0, 60),
+                rect: {
+                  left: Math.round(r.left),
+                  top: Math.round(r.top),
+                  right: Math.round(r.right),
+                  bottom: Math.round(r.bottom),
+                  w: Math.round(r.width),
+                  h: Math.round(r.height),
+                },
+                html: (b.outerHTML || '').slice(0, 220),
+              };
+            })
+            .filter(Boolean);
+
+          if (shouldSubmit) {
+            setTimeout(() => {
+              const currentVal = (inputEl.value ?? inputEl.innerText ?? '').trim();
+              if (!currentVal) return;
+
+              const exactIcons = ['arrow_forward', 'arrow_upward', 'send', 'subdirectory_arrow_left'];
+              let targetBtn = null;
+
+              // 1. Check for arrow_forward / arrow_upward / send icon across the full prompt bar width
+              const iconEls = Array.from(
+                document.querySelectorAll('button, [role="button"], i, span, mat-icon, google-symbols')
               );
-            });
-
-            let maxBottom = -1;
-            for (const b of allBtns) {
-              const r = b.getBoundingClientRect();
-              if (r.bottom > maxBottom) maxBottom = r.bottom;
-            }
-            const bottomRow = allBtns.filter(
-              (b) => b.getBoundingClientRect().bottom >= maxBottom - 55
-            );
-            let rightmostBtn = null;
-            let maxRight = -1;
-            for (const b of bottomRow) {
-              const r = b.getBoundingClientRect();
-              if (r.right >= maxRight) {
-                maxRight = r.right;
-                rightmostBtn = b;
+              for (const el of iconEls) {
+                const t = (
+                  el.textContent ||
+                  el.getAttribute('data-mat-icon-name') ||
+                  ''
+                )
+                  .trim()
+                  .toLowerCase();
+                if (exactIcons.includes(t)) {
+                  const r = el.getBoundingClientRect();
+                  if (
+                    r.width >= 8 &&
+                    r.height >= 8 &&
+                    Math.abs(r.top - inputRect.top) < 260 &&
+                    r.left >= inputRect.left
+                  ) {
+                    targetBtn = el.closest('button, [role="button"]') || el.parentElement || el;
+                    break;
+                  }
+                }
               }
-            }
 
-            if (rightmostBtn) {
-              const btnPropsKey = Object.keys(rightmostBtn).find((k) =>
-                k.startsWith('__reactProps$')
-              );
-              if (btnPropsKey && typeof rightmostBtn[btnPropsKey]?.onClick === 'function') {
-                try {
-                  rightmostBtn[btnPropsKey].onClick({
-                    target: rightmostBtn,
-                    currentTarget: rightmostBtn,
-                    type: 'click',
-                    button: 0,
-                    preventDefault() {},
-                    stopPropagation() {},
-                    isDefaultPrevented() {
-                      return false;
-                    },
-                    isPropagationStopped() {
-                      return false;
-                    },
-                    persist() {},
-                  });
-                } catch {}
-              }
-            }
-
-            const inputPropsKey = Object.keys(inputEl).find((k) =>
-              k.startsWith('__reactProps$')
-            );
-            if (inputPropsKey && typeof inputEl[inputPropsKey]?.onKeyDown === 'function') {
-              try {
-                inputEl[inputPropsKey].onKeyDown({
-                  key: 'Enter',
-                  code: 'Enter',
-                  keyCode: 13,
-                  which: 13,
-                  shiftKey: false,
-                  ctrlKey: false,
-                  metaKey: false,
-                  target: inputEl,
-                  currentTarget: inputEl,
-                  preventDefault() {},
-                  stopPropagation() {},
-                  isDefaultPrevented() {
-                    return false;
-                  },
-                  isPropagationStopped() {
-                    return false;
-                  },
-                  persist() {},
+              // 2. Fallback to bottom-rightmost button on the right of inputEl (across full screen width)
+              if (!targetBtn) {
+                const rightBtns = Array.from(
+                  document.querySelectorAll('button, [role="button"], input[type="submit"]')
+                ).filter((b) => {
+                  const r = b.getBoundingClientRect();
+                  return (
+                    r.width >= 14 &&
+                    r.height >= 14 &&
+                    Math.abs(r.top - inputRect.top) < 260 &&
+                    r.left >= inputRect.left + 40
+                  );
                 });
-              } catch {}
-            }
-          }, 450);
-        } catch {}
+                let maxBottom = -1;
+                for (const b of rightBtns) {
+                  const r = b.getBoundingClientRect();
+                  if (r.bottom > maxBottom) maxBottom = r.bottom;
+                }
+                const bottomRow = rightBtns.filter(
+                  (b) => b.getBoundingClientRect().bottom >= maxBottom - 60
+                );
+                let maxRight = -1;
+                for (const b of bottomRow) {
+                  const r = b.getBoundingClientRect();
+                  if (r.right >= maxRight) {
+                    maxRight = r.right;
+                    targetBtn = b;
+                  }
+                }
+              }
+
+              if (targetBtn) {
+                try {
+                  targetBtn.click();
+                } catch {}
+                const btnPropsKey = Object.keys(targetBtn).find((k) =>
+                  k.startsWith('__reactProps$')
+                );
+                if (btnPropsKey && typeof targetBtn[btnPropsKey]?.onClick === 'function') {
+                  try {
+                    targetBtn[btnPropsKey].onClick({
+                      target: targetBtn,
+                      currentTarget: targetBtn,
+                      type: 'click',
+                      button: 0,
+                      preventDefault() {},
+                      stopPropagation() {},
+                      isDefaultPrevented() {
+                        return false;
+                      },
+                      isPropagationStopped() {
+                        return false;
+                      },
+                      persist() {},
+                    });
+                  } catch {}
+                }
+              }
+            }, 380);
+          }
+
+          return {
+            ok: true,
+            url: location.href,
+            inputTag: inputEl.tagName,
+            inputContentEditable: inputEl.getAttribute('contenteditable'),
+            inputRect: {
+              left: Math.round(inputRect.left),
+              top: Math.round(inputRect.top),
+              right: Math.round(inputRect.right),
+              bottom: Math.round(inputRect.bottom),
+              w: Math.round(inputRect.width),
+              h: Math.round(inputRect.height),
+            },
+            buttonsCount: nearBtns.length,
+            buttons: nearBtns,
+          };
+        } catch (err) {
+          return { ok: false, error: String(err) };
+        }
       },
     });
-  } catch {}
+    if (results && results[0] && results[0].result) {
+      uploadDiagToLocalServer('flow_main_world_diag.json', results[0].result);
+    }
+  } catch (err) {
+    uploadDiagToLocalServer('flow_main_world_error.json', { error: String(err) });
+  }
 }
 
 function isHuellasUrl(url) {
@@ -276,6 +359,55 @@ function isHuellasUrl(url) {
         (tab.url.includes('labs.google') && tab.url.toLowerCase().includes('flow'))
       ) {
         ensureScriptInjected(tab.id, 'flow-content.js');
+        chrome.scripting
+          .executeScript({
+            target: { tabId: tab.id },
+            world: 'MAIN',
+            func: () => {
+              const inputs = Array.from(
+                document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]')
+              ).map((el) => {
+                const r = el.getBoundingClientRect();
+                return {
+                  tag: el.tagName,
+                  role: el.getAttribute('role'),
+                  ce: el.getAttribute('contenteditable'),
+                  ph: el.getAttribute('placeholder') || el.getAttribute('aria-label'),
+                  rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) },
+                  html: (el.outerHTML || '').slice(0, 260),
+                };
+              });
+              const btns = Array.from(
+                document.querySelectorAll('button, [role="button"], i, span')
+              )
+                .filter((b) => {
+                  const r = b.getBoundingClientRect();
+                  if (r.width < 12 || r.height < 12) return false;
+                  if (b.tagName === 'BUTTON' || b.getAttribute('role') === 'button') return true;
+                  const t = (b.textContent || '').trim().toLowerCase();
+                  return t === 'arrow_forward' || t === 'arrow_upward' || t === 'send';
+                })
+                .map((b) => {
+                  const r = b.getBoundingClientRect();
+                  return {
+                    tag: b.tagName,
+                    role: b.getAttribute('role'),
+                    disabled: Boolean(b.disabled || b.getAttribute('aria-disabled') === 'true'),
+                    aria: b.getAttribute('aria-label') || b.getAttribute('title'),
+                    text: (b.innerText || b.textContent || '').trim().slice(0, 60),
+                    rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) },
+                    html: (b.outerHTML || '').slice(0, 240),
+                  };
+                });
+              return { url: location.href, inputs, btns };
+            },
+          })
+          .then((res) => {
+            if (res && res[0] && res[0].result) {
+              uploadDiagToLocalServer('flow_reload_diag.json', res[0].result);
+            }
+          })
+          .catch(() => {});
       }
     }
   } catch {}
@@ -332,7 +464,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       sendResponse({
         ok: true,
-        version: '1.5.1',
+        version: '1.6.0',
         windowId: senderWindowId,
         geminiTabs,
         flowTabs,
