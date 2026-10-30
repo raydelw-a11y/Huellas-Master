@@ -96,7 +96,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:33 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:04 AM - 10/30/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -2241,36 +2241,37 @@ export default function App() {
       )}
 
       {/* =====================================================================
-          VIEW 3: DOCUMENTARY STUDIO (LAS 11 ETAPAS INTEGRADAS)
+          VIEW 3: DOCUMENTARY STUDIO (MENÚ SUPERIOR HORIZONTAL + ÁREA COMPLETA)
       ===================================================================== */}
       {mainView === 'studio' && activeDoc && (
-        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-          {/* LEFT SIDEBAR: DOCUMENTARY HEADER + 11 STAGES STEPPER */}
-          <aside className="w-full lg:w-72 bg-[#12100d] border-r border-amber-500/20 p-4 flex flex-col gap-4 shrink-0">
-            {/* Project Quick Title & Status */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
+          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-4 py-2.5 flex flex-col gap-2.5 shrink-0">
+            {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2">
+              <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
+                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">
                   Expediente Activo
                 </span>
-                <span className="text-[10px] text-emerald-400 font-mono">
-                  {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado local'}
+                <input
+                  type="text"
+                  value={activeDoc.title}
+                  onChange={(e) => updateActiveDoc({ title: e.target.value })}
+                  className="flex-1 min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1 text-sm font-bold text-amber-200 outline-none"
+                  placeholder="Título del Documental..."
+                />
+                <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
+                  {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado'}
                 </span>
               </div>
-              <input
-                type="text"
-                value={activeDoc.title}
-                onChange={(e) => updateActiveDoc({ title: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-sm font-bold text-amber-200 outline-none"
-                placeholder="Título del Documental..."
-              />
-              <div className="grid grid-cols-2 gap-1.5">
+
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={activeDoc.productionType}
                   onChange={(e) =>
                     updateActiveDoc({ productionType: e.target.value as ProductionFormatType })
                   }
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200"
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
                 >
                   {PRODUCTION_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -2283,7 +2284,7 @@ export default function App() {
                   onChange={(e) =>
                     updateActiveDoc({ status: e.target.value as DocumentaryStatusType })
                   }
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200"
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -2291,24 +2292,21 @@ export default function App() {
                     </option>
                   ))}
                 </select>
+                <button
+                  onClick={() => handleExportDocumentaryDossier(activeDoc)}
+                  className="py-1 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" /> Exportar (.txt)
+                </button>
               </div>
-              <button
-                onClick={() => handleExportDocumentaryDossier(activeDoc)}
-                className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" /> Exportar Expediente (.txt)
-              </button>
             </div>
 
-            {/* Mobile Stage Selector (Compact Dropdown on Phone, Full Sidebar on Desktop) */}
-            <div className="lg:hidden space-y-2">
-              <label className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                Saltar a Etapa ({activeStage}/12):
-              </label>
+            {/* Mobile Stage Selector (Compact Dropdown on Phone) */}
+            <div className="md:hidden">
               <select
                 value={activeStage}
                 onChange={(e) => setActiveStage(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs font-bold text-amber-200 outline-none"
+                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs font-bold text-amber-200 outline-none"
               >
                 {STAGES_LIST.map((st) => {
                   const done = isStageDone(activeDoc, st.num);
@@ -2322,8 +2320,8 @@ export default function App() {
               </select>
             </div>
 
-            {/* 12 Stages Navigation List (Desktop Sidebar) */}
-            <nav className="hidden lg:block space-y-1 flex-1 overflow-y-auto pr-1">
+            {/* Row 2: 12 Stages Horizontal Navigation Bar (Desktop & Tablet) */}
+            <nav className="hidden md:grid md:grid-cols-6 xl:grid-cols-12 gap-1.5">
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
                 const done = isStageDone(activeDoc, st.num);
@@ -2332,57 +2330,64 @@ export default function App() {
                   <button
                     key={st.num}
                     onClick={() => setActiveStage(st.num)}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between gap-2 transition cursor-pointer ${
+                    title={`${st.title} — ${st.subtitle}`}
+                    className={`px-2.5 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition cursor-pointer border ${
                       isCurrent
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                        : 'hover:bg-slate-900/90 text-slate-300'
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/15'
+                        : done
+                        ? 'bg-slate-900/90 hover:bg-slate-800/90 text-slate-200 border-emerald-500/30'
+                        : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border-slate-800/80'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-1 w-full">
                       <IconComp
-                        className={`w-4 h-4 shrink-0 ${
-                          isCurrent ? 'text-slate-950' : done ? 'text-emerald-400' : 'text-amber-400/70'
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          isCurrent
+                            ? 'text-slate-950'
+                            : done
+                            ? 'text-emerald-400'
+                            : 'text-amber-400/80'
                         }`}
                       />
-                      <div className="truncate">
-                        <div className="text-xs truncate">{st.title}</div>
-                        <div
-                          className={`text-[10px] truncate ${
-                            isCurrent ? 'text-slate-900/80' : 'text-slate-500'
+                      {done ? (
+                        <CheckCircle2
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            isCurrent ? 'text-slate-950' : 'text-emerald-400'
                           }`}
-                        >
-                          {st.subtitle}
-                        </div>
+                        />
+                      ) : (
+                        <Circle
+                          className={`w-3 h-3 shrink-0 ${
+                            isCurrent ? 'text-slate-900/50' : 'text-slate-700'
+                          }`}
+                        />
+                      )}
+                    </div>
+                    <div className="min-w-0 w-full">
+                      <div className="text-[11px] leading-tight truncate">{st.title}</div>
+                      <div
+                        className={`text-[9px] leading-tight truncate ${
+                          isCurrent ? 'text-slate-900/80' : 'text-slate-500'
+                        }`}
+                      >
+                        {st.subtitle}
                       </div>
                     </div>
-                    {done ? (
-                      <CheckCircle2
-                        className={`w-4 h-4 shrink-0 ${
-                          isCurrent ? 'text-slate-950' : 'text-emerald-400'
-                        }`}
-                      />
-                    ) : (
-                      <Circle
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          isCurrent ? 'text-slate-900/50' : 'text-slate-700'
-                        }`}
-                      />
-                    )}
                   </button>
                 );
               })}
             </nav>
-          </aside>
+          </div>
 
-          {/* RIGHT MAIN WORKSPACE FOR THE SELECTED STAGE */}
-          <section className="flex-1 p-6 overflow-y-auto space-y-6">
+          {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
+          <section className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5">
             {/* Stage Header Banner */}
-            <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
                   Etapa {activeStage} de 12 — {activeDoc.title}
                 </span>
-                <h2 className="text-xl font-bold text-slate-100 mt-0.5">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-100 mt-0.5">
                   {STAGES_LIST[activeStage - 1]?.title} — {STAGES_LIST[activeStage - 1]?.subtitle}
                 </h2>
               </div>
