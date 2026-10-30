@@ -1990,7 +1990,7 @@ export default function App() {
       {/* =====================================================================
           VIEW 1: DASHBOARD DE DOCUMENTALES
       ===================================================================== */}
-      {mainView === 'dashboard' && (
+      {(mainView === 'dashboard' || (mainView === 'studio' && !activeDoc)) && (
         <main className="max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-6">
           {/* Hero Banner */}
           <div className="bg-gradient-to-r from-[#191510] via-[#211b13] to-[#16130f] border border-amber-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
