@@ -340,10 +340,10 @@
     document.body.appendChild(bar);
   }
 
-  if (document.body) {
-    injectHuellasFloatingBadge();
-  } else {
-    window.addEventListener('DOMContentLoaded', injectHuellasFloatingBadge);
+  // Remove any old floating bar if present so it never covers Gemini buttons
+  const oldGeminiBar = document.getElementById('huellas-gemini-floating-bar');
+  if (oldGeminiBar) {
+    oldGeminiBar.remove();
   }
 
   chrome.runtime.sendMessage({

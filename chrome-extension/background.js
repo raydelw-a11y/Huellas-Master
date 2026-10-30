@@ -103,10 +103,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 1. Ping from Huellas Master: return ONLY Gemini & Flow tabs in the SAME window
   if (message.type === 'HUELLAS_PING_V2' || message.type === 'HUELLAS_PING') {
-    getConnectedAiTabsInWindow(senderWindowId).then(({ geminiTabs, flowTabs }) => {
+    getConnectedAiTabsInWindow(senderWindowId).then(async ({ geminiTabs, flowTabs }) => {
+      // Update content scripts in same-window Flow tabs to remove old floating bar immediately
+      for (const ft of flowTabs) {
+        if (ft.id) ensureScriptInjected(ft.id, 'flow-content.js');
+      }
       sendResponse({
         ok: true,
-        version: '1.3.0',
+        version: '1.4.0',
         windowId: senderWindowId,
         geminiTabs,
         flowTabs,
@@ -185,6 +189,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           .sendMessage(targetTab.id, {
             target: targetService,
             ...payload,
+            action:
+              targetService === 'FLOW' && payload.action === 'SEND_PROMPT'
+                ? 'SEND_PROMPT_V2'
+                : payload.action,
           })
           .catch(() => {});
 
