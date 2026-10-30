@@ -27,8 +27,10 @@ import {
   ArrowRight,
   BookOpen,
   Sliders,
+  Globe,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
+import { WebStudioDrawer } from './components/WebStudioDrawer';
 import {
   DocumentaryProject,
   AVAILABLE_VOICES,
@@ -78,16 +80,22 @@ import {
   mergeDocumentariesLists,
   fetchRemoteDocumentariesFromGitHub,
   pushDocumentariesToGitHub,
+  buildStagePromptText,
   generateStageClientSide,
   auditClipsClientSide,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
   PUBLIC_GITHUB_PAGES_URL,
 } from './utils/cloudSync';
+import {
+  isHuellasExtensionDetected,
+  pingHuellasExtension,
+  sendCommandToWebBridge,
+} from './utils/webStudioBridge';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:45 PM - 10/29/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:15 PM - 10/29/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -353,6 +361,28 @@ export default function App() {
   const [auditingClips, setAuditingClips] = useState(false);
   const [auditSummary, setAuditSummary] = useState<string>('');
   const [showOpHeaderInProd, setShowOpHeaderInProd] = useState<boolean>(false);
+
+  // Web Studio (Embedded Gemini Web & Google Flow Free Quotas)
+  const [showWebStudio, setShowWebStudio] = useState<boolean>(() => {
+    return localStorage.getItem('huellas_show_web_studio') === 'true';
+  });
+  const [extensionInstalled, setExtensionInstalled] = useState<boolean>(() =>
+    isHuellasExtensionDetected()
+  );
+  const [aiEngineMode, setAiEngineMode] = useState<'WEB_FREE' | 'API_KEY'>(() => {
+    const saved = localStorage.getItem('huellas_ai_engine_mode');
+    return saved === 'WEB_FREE' ? 'WEB_FREE' : 'API_KEY';
+  });
+  const [bridgeStatusMsg, setBridgeStatusMsg] = useState<string>('');
+  const [bridgeStatusType, setBridgeStatusType] = useState<'IDLE' | 'WORKING' | 'SUCCESS' | 'ERROR'>('IDLE');
+
+  useEffect(() => {
+    localStorage.setItem('huellas_show_web_studio', String(showWebStudio));
+  }, [showWebStudio]);
+
+  useEffect(() => {
+    localStorage.setItem('huellas_ai_engine_mode', aiEngineMode);
+  }, [aiEngineMode]);
 
   // Etapa 12: Respuestas a Comentarios de la Audiencia (Capturas / Texto)
   const [commentInputText, setCommentInputText] = useState<string>('');
@@ -806,7 +836,215 @@ export default function App() {
     });
   };
 
-  // Hybrid AI Generator handler (Local Server + Mobile Client-Side Fallback)
+  const applyGeneratedStageText = (
+    stageNum: number,
+    text: string,
+    images: string[] = []
+  ) => {
+    if (!activeDoc) return;
+    const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
+
+    if (stageNum === 2 || stageNum === 3) {
+      updateActiveDoc({ sectionsStructure: text });
+    } else if (stageNum === 4) {
+      updateActiveDoc({ voiceoverScript: normalizeQuantitiesToMil(text) });
+    } else if (stageNum === 5) {
+      const patch: Partial<DocumentaryProject> = {
+        thumbnailOrientation: orientationForThumb,
+      };
+      if (text.trim()) {
+        patch.thumbnailPrompt = buildOrUpdateThumbnailPrompt(
+          text,
+          orientationForThumb,
+          activeDoc.thumbnailTextOverlay || '',
+          activeDoc
+        );
+      }
+      if (images.length > 0) {
+        patch.thumbnailImageUrl = images[images.length - 1];
+        patch.thumbnailReady = true;
+      }
+      updateActiveDoc(patch);
+    } else if (stageNum === 101) {
+      const options = text
+        .split(/\r?\n/)
+        .map((line: string) =>
+          line
+            .replace(/^\s*(?:opci[oó]n\s*\d+[:.)\-\s]*|\d+[:.)\-\s]+|[-•*]\s*)/i, '')
+            .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+            .trim()
+            .toUpperCase()
+        )
+        .filter((line: string) => line.length > 0)
+        .slice(0, 3);
+      if (options.length > 0) {
+        const chosenText = (activeDoc.thumbnailTextOverlay || '').trim() || options[0];
+        updateActiveDoc({
+          thumbnailTextOptions: options,
+          thumbnailTextOverlay: chosenText,
+        });
+      }
+    } else if (stageNum === 6) {
+      const parsedRefs = parseReferencesFromRawText(text);
+      updateActiveDoc({
+        rawReferencePrompts: text,
+        references: parsedRefs.length > 0 ? parsedRefs : activeDoc.references,
+      });
+    } else if (stageNum === 7) {
+      updateActiveDoc({ clip1OptionsRaw: text });
+    } else if (stageNum === 8) {
+      const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
+      const syncedClips = syncAndAuditProductionClips({
+        rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
+        timelineText: activeDoc.timelineFormattedText || '',
+        rawClipsText: textWithHeader,
+        existingClips: activeDoc.clips || [],
+        clip1Duration: activeDoc.clip1DurationSeconds || 6,
+        clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+      });
+      updateActiveDoc({
+        rawClipsText: textWithHeader,
+        clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
+      });
+    } else if (stageNum === 9) {
+      const cleanSrt = text
+        .replace(/^```(?:srt|txt|plaintext)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim();
+      if (cleanSrt) {
+        updateActiveDoc({ correctedSrt: cleanSrt });
+      }
+    } else if (stageNum === 10) {
+      const parsedTracks = parseSunoTracksFromRawText(text);
+      updateActiveDoc({
+        rawSunoText: text,
+        sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
+      });
+    } else if (stageNum === 11 || stageNum === 111) {
+      updateActiveDoc({ rawYoutubeMetadata: text, rawMetadataText: text });
+    } else if (stageNum === 112) {
+      updateActiveDoc({ rawFacebookMetadata: text });
+    } else if (stageNum === 113) {
+      updateActiveDoc({ pinnedComment: text.trim() });
+    } else if (stageNum === 114) {
+      updateActiveDoc({ youtubeTags: text.trim() });
+    }
+  };
+
+  // Listen for Chrome Extension Web Bridge messages (Gemini Web & Google Flow)
+  useEffect(() => {
+    pingHuellasExtension();
+    const handleBridgeMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.source !== 'HUELLAS_EXTENSION') return;
+      const msg = event.data;
+
+      if (msg.type === 'EXTENSION_READY') {
+        setExtensionInstalled(true);
+      } else if (msg.type === 'BRIDGE_STATUS') {
+        setExtensionInstalled(true);
+        setBridgeStatusMsg(msg.message || '');
+        if (msg.status === 'ERROR') {
+          setBridgeStatusType('ERROR');
+          setAiGenerating(false);
+        } else if (msg.status === 'COMPLETED') {
+          setBridgeStatusType('SUCCESS');
+          setAiGenerating(false);
+        } else {
+          setBridgeStatusType('WORKING');
+        }
+      } else if (msg.type === 'GEMINI_RESPONSE_READY') {
+        setExtensionInstalled(true);
+        setAiGenerating(false);
+        const targetStage = Number(msg.stageNumber) || activeStage;
+        const text = String(msg.text || '');
+        const images = Array.isArray(msg.images) ? msg.images : [];
+        if (text || images.length > 0) {
+          applyGeneratedStageText(targetStage, text, images);
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(
+            `✅ Respuesta de Gemini Web recibida y guardada en Etapa ${
+              targetStage > 100 ? Math.floor(targetStage / 10) : targetStage
+            } (${text.length} caract.)`
+          );
+        }
+      } else if (msg.type === 'FLOW_MEDIA_READY') {
+        setExtensionInstalled(true);
+        setBridgeStatusType('SUCCESS');
+        setBridgeStatusMsg('✅ Media capturada desde Google Flow.');
+      }
+    };
+
+    window.addEventListener('message', handleBridgeMessage);
+    return () => window.removeEventListener('message', handleBridgeMessage);
+  }, [activeDoc, activeStage]);
+
+  const handleSendStageToGeminiWeb = (stageNum: number) => {
+    if (!activeDoc) return;
+    if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
+      alert(
+        '⚠️ Obligatorio: Primero debes escribir el Texto en Pantalla en la Imagen antes de generar el prompt de la miniatura.'
+      );
+      const inputEl = document.getElementById('thumbnail-text-overlay-input');
+      if (inputEl) inputEl.focus();
+      return;
+    }
+    const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
+    const docForPayload =
+      stageNum === 5
+        ? { ...activeDoc, thumbnailOrientation: orientationForThumb }
+        : activeDoc;
+
+    const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
+    navigator.clipboard.writeText(promptText).catch(() => {});
+
+    if (!showWebStudio) {
+      setShowWebStudio(true);
+    }
+
+    if (!extensionInstalled && !isHuellasExtensionDetected()) {
+      setBridgeStatusType('WORKING');
+      setBridgeStatusMsg(
+        '📋 Prompt copiado al portapapeles. Activa la Extensión Puente en la pestaña ⚙️ para envío 100% automático.'
+      );
+      return;
+    }
+
+    setAiGenerating(true);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(`🚀 Enviando prompt de Etapa ${stageNum} a tu cuenta de Gemini Web...`);
+    sendCommandToWebBridge('GEMINI', {
+      action: 'SEND_PROMPT',
+      prompt: promptText,
+      stageNumber: stageNum,
+      taskType: 'STAGE_GENERATION',
+      autoSubmit: true,
+    });
+  };
+
+  const handleSendPromptToFlow = (
+    promptText: string,
+    clipNumber?: number,
+    mediaType: 'IMAGE' | 'VIDEO' = 'VIDEO'
+  ) => {
+    if (!promptText.trim()) return;
+    navigator.clipboard.writeText(promptText).catch(() => {});
+    if (!showWebStudio) {
+      setShowWebStudio(true);
+    }
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(
+      `🎬 Enviando prompt ${clipNumber ? `del Clip ${clipNumber} ` : ''}a Google Flow (copiado al portapapeles)...`
+    );
+    sendCommandToWebBridge('FLOW', {
+      action: 'SEND_PROMPT',
+      prompt: promptText,
+      clipNumber,
+      mediaType,
+      autoSubmit: true,
+    });
+  };
+
+  // Hybrid AI Generator handler (Web Free Mode + Local Server + Mobile Client-Side Fallback)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
     if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
@@ -817,6 +1055,13 @@ export default function App() {
       if (inputEl) inputEl.focus();
       return;
     }
+
+    // If user selected Web Free Mode (or has no API Key and Extension is installed), route via Gemini Web Free!
+    if (aiEngineMode === 'WEB_FREE') {
+      handleSendStageToGeminiWeb(stageNum);
+      return;
+    }
+
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
     const docForPayload =
       stageNum === 5
@@ -853,58 +1098,7 @@ export default function App() {
       } else {
         text = await generateStageClientSide(stageNum, docForPayload, aiCustomInstruction);
       }
-      if (stageNum === 3) {
-        updateActiveDoc({ sectionsStructure: text });
-      } else if (stageNum === 4) {
-        updateActiveDoc({ voiceoverScript: normalizeQuantitiesToMil(text) });
-      } else if (stageNum === 5) {
-        const normalizedThumbPrompt = buildOrUpdateThumbnailPrompt(
-          text,
-          orientationForThumb,
-          activeDoc.thumbnailTextOverlay || '',
-          activeDoc
-        );
-        updateActiveDoc({
-          thumbnailOrientation: orientationForThumb,
-          thumbnailPrompt: normalizedThumbPrompt,
-        });
-      } else if (stageNum === 6) {
-        const parsedRefs = parseReferencesFromRawText(text);
-        updateActiveDoc({
-          rawReferencePrompts: text,
-          references: parsedRefs.length > 0 ? parsedRefs : activeDoc.references,
-        });
-      } else if (stageNum === 7) {
-        updateActiveDoc({ clip1OptionsRaw: text });
-      } else if (stageNum === 8) {
-        const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
-        const syncedClips = syncAndAuditProductionClips({
-          rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
-          timelineText: activeDoc.timelineFormattedText || '',
-          rawClipsText: textWithHeader,
-          existingClips: activeDoc.clips || [],
-          clip1Duration: activeDoc.clip1DurationSeconds || 6,
-          clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
-        });
-        updateActiveDoc({
-          rawClipsText: textWithHeader,
-          clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
-        });
-      } else if (stageNum === 10) {
-        const parsedTracks = parseSunoTracksFromRawText(text);
-        updateActiveDoc({
-          rawSunoText: text,
-          sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
-        });
-      } else if (stageNum === 11 || stageNum === 111) {
-        updateActiveDoc({ rawYoutubeMetadata: text, rawMetadataText: text });
-      } else if (stageNum === 112) {
-        updateActiveDoc({ rawFacebookMetadata: text });
-      } else if (stageNum === 113) {
-        updateActiveDoc({ pinnedComment: text.trim() });
-      } else if (stageNum === 114) {
-        updateActiveDoc({ youtubeTags: text.trim() });
-      }
+      applyGeneratedStageText(stageNum, text);
       setAiCustomInstruction('');
     } catch (err: any) {
       alert('Error de conexión con Gemini: ' + err.message);
@@ -913,9 +1107,13 @@ export default function App() {
     }
   };
 
-  // Stage 10: Generate 3 Thumbnail Text Overlay Options with Gemini
+  // Stage 5: Generate 3 Thumbnail Text Overlay Options with Gemini
   const handleGenerateThumbnailTextOptions = async () => {
     if (!activeDoc) return;
+    if (aiEngineMode === 'WEB_FREE') {
+      handleSendStageToGeminiWeb(101);
+      return;
+    }
     setThumbOptionsGenerating(true);
     try {
       let rawText = '';
@@ -1580,6 +1778,33 @@ export default function App() {
             <Sliders className="w-3.5 h-3.5" />
             <span>Prompt Maestro</span>
           </button>
+
+          {activeDoc && (
+            <button
+              onClick={() => {
+                if (mainView !== 'studio') setMainView('studio');
+                setShowWebStudio((prev) => !prev);
+              }}
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
+                showWebStudio
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
+                  : 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
+              }`}
+              title="Abrir panel incrustado de Gemini Web y Google Flow para generar texto, imágenes y clips usando tu cuota web gratis (sin gastar API Key)"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Estudio Web (Gratis)</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  extensionInstalled
+                    ? showWebStudio
+                      ? 'bg-slate-950'
+                      : 'bg-emerald-400'
+                    : 'bg-amber-400 animate-pulse'
+                }`}
+              />
+            </button>
+          )}
 
           <button
             onClick={() => setShowKeyModal(true)}
@@ -3275,12 +3500,28 @@ export default function App() {
                         <label className="text-xs font-semibold text-slate-300">
                           Prompt en Inglés ({currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16: Texto Centrado en el Medio + Logo HD Der' : 'Horizontal 16:9: Texto Abajo Izq + Logo 8K Der'} + Logo Oficial 5% Izq):
                         </label>
-                        <button
-                          onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
-                          className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded cursor-pointer"
-                        >
-                          {copiedId === 'copy-thumb' ? '✓ Copiado' : '📋 Copiar Prompt'}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSendPromptToFlow(
+                                activeDoc.thumbnailPrompt,
+                                'IMAGE',
+                                'thumbnail'
+                              )
+                            }
+                            className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
+                            title="Enviar prompt directamente a Google Flow / Gemini Web para generar la miniatura gratis"
+                          >
+                            🚀 Enviar a Flow / Gemini Web
+                          </button>
+                          <button
+                            onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
+                            className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded cursor-pointer"
+                          >
+                            {copiedId === 'copy-thumb' ? '✓ Copiado' : '📋 Copiar Prompt'}
+                          </button>
+                        </div>
                       </div>
                       <textarea
                         rows={8}
@@ -3526,6 +3767,14 @@ export default function App() {
                           Imagen Lista
                         </label>
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSendPromptToFlow(ref.prompt, 'IMAGE', ref.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold cursor-pointer"
+                            title="Enviar a Google Flow para crear imagen de referencia gratis"
+                          >
+                            🚀 Flow
+                          </button>
                           <button
                             onClick={() => copyText(ref.prompt, `ref-${ref.id}`)}
                             className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold cursor-pointer"
@@ -4251,16 +4500,28 @@ export default function App() {
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {/* Image Prompt */}
                             <div className="space-y-1.5">
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between flex-wrap gap-1.5">
                                 <span className="text-xs font-semibold text-amber-300">
                                   🖼️ Prompt de Imagen Inicial (Nano Banana 2.1)
                                 </span>
-                                <button
-                                  onClick={() => copyText(clip.imagePrompt, `img-${clip.id}`)}
-                                  className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 cursor-pointer"
-                                >
-                                  {copiedId === `img-${clip.id}` ? '✓ Copiado' : '📋 Copiar Image'}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
+                                    }
+                                    className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
+                                    title="Enviar prompt de imagen a Google Flow (Gratis)"
+                                  >
+                                    🚀 Flow Imagen
+                                  </button>
+                                  <button
+                                    onClick={() => copyText(clip.imagePrompt, `img-${clip.id}`)}
+                                    className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 cursor-pointer"
+                                  >
+                                    {copiedId === `img-${clip.id}` ? '✓ Copiado' : '📋 Copiar Image'}
+                                  </button>
+                                </div>
                               </div>
                               <textarea
                                 rows={3}
@@ -4276,16 +4537,28 @@ export default function App() {
 
                             {/* Video Prompt */}
                             <div className="space-y-1.5">
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between flex-wrap gap-1.5">
                                 <span className="text-xs font-semibold text-emerald-300">
                                   🎬 Prompt de Video (Omni Flash + Foley)
                                 </span>
-                                <button
-                                  onClick={() => copyText(clip.videoPrompt, `vid-${clip.id}`)}
-                                  className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
-                                >
-                                  {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                    }
+                                    className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
+                                    title="Enviar prompt de video a Google Flow (Gratis)"
+                                  >
+                                    🎬 Flow Video
+                                  </button>
+                                  <button
+                                    onClick={() => copyText(clip.videoPrompt, `vid-${clip.id}`)}
+                                    className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
+                                  >
+                                    {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
+                                  </button>
+                                </div>
                               </div>
                               <textarea
                                 rows={3}
@@ -5463,6 +5736,24 @@ export default function App() {
               </div>
             )}
           </section>
+
+          <WebStudioDrawer
+            isOpen={showWebStudio}
+            onClose={() => setShowWebStudio(false)}
+            activeStage={activeStage}
+            stageTitle={STAGES.find((s) => s.id === activeStage)?.title || `Etapa ${activeStage}`}
+            extensionInstalled={extensionInstalled}
+            aiEngineMode={aiEngineMode}
+            onChangeAiEngineMode={setAiEngineMode}
+            onSendCurrentStageToGemini={() => handleSendStageToGeminiWeb(activeStage)}
+            onGrabLastGeminiResponse={() => {
+              sendCommandToWebBridge('HUELLAS_GRAB_LAST_GEMINI_RESPONSE', {
+                stageNumber: activeStage,
+              });
+            }}
+            bridgeStatusMsg={bridgeStatusMsg}
+            bridgeStatusType={bridgeStatusType}
+          />
         </div>
       )}
     </div>

@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Huellas Master — Puente Web (Gemini & Google Flow)",
+  "version": "1.0.0",
+  "description": "Conecta Huellas Master con tus cuentas web gratuitas de Gemini y Google Flow (incrustados o acoplados) sin gastar API Key.",
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://*.google.com/*",
+    "https://labs.google/*",
+    "http://localhost:4200/*",
+    "http://127.0.0.1:4200/*",
+    "https://raydelw-a11y.github.io/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "allow_iframe_embedding",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:4200/*",
+        "http://127.0.0.1:4200/*",
+        "https://raydelw-a11y.github.io/*"
+      ],
+      "js": ["huellas-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": ["gemini-content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://labs.google/*"
+      ],
+      "js": ["flow-content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

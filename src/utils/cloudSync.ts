@@ -336,11 +336,11 @@ async function callGeminiGenerateContentClientSide(
   throw new Error(lastErr || 'No se pudo conectar con Gemini desde el navegador.');
 }
 
-export async function generateStageClientSide(
+export function buildStagePromptText(
   stageNumber: number,
   doc: DocumentaryProject,
   customInstruction?: string
-): Promise<string> {
+): string {
   const clipDurationLabel = doc.clipDurationMode === '8_SEGUNDOS' ? '8 segundos' : '10 segundos';
   const c1Dur = Number(doc.clip1DurationSeconds) || (doc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4);
   const voiceEntrySec = c1Dur + 2;
@@ -458,7 +458,15 @@ Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corr
   if (customInstruction) {
     stagePrompt += `\n\nInstrucción adicional del director: ${customInstruction}`;
   }
+  return stagePrompt;
+}
 
+export async function generateStageClientSide(
+  stageNumber: number,
+  doc: DocumentaryProject,
+  customInstruction?: string
+): Promise<string> {
+  const stagePrompt = buildStagePromptText(stageNumber, doc, customInstruction);
   const out = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
   if (stageNumber === 8) {
     return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
