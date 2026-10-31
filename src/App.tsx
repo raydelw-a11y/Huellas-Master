@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:22 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:28 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2408,6 +2408,38 @@ export default function App() {
     return '';
   };
 
+  // Automatically ensure all clips in activeDoc have the 10s (or 5s for Reel) Anti-Mutation Physics Shield from construction
+  useEffect(() => {
+    if (!activeDoc || !Array.isArray(activeDoc.clips) || activeDoc.clips.length === 0) return;
+    const needsAutoShield = activeDoc.clips.some(
+      (c) =>
+        ((c.videoPrompt || '').trim() &&
+          !/Fixed subject count from 0s to \d+s/i.test(c.videoPrompt || '')) ||
+        ((c.imagePrompt || '').trim() &&
+          !/rigid architectural perspective/i.test(c.imagePrompt || ''))
+    );
+    if (!needsAutoShield) return;
+
+    const nextClips = activeDoc.clips.map((c) => ({
+      ...c,
+      imagePrompt: (c.imagePrompt || '').trim()
+        ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
+        : c.imagePrompt,
+      videoPrompt: (c.videoPrompt || '').trim()
+        ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
+        : c.videoPrompt,
+    }));
+
+    const nextRawClipsText = nextClips
+      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+      .join('\n\n');
+
+    updateActiveDoc({
+      clips: nextClips,
+      rawClipsText: nextRawClipsText,
+    });
+  }, [activeDoc?.id, activeDoc?.clips?.length, activeDoc?.productionFormat]);
+
   // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed
   useEffect(() => {
     if (activeStage !== 8 || !activeDoc || !Array.isArray(activeDoc.clips)) return;
@@ -2440,8 +2472,12 @@ export default function App() {
     customPrompt?: string,
     attemptNum: number = 1
   ) => {
-    const promptToSend = (customPrompt || clip.videoPrompt || '').trim();
-    if (!promptToSend) return;
+    const rawPromptCandidate = (customPrompt || clip.videoPrompt || '').trim();
+    if (!rawPromptCandidate) return;
+    const promptToSend = applyAntiMutationShieldToPrompt(rawPromptCandidate, 'ALL', false);
+    const imagePromptToSend = (clip.imagePrompt || '').trim()
+      ? applyAntiMutationShieldToPrompt(clip.imagePrompt, 'ALL', true)
+      : '';
 
     const currentDoc = activeDocRef.current;
     if (currentDoc) {
@@ -2449,6 +2485,7 @@ export default function App() {
         c.id === clip.id
           ? {
               ...c,
+              imagePrompt: imagePromptToSend || c.imagePrompt,
               videoPrompt: promptToSend,
               videoAuditStatus: 'generating' as const,
               videoAttempts: attemptNum,
@@ -2482,7 +2519,7 @@ export default function App() {
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptToSend,
-      imagePrompt: clip.imagePrompt || '',
+      imagePrompt: imagePromptToSend || clip.imagePrompt || '',
       aspectRatio: flowAspectRatio,
       referenceAssetsForClips: refAssets,
       storyStudioProjectJson: currentDoc ? buildStoryStudioProjectJson(currentDoc, true) : undefined,
@@ -8445,15 +8482,13 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={handleShieldAllClipsAntiMutation}
-                        className="px-3.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer"
-                        title="Conserva todos tus movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 10s + prohíbe aparición/mutación de personas, paredes y objetos en todos los clips"
+                      <span
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
+                        title="Todos los prompts de imagen y video incluyen automáticamente desde su construcción el blindaje de cámara controlada, acción continua de 0s a 10s y física anti-mutación"
                       >
-                        🧱 Blindar Todos los Prompts (Física + Anti-Mutación{' '}
-                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'})
-                      </button>
+                        ✅ Blindaje Física + Anti-Mutación{' '}
+                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'} Activo en Todos los Prompts
+                      </span>
 
                       <button
                         type="button"

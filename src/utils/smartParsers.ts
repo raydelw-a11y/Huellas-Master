@@ -17,6 +17,77 @@ export function ensureOperationalHeaderInRawClips(
   return `${header}\n\n${trimmed}`;
 }
 
+/**
+ * Inyecta automáticamente desde la construcción del prompt las reglas de Física Rígida y Anti-Mutación (0s a 10s),
+ * conservando todos los movimientos de cámara del Prompt Maestro de forma controlada y estabilizada.
+ */
+export function ensureAntiMutationPhysicsInPrompt(
+  rawPrompt: string,
+  isImagePrompt: boolean = false,
+  clipSec: number = 10
+): string {
+  if (!rawPrompt || !rawPrompt.trim()) return '';
+  let p = rawPrompt.trim();
+
+  let prefix = '';
+  const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    p = p.slice(prefix.length).trim();
+  }
+
+  // Limpiar cualquier cláusula previa para nunca duplicar
+  p = p
+    .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
+    .replace(
+      /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.\s*/gi,
+      ''
+    )
+    .replace(
+      /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
+      ''
+    )
+    .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
+    .replace(
+      /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi,
+      ''
+    )
+    .replace(
+      /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi,
+      ''
+    )
+    .trim();
+
+  if (isImagePrompt) {
+    const imgClause =
+      'clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects';
+    if (!p.toLowerCase().includes('rigid architectural perspective')) {
+      if (/\bno\s+text\b/i.test(p)) {
+        p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
+      } else {
+        p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
+      }
+    }
+    return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+  }
+
+  // Conservar todos los movimientos de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt, orbit), pero hacerlos suaves y controlados
+  p = p
+    .replace(/\b(whip\s+pan|fast\s+pan|rapid\s+pan)\b/gi, 'smooth controlled fluid-head pan')
+    .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
+    .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
+
+  const shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.`;
+
+  if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
+    p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
+  } else {
+    p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
+  }
+
+  return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+}
+
 export function buildRawClipsTextWithHeader(
   clips: DocumentaryClip[],
   operationalHeader: string = DEFAULT_OPERATIONAL_HEADER
@@ -97,7 +168,7 @@ export function parseClipsFromRawText(
       const normalizedBody = /^Create an image/i.test(bodyRaw)
         ? bodyRaw
         : `Create an image of ${bodyRaw}`;
-      clip.imagePrompt = `Image ${num}: ${normalizedBody}`;
+      clip.imagePrompt = ensureAntiMutationPhysicsInPrompt(`Image ${num}: ${normalizedBody}`, true, 10);
       continue;
     }
 
@@ -114,7 +185,11 @@ export function parseClipsFromRawText(
       const normalizedBody = /^Create a/i.test(bodyRaw)
         ? bodyRaw
         : `Create a video showing ${bodyRaw}`;
-      clip.videoPrompt = `Clip ${num}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`;
+      clip.videoPrompt = ensureAntiMutationPhysicsInPrompt(
+        `Clip ${num}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`,
+        false,
+        10
+      );
       continue;
     }
 
@@ -370,18 +445,24 @@ export function syncAndAuditProductionClips(
       const c1EndSec = clip1SyncMode === 'RALENTIZAR_CAPCUT' ? clip1Duration + 2 : clip1Duration;
       const c1Range = existing?.timeRange || `00:00 - 00:${String(c1EndSec).padStart(2, '0')}`;
       const hookRefs = [primaryPersonTag, primaryPlaceTag].filter(Boolean).join(' at ');
-      const imgP =
+      const imgP = ensureAntiMutationPhysicsInPrompt(
         existing?.imagePrompt?.trim() ||
-        `Image 1: Create an image of a dramatic cinematic wide establishing shot of ${
-          hookRefs ? `${hookRefs} in ` : ''
-        }${eraSetting}, volumetric chiaroscuro lighting, hyper-realistic historical accuracy, 8k documentary cinematography, no text.`;
-      const vidP =
+          `Image 1: Create an image of a dramatic cinematic wide establishing shot of ${
+            hookRefs ? `${hookRefs} in ` : ''
+          }${eraSetting}, volumetric chiaroscuro lighting, hyper-realistic historical accuracy, 8k documentary cinematography, no text.`,
+        true,
+        10
+      );
+      const vidP = ensureAntiMutationPhysicsInPrompt(
         existing?.videoPrompt?.trim() ||
-        `Clip 1 (${c1Range}): Create a video showing a slow, tense cinematic camera push-in across ${
-          primaryPlaceTag || eraSetting
-        }${
-          primaryPersonTag ? ` while ${primaryPersonTag} stands in solemn dramatic stillness` : ''
-        }, subtle drifting atmospheric mist and flickering warm torchlight. Ambient Foley: deep atmospheric wind, distant historical environment sounds, footsteps on stone, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name`;
+          `Clip 1 (${c1Range}): Create a video showing a slow, tense cinematic camera push-in across ${
+            primaryPlaceTag || eraSetting
+          }${
+            primaryPersonTag ? ` while ${primaryPersonTag} stands in solemn dramatic stillness` : ''
+          }, subtle drifting atmospheric mist and flickering warm torchlight. Ambient Foley: deep atmospheric wind, distant historical environment sounds, footsteps on stone, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name`,
+        false,
+        10
+      );
       let auditStatus: 'ok' | 'warning' | 'mismatch' = 'ok';
       let auditReason =
         clip1SyncMode === 'VOZ_EN_CLIP_2'
@@ -435,19 +516,25 @@ export function syncAndAuditProductionClips(
     const shotAngle = SHOT_ANGLES[tIdx % SHOT_ANGLES.length];
     const camMove = CAMERA_MOVES[tIdx % CAMERA_MOVES.length];
 
-    const imgP =
+    const imgP = ensureAntiMutationPhysicsInPrompt(
       existing?.imagePrompt?.trim() ||
-      `Image ${num}: Create an image of a ${shotAngle} in ${eraSetting}${
-        matchedRefs ? ` featuring ${matchedRefs}` : ''
-      }, depicting the historical scene (${cleanNarration.slice(0, 130)}), dramatic cinematic lighting, historical accuracy, photorealistic 8k film still, no text.`;
+        `Image ${num}: Create an image of a ${shotAngle} in ${eraSetting}${
+          matchedRefs ? ` featuring ${matchedRefs}` : ''
+        }, depicting the historical scene (${cleanNarration.slice(0, 130)}), dramatic cinematic lighting, historical accuracy, photorealistic 8k film still, no text.`,
+      true,
+      10
+    );
 
-    const vidP =
+    const vidP = ensureAntiMutationPhysicsInPrompt(
       existing?.videoPrompt?.trim() ||
-      `Clip ${num} (${computedRange}): Create a video showing ${camMove} over the historical scene in ${eraSetting}${
-        matchedRefs ? ` with ${matchedRefs} performing subtle period-accurate physical movement` : ''
-      }. Ambient Foley: realistic historical environment sounds, subtle cloth movement, and footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. ${
-        includeNarrationInClip && cleanNarration ? `${cleanNarration} ` : ''
-      }fix the name`;
+        `Clip ${num} (${computedRange}): Create a video showing ${camMove} over the historical scene in ${eraSetting}${
+          matchedRefs ? ` with ${matchedRefs} performing subtle period-accurate physical movement` : ''
+        }. Ambient Foley: realistic historical environment sounds, subtle cloth movement, and footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. ${
+          includeNarrationInClip && cleanNarration ? `${cleanNarration} ` : ''
+        }fix the name`,
+      false,
+      10
+    );
 
     // Buscar si esa frase en la Voz Narrativa Raw contiene una etiqueta [pausa: Xs]
     let pauseNotes = existing?.pauseNotes || '';
