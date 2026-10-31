@@ -63,7 +63,7 @@ async function getConnectedAiTabsInWindow(windowId) {
 async function ensureScriptInjected(tabId, scriptFile) {
   try {
     await chrome.scripting.executeScript({
-      target: { tabId },
+      target: scriptFile === 'flow-content.js' ? { tabId, allFrames: true } : { tabId },
       files: [scriptFile],
     });
   } catch {}
@@ -597,21 +597,133 @@ async function sendHardwareEnterKey(target) {
 }
 
 /**
- * Automatiza directamente el Applet interno "Story Studio" (flow-sdk) de Google Flow
- * si está abierto dentro de algún iframe de la pestaña de Google Flow:
- * 1. Intercepta HTMLInputElement.prototype.click para inyectar el JSON del proyecto sin abrir diálogo de archivos.
- * 2. Abre el menú ⋮ del header -> clic en "Open Story" -> hidrata todos los @Personajes y Lugares.
- * 3. Cambia a la pestaña "2. Assets" y pulsa "Autocreate images" en Characters y Locations (que invoca Flow.generate.image nativamente en cola de 2 en 2).
- * 4. Vigila las tarjetas dentro de Story Studio para capturar cada imagen blob: generada y enviarla de vuelta a Huellas Master.
+ * Verifica si algún frame de la pestaña de Google Flow tiene expuesto window.__HUELLAS_FLOW_SDK__ = Flow
  */
-async function tryAutomateStoryStudioInTab(tabId, storyStudioJsonStr, referenceItems = []) {
-  if (!storyStudioJsonStr) return { storyStudioFound: false };
+async function checkFlowSdkAvailableInTab(tabId) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
       world: 'MAIN',
-      args: [storyStudioJsonStr, referenceItems],
-      func: async (jsonStr, refItems) => {
+      func: () => ({
+        hasSdk: Boolean(
+          window.__HUELLAS_FLOW_SDK__ &&
+            typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function'
+        ),
+        isStoryStudio: Boolean(document.getElementById('story-studio-modal-root')),
+      }),
+    });
+    const sdkFrame = (results || []).find((r) => r?.result?.hasSdk);
+    const ssFrame = (results || []).find((r) => r?.result?.isStoryStudio);
+    return {
+      hasSdk: Boolean(sdkFrame),
+      sdkFrameId: sdkFrame?.frameId,
+      isStoryStudio: Boolean(ssFrame || sdkFrame),
+    };
+  } catch {
+    return { hasSdk: false, isStoryStudio: false };
+  }
+}
+
+/**
+ * Genera 1 imagen directamente usando window.__HUELLAS_FLOW_SDK__.generate.image(...)
+ * dentro del frame de Story Studio y devuelve { ok, mediaId, imageDataUrl } directamente a background.js
+ * sin depender de postMessage ni de clics en el DOM.
+ */
+async function generateSingleImageViaFlowSdk(
+  tabId,
+  rawPrompt,
+  aspectRatio = '16:9',
+  logoDataUrl = ''
+) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      args: [rawPrompt, aspectRatio, logoDataUrl],
+      func: async (promptText, ratio, logoData) => {
+        const sdk = window.__HUELLAS_FLOW_SDK__;
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          return { hasSdk: false };
+        }
+
+        let referenceImageMediaIds = undefined;
+        if (logoData && logoData.startsWith('data:') && typeof sdk.upload === 'function') {
+          try {
+            const base64Logo = logoData.split(',')[1];
+            const up = await sdk.upload({
+              base64: base64Logo,
+              mimeType: 'image/png',
+              name: 'Logo Huellas de la Humanidad',
+            });
+            if (up?.mediaId) {
+              referenceImageMediaIds = [up.mediaId];
+            }
+          } catch (upErr) {
+            console.warn('[Huellas Flow SDK] Logo upload warning:', upErr);
+          }
+        }
+
+        const cleanPrompt = String(promptText || '')
+          .replace(/^Thumbnail\s*:\s*/i, '')
+          .replace(/^@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*/i, '')
+          .replace(/^[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ\s]{1,35}\s*:\s*(?=Frame Description|Create an image)/i, '')
+          .trim()
+          .slice(0, 3950);
+
+        const modelsToTry = ['🍌 Nano Banana 2', '🍌 Nano Banana Pro', '🍌 Nano Banana 2.1'];
+        let lastError = '';
+        for (const modelDisplayName of modelsToTry) {
+          try {
+            const res = await sdk.generate.image({
+              prompt: cleanPrompt,
+              aspectRatio: ratio || '16:9',
+              referenceImageMediaIds,
+              modelDisplayName,
+            });
+            if (res && res.base64) {
+              const mime = res.mimeType || 'image/jpeg';
+              return {
+                hasSdk: true,
+                ok: true,
+                mediaId: res.mediaId,
+                mimeType: mime,
+                imageDataUrl: `data:${mime};base64,${res.base64}`,
+                modelUsed: modelDisplayName,
+              };
+            }
+          } catch (err) {
+            lastError = String(err?.message || err || '');
+            // Si el error no es por nombre de modelo, esperar un segundo antes de reintentar
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+        return {
+          hasSdk: true,
+          ok: false,
+          error: lastError || 'Flow.generate.image no devolvió base64.',
+        };
+      },
+    });
+
+    const hit = (results || []).find((r) => r?.result?.hasSdk);
+    return hit ? hit.result : { hasSdk: false, ok: false };
+  } catch (err) {
+    return { hasSdk: false, ok: false, error: String(err?.message || err) };
+  }
+}
+
+/**
+ * Inyecta el JSON del proyecto en la interfaz visual de Story Studio (pestaña "2. Assets")
+ * para que las tarjetas y sus imágenes generadas también se vean en pantalla dentro de Story Studio.
+ */
+async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, triggerAutocreate = false) {
+  if (!storyStudioJsonStr) return { synced: false };
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      args: [storyStudioJsonStr, triggerAutocreate],
+      func: async (jsonStr, shouldAutocreate) => {
         const sleepFrame = (ms) => new Promise((r) => setTimeout(r, ms));
         const isStoryStudioFrame =
           Boolean(document.getElementById('story-studio-modal-root')) ||
@@ -622,68 +734,18 @@ async function tryAutomateStoryStudioInTab(tabId, storyStudioJsonStr, referenceI
               /2\.\s*Assets/i.test(b.textContent || '')
             ));
 
-        if (!isStoryStudioFrame) {
-          return { storyStudioFound: false };
-        }
+        if (!isStoryStudioFrame) return { synced: false };
 
-        // 0. Si el usuario expuso window.__HUELLAS_FLOW_SDK__ = Flow en Story Studio, llamarlo directamente
-        if (
-          window.__HUELLAS_FLOW_SDK__ &&
-          typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function' &&
-          Array.isArray(refItems) &&
-          refItems.length > 0
-        ) {
-          (async () => {
-            for (let i = 0; i < refItems.length; i++) {
-              const item = refItems[i];
-              try {
-                const res = await window.__HUELLAS_FLOW_SDK__.generate.image({
-                  prompt: item.formattedPrompt || item.prompt,
-                  aspectRatio: '16:9',
-                  modelDisplayName: '🍌 Nano Banana 2',
-                });
-                if (res && res.base64) {
-                  const mime = res.mimeType || 'image/jpeg';
-                  window.postMessage(
-                    {
-                      source: 'HUELLAS_STORY_STUDIO_FRAME',
-                      type: 'FLOW_REFERENCE_CAPTURED',
-                      referenceId: item.id,
-                      referenceTag: item.tag,
-                      referenceIndex: i,
-                      mediaId: res.mediaId,
-                      imageDataUrl: `data:${mime};base64,${res.base64}`,
-                    },
-                    '*'
-                  );
-                }
-              } catch (e) {
-                console.warn('[Huellas Story Studio SDK] Error generating image:', e);
-              }
-            }
-          })();
-          return { storyStudioFound: true, method: 'DIRECT_FLOW_SDK', count: refItems.length };
-        }
-
-        // 1. Cerrar modal de bienvenida "Welcome to Story Studio" / "Get Started" si está abierto
         const getStartedBtn = Array.from(document.querySelectorAll('button')).find((b) =>
           /get started/i.test((b.textContent || '').trim())
         );
         if (getStartedBtn) {
           try {
             getStartedBtn.click();
-            await sleepFrame(150);
+            await sleepFrame(120);
           } catch {}
         }
 
-        // Registrar las imágenes blob: que ya existían antes de inyectar para no re-importar viejas
-        const preExistingBlobs = new Set(
-          Array.from(document.querySelectorAll('img'))
-            .map((img) => img.src)
-            .filter(Boolean)
-        );
-
-        // 2. Interceptar HTMLInputElement.prototype.click para inyectar el archivo .json en "Open Story" sin abrir Finder
         const origInputClick = HTMLInputElement.prototype.click;
         let jsonInjected = false;
         HTMLInputElement.prototype.click = function () {
@@ -702,21 +764,18 @@ async function tryAutomateStoryStudioInTab(tabId, storyStudioJsonStr, referenceI
               } else {
                 this.dispatchEvent(new Event('change', { bubbles: true }));
               }
-            } catch (err) {
-              console.warn('[Huellas Story Studio] Error injecting JSON file:', err);
-            }
+            } catch {}
             return;
           }
           return origInputClick.apply(this, arguments);
         };
 
-        // 3. Abrir el menú ⋮ del header y hacer clic en "Open Story"
         const headerMoreBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
           (b.textContent || '').includes('more_vert')
         );
         if (headerMoreBtn) {
           headerMoreBtn.click();
-          await sleepFrame(150);
+          await sleepFrame(140);
           const openStoryBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
             /open story/i.test((b.textContent || '').trim())
           );
@@ -725,137 +784,153 @@ async function tryAutomateStoryStudioInTab(tabId, storyStudioJsonStr, referenceI
           }
         }
 
-        // Restaurar HTMLInputElement.prototype.click por seguridad
         setTimeout(() => {
           HTMLInputElement.prototype.click = origInputClick;
-        }, 1500);
+        }, 1200);
 
-        await sleepFrame(550);
+        await sleepFrame(450);
 
-        // 4. Cambiar a la pestaña "2. Assets"
         const assetsTabBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
           /2\.\s*Assets/i.test((b.textContent || '').trim())
         );
         if (assetsTabBtn) {
           assetsTabBtn.click();
-          await sleepFrame(450);
+          await sleepFrame(350);
         }
 
-        // 5. En cada sección (Characters y Locations), abrir su menú ⋮ y pulsar "Autocreate images"
         let triggeredSections = 0;
-        const sections = Array.from(document.querySelectorAll('main section'));
-        for (const sec of sections) {
-          const secMoreBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
-            (b.textContent || '').includes('more_vert')
-          );
-          if (secMoreBtn) {
-            secMoreBtn.click();
-            await sleepFrame(160);
-            const autoCreateBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
-              /autocreate images/i.test((b.textContent || '').trim())
+        if (shouldAutocreate) {
+          const sections = Array.from(document.querySelectorAll('main section'));
+          for (const sec of sections) {
+            const secMoreBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+              (b.textContent || '').includes('more_vert')
             );
-            if (autoCreateBtn && !autoCreateBtn.disabled) {
-              autoCreateBtn.click();
-              triggeredSections++;
-              await sleepFrame(220);
-            } else {
-              // Si no hay botón "Autocreate images", intentar el botón "Autofill Characters/Locations"
-              const autofillBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
-                /autofill/i.test((b.textContent || '').trim())
+            if (secMoreBtn) {
+              secMoreBtn.click();
+              await sleepFrame(150);
+              const autoCreateBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+                /autocreate images/i.test((b.textContent || '').trim())
               );
-              if (autofillBtn && !autofillBtn.disabled) {
-                autofillBtn.click();
+              if (autoCreateBtn && !autoCreateBtn.disabled) {
+                autoCreateBtn.click();
                 triggeredSections++;
-                await sleepFrame(220);
+                await sleepFrame(200);
               }
             }
           }
         }
 
-        // 6. Vigilar las tarjetas dentro de Story Studio para capturar cada nueva imagen blob: generada
-        if (window.__HUELLAS_STORY_STUDIO_WATCHER__) {
-          clearInterval(window.__HUELLAS_STORY_STUDIO_WATCHER__);
-        }
-        const capturedSrcs = new Set(preExistingBlobs);
-        let elapsed = 0;
-        window.__HUELLAS_STORY_STUDIO_WATCHER__ = setInterval(async () => {
-          elapsed += 2500;
-          if (elapsed > 360000) {
-            clearInterval(window.__HUELLAS_STORY_STUDIO_WATCHER__);
-            window.__HUELLAS_STORY_STUDIO_WATCHER__ = null;
-            return;
-          }
-
-          const imgs = Array.from(document.querySelectorAll('main section img'));
-          for (const img of imgs) {
-            const src = img.src || '';
-            if (!src || capturedSrcs.has(src)) continue;
-            if (!img.complete || (img.naturalWidth > 0 && img.naturalWidth < 120)) continue;
-            capturedSrcs.add(src);
-
-            try {
-              const resp = await fetch(src);
-              const blob = await resp.blob();
-              const dataUrl = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-
-              // Identificar a qué @Referencia pertenece leyendo el texto de su tarjeta
-              const cardEl = img.closest('[class*="rounded"]') || img.parentElement?.parentElement;
-              const cardText = (cardEl?.innerText || cardEl?.textContent || '').toLowerCase();
-              let matchedItem = null;
-              let matchedIdx = -1;
-              if (Array.isArray(refItems)) {
-                for (let idx = 0; idx < refItems.length; idx++) {
-                  const candidate = refItems[idx];
-                  const cleanName = (candidate.name || candidate.tag || '')
-                    .replace(/^@+/, '')
-                    .replace(/_/g, ' ')
-                    .toLowerCase()
-                    .trim();
-                  if (cleanName && cardText.includes(cleanName)) {
-                    matchedItem = candidate;
-                    matchedIdx = idx;
-                    break;
-                  }
-                }
-              }
-
-              window.postMessage(
-                {
-                  source: 'HUELLAS_STORY_STUDIO_FRAME',
-                  type: 'FLOW_REFERENCE_CAPTURED',
-                  referenceId: matchedItem?.id,
-                  referenceTag: matchedItem?.tag,
-                  referenceIndex: matchedIdx >= 0 ? matchedIdx : undefined,
-                  imageDataUrl: dataUrl,
-                },
-                '*'
-              );
-            } catch (e) {
-              console.warn('[Huellas Story Studio] Failed to read blob image:', e);
-            }
-          }
-        }, 2500);
-
-        return {
-          storyStudioFound: true,
-          jsonInjected,
-          triggeredSections,
-          method: 'STORY_STUDIO_AUTOCREATE_IMAGES',
-        };
+        return { synced: true, jsonInjected, triggeredSections };
       },
     });
-
-    const hit = (results || []).find((r) => r?.result?.storyStudioFound);
-    return hit ? hit.result : { storyStudioFound: false };
-  } catch (err) {
-    console.warn('[Huellas Story Studio] executeScript allFrames warning:', err);
-    return { storyStudioFound: false };
+    const hit = (results || []).find((r) => r?.result?.synced);
+    return hit ? hit.result : { synced: false };
+  } catch {
+    return { synced: false };
   }
+}
+
+/**
+ * Ejecuta la generación de todas las @Referencias en una cola concurrente de 2 en 2
+ * llamando directamente a window.__HUELLAS_FLOW_SDK__.generate.image y enviando cada
+ * imagen capturada a Huellas Master (y actualizando las tarjetas en Story Studio).
+ */
+async function runReferencesQueueViaDirectFlowSdk(
+  tabId,
+  senderWindowId,
+  storyStudioJsonStr,
+  referenceItems = []
+) {
+  // 1. Mostrar inmediatamente las tarjetas de @Personas y Lugares en la pestaña "2. Assets" de Story Studio
+  if (storyStudioJsonStr) {
+    await syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, false);
+  }
+
+  let parsedProject = null;
+  if (storyStudioJsonStr) {
+    try {
+      parsedProject = JSON.parse(storyStudioJsonStr);
+    } catch {}
+  }
+
+  const total = referenceItems.length;
+  let completed = 0;
+  let failed = 0;
+  let nextIdx = 0;
+  const concurrency = Math.min(2, total);
+
+  async function worker() {
+    while (nextIdx < total) {
+      const currentIdx = nextIdx++;
+      const item = referenceItems[currentIdx];
+      if (!item) continue;
+
+      broadcastToHuellasTabsInSameWindow(senderWindowId, {
+        type: 'BRIDGE_STATUS',
+        service: 'FLOW',
+        status: 'GENERATING',
+        message: `🍌 Flow SDK (${completed + 1}/${total}): Generando imagen de referencia para ${item.tag} en Nano Banana 2...`,
+        mediaType: 'REFERENCES',
+      });
+
+      const genRes = await generateSingleImageViaFlowSdk(
+        tabId,
+        item.formattedPrompt || item.prompt,
+        '16:9'
+      );
+
+      if (genRes && genRes.ok && genRes.imageDataUrl) {
+        completed++;
+        // Enviar inmediatamente la imagen en base64 a Huellas Master para que aparezca en la tarjeta de Etapa 6 y se guarde en 04_Referencias
+        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+          type: 'FLOW_REFERENCE_CAPTURED',
+          referenceId: item.id,
+          referenceTag: item.tag,
+          referenceIndex: currentIdx,
+          mediaId: genRes.mediaId,
+          imageDataUrl: genRes.imageDataUrl,
+        });
+
+        // Actualizar también el JSON de Story Studio para que la tarjeta en Story Studio tenga la imagen
+        if (parsedProject && Array.isArray(parsedProject.assets)) {
+          const rawB64 = genRes.imageDataUrl.split(',')[1] || '';
+          const targetAsset =
+            parsedProject.assets.find((a) => a.id === item.id) || parsedProject.assets[currentIdx];
+          if (targetAsset && rawB64) {
+            const imgId = `img-${item.id || currentIdx}`;
+            targetAsset.base64 = rawB64;
+            targetAsset.referenceImageId = imgId;
+            targetAsset.supportingImages = [
+              { id: imgId, mediaId: genRes.mediaId, base64: rawB64 },
+            ];
+          }
+        }
+      } else {
+        failed++;
+        console.warn('[Huellas Flow SDK] Falló referencia:', item.tag, genRes?.error);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  // Al terminar la cola, sincronizar el proyecto con todas las imágenes dentro de Story Studio para que se vean en "2. Assets"
+  if (parsedProject && completed > 0) {
+    try {
+      await syncProjectJsonIntoStoryStudioUI(tabId, JSON.stringify(parsedProject, null, 2), false);
+    } catch {}
+  }
+
+  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+    type: 'BRIDGE_STATUS',
+    service: 'FLOW',
+    status: completed > 0 ? 'SUCCESS' : 'ERROR',
+    message:
+      completed > 0
+        ? `✅ ¡${completed}/${total} imágenes de @Referencias generadas con Flow SDK (🍌 Nano Banana 2), guardadas en tu Media Gallery de Flow, importadas a tus tarjetas de Etapa 6 y guardadas en 04_Referencias!`
+        : `⚠️ No se pudieron generar las imágenes vía Flow SDK (${failed} fallidas).`,
+    mediaType: 'REFERENCES',
+  });
 }
 
 /**
@@ -1053,7 +1128,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.5.0',
+          version: '2.5.1',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -1158,19 +1233,105 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           (action === 'SEND_PROMPT' || action === 'LOAD_STORY_STUDIO_PROJECT')
         ) {
           try {
-            // 1. Si el comando trae proyecto para Story Studio (ej. Etapa 6 Referencias), intentar primero inyectarlo en Story Studio (flow-sdk nativo)
-            if (payload.storyStudioProjectJson) {
-              const ssRes = await tryAutomateStoryStudioInTab(
+            // 1. Verificar si window.__HUELLAS_FLOW_SDK__ = Flow está disponible en la pestaña de Google Flow
+            const sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
+
+            // 1A. Etapa 6 (Todas las @Referencias o 1 tarjeta individual de @Referencia) vía window.__HUELLAS_FLOW_SDK__
+            if (
+              sdkStatus.hasSdk &&
+              (payload.mediaType === 'REFERENCES' ||
+                (payload.mediaType === 'IMAGE' && payload.referenceId))
+            ) {
+              const itemsToRun =
+                Array.isArray(payload.referenceItems) && payload.referenceItems.length > 0
+                  ? payload.referenceItems
+                  : [
+                      {
+                        id: payload.referenceId,
+                        tag: payload.referenceTag || '@Referencia',
+                        name: payload.referenceTag || 'Referencia',
+                        prompt: payload.prompt || '',
+                        formattedPrompt: payload.prompt || '',
+                      },
+                    ];
+
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'DIRECT_FLOW_SDK_QUEUE',
+                total: itemsToRun.length,
+              });
+
+              runReferencesQueueViaDirectFlowSdk(
                 targetTab.id,
-                payload.storyStudioProjectJson,
-                payload.referenceItems || []
-              );
-              if (ssRes && ssRes.storyStudioFound) {
+                senderWindowId,
+                payload.storyStudioProjectJson || '',
+                itemsToRun
+              ).catch((e) => console.warn('[Huellas Flow SDK Queue] Error:', e));
+              return;
+            }
+
+            // 1B. Etapa 5 (Miniatura Oficial con Logo) vía window.__HUELLAS_FLOW_SDK__
+            if (sdkStatus.hasSdk && payload.mediaType === 'THUMBNAILS') {
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'DIRECT_FLOW_SDK_THUMBNAIL',
+              });
+
+              (async () => {
+                const ratio = /9:16|vertical/i.test(payload.prompt || '') ? '9:16' : '16:9';
                 broadcastToHuellasTabsInSameWindow(senderWindowId, {
                   type: 'BRIDGE_STATUS',
                   service: 'FLOW',
                   status: 'GENERATING',
-                  message: `🎬 ¡Conectado a Story Studio (flow-sdk) en Google Flow! Generando automáticamente las ${(payload.referenceItems || []).length || ''} @Referencias en cola de 2 en 2...`,
+                  message: `🍌 Flow SDK: Subiendo Logo Oficial y generando Miniatura Opción ${
+                    payload.optionLabel || 'A'
+                  } (${ratio})...`,
+                  mediaType: 'THUMBNAILS',
+                });
+                const thumbRes = await generateSingleImageViaFlowSdk(
+                  targetTab.id,
+                  payload.prompt || '',
+                  ratio,
+                  payload.logoDataUrl || ''
+                );
+                if (thumbRes && thumbRes.ok && thumbRes.imageDataUrl) {
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'FLOW_THUMBNAIL_CAPTURED',
+                    optionLabel: payload.optionLabel || 'A',
+                    imageUrl: thumbRes.imageDataUrl,
+                    imageDataUrl: thumbRes.imageDataUrl,
+                  });
+                } else {
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'ERROR',
+                    message: `⚠️ Error generando Miniatura vía Flow SDK: ${
+                      thumbRes?.error || 'Desconocido'
+                    }`,
+                  });
+                }
+              })();
+              return;
+            }
+
+            // 1C. Si Story Studio está abierto pero aún sin window.__HUELLAS_FLOW_SDK__, inyectar JSON y pulsar Autocreate images
+            if (sdkStatus.isStoryStudio && payload.storyStudioProjectJson) {
+              const ssRes = await syncProjectJsonIntoStoryStudioUI(
+                targetTab.id,
+                payload.storyStudioProjectJson,
+                true
+              );
+              if (ssRes && ssRes.synced) {
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'BRIDGE_STATUS',
+                  service: 'FLOW',
+                  status: 'GENERATING',
+                  message: `🎬 Proyecto cargado en Story Studio (Google Flow) y ejecutando Autocreate images...`,
                   mediaType: payload.mediaType,
                 });
                 sendResponse({
