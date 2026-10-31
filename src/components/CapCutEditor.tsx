@@ -223,9 +223,11 @@ interface CapCutEditorProps {
   downloadFolderPath?: string;
   onSaveFileToChosenFolder: (fileName: string, blobOrDataUrl: Blob | string) => Promise<boolean>;
   onExportOrganizedFolder?: () => Promise<void>;
+  officialLogoUrl?: string;
+  onOfficialLogoChange?: (dataUrl: string) => void;
 }
 
-const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
+export const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
 
 export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   activeDoc,
@@ -237,6 +239,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   downloadFolderPath = '',
   onSaveFileToChosenFolder,
   onExportOrganizedFolder,
+  officialLogoUrl: propOfficialLogoUrl,
+  onOfficialLogoChange,
 }) => {
   // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K)
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
@@ -245,10 +249,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('4K_2160P');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
 
-  // 2. Permanent Official Logo (Uploaded ONCE, stored forever)
+  // 2. Permanent Official Logo (Uploaded ONCE, stored forever across all documentaries)
   const [officialLogoUrl, setOfficialLogoUrl] = useState<string>(() => {
-    return localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
+    return propOfficialLogoUrl || localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
   });
+
+  useEffect(() => {
+    if (propOfficialLogoUrl && propOfficialLogoUrl !== officialLogoUrl) {
+      setOfficialLogoUrl(propOfficialLogoUrl);
+    }
+  }, [propOfficialLogoUrl]);
   const [logoScalePct, setLogoScalePct] = useState<number>(6);
   const [showRightQualityBadge, setShowRightQualityBadge] = useState<boolean>(true);
   const [logoOpacity, setLogoOpacity] = useState<number>(95);
@@ -307,6 +317,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (data?.logoDataUrl) {
           setOfficialLogoUrl(data.logoDataUrl);
           localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
+          if (onOfficialLogoChange) onOfficialLogoChange(data.logoDataUrl);
         }
       })
       .catch(() => {});
@@ -320,6 +331,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (!dataUrl) return;
       setOfficialLogoUrl(dataUrl);
       localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, dataUrl);
+      if (onOfficialLogoChange) onOfficialLogoChange(dataUrl);
       try {
         await fetch('/api/assets/official-logo', {
           method: 'POST',
@@ -731,18 +743,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   };
 
-  // Render & Export Final Master Video in HD / 2K / 4K / 8K and 16:9 or 9:16
+  // Render & Download Final Master Video in HD / 2K / 4K / 8K and 16:9 or 9:16 (Single Unified Action)
   const handleExportMasterVideo = async () => {
+    // 1. Mandatory Global Official Logo Check before rendering/downloading
+    if (!officialLogoUrl || !officialLogoUrl.trim()) {
+      setActiveInspectorTab('branding');
+      alert(
+        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (es el mismo para todos los documentales) en la pestaña "Logo y Textos" o en la Etapa 5 antes de renderizar y descargar el video.'
+      );
+      return;
+    }
+
     const preset = RESOLUTION_PRESETS[exportResolution];
     const width = aspectRatio === '16:9' ? preset.width16x9 : preset.width9x16;
     const height = aspectRatio === '16:9' ? preset.height16x9 : preset.height9x16;
 
-    // Ask user where to save first if no folder is selected yet
+    // 2. Ask user where to save first if no folder is selected yet
     if (!downloadFolderName) {
       const picked = await onPickDownloadFolder();
       if (!picked) {
         alert(
-          '📂 Primero selecciona la carpeta donde deseas guardar el video final exportado.'
+          '📂 Primero selecciona la carpeta donde deseas guardar el video final descargado.'
         );
         return;
       }
@@ -751,10 +772,70 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setIsRenderingVideo(true);
     setRenderProgressPct(5);
     setStatusMessage(
-      `🎬 Preparando renderizado multipista en ${preset.badge} (${width}×${height}, ${aspectRatio})...`
+      `🎬 Renderizando y preparando descarga del video en ${preset.badge} (${width}×${height}, ${aspectRatio})...`
     );
 
     try {
+      // 3. Try Ultra-Fast Native FFmpeg Render first if local server & folderPath are available
+      if (downloadFolderPath && activeDoc) {
+        try {
+          const srtText = captions
+            .map((c, idx) => {
+              const fmt = (sec: number) => {
+                const h = Math.floor(sec / 3600);
+                const m = Math.floor((sec % 3600) / 60);
+                const s = Math.floor(sec % 60);
+                const ms = Math.round((sec - Math.floor(sec)) * 1000);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
+                  s
+                ).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+              };
+              return `${idx + 1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${c.text}`;
+            })
+            .join('\n\n');
+
+          const resp = await fetch('/api/editor/render-ffmpeg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderPath: downloadFolderPath,
+              docTitle: activeDoc.title,
+              aspectRatio,
+              resolution: exportResolution,
+              clips: timelineClips.map((c) => ({
+                clipNumber: c.clipNumber,
+                fileName: c.fileName,
+                durationSec: c.duration,
+                speed: c.speed,
+                foleyVolume: c.foleyVolume / 100,
+                transition: c.transition,
+                videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
+              })),
+              voiceoverStartSec: voiceStartOffsetSec,
+              voiceoverVolume: voiceVolume / 100,
+              voiceoverDataUrl:
+                activeDoc.masterAudioUrl && activeDoc.masterAudioUrl.startsWith('data:')
+                  ? activeDoc.masterAudioUrl
+                  : '',
+              sunoSilenceGapSec: 15,
+              sunoMasterVolume: masterMusicVolume / 100,
+              srtContent: srtText,
+            }),
+          });
+          if (resp.ok && (resp.headers.get('content-type') || '').includes('application/json')) {
+            const data = await resp.json();
+            if (data.ok) {
+              setRenderProgressPct(100);
+              setStatusMessage(
+                `✅ ¡Video renderizado y descargado en ${data.elapsedSec}s! Guardado en: ${data.outputPath}`
+              );
+              setIsRenderingVideo(false);
+              return;
+            }
+          }
+        } catch {}
+      }
+
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -891,81 +972,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       await onSaveFileToChosenFolder(outFileName, finalBlob);
       setRenderProgressPct(100);
       setStatusMessage(
-        `✅ ¡Documental exportado en ${preset.badge} (${aspectRatio}) y guardado en tu carpeta como "${outFileName}"!`
+        `✅ ¡Documental renderizado y descargado en ${preset.badge} (${aspectRatio}) como "${outFileName}"!`
       );
     } catch (err: any) {
-      setStatusMessage(`⚠️ Error exportando video: ${err?.message || err}`);
+      setStatusMessage(`⚠️ Error renderizando y descargando video: ${err?.message || err}`);
     } finally {
       setIsRenderingVideo(false);
-    }
-  };
-
-  // Ultra-Fast Native FFmpeg Server Render (Item 3)
-  const [isFfmpegRendering, setIsFfmpegRendering] = useState<boolean>(false);
-
-  const handleRenderNativeFfmpeg = async () => {
-    if (!activeDoc) return;
-    setIsFfmpegRendering(true);
-    setStatusMessage(
-      `⚡ Renderizando con FFmpeg nativo en ${RESOLUTION_PRESETS[exportResolution].badge} (${aspectRatio}) directo a disco...`
-    );
-    try {
-      const srtText = captions
-        .map((c, idx) => {
-          const fmt = (sec: number) => {
-            const h = Math.floor(sec / 3600);
-            const m = Math.floor((sec % 3600) / 60);
-            const s = Math.floor(sec % 60);
-            const ms = Math.round((sec - Math.floor(sec)) * 1000);
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
-              s
-            ).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
-          };
-          return `${idx + 1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${c.text}`;
-        })
-        .join('\n\n');
-
-      const resp = await fetch('/api/editor/render-ffmpeg', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folderPath: downloadFolderPath,
-          docTitle: activeDoc.title,
-          aspectRatio,
-          resolution: exportResolution,
-          clips: timelineClips.map((c) => ({
-            clipNumber: c.clipNumber,
-            fileName: c.fileName,
-            durationSec: c.duration,
-            speed: c.speed,
-            foleyVolume: c.foleyVolume / 100,
-            transition: c.transition,
-            videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
-          })),
-          voiceoverStartSec: voiceStartOffsetSec,
-          voiceoverVolume: voiceVolume / 100,
-          voiceoverDataUrl:
-            activeDoc.masterAudioUrl && activeDoc.masterAudioUrl.startsWith('data:')
-              ? activeDoc.masterAudioUrl
-              : '',
-          sunoSilenceGapSec: 15,
-          sunoMasterVolume: masterMusicVolume / 100,
-          srtContent: srtText,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Error ejecutando FFmpeg en el servidor local.');
-      }
-      setStatusMessage(
-        `✅ ¡Renderizado FFmpeg completado en ${data.elapsedSec}s! Archivo guardado: ${data.outputPath}`
-      );
-    } catch (err: any) {
-      setStatusMessage(
-        `⚠️ FFmpeg local: ${err?.message || err}. Puedes usar el botón "🎬 Exportar" en navegador.`
-      );
-    } finally {
-      setIsFfmpegRendering(false);
     }
   };
 
@@ -1005,7 +1017,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </button>
         </div>
 
-        {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Render */}
+        {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Aspect Ratio Selector */}
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
@@ -1072,20 +1084,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             {downloadFolderName ? `📁 ${downloadFolderName}` : '📂 Elegir Carpeta'}
           </button>
 
-          {/* Ultra-Fast Native FFmpeg Render */}
-          <button
-            type="button"
-            disabled={isFfmpegRendering || isRenderingVideo}
-            onClick={handleRenderNativeFfmpeg}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
-            title="Une todos los clips MP4, voz narrativa, silencios y subtítulos a máxima velocidad usando FFmpeg nativo en tu Mac"
-          >
-            ⚡{' '}
-            {isFfmpegRendering
-              ? 'FFmpeg Renderizando...'
-              : `Render FFmpeg ${activePreset.badge.split(' ')[0]} (${aspectRatio})`}
-          </button>
-
           {/* Export Organized Final YouTube/Reels Package */}
           {onExportOrganizedFolder && (
             <button
@@ -1098,17 +1096,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
           )}
 
-          {/* Export Final Video Button (Browser Canvas Fallback) */}
+          {/* Single Unified Download Video Button (Includes Rendering + Requires Official Logo) */}
           <button
             type="button"
             disabled={isRenderingVideo}
             onClick={handleExportMasterVideo}
-            className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+            className={`px-4 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg transition ${
+              officialLogoUrl
+                ? 'bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 shadow-amber-500/20'
+                : 'bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200'
+            }`}
+            title={
+              officialLogoUrl
+                ? 'Renderiza y descarga el video final en la calidad y formato seleccionados'
+                : '🔒 Obligatorio: Primero debes subir el Logo Oficial del canal antes de renderizar y descargar el video'
+            }
           >
             <Download className="w-3.5 h-3.5" />
             {isRenderingVideo
-              ? `Renderizando ${renderProgressPct}%...`
-              : `🎬 Exportar ${activePreset.badge} (${aspectRatio})`}
+              ? `Renderizando y Descargando ${renderProgressPct}%...`
+              : !officialLogoUrl
+              ? '🔒 Subir Logo Oficial para Descargar Video'
+              : `🎬 Descargar Video ${activePreset.badge} (${aspectRatio})`}
           </button>
         </div>
       </div>

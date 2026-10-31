@@ -38,6 +38,7 @@ import {
   ExportResolutionPreset,
   EditorAspectRatio,
   RESOLUTION_PRESETS,
+  PERMANENT_LOGO_STORAGE_KEY,
 } from './components/CapCutEditor';
 import {
   DocumentaryProject,
@@ -107,7 +108,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:19 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:28 PM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -469,6 +470,47 @@ export default function App() {
     Record<string, ThumbnailPsychologyAuditResult>
   >({});
   const [thumbnailPsychAuditing, setThumbnailPsychAuditing] = useState<boolean>(false);
+  // Global Official Logo shared across ALL documentaries (uploaded once)
+  const [officialLogoUrl, setOfficialLogoUrl] = useState<string>(() => {
+    return localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
+  });
+
+  useEffect(() => {
+    if (!officialLogoUrl && !isCloudMode) {
+      fetch('/api/assets/official-logo')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.logoDataUrl) {
+            setOfficialLogoUrl(data.logoDataUrl);
+            localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleUploadPermanentLogoInApp = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      setOfficialLogoUrl(dataUrl);
+      localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, dataUrl);
+      if (!isCloudMode) {
+        try {
+          await fetch('/api/assets/official-logo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logoDataUrl: dataUrl }),
+          });
+        } catch {}
+      }
+      setFlowStatusLog(
+        '✅ Logo Oficial de "Huellas de la Humanidad" guardado globalmente para todos los documentales.'
+      );
+    };
+    reader.readAsDataURL(file);
+  };
   const [flowCurrentBatchNum, setFlowCurrentBatchNum] = useState<number>(1);
   const flowCurrentBatchNumRef = React.useRef<number>(1);
   const [flowAutoChainBatches, setFlowAutoChainBatches] = useState<boolean>(true);
@@ -1692,6 +1734,12 @@ export default function App() {
     usePsychVariant: boolean = true
   ) => {
     if (!activeDoc) return;
+    if (!officialLogoUrl || !officialLogoUrl.trim()) {
+      alert(
+        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de crear la miniatura.'
+      );
+      return;
+    }
     const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
     const effectiveOverlay =
       (activeDoc.thumbnailTextOverlay || '').trim() ||
@@ -2188,6 +2236,12 @@ export default function App() {
 
   const handleSendStageToGeminiWeb = (stageNum: number, preferredTabId?: number) => {
     if (!activeDoc) return;
+    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
+      alert(
+        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 5.'
+      );
+      return;
+    }
     let workingOverlay = (activeDoc.thumbnailTextOverlay || '').trim();
     if (stageNum === 5 && !workingOverlay) {
       const autoHooks = getDefaultCuriosityGapHooks(activeDoc);
@@ -2290,6 +2344,12 @@ export default function App() {
   // Hybrid AI Generator handler (Web Free Mode + Local Server + Mobile Client-Side Fallback)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
+    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
+      alert(
+        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 5.'
+      );
+      return;
+    }
     let workingOverlay = (activeDoc.thumbnailTextOverlay || '').trim();
     if (stageNum === 5 && !workingOverlay) {
       const autoHooks = getDefaultCuriosityGapHooks(activeDoc);
@@ -3819,6 +3879,8 @@ export default function App() {
           downloadFolderPath={flowServerFolderPath}
           onSaveFileToChosenFolder={handleSaveAnyFileToChosenFolder}
           onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
+          officialLogoUrl={officialLogoUrl}
+          onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
         />
       )}
 
@@ -5105,20 +5167,81 @@ export default function App() {
                           disabled={aiGenerating}
                           onClick={() => handleGenerateWithGemini(5)}
                           className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
-                            hasOverlayText
+                            !officialLogoUrl
+                              ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40'
+                              : hasOverlayText
                               ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20'
                               : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
                           }`}
                           title={
-                            hasOverlayText
-                              ? 'Generar prompt técnico en inglés con Gemini'
-                              : 'Primero debes ingresar el Texto en Pantalla en la Imagen (Obligatorio)'
+                            !officialLogoUrl
+                              ? '🔒 Primero debes subir el Logo Oficial de "Huellas de la Humanidad" abajo'
+                              : 'Generar prompt técnico en inglés con Gemini'
                           }
                         >
                           <Wand2 className="w-3.5 h-3.5" />
-                          {aiGenerating ? 'Generando Miniatura...' : 'Generar Prompt con Gemini'}
+                          {!officialLogoUrl
+                            ? '🔒 Subir Logo Primero'
+                            : aiGenerating
+                            ? 'Generando Miniatura...'
+                            : 'Generar Prompt con Gemini'}
                         </button>
                       </div>
+                    </div>
+
+                    {/* PASO OBLIGATORIO GLOBAL: LOGO OFICIAL "HUELLAS DE LA HUMANIDAD" (EL MISMO PARA TODOS LOS DOCUMENTALES) */}
+                    <div
+                      className={`p-4 rounded-xl border transition-all flex items-center justify-between flex-wrap gap-3 ${
+                        officialLogoUrl
+                          ? 'bg-emerald-950/30 border-emerald-500/40'
+                          : 'bg-rose-950/30 border-rose-500/50 animate-pulse'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {officialLogoUrl ? (
+                          <img
+                            src={officialLogoUrl}
+                            alt="Logo Oficial Huellas de la Humanidad"
+                            className="w-12 h-12 rounded-lg object-contain bg-black/60 border border-emerald-500/40 p-1 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-slate-950 border border-dashed border-rose-500/50 flex items-center justify-center text-rose-400 shrink-0">
+                            <Lock className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-xs font-extrabold text-amber-300 flex items-center gap-2">
+                            <span>Logo Oficial &quot;Huellas de la Humanidad&quot; (Común para todos los documentales)</span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${
+                                officialLogoUrl
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+                              }`}
+                            >
+                              {officialLogoUrl ? '✓ Activo Globalmente' : '🔒 Obligatorio Subir 1 Vez'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 mt-0.5">
+                            {officialLogoUrl
+                              ? 'Este mismo logo se aplica automáticamente en las miniaturas y en el Editor CapCut de todos tus documentales.'
+                              : 'No se permite crear la miniatura en la Etapa 5 ni descargar/renderizar el video en el Editor hasta que subas el logo oficial.'}
+                          </p>
+                        </div>
+                      </div>
+                      <label className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        {officialLogoUrl ? '🔄 Cambiar Logo Oficial' : '📤 Subir Logo Oficial (1 Sola Vez)'}
+                        <input
+                          type="file"
+                          accept="image/png,image/webp,image/jpeg,image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadPermanentLogoInApp(file);
+                          }}
+                        />
+                      </label>
                     </div>
 
                     {/* PASO 1 OBLIGATORIO: TEXTO EN PANTALLA EN LA IMAGEN */}
@@ -5331,9 +5454,13 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => handleSendThumbnailsToFlowAndCapture(item.opt, true)}
-                                className="flex-1 py-1 px-2 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer"
+                                className={`flex-1 py-1 px-2 rounded text-[10px] font-black cursor-pointer ${
+                                  officialLogoUrl
+                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                                    : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
+                                }`}
                               >
-                                🚀 Crear {item.opt}
+                                {officialLogoUrl ? `🚀 Crear ${item.opt}` : `🔒 Logo Req.`}
                               </button>
                             </div>
                           </div>
@@ -5350,10 +5477,18 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => handleSendThumbnailsToFlowAndCapture('A', false)}
-                            className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-2.5 py-1 rounded font-black cursor-pointer shadow"
-                            title="Envía el prompt actual a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta"
+                            className={`text-xs px-2.5 py-1 rounded font-black cursor-pointer shadow ${
+                              officialLogoUrl
+                                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                                : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
+                            }`}
+                            title={
+                              officialLogoUrl
+                                ? 'Envía el prompt actual a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta'
+                                : '🔒 Primero debes subir el Logo Oficial arriba'
+                            }
                           >
-                            🖼️ Enviar Prompt Actual a Flow
+                            {officialLogoUrl ? '🖼️ Enviar Prompt Actual a Flow' : '🔒 Subir Logo para Crear Miniatura'}
                           </button>
                           <button
                             type="button"
