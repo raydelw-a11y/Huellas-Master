@@ -2098,18 +2098,10 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
-    const clipsSubdir = path.join(folderPath, 'Clips_Aprobados');
-    if (!fs.existsSync(clipsSubdir)) {
-      fs.mkdirSync(clipsSubdir, { recursive: true });
-    }
     const fullTarget = path.join(folderPath, safeName);
-    const subdirTarget = path.join(clipsSubdir, safeName);
     const cleanBase64 = String(videoDataUrl).replace(/^data:[^;]+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
     fs.writeFileSync(fullTarget, buffer);
-    try {
-      fs.writeFileSync(subdirTarget, buffer);
-    } catch {}
     res.json({ ok: true, savedPath: fullTarget, fileName: safeName, bytes: buffer.length });
   } catch (err: any) {
     console.error('Error guardando video en carpeta elegida:', err);
@@ -2117,16 +2109,16 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
   }
 });
 
-// Save any captured asset (Thumbnails A/B, Suno MP3 tracks, Voiceover MP3) into organized subfolder
+// Save any captured asset (Thumbnails A/B/C, Suno MP3 tracks, Voiceover MP3) directly into the single chosen folder
 app.post('/api/flow/save-asset-to-folder', async (req, res) => {
   try {
-    const { folderPath, subFolder, fileName, dataUrl } = req.body;
+    const { folderPath, fileName, dataUrl } = req.body;
     if (!folderPath || !fileName || !dataUrl) {
       res.status(400).json({ error: 'Faltan parámetros para guardar el archivo.' });
       return;
     }
     const safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_'));
-    const targetDir = subFolder ? path.join(folderPath, String(subFolder)) : folderPath;
+    const targetDir = String(folderPath);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
@@ -2141,7 +2133,7 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
 });
 
 // ============================================================================
-// ITEM 6: EXPORT ORGANIZED FINAL PROJECT FOLDER (YOUTUBE / REELS READY PACKAGE)
+// ITEM 6: EXPORT ALL PROJECT FILES DIRECTLY INTO THE SINGLE CHOSEN FOLDER
 // ============================================================================
 app.post('/api/project/export-organized-package', async (req, res) => {
   try {
@@ -2159,23 +2151,14 @@ app.post('/api/project/export-organized-package', async (req, res) => {
       thumbnails,
     } = req.body;
 
-    const targetRoot =
-      folderPath && String(folderPath).trim()
-        ? String(folderPath).trim()
-        : path.join(
-            process.env.HOME || '/tmp',
-            'Downloads',
-            `Huellas_${String(docTitle || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)}`
-          );
+    if (!folderPath || !String(folderPath).trim()) {
+      res.status(400).json({ error: 'Se requiere folderPath para exportar en servidor.' });
+      return;
+    }
 
-    const clipsDir = path.join(targetRoot, 'Clips_Aprobados');
-    const audioDir = path.join(targetRoot, 'Audio');
-    const thumbsDir = path.join(targetRoot, 'Miniaturas');
-
-    for (const d of [targetRoot, clipsDir, audioDir, thumbsDir]) {
-      if (!fs.existsSync(d)) {
-        fs.mkdirSync(d, { recursive: true });
-      }
+    const targetRoot = String(folderPath).trim();
+    if (!fs.existsSync(targetRoot)) {
+      fs.mkdirSync(targetRoot, { recursive: true });
     }
 
     const savedFiles: string[] = [];
@@ -2219,9 +2202,9 @@ app.post('/api/project/export-organized-package', async (req, res) => {
 
     if (voiceoverDataUrl && String(voiceoverDataUrl).startsWith('data:')) {
       const cleanB64 = String(voiceoverDataUrl).replace(/^data:[^;]+;base64,/, '');
-      const voPath = path.join(audioDir, 'Voz_Narrativa.mp3');
+      const voPath = path.join(targetRoot, 'Voz_Narrativa.mp3');
       fs.writeFileSync(voPath, Buffer.from(cleanB64, 'base64'));
-      savedFiles.push('Audio/Voz_Narrativa.mp3');
+      savedFiles.push('Voz_Narrativa.mp3');
     }
 
     if (Array.isArray(sunoTracks)) {
@@ -2230,9 +2213,9 @@ app.post('/api/project/export-organized-package', async (req, res) => {
         if (st && st.audioDataUrl && String(st.audioDataUrl).startsWith('data:')) {
           const cleanB64 = String(st.audioDataUrl).replace(/^data:[^;]+;base64,/, '');
           const name = st.fileName || `Suno_${String(i + 1).padStart(2, '0')}.mp3`;
-          const stPath = path.join(audioDir, path.basename(name));
+          const stPath = path.join(targetRoot, path.basename(name));
           fs.writeFileSync(stPath, Buffer.from(cleanB64, 'base64'));
-          savedFiles.push(`Audio/${path.basename(name)}`);
+          savedFiles.push(path.basename(name));
         }
       }
     }
@@ -2242,9 +2225,9 @@ app.post('/api/project/export-organized-package', async (req, res) => {
         if (th && th.imageDataUrl && String(th.imageDataUrl).startsWith('data:')) {
           const cleanB64 = String(th.imageDataUrl).replace(/^data:[^;]+;base64,/, '');
           const name = th.fileName || `Miniatura_Opcion_${th.option || 'A'}.png`;
-          const thPath = path.join(thumbsDir, path.basename(name));
+          const thPath = path.join(targetRoot, path.basename(name));
           fs.writeFileSync(thPath, Buffer.from(cleanB64, 'base64'));
-          savedFiles.push(`Miniaturas/${path.basename(name)}`);
+          savedFiles.push(path.basename(name));
         }
       }
     }

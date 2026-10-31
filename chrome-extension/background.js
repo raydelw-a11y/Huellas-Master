@@ -323,11 +323,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 4. Fetch cross-origin video binary as base64 DataURL for frame extraction & auto-download
+  // 4. Fetch cross-origin video/image binary as base64 DataURL for frame extraction & auto-download
   if (message.type === 'FETCH_VIDEO_BASE64' && message.url) {
     (async () => {
       try {
-        const resp = await fetch(message.url, { credentials: 'include' });
+        let resp = await fetch(message.url, { credentials: 'include' }).catch(() => null);
+        if (!resp || !resp.ok) {
+          resp = await fetch(message.url, { credentials: 'omit' });
+        }
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const buf = await resp.arrayBuffer();
         const bytes = new Uint8Array(buf);

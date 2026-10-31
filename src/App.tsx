@@ -108,12 +108,14 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:41 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:03 PM - 10/31/2026';
 
 // Persist FileSystemDirectoryHandle in IndexedDB so once selected in Stage 1,
-// the browser remembers the directory handle across reloads without ever asking again.
+// there is ONE SINGLE DOWNLOAD FOLDER for the entire app without ever asking again.
 const DIR_HANDLE_DB_NAME = 'huellas_dir_handles_db_v1';
 const DIR_HANDLE_STORE_NAME = 'dir_handles';
+const SINGLE_DOWNLOAD_FOLDER_NAME_KEY = 'huellas_single_download_folder_name_v1';
+const SINGLE_DOWNLOAD_FOLDER_PATH_KEY = 'huellas_single_download_folder_path_v1';
 
 function openDirHandleDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -139,8 +141,8 @@ async function saveDirHandleToIndexedDB(docId: string | undefined, handle: any):
     const db = await openDirHandleDB();
     const tx = db.transaction(DIR_HANDLE_STORE_NAME, 'readwrite');
     const store = tx.objectStore(DIR_HANDLE_STORE_NAME);
-    if (docId) store.put(handle, docId);
     store.put(handle, 'default_doc_folder');
+    if (docId) store.put(handle, docId);
     db.close();
   } catch {}
 }
@@ -156,9 +158,10 @@ async function loadDirHandleFromIndexedDB(docId?: string): Promise<any | null> {
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => resolve(null);
       });
-    let handle = docId ? await getByKey(docId) : null;
-    if (!handle) {
-      handle = await getByKey('default_doc_folder');
+    // Always prioritize the single master folder handle so Stage 1, Stage 5, Stage 8, and Editor match 100%
+    let handle = await getByKey('default_doc_folder');
+    if (!handle && docId) {
+      handle = await getByKey(docId);
     }
     db.close();
     return handle || null;
@@ -1170,29 +1173,91 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
+  const globalStoredFolderName = (
+    localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || ''
+  ).trim();
+  const globalStoredFolderPath = (
+    localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) || ''
+  ).trim();
+
   const effectiveDocFolderName =
-    (activeDoc?.downloadFolderName || '').trim() ||
+    flowDownloadDirHandleRef.current?.name ||
     flowDownloadFolderName.trim() ||
-    flowServerFolderPath.trim();
+    (activeDoc?.downloadFolderName || '').trim() ||
+    globalStoredFolderName ||
+    flowServerFolderPath.trim() ||
+    globalStoredFolderPath;
   const hasSelectedDocFolder = Boolean(effectiveDocFolderName);
 
-  // Sync folder state when switching documentaries, and force Stage 1 if no folder is selected yet
+  // Sync the single download folder across all stages and documentaries
   useEffect(() => {
     if (!activeDoc) return;
-    const savedName = (activeDoc.downloadFolderName || '').trim();
-    const savedPath = (activeDoc.downloadFolderPath || '').trim();
-    setFlowDownloadFolderName(savedName);
-    setFlowServerFolderPath(savedPath);
-    if (!savedName && !savedPath) {
-      flowDownloadDirHandleRef.current = null;
-      setActiveStage(1);
-    } else if (!flowDownloadDirHandleRef.current) {
-      loadDirHandleFromIndexedDB(activeDoc.id).then((restoredHandle) => {
-        if (restoredHandle) {
-          flowDownloadDirHandleRef.current = restoredHandle;
+    let isCancelled = false;
+    (async () => {
+      const restoredHandle =
+        flowDownloadDirHandleRef.current || (await loadDirHandleFromIndexedDB(activeDoc.id));
+      if (isCancelled) return;
+
+      if (restoredHandle) {
+        flowDownloadDirHandleRef.current = restoredHandle;
+        const realHandleName = (
+          restoredHandle.name ||
+          activeDoc.downloadFolderName ||
+          globalStoredFolderName ||
+          'Carpeta Seleccionada'
+        ).trim();
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, realHandleName);
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, '');
+        setFlowDownloadFolderName(realHandleName);
+        setFlowServerFolderPath('');
+        if (activeDoc.downloadFolderName !== realHandleName || activeDoc.downloadFolderPath) {
+          updateActiveDoc({
+            downloadFolderName: realHandleName,
+            downloadFolderPath: '',
+          });
         }
-      });
-    }
+        return;
+      }
+
+      const unifiedName = (
+        activeDoc.downloadFolderName ||
+        globalStoredFolderName ||
+        ''
+      ).trim();
+      const unifiedPath = (
+        activeDoc.downloadFolderPath ||
+        globalStoredFolderPath ||
+        ''
+      ).trim();
+
+      if (unifiedName) {
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, unifiedName);
+      }
+      if (unifiedPath) {
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, unifiedPath);
+      }
+
+      setFlowDownloadFolderName(unifiedName);
+      setFlowServerFolderPath(unifiedPath);
+
+      if (
+        (unifiedName && activeDoc.downloadFolderName !== unifiedName) ||
+        (unifiedPath && activeDoc.downloadFolderPath !== unifiedPath)
+      ) {
+        updateActiveDoc({
+          downloadFolderName: unifiedName,
+          downloadFolderPath: unifiedPath,
+        });
+      }
+
+      if (!unifiedName && !unifiedPath) {
+        flowDownloadDirHandleRef.current = null;
+        setActiveStage(1);
+      }
+    })();
+    return () => {
+      isCancelled = true;
+    };
   }, [activeDoc?.id]);
 
   // Gate Stages 2-12 until the Documentary Download Folder is selected in Stage 1
@@ -1208,7 +1273,19 @@ export default function App() {
     return true;
   };
 
-  // 1. Choose Destination Folder on User's Computer in Stage 1 (Unlocks Stages 2 to 12)
+  // Apply the chosen single folder name & path across all documentaries so Stage 1, Stage 5, Stage 8 & Editor always match
+  const syncSingleFolderAcrossAllDocs = (folderName: string, folderPath: string) => {
+    localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, folderName);
+    localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, folderPath);
+    setFlowDownloadFolderName(folderName);
+    setFlowServerFolderPath(folderPath);
+    updateActiveDoc({
+      downloadFolderName: folderName,
+      downloadFolderPath: folderPath,
+    });
+  };
+
+  // 1. Choose Single Destination Folder on User's Computer in Stage 1 (Used for EVERYTHING in Stages 1 to 12)
   const handlePickFlowDownloadFolder = async (): Promise<boolean> => {
     try {
       if (typeof (window as any).showDirectoryPicker === 'function') {
@@ -1219,14 +1296,9 @@ export default function App() {
           const pickedName = dirHandle.name || 'Carpeta Seleccionada';
           flowDownloadDirHandleRef.current = dirHandle;
           await saveDirHandleToIndexedDB(activeDoc?.id, dirHandle);
-          setFlowDownloadFolderName(pickedName);
-          setFlowServerFolderPath('');
-          updateActiveDoc({
-            downloadFolderName: pickedName,
-            downloadFolderPath: '',
-          });
+          syncSingleFolderAcrossAllDocs(pickedName, '');
           setFlowStatusLog(
-            `📁 Carpeta del documental seleccionada: "${pickedName}". ¡Etapas 2 a 12 desbloqueadas!`
+            `📁 Carpeta única de descarga seleccionada: "${pickedName}". Todo (Etapa 1, Miniaturas Etapa 5, Clips Etapa 8, Audio, SRT y Editor) se guardará aquí.`
           );
           return true;
         }
@@ -1245,14 +1317,9 @@ export default function App() {
           const data = await res.json();
           if (data.folderPath) {
             flowDownloadDirHandleRef.current = null;
-            setFlowServerFolderPath(data.folderPath);
-            setFlowDownloadFolderName(data.folderPath);
-            updateActiveDoc({
-              downloadFolderName: data.folderPath,
-              downloadFolderPath: data.folderPath,
-            });
+            syncSingleFolderAcrossAllDocs(data.folderPath, data.folderPath);
             setFlowStatusLog(
-              `📁 Carpeta del documental seleccionada: "${data.folderPath}". ¡Etapas 2 a 12 desbloqueadas!`
+              `📁 Carpeta única de descarga seleccionada: "${data.folderPath}". Todo se guardará en esta misma carpeta.`
             );
             return true;
           }
@@ -1265,17 +1332,14 @@ export default function App() {
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 40);
     const manualFolder = window.prompt(
-      '📂 Ingresa o confirma el nombre de la carpeta de descarga para este documental:',
+      '📂 Ingresa o confirma el nombre de la carpeta única de descarga para todo el documental:',
       defaultFolderSlug
     );
     if (manualFolder && manualFolder.trim()) {
       const cleanFolder = manualFolder.trim();
-      setFlowDownloadFolderName(cleanFolder);
-      updateActiveDoc({
-        downloadFolderName: cleanFolder,
-      });
+      syncSingleFolderAcrossAllDocs(cleanFolder, '');
       setFlowStatusLog(
-        `📁 Carpeta del documental configurada: "${cleanFolder}". ¡Etapas 2 a 12 desbloqueadas!`
+        `📁 Carpeta única del documental configurada: "${cleanFolder}". ¡Etapas 2 a 12 desbloqueadas!`
       );
       return true;
     }
@@ -1283,11 +1347,65 @@ export default function App() {
     return false;
   };
 
-  // Save any Blob or DataURL file into the User's Chosen Folder
+  // Ensure the single folder handle is restored and readwrite permission is granted WHILE a user click gesture is active,
+  // so asynchronous background saves (like Stage 5 FLOW_THUMBNAIL_CAPTURED or Stage 8 FLOW_VIDEO_CAPTURED) never fall back to ~/Downloads.
+  const ensureSingleDownloadFolderReadyOnGesture = async (): Promise<boolean> => {
+    if (!flowDownloadDirHandleRef.current) {
+      const restored = await loadDirHandleFromIndexedDB(activeDocRef.current?.id);
+      if (restored) {
+        flowDownloadDirHandleRef.current = restored;
+      }
+    }
+
+    if (flowDownloadDirHandleRef.current) {
+      try {
+        if (typeof flowDownloadDirHandleRef.current.queryPermission === 'function') {
+          const perm = await flowDownloadDirHandleRef.current.queryPermission({
+            mode: 'readwrite',
+          });
+          if (
+            perm !== 'granted' &&
+            typeof flowDownloadDirHandleRef.current.requestPermission === 'function'
+          ) {
+            await flowDownloadDirHandleRef.current.requestPermission({ mode: 'readwrite' });
+          }
+        }
+        const realName = (
+          flowDownloadDirHandleRef.current.name ||
+          effectiveDocFolderName ||
+          'Carpeta Seleccionada'
+        ).trim();
+        if (flowDownloadFolderName !== realName || activeDoc?.downloadFolderName !== realName) {
+          syncSingleFolderAcrossAllDocs(realName, '');
+        }
+        return true;
+      } catch (e) {
+        console.warn('No se pudo confirmar permiso en DirectoryHandle:', e);
+      }
+    }
+
+    if (flowServerFolderPath || globalStoredFolderPath) {
+      return true;
+    }
+
+    // If no DirectoryHandle was bound yet (e.g. legacy string folder name in Chrome), bind the single folder once on this click
+    if (typeof (window as any).showDirectoryPicker === 'function') {
+      return await handlePickFlowDownloadFolder();
+    }
+
+    if (!hasSelectedDocFolder) {
+      return await handlePickFlowDownloadFolder();
+    }
+    return true;
+  };
+
+  // Save any Blob, DataURL, or URL file directly into the User's Single Chosen Folder (no subfolders)
   const handleSaveAnyFileToChosenFolder = async (
     fileName: string,
     blobOrDataUrl: Blob | string
   ): Promise<boolean> => {
+    const cleanFileName = fileName.replace(/^.*[\\/]/, '');
+
     // Restore handle from IndexedDB if needed
     if (!flowDownloadDirHandleRef.current) {
       const restored = await loadDirHandleFromIndexedDB(activeDocRef.current?.id);
@@ -1296,7 +1414,24 @@ export default function App() {
       }
     }
 
-    // A) Write directly via File System Access API (Chrome Directory Handle)
+    // If caller passed an http(s): or blob: URL string instead of a data: URL, try fetching it as a Blob first
+    let resolvedPayload: Blob | string = blobOrDataUrl;
+    if (
+      typeof resolvedPayload === 'string' &&
+      !resolvedPayload.startsWith('data:') &&
+      (resolvedPayload.startsWith('http://') ||
+        resolvedPayload.startsWith('https://') ||
+        resolvedPayload.startsWith('blob:'))
+    ) {
+      try {
+        const resp = await fetch(resolvedPayload);
+        if (resp.ok) {
+          resolvedPayload = await resp.blob();
+        }
+      } catch {}
+    }
+
+    // A) Write directly via File System Access API into the single Stage 1 folder (Chrome Directory Handle)
     if (flowDownloadDirHandleRef.current) {
       try {
         if (typeof flowDownloadDirHandleRef.current.queryPermission === 'function') {
@@ -1305,12 +1440,12 @@ export default function App() {
             await flowDownloadDirHandleRef.current.requestPermission({ mode: 'readwrite' });
           }
         }
-        const fileHandle = await flowDownloadDirHandleRef.current.getFileHandle(fileName, {
+        const fileHandle = await flowDownloadDirHandleRef.current.getFileHandle(cleanFileName, {
           create: true,
         });
         const writable = await fileHandle.createWritable();
-        if (typeof blobOrDataUrl === 'string') {
-          const parts = blobOrDataUrl.split(',');
+        if (typeof resolvedPayload === 'string') {
+          const parts = resolvedPayload.split(',');
           const bstr = atob(parts[1] || '');
           const u8arr = new Uint8Array(bstr.length);
           for (let i = 0; i < bstr.length; i++) {
@@ -1318,7 +1453,7 @@ export default function App() {
           }
           await writable.write(u8arr);
         } else {
-          await writable.write(blobOrDataUrl);
+          await writable.write(resolvedPayload);
         }
         await writable.close();
         return true;
@@ -1327,28 +1462,29 @@ export default function App() {
       }
     }
 
-    // B) Convert Blob to DataURL if needed for server/anchor fallback
+    // B) Convert Blob to DataURL if needed for local server / anchor fallback
     let dataUrl = '';
-    if (typeof blobOrDataUrl === 'string') {
-      dataUrl = blobOrDataUrl;
+    if (typeof resolvedPayload === 'string') {
+      dataUrl = resolvedPayload;
     } else {
       dataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
         reader.onerror = () => resolve('');
-        reader.readAsDataURL(blobOrDataUrl);
+        reader.readAsDataURL(resolvedPayload);
       });
     }
 
-    if (flowServerFolderPath && !isCloudMode && dataUrl) {
+    const activeServerPath = (flowServerFolderPath || globalStoredFolderPath || '').trim();
+    if (activeServerPath && !isCloudMode && dataUrl.startsWith('data:')) {
       try {
-        const res = await fetch('/api/flow/save-video-to-folder', {
+        const res = await fetch('/api/flow/save-asset-to-folder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            folderPath: flowServerFolderPath,
-            fileName,
-            videoDataUrl: dataUrl,
+            folderPath: activeServerPath,
+            fileName: cleanFileName,
+            dataUrl,
           }),
         });
         if (res.ok) return true;
@@ -1359,7 +1495,7 @@ export default function App() {
       try {
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = fileName;
+        a.download = cleanFileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1630,15 +1766,12 @@ export default function App() {
       return;
     }
 
-    // Once the Documentary Folder is selected in Stage 1, never prompt for it again
-    if (!hasSelectedDocFolder) {
-      const picked = await handlePickFlowDownloadFolder();
-      if (!picked) {
-        alert(
-          '📂 Por favor elige primero en la Etapa 1 la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
-        );
-        return;
-      }
+    const ready = await ensureSingleDownloadFolderReadyOnGesture();
+    if (!ready) {
+      alert(
+        '📂 Por favor elige primero en la Etapa 1 la carpeta única donde deseas que se descarguen todos los archivos del documental.'
+      );
+      return;
     }
 
     const firstPending = activeDoc.clips.find(
@@ -1667,14 +1800,12 @@ export default function App() {
     // Support both 0-indexed and 1-indexed calls gracefully
     const normalizedBatchNum = batchNum <= 0 ? 1 : batchNum;
 
-    if (!hasSelectedDocFolder) {
-      const picked = await handlePickFlowDownloadFolder();
-      if (!picked) {
-        alert(
-          '📂 Por favor elige primero en la Etapa 1 la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
-        );
-        return;
-      }
+    const ready = await ensureSingleDownloadFolderReadyOnGesture();
+    if (!ready) {
+      alert(
+        '📂 Por favor elige primero en la Etapa 1 la carpeta única donde deseas que se descarguen todos los archivos del documental.'
+      );
+      return;
     }
 
     const startIdx = (normalizedBatchNum - 1) * 10;
@@ -1838,13 +1969,13 @@ export default function App() {
       thumbnailPrompt: promptText,
     });
 
-    if (!hasSelectedDocFolder) {
-      await handlePickFlowDownloadFolder();
-    }
+    await ensureSingleDownloadFolderReadyOnGesture();
     navigator.clipboard.writeText(promptText).catch(() => {});
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Miniatura Psicológica Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png...`
+      `🖼️ Enviando Miniatura Psicológica Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png en "${
+        flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta'
+      }"...`
     );
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
@@ -1857,16 +1988,16 @@ export default function App() {
     });
   };
 
-  // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into /Audio & CapCut Track 5
+  // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into the Single Folder & CapCut Track 5
   const handleSendSunoTrackAndCapture = async (trackNumber: number, promptText: string, title?: string) => {
     if (!promptText.trim()) return;
-    if (!hasSelectedDocFolder) {
-      await handlePickFlowDownloadFolder();
-    }
+    await ensureSingleDownloadFolderReadyOnGesture();
     navigator.clipboard.writeText(promptText).catch(() => {});
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🎵 Enviando Pista #${trackNumber} (${title || 'Instrumental'}) a Suno.com y vigilando para auto-descargar Suno_0${trackNumber}.mp3 e inyectarla en la Pista 5 del Editor CapCut...`
+      `🎵 Enviando Pista #${trackNumber} (${title || 'Instrumental'}) a Suno.com y vigilando para auto-descargar Suno_0${trackNumber}.mp3 en "${
+        flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta'
+      }" e inyectarla en la Pista 5 del Editor CapCut...`
     );
     sendCommandToWebBridge('SUNO', {
       action: 'SEND_PROMPT',
@@ -1878,13 +2009,13 @@ export default function App() {
     });
   };
 
-  // ITEM 6: Export Organized Final Project Folder (/Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt, SEO_YouTube_Copiar_Pegar.txt)
+  // ITEM 6: Export All Project Files Directly into the Single Chosen Folder (No Subfolders)
   const handleExportOrganizedProjectFolder = async (silent: boolean = false) => {
     const doc = activeDocRef.current || activeDoc;
     if (!doc) return;
 
-    if (!silent && !hasSelectedDocFolder) {
-      await handlePickFlowDownloadFolder();
+    if (!silent) {
+      await ensureSingleDownloadFolderReadyOnGesture();
     }
 
     try {
@@ -1894,7 +2025,16 @@ export default function App() {
           ? generateSRT(doc.timelineSentences)
           : '');
 
-      if (!isCloudMode) {
+      // If we have a browser DirectoryHandle (single folder selected in Stage 1), write everything directly into it
+      if (!flowDownloadDirHandleRef.current) {
+        const restored = await loadDirHandleFromIndexedDB(doc.id);
+        if (restored) {
+          flowDownloadDirHandleRef.current = restored;
+        }
+      }
+
+      const activeServerPath = (flowServerFolderPath || globalStoredFolderPath || '').trim();
+      if (!flowDownloadDirHandleRef.current && activeServerPath && !isCloudMode) {
         const sunoTracksPayload = Object.entries(capturedSunoAudioMap).map(([num, dataUrl]) => ({
           fileName: `Suno_${String(num).padStart(2, '0')}.mp3`,
           audioDataUrl: dataUrl,
@@ -1909,7 +2049,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            folderPath: flowServerFolderPath,
+            folderPath: activeServerPath,
             docTitle: doc.title,
             seoText: doc.rawYoutubeMetadata || doc.rawMetadataText || '',
             scriptText: doc.voiceoverScript || '',
@@ -1927,9 +2067,9 @@ export default function App() {
         });
         const data = await resp.json();
         if (resp.ok && data.ok) {
-          const msg = `📦 Paquete Final YouTube listo en "${data.folderPath}" (${
+          const msg = `📦 Paquete Final guardado en la carpeta única "${data.folderPath}" (${
             (data.savedFiles || []).length
-          } archivos organizados: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt).`;
+          } archivos).`;
           setFlowStatusLog(msg);
           setBridgeStatusMsg(msg);
           if (!silent) {
@@ -1939,9 +2079,40 @@ export default function App() {
         }
       }
 
-      // Fallback via File System Access API if in browser-only mode
+      // Direct save into the single Stage 1 folder via File System Access API
       if (srtText) {
-        await handleSaveAnyFileToChosenFolder('Subtitulos.srt', new Blob([srtText], { type: 'text/plain' }));
+        await handleSaveAnyFileToChosenFolder(
+          'Subtitulos.srt',
+          new Blob([srtText], { type: 'text/plain' })
+        );
+      }
+      if (doc.voiceoverScript?.trim()) {
+        await handleSaveAnyFileToChosenFolder(
+          'Guion_Master.txt',
+          new Blob([doc.voiceoverScript], { type: 'text/plain' })
+        );
+      }
+      if (doc.rawClipsText?.trim()) {
+        await handleSaveAnyFileToChosenFolder(
+          'Prompts_Clips_Flow.txt',
+          new Blob([doc.rawClipsText], { type: 'text/plain' })
+        );
+      }
+      for (const [opt, dataUrl] of Object.entries(capturedThumbnailsMap)) {
+        if (dataUrl) {
+          await handleSaveAnyFileToChosenFolder(`Miniatura_Opcion_${opt}.png`, String(dataUrl));
+        }
+      }
+      if (doc.thumbnailImageUrl) {
+        await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', doc.thumbnailImageUrl);
+      }
+      for (const [num, dataUrl] of Object.entries(capturedSunoAudioMap)) {
+        if (dataUrl) {
+          await handleSaveAnyFileToChosenFolder(
+            `Suno_${String(num).padStart(2, '0')}.mp3`,
+            String(dataUrl)
+          );
+        }
       }
       const seoBlob = new Blob(
         [
@@ -1953,11 +2124,15 @@ export default function App() {
       );
       await handleSaveAnyFileToChosenFolder('SEO_YouTube_Copiar_Pegar.txt', seoBlob);
       if (!silent) {
-        alert('✅ Archivos Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt guardados en tu carpeta.');
+        alert(
+          `✅ Todos los archivos fueron guardados en la carpeta única "${
+            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'Seleccionada'
+          }".`
+        );
       }
     } catch (err: any) {
       if (!silent) {
-        alert('Error creando carpeta organizada: ' + (err?.message || err));
+        alert('Error guardando archivos en la carpeta única: ' + (err?.message || err));
       }
     }
   };
@@ -2150,9 +2325,7 @@ export default function App() {
   };
 
   const handleScanExistingFlowVideosInTab = async () => {
-    if (!hasSelectedDocFolder) {
-      await handlePickFlowDownloadFolder();
-    }
+    await ensureSingleDownloadFolderReadyOnGesture();
     setFlowStatusLog(
       '🔍 Escaneando videos ya creados en la pestaña de Google Flow para auditarlos automáticamente...'
     );
@@ -2222,7 +2395,7 @@ export default function App() {
         setExtensionInstalled(true);
         handleCapturedFlowVideoAudit(msg);
       } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
-        // ITEM 5: Auto-save captured Thumbnail A/B/C into /Miniaturas, state & run 5-Rule CTR Psychology Audit
+        // ITEM 5: Auto-save captured Thumbnail A/B/C directly into the Single Folder & run 5-Rule CTR Psychology Audit
         setExtensionInstalled(true);
         const opt: 'A' | 'B' | 'C' =
           msg.option === 'B' ? 'B' : msg.option === 'C' ? 'C' : 'A';
@@ -2231,28 +2404,17 @@ export default function App() {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
           updateActiveDoc({ thumbnailImageUrl: dataUrl, thumbnailReady: true });
           const thumbFileName = `Miniatura_Opcion_${opt}.png`;
-          if (flowServerFolderPath && !isCloudMode && dataUrl.startsWith('data:')) {
-            fetch('/api/flow/save-asset-to-folder', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                folderPath: flowServerFolderPath,
-                subFolder: 'Miniaturas',
-                fileName: thumbFileName,
-                dataUrl,
-              }),
-            }).catch(() => {});
-          } else if (dataUrl.startsWith('data:')) {
-            handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl);
-          }
+          await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl);
+          const folderLabel =
+            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta';
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
-            `🖼️ ¡Miniatura Opción ${opt} capturada de Google Flow y guardada como ${thumbFileName}! Evaluando puntaje CTR (5 Reglas Psicológicas)...`
+            `🖼️ ¡Miniatura Opción ${opt} capturada de Google Flow y guardada en "${folderLabel}/${thumbFileName}"! Evaluando puntaje CTR (5 Reglas Psicológicas)...`
           );
           handleAuditThumbnailPsychology(opt, dataUrl);
         }
       } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
-        // ITEM 2: Auto-save captured Suno MP3 into /Audio and inject into CapCut Editor Track 5
+        // ITEM 2: Auto-save captured Suno MP3 directly into the Single Folder and inject into CapCut Editor Track 5
         setExtensionInstalled(true);
         const trackNum = Number(msg.trackNumber) || 1;
         const dataUrl = msg.audioDataUrl || msg.audioUrl || '';
@@ -2266,23 +2428,12 @@ export default function App() {
             updateActiveDoc({ sunoTracks: nextTracks });
           }
           const sunoFileName = `Suno_${String(trackNum).padStart(2, '0')}.mp3`;
-          if (flowServerFolderPath && !isCloudMode && dataUrl.startsWith('data:')) {
-            fetch('/api/flow/save-asset-to-folder', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                folderPath: flowServerFolderPath,
-                subFolder: 'Audio',
-                fileName: sunoFileName,
-                dataUrl,
-              }),
-            }).catch(() => {});
-          } else if (dataUrl.startsWith('data:')) {
-            handleSaveAnyFileToChosenFolder(sunoFileName, dataUrl);
-          }
+          await handleSaveAnyFileToChosenFolder(sunoFileName, dataUrl);
+          const folderLabel =
+            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta';
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
-            `🎵 ¡Pista #${trackNum} capturada de Suno, guardada en /Audio/${sunoFileName} e inyectada en la Pista 5 del Editor CapCut!`
+            `🎵 ¡Pista #${trackNum} capturada de Suno, guardada en "${folderLabel}/${sunoFileName}" e inyectada en la Pista 5 del Editor CapCut!`
           );
         }
       }
@@ -2356,10 +2507,10 @@ export default function App() {
     if (!promptText.trim()) return;
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // Once folder is selected in Stage 1, never prompt again
-    if (mediaType === 'VIDEO' && clipIdentifier && !hasSelectedDocFolder) {
-      const picked = await handlePickFlowDownloadFolder();
-      if (!picked) {
+    // Ensure the single download folder permission is active on user gesture
+    if (mediaType === 'VIDEO' && clipIdentifier) {
+      const ready = await ensureSingleDownloadFolderReadyOnGesture();
+      if (!ready) {
         return;
       }
     }
@@ -4922,14 +5073,20 @@ export default function App() {
                                   >
                                     <Clock className="w-3 h-3" /> ✓ Timeline Sincronizado (Recalcular)
                                   </button>
-                                  <a
-                                    href={downloadHref}
-                                    download={downloadName}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1"
-                                    title={`Descargar ${downloadName} (MP3)`}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await ensureSingleDownloadFolderReadyOnGesture();
+                                      await handleSaveAnyFileToChosenFolder(
+                                        downloadName,
+                                        track.audioUrl
+                                      );
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                                    title={`Guardar ${downloadName} en la carpeta única (${effectiveDocFolderName || 'Carpeta del Documental'})`}
                                   >
                                     <Download className="w-3.5 h-3.5" /> .MP3
-                                  </a>
+                                  </button>
                                   <button
                                     onClick={() =>
                                       updateActiveDoc({
@@ -5202,6 +5359,21 @@ export default function App() {
                         </p>
                       </div>
                       <div className="flex items-center flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handlePickFlowDownloadFolder}
+                          className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border cursor-pointer transition-all ${
+                            hasSelectedDocFolder
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                          }`}
+                          title="Carpeta única de descarga compartida con la Etapa 1 y todo el documental (haz clic si deseas cambiarla)"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          {hasSelectedDocFolder
+                            ? `✓ Carpeta: ${effectiveDocFolderName.split('/').pop()}`
+                            : '📁 Elegir Carpeta Única'}
+                        </button>
                         <button
                           type="button"
                           disabled={thumbOptionsGenerating}
@@ -5544,14 +5716,15 @@ export default function App() {
                           </button>
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={async () => {
+                              await ensureSingleDownloadFolderReadyOnGesture();
                               sendCommandToWebBridge('FLOW', {
                                 action: 'SCAN_FLOW_THUMBNAILS',
                                 tabId: selectedFlowTabId,
-                              })
-                            }
+                              });
+                            }}
                             className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
-                            title="Captura las últimas imágenes de la pestaña abierta de Google Flow"
+                            title="Captura las últimas imágenes de la pestaña abierta de Google Flow y las guarda en tu carpeta única"
                           >
                             🔍 Capturar Miniaturas de Flow
                           </button>
@@ -5581,22 +5754,51 @@ export default function App() {
                           Miniatura Final + Auditoría Psicológica CTR
                         </h3>
                         <span className="text-[11px] text-slate-400 font-semibold">
-                          Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'}
+                          Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'} • Carpeta única: <strong className="text-emerald-300">{effectiveDocFolderName ? effectiveDocFolderName.split('/').pop() : 'Etapa 1'}</strong>
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        disabled={thumbnailPsychAuditing || !activeDoc.thumbnailImageUrl}
-                        onClick={() =>
-                          handleAuditThumbnailPsychology('OFICIAL', activeDoc.thumbnailImageUrl)
-                        }
-                        className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {thumbnailPsychAuditing
-                          ? 'Auditando Psicología CTR...'
-                          : '🧠 Auditar CTR (5 Reglas)'}
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {activeDoc.thumbnailImageUrl && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await ensureSingleDownloadFolderReadyOnGesture();
+                              const ok = await handleSaveAnyFileToChosenFolder(
+                                'Miniatura_Oficial.png',
+                                activeDoc.thumbnailImageUrl
+                              );
+                              if (ok) {
+                                const folderLabel =
+                                  flowDownloadDirHandleRef.current?.name ||
+                                  effectiveDocFolderName ||
+                                  'tu carpeta';
+                                setBridgeStatusType('SUCCESS');
+                                setBridgeStatusMsg(
+                                  `💾 Miniatura_Oficial.png guardada en la carpeta única "${folderLabel}".`
+                                );
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                            title="Guardar Miniatura_Oficial.png directamente en la carpeta única de la Etapa 1"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            Guardar en Carpeta
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={thumbnailPsychAuditing || !activeDoc.thumbnailImageUrl}
+                          onClick={() =>
+                            handleAuditThumbnailPsychology('OFICIAL', activeDoc.thumbnailImageUrl)
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {thumbnailPsychAuditing
+                            ? 'Auditando Psicología CTR...'
+                            : '🧠 Auditar CTR (5 Reglas)'}
+                        </button>
+                      </div>
                     </div>
                     <div
                       className={`${
@@ -5719,9 +5921,11 @@ export default function App() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+                          await ensureSingleDownloadFolderReadyOnGesture();
                           const url = await uploadAssetFile(file);
                           if (url) {
                             updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
+                            await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', file);
                             handleAuditThumbnailPsychology('OFICIAL', url);
                           }
                         }}
@@ -7347,15 +7551,16 @@ export default function App() {
                     <button
                       type="button"
                       disabled={!activeDoc.correctedSrt?.trim()}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!activeDoc.correctedSrt?.trim()) {
                           alert('Primero procesa el archivo .SRT para poder descargarlo.');
                           return;
                         }
-                        triggerFileDownload(
-                          activeDoc.correctedSrt,
-                          `${activeDoc.srtFileName || 'captions_corregidos'}.srt`,
-                          'text/srt;charset=utf-8'
+                        await ensureSingleDownloadFolderReadyOnGesture();
+                        const srtName = `${activeDoc.srtFileName || 'captions_corregidos'}.srt`;
+                        await handleSaveAnyFileToChosenFolder(
+                          srtName,
+                          new Blob([activeDoc.correctedSrt], { type: 'text/srt;charset=utf-8' })
                         );
                       }}
                       className={`py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow transition ${
@@ -7365,7 +7570,7 @@ export default function App() {
                       }`}
                     >
                       <Download className="w-4 h-4" />
-                      ⬇️ Descargar .SRT Corregido
+                      ⬇️ Guardar .SRT en Carpeta ({effectiveDocFolderName ? effectiveDocFolderName.split('/').pop() : 'Única'})
                     </button>
                   </div>
                 </div>

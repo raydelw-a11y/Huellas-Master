@@ -331,18 +331,22 @@
     return new Blob([u8arr], { type: mime });
   }
 
-  async function fetchVideoBinaryDataUrl(videoUrl) {
+  async function fetchVideoBinaryDataUrl(videoUrl, imgElementFallback) {
     if (!videoUrl) return '';
-    // 1. Try direct fetch inside page context (works for blob: and same-origin/CORS URLs)
-    try {
-      const resp = await fetch(videoUrl, { credentials: 'include' });
-      if (resp.ok) {
-        const blob = await resp.blob();
-        if (blob.size > 1000) {
-          return await blobToDataUrl(blob);
+    if (videoUrl.startsWith('data:')) return videoUrl;
+
+    // 1. Try direct fetch inside page context (credentials: include, then omit for * CORS)
+    for (const credMode of ['include', 'omit']) {
+      try {
+        const resp = await fetch(videoUrl, { credentials: credMode });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          if (blob.size > 500) {
+            return await blobToDataUrl(blob);
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     // 2. Fallback: ask background service worker (bypasses CORS via host_permissions)
     if (!videoUrl.startsWith('blob:')) {
@@ -355,6 +359,20 @@
         });
         if (bgResp && bgResp.ok && bgResp.dataUrl) {
           return bgResp.dataUrl;
+        }
+      } catch {}
+    }
+
+    // 3. Canvas fallback if an <img> DOM element is provided
+    if (imgElementFallback && imgElementFallback.naturalWidth > 0) {
+      try {
+        const c = document.createElement('canvas');
+        c.width = imgElementFallback.naturalWidth;
+        c.height = imgElementFallback.naturalHeight;
+        const ctx = c.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(imgElementFallback, 0, 0);
+          return c.toDataURL('image/png');
         }
       } catch {}
     }
@@ -533,7 +551,7 @@
       for (const imgEl of imgs.slice(0, 2)) {
         const src = imgEl.src;
         baselineImageUrls.add(src);
-        const imageDataUrl = await fetchVideoBinaryDataUrl(src);
+        const imageDataUrl = await fetchVideoBinaryDataUrl(src, imgEl);
         const opt = optionLabel || (idx === 0 ? 'A' : 'B');
         idx++;
         chrome.runtime
@@ -562,7 +580,7 @@
     const labels = ['A', 'B', 'C'];
     for (let i = 0; i < latestThree.length; i++) {
       const src = latestThree[i].src;
-      const imageDataUrl = await fetchVideoBinaryDataUrl(src);
+      const imageDataUrl = await fetchVideoBinaryDataUrl(src, latestThree[i]);
       chrome.runtime
         .sendMessage({
           type: 'FLOW_THUMBNAIL_CAPTURED',
