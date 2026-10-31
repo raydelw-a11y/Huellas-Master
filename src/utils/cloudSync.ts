@@ -478,9 +478,16 @@ Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
 REGLA INQUEBRANTABLE DE NO REPETICIÓN: No repitas lo mismo que el Título del video ni el Texto de la Miniatura.`;
   } else if (stageNumber === 8) {
     const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+    const refsListText =
+      Array.isArray(doc.references) && doc.references.length > 0
+        ? doc.references
+            .map((r) => `${r.tag} (${r.category === 'persona' ? 'Personaje' : 'Lugar'})`)
+            .join(', ')
+        : 'Usar personajes y lugares del guion';
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
-Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 2 comienza en 00:0${clip2StartSec}.
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+Referencias visuales obligatorias (@Personas y Lugares de Etapa 6): ${refsListText}.
+Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.
 Timeline de la Voz Narrativa:
 """
 ${doc.timelineFormattedText || doc.voiceoverScript || ''}
@@ -488,10 +495,10 @@ ${doc.timelineFormattedText || doc.voiceoverScript || ''}
 Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
 ${opHeader}
 
-Formato exacto simple y conciso por cada clip:
-Image [N]: Create an image of [escena clara ~20-35 palabras con época y lugar], cinematic lighting, historical accuracy, no text.
+Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final:
+Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con época, lugar y etiquetas @Personaje si aplica], cinematic lighting, historical accuracy, no text.
 
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial, ~12-22 palabras]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial en inglés, ~12-22 palabras]. Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}fix the name`;
   } else if (stageNumber === 10) {
     stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})

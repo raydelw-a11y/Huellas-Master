@@ -38,7 +38,11 @@ export function parseClipsFromRawText(
 ): DocumentaryClip[] {
   if (!rawText || !rawText.trim()) return existingClips;
 
-  const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+  // Normalize pipe-separated blocks if AI returned multiple prompts on a single line
+  const normalizedText = rawText
+    .replace(/\r\n/g, '\n')
+    .replace(/\s*\|\s*(?=(?:[#*\-\d.)\s]*)(?:Image|Imagen|Clip)\s*\[?\d+)/gi, '\n');
+  const lines = normalizedText.split('\n');
   const clipsMap = new Map<number, DocumentaryClip>();
 
   // Inicializar con los existentes si los hay
@@ -67,31 +71,50 @@ export function parseClipsFromRawText(
   };
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
+    const rawLine = lines[i].trim();
+    if (!rawLine) continue;
+    // Strip markdown bold/backticks around headers for reliable matching
+    const line = rawLine.replace(/^\s*[-*•]\s+/, '').replace(/\*\*/g, '').trim();
 
     // Detectar encabezado de Clip ej. "--- CLIP 1 ---" o "Clip 1 (00:00 - 00:06)"
-    const headerMatch = line.match(/^(?:[#*\-\s]*)(?:CLIP|Clip)\s+0*(\d+)\b(?:\s*\(([0-9:]+\s*-\s*[0-9:]+)\))?/i);
-    const imageLineMatch = line.match(/^(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s+0*(\d+)\s*:\s*(Create an image[\s\S]*)/i);
+    const headerMatch = line.match(
+      /^(?:[#*\-\s]*)(?:CLIP|Clip)\s*\[?0*(\d+)\]?\b(?:\s*[\(\[]([0-9:]+\s*(?:-|–|—|to)\s*[0-9:]+)[\)\]])?$/i
+    );
+    const imageLineMatch = line.match(
+      /^(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*(\d+)\]?\s*[:\-–]\s*(.+)$/i
+    );
     const clipPromptMatch = line.match(
-      /^(?:[#*\-\d.)\s]*)(?:Clip)\s+0*(\d+)\s*(?:\(([0-9:]+\s*-\s*[0-9:]+)\))?\s*:\s*((?:Create a video|Create a two-shot|Create a)[\s\S]*)/i
+      /^(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[]([0-9:]+\s*(?:-|–|—|to)\s*[0-9:]+)[\)\]])?\s*[:\-–]\s*(.+)$/i
     );
 
     if (imageLineMatch) {
       const num = parseInt(imageLineMatch[1], 10);
+      const bodyRaw = imageLineMatch[2].trim();
+      // Ignore template placeholder lines such as "Image [N]: Create an image of [escena..."
+      if (/^\[escena/i.test(bodyRaw) || num <= 0) continue;
       currentClipNum = num;
       const clip = ensureClip(num);
-      clip.imagePrompt = `Image ${num}: ${imageLineMatch[2].trim()}`;
+      const normalizedBody = /^Create an image/i.test(bodyRaw)
+        ? bodyRaw
+        : `Create an image of ${bodyRaw}`;
+      clip.imagePrompt = `Image ${num}: ${normalizedBody}`;
       continue;
     }
 
     if (clipPromptMatch) {
       const num = parseInt(clipPromptMatch[1], 10);
+      const bodyRaw = clipPromptMatch[3].trim();
+      if (/^\[1 movimiento/i.test(bodyRaw) || num <= 0) continue;
       currentClipNum = num;
       const clip = ensureClip(num);
-      const timeRange = clipPromptMatch[2] ? clipPromptMatch[2].trim() : clip.timeRange;
+      const timeRange = clipPromptMatch[2]
+        ? clipPromptMatch[2].replace(/\s*(?:-|–|—|to)\s*/, ' - ').trim()
+        : clip.timeRange;
       if (timeRange) clip.timeRange = timeRange;
-      clip.videoPrompt = `Clip ${num}${timeRange ? ` (${timeRange})` : ''}: ${clipPromptMatch[3].trim()}`;
+      const normalizedBody = /^Create a/i.test(bodyRaw)
+        ? bodyRaw
+        : `Create a video showing ${bodyRaw}`;
+      clip.videoPrompt = `Clip ${num}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`;
       continue;
     }
 
@@ -100,7 +123,7 @@ export function parseClipsFromRawText(
       currentClipNum = num;
       const clip = ensureClip(num);
       if (headerMatch[2]) {
-        clip.timeRange = headerMatch[2].trim();
+        clip.timeRange = headerMatch[2].replace(/\s*(?:-|–|—|to)\s*/, ' - ').trim();
       }
       continue;
     }
@@ -204,7 +227,7 @@ export function stripPauseTags(rawText: string): string {
   return rawText.replace(re, '');
 }
 
-// Sincronizar los 3 insumos de la Sección 7 (Producción):
+// Sincronizar los 3 insumos de la Sección 8 (Producción):
 // 1) Voz Narrativa Raw con Pausas, 2) Voz con Timestamps, 3) Prompts de Imágenes y Clips
 export function syncAndAuditProductionClips(
   arg1:
@@ -216,6 +239,11 @@ export function syncAndAuditProductionClips(
         existingClips?: DocumentaryClip[];
         clip1Duration?: number;
         clip1SyncMode?: 'RALENTIZAR_CAPCUT' | 'VOZ_EN_CLIP_2';
+        topic?: string;
+        historicalTime?: string;
+        historicalLocation?: string;
+        references?: ReferenceAsset[];
+        includeNarrationInClip?: boolean;
       },
   arg2?: string,
   arg3?: string,
@@ -229,12 +257,96 @@ export function syncAndAuditProductionClips(
   const existingClips = isObj ? arg1.existingClips || [] : arg4 || [];
   const clip1Duration = isObj ? arg1.clip1Duration || 6 : 6;
   const clip1SyncMode = (isObj ? arg1.clip1SyncMode : arg5) || 'VOZ_EN_CLIP_2';
+  const docTopic = isObj ? (arg1.topic || '').trim() : '';
+  const docTime = isObj ? (arg1.historicalTime || '').trim() : '';
+  const docLocation = isObj ? (arg1.historicalLocation || '').trim() : '';
+  const docRefs = isObj && Array.isArray(arg1.references) ? arg1.references : [];
+  const includeNarrationInClip = isObj ? arg1.includeNarrationInClip !== false : true;
 
   const parsedFromPrompts = parseClipsFromRawText(rawClipsText, existingClips);
-  const timelineSentences = parseTimelineTextToSentences(timelineText);
+  let timelineSentences = parseTimelineTextToSentences(timelineText);
+
+  // Fallback: if timelineSentences is empty but rawVoiceoverWithPauses has text, split into ~10s blocks
+  if (timelineSentences.length === 0 && rawVoiceoverWithPauses.trim()) {
+    const cleanScript = stripPauseTags(rawVoiceoverWithPauses).replace(/\s+/g, ' ').trim();
+    const words = cleanScript.split(/\s+/).filter(Boolean);
+    const wordsPerBlock = 24;
+    let cursorSec = 0;
+    for (let i = 0; i < words.length; i += wordsPerBlock) {
+      const chunk = words.slice(i, i + wordsPerBlock).join(' ');
+      if (chunk) {
+        timelineSentences.push({
+          index: timelineSentences.length + 1,
+          start: cursorSec,
+          end: cursorSec + 10,
+          text: chunk,
+        });
+        cursorSec += 10;
+      }
+    }
+  }
+
   const clipStartOffset = clip1SyncMode === 'RALENTIZAR_CAPCUT' ? clip1Duration + 2 : clip1Duration;
   const voiceEntrySec = clip1Duration + 2;
   const needsOffset = timelineSentences.length > 0 && timelineSentences[0].start < 2.0;
+
+  const eraSetting =
+    [docLocation, docTime].filter(Boolean).join(', ') ||
+    docTopic ||
+    'historical documentary setting';
+  const personRefs = docRefs.filter((r) => r.category === 'persona' || (r.tag || '').startsWith('@'));
+  const placeRefs = docRefs.filter((r) => r.category === 'lugar' && !(r.tag || '').startsWith('@'));
+  const primaryPersonTag = personRefs[0]?.tag
+    ? personRefs[0].tag.startsWith('@')
+      ? personRefs[0].tag
+      : `@${personRefs[0].tag}`
+    : '';
+  const primaryPlaceTag = placeRefs[0]?.tag || docLocation || '';
+
+  const findMatchingRefTags = (narration: string): string => {
+    const lowerNarr = (narration || '').toLowerCase();
+    const matched: string[] = [];
+    for (const r of docRefs) {
+      const rawTag = (r.tag || '').trim();
+      if (!rawTag) continue;
+      const cleanName = rawTag.replace(/^@+/, '').replace(/_/g, ' ').toLowerCase();
+      const tokens = cleanName.split(/\s+/).filter((t) => t.length >= 4);
+      if (
+        (cleanName && lowerNarr.includes(cleanName)) ||
+        tokens.some((tok) => lowerNarr.includes(tok))
+      ) {
+        const formattedTag =
+          r.category === 'persona' || rawTag.startsWith('@')
+            ? rawTag.startsWith('@')
+              ? rawTag
+              : `@${rawTag}`
+            : rawTag;
+        if (!matched.includes(formattedTag)) matched.push(formattedTag);
+      }
+    }
+    if (matched.length === 0 && primaryPersonTag) {
+      matched.push(primaryPersonTag);
+    }
+    if (matched.length < 2 && primaryPlaceTag && !matched.includes(primaryPlaceTag)) {
+      matched.push(primaryPlaceTag);
+    }
+    return matched.join(' in ');
+  };
+
+  const SHOT_ANGLES = [
+    'cinematic medium shot',
+    'dramatic low-angle shot',
+    'atmospheric wide establishing shot',
+    'intimate over-the-shoulder shot',
+    'detailed close-up tracking shot',
+  ];
+  const CAMERA_MOVES = [
+    'a slow dolly-in camera movement',
+    'a smooth lateral tracking camera movement',
+    'a subtle crane-up camera movement',
+    'a steady slow push-in camera movement',
+    'a gentle panning camera movement',
+  ];
 
   // Extraer fragmentos con sus pausas desde la Voz Narrativa Raw
   const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
@@ -257,17 +369,25 @@ export function syncAndAuditProductionClips(
     if (num === 1) {
       const c1EndSec = clip1SyncMode === 'RALENTIZAR_CAPCUT' ? clip1Duration + 2 : clip1Duration;
       const c1Range = existing?.timeRange || `00:00 - 00:${String(c1EndSec).padStart(2, '0')}`;
-      const imgP = existing?.imagePrompt || '';
-      const vidP = existing?.videoPrompt || '';
+      const hookRefs = [primaryPersonTag, primaryPlaceTag].filter(Boolean).join(' at ');
+      const imgP =
+        existing?.imagePrompt?.trim() ||
+        `Image 1: Create an image of a dramatic cinematic wide establishing shot of ${
+          hookRefs ? `${hookRefs} in ` : ''
+        }${eraSetting}, volumetric chiaroscuro lighting, hyper-realistic historical accuracy, 8k documentary cinematography, no text.`;
+      const vidP =
+        existing?.videoPrompt?.trim() ||
+        `Clip 1 (${c1Range}): Create a video showing a slow, tense cinematic camera push-in across ${
+          primaryPlaceTag || eraSetting
+        }${
+          primaryPersonTag ? ` while ${primaryPersonTag} stands in solemn dramatic stillness` : ''
+        }, subtle drifting atmospheric mist and flickering warm torchlight. Ambient Foley: deep atmospheric wind, distant historical environment sounds, footsteps on stone, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name`;
       let auditStatus: 'ok' | 'warning' | 'mismatch' = 'ok';
       let auditReason =
         clip1SyncMode === 'VOZ_EN_CLIP_2'
           ? `Clip 1 (00:00 - 00:${String(clip1Duration).padStart(2, '0')} sin voz en off; la voz narrativa entra en el segundo ${voiceEntrySec}, a los 2s de iniciar el Clip 2).`
           : `Clip 1 (Hook inicial de ${clip1Duration}s ralentizado a ${voiceEntrySec}s sin voz en off; la voz entra en el segundo ${voiceEntrySec} al iniciar el Clip 2).`;
-      if (!imgP || !vidP) {
-        auditStatus = 'warning';
-        auditReason = 'Falta generar o pegar el Prompt de Imagen 1 o Clip 1 (Hook inicial).';
-      } else if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
+      if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
         auditStatus = 'mismatch';
         auditReason = 'El Clip 1 no debe llevar voz hablada; debe cerrar con "no music, no speech".';
       }
@@ -304,11 +424,30 @@ export function syncAndAuditProductionClips(
       const sSec = needsOffset ? tSeg.start + clipStartOffset : tSeg.start;
       const eSec = needsOffset ? tSeg.end + clipStartOffset : tSeg.end;
       computedRange = `${formatMMSS(sSec)} - ${formatMMSS(eSec)}`;
+    } else if (!computedRange) {
+      const fallbackStart = clipStartOffset + tIdx * 10;
+      computedRange = `${formatMMSS(fallbackStart)} - ${formatMMSS(fallbackStart + 10)}`;
     }
 
     const narrationText = tSeg?.text || existing?.narrationSegment || '';
-    const imgP = existing?.imagePrompt || '';
-    const vidP = existing?.videoPrompt || '';
+    const cleanNarration = stripPauseTags(narrationText).replace(/\s+/g, ' ').trim();
+    const matchedRefs = findMatchingRefTags(cleanNarration);
+    const shotAngle = SHOT_ANGLES[tIdx % SHOT_ANGLES.length];
+    const camMove = CAMERA_MOVES[tIdx % CAMERA_MOVES.length];
+
+    const imgP =
+      existing?.imagePrompt?.trim() ||
+      `Image ${num}: Create an image of a ${shotAngle} in ${eraSetting}${
+        matchedRefs ? ` featuring ${matchedRefs}` : ''
+      }, depicting the historical scene (${cleanNarration.slice(0, 130)}), dramatic cinematic lighting, historical accuracy, photorealistic 8k film still, no text.`;
+
+    const vidP =
+      existing?.videoPrompt?.trim() ||
+      `Clip ${num} (${computedRange}): Create a video showing ${camMove} over the historical scene in ${eraSetting}${
+        matchedRefs ? ` with ${matchedRefs} performing subtle period-accurate physical movement` : ''
+      }. Ambient Foley: realistic historical environment sounds, subtle cloth movement, and footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. ${
+        includeNarrationInClip && cleanNarration ? `${cleanNarration} ` : ''
+      }fix the name`;
 
     // Buscar si esa frase en la Voz Narrativa Raw contiene una etiqueta [pausa: Xs]
     let pauseNotes = existing?.pauseNotes || '';

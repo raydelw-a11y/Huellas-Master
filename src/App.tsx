@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:03 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:09 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1271,9 +1271,18 @@ export default function App() {
         existingClips: activeDoc.clips || [],
         clip1Duration: activeDoc.clip1DurationSeconds || 6,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+        topic: activeDoc.topic || activeDoc.title || '',
+        historicalTime: activeDoc.historicalTime || '',
+        historicalLocation: activeDoc.historicalLocation || '',
+        references: activeDoc.references || [],
+        includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
       });
+      const rebuiltRaw =
+        syncedClips.length > 0
+          ? buildRawClipsTextWithHeader(syncedClips, activeDoc.operationalHeader)
+          : textWithHeader;
       updateActiveDoc({
-        rawClipsText: textWithHeader,
+        rawClipsText: rebuiltRaw,
         clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
       });
     } else if (stageNum === 9) {
@@ -2943,30 +2952,50 @@ export default function App() {
     handleSendStageToGeminiWeb(101);
   };
 
-  // Stage 7 (Producción): Sync Raw Voiceover + Timestamps + Clip Prompts into Unified Timeline
+  // Stage 8 (Producción): Sync Raw Voiceover + Timestamps + Clip Prompts into Unified Timeline
   const handleSyncProductionTimeline = (): DocumentaryClip[] => {
     if (!activeDoc) return [];
+    let effectiveTimelineText = (activeDoc.timelineFormattedText || '').trim();
+    let effectiveSentences = activeDoc.timelineSentences || [];
+    if (!effectiveTimelineText && (activeDoc.voiceoverScript || '').trim()) {
+      const autoTl = buildSmartClientTimeline(activeDoc.voiceoverScript, activeDoc);
+      effectiveTimelineText = autoTl.formatted;
+      effectiveSentences = autoTl.sentences;
+    }
     const normalizedRaw = activeDoc.rawClipsText?.trim()
       ? ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, activeDoc.operationalHeader)
       : '';
     const synced = syncAndAuditProductionClips({
       rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
-      timelineText: activeDoc.timelineFormattedText || '',
+      timelineText: effectiveTimelineText,
       rawClipsText: normalizedRaw,
       existingClips: activeDoc.clips || [],
       clip1Duration: activeDoc.clip1DurationSeconds || 6,
       clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+      topic: activeDoc.topic || activeDoc.title || '',
+      historicalTime: activeDoc.historicalTime || '',
+      historicalLocation: activeDoc.historicalLocation || '',
+      references: activeDoc.references || [],
+      includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
     });
     const finalRaw =
-      normalizedRaw || (synced.length > 0 ? buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader) : '');
+      synced.length > 0
+        ? buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader)
+        : normalizedRaw;
     updateActiveDoc({
       clips: synced,
       ...(finalRaw ? { rawClipsText: finalRaw } : {}),
+      ...(!activeDoc.timelineFormattedText && effectiveTimelineText
+        ? {
+            timelineFormattedText: effectiveTimelineText,
+            timelineSentences: effectiveSentences,
+          }
+        : {}),
     });
     return synced;
   };
 
-  // Stage 7 (Producción): AI Deep Coherence Audit + Suggested Prompt Fixes
+  // Stage 8 (Producción): AI Deep Coherence Audit + Suggested Prompt Fixes
   const handleAuditProductionClipsWithAI = async () => {
     if (!activeDoc) return;
     setAuditingClips(true);
@@ -2979,6 +3008,11 @@ export default function App() {
         existingClips: activeDoc.clips || [],
         clip1Duration: activeDoc.clip1DurationSeconds || 6,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+        topic: activeDoc.topic || activeDoc.title || '',
+        historicalTime: activeDoc.historicalTime || '',
+        historicalLocation: activeDoc.historicalLocation || '',
+        references: activeDoc.references || [],
+        includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
       });
 
       if (baseClips.length === 0) {
@@ -3324,6 +3358,43 @@ export default function App() {
       }
     }
   }, [activeDoc?.id, activeDoc?.voiceoverScript, activeDoc?.audioTracks?.length]);
+
+  // Automatically create Panel 3 ("3. Prompts de Imágenes Iniciales y Clips") whenever Panel 1 or Panel 2 exists and Panel 3 has no Image/Clip prompts yet
+  useEffect(() => {
+    if (!activeDoc) return;
+    const hasScriptOrTimeline = Boolean(
+      (activeDoc.timelineFormattedText || '').trim() || (activeDoc.voiceoverScript || '').trim()
+    );
+    const hasClipPromptsInBox3 = /Image\s+0*1\s*:/i.test(activeDoc.rawClipsText || '');
+    if (hasScriptOrTimeline && !hasClipPromptsInBox3) {
+      const synced = syncAndAuditProductionClips({
+        rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
+        timelineText: activeDoc.timelineFormattedText || '',
+        rawClipsText: activeDoc.rawClipsText || '',
+        existingClips: activeDoc.clips || [],
+        clip1Duration: activeDoc.clip1DurationSeconds || 6,
+        clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+        topic: activeDoc.topic || activeDoc.title || '',
+        historicalTime: activeDoc.historicalTime || '',
+        historicalLocation: activeDoc.historicalLocation || '',
+        references: activeDoc.references || [],
+        includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
+      });
+      if (synced.length > 0) {
+        const fullRawText = buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader);
+        updateActiveDoc({
+          clips: synced,
+          rawClipsText: fullRawText,
+        });
+      }
+    }
+  }, [
+    activeDoc?.id,
+    activeDoc?.timelineFormattedText,
+    activeDoc?.voiceoverScript,
+    activeDoc?.references?.length,
+    activeStage,
+  ]);
 
   // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
