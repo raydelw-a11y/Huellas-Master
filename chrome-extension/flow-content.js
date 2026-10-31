@@ -770,12 +770,49 @@
   function getAllCurrentImageUrlsSet() {
     const urls = new Set();
     for (const img of Array.from(document.querySelectorAll('img'))) {
+      img.setAttribute('data-huellas-preexisting', 'true');
       const src = (img.currentSrc || img.src || '').trim();
       if (src) {
         urls.add(src);
       }
     }
     return urls;
+  }
+
+  /**
+   * Filtro estricto para obtener ÚNICAMENTE las imágenes nuevas generadas por el prompt actual
+   * e ignorar todas las imágenes de proyectos anteriores (data-huellas-preexisting o en preExistingUrlsSet).
+   */
+  function getNewlyGeneratedImagesOnly(preExistingUrlsSet, minWidth = 220, minHeight = 150) {
+    const allImages = Array.from(document.querySelectorAll('img'));
+
+    return allImages.filter((img) => {
+      const src = (img.currentSrc || img.src || '').trim();
+      if (!src || src.includes('avatar')) return false;
+
+      // 1. Ignorar cualquier imagen marcada como preexistente antes/durante los primeros segundos del envío
+      if (img.getAttribute('data-huellas-preexisting') === 'true') {
+        return false;
+      }
+
+      // 2. Ignorar cualquier URL en el Set de imágenes preexistentes
+      if (preExistingUrlsSet && preExistingUrlsSet.has(src)) {
+        return false;
+      }
+
+      // 3. Ignorar avatares, chips de ingredientes o íconos pequeños de UI (< 180px)
+      const rect = img.getBoundingClientRect();
+      if (rect.width > 0 && rect.width < 140 && rect.height < 140) {
+        return false;
+      }
+      const w = img.naturalWidth || img.width || rect.width || 0;
+      const h = img.naturalHeight || img.height || rect.height || 0;
+      if (w < minWidth || h < minHeight) {
+        return false;
+      }
+
+      return true;
+    });
   }
 
   function startFlowThumbnailWatcher({ optionLabel, baselineImageUrls }) {
@@ -797,26 +834,17 @@
         return;
       }
 
-      // During the first 4.5 seconds while Google Flow is uploading the logo and starting the job, record any existing or attached-logo preview images into baseline
-      if (elapsedMs < 4500) {
+      // Durante los primeros 6 segundos tras el envío, registrar cualquier imagen existente o lazy-loaded de proyectos antiguos
+      if (elapsedMs < 6000) {
         for (const img of Array.from(document.querySelectorAll('img'))) {
+          img.setAttribute('data-huellas-preexisting', 'true');
           const s = (img.currentSrc || img.src || '').trim();
           if (s) baselineImageUrls.add(s);
         }
         return;
       }
 
-      const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
-        const w = img.naturalWidth || img.width || 0;
-        const h = img.naturalHeight || img.height || 0;
-        const src = (img.currentSrc || img.src || '').trim();
-        if (!src || src.includes('avatar') || baselineImageUrls.has(src)) return false;
-        // Ignore small ingredient/logo chips inside the bottom prompt composer
-        const r = img.getBoundingClientRect();
-        if (r.width > 0 && r.width < 140 && r.height < 140) return false;
-        return w >= 280 && h >= 180;
-      });
-
+      const imgs = getNewlyGeneratedImagesOnly(baselineImageUrls, 280, 180);
       if (imgs.length === 0) return;
 
       capturing = true;
@@ -825,6 +853,7 @@
 
       let idx = 0;
       for (const imgEl of imgs.slice(0, 2)) {
+        imgEl.setAttribute('data-huellas-preexisting', 'true');
         const src = (imgEl.currentSrc || imgEl.src || '').trim();
         baselineImageUrls.add(src);
         const imageDataUrl = await fetchVideoBinaryDataUrl(src, imgEl);
@@ -852,7 +881,6 @@
       reportStatus('ERROR', 'No se encontraron imágenes de miniatura en Google Flow.');
       return;
     }
-    // Newest generated images appear at the TOP of Google Flow's feed (imgs.slice(0, 3))
     const latestThree = imgs.slice(0, 3);
     const labels = ['A', 'B', 'C'];
     for (let i = 0; i < latestThree.length; i++) {
@@ -903,29 +931,23 @@
         return;
       }
 
-      if (elapsedMs < 3500) {
+      // Durante los primeros 6 segundos tras enviar el prompt, marcar todas las imágenes ya presentes o lazy-loaded como preexistentes
+      if (elapsedMs < 6000) {
         for (const img of Array.from(document.querySelectorAll('img'))) {
+          img.setAttribute('data-huellas-preexisting', 'true');
           const s = (img.currentSrc || img.src || '').trim();
           if (s) baselineImageUrls.add(s);
         }
         return;
       }
 
-      const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
-        const w = img.naturalWidth || img.width || 0;
-        const h = img.naturalHeight || img.height || 0;
-        const src = (img.currentSrc || img.src || '').trim();
-        if (!src || src.includes('avatar') || baselineImageUrls.has(src)) return false;
-        const r = img.getBoundingClientRect();
-        if (r.width > 0 && r.width < 120 && r.height < 120) return false;
-        return w >= 220 && h >= 150;
-      });
-
+      const imgs = getNewlyGeneratedImagesOnly(baselineImageUrls, 220, 150);
       if (imgs.length === 0) return;
 
       capturing = true;
       try {
         for (const imgEl of imgs) {
+          imgEl.setAttribute('data-huellas-preexisting', 'true');
           const src = (imgEl.currentSrc || imgEl.src || '').trim();
           if (!src || baselineImageUrls.has(src)) continue;
           baselineImageUrls.add(src);
@@ -1258,7 +1280,7 @@
     }
   }
 
-  function handleSendFlowPrompt(payload) {
+  function startWatcherForPayload(payload) {
     const rawPromptText = payload.prompt || payload.text || '';
     const promptText =
       payload.mediaType === 'THUMBNAILS'
@@ -1267,43 +1289,42 @@
     const baselineUrls = getAllCurrentVideoUrlsSet();
     const baselineImageUrls = getAllCurrentImageUrlsSet();
 
-    const startAppropriateWatcher = () => {
-      if (payload.mediaType === 'THUMBNAILS') {
-        startFlowThumbnailWatcher({
-          optionLabel: payload.optionLabel,
-          baselineImageUrls,
-        });
-      } else if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
-        startFlowReferenceImagesWatcher({
-          referenceId: payload.referenceId || payload.clipId || payload.clipNumber,
-          referenceTag: payload.referenceTag,
-          referenceTags: payload.referenceTags,
-          expectedCount: payload.expectedCount,
-          baselineImageUrls,
-        });
-      } else if (payload.watchForVideo !== false) {
-        startFlowVideoWatcher({
-          clipNumber: payload.clipNumber,
-          clipId: payload.clipId,
-          prompt: promptText,
-          attempt: payload.attempt || 1,
-          baselineUrls,
-          batchStartClip: payload.batchStartClip,
-          batchEndClip: payload.batchEndClip,
-          expectedCount: payload.expectedCount,
-        });
-      }
-    };
-
-    // Iniciar inmediatamente el Watcher (Videos / Miniaturas / Referencias) con la línea base previa al envío
-    startAppropriateWatcher();
-
-    // Si background.js ya está ejecutando la Doble Capa (MAIN World + CDP Hardware Debugger), no competir en el DOM
-    if (payload.delegatedToBackground) {
-      return true;
+    if (payload.mediaType === 'THUMBNAILS') {
+      startFlowThumbnailWatcher({
+        optionLabel: payload.optionLabel,
+        baselineImageUrls,
+      });
+    } else if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
+      startFlowReferenceImagesWatcher({
+        referenceId: payload.referenceId || payload.clipId || payload.clipNumber,
+        referenceTag: payload.referenceTag,
+        referenceTags: payload.referenceTags,
+        expectedCount: payload.expectedCount,
+        baselineImageUrls,
+      });
+    } else if (payload.watchForVideo !== false) {
+      startFlowVideoWatcher({
+        clipNumber: payload.clipNumber,
+        clipId: payload.clipId,
+        prompt: promptText,
+        attempt: payload.attempt || 1,
+        baselineUrls,
+        batchStartClip: payload.batchStartClip,
+        batchEndClip: payload.batchEndClip,
+        expectedCount: payload.expectedCount,
+      });
     }
+  }
 
-    // Si llegó directamente a flow-content.js (ej. EXECUTE_FLOW_PROMPT), delegar al Service Worker (background.js)
+  function handleSendFlowPrompt(payload) {
+    const rawPromptText = payload.prompt || payload.text || '';
+    const promptText =
+      payload.mediaType === 'THUMBNAILS'
+        ? rawPromptText.replace(/^Thumbnail\s*:\s*/i, '').trim()
+        : rawPromptText;
+
+    // Si llegó directamente a flow-content.js, delegar al Service Worker (background.js)
+    // y solo activar el Watcher si el envío fue exitoso
     chrome.runtime.sendMessage(
       {
         action: 'SEND_PROMPT',
@@ -1314,17 +1335,8 @@
         },
       },
       (response) => {
-        if (chrome.runtime.lastError || !response || !response.ok) {
-          // Fallback local únicamente si el Service Worker no respondió
-          const inputEl = findFlowPromptInput();
-          if (!inputEl) return;
-          setFlowInputText(inputEl, promptText);
-          if (payload.autoSubmit !== false) {
-            setTimeout(() => {
-              const submitBtn = findExactFlowSubmitButton(inputEl);
-              clickFlowSubmitButton(submitBtn, inputEl, promptText);
-            }, 220);
-          }
+        if (!chrome.runtime.lastError && response && response.ok && response.submitted) {
+          startWatcherForPayload(payload);
         }
       }
     );
@@ -1350,6 +1362,12 @@
     }
 
     if (msg.target !== 'FLOW') return false;
+
+    if (msg.action === 'START_FLOW_WATCHER_AFTER_SUBMIT') {
+      startWatcherForPayload(msg);
+      sendResponse({ handled: true });
+      return false;
+    }
 
     if (msg.action === 'SEND_PROMPT' || msg.action === 'SEND_PROMPT_V2') {
       const ok = handleSendFlowPrompt(msg);

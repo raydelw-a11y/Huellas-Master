@@ -1,8 +1,12 @@
 // ============================================================================
-// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.2.0)
-// Orquestador de conexión en la misma ventana + Doble Capa para Google Flow:
-// Capa 1: MAIN World (ProseMirror / Angular / React Fiber + button.generate-icon-button)
-// Capa 2: Fallback Hardware CDP (chrome.debugger Input.dispatchMouseEvent / KeyEvent con isTrusted: true)
+// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.3.0)
+// Automatización Hardware CDP para Google Flow (una sola sesión limpia):
+// - Espera 300ms tras chrome.debugger.attach para estabilizar el viewport
+// - Toma snapshot de imágenes preexistentes (window.__flowPreExistingMedia y data-huellas-preexisting)
+// - Inyección híbrida MAIN (execCommand + InputEvent) + CDP Input.insertText sin Backspace
+// - Prioridad 1: Tecla Enter física por hardware (windowsVirtualKeyCode: 13)
+// - Prioridad 2: Clic hardware en button.generate-icon-button con Lista Negra estricta (prohibido X / Clear / Download)
+// - Inicia el Watcher de imágenes/videos ÚNICAMENTE después de confirmar el envío
 // ============================================================================
 
 function sleep(ms) {
@@ -107,7 +111,6 @@ async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
   } catch {}
 }
 
-// Keep Huellas Master updated when tabs in the same window change title or URL
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (!tab || typeof tab.windowId !== 'number') return;
   if (changeInfo.status === 'complete' || changeInfo.title) {
@@ -131,423 +134,174 @@ chrome.tabs.onRemoved.addListener(async (_tabId, removeInfo) => {
 });
 
 // ============================================================================
-// GOOGLE FLOW — CAPA 1 (MAIN WORLD) + CAPA 2 (CDP HARDWARE DEBUGGER)
+// GOOGLE FLOW — AUTOMATIZACIÓN HARDWARE CDP + HÍBRIDO MAIN WORLD
 // ============================================================================
 
 /**
- * Ejecutado dentro de world: 'MAIN' en la pestaña de Google Flow.
- * Soporta ProseMirror (pmViewDesc.view), Angular Material (button.generate-icon-button) y React Fiber (__reactProps$).
+ * Busca el botón de enviar EXCLUSIVAMENTE dentro de la barra del compositor (altura <= 320px).
+ * Prohibido salir hacia la galería de proyectos o tocar botones de Clear (X) / Download.
  */
-async function injectAndSubmitViaMainWorld(rawPromptText, mediaType, logoDataUrl) {
-  const sleepMain = (ms) => new Promise((r) => setTimeout(r, ms));
-  const promptText =
-    mediaType === 'THUMBNAILS'
-      ? String(rawPromptText || '').replace(/^Thumbnail\s*:\s*/i, '').trim()
-      : String(rawPromptText || '').trim();
-
-  // 1. Localizar el editor principal del compositor (excluyendo paneles laterales como .agent-panel-animation-container)
-  function findVisibleEditor() {
-    const allCandidates = [
-      ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
-      ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
-      ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
-    ].filter((el) => {
-      const r = el.getBoundingClientRect();
-      return r.width > 40 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
-    });
-
-    const composerCandidates = allCandidates.filter(
-      (el) => !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
-    );
-    const pool = composerCandidates.length > 0 ? composerCandidates : allCandidates;
-    if (pool.length <= 1) return pool[0] || null;
-
-    // Preferir el editor más cercano a la parte inferior central de la ventana (barra de prompt de Flow)
-    pool.sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
-    return pool[0];
-  }
-
-  // 2. Localizar el botón de envío DENTRO del contenedor ancestro del editor (priorizando button.generate-icon-button)
-  function findComposerSubmitButton(editorEl) {
-    const SUBMIT_ICONS = ['arrow_upward', 'arrow_forward', 'send', 'spark', 'auto_awesome'];
-    const SUBMIT_LABELS =
-      /send|submit|generate|create|enviar|crear|generar|start generation|iniciar generaci/i;
-
-    let ancestor = editorEl ? editorEl.parentElement : null;
-    for (let depth = 0; depth < 8 && ancestor && ancestor !== document.body; depth++) {
-      // Prioridad 0: Selector exacto de Google Flow verificado en DevTools (button.generate-icon-button)
-      const exactGenerateBtn = ancestor.querySelector(
-        'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
-      );
-      if (exactGenerateBtn) {
-        const r = exactGenerateBtn.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && getComputedStyle(exactGenerateBtn).visibility !== 'hidden') {
-          return exactGenerateBtn;
-        }
-      }
-
-      const buttons = Array.from(ancestor.querySelectorAll('button')).filter((b) => {
-        const r = b.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0 || getComputedStyle(b).visibility === 'hidden') {
-          return false;
-        }
-        const meta = (
-          (b.getAttribute('aria-label') || '') +
-          ' ' +
-          (b.getAttribute('title') || '') +
-          ' ' +
-          (b.className || '') +
-          ' ' +
-          (b.textContent || '')
-        ).toLowerCase();
-        if (
-          meta.includes('clear') ||
-          meta.includes('limpiar') ||
-          meta.includes('borrar') ||
-          meta.includes('close') ||
-          meta.includes('cerrar') ||
-          meta.includes('delete') ||
-          meta.includes('settings') ||
-          meta.includes('tune') ||
-          meta.includes('add-menu') ||
-          meta.includes('add ingredient') ||
-          meta.includes('upload') ||
-          meta.includes('aspect') ||
-          meta.includes('16:9') ||
-          meta.includes('9:16') ||
-          meta.includes('expand')
-        ) {
-          return false;
-        }
-        return true;
-      });
-
-      if (buttons.length > 0) {
-        // Prioridad 1: Botón con ícono Material/Google Symbols de flecha o aria-label de envío
-        const iconOrLabelBtn = buttons.find((b) => {
-          const text = (b.textContent || '').trim().toLowerCase();
-          const aria = (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
-          const hasSubmitIcon = SUBMIT_ICONS.some((icon) => text.includes(icon));
-          const hasSubmitLabel = SUBMIT_LABELS.test(aria);
-          return (
-            b.classList.contains('generate-icon-button') ||
-            hasSubmitIcon ||
-            hasSubmitLabel ||
-            b.type === 'submit'
-          );
-        });
-
-        if (iconOrLabelBtn) return iconOrLabelBtn;
-
-        // Prioridad 2: En el contenedor del compositor, el botón habilitado más a la derecha
-        if (depth >= 2) {
-          const enabledBtns = buttons.filter(
-            (b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true'
-          );
-          if (enabledBtns.length > 0) {
-            enabledBtns.sort(
-              (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right
-            );
-            return enabledBtns[0];
-          }
-        }
-      }
-      ancestor = ancestor.parentElement;
-    }
-
-    // Fallback: buscar button.generate-icon-button fuera de paneles laterales
-    const globalGenerateBtns = Array.from(
-      document.querySelectorAll('button.generate-icon-button, flow-generate-icon-button button')
-    ).filter(
-      (b) =>
-        !b.closest('.agent-panel-animation-container, .sidenav') &&
-        b.getBoundingClientRect().width > 0
-    );
-    return globalGenerateBtns[0] || null;
-  }
-
-  // 3. Disparar handlers de React Fiber (__reactProps$) si existen
-  function invokeReactFiberClick(btn) {
-    const propsKey = Object.keys(btn).find(
-      (k) => k.startsWith('__reactProps$') || k.startsWith('__reactEventHandlers$')
-    );
-    if (!propsKey || !btn[propsKey]) return false;
-
-    const props = btn[propsKey];
-    const rect = btn.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-
-    const createSyntheticEvent = (type) => {
-      const nativeEvent = new MouseEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        view: window,
-        clientX: cx,
-        clientY: cy,
-        button: 0,
-        buttons: 1,
-      });
-      return {
-        nativeEvent,
-        currentTarget: btn,
-        target: btn,
-        bubbles: true,
-        cancelable: true,
-        defaultPrevented: false,
-        eventPhase: 3,
-        isTrusted: true,
-        clientX: cx,
-        clientY: cy,
-        button: 0,
-        buttons: 1,
-        preventDefault() {
-          this.defaultPrevented = true;
-          nativeEvent.preventDefault();
-        },
-        stopPropagation() {
-          nativeEvent.stopPropagation();
-        },
-        isDefaultPrevented() {
-          return this.defaultPrevented;
-        },
-        isPropagationStopped() {
-          return false;
-        },
-        persist() {},
-      };
-    };
-
-    let called = false;
-    if (typeof props.onPointerDown === 'function') {
-      props.onPointerDown(createSyntheticEvent('pointerdown'));
-      called = true;
-    }
-    if (typeof props.onMouseDown === 'function') {
-      props.onMouseDown(createSyntheticEvent('mousedown'));
-      called = true;
-    }
-    if (typeof props.onPointerUp === 'function') {
-      props.onPointerUp(createSyntheticEvent('pointerup'));
-      called = true;
-    }
-    if (typeof props.onMouseUp === 'function') {
-      props.onMouseUp(createSyntheticEvent('mouseup'));
-      called = true;
-    }
-    if (typeof props.onClick === 'function') {
-      props.onClick(createSyntheticEvent('click'));
-      called = true;
-    }
-    return called;
-  }
-
-  // 4. Disparar secuencia completa Pointer + Mouse sobre el botón y su <mat-icon> interno (Angular Material MDC)
-  function dispatchFullClickSequence(btn) {
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const iconChild = btn.querySelector('mat-icon, .mat-icon, .mdc-button__label') || btn;
-    const opts = {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window,
-      clientX: cx,
-      clientY: cy,
-      button: 0,
-      buttons: 1,
-    };
-    for (const targetNode of [iconChild, btn]) {
-      try {
-        targetNode.dispatchEvent(new PointerEvent('pointerover', opts));
-        targetNode.dispatchEvent(new MouseEvent('mouseenter', opts));
-        targetNode.dispatchEvent(new PointerEvent('pointerdown', opts));
-        targetNode.dispatchEvent(new MouseEvent('mousedown', opts));
-        targetNode.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
-        targetNode.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
-        targetNode.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0, detail: 1 }));
-      } catch {}
-    }
-    try {
-      btn.click();
-    } catch {}
-  }
-
-  const editorEl = findVisibleEditor();
-  if (!editorEl) {
-    return { injected: false, error: 'No se encontró el editor de prompt en Google Flow.' };
-  }
-
-  // Adjuntar logo oficial en modo THUMBNAILS si viene en el payload
-  if (mediaType === 'THUMBNAILS' && logoDataUrl && logoDataUrl.startsWith('data:')) {
-    try {
-      const parts = logoDataUrl.split(',');
-      const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
-      const bstr = atob(parts[1] || '');
-      const u8arr = new Uint8Array(bstr.length);
-      for (let i = 0; i < bstr.length; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
-      }
-      const logoFile = new File([u8arr], 'Logo_Huellas_de_la_Humanidad.png', { type: mime });
-      const dt = new DataTransfer();
-      dt.items.add(logoFile);
-      const fileInputs = Array.from(
-        document.querySelectorAll('input[type="file"][accept*="image" i], input[type="file"]')
-      );
-      for (const fi of fileInputs) {
-        try {
-          fi.files = dt.files;
-          fi.dispatchEvent(new Event('change', { bubbles: true }));
-          fi.dispatchEvent(new Event('input', { bubbles: true }));
-        } catch {}
-      }
-    } catch {}
-    await sleepMain(350);
-  }
-
-  editorEl.focus();
-  editorEl.click();
-
-  // Añadir espacio al final para que el cursor nunca quede atrapado dentro de una mención @
-  const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
-  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-
-  // PASO A: Insertar el texto sincronizando ProseMirror, Angular y DOM nativo
-  const pmView = editorEl.pmViewDesc?.view;
-  if (pmView && pmView.state) {
-    try {
-      const { state } = pmView;
-      const tr = state.tr.insertText(safePrompt, 0, state.doc.content.size);
-      pmView.dispatch(tr);
-      pmView.focus();
-    } catch {}
-  } else if (editorEl.tagName === 'TEXTAREA' || editorEl.tagName === 'INPUT') {
-    const proto =
-      editorEl.tagName === 'TEXTAREA'
-        ? window.HTMLTextAreaElement.prototype
-        : window.HTMLInputElement.prototype;
-    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (nativeSetter) nativeSetter.call(editorEl, safePrompt);
-    else editorEl.value = safePrompt;
-  } else {
-    const currentNorm = norm(editorEl.innerText || editorEl.textContent || '');
-    const expectedNorm = norm(safePrompt);
-    if (!currentNorm || currentNorm !== expectedNorm) {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(editorEl);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('insertText', false, safePrompt);
-    }
-  }
-
-  editorEl.dispatchEvent(
-    new InputEvent('input', {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      inputType: 'insertText',
-      data: safePrompt,
-    })
-  );
-  editorEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-  document.documentElement.setAttribute('data-huellas-flow-injected-ts', String(Date.now()));
-
-  // PASO B: Cerrar cualquier popover de menciones (@) o autocompletado que bloquee Enter
-  await sleepMain(60);
-  const escapeEvent = new KeyboardEvent('keydown', {
-    key: 'Escape',
-    code: 'Escape',
-    keyCode: 27,
-    which: 27,
-    bubbles: true,
-    cancelable: true,
-    composed: true,
-  });
-  editorEl.dispatchEvent(escapeEvent);
-  if (pmView && typeof pmView.someProp === 'function') {
-    try {
-      pmView.someProp('handleKeyDown', (f) => f(pmView, escapeEvent));
-    } catch {}
-  }
-
-  // PASO C: Esperar hasta que Angular/React habilite button.generate-icon-button (máx 600ms)
-  let submitBtn = null;
-  for (let i = 0; i < 12; i++) {
-    await sleepMain(50);
-    const candidate = findComposerSubmitButton(editorEl);
-    if (
-      candidate &&
-      !candidate.disabled &&
-      candidate.getAttribute('aria-disabled') !== 'true'
-    ) {
-      submitBtn = candidate;
-      break;
-    }
-  }
-  if (!submitBtn) {
-    submitBtn = findComposerSubmitButton(editorEl);
-  }
-
-  // PASO D: Intentar envío en MAIN world (React Fiber + Angular Material Pointer/Click + ProseMirror Enter)
-  let reactClicked = false;
-  if (submitBtn) {
-    reactClicked = invokeReactFiberClick(submitBtn);
-    dispatchFullClickSequence(submitBtn);
-  }
-
-  await sleepMain(100);
-  const currentText = (editorEl.textContent || editorEl.value || '').trim();
-  if (currentText.length > 0) {
-    const enterEvent = new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      keyCode: 13,
-      which: 13,
-      charCode: 13,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    });
-    if (pmView && typeof pmView.someProp === 'function') {
-      try {
-        pmView.someProp('handleKeyDown', (f) => f(pmView, enterEvent));
-      } catch {}
-    }
-    editorEl.dispatchEvent(enterEvent);
-    editorEl.dispatchEvent(new KeyboardEvent('keypress', enterEvent));
-    editorEl.dispatchEvent(new KeyboardEvent('keyup', enterEvent));
-  }
-
-  return {
-    injected: true,
-    reactClicked,
-    buttonFound: Boolean(submitBtn),
-    buttonClass: submitBtn ? submitBtn.className : null,
-  };
-}
-
-/**
- * Verifica si el editor principal de Google Flow ya se vació (señal inequívoca de que el prompt se sometió).
- */
-function checkIfPromptWasSubmitted() {
+function findStrictComposerSubmitButton() {
   const allCandidates = [
     ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
     ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
     ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
   ].filter((el) => {
     const r = el.getBoundingClientRect();
-    return r.width > 40 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
+    return (
+      r.width > 30 &&
+      r.height > 10 &&
+      getComputedStyle(el).visibility !== 'hidden' &&
+      !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+    );
   });
 
-  const composerCandidates = allCandidates.filter(
-    (el) => !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+  const editorEl = allCandidates[0] || null;
+  if (!editorEl) return { found: false, reason: 'NO_EDITOR' };
+
+  const editorRect = editorEl.getBoundingClientRect();
+
+  // Paso 1: Subir desde el editor SOLO mientras estemos dentro de la barra de prompt (altura <= 320px)
+  // Esto garantiza que NUNCA tocaremos botones de la galería de proyectos antiguos
+  let composerRoot = editorEl.parentElement;
+  let curr = editorEl.parentElement;
+
+  for (let depth = 0; depth < 6 && curr && curr !== document.body; depth++) {
+    const r = curr.getBoundingClientRect();
+    if (r.height > 320) {
+      break;
+    }
+    composerRoot = curr;
+    curr = curr.parentElement;
+  }
+
+  if (!composerRoot) return { found: false, reason: 'NO_COMPOSER_ROOT' };
+
+  // LISTA NEGRA ESTRICTA: Prohibido tocar botones de borrar (X / Clear), cerrar, descargar, adjuntar o ajustes
+  const FORBIDDEN_PATTERNS =
+    /close|clear|delete|remove|cancel|reset|trash|backspace|download|file_download|save|export|cerrar|borrar|limpiar|eliminar|descargar|add|plus|attach|upload|image|mic|voice|settings|tune|sliders|aspect|ratio|model|history|expand|collapse|more_vert|more_horiz|menu/i;
+
+  const SUBMIT_ICONS = ['arrow_upward', 'arrow_forward', 'send', 'subdirectory_arrow_left'];
+  const SUBMIT_LABELS =
+    /\b(send|submit|generate|create|run|enviar|generar|crear|start generation|iniciar generaci)\b/i;
+
+  const allComposerButtons = Array.from(composerRoot.querySelectorAll('button')).filter((b) => {
+    const r = b.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || getComputedStyle(b).visibility === 'hidden') {
+      return false;
+    }
+
+    const iconAndText = (b.textContent || '').trim().toLowerCase();
+    const classStr = (b.className || '').toLowerCase();
+    const aria = (
+      (b.getAttribute('aria-label') || '') +
+      ' ' +
+      (b.getAttribute('title') || '') +
+      ' ' +
+      (b.getAttribute('data-tooltip') || '')
+    ).toLowerCase();
+
+    // Si es explícitamente button.generate-icon-button, permitirlo siempre que no sea clear/close
+    if (classStr.includes('clear') || classStr.includes('close') || classStr.includes('delete')) {
+      return false;
+    }
+
+    // Excluir si coincide con cualquier patrón prohibido (ej. close / clear / download)
+    if (FORBIDDEN_PATTERNS.test(iconAndText) || FORBIDDEN_PATTERNS.test(aria)) {
+      return false;
+    }
+
+    // Excluir botones cuyo texto sea literalmente "x", "×" o "+"
+    if (iconAndText === 'x' || iconAndText === '×' || iconAndText === '+') {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Prioridad 0: Clase exacta de Google Flow verificada en DevTools (button.generate-icon-button)
+  let chosenBtn = allComposerButtons.find((b) =>
+    b.classList.contains('generate-icon-button') ||
+    Boolean(b.closest('flow-generate-icon-button, [submitbutton], .submit-button-slot'))
   );
-  const editorEl = composerCandidates[0] || allCandidates[0] || null;
+
+  // Prioridad 1: Botón con ícono arrow_upward / arrow_forward / send o aria-label de envío
+  if (!chosenBtn) {
+    chosenBtn = allComposerButtons.find((b) => {
+      const text = (b.textContent || '').trim().toLowerCase();
+      const aria = (
+        (b.getAttribute('aria-label') || '') +
+        ' ' +
+        (b.getAttribute('title') || '')
+      ).toLowerCase();
+
+      return (
+        SUBMIT_ICONS.some((icon) => text.includes(icon)) ||
+        SUBMIT_LABELS.test(aria) ||
+        b.type === 'submit'
+      );
+    });
+  }
+
+  // Prioridad 2: Si el botón usa un <svg> o <mat-icon> sin texto prohibido, tomar el botón redondo en la esquina inferior derecha del compositor
+  if (!chosenBtn) {
+    const rightSideButtons = allComposerButtons.filter((b) => {
+      const r = b.getBoundingClientRect();
+      const isRightOfEditorCenter = r.left >= editorRect.left + editorRect.width * 0.5;
+      const isCompactButton = r.width <= 72 && r.height <= 72;
+      const hasSvgOrIcon = Boolean(b.querySelector('svg, mat-icon, i, span'));
+      return isRightOfEditorCenter && isCompactButton && hasSvgOrIcon;
+    });
+
+    if (rightSideButtons.length > 0) {
+      rightSideButtons.sort((a, b) => {
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        return rb.right + rb.bottom - (ra.right + ra.bottom);
+      });
+      chosenBtn = rightSideButtons[0];
+    }
+  }
+
+  if (!chosenBtn) {
+    return { found: false, reason: 'NO_MATCHING_SUBMIT_BTN_IN_COMPOSER' };
+  }
+
+  window.__lastValidatedFlowSubmitBtn = chosenBtn;
+  const rect = chosenBtn.getBoundingClientRect();
+  const isDisabled =
+    Boolean(chosenBtn.disabled) || chosenBtn.getAttribute('aria-disabled') === 'true';
+
+  return {
+    found: true,
+    disabled: isDisabled,
+    x: Math.round(rect.left + rect.width / 2),
+    y: Math.round(rect.top + rect.height / 2),
+    text: (chosenBtn.textContent || '').trim(),
+    className: chosenBtn.className || '',
+    ariaLabel: chosenBtn.getAttribute('aria-label') || '',
+  };
+}
+
+/**
+ * Verifica si el prompt realmente fue enviado (el editor se vació tras Enter o tras clic en el botón validado).
+ */
+function checkSubmissionState() {
+  const allCandidates = [
+    ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
+    ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
+    ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
+  ].filter((el) => {
+    const r = el.getBoundingClientRect();
+    return (
+      r.width > 30 &&
+      r.height > 10 &&
+      getComputedStyle(el).visibility !== 'hidden' &&
+      !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+    );
+  });
+
+  const editorEl = allCandidates[0] || null;
   if (!editorEl) return { submitted: true, remainingLength: 0 };
 
   const remainingText = (editorEl.textContent || editorEl.value || '').trim();
@@ -558,7 +312,43 @@ function checkIfPromptWasSubmitted() {
 }
 
 /**
- * Secuencia física completa de puntero vía CDP: mouseMoved -> mousePressed -> mouseReleased (isTrusted: true)
+ * Envía la secuencia completa de la tecla física Enter por hardware vía CDP
+ */
+async function sendHardwareEnterKey(target) {
+  await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+    type: 'rawKeyDown',
+    key: 'Enter',
+    code: 'Enter',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+    macCharCode: 13,
+    text: '\r',
+    unmodifiedText: '\r',
+  });
+  await sleep(25);
+  await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+    type: 'char',
+    key: 'Enter',
+    code: 'Enter',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+    macCharCode: 13,
+    text: '\r',
+    unmodifiedText: '\r',
+  });
+  await sleep(35);
+  await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Enter',
+    code: 'Enter',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+    macCharCode: 13,
+  });
+}
+
+/**
+ * Secuencia física completa de ratón: mouseMoved -> mousePressed -> mouseReleased
  */
 async function dispatchHardwareClick(target, x, y) {
   await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
@@ -567,7 +357,7 @@ async function dispatchHardwareClick(target, x, y) {
     y,
     button: 'none',
   });
-  await sleep(30);
+  await sleep(35);
   await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
     type: 'mousePressed',
     x,
@@ -576,7 +366,7 @@ async function dispatchHardwareClick(target, x, y) {
     buttons: 1,
     clickCount: 1,
   });
-  await sleep(45);
+  await sleep(50);
   await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
     type: 'mouseReleased',
     x,
@@ -588,17 +378,28 @@ async function dispatchHardwareClick(target, x, y) {
 }
 
 /**
- * CAPA 2: Envío por Hardware vía Chrome DevTools Protocol (CDP) con isTrusted: true.
- * Calcula las coordenadas reales de button.generate-icon-button DESPUÉS de insertar el texto
- * y ejecuta el clic físico y/o Enter físico de hardware.
+ * Ejecuta en una sola sesión limpia de chrome.debugger:
+ * 1. Snapshot de imágenes antiguas (window.__flowPreExistingMedia y data-huellas-preexisting)
+ * 2. Foco físico en el editor + inyección híbrida MAIN (execCommand + InputEvent) + CDP Input.insertText
+ * 3. Envío por Hardware Enter (#1) -> Clic Hardware en button.generate-icon-button (#2) -> React/Angular fallback (#3)
  */
-async function submitViaCDPDebugger(tabId, rawPromptText, mediaType) {
+async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   const target = { tabId };
+  const mediaType = String(payload.mediaType || '');
+  const logoDataUrl = String(payload.logoDataUrl || '');
   const promptText =
     mediaType === 'THUMBNAILS'
       ? String(rawPromptText || '').replace(/^Thumbnail\s*:\s*/i, '').trim()
       : String(rawPromptText || '').trim();
 
+  // 1. Activar la pestaña y enfocar la ventana
+  const tab = await chrome.tabs.update(tabId, { active: true }).catch(() => null);
+  if (tab?.windowId) {
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  }
+  await sleep(150);
+
+  // 2. Adjuntar chrome.debugger desde el inicio
   try {
     await chrome.debugger.attach(target, '1.3');
   } catch (err) {
@@ -608,310 +409,409 @@ async function submitViaCDPDebugger(tabId, rawPromptText, mediaType) {
     }
   }
 
+  // IMPORTANTE: Esperar 300ms a que la barra superior "started debugging" de Chrome
+  // termine de bajar para que las coordenadas (X, Y) del viewport jamás se desplacen.
+  await sleep(300);
+
   try {
-    // 1. Verificar el estado actual del editor y obtener sus coordenadas para darle foco físico
+    // 3. Tomar snapshot de imágenes antiguas + adjuntar logo si es miniatura + localizar y limpiar el editor
     const [prep] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: () => {
-        const allCandidates = [
+      args: [mediaType, logoDataUrl],
+      func: (mType, logoUrl) => {
+        // Marcar y guardar todas las imágenes/videos que YA existen en la página (de proyectos antiguos)
+        const mediaEls = Array.from(document.querySelectorAll('img, video'));
+        const currentUrls = [];
+        for (const el of mediaEls) {
+          el.setAttribute('data-huellas-preexisting', 'true');
+          const u = (el.currentSrc || el.src || '').trim();
+          if (u) currentUrls.push(u);
+        }
+        window.__flowPreExistingMedia = new Set(currentUrls);
+
+        // Localizar el editor visible de Google Flow (excluyendo paneles laterales)
+        const candidates = [
           ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
           ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
           ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
         ].filter((el) => {
           const r = el.getBoundingClientRect();
-          return r.width > 40 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
+          return (
+            r.width > 30 &&
+            r.height > 10 &&
+            getComputedStyle(el).visibility !== 'hidden' &&
+            !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+          );
         });
-        const composerCandidates = allCandidates.filter(
-          (el) => !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
-        );
-        const editorEl = composerCandidates[0] || allCandidates[0] || null;
-        if (!editorEl) return { found: false };
 
+        const editorEl = candidates[0] || null;
+        if (!editorEl) {
+          return { found: false, error: 'No se encontró el campo de texto de Google Flow.' };
+        }
+
+        // Si es miniatura y hay logo oficial, adjuntarlo al input file
+        if (mType === 'THUMBNAILS' && logoUrl && logoUrl.startsWith('data:')) {
+          try {
+            const parts = logoUrl.split(',');
+            const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+            const bstr = atob(parts[1] || '');
+            const u8arr = new Uint8Array(bstr.length);
+            for (let i = 0; i < bstr.length; i++) {
+              u8arr[i] = bstr.charCodeAt(i);
+            }
+            const logoFile = new File([u8arr], 'Logo_Huellas_de_la_Humanidad.png', { type: mime });
+            const dt = new DataTransfer();
+            dt.items.add(logoFile);
+            const fileInputs = Array.from(
+              document.querySelectorAll('input[type="file"][accept*="image" i], input[type="file"]')
+            );
+            for (const fi of fileInputs) {
+              try {
+                fi.files = dt.files;
+                fi.dispatchEvent(new Event('change', { bubbles: true }));
+                fi.dispatchEvent(new Event('input', { bubbles: true }));
+              } catch {}
+            }
+          } catch {}
+        }
+
+        // Si había texto residual de un intento previo, limpiarlo en ProseMirror antes de empezar
+        const pmView = editorEl.pmViewDesc?.view;
+        const existingText = (editorEl.textContent || editorEl.value || '').trim();
+        if (existingText.length > 0) {
+          if (pmView && pmView.state) {
+            try {
+              const tr = pmView.state.tr.delete(0, pmView.state.doc.content.size);
+              pmView.dispatch(tr);
+            } catch {}
+          } else if (editorEl.tagName === 'TEXTAREA') {
+            editorEl.value = '';
+          } else {
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(editorEl);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            document.execCommand('delete', false);
+          }
+        }
+
+        editorEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         editorEl.focus();
-        const currentText = (editorEl.textContent || editorEl.value || '').trim();
+
         const rect = editorEl.getBoundingClientRect();
         return {
           found: true,
-          hasText: currentText.length > 0,
-          editorX: Math.round(rect.left + Math.min(40, rect.width / 2)),
-          editorY: Math.round(rect.top + Math.min(20, rect.height / 2)),
+          preExistingCount: currentUrls.length,
+          editorX: Math.round(rect.left + Math.min(45, rect.width * 0.25)),
+          editorY: Math.round(rect.top + rect.height / 2),
         };
       },
     });
 
     if (!prep?.result?.found) {
-      throw new Error('Editor no encontrado durante la fase CDP.');
+      throw new Error(prep?.result?.error || 'No se encontró el editor.');
     }
 
-    const { editorX, editorY, hasText } = prep.result;
+    const { editorX, editorY, preExistingCount } = prep.result;
+
+    // 4. Hacer clic físico dentro del editor para darle foco nativo real al cursor
     await dispatchHardwareClick(target, editorX, editorY);
-    await sleep(60);
+    await sleep(100);
 
-    // 2. Si el texto no estaba presente, inyectarlo de forma nativa con Input.insertText
-    if (!hasText && promptText) {
-      await chrome.debugger.sendCommand(target, 'Input.insertText', {
-        text: `${promptText} `,
-      });
-    }
-
-    // Enviar Espacio + Backspace nativos (isTrusted: true) para despertar validadores de Angular / ProseMirror
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: ' ',
-      code: 'Space',
-      text: ' ',
-      unmodifiedText: ' ',
-      windowsVirtualKeyCode: 32,
-    });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: ' ',
-      code: 'Space',
-      windowsVirtualKeyCode: 32,
-    });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: 'Backspace',
-      code: 'Backspace',
-      windowsVirtualKeyCode: 8,
-    });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: 'Backspace',
-      code: 'Backspace',
-      windowsVirtualKeyCode: 8,
-    });
-
-    await sleep(80);
-
-    // 3. Enviar Escape físico por si el prompt contiene @Menciones y abrió un menú flotante
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: 'Escape',
-      code: 'Escape',
-      windowsVirtualKeyCode: 27,
-    });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: 'Escape',
-      code: 'Escape',
-      windowsVirtualKeyCode: 27,
-    });
-
-    // Esperar a que Angular Material / React estabilice la altura de la caja y habilite button.generate-icon-button
-    await sleep(160);
-
-    // 4. Obtener las coordenadas reales (x, y) de button.generate-icon-button dentro del compositor
-    const [btnCoords] = await chrome.scripting.executeScript({
+    // 5. Inyección Híbrida (MAIN World execCommand + InputEvent + CDP Input.insertText si hace falta)
+    // Actualiza simultáneamente el estado interno de ProseMirror, Angular/Wiz/Lit y el DOM sin usar Backspace
+    const [hybridInsert] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: () => {
-        const allCandidates = [
+      args: [promptText],
+      func: (textToInsert) => {
+        const candidates = [
           ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
           ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
           ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
         ].filter((el) => {
           const r = el.getBoundingClientRect();
-          return r.width > 40 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
-        });
-        const composerCandidates = allCandidates.filter(
-          (el) => !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
-        );
-        const editorEl = composerCandidates[0] || allCandidates[0] || null;
-        if (!editorEl) return null;
-
-        const SUBMIT_ICONS = ['arrow_upward', 'arrow_forward', 'send', 'spark', 'auto_awesome'];
-        const SUBMIT_LABELS =
-          /send|submit|generate|create|enviar|crear|generar|start generation|iniciar generaci/i;
-
-        let ancestor = editorEl.parentElement;
-        for (let depth = 0; depth < 8 && ancestor && ancestor !== document.body; depth++) {
-          const exactBtn = ancestor.querySelector(
-            'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
+          return (
+            r.width > 30 &&
+            r.height > 10 &&
+            getComputedStyle(el).visibility !== 'hidden' &&
+            !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
           );
-          if (
-            exactBtn &&
-            !exactBtn.disabled &&
-            exactBtn.getAttribute('aria-disabled') !== 'true'
-          ) {
-            const r = exactBtn.getBoundingClientRect();
-            if (r.width > 0 && r.height > 0 && getComputedStyle(exactBtn).visibility !== 'hidden') {
-              exactBtn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-              const rect = exactBtn.getBoundingClientRect();
-              return {
-                x: Math.round(rect.left + rect.width / 2),
-                y: Math.round(rect.top + rect.height / 2),
-                label: exactBtn.className || 'generate-icon-button',
-              };
-            }
-          }
+        });
+        const textbox = candidates[0] || null;
+        if (!textbox) return { injectedInMain: false };
 
-          const buttons = Array.from(ancestor.querySelectorAll('button')).filter((b) => {
-            const r = b.getBoundingClientRect();
-            return (
-              r.width > 0 &&
-              r.height > 0 &&
-              !b.disabled &&
-              b.getAttribute('aria-disabled') !== 'true' &&
-              getComputedStyle(b).visibility !== 'hidden'
-            );
-          });
-
-          const match = buttons.find((b) => {
-            const text = (b.textContent || '').trim().toLowerCase();
-            const aria =
-              (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
-            return (
-              b.classList.contains('generate-icon-button') ||
-              SUBMIT_ICONS.some((icon) => text.includes(icon)) ||
-              SUBMIT_LABELS.test(aria) ||
-              b.type === 'submit'
-            );
-          });
-
-          const targetBtn =
-            match ||
-            (depth >= 2 && buttons.length > 0
-              ? buttons.sort(
-                  (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right
-                )[0]
-              : null);
-
-          if (targetBtn) {
-            targetBtn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            const rect = targetBtn.getBoundingClientRect();
-            return {
-              x: Math.round(rect.left + rect.width / 2),
-              y: Math.round(rect.top + rect.height / 2),
-              label:
-                targetBtn.getAttribute('aria-label') ||
-                targetBtn.className ||
-                targetBtn.textContent.trim(),
-            };
-          }
-          ancestor = ancestor.parentElement;
+        textbox.focus();
+        const selection = window.getSelection();
+        if (selection && textbox.tagName !== 'TEXTAREA') {
+          const range = document.createRange();
+          range.selectNodeContents(textbox);
+          selection.removeAllRanges();
+          selection.addRange(range);
         }
 
-        // Fallback directo por clase exacta button.generate-icon-button
-        const fallbackBtn = document.querySelector('button.generate-icon-button:not([disabled])');
-        if (fallbackBtn) {
-          const rect = fallbackBtn.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            return {
-              x: Math.round(rect.left + rect.width / 2),
-              y: Math.round(rect.top + rect.height / 2),
-              label: 'button.generate-icon-button',
-            };
-          }
-        }
-        return null;
+        document.execCommand('insertText', false, textToInsert);
+
+        const inputEvent = new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: textToInsert,
+        });
+        textbox.dispatchEvent(inputEvent);
+        textbox.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+
+        const current = (textbox.textContent || textbox.value || '').trim();
+        return {
+          injectedInMain: current.length > 0,
+          length: current.length,
+        };
       },
     });
 
-    // 5. Ejecutar clic físico por hardware sobre button.generate-icon-button
-    if (btnCoords?.result?.x && btnCoords?.result?.y) {
-      const { x, y } = btnCoords.result;
-      await dispatchHardwareClick(target, x, y);
-      await sleep(260);
+    // Si execCommand en MAIN world no llenó el campo, inyectar vía CDP Input.insertText
+    if (!hybridInsert?.result?.injectedInMain) {
+      await chrome.debugger.sendCommand(target, 'Input.insertText', {
+        text: promptText,
+      });
     }
+    await sleep(120);
 
-    // 6. Verificar si se vació el editor; si aún queda texto, enviar tecla física Enter (windowsVirtualKeyCode: 13)
-    const [postClickCheck] = await chrome.scripting.executeScript({
+    // 6. Verificar que el texto entró, colocar el cursor al final (NUNCA seleccionar todo) y detectar si hay menú @
+    const [verifyInsert] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: checkIfPromptWasSubmitted,
+      args: [promptText],
+      func: (expectedText) => {
+        const candidates = [
+          ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
+          ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
+          ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
+        ].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            r.width > 30 &&
+            r.height > 10 &&
+            getComputedStyle(el).visibility !== 'hidden' &&
+            !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+          );
+        });
+        const editorEl = candidates[0] || null;
+        if (!editorEl) return { ok: false };
+
+        let current = (editorEl.textContent || editorEl.value || '').trim();
+
+        if (current.length === 0) {
+          editorEl.focus();
+          const pmView = editorEl.pmViewDesc?.view;
+          if (pmView && pmView.state) {
+            const tr = pmView.state.tr.insertText(expectedText, 0, pmView.state.doc.content.size);
+            pmView.dispatch(tr);
+          } else {
+            document.execCommand('insertText', false, expectedText);
+          }
+          current = (editorEl.textContent || editorEl.value || '').trim();
+        }
+
+        editorEl.dispatchEvent(
+          new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            inputType: 'insertText',
+            data: expectedText,
+          })
+        );
+
+        // Colocar el cursor al final del texto (NUNCA dejar el texto seleccionado)
+        if (editorEl.tagName !== 'TEXTAREA') {
+          const sel = window.getSelection();
+          if (sel) {
+            sel.selectAllChildren(editorEl);
+            sel.collapseToEnd();
+          }
+        }
+
+        const mentionMenuOpen = Boolean(
+          document.querySelector(
+            '[role="listbox"], [data-radix-popper-content-wrapper] [role="option"]'
+          )
+        );
+
+        return {
+          ok: current.length > 0,
+          insertedLength: current.length,
+          mentionMenuOpen,
+        };
+      },
     });
 
-    if (!postClickCheck?.result?.submitted) {
-      await dispatchHardwareClick(target, editorX, editorY);
-      await sleep(50);
+    if (!verifyInsert?.result?.ok) {
+      throw new Error('El prompt no pudo insertarse en el editor de Google Flow.');
+    }
+
+    // Solo enviar Escape si realmente hay un menú de sugerencias (@) abierto
+    if (verifyInsert.result.mentionMenuOpen) {
       await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
         type: 'rawKeyDown',
-        key: 'Enter',
-        code: 'Enter',
-        windowsVirtualKeyCode: 13,
-        nativeVirtualKeyCode: 13,
-        text: '\r',
-        unmodifiedText: '\r',
-      });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-        type: 'char',
-        key: 'Enter',
-        code: 'Enter',
-        windowsVirtualKeyCode: 13,
-        text: '\r',
-        unmodifiedText: '\r',
+        key: 'Escape',
+        code: 'Escape',
+        windowsVirtualKeyCode: 27,
+        nativeVirtualKeyCode: 27,
       });
       await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
         type: 'keyUp',
-        key: 'Enter',
-        code: 'Enter',
-        windowsVirtualKeyCode: 13,
-        nativeVirtualKeyCode: 13,
+        key: 'Escape',
+        code: 'Escape',
+        windowsVirtualKeyCode: 27,
+        nativeVirtualKeyCode: 27,
       });
+      await sleep(100);
+    }
+
+    // 7. Esperar hasta 700ms a que button.generate-icon-button dentro del compositor se habilite
+    let submitBtnInfo = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await sleep(70);
+      const [btnScan] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: findStrictComposerSubmitButton,
+      });
+      if (btnScan?.result?.found && !btnScan.result.disabled) {
+        submitBtnInfo = btnScan.result;
+        break;
+      }
+    }
+
+    // =========================================================================
+    // 8. MÉTODO DE ENVÍO #1 (PRIORIDAD MÁXIMA): TECLA ENTER FÍSICA POR HARDWARE
+    // No puede tocar jamás por error un botón de "Borrar (X)" ni de "Descargar"
+    // =========================================================================
+    await sendHardwareEnterKey(target);
+    await sleep(450);
+
+    let [statusAfterEnter] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: checkSubmissionState,
+    });
+
+    if (statusAfterEnter?.result?.submitted) {
+      return {
+        success: true,
+        submitted: true,
+        method: 'HARDWARE_ENTER_KEY',
+        preExistingCount,
+      };
+    }
+
+    // =========================================================================
+    // 9. MÉTODO DE ENVÍO #2: CLIC HARDWARE EN EL BOTÓN DE ENVIAR VALIDADO (button.generate-icon-button)
+    // Solo hace clic si el botón pasó la lista negra (NO es X, Clear ni Download)
+    // =========================================================================
+    const [freshBtnScan] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: findStrictComposerSubmitButton,
+    });
+
+    const validBtn = freshBtnScan?.result?.found ? freshBtnScan.result : submitBtnInfo;
+
+    if (validBtn?.x && validBtn?.y) {
+      // Si el framework aún mantiene el atributo disabled de forma estática, habilitarlo antes del clic físico
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: () => {
+          const btn = window.__lastValidatedFlowSubmitBtn;
+          if (btn && (btn.hasAttribute('disabled') || btn.classList.contains('disabled'))) {
+            btn.removeAttribute('disabled');
+            btn.removeAttribute('aria-disabled');
+          }
+        },
+      });
+      await dispatchHardwareClick(target, validBtn.x, validBtn.y);
+      await sleep(450);
+    }
+
+    let [statusAfterClick] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: checkSubmissionState,
+    });
+
+    if (statusAfterClick?.result?.submitted) {
+      return {
+        success: true,
+        submitted: true,
+        method: 'HARDWARE_BUTTON_CLICK',
+        buttonClicked: validBtn,
+        preExistingCount,
+      };
+    }
+
+    // =========================================================================
+    // 10. MÉTODO DE ENVÍO #3: DISPARO DIRECTO EN __reactProps$.onClick / .click() DEL BOTÓN VALIDADO
+    // =========================================================================
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const btn = window.__lastValidatedFlowSubmitBtn;
+        if (!btn) return;
+        const propsKey = Object.keys(btn).find((k) => k.startsWith('__reactProps$'));
+        if (propsKey && typeof btn[propsKey]?.onClick === 'function') {
+          btn[propsKey].onClick({
+            nativeEvent: new MouseEvent('click', { bubbles: true, cancelable: true }),
+            currentTarget: btn,
+            target: btn,
+            bubbles: true,
+            cancelable: true,
+            defaultPrevented: false,
+            isTrusted: true,
+            preventDefault() {},
+            stopPropagation() {},
+            isDefaultPrevented: () => false,
+            isPropagationStopped: () => false,
+            persist() {},
+          });
+        }
+        try {
+          btn.click();
+        } catch {}
+      },
+    });
+
+    await sleep(350);
+    const [finalStatus] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: checkSubmissionState,
+    });
+
+    if (!finalStatus?.result?.submitted) {
+      throw new Error(
+        `El prompt quedó en el editor sin enviarse. Botón detectado: ${JSON.stringify(
+          validBtn || null
+        )}`
+      );
     }
 
     return {
-      buttonCoords: btnCoords?.result || null,
-      fallbackEnterUsed: !postClickCheck?.result?.submitted,
+      success: true,
+      submitted: true,
+      method: 'REACT_FIBER_FALLBACK',
+      preExistingCount,
     };
   } finally {
     try {
       await chrome.debugger.detach(target);
     } catch {}
   }
-}
-
-/**
- * Orquestador completo de envío de prompt en Google Flow (Capa 1 MAIN + Capa 2 CDP Hardware).
- */
-async function handleFlowAutomation(tabId, promptText, payload = {}) {
-  const tab = await chrome.tabs.update(tabId, { active: true }).catch(() => null);
-  if (tab?.windowId) {
-    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-  }
-  await sleep(120);
-
-  const mediaType = String(payload.mediaType || '');
-  const logoDataUrl = String(payload.logoDataUrl || '');
-
-  // CAPA 1: Inyección y disparo desde world: 'MAIN'
-  const [mainAttempt] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    args: [promptText, mediaType, logoDataUrl],
-    func: injectAndSubmitViaMainWorld,
-  });
-
-  const mainResult = mainAttempt?.result;
-  if (!mainResult?.injected) {
-    throw new Error(mainResult?.error || 'No se pudo localizar el editor en Google Flow.');
-  }
-
-  if (payload.autoSubmit === false) {
-    return { method: 'INJECT_ONLY', details: mainResult };
-  }
-
-  // Esperar 350ms para comprobar si la Capa 1 vació el editor
-  await sleep(350);
-
-  const [checkAfterMain] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: checkIfPromptWasSubmitted,
-  });
-
-  if (checkAfterMain?.result?.submitted) {
-    return { method: 'MAIN_WORLD', details: mainResult };
-  }
-
-  // CAPA 2: Fallback 100% Hardware (isTrusted: true) con chrome.debugger (CDP)
-  console.warn(
-    '[Huellas FlowAutomator] Envío en MAIN world bloqueado por isTrusted. Activando CDP Hardware...'
-  );
-  const cdpResult = await submitViaCDPDebugger(tabId, promptText, mediaType);
-  return { method: 'CDP_HARDWARE_DEBUGGER', details: cdpResult };
 }
 
 // ============================================================================
@@ -923,7 +823,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const senderWindowId = sender?.tab?.windowId;
 
-  // Direct SEND_PROMPT / EXECUTE_FLOW_PROMPT delegation from flow-content.js or popup
+  // Direct SEND_PROMPT / EXECUTE_FLOW_PROMPT delegation
   if (
     message.action === 'SEND_PROMPT' ||
     message.type === 'SEND_PROMPT' ||
@@ -942,8 +842,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
-    handleFlowAutomation(tabId, promptText, message.payload || message)
-      .then((res) => sendResponse({ success: true, ok: true, ...res }))
+    executeFlowPromptHardware(tabId, promptText, message.payload || message)
+      .then((res) => sendResponse({ ok: true, ...res }))
       .catch((err) => {
         console.error('[FlowAutomator] Error:', err);
         sendResponse({ success: false, ok: false, error: String(err?.message || err) });
@@ -969,7 +869,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.2.0',
+          version: '2.3.0',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -1072,27 +972,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await sleep(100);
 
         if (targetService === 'FLOW' && action === 'SEND_PROMPT') {
-          // 1. Notificar a flow-content.js que inicie únicamente el Watcher de Videos / Miniaturas / Referencias
-          chrome.tabs
-            .sendMessage(targetTab.id, {
-              target: 'FLOW',
-              ...payload,
-              delegatedToBackground: true,
-            })
-            .catch(() => {});
-
-          // 2. Ejecutar la automatización de Doble Capa (MAIN World + CDP Hardware Debugger)
           try {
-            const autoRes = await handleFlowAutomation(
+            // 1. Primero ejecutar el envío por Hardware CDP (que toma snapshot de las imágenes antiguas antes de enviar)
+            const autoRes = await executeFlowPromptHardware(
               targetTab.id,
               String(payload.prompt || ''),
               payload
             );
+
+            // 2. ÚNICAMENTE cuando el prompt ya fue enviado con éxito, iniciar el Watcher en flow-content.js
+            chrome.tabs
+              .sendMessage(targetTab.id, {
+                target: 'FLOW',
+                ...payload,
+                action: 'START_FLOW_WATCHER_AFTER_SUBMIT',
+              })
+              .catch(() => {});
+
             broadcastToHuellasTabsInSameWindow(senderWindowId, {
               type: 'BRIDGE_STATUS',
               service: 'FLOW',
               status: 'GENERATING',
-              message: `🎬 Prompt enviado y sometido en Google Flow (${autoRes.method}). Vigilando generación automáticamente...`,
+              message: `🎬 Prompt enviado y sometido en Google Flow (${autoRes.method}). Vigilando únicamente imágenes/videos nuevos...`,
               clipNumber: payload.clipNumber,
               clipId: payload.clipId,
               mediaType: payload.mediaType,
