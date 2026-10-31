@@ -2649,6 +2649,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||
     message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
     message.type === 'FLOW_REFERENCE_CAPTURED' ||
+    message.type === 'FLOW_GENERATION_FAILED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
   ) {
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);

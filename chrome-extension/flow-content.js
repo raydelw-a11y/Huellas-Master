@@ -650,26 +650,91 @@
     return '';
   }
 
+  function getCanvasRgbSignature(ctx, width, height) {
+    try {
+      const data = ctx.getImageData(0, 0, width, height).data;
+      const samples = [];
+      const cols = 8;
+      const rows = 6;
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          const x = Math.min(width - 1, Math.floor((c * width) / (cols + 1)));
+          const y = Math.min(height - 1, Math.floor((r * height) / (rows + 1)));
+          const idx = (y * width + x) * 4;
+          samples.push(`${data[idx] >> 3},${data[idx + 1] >> 3},${data[idx + 2] >> 3}`);
+        }
+      }
+      return samples.join('|');
+    } catch {
+      return '';
+    }
+  }
+
+  async function seekAndFlushVideoFrame(videoEl, targetTimeSec) {
+    const dur =
+      Number.isFinite(videoEl.duration) && videoEl.duration > 0 ? videoEl.duration : 8;
+    const clampedTime = Math.min(Math.max(0.08, targetTimeSec), Math.max(0.15, dur - 0.08));
+
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        videoEl.removeEventListener('seeked', finish);
+        resolve(true);
+      };
+      const t = setTimeout(finish, 2600);
+      videoEl.addEventListener('seeked', () => {
+        clearTimeout(t);
+        finish();
+      });
+      try {
+        videoEl.currentTime = clampedTime;
+      } catch {
+        clearTimeout(t);
+        finish();
+      }
+    });
+
+    // En pestañas en segundo plano de Chromium, hacer play() brevemente fuerza al decodificador a volcar el nuevo frame
+    try {
+      const playPromise = videoEl.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        await playPromise.catch(() => {});
+      }
+      await new Promise((r) => setTimeout(r, 85));
+      videoEl.pause();
+    } catch {}
+
+    await new Promise((r) => setTimeout(r, 65));
+  }
+
   async function extractThreeKeyframesFromVideoSource(sourceUrlOrVideoEl, liveVideoEl) {
     const frames = [];
+    const signatures = [];
     const canvas = document.createElement('canvas');
     canvas.width = 384;
     canvas.height = 216;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return { frames: [], duration: 0 };
 
-    // Create a clean offscreen video element if we have a same-origin blob URL
+    // Crear un elemento <video> montado en el DOM (oculto) para garantizar que Chromium pinte cada fotograma distinto
     if (typeof sourceUrlOrVideoEl === 'string' && sourceUrlOrVideoEl) {
+      let tempVideo = null;
       try {
-        const tempVideo = document.createElement('video');
+        tempVideo = document.createElement('video');
         tempVideo.muted = true;
+        tempVideo.defaultMuted = true;
         tempVideo.playsInline = true;
         tempVideo.crossOrigin = 'anonymous';
         tempVideo.preload = 'auto';
+        tempVideo.style.cssText =
+          'position:fixed;left:-9999px;top:-9999px;width:384px;height:216px;opacity:0.01;pointer-events:none;z-index:-1;';
+        document.body.appendChild(tempVideo);
         tempVideo.src = sourceUrlOrVideoEl;
 
         await new Promise((resolve, reject) => {
-          const t = setTimeout(() => reject(new Error('timeout metadata')), 8000);
+          const t = setTimeout(() => reject(new Error('timeout metadata')), 8500);
           tempVideo.onloadeddata = () => {
             clearTimeout(t);
             resolve(true);
@@ -681,58 +746,66 @@
         });
 
         const dur =
-          Number.isFinite(tempVideo.duration) && tempVideo.duration > 0
+          Number.isFinite(tempVideo.duration) && tempVideo.duration > 0.5
             ? tempVideo.duration
             : 8;
-        const timestamps = [
-          Math.max(0.25, dur * 0.15),
-          dur * 0.5,
-          Math.max(0.5, dur * 0.85),
-        ];
+        const ratios = [0.12, 0.5, 0.86];
 
-        for (const ts of timestamps) {
-          await new Promise((resolve) => {
-            const t = setTimeout(() => resolve(false), 3000);
-            tempVideo.onseeked = () => {
-              clearTimeout(t);
-              resolve(true);
-            };
-            tempVideo.currentTime = Math.min(ts, Math.max(0.1, dur - 0.1));
-          });
+        for (let i = 0; i < ratios.length; i++) {
+          let targetTs = Math.max(0.18, dur * ratios[i]);
+          await seekAndFlushVideoFrame(tempVideo, targetTs);
           ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
-          const jpg = canvas.toDataURL('image/jpeg', 0.76);
+          let sig = getCanvasRgbSignature(ctx, canvas.width, canvas.height);
+
+          // Si el fotograma es idéntico al anterior, desplazar el tiempo +0.65s y reproducir 130ms para forzar cambio de cuadro
+          if (sig && signatures.includes(sig)) {
+            const altTs = Math.min(dur - 0.1, targetTs + Math.max(0.55, dur * 0.14));
+            await seekAndFlushVideoFrame(tempVideo, altTs);
+            try {
+              await tempVideo.play().catch(() => {});
+              await new Promise((r) => setTimeout(r, 130));
+              tempVideo.pause();
+            } catch {}
+            ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+            sig = getCanvasRgbSignature(ctx, canvas.width, canvas.height);
+          }
+
+          const jpg = canvas.toDataURL('image/jpeg', 0.8);
           if (jpg && jpg.length > 200) {
             frames.push(jpg);
+            if (sig) signatures.push(sig);
           }
         }
 
-        tempVideo.removeAttribute('src');
-        tempVideo.load();
         if (frames.length > 0) {
           return { frames, duration: dur };
         }
-      } catch {}
+      } catch {
+      } finally {
+        if (tempVideo) {
+          try {
+            tempVideo.pause();
+            tempVideo.removeAttribute('src');
+            tempVideo.load();
+            tempVideo.remove();
+          } catch {}
+        }
+      }
     }
 
-    // Fallback: draw directly from live <video> element on the page
+    // Fallback: extraer directamente del elemento <video> en vivo de la página
     if (liveVideoEl) {
       try {
         const dur =
-          Number.isFinite(liveVideoEl.duration) && liveVideoEl.duration > 0
+          Number.isFinite(liveVideoEl.duration) && liveVideoEl.duration > 0.5
             ? liveVideoEl.duration
             : 8;
-        const timestamps = [
-          Math.max(0.25, dur * 0.15),
-          dur * 0.5,
-          Math.max(0.5, dur * 0.85),
-        ];
-        for (const ts of timestamps) {
-          try {
-            liveVideoEl.currentTime = Math.min(ts, Math.max(0.1, dur - 0.1));
-            await new Promise((r) => setTimeout(r, 350));
-          } catch {}
+        const ratios = [0.12, 0.5, 0.86];
+        for (let i = 0; i < ratios.length; i++) {
+          const ts = Math.max(0.18, dur * ratios[i]);
+          await seekAndFlushVideoFrame(liveVideoEl, ts);
           ctx.drawImage(liveVideoEl, 0, 0, canvas.width, canvas.height);
-          const jpg = canvas.toDataURL('image/jpeg', 0.76);
+          const jpg = canvas.toDataURL('image/jpeg', 0.8);
           if (jpg && jpg.length > 200) {
             frames.push(jpg);
           }
@@ -742,6 +815,68 @@
     }
 
     return { frames, duration: 0 };
+  }
+
+  /**
+   * Escanea tarjetas de error en Google Flow (como "Failed: This prompt might violate our policies about generating prominent people...").
+   * Si markPreexistingOnly = true, marca todas las tarjetas actuales para que no disparen falsos positivos en próximos envíos.
+   */
+  function scanFlowFailureCards(markPreexistingOnly = false) {
+    const POLICY_REGEX =
+      /violate our policies|generating prominent people|try a different prompt|refunded for this generation|couldn't generate|unable to generate|generation failed|no se pudo generar|viola nuestras pol/i;
+    const PROMINENT_PEOPLE_REGEX =
+      /prominent people|personas prominentes|public figure|figura p[uú]blica|violate our policies/i;
+
+    const candidates = Array.from(
+      document.querySelectorAll('div, section, article, mat-card, p, span')
+    ).filter((el) => {
+      if (!el || el.closest('#huellas-flow-banner')) return false;
+      const txt = (el.innerText || el.textContent || '').trim();
+      if (txt.length < 22 || txt.length > 680) return false;
+      if (!POLICY_REGEX.test(txt)) return false;
+      // Preferir el contenedor hoja más específico que contenga el mensaje completo
+      const childMatch = Array.from(el.children || []).some((ch) => {
+        const cTxt = (ch.innerText || ch.textContent || '').trim();
+        return cTxt.length >= 22 && POLICY_REGEX.test(cTxt);
+      });
+      return !childMatch;
+    });
+
+    if (markPreexistingOnly) {
+      for (const el of candidates) {
+        el.setAttribute('data-huellas-failed-handled', 'true');
+        const cardParent = el.closest('[class*="card" i], [class*="result" i], [class*="item" i]');
+        if (cardParent) cardParent.setAttribute('data-huellas-failed-handled', 'true');
+      }
+      return null;
+    }
+
+    for (const el of candidates) {
+      if (el.getAttribute('data-huellas-failed-handled') === 'true') continue;
+      const cardParent = el.closest('[class*="card" i], [class*="result" i], [class*="item" i]');
+      if (cardParent && cardParent.getAttribute('data-huellas-failed-handled') === 'true') {
+        continue;
+      }
+
+      el.setAttribute('data-huellas-failed-handled', 'true');
+      if (cardParent) cardParent.setAttribute('data-huellas-failed-handled', 'true');
+
+      const rawText = (
+        (cardParent ? cardParent.innerText : el.innerText) ||
+        el.textContent ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 420);
+
+      return {
+        errorText: rawText,
+        isProminentPeopleError: PROMINENT_PEOPLE_REGEX.test(rawText),
+      };
+    }
+
+    return null;
   }
 
   async function captureVideoFramesAndBinary(videoEl) {
@@ -823,11 +958,13 @@
     });
   }
 
-  function startFlowThumbnailWatcher({ optionLabel, baselineImageUrls }) {
+  function startFlowThumbnailWatcher({ optionLabel, prompt, attempt, baselineImageUrls }) {
     if (window.__HUELLAS_FLOW_THUMB_WATCHER__) {
       clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
       window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
     }
+
+    scanFlowFailureCards(true);
 
     const startedAt = Date.now();
     const maxWaitMs = 150000;
@@ -840,6 +977,34 @@
         clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
         window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
         return;
+      }
+
+      if (elapsedMs < 3500) {
+        scanFlowFailureCards(true);
+      } else {
+        const failure = scanFlowFailureCards(false);
+        if (failure) {
+          clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
+          window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
+          reportStatus(
+            'ERROR',
+            `🛡️ Filtro de Google Flow detectado en Miniatura (${
+              failure.isProminentPeopleError ? 'Prominent People' : 'Política'
+            }). Reajustando prompt automáticamente para evadir el filtro...`
+          );
+          chrome.runtime
+            .sendMessage({
+              type: 'FLOW_GENERATION_FAILED',
+              mediaType: 'THUMBNAILS',
+              optionLabel: optionLabel || 'A',
+              attempt: attempt || 1,
+              prompt: prompt || '',
+              errorText: failure.errorText,
+              isProminentPeopleError: failure.isProminentPeopleError,
+            })
+            .catch(() => {});
+          return;
+        }
       }
 
       // Durante los primeros 6 segundos tras el envío, registrar cualquier imagen existente o lazy-loaded de proyectos antiguos
@@ -1045,6 +1210,8 @@
       window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
     }
 
+    scanFlowFailureCards(true);
+
     const totalExpected =
       typeof expectedCount === 'number' && expectedCount > 1
         ? expectedCount
@@ -1059,9 +1226,10 @@
 
     window.__HUELLAS_FLOW_WATCHER_TIMER__ = setInterval(async () => {
       if (capturing) return;
-      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+      const elapsedMs = Date.now() - startedAt;
+      const elapsedSec = Math.round(elapsedMs / 1000);
 
-      if (Date.now() - startedAt > maxWaitMs) {
+      if (elapsedMs > maxWaitMs) {
         clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
         window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
         reportStatus(
@@ -1070,6 +1238,54 @@
           { clipNumber, clipId }
         );
         return;
+      }
+
+      // Durante los primeros 3 segundos, marcar cualquier error anterior en la página como ya manejado
+      if (elapsedMs < 3000) {
+        scanFlowFailureCards(true);
+      } else {
+        const failure = scanFlowFailureCards(false);
+        if (failure) {
+          const failedClipNum =
+            totalExpected > 1
+              ? (batchStartClip || clipNumber || 1) + capturedCount
+              : clipNumber || 1;
+
+          if (totalExpected <= 1) {
+            clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
+            window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
+          }
+
+          reportStatus(
+            'ERROR',
+            `🛡️ Clip #${String(failedClipNum).padStart(
+              2,
+              '0'
+            )}: Google Flow bloqueó el prompt (${
+              failure.isProminentPeopleError
+                ? 'Política Prominent People / Personas Prominentes'
+                : 'Política de Contenido'
+            }). Reajustando prompt automáticamente para evadir el filtro y reenviando...`,
+            { clipNumber: failedClipNum, clipId }
+          );
+
+          chrome.runtime
+            .sendMessage({
+              type: 'FLOW_GENERATION_FAILED',
+              mediaType: 'VIDEO',
+              clipNumber: failedClipNum,
+              clipId: totalExpected === 1 ? clipId : undefined,
+              attempt: attempt || 1,
+              prompt: prompt || '',
+              errorText: failure.errorText,
+              isProminentPeopleError: failure.isProminentPeopleError,
+            })
+            .catch(() => {});
+
+          if (totalExpected <= 1) {
+            return;
+          }
+        }
       }
 
       // Look for any <video> element whose URL is NOT in baselineUrls
@@ -1310,6 +1526,8 @@
     if (payload.mediaType === 'THUMBNAILS') {
       startFlowThumbnailWatcher({
         optionLabel: payload.optionLabel,
+        prompt: promptText,
+        attempt: payload.attempt || 1,
         baselineImageUrls,
       });
     } else if (payload.watchForVideo !== false) {
