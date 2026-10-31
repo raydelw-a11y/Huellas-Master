@@ -1538,6 +1538,7 @@ Este Manual Maestro de Producción no es un compendio de sugerencias; es el cód
 const PromptGenerator = ({
   initialFormData = null,
   onSaveToProject = null,
+  onChangeConfig = null,
   initialVoiceover = '',
   onSrtFixed = null,
   initialTab = 'generator',
@@ -1558,18 +1559,25 @@ const PromptGenerator = ({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [templateText, setTemplateText] = useState('');
   
-  const [formData, setFormData] = useState(() => ({
-    TIPO_PRODUCCION: 'REELS',
-    SUB_OPCION_POST: 'EXPECTATIVA_ESTRENO',
-    SUB_OPCION_REELS: '16X9',
-    SINCRONIZACION_CLIP_1: 'VOZ_EN_CLIP_2',
-    TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
-    DURACION_CLIP_1: '6',
-    DURACION_CLIPS: '10_SEGUNDOS',
-    VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
-    YOUTUBE_VIRAL_LINK: '',
-    ...(initialFormData || {}),
-  }));
+  const [formData, setFormData] = useState(() => {
+    const base = {
+      TIPO_PRODUCCION: 'REELS',
+      SUB_OPCION_POST: 'EXPECTATIVA_ESTRENO',
+      SUB_OPCION_REELS: '16X9',
+      SINCRONIZACION_CLIP_1: 'VOZ_EN_CLIP_2',
+      TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
+      DURACION_CLIP_1: '6',
+      DURACION_CLIPS: '10_SEGUNDOS',
+      DURACION_CLIPS_SEGUNDOS: '10',
+      VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+      YOUTUBE_VIRAL_LINK: '',
+      ...(initialFormData || {}),
+    };
+    if (!base.DURACION_CLIPS_SEGUNDOS) {
+      base.DURACION_CLIPS_SEGUNDOS = base.DURACION_CLIPS === '8_SEGUNDOS' ? '8' : '10';
+    }
+    return base;
+  });
 
   useEffect(() => {
     if (initialVoiceover !== undefined) {
@@ -1779,9 +1787,19 @@ const PromptGenerator = ({
           next.DURACION_CLIP_1 = '4';
         }
       }
+      if (name === 'DURACION_CLIPS') {
+        next.DURACION_CLIPS_SEGUNDOS = value === '8_SEGUNDOS' ? '8' : '10';
+      }
       return next;
     });
   };
+
+  // Auto-sincronizar cambios de configuración de Etapa 1 con el proyecto activo en tiempo real
+  useEffect(() => {
+    if (typeof onChangeConfig === 'function') {
+      onChangeConfig(formData);
+    }
+  }, [formData]);
 
   // 2. Determinar variables visibles basado en los bloques activos
   const visibleVariables = useMemo(() => {
@@ -1930,7 +1948,7 @@ const PromptGenerator = ({
       compiled = compiled.replace(varRegex, value);
     });
 
-    // Garantizar que la duración del primer clip y su ralentizado se reflejen en la plantilla
+    // Garantizar que la duración del primer clip, su ralentizado y la duración de los demás clips elegida en Etapa 1 se reflejen en la plantilla
     const duracionNum = parseInt(formData.DURACION_CLIP_1 || '6', 10) || 6;
     const duracionVal = String(duracionNum);
     const duracionPad = String(duracionVal).padStart(2, '0');
@@ -1938,28 +1956,38 @@ const PromptGenerator = ({
     const duracionRalentizadaVal = String(duracionRalentizada);
     const duracionRalentizadaPad = String(duracionRalentizadaVal).padStart(2, '0');
 
+    const duracionClipsNum =
+      parseInt(
+        formData.DURACION_CLIPS_SEGUNDOS ||
+          (formData.DURACION_CLIPS === '8_SEGUNDOS' ? '8' : '10'),
+        10
+      ) || (formData.DURACION_CLIPS === '8_SEGUNDOS' ? 8 : 10);
+
     const fmtSec = (sec) => {
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
+    const step10 = duracionClipsNum !== 8 ? duracionClipsNum : 10;
+    const step8 = duracionClipsNum === 8 ? 8 : duracionClipsNum !== 10 ? duracionClipsNum : 8;
+
     compiled = compiled.replace(/\[DURACION_CLIP_1\]/g, duracionVal);
     compiled = compiled.replace(/\[DURACION_CLIP_1_PAD\]/g, duracionPad);
     compiled = compiled.replace(/\[DURACION_CLIP_1_RALENTIZADO\]/g, duracionRalentizadaVal);
     compiled = compiled.replace(/\[DURACION_CLIP_1_RALENTIZADO_PAD\]/g, duracionRalentizadaPad);
-    compiled = compiled.replace(/\[VOZ_CLIP2_RANGE_10S\]/g, `${fmtSec(duracionNum)} - ${fmtSec(duracionNum + 10)}`);
-    compiled = compiled.replace(/\[VOZ_CLIP3_RANGE_10S\]/g, `${fmtSec(duracionNum + 10)} - ${fmtSec(duracionNum + 20)}`);
-    compiled = compiled.replace(/\[VOZ_CLIP4_RANGE_10S\]/g, `${fmtSec(duracionNum + 20)} - ${fmtSec(duracionNum + 30)}`);
-    compiled = compiled.replace(/\[VOZ_CLIP2_RANGE_8S\]/g, `${fmtSec(duracionNum)} - ${fmtSec(duracionNum + 8)}`);
-    compiled = compiled.replace(/\[VOZ_CLIP3_RANGE_8S\]/g, `${fmtSec(duracionNum + 8)} - ${fmtSec(duracionNum + 16)}`);
-    compiled = compiled.replace(/\[VOZ_CLIP4_RANGE_8S\]/g, `${fmtSec(duracionNum + 16)} - ${fmtSec(duracionNum + 24)}`);
-    compiled = compiled.replace(/\[RAL_CLIP2_RANGE_10S\]/g, `${fmtSec(duracionRalentizada)} - ${fmtSec(duracionRalentizada + 10)}`);
-    compiled = compiled.replace(/\[RAL_CLIP3_RANGE_10S\]/g, `${fmtSec(duracionRalentizada + 10)} - ${fmtSec(duracionRalentizada + 20)}`);
-    compiled = compiled.replace(/\[RAL_CLIP4_RANGE_10S\]/g, `${fmtSec(duracionRalentizada + 20)} - ${fmtSec(duracionRalentizada + 30)}`);
-    compiled = compiled.replace(/\[RAL_CLIP2_RANGE_8S\]/g, `${fmtSec(duracionRalentizada)} - ${fmtSec(duracionRalentizada + 8)}`);
-    compiled = compiled.replace(/\[RAL_CLIP3_RANGE_8S\]/g, `${fmtSec(duracionRalentizada + 8)} - ${fmtSec(duracionRalentizada + 16)}`);
-    compiled = compiled.replace(/\[RAL_CLIP4_RANGE_8S\]/g, `${fmtSec(duracionRalentizada + 16)} - ${fmtSec(duracionRalentizada + 24)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP2_RANGE_10S\]/g, `${fmtSec(duracionNum)} - ${fmtSec(duracionNum + step10)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP3_RANGE_10S\]/g, `${fmtSec(duracionNum + step10)} - ${fmtSec(duracionNum + step10 * 2)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP4_RANGE_10S\]/g, `${fmtSec(duracionNum + step10 * 2)} - ${fmtSec(duracionNum + step10 * 3)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP2_RANGE_8S\]/g, `${fmtSec(duracionNum)} - ${fmtSec(duracionNum + step8)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP3_RANGE_8S\]/g, `${fmtSec(duracionNum + step8)} - ${fmtSec(duracionNum + step8 * 2)}`);
+    compiled = compiled.replace(/\[VOZ_CLIP4_RANGE_8S\]/g, `${fmtSec(duracionNum + step8 * 2)} - ${fmtSec(duracionNum + step8 * 3)}`);
+    compiled = compiled.replace(/\[RAL_CLIP2_RANGE_10S\]/g, `${fmtSec(duracionRalentizada)} - ${fmtSec(duracionRalentizada + step10)}`);
+    compiled = compiled.replace(/\[RAL_CLIP3_RANGE_10S\]/g, `${fmtSec(duracionRalentizada + step10)} - ${fmtSec(duracionRalentizada + step10 * 2)}`);
+    compiled = compiled.replace(/\[RAL_CLIP4_RANGE_10S\]/g, `${fmtSec(duracionRalentizada + step10 * 2)} - ${fmtSec(duracionRalentizada + step10 * 3)}`);
+    compiled = compiled.replace(/\[RAL_CLIP2_RANGE_8S\]/g, `${fmtSec(duracionRalentizada)} - ${fmtSec(duracionRalentizada + step8)}`);
+    compiled = compiled.replace(/\[RAL_CLIP3_RANGE_8S\]/g, `${fmtSec(duracionRalentizada + step8)} - ${fmtSec(duracionRalentizada + step8 * 2)}`);
+    compiled = compiled.replace(/\[RAL_CLIP4_RANGE_8S\]/g, `${fmtSec(duracionRalentizada + step8 * 2)} - ${fmtSec(duracionRalentizada + step8 * 3)}`);
     compiled = compiled.replace(/(Sincronización de Clip 1 y Comienzo de Voz: El primer clip sin voz narrativa se creará de )\d+( segundos)/g, `$1${duracionVal}$2`);
 
     // Limpiar saltos de línea sobrantes por bloques eliminados
@@ -2856,7 +2884,7 @@ const PromptGenerator = ({
   };
 
   const compiledOutput = compileTemplate();
-  const lastUpdatedText = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:38 AM - 10/29/2026';
+  const lastUpdatedText = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:48 PM - 10/31/2026';
 
   return (
     <div className="app-container" style={{ position: 'relative' }}>
@@ -3162,6 +3190,145 @@ const PromptGenerator = ({
                             </button>
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginLeft: '0.25rem' }}>
                               segundos (Teclea aquí el número)
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {group === 'DURACION_CLIPS' && (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          marginBottom: '0.85rem',
+                          padding: '0.85rem 1rem',
+                          backgroundColor: 'var(--box-bg)',
+                          borderRadius: '6px',
+                          border: '1.5px solid var(--accent-gold)',
+                          boxShadow: '0 2px 8px var(--shadow-color)'
+                        }}>
+                          <label
+                            htmlFor="duracion_clips_input"
+                            style={{
+                              display: 'block',
+                              fontWeight: 700,
+                              fontSize: '0.95rem',
+                              color: 'var(--accent-gold)',
+                              marginBottom: '0.5rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ⏱️ Duración Exacta de los Clips (Clip 2 en adelante, en segundos):
+                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = parseInt(
+                                  formData.DURACION_CLIPS_SEGUNDOS ||
+                                    (formData.DURACION_CLIPS === '8_SEGUNDOS' ? '8' : '10'),
+                                  10
+                                ) || 10;
+                                if (current > 1) {
+                                  const nextVal = current - 1;
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    DURACION_CLIPS_SEGUNDOS: String(nextVal),
+                                    DURACION_CLIPS: nextVal <= 8 ? '8_SEGUNDOS' : '10_SEGUNDOS',
+                                  }));
+                                }
+                              }}
+                              style={{
+                                width: '36px',
+                                height: '38px',
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: 'var(--paper-color)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '1.2rem',
+                                transition: 'all 0.2s'
+                              }}
+                              title="Disminuir 1 segundo"
+                            >
+                              -
+                            </button>
+                            <input
+                              id="duracion_clips_input"
+                              type="number"
+                              className="form-control"
+                              name="DURACION_CLIPS_SEGUNDOS"
+                              min="1"
+                              max="60"
+                              value={
+                                formData.DURACION_CLIPS_SEGUNDOS !== undefined
+                                  ? formData.DURACION_CLIPS_SEGUNDOS
+                                  : formData.DURACION_CLIPS === '8_SEGUNDOS'
+                                  ? '8'
+                                  : '10'
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const numVal = parseInt(val || '10', 10) || 10;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  DURACION_CLIPS_SEGUNDOS: val,
+                                  DURACION_CLIPS: numVal <= 8 ? '8_SEGUNDOS' : '10_SEGUNDOS',
+                                }));
+                              }}
+                              placeholder="10"
+                              style={{
+                                width: '100px',
+                                padding: '0.45rem 0.6rem',
+                                borderRadius: '4px',
+                                border: '1.5px solid var(--accent-gold)',
+                                backgroundColor: 'var(--focus-bg)',
+                                color: 'var(--text-primary)',
+                                fontWeight: 'bold',
+                                textAlign: 'center',
+                                fontSize: '1.15rem'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = parseInt(
+                                  formData.DURACION_CLIPS_SEGUNDOS ||
+                                    (formData.DURACION_CLIPS === '8_SEGUNDOS' ? '8' : '10'),
+                                  10
+                                ) || 10;
+                                const nextVal = current + 1;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  DURACION_CLIPS_SEGUNDOS: String(nextVal),
+                                  DURACION_CLIPS: nextVal <= 8 ? '8_SEGUNDOS' : '10_SEGUNDOS',
+                                }));
+                              }}
+                              style={{
+                                width: '36px',
+                                height: '38px',
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: 'var(--paper-color)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '1.2rem',
+                                transition: 'all 0.2s'
+                              }}
+                              title="Aumentar 1 segundo"
+                            >
+                              +
+                            </button>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginLeft: '0.25rem' }}>
+                              segundos por clip (o selecciona abajo 10s / 8s)
                             </span>
                           </div>
                         </div>

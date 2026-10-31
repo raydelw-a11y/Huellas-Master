@@ -1344,7 +1344,38 @@ async function generateSingleClipViaFlowSdk(
           }
         }
 
-        // 3. Intentar generar Video nativo con Flow.generate.video encadenando firstFrameImageMediaId
+        // 3. Determinar la duración exacta del clip elegida en la Etapa 1 (Clip 1 vs Clips 2+)
+        const resolveClipDurationSeconds = () => {
+          const explicit = Number(item.durationSeconds || item.duration);
+          if (Number.isFinite(explicit) && explicit >= 1 && explicit <= 60) {
+            return Math.round(explicit);
+          }
+          const rangeSrc = String(item.timeRange || item.videoPrompt || '');
+          const rangeMatch = rangeSrc.match(/(\d{1,2}):(\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}):(\d{2})/);
+          if (rangeMatch) {
+            const startSec = parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
+            const endSec = parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
+            const diff = endSec - startSec;
+            if (diff >= 1 && diff <= 60) {
+              return diff;
+            }
+          }
+          const promptSecMatch =
+            String(item.videoPrompt || '').match(/across\s+the\s+full\s+(\d+)\s+seconds/i) ||
+            String(item.videoPrompt || '').match(/throughout\s+the\s+(\d+)-second\s+shot/i) ||
+            String(item.videoPrompt || '').match(/from\s+0s\s+to\s+(\d+)s/i);
+          if (promptSecMatch) {
+            const pSec = parseInt(promptSecMatch[1], 10);
+            if (pSec >= 1 && pSec <= 60) {
+              return pSec;
+            }
+          }
+          return Number(item.clipNumber) === 1 ? 6 : 10;
+        };
+
+        const targetDurationSec = resolveClipDurationSeconds();
+
+        // Intentar generar Video nativo con Flow.generate.video encadenando firstFrameImageMediaId
         let videoDataUrl = '';
         let videoMediaId = undefined;
         let videoMode = 'FLOW_SDK';
@@ -1357,7 +1388,8 @@ async function generateSingleClipViaFlowSdk(
                 prompt: cleanVidPrompt,
                 aspectRatio: ratio || '16:9',
                 resolution: '720p',
-                durationSeconds: 8,
+                durationSeconds: targetDurationSec,
+                duration: targetDurationSec,
                 ...(startImageMediaId ? { firstFrameImageMediaId: startImageMediaId } : {}),
                 ...(modelDisplayName ? { modelDisplayName } : {}),
               };
@@ -1451,16 +1483,18 @@ async function generateSingleClipViaFlowSdk(
                 });
 
                 recorder.start();
-                const totalFrames = 90; // 3 seconds smooth render @ 30fps
-                for (let f = 0; f < totalFrames; f++) {
-                  const progress = f / Math.max(1, totalFrames - 1);
+                const targetDurationMs = Math.max(1000, targetDurationSec * 1000);
+                const startRecMs = performance.now();
+                while (performance.now() - startRecMs < targetDurationMs) {
+                  const elapsed = performance.now() - startRecMs;
+                  const progress = Math.min(1, Math.max(0, elapsed / targetDurationMs));
                   const zoom = 1.0 + progress * 0.12;
                   const sw = img.width / zoom;
                   const sh = img.height / zoom;
                   const sx = (img.width - sw) * (0.5 - progress * 0.08);
                   const sy = (img.height - sh) * 0.5;
                   recCtx.drawImage(img, sx, sy, sw, sh, 0, 0, recW, recH);
-                  await new Promise((r) => setTimeout(r, 28));
+                  await new Promise((r) => setTimeout(r, 33));
                 }
                 recorder.stop();
                 videoDataUrl = await recordPromise;
@@ -1489,7 +1523,7 @@ async function generateSingleClipViaFlowSdk(
           startImageDataUrl,
           videoDataUrl: videoDataUrl || startImageDataUrl,
           frames: frames.length > 0 ? frames : startImageDataUrl ? [startImageDataUrl] : [],
-          duration: 8,
+          duration: targetDurationSec,
         };
       },
       [clipItem, aspectRatio, referenceAssets],
@@ -2242,6 +2276,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         clipNumber: Number(payload.clipNumber) || 1,
                         imagePrompt: payload.imagePrompt || payload.prompt || '',
                         videoPrompt: payload.prompt || '',
+                        timeRange: payload.timeRange || '',
+                        durationSeconds: Number(payload.durationSeconds) || undefined,
                       },
                     ];
 
@@ -2315,7 +2351,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       videoUrl: clipRes.videoDataUrl,
                       videoDataUrl: clipRes.videoDataUrl,
                       frames: clipRes.frames || [],
-                      duration: clipRes.duration || 8,
+                      duration:
+                        clipRes.duration ||
+                        Number(clipItem.durationSeconds) ||
+                        Number(payload.durationSeconds) ||
+                        (clipNum === 1 ? 6 : 10),
                     });
                   } else {
                     broadcastToHuellasTabsInSameWindow(senderWindowId, {

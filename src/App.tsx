@@ -63,6 +63,7 @@ import {
   triggerFileDownload,
 } from './utils/exporters';
 import {
+  getStage1ClipDurations,
   parseClipsFromRawText,
   buildClipsSkeletonFromTimeline,
   parseReferencesFromRawText,
@@ -110,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:44 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:52 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1266,12 +1267,14 @@ export default function App() {
       });
     } else if (stageNum === 8) {
       const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
+      const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
       const syncedClips = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
         rawClipsText: textWithHeader,
         existingClips: activeDoc.clips || [],
-        clip1Duration: activeDoc.clip1DurationSeconds || 6,
+        clip1Duration: clip1Sec,
+        clipDuration: standardClipSec,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
         topic: activeDoc.topic || activeDoc.title || '',
         historicalTime: activeDoc.historicalTime || '',
@@ -2191,16 +2194,23 @@ export default function App() {
     return [];
   };
 
-  // Unified Automatic Shield: Combines Anti-Filtro "Prominent People" / Policy Shield + Controlled Camera + 10s Sustained Action + Anti-Mutation Physics
+  // Unified Automatic Shield: Combines Anti-Filtro "Prominent People" / Policy Shield + Controlled Camera + Stage 1 Sustained Action + Anti-Mutation Physics
   const applyAntiMutationShieldToPrompt = (
     rawPrompt: string,
     mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
-    isImagePrompt: boolean = false
+    isImagePrompt: boolean = false,
+    explicitClipSec?: number
   ): string => {
     if (!rawPrompt || !rawPrompt.trim()) return '';
     const currentDoc = activeDocRef.current || activeDoc;
-    const isReelFormat = currentDoc?.productionFormat === 'reel';
-    const clipSec = isReelFormat ? 5 : 10;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const isClip1Prompt = /^(?:Image|Clip|Imagen)\s+0*1\b/i.test(rawPrompt.trim());
+    const clipSec =
+      explicitClipSec && explicitClipSec > 0
+        ? explicitClipSec
+        : isClip1Prompt
+        ? clip1Sec
+        : standardClipSec;
 
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
@@ -2281,11 +2291,12 @@ export default function App() {
   ) => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc) return;
-    const clipSec = currentDoc.productionFormat === 'reel' ? 5 : 10;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const clipSec = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
 
     const nextAttempt = (clip.videoAttempts || 1) + 1;
-    const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true);
-    const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false);
+    const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true, clipSec);
+    const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false, clipSec);
 
     const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL', string> = {
       PEOPLE: `🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–${clipSec}s + fondo bokeh estático)`,
@@ -2338,17 +2349,21 @@ export default function App() {
     );
   };
 
-  // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + 10s Sustained Action + Anti-Mutation Physics
+  // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + Stage 1 Sustained Action + Anti-Mutation Physics
   const handleShieldAllClipsAntiMutation = () => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc || !Array.isArray(currentDoc.clips) || currentDoc.clips.length === 0) return;
-    const clipSec = currentDoc.productionFormat === 'reel' ? 5 : 10;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const clipSec = standardClipSec;
 
-    const nextClips = currentDoc.clips.map((c) => ({
-      ...c,
-      imagePrompt: applyAntiMutationShieldToPrompt(c.imagePrompt || '', 'ALL', true),
-      videoPrompt: applyAntiMutationShieldToPrompt(c.videoPrompt || '', 'ALL', false),
-    }));
+    const nextClips = currentDoc.clips.map((c) => {
+      const targetSec = c.clipNumber === 1 ? clip1Sec : standardClipSec;
+      return {
+        ...c,
+        imagePrompt: applyAntiMutationShieldToPrompt(c.imagePrompt || '', 'ALL', true, targetSec),
+        videoPrompt: applyAntiMutationShieldToPrompt(c.videoPrompt || '', 'ALL', false, targetSec),
+      };
+    });
 
     const nextRawClipsText = nextClips
       .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
@@ -2506,7 +2521,24 @@ export default function App() {
   ): Promise<string> => {
     if (!videoDataUrl) return '';
     const fileName = buildClipSixWordFileName(clipObj, activeDocRef.current);
-    const ok = await handleSaveAnyFileToChosenFolder(fileName, videoDataUrl, '05_Clips_Video');
+
+    // Option B Automatic 4K UHD (3840x2160) Upscale with Lanczos + Unsharp Mask + VideoToolbox before saving to 05_Clips_Video
+    let finalVideoDataUrl = videoDataUrl;
+    try {
+      const resp = await fetch('/api/flow/upscale-clip-4k', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoDataUrl }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.ok && typeof data.videoDataUrl === 'string' && data.videoDataUrl.startsWith('data:video')) {
+          finalVideoDataUrl = data.videoDataUrl;
+        }
+      }
+    } catch {}
+
+    const ok = await handleSaveAnyFileToChosenFolder(fileName, finalVideoDataUrl, '05_Clips_Video');
     return ok ? fileName : '';
   };
 
@@ -2560,6 +2592,9 @@ export default function App() {
       imageUrl: r.imageUrl,
     }));
 
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const clipDurationSeconds = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
+
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptToSend,
@@ -2569,6 +2604,8 @@ export default function App() {
       storyStudioProjectJson: currentDoc ? buildStoryStudioProjectJson(currentDoc, true) : undefined,
       clipNumber: clip.clipNumber,
       clipId: clip.id,
+      timeRange: clip.timeRange || '',
+      durationSeconds: clipDurationSeconds,
       attempt: attemptNum,
       watchForVideo: true,
       mediaType: 'VIDEO',
@@ -2738,6 +2775,8 @@ export default function App() {
 
       if (mutationCheck.mutationSuspected && attempt === 1 && !fromScan) {
         const latestDocPre = activeDocRef.current || currentDoc;
+        const { clip1Sec, standardClipSec } = getStage1ClipDurations(latestDocPre);
+        const retryClipSec = targetClip.clipNumber === 1 ? clip1Sec : standardClipSec;
         const preClips = (latestDocPre.clips || []).map((c) =>
           c.id === targetClip.id
             ? {
@@ -2745,9 +2784,7 @@ export default function App() {
                 videoFrames: distinctFrames.length > 0 ? distinctFrames : c.videoFrames,
                 videoAuditStatus: 'generating' as const,
                 videoAuditScore: 62,
-                videoAuditReason: `${mutationCheck.mutationReason} Re-ajustando prompt automáticamente con blindaje Anti-Mutación ${
-                  latestDocPre.productionFormat === 'reel' ? '5s' : '10s'
-                } y regenerando en Google Flow (Intento #2)...`,
+                videoAuditReason: `${mutationCheck.mutationReason} Re-ajustando prompt automáticamente con blindaje Anti-Mutación ${retryClipSec}s y regenerando en Google Flow (Intento #2)...`,
               }
             : c
         );
@@ -2951,6 +2988,8 @@ export default function App() {
       imageUrl: r.imageUrl,
     }));
 
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
+
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: fullBatchPrompt,
@@ -2963,10 +3002,12 @@ export default function App() {
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
         timeRange: c.timeRange || '',
+        durationSeconds: c.clipNumber === 1 ? clip1Sec : standardClipSec,
       })),
       storyStudioProjectJson: buildStoryStudioProjectJson(doc, true),
       clipNumber: batchClips[0].clipNumber,
       clipId: batchClips[0].id,
+      durationSeconds: batchClips[0].clipNumber === 1 ? clip1Sec : standardClipSec,
       batchStartClip: batchClips[0].clipNumber,
       batchEndClip: batchClips[batchClips.length - 1].clipNumber,
       expectedCount: batchClips.length,
@@ -3104,9 +3145,16 @@ export default function App() {
     }
 
     const clips = doc.clips || [];
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
     const frames = includeScriptAndFrames
       ? clips.map((clip) => {
           const numStr = String(clip.clipNumber).padStart(2, '0');
+          const clipDurSec = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
+          const rangeText =
+            clip.timeRange ||
+            `${clip.startTime || '00:00'} - ${
+              clip.endTime || `00:${String(clipDurSec).padStart(2, '0')}`
+            }`;
           const combinedText = `${clip.imagePrompt || ''} ${clip.videoPrompt || ''} ${clip.narrationText || ''}`.toLowerCase();
           const linkedAssetIds = assets
             .filter((a) => {
@@ -3124,9 +3172,10 @@ export default function App() {
             id: clip.id || `frame-${numStr}`,
             sceneId: `scene-${numStr}`,
             sceneNumber: numStr,
-            sceneTitle: `Scene ${numStr} (${clip.startTime || '00:00'} - ${clip.endTime || '00:10'})`,
+            sceneTitle: `Scene ${numStr} (${rangeText})`,
             shotNumber: '01',
             title: `Clip ${numStr}`,
+            durationSeconds: clipDurSec,
             visualDescription: clip.imagePrompt || '',
             motionDescription: clip.videoPrompt || '',
             audioDescription: clip.narrationText || '',
@@ -4079,6 +4128,8 @@ export default function App() {
     setBridgeStatusMsg(
       `🎬 Enviando prompt a tu cuenta de Google Flow y ejecutando envío automático...`
     );
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const resolvedClipNum = matchedClip ? matchedClip.clipNumber : Number(clipIdentifier) || 1;
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
@@ -4092,6 +4143,8 @@ export default function App() {
       })),
       clipNumber: matchedClip ? matchedClip.clipNumber : clipIdentifier,
       clipId: matchedClip ? matchedClip.id : undefined,
+      timeRange: matchedClip ? matchedClip.timeRange : undefined,
+      durationSeconds: mediaType === 'VIDEO' ? (resolvedClipNum === 1 ? clip1Sec : standardClipSec) : undefined,
       referenceId: matchedRef
         ? matchedRef.id
         : !matchedClip && mediaType === 'IMAGE' && clipIdentifier
@@ -4140,12 +4193,14 @@ export default function App() {
     const normalizedRaw = activeDoc.rawClipsText?.trim()
       ? ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, activeDoc.operationalHeader)
       : '';
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
     const synced = syncAndAuditProductionClips({
       rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
       timelineText: effectiveTimelineText,
       rawClipsText: normalizedRaw,
       existingClips: activeDoc.clips || [],
-      clip1Duration: activeDoc.clip1DurationSeconds || 6,
+      clip1Duration: clip1Sec,
+      clipDuration: standardClipSec,
       clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
       topic: activeDoc.topic || activeDoc.title || '',
       historicalTime: activeDoc.historicalTime || '',
@@ -4176,12 +4231,14 @@ export default function App() {
     setAuditingClips(true);
     try {
       // First make sure clips are synced with the latest text boxes
+      const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
       const baseClips = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
         rawClipsText: activeDoc.rawClipsText || '',
         existingClips: activeDoc.clips || [],
-        clip1Duration: activeDoc.clip1DurationSeconds || 6,
+        clip1Duration: clip1Sec,
+        clipDuration: standardClipSec,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
         topic: activeDoc.topic || activeDoc.title || '',
         historicalTime: activeDoc.historicalTime || '',
@@ -4371,9 +4428,15 @@ export default function App() {
       includeLineNumbers: true,
     };
 
-    const mode = overrideSentenceMode || settings.sentenceMode || 'split-10-seconds';
+    const { standardClipSec } = getStage1ClipDurations(doc);
     const segLen =
-      mode === 'split-8-seconds' ? 8 : mode === 'split-4-seconds' ? 4 : 10;
+      overrideSentenceMode === 'split-8-seconds'
+        ? 8
+        : overrideSentenceMode === 'split-4-seconds'
+        ? 4
+        : overrideSentenceMode === 'split-10-seconds'
+        ? 10
+        : standardClipSec;
 
     const cleanRaw = (rawScript || '').trim();
     if (!cleanRaw) {
@@ -5906,12 +5969,65 @@ export default function App() {
                   initialFormData={activeDoc.promptConfig}
                   initialVoiceover={activeDoc.voiceoverScript}
                   embedded={true}
+                  onChangeConfig={(formDataObj: any) => {
+                    const nextClipDurationMode =
+                      formDataObj.DURACION_CLIPS === '8_SEGUNDOS' ? '8_SEGUNDOS' : '10_SEGUNDOS';
+                    const nextClip1SyncMode =
+                      formDataObj.SINCRONIZACION_CLIP_1 === 'RALENTIZAR_CAPCUT'
+                        ? 'RALENTIZAR_CAPCUT'
+                        : 'VOZ_EN_CLIP_2';
+                    const nextClip1Sec = parseInt(formDataObj.DURACION_CLIP_1 || '6', 10) || 6;
+                    const nextClip1TextMode =
+                      formDataObj.TEXTO_PANTALLA_CLIP_1 === 'IA_CLIP_1'
+                        ? 'IA_CLIP_1'
+                        : 'CAPCUT_MANUAL';
+                    const nextSentenceMode =
+                      nextClipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds';
+
+                    const currentCfgJson = JSON.stringify(activeDoc.promptConfig || {});
+                    const nextCfgJson = JSON.stringify(formDataObj || {});
+                    if (
+                      currentCfgJson === nextCfgJson &&
+                      activeDoc.clipDurationMode === nextClipDurationMode &&
+                      activeDoc.clip1SyncMode === nextClip1SyncMode &&
+                      activeDoc.clip1DurationSeconds === nextClip1Sec &&
+                      activeDoc.clip1TextMode === nextClip1TextMode
+                    ) {
+                      return;
+                    }
+                    updateActiveDoc({
+                      promptConfig: formDataObj,
+                      clipDurationMode: nextClipDurationMode,
+                      clip1SyncMode: nextClip1SyncMode,
+                      clip1DurationSeconds: nextClip1Sec,
+                      clip1TextMode: nextClip1TextMode,
+                      timelineSettings: {
+                        ...(activeDoc.timelineSettings || {
+                          language: 'es',
+                          customLanguage: '',
+                          quality: 'high',
+                          outputStyle: 'timeline',
+                          timestampFormat: 'MM:SS',
+                          noBlankLines: true,
+                          strictNarration: false,
+                          removeFiller: false,
+                          mergeShort: false,
+                          preservePunctuation: true,
+                          includeLineNumbers: true,
+                        }),
+                        sentenceMode: nextSentenceMode,
+                      },
+                    });
+                  }}
                   onSaveToProject={(compiledPrompt: string, formDataObj: any) => {
+                    const nextClipDurationMode =
+                      formDataObj.DURACION_CLIPS === '8_SEGUNDOS' ? '8_SEGUNDOS' : '10_SEGUNDOS';
+                    const nextSentenceMode =
+                      nextClipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds';
                     updateActiveDoc({
                       compiledMasterPrompt: compiledPrompt,
                       promptConfig: formDataObj,
-                      clipDurationMode:
-                        formDataObj.DURACION_CLIPS === '8_SEGUNDOS' ? '8_SEGUNDOS' : '10_SEGUNDOS',
+                      clipDurationMode: nextClipDurationMode,
                       clip1SyncMode:
                         formDataObj.SINCRONIZACION_CLIP_1 === 'RALENTIZAR_CAPCUT'
                           ? 'RALENTIZAR_CAPCUT'
@@ -5921,6 +6037,22 @@ export default function App() {
                         formDataObj.TEXTO_PANTALLA_CLIP_1 === 'IA_CLIP_1'
                           ? 'IA_CLIP_1'
                           : 'CAPCUT_MANUAL',
+                      timelineSettings: {
+                        ...(activeDoc.timelineSettings || {
+                          language: 'es',
+                          customLanguage: '',
+                          quality: 'high',
+                          outputStyle: 'timeline',
+                          timestampFormat: 'MM:SS',
+                          noBlankLines: true,
+                          strictNarration: false,
+                          removeFiller: false,
+                          mergeShort: false,
+                          preservePunctuation: true,
+                          includeLineNumbers: true,
+                        }),
+                        sentenceMode: nextSentenceMode,
+                      },
                     });
                     alert('✅ Prompt Maestro y configuración guardados en la ficha de este documental.');
                   }}
@@ -8073,14 +8205,24 @@ export default function App() {
                         <button
                           onClick={() => {
                             const nextNum = (activeDoc.clips?.length || 0) + 1;
+                            const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+                            const startSec =
+                              nextNum === 1 ? 0 : clip1Sec + (nextNum - 2) * standardClipSec;
+                            const endSec =
+                              nextNum === 1 ? clip1Sec : startSec + standardClipSec;
+                            const fmt = (s: number) =>
+                              `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
+                                s % 60
+                              ).padStart(2, '0')}`;
+                            const rangeStr = `${fmt(startSec)} - ${fmt(endSec)}`;
                             const newClip: DocumentaryClip = {
                               id: `clip-${nextNum}-${Date.now()}`,
                               clipNumber: nextNum,
-                              timeRange: nextNum === 1 ? '00:00 - 00:06' : '',
+                              timeRange: rangeStr,
                               cameraSelection: '',
                               visualExplanation: '',
                               imagePrompt: `Image ${nextNum}: Create an image `,
-                              videoPrompt: `Clip ${nextNum} (00:06 - 00:16): Create a video `,
+                              videoPrompt: `Clip ${nextNum} (${rangeStr}): Create a video `,
                               narrationSegment: '',
                               imageReady: false,
                               videoReady: false,
@@ -8547,10 +8689,14 @@ export default function App() {
 
                       <span
                         className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
-                        title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación de 0s a 10s con cámara controlada y el Escudo Anti-Violencia"
+                        title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación con la duración exacta elegida en la Etapa 1 y el Escudo Anti-Violencia"
                       >
                         ✅ Todos los Blindajes Activos Automáticamente (Anti-Filtro Flow + Física Anti-Mutación{' '}
-                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'})
+                        {(() => {
+                          const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+                          return `Clip 1: ${clip1Sec}s / Clips 2+: ${standardClipSec}s`;
+                        })()}
+                        )
                       </span>
 
                       <button

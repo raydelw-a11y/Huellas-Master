@@ -2232,6 +2232,124 @@ function ensureDocumentarySubfolders(rootFolderPath: string) {
   }
 }
 
+function resolveFfmpegBin(): string {
+  const candidates = ['/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg', ffmpegStatic || 'ffmpeg'];
+  for (const c of candidates) {
+    try {
+      if (c && (c === 'ffmpeg' || fs.existsSync(c))) return c;
+    } catch {}
+  }
+  return 'ffmpeg';
+}
+
+async function upscaleMp4BufferTo4K(inputBuffer: Buffer): Promise<Buffer> {
+  const tmpDir = os.tmpdir();
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const inPath = path.join(tmpDir, `huellas_in_${stamp}.mp4`);
+  const outPath = path.join(tmpDir, `huellas_4k_${stamp}.mp4`);
+  const ffmpegBin = resolveFfmpegBin();
+  const vfFilter = 'scale=3840:2160:flags=lanczos+accurate_rnd+full_chroma_int,unsharp=5:5:0.85:3:3:0.35';
+
+  try {
+    fs.writeFileSync(inPath, inputBuffer);
+
+    const runFfmpeg = (args: string[]) =>
+      new Promise<void>((resolve, reject) => {
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+          if (code === 0 && fs.existsSync(outPath) && fs.statSync(outPath).size > 10000) {
+            resolve();
+          } else {
+            reject(new Error(`ffmpeg exited with code ${code}`));
+          }
+        });
+      });
+
+    try {
+      // Primary: Apple Silicon / Mac Hardware Accelerated VideoToolbox 4K @ 28 Mbps (~6-8s per clip)
+      await runFfmpeg([
+        '-y',
+        '-i',
+        inPath,
+        '-vf',
+        vfFilter,
+        '-c:v',
+        'h264_videotoolbox',
+        '-b:v',
+        '28M',
+        '-profile:v',
+        'high',
+        '-pix_fmt',
+        'yuv420p',
+        '-movflags',
+        '+faststart',
+        '-c:a',
+        'copy',
+        outPath,
+      ]);
+    } catch {
+      // Fallback: CPU libx264 4K
+      await runFfmpeg([
+        '-y',
+        '-i',
+        inPath,
+        '-vf',
+        vfFilter,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '16',
+        '-pix_fmt',
+        'yuv420p',
+        '-movflags',
+        '+faststart',
+        '-c:a',
+        'copy',
+        outPath,
+      ]);
+    }
+
+    return fs.readFileSync(outPath);
+  } catch (err) {
+    console.warn('[4K Upscale] Usando buffer original por fallo en ffmpeg:', err);
+    return inputBuffer;
+  } finally {
+    try {
+      if (fs.existsSync(inPath)) fs.unlinkSync(inPath);
+    } catch {}
+    try {
+      if (fs.existsSync(outPath)) fs.unlinkSync(outPath);
+    } catch {}
+  }
+}
+
+app.post('/api/flow/upscale-clip-4k', async (req, res) => {
+  try {
+    const { videoDataUrl } = req.body;
+    if (!videoDataUrl || typeof videoDataUrl !== 'string') {
+      res.status(400).json({ error: 'Falta videoDataUrl para escalar a 4K.' });
+      return;
+    }
+    const cleanBase64 = videoDataUrl.replace(/^data:[^;]+;base64,/, '');
+    const rawBuffer = Buffer.from(cleanBase64, 'base64');
+    const upscaledBuffer = await upscaleMp4BufferTo4K(rawBuffer);
+    const outDataUrl = `data:video/mp4;base64,${upscaledBuffer.toString('base64')}`;
+    res.json({
+      ok: true,
+      videoDataUrl: outDataUrl,
+      width: 3840,
+      height: 2160,
+      bytes: upscaledBuffer.length,
+    });
+  } catch (err: any) {
+    console.error('[4K Upscale Endpoint Error]:', err);
+    res.status(500).json({ error: err.message || 'Error al escalar clip a 4K.' });
+  }
+});
+
 app.post('/api/flow/save-video-to-folder', async (req, res) => {
   try {
     const { folderPath, fileName, videoDataUrl, subFolder } = req.body;
@@ -2249,9 +2367,20 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
     }
     const fullTarget = path.join(targetDir, safeName);
     const cleanBase64 = String(videoDataUrl).replace(/^data:[^;]+;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
-    fs.writeFileSync(fullTarget, buffer);
-    res.json({ ok: true, savedPath: fullTarget, subFolder: resolvedSub, fileName: safeName, bytes: buffer.length });
+    const rawBuffer = Buffer.from(cleanBase64, 'base64');
+    const finalBuffer =
+      resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName)
+        ? await upscaleMp4BufferTo4K(rawBuffer)
+        : rawBuffer;
+    fs.writeFileSync(fullTarget, finalBuffer);
+    res.json({
+      ok: true,
+      savedPath: fullTarget,
+      subFolder: resolvedSub,
+      fileName: safeName,
+      bytes: finalBuffer.length,
+      resolution: '3840x2160',
+    });
   } catch (err: any) {
     console.error('Error guardando video en carpeta elegida:', err);
     res.status(500).json({ error: err.message || 'Error guardando el archivo MP4.' });
@@ -2276,9 +2405,13 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
     }
     const fullTarget = path.join(targetDir, safeName);
     const cleanBase64 = String(dataUrl).replace(/^data:[^;]+;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
-    fs.writeFileSync(fullTarget, buffer);
-    res.json({ ok: true, savedPath: fullTarget, subFolder: resolvedSub, fileName: safeName, bytes: buffer.length });
+    const rawBuffer = Buffer.from(cleanBase64, 'base64');
+    const finalBuffer =
+      resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName)
+        ? await upscaleMp4BufferTo4K(rawBuffer)
+        : rawBuffer;
+    fs.writeFileSync(fullTarget, finalBuffer);
+    res.json({ ok: true, savedPath: fullTarget, subFolder: resolvedSub, fileName: safeName, bytes: finalBuffer.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error guardando activo en carpeta.' });
   }
