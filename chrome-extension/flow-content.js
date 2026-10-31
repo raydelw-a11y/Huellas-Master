@@ -556,8 +556,8 @@
         return;
       }
 
-      //During the first 3.5 seconds while Google Flow is still starting the job, record any lazy-loaded existing gallery images into baseline
-      if (elapsedMs < 3500) {
+      // During the first 4.5 seconds while Google Flow is uploading the logo and starting the job, record any existing or attached-logo preview images into baseline
+      if (elapsedMs < 4500) {
         for (const img of Array.from(document.querySelectorAll('img'))) {
           const s = (img.currentSrc || img.src || '').trim();
           if (s) baselineImageUrls.add(s);
@@ -567,8 +567,13 @@
 
       const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
         const w = img.naturalWidth || img.width || 0;
+        const h = img.naturalHeight || img.height || 0;
         const src = (img.currentSrc || img.src || '').trim();
-        return src && !src.includes('avatar') && w >= 280 && !baselineImageUrls.has(src);
+        if (!src || src.includes('avatar') || baselineImageUrls.has(src)) return false;
+        // Ignore small ingredient/logo chips inside the bottom prompt composer
+        const r = img.getBoundingClientRect();
+        if (r.width > 0 && r.width < 140 && r.height < 140) return false;
+        return w >= 280 && h >= 180;
       });
 
       if (imgs.length === 0) return;
@@ -821,6 +826,66 @@
     return { videos, images };
   }
 
+  function attachLogoImageToFlow(inputEl, logoDataUrl) {
+    if (!logoDataUrl || typeof logoDataUrl !== 'string' || !logoDataUrl.startsWith('data:')) {
+      return false;
+    }
+    try {
+      const parts = logoDataUrl.split(',');
+      const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+      const bstr = atob(parts[1] || '');
+      const u8arr = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      const logoFile = new File([u8arr], 'Logo_Huellas_de_la_Humanidad.png', { type: mime });
+      const dt = new DataTransfer();
+      dt.items.add(logoFile);
+
+      // 1. If a file input exists in Google Flow's DOM, attach the logo file to it directly
+      const fileInputs = Array.from(
+        document.querySelectorAll('input[type="file"][accept*="image" i], input[type="file"]')
+      );
+      for (const fi of fileInputs) {
+        try {
+          fi.files = dt.files;
+          fi.dispatchEvent(new Event('change', { bubbles: true }));
+          fi.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch {}
+      }
+
+      // 2. Also paste and drop the logo PNG file onto ProseMirror / composer container
+      const targetEl = inputEl || document.body;
+      try {
+        targetEl.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clipboardData: dt,
+          })
+        );
+      } catch {}
+
+      const dropZone = targetEl.parentElement || targetEl;
+      for (const evType of ['dragenter', 'dragover', 'drop']) {
+        try {
+          dropZone.dispatchEvent(
+            new DragEvent(evType, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              dataTransfer: dt,
+            })
+          );
+        } catch {}
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function handleSendFlowPrompt(payload) {
     const now = Date.now();
     const lastTs = Number(
@@ -849,85 +914,104 @@
         return;
       }
 
-      setFlowInputText(inputEl, promptText);
-      reportStatus('PROMPT_INJECTED', 'Prompt pegado en Google Flow, iniciando producción...', {
-        clipNumber: payload.clipNumber,
-        clipId: payload.clipId,
-        mediaType: payload.mediaType,
-      });
+      const hasLogo =
+        payload.mediaType === 'THUMBNAILS' &&
+        payload.logoDataUrl &&
+        typeof payload.logoDataUrl === 'string' &&
+        payload.logoDataUrl.startsWith('data:');
 
-      if (payload.autoSubmit === false) return;
+      if (hasLogo) {
+        attachLogoImageToFlow(inputEl, payload.logoDataUrl);
+        reportStatus(
+          'WORKING',
+          '🖼️ Logo Oficial "Huellas de la Humanidad" adjuntado en Google Flow (posición superior izquierda 5%)...'
+        );
+      }
 
-      let attempts = 0;
-      const trySubmit = () => {
-        attempts++;
-        const submitBtn = findExactFlowSubmitButton(inputEl);
+      setTimeout(
+        () => {
+          setFlowInputText(inputEl, promptText);
+          reportStatus('PROMPT_INJECTED', 'Prompt pegado en Google Flow, iniciando producción...', {
+            clipNumber: payload.clipNumber,
+            clipId: payload.clipId,
+            mediaType: payload.mediaType,
+          });
 
-        if (
-          submitBtn &&
-          !submitBtn.disabled &&
-          submitBtn.getAttribute('aria-disabled') !== 'true'
-        ) {
-          clickFlowSubmitButton(submitBtn, inputEl);
-          reportStatus(
-            'GENERATING',
-            `🎬 Prompt enviado a producción en Google Flow. Vigilando generación automáticamente...`,
-            {
-              clipNumber: payload.clipNumber,
-              clipId: payload.clipId,
-              mediaType: payload.mediaType,
+          if (payload.autoSubmit === false) return;
+
+          let attempts = 0;
+          const trySubmit = () => {
+            attempts++;
+            const submitBtn = findExactFlowSubmitButton(inputEl);
+
+            if (
+              submitBtn &&
+              !submitBtn.disabled &&
+              submitBtn.getAttribute('aria-disabled') !== 'true'
+            ) {
+              clickFlowSubmitButton(submitBtn, inputEl);
+              reportStatus(
+                'GENERATING',
+                `🎬 Prompt enviado a producción en Google Flow. Vigilando generación automáticamente...`,
+                {
+                  clipNumber: payload.clipNumber,
+                  clipId: payload.clipId,
+                  mediaType: payload.mediaType,
+                }
+              );
+              if (payload.mediaType === 'THUMBNAILS') {
+                startFlowThumbnailWatcher({
+                  optionLabel: payload.optionLabel,
+                  baselineImageUrls,
+                });
+              } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
+                startFlowVideoWatcher({
+                  clipNumber: payload.clipNumber,
+                  clipId: payload.clipId,
+                  prompt: promptText,
+                  attempt: payload.attempt || 1,
+                  baselineUrls,
+                  batchStartClip: payload.batchStartClip,
+                  batchEndClip: payload.batchEndClip,
+                  expectedCount: payload.expectedCount,
+                });
+              }
+              return;
             }
-          );
-          if (payload.mediaType === 'THUMBNAILS') {
-            startFlowThumbnailWatcher({
-              optionLabel: payload.optionLabel,
-              baselineImageUrls,
-            });
-          } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
-            startFlowVideoWatcher({
-              clipNumber: payload.clipNumber,
-              clipId: payload.clipId,
-              prompt: promptText,
-              attempt: payload.attempt || 1,
-              baselineUrls,
-              batchStartClip: payload.batchStartClip,
-              batchEndClip: payload.batchEndClip,
-              expectedCount: payload.expectedCount,
-            });
-          }
-          return;
-        }
 
-        if (attempts < 8) {
-          setTimeout(trySubmit, 180);
-        } else {
-          clickFlowSubmitButton(submitBtn, inputEl);
-          reportStatus(
-            'GENERATING',
-            `🎬 Prompt enviado a producción en Google Flow. Vigilando generación...`,
-            { clipNumber: payload.clipNumber, clipId: payload.clipId }
-          );
-          if (payload.mediaType === 'THUMBNAILS') {
-            startFlowThumbnailWatcher({
-              optionLabel: payload.optionLabel,
-              baselineImageUrls,
-            });
-          } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
-            startFlowVideoWatcher({
-              clipNumber: payload.clipNumber,
-              clipId: payload.clipId,
-              prompt: promptText,
-              attempt: payload.attempt || 1,
-              baselineUrls,
-              batchStartClip: payload.batchStartClip,
-              batchEndClip: payload.batchEndClip,
-              expectedCount: payload.expectedCount,
-            });
-          }
-        }
-      };
+            if (attempts < 10) {
+              setTimeout(trySubmit, 220);
+            } else {
+              clickFlowSubmitButton(submitBtn, inputEl);
+              reportStatus(
+                'GENERATING',
+                `🎬 Prompt enviado a producción en Google Flow. Vigilando generación...`,
+                { clipNumber: payload.clipNumber, clipId: payload.clipId }
+              );
+              if (payload.mediaType === 'THUMBNAILS') {
+                startFlowThumbnailWatcher({
+                  optionLabel: payload.optionLabel,
+                  baselineImageUrls,
+                });
+              } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
+                startFlowVideoWatcher({
+                  clipNumber: payload.clipNumber,
+                  clipId: payload.clipId,
+                  prompt: promptText,
+                  attempt: payload.attempt || 1,
+                  baselineUrls,
+                  batchStartClip: payload.batchStartClip,
+                  batchEndClip: payload.batchEndClip,
+                  expectedCount: payload.expectedCount,
+                });
+              }
+            }
+          };
 
-      setTimeout(trySubmit, 220);
+          setTimeout(trySubmit, hasLogo ? 650 : 220);
+        },
+        hasLogo ? 450 : 0
+      );
     }, 50);
 
     return true;

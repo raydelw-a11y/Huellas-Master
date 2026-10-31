@@ -37,6 +37,7 @@ export interface WebBridgeCommandPayload {
   trackNumber?: number;
   trackTitle?: string;
   optionLabel?: string;
+  logoDataUrl?: string;
   autoSubmit?: boolean;
   preferDockedWindow?: boolean;
   focusTab?: boolean;

@@ -251,18 +251,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           })
           .catch(() => {});
 
-        // MAIN-world safety injection & submit for Google Flow (works even when the Flow tab is in the background!)
+        // MAIN-world safety injection & submit for Google Flow (attaches logoDataUrl if present + works even when the Flow tab is in the background!)
         if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
           const flowTabId = targetTab.id;
           const rawPromptArg = String(payload.prompt || '');
           const mediaTypeArg = String(payload.mediaType || '');
+          const logoDataUrlArg = String(payload.logoDataUrl || '');
           setTimeout(() => {
             chrome.scripting
               .executeScript({
                 target: { tabId: flowTabId },
                 world: 'MAIN',
-                args: [rawPromptArg, mediaTypeArg],
-                func: (expectedRawPrompt, mediaType) => {
+                args: [rawPromptArg, mediaTypeArg, logoDataUrlArg],
+                func: (expectedRawPrompt, mediaType, logoDataUrl) => {
                   try {
                     const cleanExpected =
                       mediaType === 'THUMBNAILS'
@@ -273,27 +274,211 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     );
                     if (!inputEl) return;
 
-                    let currentText = (inputEl.innerText || inputEl.textContent || '').trim();
-                    // If the background tab still has an old prompt or didn't receive the new one, force-replace it in MAIN world
+                    // 1. If creating a thumbnail and logoDataUrl is provided, attach the Official Logo in MAIN world
                     if (
-                      cleanExpected &&
-                      currentText.length > 0 &&
-                      !currentText.includes(cleanExpected.slice(0, 35))
+                      mediaType === 'THUMBNAILS' &&
+                      logoDataUrl &&
+                      logoDataUrl.startsWith('data:')
                     ) {
-                      const clearBtn = document.querySelector(
-                        'button.clear-button[aria-label="Clear prompt"], button.clear-button'
-                      );
-                      if (clearBtn) {
+                      try {
+                        const parts = logoDataUrl.split(',');
+                        const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+                        const bstr = atob(parts[1] || '');
+                        const u8arr = new Uint8Array(bstr.length);
+                        for (let i = 0; i < bstr.length; i++) {
+                          u8arr[i] = bstr.charCodeAt(i);
+                        }
+                        const logoFile = new File(
+                          [u8arr],
+                          'Logo_Huellas_de_la_Humanidad.png',
+                          { type: mime }
+                        );
+                        const dt = new DataTransfer();
+                        dt.items.add(logoFile);
+
+                        // Intercept HTMLInputElement.prototype.click briefly in case Google Flow creates a hidden <input type="file">
+                        let capturedInput = document.querySelector(
+                          'input[type="file"][accept*="image" i], input[type="file"]'
+                        );
+                        if (!capturedInput) {
+                          const origClick = HTMLInputElement.prototype.click;
+                          HTMLInputElement.prototype.click = function () {
+                            if (this && this.type === 'file') {
+                              capturedInput = this;
+                              return;
+                            }
+                            return origClick.apply(this, arguments);
+                          };
+                          try {
+                            const addBtn = document.querySelector(
+                              'button.add-menu-trigger[aria-label*="Add ingredients" i], button.add-menu-trigger'
+                            );
+                            if (addBtn) {
+                              addBtn.click();
+                              const menuItems = Array.from(
+                                document.querySelectorAll('[role="menuitem"], .mat-mdc-menu-item, button')
+                              );
+                              const uploadItem = menuItems.find((el) =>
+                                /upload|subir|image|imagen|computer|equipo/i.test(
+                                  (el.innerText || el.textContent || '') +
+                                    ' ' +
+                                    (el.getAttribute('aria-label') || '')
+                                )
+                              );
+                              if (uploadItem) uploadItem.click();
+                            }
+                          } catch {}
+                          HTMLInputElement.prototype.click = origClick;
+                        }
+
+                        if (capturedInput) {
+                          try {
+                            capturedInput.files = dt.files;
+                            capturedInput.dispatchEvent(new Event('change', { bubbles: true }));
+                            capturedInput.dispatchEvent(new Event('input', { bubbles: true }));
+                          } catch {}
+                        }
+
                         try {
-                          clearBtn.click();
+                          inputEl.dispatchEvent(
+                            new ClipboardEvent('paste', {
+                              bubbles: true,
+                              cancelable: true,
+                              composed: true,
+                              clipboardData: dt,
+                            })
+                          );
                         } catch {}
-                      }
-                      currentText = '';
+                      } catch {}
                     }
 
-                    if (cleanExpected && (!currentText || currentText.length < 5)) {
+                    const hasLogoDelay =
+                      mediaType === 'THUMBNAILS' &&
+                      logoDataUrl &&
+                      logoDataUrl.startsWith('data:')
+                        ? 500
+                        : 0;
+
+                    setTimeout(() => {
+                      let currentText = (inputEl.innerText || inputEl.textContent || '').trim();
+                      if (
+                        cleanExpected &&
+                        currentText.length > 0 &&
+                        !currentText.includes(cleanExpected.slice(0, 35))
+                      ) {
+                        const clearBtn = document.querySelector(
+                          'button.clear-button[aria-label="Clear prompt"], button.clear-button'
+                        );
+                        if (clearBtn) {
+                          try {
+                            clearBtn.click();
+                          } catch {}
+                        }
+                        currentText = '';
+                      }
+
+                      if (cleanExpected && (!currentText || currentText.length < 5)) {
+                        try {
+                          inputEl.focus();
+                          const dtText = new DataTransfer();
+                          dtText.setData('text/plain', cleanExpected);
+                          inputEl.dispatchEvent(
+                            new ClipboardEvent('paste', {
+                              bubbles: true,
+                              cancelable: true,
+                              composed: true,
+                              clipboardData: dtText,
+                            })
+                          );
+                        } catch {}
+                        const checkAfterPaste = (
+                          inputEl.innerText ||
+                          inputEl.textContent ||
+                          ''
+                        ).trim();
+                        if (
+                          !checkAfterPaste ||
+                          !checkAfterPaste.includes(cleanExpected.slice(0, 25))
+                        ) {
+                          inputEl.innerHTML = '';
+                          const p = document.createElement('p');
+                          p.textContent = cleanExpected;
+                          inputEl.appendChild(p);
+                          inputEl.dispatchEvent(
+                            new InputEvent('input', {
+                              bubbles: true,
+                              cancelable: true,
+                              inputType: 'insertText',
+                              data: cleanExpected,
+                            })
+                          );
+                        }
+                      }
+
+                      setTimeout(() => {
+                        const remaining = (
+                          inputEl?.innerText ||
+                          inputEl?.textContent ||
+                          ''
+                        ).trim();
+                        if (!remaining || remaining.length < 5) return;
+                        const selectors = [
+                          'flow-generate-icon-button button',
+                          'span.submit-button-slot button',
+                          '[submitbutton] button',
+                          'button.generate-icon-button',
+                          'button[aria-label="Start generation"]',
+                          'button[aria-label*="Start generation" i]',
+                          'button[aria-label*="Iniciar generación" i]',
+                          'button[type="submit"]',
+                        ];
+                        for (const sel of selectors) {
+                          const btn = document.querySelector(sel);
+                          if (btn) {
+                            const r = btn.getBoundingClientRect();
+                            if (r.width >= 16 && r.height >= 16 && r.top > 0) {
+                              btn.click();
+                              return;
+                            }
+                          }
+                        }
+                      }, 280);
+                    }, hasLogoDelay);
+                  } catch {}
+                },
+              })
+              .catch(() => {});
+          }, 420);
+        }
+
+        // MAIN-world safety injection & submit for Gemini Web (works even when the Gemini tab is in the background!)
+        if (targetService === 'GEMINI' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
+          const geminiTabId = targetTab.id;
+          const geminiPromptArg = String(payload.prompt || '');
+          setTimeout(() => {
+            chrome.scripting
+              .executeScript({
+                target: { tabId: geminiTabId },
+                world: 'MAIN',
+                args: [geminiPromptArg],
+                func: (expectedPrompt) => {
+                  try {
+                    const cleanExpected = (expectedPrompt || '').trim();
+                    if (!cleanExpected) return;
+                    const inputEl = document.querySelector(
+                      'rich-textarea div.ql-editor[contenteditable="true"], div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
+                    );
+                    if (!inputEl) return;
+
+                    const currentText = (
+                      inputEl.value ??
+                      inputEl.innerText ??
+                      inputEl.textContent ??
+                      ''
+                    ).trim();
+                    if (!currentText || !currentText.includes(cleanExpected.slice(0, 30))) {
+                      inputEl.focus();
                       try {
-                        inputEl.focus();
                         const dt = new DataTransfer();
                         dt.setData('text/plain', cleanExpected);
                         inputEl.dispatchEvent(
@@ -305,8 +490,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                           })
                         );
                       } catch {}
-                      const checkAfterPaste = (inputEl.innerText || inputEl.textContent || '').trim();
-                      if (!checkAfterPaste || !checkAfterPaste.includes(cleanExpected.slice(0, 25))) {
+                      const afterPaste = (
+                        inputEl.value ??
+                        inputEl.innerText ??
+                        inputEl.textContent ??
+                        ''
+                      ).trim();
+                      if (!afterPaste || !afterPaste.includes(cleanExpected.slice(0, 25))) {
                         inputEl.innerHTML = '';
                         const p = document.createElement('p');
                         p.textContent = cleanExpected;
@@ -323,29 +513,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
 
                     setTimeout(() => {
-                      const remaining = (inputEl?.innerText || inputEl?.textContent || '').trim();
+                      const remaining = (
+                        inputEl?.value ??
+                        inputEl?.innerText ??
+                        inputEl?.textContent ??
+                        ''
+                      ).trim();
                       if (!remaining || remaining.length < 5) return;
-                      const selectors = [
-                        'flow-generate-icon-button button',
-                        'span.submit-button-slot button',
-                        '[submitbutton] button',
-                        'button.generate-icon-button',
-                        'button[aria-label="Start generation"]',
-                        'button[aria-label*="Start generation" i]',
-                        'button[aria-label*="Iniciar generación" i]',
-                        'button[type="submit"]',
+                      const sendSelectors = [
+                        'button.send-button:not([disabled])',
+                        '.send-button-container button:not([disabled])',
+                        'button[aria-label*="Send message" i]:not([disabled])',
+                        'button[aria-label*="Enviar mensaje" i]:not([disabled])',
+                        'button[aria-label*="Send" i]:not([disabled])',
+                        'button[aria-label*="Enviar" i]:not([disabled])',
                       ];
-                      for (const sel of selectors) {
+                      for (const sel of sendSelectors) {
                         const btn = document.querySelector(sel);
                         if (btn) {
-                          const r = btn.getBoundingClientRect();
-                          if (r.width >= 16 && r.height >= 16 && r.top > 0) {
-                            btn.click();
-                            return;
-                          }
+                          btn.click();
+                          return;
                         }
                       }
-                    }, 180);
+                    }, 220);
                   } catch {}
                 },
               })
