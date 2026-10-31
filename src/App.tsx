@@ -75,6 +75,7 @@ import {
   parseTimelineTextToSentences,
   ensureOperationalHeaderInRawClips,
   buildRawClipsTextWithHeader,
+  applyAutomaticFlowPolicyShield,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -109,7 +110,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:28 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:40 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -416,7 +417,7 @@ function buildPsychologicalThumbnailVariantPrompt(
   const leftLogoClause =
     'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
   const closingClause =
-    'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
+    'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
   const rawTitle = (doc?.title || '').trim();
   const isProvisionalTitle = /^video\s*\d+/i.test(rawTitle) || /^documental\s*\d*/i.test(rawTitle);
@@ -465,7 +466,8 @@ function buildPsychologicalThumbnailVariantPrompt(
     .join(', ');
   const protagonistHint =
     refNames.length > 0 ? ` (${refNames.join(', ')})` : '';
-  const sceneContext = `${derivedSubject}${protagonistHint}${era ? ` [${era}]` : ''}`;
+  const rawSceneContext = `${derivedSubject}${protagonistHint}${era ? ` [${era}]` : ''}`;
+  const sceneContext = applyAutomaticFlowPolicyShield(rawSceneContext, false);
 
   if (variant === 'A') {
     // Opción A: Rostro Humano + Emoción Extrema + Contacto Visual Directo (13ms)
@@ -7895,7 +7897,7 @@ export default function App() {
                         </span>
                       </div>
                       <textarea
-                        rows={9}
+                        rows={14}
                         value={activeDoc.voiceoverScript}
                         onChange={(e) => updateActiveDoc({ voiceoverScript: e.target.value })}
                         placeholder="Pega aquí la voz narrativa raw con sus [pausa: 2s], [pausa: 3s]..."
@@ -7944,7 +7946,7 @@ export default function App() {
                         </span>
                       </div>
                       <textarea
-                        rows={9}
+                        rows={14}
                         value={activeDoc.timelineFormattedText}
                         onChange={(e) => updateActiveDoc({ timelineFormattedText: e.target.value })}
                         placeholder={
@@ -7989,7 +7991,7 @@ export default function App() {
                         </button>
                       </div>
                       <textarea
-                        rows={9}
+                        rows={14}
                         value={activeDoc.rawClipsText}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -8413,28 +8415,28 @@ export default function App() {
                                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                               }, 50);
                             }}
-                            className={`min-w-[165px] max-w-[190px] shrink-0 text-left rounded-xl border p-2.5 transition cursor-pointer flex flex-col justify-between gap-1.5 ${statusColor}`}
+                            className={`min-w-[225px] max-w-[260px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${statusColor}`}
                           >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                                <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
                                 CLIP {padded}
                               </span>
-                              <span className="text-[10px] font-mono text-slate-300 bg-slate-900/90 px-1.5 py-0.5 rounded">
+                              <span className="text-[11px] font-mono text-slate-200 bg-slate-900/90 px-2 py-0.5 rounded">
                                 {clip.timeRange || 'S/T'}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-200 line-clamp-2 leading-snug">
+                            <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed">
                               {clip.clipNumber === 1
                                 ? '🔇 [0s Voz — Solo Foley y Texto Clip 1]'
                                 : clip.narrationSegment || '⚠️ Sin fragmento de voz asignado'}
                             </p>
-                            <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/80">
-                              <span className="text-[10px] text-slate-400 truncate">
+                            <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-800/80">
+                              <span className="text-[11px] text-slate-400 truncate">
                                 {clip.pauseNotes ? `⏸ ${clip.pauseNotes}` : '🎙️ Fluido'}
                               </span>
                               {(clip.suggestedImagePrompt || clip.suggestedVideoPrompt) && (
-                                <span className="text-[10px] font-bold text-amber-300 shrink-0">✨ Sugerencia</span>
+                                <span className="text-[11px] font-bold text-amber-300 shrink-0">✨ Sugerencia</span>
                               )}
                             </div>
                           </button>
@@ -8715,14 +8717,14 @@ export default function App() {
                                 </div>
                               </div>
                               <textarea
-                                rows={3}
+                                rows={5}
                                 value={clip.imagePrompt}
                                 onChange={(e) => {
                                   const next = [...activeDoc.clips];
                                   next[realIdx] = { ...clip, imagePrompt: e.target.value };
                                   updateActiveDoc({ clips: next });
                                 }}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-mono text-slate-200"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                               />
                             </div>
 
@@ -8766,21 +8768,21 @@ export default function App() {
                                 </div>
                               </div>
                               <textarea
-                                rows={3}
+                                rows={5}
                                 value={clip.videoPrompt}
                                 onChange={(e) => {
                                   const next = [...activeDoc.clips];
                                   next[realIdx] = { ...clip, videoPrompt: e.target.value };
                                   updateActiveDoc({ clips: next });
                                 }}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs font-mono text-slate-200"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                               />
                             </div>
                           </div>
 
-                          {/* SURGICAL ANTI-MUTATION QUICK FIX BAR + INTEGRATED .MP4 PLAYER & 3-KEYFRAME STRIP (1.0s, 4.5s, 7.2s) */}
+                          {/* SURGICAL ANTI-MUTATION QUICK FIX BAR + LARGE CINEMA .MP4 PLAYER & 3-KEYFRAME VIEWER */}
                           <div
-                            className={`rounded-xl border p-3.5 space-y-3 ${
+                            className={`rounded-2xl border p-4 space-y-4 ${
                               clip.videoAuditStatus === 'rejected'
                                 ? 'bg-rose-950/25 border-rose-500/40'
                                 : clip.videoAuditStatus === 'warning'
@@ -8792,21 +8794,21 @@ export default function App() {
                           >
                             {/* Header + 4 Surgical Error Fix Buttons */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
-                              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                                🎞️ Reproductor .MP4 Integrado y Auditoría Anti-Mutación (Inicio 1.2s • Mitad 5.0s • Final 8.8s)
+                              <span className="text-sm font-black text-amber-300 flex items-center gap-2">
+                                🎞️ Visor Grande .MP4 del Clip {paddedNum} y Auditoría Anti-Mutación (Inicio 1.2s • Mitad 5.0s • Final 8.8s)
                                 {clip.videoAttempts && clip.videoAttempts > 1
                                   ? ` • Intento #${clip.videoAttempts}`
                                   : ''}
                               </span>
                               {clip.videoSavedFileName && (
-                                <span className="text-[11px] font-mono text-emerald-300">
+                                <span className="text-xs font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">
                                   ✓ En 05_Clips_Video: {clip.videoSavedFileName}
                                 </span>
                               )}
                             </div>
 
                             {/* 4 Quick Surgical Anti-Mutation Buttons (1-Click Re-adjust + Re-send to Google Flow) */}
-                            <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-lg p-2">
+                            <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-lg p-2.5">
                               <span className="text-[11px] font-bold text-slate-400 mr-1">
                                 Corregir error visual y re-enviar a Flow:
                               </span>
@@ -8858,59 +8860,64 @@ export default function App() {
                               </ul>
                             )}
 
-                            {/* Integrated .MP4 Video Player + 3 Keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) */}
-                            {(capturedClipVideosMap[clip.clipNumber] ||
-                              clip.videoReady ||
-                              clip.videoSavedFileName ||
-                              (clip.videoFrames && clip.videoFrames.length > 0)) && (
-                              <div className="grid grid-cols-1 lg:grid-cols-4 gap-2.5 pt-1 items-center">
-                                {/* Integrated Interactive .MP4 Player */}
-                                <div className="relative rounded-lg overflow-hidden border border-amber-500/40 bg-black aspect-video flex items-center justify-center">
-                                  {capturedClipVideosMap[clip.clipNumber] ? (
-                                    <video
-                                      src={capturedClipVideosMap[clip.clipNumber]}
-                                      controls
-                                      playsInline
-                                      loop
-                                      preload="metadata"
-                                      className="w-full h-full object-contain bg-black"
-                                    />
-                                  ) : (
+                            {/* LARGE CINEMA .MP4 VIDEO VIEWER + 3 LARGE KEYFRAME PREVIEWS */}
+                            <div className="space-y-4 pt-1">
+                              {/* Main Large Interactive .MP4 Player */}
+                              <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video min-h-[280px] sm:min-h-[380px] lg:min-h-[460px] shadow-2xl flex items-center justify-center">
+                                {capturedClipVideosMap[clip.clipNumber] ? (
+                                  <video
+                                    src={capturedClipVideosMap[clip.clipNumber]}
+                                    controls
+                                    playsInline
+                                    loop
+                                    preload="metadata"
+                                    className="w-full h-full object-contain bg-black"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                                    <Film className="w-10 h-10 text-amber-400/70" />
+                                    <p className="text-xs text-slate-300 max-w-md">
+                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproducirá aquí en tamaño grande apenas se genere en Google Flow o al cargarlo desde tu carpeta.
+                                    </p>
                                     <button
                                       type="button"
                                       onClick={() => handleLoadClipVideoFromFolder(clip, false)}
-                                      className="px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-300 font-bold cursor-pointer text-center"
+                                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
                                     >
-                                      ▶️ Cargar Video .MP4 de 05_Clips_Video
+                                      ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
                                     </button>
-                                  )}
-                                  <span className="absolute top-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-emerald-300 pointer-events-none">
-                                    🎬 MP4 Clip {paddedNum}
-                                  </span>
-                                </div>
-
-                                {/* 3 Keyframe Captures (Inicio 1.0s, Mitad 4.5s, Final 7.2s) */}
-                                {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
-                                  <div
-                                    key={fIdx}
-                                    className="relative rounded-lg overflow-hidden border border-slate-800 bg-black aspect-video"
-                                  >
-                                    <img
-                                      src={frameSrc}
-                                      alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-amber-300">
-                                      {fIdx === 0
-                                        ? 'Inicio • 1.2s'
-                                        : fIdx === 1
-                                        ? 'Mitad • 5.0s'
-                                        : 'Final • 8.8s'}
-                                    </span>
                                   </div>
-                                ))}
+                                )}
+                                <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
+                                  🎬 Visor MP4 • Clip {paddedNum} ({clip.timeRange || 'S/T'})
+                                </span>
                               </div>
-                            )}
+
+                              {/* 3 Large Keyframe Captures (Inicio 1.2s, Mitad 5.0s, Final 8.8s) */}
+                              {(clip.videoFrames || []).length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
+                                    <div
+                                      key={fIdx}
+                                      className="relative rounded-xl overflow-hidden border border-slate-700 bg-black aspect-video min-h-[190px] shadow-lg"
+                                    >
+                                      <img
+                                        src={frameSrc}
+                                        alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <span className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/85 border border-amber-500/40 text-xs font-mono font-bold text-amber-300">
+                                        {fIdx === 0
+                                          ? 'Inicio • 1.2s'
+                                          : fIdx === 1
+                                          ? 'Mitad • 5.0s'
+                                          : 'Final • 8.8s'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* AI Suggested Replacement Prompts Box (if any) */}

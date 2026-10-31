@@ -1142,8 +1142,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           UPPER WORKSPACE: REAL-TIME PREVIEW MONITOR (LEFT/CENTER) + INSPECTOR (RIGHT)
       ===================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 bg-[#100d0a] border-b border-slate-800/90">
-        {/* PREVIEW MONITOR (7 COLS) */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-between bg-[#080705] border border-slate-800 rounded-2xl p-4 space-y-3">
+        {/* PREVIEW MONITOR (8 COLS — LARGER CINEMA VIEWER) */}
+        <div className="lg:col-span-8 flex flex-col items-center justify-between bg-[#080705] border border-slate-800 rounded-2xl p-4 space-y-3">
           <div className="w-full flex items-center justify-between text-xs text-slate-400">
             <span className="font-mono text-amber-300 font-bold">
               Monitor en Tiempo Real • {aspectRatio} • Salida:{' '}
@@ -1157,12 +1157,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
           </div>
 
-          {/* Aspect-Ratio Locked Screen */}
+          {/* Aspect-Ratio Locked Screen (Enlarged Cinema Size) */}
           <div
-            className={`relative bg-black rounded-xl overflow-hidden border border-amber-500/30 shadow-2xl flex items-center justify-center ${
+            className={`relative bg-black rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-2xl flex items-center justify-center ${
               aspectRatio === '16:9'
-                ? 'w-full max-w-[680px] aspect-video'
-                : 'h-[360px] aspect-[9/16]'
+                ? 'w-full max-w-[1060px] min-h-[340px] sm:min-h-[440px] lg:min-h-[520px] aspect-video'
+                : 'h-[540px] aspect-[9/16]'
             }`}
           >
             {/* Layer 1: Active Clip Video or Poster */}
@@ -1311,8 +1311,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
         </div>
 
-        {/* INSPECTOR & CONTROLS PANEL (5 COLS) */}
-        <div className="lg:col-span-5 bg-[#14110d] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+        {/* INSPECTOR & CONTROLS PANEL (4 COLS) */}
+        <div className="lg:col-span-4 bg-[#14110d] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
           {/* Inspector Tabs */}
           <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
             <button
@@ -1860,15 +1860,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING) */}
           <div className="flex items-center gap-2 min-w-max">
-            <div className="w-44 shrink-0 px-2.5 py-3 rounded-lg bg-amber-500/15 border border-amber-500/40 text-[11px] font-black text-amber-300">
+            <div className="w-44 shrink-0 px-2.5 py-4 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300">
               3. 🎬 Clips + Foley ({timelineClips.length})
             </div>
-            <div className="flex items-stretch gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-2">
+            <div className="flex items-stretch gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5">
               {clipsWithTimelineBounds.map((clip, idx) => {
                 const isSelected = selectedClip?.id === clip.id;
                 const isCurrent =
                   currentTime >= clip.start && currentTime < clip.end;
-                const cardWidth = Math.max(135, Math.round(clip.duration * timelineZoom));
+                const cardWidth = Math.max(195, Math.round(clip.duration * timelineZoom));
 
                 return (
                   <div
@@ -1887,7 +1887,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       setCurrentTime(clip.start);
                     }}
                     style={{ width: `${cardWidth}px` }}
-                    className={`group relative rounded-xl border p-2 flex flex-col justify-between gap-1.5 cursor-grab active:cursor-grabbing transition select-none ${
+                    className={`group relative rounded-xl border p-2.5 flex flex-col justify-between gap-2 cursor-grab active:cursor-grabbing transition select-none ${
                       isSelected
                         ? 'border-amber-400 bg-amber-500/15 shadow-lg shadow-amber-500/10'
                         : isCurrent
@@ -1896,16 +1896,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px]">
+                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px]">
                         #{String(idx + 1).padStart(2, '0')} (Clip {String(clip.clipNumber).padStart(2, '0')})
                       </span>
-                      <span className="text-[10px] font-mono text-slate-400">
+                      <span className="text-[11px] font-mono text-slate-300">
                         {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
                       </span>
                     </div>
 
                     {clip.posterUrl && (
-                      <div className="h-12 w-full rounded overflow-hidden bg-black border border-slate-800">
+                      <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
                         <img
                           src={clip.posterUrl}
                           alt={clip.fileName}
@@ -1914,11 +1914,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </div>
                     )}
 
-                    <div className="text-[10px] font-mono text-emerald-300 truncate" title={clip.fileName}>
+                    <div className="text-[11px] font-mono text-emerald-300 truncate" title={clip.fileName}>
                       {clip.fileName}
                     </div>
 
-                    <div className="flex items-center justify-between text-[9px] text-slate-400 pt-0.5 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
                       <span>
                         {clip.duration}s • {clip.speed}x
                       </span>

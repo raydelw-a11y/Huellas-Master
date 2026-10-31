@@ -540,27 +540,28 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
             </div>
           </div>
 
-          {/* Captured Flow Media Preview */}
+          {/* Captured Flow Media Preview (Enlarged Full-Width Clips Viewer) */}
           {(lastMirroredFlowVideos.length > 0 || lastMirroredFlowImages.length > 0) && (
-            <div className="bg-[#16130f] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+            <div className="bg-[#16130f] border border-slate-800 rounded-xl p-4 space-y-3">
               <span className="text-xs font-bold text-purple-300 block">
-                📥 Media Reciente Detectada en Google Flow:
+                📥 Media Reciente Detectada en Google Flow (Visor Ampliado):
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                {lastMirroredFlowVideos.slice(0, 4).map((vUrl, idx) => (
+              <div className="grid grid-cols-1 gap-3.5">
+                {lastMirroredFlowVideos.slice(0, 6).map((vUrl, idx) => (
                   <video
                     key={`v-${idx}`}
                     src={vUrl}
                     controls
-                    className="w-full rounded-lg border border-purple-500/30"
+                    playsInline
+                    className="w-full aspect-video min-h-[240px] rounded-xl border-2 border-purple-500/40 bg-black object-contain shadow-xl"
                   />
                 ))}
-                {lastMirroredFlowImages.slice(0, 4).map((iUrl, idx) => (
+                {lastMirroredFlowImages.slice(0, 6).map((iUrl, idx) => (
                   <img
                     key={`i-${idx}`}
                     src={iUrl}
                     alt={`Flow Media ${idx + 1}`}
-                    className="w-full rounded-lg border border-amber-500/30 object-cover"
+                    className="w-full aspect-video min-h-[220px] rounded-xl border border-amber-500/40 bg-black object-contain shadow-lg"
                   />
                 ))}
               </div>

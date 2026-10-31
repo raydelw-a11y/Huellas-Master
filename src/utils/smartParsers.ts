@@ -18,8 +18,96 @@ export function ensureOperationalHeaderInRawClips(
 }
 
 /**
- * Inyecta automáticamente desde la construcción del prompt las reglas de Física Rígida y Anti-Mutación (0s a 10s),
- * conservando todos los movimientos de cámara del Prompt Maestro de forma controlada y estabilizada.
+ * Blindaje automático Anti-Filtro "Prominent People", Anti-Menores y Anti-Violencia para Google Flow / Nano Banana 2.1 / Veo 3.1.
+ * Se aplica automáticamente desde la construcción de cualquier prompt (Miniatura, Referencias, Imágenes y Videos).
+ */
+export function applyAutomaticFlowPolicyShield(
+  rawPrompt: string,
+  preserveLeadingAtTag: boolean = false
+): string {
+  if (!rawPrompt || !rawPrompt.trim()) return '';
+  let p = rawPrompt.trim();
+
+  let leadingTagPrefix = '';
+  if (preserveLeadingAtTag) {
+    const leadMatch = p.match(/^(@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*)/);
+    if (leadMatch) {
+      leadingTagPrefix = leadMatch[1];
+      p = p.slice(leadingTagPrefix.length).trim();
+    }
+  }
+
+  // 1. Reemplazar títulos reales / políticos / religiosos + Nombres Propios ("Prominent People" filter trigger)
+  p = p.replace(
+    /\b(?:Queen|Princess|Empress|Duchess|Lady|Countess|Reina|Princesa|Emperatriz|Duquesa)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    'an adult historical noblewoman in regal period attire, portrayed by an anonymous dramatic actress'
+  );
+  p = p.replace(
+    /\b(?:King|Prince|Emperor|Duke|Lord|Count|Sultan|Tsar|Czar|Pharaoh|General|President|Prime Minister|Chancellor|Dictator|Rey|Príncipe|Emperador|Duque|Conde|Faraón)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    'an adult historical monarch in ceremonial period wardrobe, portrayed by an anonymous dramatic actor'
+  );
+  p = p.replace(
+    /\b(?:Pope|Bishop|Archbishop|Cardinal|Saint|Father|Friar|Papa|Obispo|Arzobispo|Cardenal|San|Santa|Santo)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    'an elderly historical clergyman in ornate ceremonial vestments, portrayed by an anonymous actor'
+  );
+
+  // 2. Reemplazar nombres propios históricos sueltos que disparan el detector de "prominent people"
+  p = p.replace(
+    /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina|Juana)\b/gi,
+    'the adult noblewoman in period attire'
+  );
+  p = p.replace(
+    /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Alfonso XIII|Alfonso XII|Primo de Rivera|Franco|Machado|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto|Columbus|Colón|Cortés|Pizarro|Bolívar)\b/gi,
+    'the adult historical figure in period attire'
+  );
+
+  // 3. Reemplazar etiquetas @Persona en el cuerpo del prompt para evitar que Flow bloquee @Nombres reales
+  p = p.replace(/@([A-Za-zÁÉÍÓÚÑáéíóúñ0-9_]+)/g, (_m, tagBody) => {
+    const lower = String(tagBody).toLowerCase();
+    if (
+      /castillo|torre|catedral|palacio|abadia|sala|camara|bosque|ciudad|puerto|muelle|cubierta|barco|trono|corona|carta|sello|espada|mapa/.test(
+        lower
+      )
+    ) {
+      return tagBody.replace(/_/g, ' ');
+    }
+    if (/reina|princesa|dama|mujer|ingeborg|blanca|leonor|isabel|catalina|maria|ana|elena/i.test(lower)) {
+      return 'an adult historical woman in authentic period wardrobe, portrayed by an anonymous historical reenactment actress';
+    }
+    return 'an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor';
+  });
+
+  // 4. Neutralizar términos de edad/menores y términos gráficos/violencia/sangre
+  p = p.replace(
+    /\b(\d{1,2}-year-old|child bride|young girl|teenage girl|little girl|little boy|adolescent|minor|underage|niña|adolescente|menor)\b/gi,
+    'adult in their mid-twenties'
+  );
+  p = p.replace(
+    /\b(blood|bleeding|bloody|gore|corpse|dead body|cadaver|execution|beheading|decapitation|torture|suicide|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
+    'dramatic chiaroscuro shadow'
+  );
+
+  // Limpiar repeticiones accidentales
+  p = p
+    .replace(
+      /(portrayed by an anonymous (?:historical reenactment |dramatic )?(?:actor|actress))(?:,\s*\1)+/gi,
+      '$1'
+    )
+    .replace(
+      /\b(the adult (?:noblewoman|historical figure|historical ruler|historical sovereign))(?:[\s,]+\1)+/gi,
+      '$1'
+    )
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return `${leadingTagPrefix}${p}`.trim();
+}
+
+/**
+ * Inyecta automáticamente desde la construcción del prompt TODOS los blindajes:
+ * 1) Blindaje Anti-Filtro "Prominent People", Menores y Violencia (Google Flow / Nano Banana 2.1 / Veo 3.1)
+ * 2) Blindaje de Física Rígida y Anti-Mutación (0s a 10s en Documental / 0s a 5s en Reel), conservando todos los movimientos de cámara del Prompt Maestro de forma controlada y estabilizada
+ * 3) Escudo Anti-Violencia y Alucinaciones (cero explosiones o destellos no solicitados)
  */
 export function ensureAntiMutationPhysicsInPrompt(
   rawPrompt: string,
@@ -35,6 +123,9 @@ export function ensureAntiMutationPhysicsInPrompt(
     prefix = prefixMatch[1];
     p = p.slice(prefix.length).trim();
   }
+
+  // Aplicar primero el blindaje Anti-Filtro "Prominent People" y Políticas
+  p = applyAutomaticFlowPolicyShield(p, false);
 
   // Limpiar cualquier cláusula previa para nunca duplicar
   p = p
@@ -56,17 +147,23 @@ export function ensureAntiMutationPhysicsInPrompt(
       /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi,
       ''
     )
+    .replace(
+      /Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi,
+      ''
+    )
     .trim();
 
   if (isImagePrompt) {
     const imgClause =
-      'clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects';
+      'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
     if (!p.toLowerCase().includes('rigid architectural perspective')) {
       if (/\bno\s+text\b/i.test(p)) {
         p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
       } else {
         p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
       }
+    } else if (!/no real public figures/i.test(p)) {
+      p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
     }
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   }
@@ -77,7 +174,7 @@ export function ensureAntiMutationPhysicsInPrompt(
     .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
     .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
-  const shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.`;
+  const shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).`;
 
   if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
     p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -692,12 +789,17 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
         tag.startsWith('@') ||
         /character sheet|portrait|person|character|man|woman|emperor|king|queen/i.test(promptPart);
 
+      let shieldedPromptPart = applyAutomaticFlowPolicyShield(promptPart, true);
+      if (isPerson && !/no real public figures/i.test(shieldedPromptPart)) {
+        shieldedPromptPart = `${shieldedPromptPart.replace(/\.?\s*$/, '')}. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).`;
+      }
+
       results.push({
         id: `ref-${Date.now()}-${results.length + 1}`,
         tag,
         category: isPerson ? 'persona' : 'lugar',
         description: before || tag,
-        prompt: promptPart,
+        prompt: shieldedPromptPart,
         isCreated: false,
       });
       currentTag = '';
