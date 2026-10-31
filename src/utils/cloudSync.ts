@@ -446,14 +446,35 @@ Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.
 - Para cada LUGAR principal (sin @ al inicio), escribe una sola línea con el formato:
   Nombre_Lugar: Create an image in 16:9 with 4 different 16:9 views of this same location (${doc.historicalTime}, ${doc.historicalLocation}) with perfect continuity: one wide establishing shot of the environment well-lit for the historical atmosphere, and three shots from different angles and perspectives showing architectural details, materials, and lighting. Physical Characteristics: [arquitectura, materiales, época e iluminación]. Visual Style: Hyper-realistic cinematic film still, atmospheric lighting, no people, animals, or characters in the image, textless, no lines or text/words in the image.`;
   } else if (stageNumber === 7) {
+    const scriptContext = (
+      doc.voiceoverScript ||
+      doc.timelineFormattedText ||
+      doc.sectionsStructure ||
+      doc.deepResearchResult ||
+      ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 900);
+    const clip1VisualContext = (doc.clips?.[0]?.imagePrompt || '').trim();
     stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
-Título del video: ${doc.title || ''}
-Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
-Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
-Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
+Tema: ${doc.topic || doc.title || ''} | Lugar: ${doc.historicalLocation || 'Por definir según el guion'} | Tiempo: ${doc.historicalTime || 'Por definir según el guion'}
+Título del video: ${doc.title || doc.topic || ''}
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || 'Ninguno'}
+${clip1VisualContext ? `Escena visual del Clip 1: ${clip1VisualContext}\n` : ''}Guion de referencia: "${scriptContext}"
+Propón EXACTAMENTE 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video, sin voz narrativa):
+Opción 1:
 Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [Título Gancho intrigante y cinematográfico]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+
+Opción 2:
+Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+
+Opción 3:
+Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+
 REGLA INQUEBRANTABLE DE NO REPETICIÓN: No repitas lo mismo que el Título del video ni el Texto de la Miniatura.`;
   } else if (stageNumber === 8) {
     const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();

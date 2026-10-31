@@ -90,6 +90,22 @@ export function sendCommandToWebBridge(
   payload: WebBridgeCommandPayload
 ): string {
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  // Prevent Quill/Rich-Textarea in Gemini Web from treating '\n' in execCommand('insertText') as an Enter key press that submits after line 1
+  const safePayload: WebBridgeCommandPayload =
+    targetService === 'GEMINI' &&
+    payload.action === 'SEND_PROMPT' &&
+    typeof payload.prompt === 'string'
+      ? {
+          ...payload,
+          prompt: payload.prompt
+            .replace(/\r\n/g, '\n')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join('   |   '),
+        }
+      : payload;
+
   if (typeof window !== 'undefined') {
     window.postMessage(
       {
@@ -97,7 +113,7 @@ export function sendCommandToWebBridge(
         type: 'HUELLAS_COMMAND',
         requestId,
         targetService,
-        payload,
+        payload: safePayload,
       },
       '*'
     );

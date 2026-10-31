@@ -109,7 +109,47 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:53 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:03 PM - 10/31/2026';
+
+function parseClip1OptionsFromRawText(
+  rawText: string
+): Array<{ line1: string; line2: string }> {
+  const clean = String(rawText || '').trim();
+  if (!clean) return [];
+
+  const results: Array<{ line1: string; line2: string }> = [];
+  const lines = clean
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*[-*•]\s*/, '').trim())
+    .filter(Boolean);
+
+  let pendingLine1 = '';
+  for (const line of lines) {
+    const l1Match = line.match(
+      /^(?:\*\*?)?L[íi]nea\s*1(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
+    );
+    const l2Match = line.match(
+      /^(?:\*\*?)?L[íi]nea\s*2(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
+    );
+    if (l1Match) {
+      pendingLine1 = l1Match[1]
+        .replace(/^\[|\]$/g, '')
+        .replace(/^["'«»“”*]+|["'«»“”*]+$/g, '')
+        .trim();
+    } else if (l2Match && pendingLine1) {
+      const line2Val = l2Match[1]
+        .replace(/^\[|\]$/g, '')
+        .replace(/^["'«»“”*]+|["'«»“”*]+$/g, '')
+        .trim();
+      if (line2Val) {
+        results.push({ line1: pendingLine1, line2: line2Val });
+        pendingLine1 = '';
+      }
+    }
+  }
+
+  return results.slice(0, 5);
+}
 
 export const DOCUMENTARY_SUBFOLDERS = [
   '01_Guion_y_SEO',
@@ -1211,7 +1251,17 @@ export default function App() {
         references: parsedRefs.length > 0 ? parsedRefs : activeDoc.references,
       });
     } else if (stageNum === 7) {
-      updateActiveDoc({ clip1OptionsRaw: text });
+      const parsedOptions = parseClip1OptionsFromRawText(text);
+      const firstOpt = parsedOptions[0];
+      updateActiveDoc({
+        clip1OptionsRaw: text,
+        ...(firstOpt
+          ? {
+              clip1Line1LocationTime: firstOpt.line1,
+              clip1Line2Hook: firstOpt.line2,
+            }
+          : {}),
+      });
     } else if (stageNum === 8) {
       const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
       const syncedClips = syncAndAuditProductionClips({
@@ -6492,6 +6542,50 @@ export default function App() {
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
                       Propuestas / Notas de Texto en Pantalla
                     </label>
+                    {(() => {
+                      const parsedClip1Opts = parseClip1OptionsFromRawText(
+                        activeDoc.clip1OptionsRaw || ''
+                      );
+                      if (parsedClip1Opts.length === 0) return null;
+                      return (
+                        <div className="mb-3 space-y-2">
+                          <div className="text-[11px] font-semibold text-amber-300">
+                            ✨ Haz clic en una opción para aplicarla al letrero:
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                            {parsedClip1Opts.map((opt, idx) => {
+                              const isSelected =
+                                activeDoc.clip1Line1LocationTime === opt.line1 &&
+                                activeDoc.clip1Line2Hook === opt.line2;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() =>
+                                    updateActiveDoc({
+                                      clip1Line1LocationTime: opt.line1,
+                                      clip1Line2Hook: opt.line2,
+                                    })
+                                  }
+                                  className={`text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-500/20 border-amber-400 text-white'
+                                      : 'bg-slate-950/90 hover:bg-slate-900 border-slate-800 text-slate-300'
+                                  }`}
+                                >
+                                  <div className="text-[11px] font-bold text-amber-300">
+                                    Opción {idx + 1}: {opt.line1}
+                                  </div>
+                                  <div className="text-xs font-extrabold text-white mt-0.5">
+                                    {opt.line2}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <textarea
                       rows={5}
                       value={activeDoc.clip1OptionsRaw}

@@ -1464,40 +1464,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 args: [geminiPromptArg],
                 func: (expectedPrompt) => {
                   try {
-                    const cleanExpected = (expectedPrompt || '').trim();
+                    const cleanExpected = (expectedPrompt || '')
+                      .replace(/\r\n/g, '\n')
+                      .split('\n')
+                      .map((l) => l.trim())
+                      .filter(Boolean)
+                      .join('   |   ')
+                      .trim();
                     if (!cleanExpected) return;
                     const inputEl = document.querySelector(
                       'rich-textarea div.ql-editor[contenteditable="true"], div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
                     );
                     if (!inputEl) return;
 
+                    const minExpectedLen = Math.max(10, Math.floor(cleanExpected.length * 0.8));
                     const currentText = (
                       inputEl.value ??
                       inputEl.innerText ??
                       inputEl.textContent ??
                       ''
                     ).trim();
-                    if (!currentText || !currentText.includes(cleanExpected.slice(0, 30))) {
+                    if (!currentText || currentText.length < minExpectedLen) {
                       inputEl.focus();
                       try {
-                        const dt = new DataTransfer();
-                        dt.setData('text/plain', cleanExpected);
-                        inputEl.dispatchEvent(
-                          new ClipboardEvent('paste', {
-                            bubbles: true,
-                            cancelable: true,
-                            composed: true,
-                            clipboardData: dt,
-                          })
-                        );
+                        const selection = window.getSelection();
+                        const range = document.createRange();
+                        range.selectNodeContents(inputEl);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        document.execCommand('delete', false);
+                        document.execCommand('insertText', false, cleanExpected);
                       } catch {}
-                      const afterPaste = (
+                      const afterInsert = (
                         inputEl.value ??
                         inputEl.innerText ??
                         inputEl.textContent ??
                         ''
                       ).trim();
-                      if (!afterPaste || !afterPaste.includes(cleanExpected.slice(0, 25))) {
+                      if (!afterInsert || afterInsert.length < minExpectedLen) {
                         inputEl.innerHTML = '';
                         const p = document.createElement('p');
                         p.textContent = cleanExpected;
@@ -1506,7 +1510,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                           new InputEvent('input', {
                             bubbles: true,
                             cancelable: true,
-                            inputType: 'insertText',
+                            composed: true,
+                            inputType: 'insertFromPaste',
                             data: cleanExpected,
                           })
                         );

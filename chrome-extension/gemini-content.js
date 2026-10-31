@@ -131,50 +131,63 @@
     }
 
     // Contenteditable (Quill / Rich-Textarea in Gemini)
+    // IMPORTANT: Never pass multi-line strings with '\n' into document.execCommand('insertText'),
+    // because Quill treats the first '\n' as an Enter keypress (insertParagraph) and submits only Line 1!
+    const normalizedText = String(text || '').replace(/\r\n/g, '\n').trim();
+    const singleLineSafeText = normalizedText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .join('   |   ');
+    const minExpectedLength = Math.max(10, Math.floor(singleLineSafeText.length * 0.8));
+
     try {
+      const lines = normalizedText.split('\n');
+      inputEl.innerHTML = '';
+      for (const line of lines) {
+        const p = document.createElement('p');
+        if (line.trim().length > 0) {
+          p.textContent = line;
+        } else {
+          p.appendChild(document.createElement('br'));
+        }
+        inputEl.appendChild(p);
+      }
+
+      // Place caret at the very end and insert a single space (no '\n') so Quill/Angular enables the Send button
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(inputEl);
+      range.collapse(false);
       selection.removeAllRanges();
       selection.addRange(range);
       try {
-        document.execCommand('delete', false);
+        document.execCommand('insertText', false, ' ');
       } catch {}
-      const inserted = document.execCommand('insertText', false, text);
-      const expectedPrefix = text.trim().slice(0, 25);
+
       let afterText = (inputEl.innerText || inputEl.textContent || '').trim();
-      if (!inserted || !afterText.includes(expectedPrefix)) {
+      if (afterText.length < minExpectedLength) {
+        // Fallback: select all and insert single-line safe text (zero '\n' characters)
+        const fallbackRange = document.createRange();
+        fallbackRange.selectNodeContents(inputEl);
+        selection.removeAllRanges();
+        selection.addRange(fallbackRange);
         try {
-          inputEl.innerHTML = '<p><br></p>';
-          const dt = new DataTransfer();
-          dt.setData('text/plain', text);
-          inputEl.dispatchEvent(
-            new ClipboardEvent('paste', {
-              bubbles: true,
-              cancelable: true,
-              composed: true,
-              clipboardData: dt,
-            })
-          );
+          document.execCommand('delete', false);
         } catch {}
-        afterText = (inputEl.innerText || inputEl.textContent || '').trim();
-        if (!afterText.includes(expectedPrefix)) {
-          inputEl.innerHTML = '';
-          const p = document.createElement('p');
-          p.textContent = text;
-          inputEl.appendChild(p);
-        }
+        document.execCommand('insertText', false, singleLineSafeText);
       }
     } catch {
-      inputEl.textContent = text;
+      inputEl.textContent = singleLineSafeText;
     }
 
     inputEl.dispatchEvent(
       new InputEvent('input', {
         bubbles: true,
         cancelable: true,
-        inputType: 'insertText',
-        data: text,
+        composed: true,
+        inputType: 'insertFromPaste',
+        data: singleLineSafeText,
       })
     );
     inputEl.dispatchEvent(new Event('change', { bubbles: true }));
