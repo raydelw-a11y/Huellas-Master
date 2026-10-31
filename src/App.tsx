@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:23 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:22 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1846,19 +1846,19 @@ export default function App() {
       const srcW = img.naturalWidth || img.width || w;
       const srcH = img.naturalHeight || img.height || h;
 
-      // 3 distinct camera crops & color-grade inspection passes:
-      // 0: Inicio 1.0s (Wide Establishing Shot — Full Frame)
-      // 1: Mitad 4.5s (Medium Push-In 18% Crop)
-      // 2: Final 7.2s (Close-Up Focal Detail 34% Crop)
+      // 3 distinct camera crops & color-grade inspection passes (for 10s clips: 1.2s, 5.0s, 8.8s):
+      // 0: Inicio 1.2s (Wide Establishing Shot — Full Frame)
+      // 1: Mitad 5.0s (Medium Push-In 18% Crop)
+      // 2: Final 8.8s (Close-Up Focal Detail 34% Crop)
       const configs = [
-        { sx: 0, sy: 0, sw: srcW, sh: srcH, filter: 'contrast(1.02) brightness(0.98)', badge: 'INICIO • 1.0s' },
+        { sx: 0, sy: 0, sw: srcW, sh: srcH, filter: 'contrast(1.02) brightness(0.98)', badge: 'INICIO • 1.2s' },
         {
           sx: srcW * 0.09,
           sy: srcH * 0.08,
           sw: srcW * 0.82,
           sh: srcH * 0.82,
           filter: 'contrast(1.08) saturate(1.08)',
-          badge: 'MITAD • 4.5s',
+          badge: 'MITAD • 5.0s',
         },
         {
           sx: srcW * 0.22,
@@ -1866,7 +1866,7 @@ export default function App() {
           sw: srcW * 0.64,
           sh: srcH * 0.64,
           filter: 'contrast(1.14) brightness(1.04) sepia(0.08)',
-          badge: 'FINAL • 7.2s',
+          badge: 'FINAL • 8.8s',
         },
       ];
 
@@ -2189,7 +2189,7 @@ export default function App() {
     return [];
   };
 
-  // Option 1 & Option 2 Surgical Anti-Mutation Prompt Shield (Preserves all Master Prompt camera movements while making them controlled + 8s sustained action)
+  // Option 1 & Option 2 Surgical Anti-Mutation Prompt Shield (Preserves all Master Prompt camera movements while making them controlled + 10s sustained action)
   const applyAntiMutationShieldToPrompt = (
     rawPrompt: string,
     mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
@@ -2197,6 +2197,8 @@ export default function App() {
   ): string => {
     if (!rawPrompt || !rawPrompt.trim()) return '';
     let p = rawPrompt.trim();
+    const isReelFormat = (activeDocRef.current || activeDoc)?.productionFormat === 'reel';
+    const clipSec = isReelFormat ? 5 : 10;
 
     let prefix = '';
     const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
@@ -2213,10 +2215,10 @@ export default function App() {
         ''
       )
       .replace(
-        /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*8\s*seconds[^.]*\.\s*/gi,
+        /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
         ''
       )
-      .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*8s[^.]*\.\s*/gi, '')
+      .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
       .replace(/All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
       .trim();
@@ -2238,18 +2240,14 @@ export default function App() {
 
     let shieldDirective = '';
     if (mode === 'PEOPLE') {
-      shieldDirective =
-        'Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.';
+      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.`;
     } else if (mode === 'OBJECTS') {
-      shieldDirective =
-        'Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to 8s, with zero self-moving or floating objects.';
+      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving or floating objects.`;
     } else if (mode === 'WALLS') {
-      shieldDirective =
-        'Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement.';
+      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement.`;
     } else {
       // 'ALL'
-      shieldDirective =
-        'Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.';
+      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.`;
     }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
@@ -2269,16 +2267,17 @@ export default function App() {
   ) => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc) return;
+    const clipSec = currentDoc.productionFormat === 'reel' ? 5 : 10;
 
     const nextAttempt = (clip.videoAttempts || 1) + 1;
     const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true);
     const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false);
 
     const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL', string> = {
-      PEOPLE: '🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–8s + fondo bokeh estático)',
+      PEOPLE: `🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–${clipSec}s + fondo bokeh estático)`,
       OBJECTS: '🪑 Anti-Movimiento de Objetos Solos (objetos 100% anclados a gravedad)',
       WALLS: '🧱 Anti-Mutación de Paredes/Fondo (cámara controlada + geometría 3D rígida)',
-      ALL: '🔧 Blindaje Completo Anti-Mutación 8s (Personas + Objetos + Paredes + Acción Sostenida 0s–8s)',
+      ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
     const padded = String(clip.clipNumber).padStart(2, '0');
@@ -2325,10 +2324,11 @@ export default function App() {
     );
   };
 
-  // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + 8s Sustained Action + Anti-Mutation Physics
+  // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + 10s Sustained Action + Anti-Mutation Physics
   const handleShieldAllClipsAntiMutation = () => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc || !Array.isArray(currentDoc.clips) || currentDoc.clips.length === 0) return;
+    const clipSec = currentDoc.productionFormat === 'reel' ? 5 : 10;
 
     const nextClips = currentDoc.clips.map((c) => ({
       ...c,
@@ -2345,7 +2345,7 @@ export default function App() {
       rawClipsText: nextRawClipsText,
     });
 
-    const msg = `🧱 ¡${nextClips.length} Clips blindados con Física Anti-Mutación 8s! Se conservaron todos los movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 8s + cero aparición/mutación de personas, paredes u objetos.`;
+    const msg = `🧱 ¡${nextClips.length} Clips blindados con Física Anti-Mutación ${clipSec}s! Se conservaron todos los movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a ${clipSec}s + cero aparición/mutación de personas, paredes u objetos.`;
     setFlowStatusLog(msg);
     setBridgeStatusType('SUCCESS');
     setBridgeStatusMsg(msg);
@@ -8449,9 +8449,10 @@ export default function App() {
                         type="button"
                         onClick={handleShieldAllClipsAntiMutation}
                         className="px-3.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer"
-                        title="Conserva todos tus movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 8s + prohíbe aparición/mutación de personas, paredes y objetos en todos los clips"
+                        title="Conserva todos tus movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 10s + prohíbe aparición/mutación de personas, paredes y objetos en todos los clips"
                       >
-                        🧱 Blindar Todos los Prompts (Física + Anti-Mutación 8s)
+                        🧱 Blindar Todos los Prompts (Física + Anti-Mutación{' '}
+                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'})
                       </button>
 
                       <button
@@ -8757,7 +8758,7 @@ export default function App() {
                             {/* Header + 4 Surgical Error Fix Buttons */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                                🎞️ Reproductor .MP4 Integrado y Auditoría Anti-Mutación (Inicio 1.0s • Mitad 4.5s • Final 7.2s)
+                                🎞️ Reproductor .MP4 Integrado y Auditoría Anti-Mutación (Inicio 1.2s • Mitad 5.0s • Final 8.8s)
                                 {clip.videoAttempts && clip.videoAttempts > 1
                                   ? ` • Intento #${clip.videoAttempts}`
                                   : ''}
@@ -8778,7 +8779,7 @@ export default function App() {
                                 type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
                                 className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition"
-                                title="Congela el conteo de personas de 0s a 8s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
+                                title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
                               >
                                 🚷 Aparece / Muta Gente
                               </button>
@@ -8802,7 +8803,7 @@ export default function App() {
                                 type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition"
-                                title="Aplica los 3 blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 8s) y re-envía a Google Flow"
+                                title="Aplica los 3 blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
                               >
                                 🔧 Todo Anti-Mutación
                               </button>
@@ -8866,10 +8867,10 @@ export default function App() {
                                     />
                                     <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-amber-300">
                                       {fIdx === 0
-                                        ? 'Inicio • 1.0s'
+                                        ? 'Inicio • 1.2s'
                                         : fIdx === 1
-                                        ? 'Mitad • 4.5s'
-                                        : 'Final • 7.2s'}
+                                        ? 'Mitad • 5.0s'
+                                        : 'Final • 8.8s'}
                                     </span>
                                   </div>
                                 ))}
