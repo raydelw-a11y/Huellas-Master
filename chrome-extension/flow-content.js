@@ -749,7 +749,8 @@
           Number.isFinite(tempVideo.duration) && tempVideo.duration > 0.5
             ? tempVideo.duration
             : 8;
-        const ratios = [0.12, 0.5, 0.86];
+        // Inicio 1.0s (12.5%), Mitad 4.5s (56.25%), Final 7.2s (90%)
+        const ratios = [0.125, 0.5625, 0.9];
 
         for (let i = 0; i < ratios.length; i++) {
           let targetTs = Math.max(0.18, dur * ratios[i]);
@@ -800,7 +801,7 @@
           Number.isFinite(liveVideoEl.duration) && liveVideoEl.duration > 0.5
             ? liveVideoEl.duration
             : 8;
-        const ratios = [0.12, 0.5, 0.86];
+        const ratios = [0.125, 0.5625, 0.9];
         for (let i = 0; i < ratios.length; i++) {
           const ts = Math.max(0.18, dur * ratios[i]);
           await seekAndFlushVideoFrame(liveVideoEl, ts);

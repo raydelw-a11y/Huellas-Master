@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:14 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:23 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1819,7 +1819,7 @@ export default function App() {
     return `${prefix}${p}`.trim();
   };
 
-  // Extract 3 genuinely distinct keyframes (Inicio 10%, Mitad 50%, Final 88%) in the foreground tab
+  // Extract 3 genuinely distinct keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) in the foreground tab
   // and guarantee they are never identical (even for legacy clips or static camera shots)
   const buildThreeDistinctFramesFromSingleImage = async (
     baseImageSrc: string
@@ -1847,18 +1847,18 @@ export default function App() {
       const srcH = img.naturalHeight || img.height || h;
 
       // 3 distinct camera crops & color-grade inspection passes:
-      // 0: Inicio (Wide Establishing Shot — Full Frame with Cool Opening Grade)
-      // 1: Mitad (Medium Push-In 18% Crop Focused Left-Center with Neutral Grade)
-      // 2: Final (Close-Up Focal Detail 34% Crop Focused Right-Center with Warm Chiaroscuro Grade)
+      // 0: Inicio 1.0s (Wide Establishing Shot — Full Frame)
+      // 1: Mitad 4.5s (Medium Push-In 18% Crop)
+      // 2: Final 7.2s (Close-Up Focal Detail 34% Crop)
       const configs = [
-        { sx: 0, sy: 0, sw: srcW, sh: srcH, filter: 'contrast(1.02) brightness(0.98)', badge: '00:01 • INICIO (10%)' },
+        { sx: 0, sy: 0, sw: srcW, sh: srcH, filter: 'contrast(1.02) brightness(0.98)', badge: 'INICIO • 1.0s' },
         {
           sx: srcW * 0.09,
           sy: srcH * 0.08,
           sw: srcW * 0.82,
           sh: srcH * 0.82,
           filter: 'contrast(1.08) saturate(1.08)',
-          badge: '00:04 • MITAD (50%)',
+          badge: 'MITAD • 4.5s',
         },
         {
           sx: srcW * 0.22,
@@ -1866,7 +1866,7 @@ export default function App() {
           sw: srcW * 0.64,
           sh: srcH * 0.64,
           filter: 'contrast(1.14) brightness(1.04) sepia(0.08)',
-          badge: '00:07 • FINAL (88%)',
+          badge: 'FINAL • 7.2s',
         },
       ];
 
@@ -1881,12 +1881,11 @@ export default function App() {
         ctx.drawImage(img, cfg.sx, cfg.sy, cfg.sw, cfg.sh, 0, 0, w, h);
         ctx.filter = 'none';
 
-        // Subtle timecode bar in top-right so each audit frame is unmistakably distinct
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(w - 132, 6, 126, 18);
+        ctx.fillRect(w - 110, 6, 104, 18);
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 10px monospace';
-        ctx.fillText(cfg.badge, w - 126, 18);
+        ctx.fillText(cfg.badge, w - 102, 18);
 
         out.push(canvas.toDataURL('image/jpeg', 0.84));
       }
@@ -1945,10 +1944,127 @@ export default function App() {
       const d01 = calcDiff(sigs[0], sigs[1]);
       const d12 = calcDiff(sigs[1], sigs[2]);
       const d02 = calcDiff(sigs[0], sigs[2]);
-      // If any pair differs by less than 2.8 RGB levels on average, they are identical or near-identical
       return d01 < 2.8 || d12 < 2.8 || d02 < 2.8;
     } catch {
       return false;
+    }
+  };
+
+  // Automatic Temporal Mutation Detector for Middle-to-End of Clip (1.0s -> 4.5s -> 7.2s)
+  const detectMidToEndMutationFromFrames = async (
+    frames3: string[]
+  ): Promise<{
+    mutationSuspected: boolean;
+    mutationReason: string;
+    suggestedFixMode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL';
+  }> => {
+    if (!Array.isArray(frames3) || frames3.length < 3) {
+      return { mutationSuspected: false, mutationReason: '', suggestedFixMode: 'ALL' };
+    }
+    try {
+      const W = 32;
+      const H = 18;
+      const grids: Uint8ClampedArray[] = [];
+      for (let i = 0; i < 3; i++) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((res, rej) => {
+          const t = setTimeout(() => rej(new Error('timeout')), 2500);
+          img.onload = () => {
+            clearTimeout(t);
+            res();
+          };
+          img.onerror = () => {
+            clearTimeout(t);
+            rej(new Error('err'));
+          };
+          img.src = frames3[i];
+        });
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext('2d');
+        if (!ctx) return { mutationSuspected: false, mutationReason: '', suggestedFixMode: 'ALL' };
+        ctx.drawImage(img, 0, 0, W, H);
+        grids.push(ctx.getImageData(0, 0, W, H).data);
+      }
+
+      // Compare First Half (1.0s -> 4.5s, span = 3.5s) vs Second Half (4.5s -> 7.2s, span = 2.7s)
+      // Separate peripheral walls/background (outer border) from center subject region
+      let firstHalfWallDiff = 0;
+      let secondHalfWallDiff = 0;
+      let wallCount = 0;
+
+      let firstHalfCenterDiff = 0;
+      let secondHalfCenterDiff = 0;
+      let centerCount = 0;
+      let suddenPopInBlocks = 0;
+
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = (y * W + x) * 4;
+          const d1 =
+            (Math.abs(grids[1][idx] - grids[0][idx]) +
+              Math.abs(grids[1][idx + 1] - grids[0][idx + 1]) +
+              Math.abs(grids[1][idx + 2] - grids[0][idx + 2])) /
+            3;
+          const d2 =
+            (Math.abs(grids[2][idx] - grids[1][idx]) +
+              Math.abs(grids[2][idx + 1] - grids[1][idx + 1]) +
+              Math.abs(grids[2][idx + 2] - grids[1][idx + 2])) /
+            3;
+
+          const isOuterWall = x < 5 || x >= W - 5 || y < 3 || y >= H - 3;
+          if (isOuterWall) {
+            firstHalfWallDiff += d1;
+            secondHalfWallDiff += d2;
+            wallCount++;
+          } else {
+            firstHalfCenterDiff += d1;
+            secondHalfCenterDiff += d2;
+            centerCount++;
+            // Detect localized pop-in or vanishing silhouette in the second half (4.5s -> 7.2s)
+            if (d2 > 68 && d2 > d1 * 2.4) {
+              suddenPopInBlocks++;
+            }
+          }
+        }
+      }
+
+      const avgWall1 = wallCount > 0 ? firstHalfWallDiff / wallCount : 0;
+      const avgWall2 = wallCount > 0 ? secondHalfWallDiff / wallCount : 0;
+      const avgCenter1 = centerCount > 0 ? firstHalfCenterDiff / centerCount : 0;
+      const avgCenter2 = centerCount > 0 ? secondHalfCenterDiff / centerCount : 0;
+
+      // Normalize per second (first half = 3.5s, second half = 2.7s)
+      const wallRate1 = avgWall1 / 3.5;
+      const wallRate2 = avgWall2 / 2.7;
+      const centerRate1 = avgCenter1 / 3.5;
+      const centerRate2 = avgCenter2 / 2.7;
+
+      // Case 1: Sudden subject pop-in / disappearance / morphing in the center during 4.5s -> 7.2s
+      if (suddenPopInBlocks >= 18 || (avgCenter2 > 44 && centerRate2 > Math.max(4.5, centerRate1 * 2.35))) {
+        return {
+          mutationSuspected: true,
+          mutationReason:
+            '🧬 ⚠️ Sospecha de mutación en Mitad/Final (4.5s–7.2s): aparición repentina o transformación brusca de personas/objetos en el plano central.',
+          suggestedFixMode: 'PEOPLE',
+        };
+      }
+
+      // Case 2: Peripheral walls/architecture mutating abruptly in the second half (4.5s -> 7.2s)
+      if (avgWall2 > 42 && wallRate2 > Math.max(4.2, wallRate1 * 2.25)) {
+        return {
+          mutationSuspected: true,
+          mutationReason:
+            '🧬 ⚠️ Sospecha de mutación de Paredes/Fondo en Mitad/Final (4.5s–7.2s): deformación estructural brusca en los bordes arquitectónicos.',
+          suggestedFixMode: 'WALLS',
+        };
+      }
+
+      return { mutationSuspected: false, mutationReason: '', suggestedFixMode: 'ALL' };
+    } catch {
+      return { mutationSuspected: false, mutationReason: '', suggestedFixMode: 'ALL' };
     }
   };
 
@@ -1958,7 +2074,7 @@ export default function App() {
   ): Promise<string[]> => {
     const incoming = Array.isArray(fallbackFrames) ? fallbackFrames.filter(Boolean) : [];
 
-    // 1. If we have the MP4 videoDataUrl in the foreground tab, decode 3 distinct timestamps (10%, 50%, 88%) directly
+    // 1. If we have the MP4 videoDataUrl in the foreground tab, decode 3 distinct timestamps (Inicio 1.0s, Mitad 4.5s, Final 7.2s) directly
     if (videoDataUrl && videoDataUrl.startsWith('data:video')) {
       let tempVideo: HTMLVideoElement | null = null;
       let blobUrl = '';
@@ -1993,11 +2109,12 @@ export default function App() {
           Number.isFinite(tempVideo.duration) && tempVideo.duration > 0.5
             ? tempVideo.duration
             : 8;
-        const ratios = [0.1, 0.5, 0.88];
+        // Exact target timestamps for 8s clip: 1.0s (12.5%), 4.5s (56.25%), 7.2s (90%)
+        const ratios = [0.125, 0.5625, 0.9];
         const extracted: string[] = [];
 
         for (let i = 0; i < ratios.length; i++) {
-          const targetTime = Math.min(Math.max(0.12, dur * ratios[i]), Math.max(0.2, dur - 0.1));
+          const targetTime = Math.min(Math.max(0.15, dur * ratios[i]), Math.max(0.2, dur - 0.1));
           await new Promise<void>((resolve) => {
             let done = false;
             const finish = () => {
@@ -2039,7 +2156,6 @@ export default function App() {
           if (!identical) {
             return extracted;
           }
-          // If the video itself had very little motion, build 3 distinct camera inspection crops from extracted[0]
           return await buildThreeDistinctFramesFromSingleImage(extracted[0]);
         }
       } catch {
@@ -2072,6 +2188,242 @@ export default function App() {
     }
     return [];
   };
+
+  // Option 1 & Option 2 Surgical Anti-Mutation Prompt Shield (Preserves all Master Prompt camera movements while making them controlled + 8s sustained action)
+  const applyAntiMutationShieldToPrompt = (
+    rawPrompt: string,
+    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
+    isImagePrompt: boolean = false
+  ): string => {
+    if (!rawPrompt || !rawPrompt.trim()) return '';
+    let p = rawPrompt.trim();
+
+    let prefix = '';
+    const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
+    if (prefixMatch) {
+      prefix = prefixMatch[1];
+      p = p.slice(prefix.length).trim();
+    }
+
+    // Remove any previously injected anti-mutation clause so it never duplicates
+    p = p
+      .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
+      .replace(
+        /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.\s*/gi,
+        ''
+      )
+      .replace(
+        /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*8\s*seconds[^.]*\.\s*/gi,
+        ''
+      )
+      .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*8s[^.]*\.\s*/gi, '')
+      .replace(/All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi, '')
+      .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
+      .trim();
+
+    if (isImagePrompt) {
+      const imgClause =
+        'clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects';
+      if (!p.toLowerCase().includes('rigid architectural perspective')) {
+        p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}.`;
+      }
+      return `${prefix}${p}`.trim();
+    }
+
+    // Keep all Master Prompt camera movements (pan, dolly, crane, tracking, tilt, orbit), but ensure they are smooth & controlled (never abrupt/whip)
+    p = p
+      .replace(/\b(whip\s+pan|fast\s+pan|rapid\s+pan)\b/gi, 'smooth controlled fluid-head pan')
+      .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
+      .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
+
+    let shieldDirective = '';
+    if (mode === 'PEOPLE') {
+      shieldDirective =
+        'Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.';
+    } else if (mode === 'OBJECTS') {
+      shieldDirective =
+        'Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to 8s, with zero self-moving or floating objects.';
+    } else if (mode === 'WALLS') {
+      shieldDirective =
+        'Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement.';
+    } else {
+      // 'ALL'
+      shieldDirective =
+        'Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.';
+    }
+
+    if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
+      p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
+    } else {
+      p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
+    }
+
+    return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+  };
+
+  // Option 2: Surgical 1-Click Fix for Specific Visual Mutation ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL') + Immediate Re-send to Google Flow
+  const handleFixMutationAndResendClip = (
+    clip: DocumentaryClip,
+    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
+    isAutoMutationRetry: boolean = false
+  ) => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc) return;
+
+    const nextAttempt = (clip.videoAttempts || 1) + 1;
+    const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true);
+    const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false);
+
+    const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL', string> = {
+      PEOPLE: '🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–8s + fondo bokeh estático)',
+      OBJECTS: '🪑 Anti-Movimiento de Objetos Solos (objetos 100% anclados a gravedad)',
+      WALLS: '🧱 Anti-Mutación de Paredes/Fondo (cámara controlada + geometría 3D rígida)',
+      ALL: '🔧 Blindaje Completo Anti-Mutación 8s (Personas + Objetos + Paredes + Acción Sostenida 0s–8s)',
+    };
+
+    const padded = String(clip.clipNumber).padStart(2, '0');
+    const reasonMsg = isAutoMutationRetry
+      ? `🧬 Auto-Regeneración Anti-Mutación activada para Clip #${padded} (${modeLabels[mode]}). Re-enviando a Google Flow (Intento #${nextAttempt})...`
+      : `🔧 Clip #${padded} reajustado con ${modeLabels[mode]} y re-enviado a Google Flow para reemplazar el archivo .mp4...`;
+
+    const nextClips = (currentDoc.clips || []).map((c) =>
+      c.id === clip.id
+        ? {
+            ...c,
+            imagePrompt: shieldedImg || c.imagePrompt,
+            videoPrompt: shieldedVid || c.videoPrompt,
+            videoAuditStatus: 'generating' as const,
+            videoAttempts: nextAttempt,
+            videoAuditReason: reasonMsg,
+          }
+        : c
+    );
+
+    const nextRawClipsText = nextClips
+      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+      .join('\n\n');
+
+    updateActiveDoc({
+      clips: nextClips,
+      rawClipsText: nextRawClipsText,
+    });
+
+    const updatedClipObj = nextClips.find((c) => c.id === clip.id) || {
+      ...clip,
+      imagePrompt: shieldedImg || clip.imagePrompt,
+      videoPrompt: shieldedVid || clip.videoPrompt,
+    };
+
+    setFlowStatusLog(reasonMsg);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(reasonMsg);
+
+    sendClipToFlowWithAutoAudit(
+      updatedClipObj,
+      shieldedVid || updatedClipObj.videoPrompt,
+      nextAttempt
+    );
+  };
+
+  // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + 8s Sustained Action + Anti-Mutation Physics
+  const handleShieldAllClipsAntiMutation = () => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc || !Array.isArray(currentDoc.clips) || currentDoc.clips.length === 0) return;
+
+    const nextClips = currentDoc.clips.map((c) => ({
+      ...c,
+      imagePrompt: applyAntiMutationShieldToPrompt(c.imagePrompt || '', 'ALL', true),
+      videoPrompt: applyAntiMutationShieldToPrompt(c.videoPrompt || '', 'ALL', false),
+    }));
+
+    const nextRawClipsText = nextClips
+      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+      .join('\n\n');
+
+    updateActiveDoc({
+      clips: nextClips,
+      rawClipsText: nextRawClipsText,
+    });
+
+    const msg = `🧱 ¡${nextClips.length} Clips blindados con Física Anti-Mutación 8s! Se conservaron todos los movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 8s + cero aparición/mutación de personas, paredes u objetos.`;
+    setFlowStatusLog(msg);
+    setBridgeStatusType('SUCCESS');
+    setBridgeStatusMsg(msg);
+  };
+
+  // Load .MP4 video file directly from 05_Clips_Video subfolder so integrated <video> player works for all existing clips
+  const handleLoadClipVideoFromFolder = async (
+    clip: DocumentaryClip,
+    silent: boolean = false
+  ): Promise<string> => {
+    try {
+      const currentDoc = activeDocRef.current || activeDoc;
+      if (!flowDownloadDirHandleRef.current && currentDoc?.id) {
+        const restored = await loadDirHandleFromIndexedDB(currentDoc.id);
+        if (restored) {
+          flowDownloadDirHandleRef.current = restored;
+        }
+      }
+      const rootHandle = flowDownloadDirHandleRef.current;
+      if (!rootHandle) {
+        if (!silent) {
+          await ensureSingleDownloadFolderReadyOnGesture();
+        }
+        if (!flowDownloadDirHandleRef.current) return '';
+      }
+
+      const activeHandle = flowDownloadDirHandleRef.current;
+      const clipsDir = await activeHandle.getDirectoryHandle('05_Clips_Video', { create: false });
+      const padded = String(clip.clipNumber).padStart(2, '0');
+      const expectedName =
+        clip.videoSavedFileName || buildClipSixWordFileName(clip, currentDoc || null);
+
+      let matchedFile: File | null = null;
+      try {
+        const fh = await clipsDir.getFileHandle(expectedName, { create: false });
+        matchedFile = await fh.getFile();
+      } catch {
+        // Scan directory for any file starting with `${padded}_` and ending in `.mp4`
+        for await (const [entryName, entryHandle] of (clipsDir as any).entries()) {
+          if (
+            entryHandle.kind === 'file' &&
+            entryName.startsWith(`${padded}_`) &&
+            entryName.toLowerCase().endsWith('.mp4')
+          ) {
+            matchedFile = await entryHandle.getFile();
+            break;
+          }
+        }
+      }
+
+      if (matchedFile) {
+        const objUrl = URL.createObjectURL(matchedFile);
+        setCapturedClipVideosMap((prev) => ({
+          ...prev,
+          [clip.clipNumber]: objUrl,
+        }));
+        return objUrl;
+      }
+    } catch {}
+    return '';
+  };
+
+  // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed
+  useEffect(() => {
+    if (activeStage !== 8 || !activeDoc || !Array.isArray(activeDoc.clips)) return;
+    let cancelled = false;
+    (async () => {
+      for (const clip of activeDoc.clips) {
+        if (cancelled) return;
+        if (!capturedClipVideosMap[clip.clipNumber]) {
+          await handleLoadClipVideoFromFolder(clip, true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStage, activeDoc?.id, activeDoc?.clips?.length]);
   const saveApprovedClipVideoToFolder = async (
     clipObj: DocumentaryClip,
     videoDataUrl?: string
@@ -2297,14 +2649,50 @@ export default function App() {
     }
 
     try {
-      // Extract 3 guaranteed distinct keyframes (Inicio 10%, Mitad 50%, Final 88%) in the foreground tab
+      // Extract 3 guaranteed distinct keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) in the foreground tab
       const distinctFrames = await extractThreeDistinctKeyframesInForeground(videoDataUrl, frames);
 
-      const verdict: 'approved' | 'warning' | 'rejected' = 'approved';
-      const score = 96;
-      const reason =
-        'Video capturado directamente desde tu cuenta de Google Flow con 3 fotogramas distintos (Inicio 10%, Mitad 50%, Final 88%) y verificado con su Prompt y Voz Narrativa.';
-      const issues: string[] = [];
+      // Automatic Mid-to-End (4.5s -> 7.2s) Visual Mutation Audit
+      const mutationCheck = await detectMidToEndMutationFromFrames(distinctFrames);
+
+      if (mutationCheck.mutationSuspected && attempt === 1 && !fromScan) {
+        const latestDocPre = activeDocRef.current || currentDoc;
+        const preClips = (latestDocPre.clips || []).map((c) =>
+          c.id === targetClip.id
+            ? {
+                ...c,
+                videoFrames: distinctFrames.length > 0 ? distinctFrames : c.videoFrames,
+                videoAuditStatus: 'generating' as const,
+                videoAuditScore: 62,
+                videoAuditReason: `${mutationCheck.mutationReason} Re-ajustando prompt automáticamente con blindaje Anti-Mutación 8s y regenerando en Google Flow (Intento #2)...`,
+              }
+            : c
+        );
+        updateActiveDoc({ clips: preClips });
+        setTimeout(() => {
+          handleFixMutationAndResendClip(
+            {
+              ...targetClip,
+              videoFrames: distinctFrames.length > 0 ? distinctFrames : targetClip.videoFrames,
+              videoAttempts: 1,
+            },
+            mutationCheck.suggestedFixMode,
+            true
+          );
+        }, 950);
+        return;
+      }
+
+      const verdict: 'approved' | 'warning' | 'rejected' = mutationCheck.mutationSuspected
+        ? 'warning'
+        : 'approved';
+      const score = mutationCheck.mutationSuspected ? 68 : 96;
+      const reason = mutationCheck.mutationSuspected
+        ? `${mutationCheck.mutationReason} Puedes revisarlo en el reproductor .MP4 integrado o pulsar cualquiera de los 4 botones rápidos Anti-Mutación.`
+        : 'Video capturado desde Google Flow con 3 fotogramas (Inicio 1.0s, Mitad 4.5s, Final 7.2s) y auditado sin mutaciones detectadas en la segunda mitad.';
+      const issues: string[] = mutationCheck.mutationSuspected
+        ? [mutationCheck.mutationReason]
+        : [];
 
       // Auto-Download to 05_Clips_Video Subfolder inside Chosen Root Folder with 6-Word Filename
       let savedFileName = targetClip.videoSavedFileName || '';
@@ -8059,6 +8447,15 @@ export default function App() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
+                        onClick={handleShieldAllClipsAntiMutation}
+                        className="px-3.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer"
+                        title="Conserva todos tus movimientos de cámara del Prompt Maestro de forma controlada + acción continua de 0s a 8s + prohíbe aparición/mutación de personas, paredes y objetos en todos los clips"
+                      >
+                        🧱 Blindar Todos los Prompts (Física + Anti-Mutación 8s)
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={handleEvadeFilterAllClips}
                         className="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold cursor-pointer"
                         title="Reemplaza nombres de personas prominentes, reyes y @Personas por descripciones físicas anónimas de recreación histórica en todos los clips"
@@ -8345,70 +8742,140 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* GOOGLE FLOW REAL VIDEO AUDIT RESULT & 3-KEYFRAME STRIP */}
-                          {(clip.videoAuditReason || (clip.videoFrames && clip.videoFrames.length > 0)) && (
-                            <div
-                              className={`rounded-xl border p-3.5 space-y-2.5 ${
-                                clip.videoAuditStatus === 'rejected'
-                                  ? 'bg-rose-950/25 border-rose-500/40'
-                                  : clip.videoAuditStatus === 'approved'
-                                  ? 'bg-emerald-950/20 border-emerald-500/35'
-                                  : 'bg-slate-950/90 border-slate-800'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between flex-wrap gap-2">
-                                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                                  🎞️ Auditoría Visual del Video Creado en Google Flow (vs. Prompt y Voz Narrativa)
-                                  {clip.videoAttempts && clip.videoAttempts > 1
-                                    ? ` • Intento #${clip.videoAttempts}`
-                                    : ''}
+                          {/* SURGICAL ANTI-MUTATION QUICK FIX BAR + INTEGRATED .MP4 PLAYER & 3-KEYFRAME STRIP (1.0s, 4.5s, 7.2s) */}
+                          <div
+                            className={`rounded-xl border p-3.5 space-y-3 ${
+                              clip.videoAuditStatus === 'rejected'
+                                ? 'bg-rose-950/25 border-rose-500/40'
+                                : clip.videoAuditStatus === 'warning'
+                                ? 'bg-amber-950/20 border-amber-500/40'
+                                : clip.videoAuditStatus === 'approved'
+                                ? 'bg-emerald-950/20 border-emerald-500/35'
+                                : 'bg-slate-950/90 border-slate-800'
+                            }`}
+                          >
+                            {/* Header + 4 Surgical Error Fix Buttons */}
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                🎞️ Reproductor .MP4 Integrado y Auditoría Anti-Mutación (Inicio 1.0s • Mitad 4.5s • Final 7.2s)
+                                {clip.videoAttempts && clip.videoAttempts > 1
+                                  ? ` • Intento #${clip.videoAttempts}`
+                                  : ''}
+                              </span>
+                              {clip.videoSavedFileName && (
+                                <span className="text-[11px] font-mono text-emerald-300">
+                                  ✓ En 05_Clips_Video: {clip.videoSavedFileName}
                                 </span>
-                                {clip.videoSavedFileName && (
-                                  <span className="text-[11px] font-mono text-emerald-300">
-                                    ✓ Descargado automáticamente: {clip.videoSavedFileName}
-                                  </span>
-                                )}
-                              </div>
-
-                              {clip.videoAuditReason && (
-                                <p className="text-xs text-slate-200 leading-relaxed">
-                                  {clip.videoAuditReason}
-                                </p>
-                              )}
-
-                              {clip.videoAuditIssues && clip.videoAuditIssues.length > 0 && (
-                                <ul className="list-disc list-inside text-xs text-rose-300 space-y-0.5">
-                                  {clip.videoAuditIssues.map((iss, iIdx) => (
-                                    <li key={iIdx}>{iss}</li>
-                                  ))}
-                                </ul>
-                              )}
-
-                              {clip.videoFrames && clip.videoFrames.length > 0 && (
-                                <div className="grid grid-cols-3 gap-2.5 pt-1">
-                                  {clip.videoFrames.slice(0, 3).map((frameSrc, fIdx) => (
-                                    <div
-                                      key={fIdx}
-                                      className="relative rounded-lg overflow-hidden border border-slate-800 bg-black aspect-video"
-                                    >
-                                      <img
-                                        src={frameSrc}
-                                        alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                      <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-amber-300">
-                                        {fIdx === 0
-                                          ? 'Inicio • 10%'
-                                          : fIdx === 1
-                                          ? 'Mitad • 50%'
-                                          : 'Final • 88%'}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
                               )}
                             </div>
-                          )}
+
+                            {/* 4 Quick Surgical Anti-Mutation Buttons (1-Click Re-adjust + Re-send to Google Flow) */}
+                            <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-lg p-2">
+                              <span className="text-[11px] font-bold text-slate-400 mr-1">
+                                Corregir error visual y re-enviar a Flow:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition"
+                                title="Congela el conteo de personas de 0s a 8s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
+                              >
+                                🚷 Aparece / Muta Gente
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
+                                className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition"
+                                title="Ancla todos los muebles, papeles y objetos a la gravedad (100% estacionarios) para que nada se mueva solo"
+                              >
+                                🪑 Objeto se mueve solo
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
+                                className="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition"
+                                title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
+                              >
+                                🧱 Pared / Fondo muta
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition"
+                                title="Aplica los 3 blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 8s) y re-envía a Google Flow"
+                              >
+                                🔧 Todo Anti-Mutación
+                              </button>
+                            </div>
+
+                            {clip.videoAuditReason && (
+                              <p className="text-xs text-slate-200 leading-relaxed">
+                                {clip.videoAuditReason}
+                              </p>
+                            )}
+
+                            {clip.videoAuditIssues && clip.videoAuditIssues.length > 0 && (
+                              <ul className="list-disc list-inside text-xs text-amber-300 space-y-0.5">
+                                {clip.videoAuditIssues.map((iss, iIdx) => (
+                                  <li key={iIdx}>{iss}</li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {/* Integrated .MP4 Video Player + 3 Keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) */}
+                            {(capturedClipVideosMap[clip.clipNumber] ||
+                              clip.videoReady ||
+                              clip.videoSavedFileName ||
+                              (clip.videoFrames && clip.videoFrames.length > 0)) && (
+                              <div className="grid grid-cols-1 lg:grid-cols-4 gap-2.5 pt-1 items-center">
+                                {/* Integrated Interactive .MP4 Player */}
+                                <div className="relative rounded-lg overflow-hidden border border-amber-500/40 bg-black aspect-video flex items-center justify-center">
+                                  {capturedClipVideosMap[clip.clipNumber] ? (
+                                    <video
+                                      src={capturedClipVideosMap[clip.clipNumber]}
+                                      controls
+                                      playsInline
+                                      loop
+                                      preload="metadata"
+                                      className="w-full h-full object-contain bg-black"
+                                    />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLoadClipVideoFromFolder(clip, false)}
+                                      className="px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-300 font-bold cursor-pointer text-center"
+                                    >
+                                      ▶️ Cargar Video .MP4 de 05_Clips_Video
+                                    </button>
+                                  )}
+                                  <span className="absolute top-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-emerald-300 pointer-events-none">
+                                    🎬 MP4 Clip {paddedNum}
+                                  </span>
+                                </div>
+
+                                {/* 3 Keyframe Captures (Inicio 1.0s, Mitad 4.5s, Final 7.2s) */}
+                                {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
+                                  <div
+                                    key={fIdx}
+                                    className="relative rounded-lg overflow-hidden border border-slate-800 bg-black aspect-video"
+                                  >
+                                    <img
+                                      src={frameSrc}
+                                      alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-amber-300">
+                                      {fIdx === 0
+                                        ? 'Inicio • 1.0s'
+                                        : fIdx === 1
+                                        ? 'Mitad • 4.5s'
+                                        : 'Final • 7.2s'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
 
                           {/* AI Suggested Replacement Prompts Box (if any) */}
                           {hasSuggestion && (
