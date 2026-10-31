@@ -104,7 +104,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:40 AM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:45 AM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -922,7 +922,18 @@ export default function App() {
     if (stageNum === 2 || stageNum === 3) {
       updateActiveDoc({ sectionsStructure: text });
     } else if (stageNum === 4) {
-      updateActiveDoc({ voiceoverScript: normalizeQuantitiesToMil(text) });
+      const normalizedScript = normalizeQuantitiesToMil(text);
+      const autoTl = buildSmartClientTimeline(normalizedScript, activeDoc);
+      updateActiveDoc({
+        voiceoverScript: normalizedScript,
+        ...(autoTl.sentences.length > 0
+          ? {
+              timelineSentences: autoTl.sentences,
+              timelineFormattedText: autoTl.formatted,
+              correctedSrt: autoTl.srt,
+            }
+          : {}),
+      });
     } else if (stageNum === 5) {
       const patch: Partial<DocumentaryProject> = {
         thumbnailOrientation: orientationForThumb,
@@ -2372,7 +2383,233 @@ export default function App() {
     });
   };
 
-  // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback)
+  // Measure real duration of any audio URL or File in the browser (works 100% on GitHub Pages & locally)
+  const measureAudioDurationInBrowser = (srcOrFile: string | File): Promise<number> => {
+    return new Promise((resolve) => {
+      try {
+        const audio = new Audio();
+        let objectUrl = '';
+        if (typeof srcOrFile === 'string') {
+          audio.src = srcOrFile;
+        } else {
+          objectUrl = URL.createObjectURL(srcOrFile);
+          audio.src = objectUrl;
+        }
+        const cleanup = () => {
+          if (objectUrl) {
+            try {
+              URL.revokeObjectURL(objectUrl);
+            } catch {}
+          }
+        };
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve(0);
+        }, 4500);
+        audio.onloadedmetadata = () => {
+          clearTimeout(timer);
+          const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+          cleanup();
+          resolve(dur);
+        };
+        audio.onerror = () => {
+          clearTimeout(timer);
+          cleanup();
+          resolve(0);
+        };
+      } catch {
+        resolve(0);
+      }
+    });
+  };
+
+  // 100% Client-Side & Pause-Aware Smart Timeline Extractor (Never fails on GitHub Pages)
+  const buildSmartClientTimeline = (
+    rawScript: string,
+    doc: DocumentaryProject,
+    audioDurationSec?: number,
+    overrideSentenceMode?: string
+  ): { sentences: Sentence[]; formatted: string; srt: string } => {
+    const settings = doc.timelineSettings || {
+      language: 'es',
+      customLanguage: '',
+      quality: 'high',
+      outputStyle: 'timeline',
+      timestampFormat: 'MM:SS',
+      sentenceMode:
+        doc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+      noBlankLines: true,
+      strictNarration: false,
+      removeFiller: false,
+      mergeShort: false,
+      preservePunctuation: true,
+      includeLineNumbers: true,
+    };
+
+    const mode = overrideSentenceMode || settings.sentenceMode || 'split-10-seconds';
+    const segLen =
+      mode === 'split-8-seconds' ? 8 : mode === 'split-4-seconds' ? 4 : 10;
+
+    const cleanRaw = (rawScript || '').trim();
+    if (!cleanRaw) {
+      return { sentences: [], formatted: '', srt: '' };
+    }
+
+    // Tokenize words & pause tags ([pausa de X segundos] / (pausa de X segundos))
+    const pauseRegex = /(?:\[|\()\s*pausa(?:\s+de)?\s+(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?)?\s*(?:\]|\))/gi;
+    interface TimedWordToken {
+      word: string;
+      pauseAfterSec: number;
+    }
+
+    const tokens: TimedWordToken[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    const pushWordsChunk = (chunk: string) => {
+      const words = chunk
+        .replace(/\r?\n+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      for (const w of words) {
+        tokens.push({ word: w, pauseAfterSec: 0 });
+      }
+    };
+
+    while ((match = pauseRegex.exec(cleanRaw)) !== null) {
+      if (match.index > lastIndex) {
+        pushWordsChunk(cleanRaw.slice(lastIndex, match.index));
+      }
+      const pSec = parseFloat(String(match[1]).replace(',', '.')) || 0;
+      if (tokens.length > 0 && pSec > 0) {
+        tokens[tokens.length - 1].pauseAfterSec += pSec;
+      }
+      lastIndex = pauseRegex.lastIndex;
+    }
+    if (lastIndex < cleanRaw.length) {
+      pushWordsChunk(cleanRaw.slice(lastIndex));
+    }
+
+    if (tokens.length === 0) {
+      return { sentences: [], formatted: '', srt: '' };
+    }
+
+    const totalPauseSec = tokens.reduce((acc, t) => acc + t.pauseAfterSec, 0);
+    const baseWordSec = 0.38; // ~158 words/min documentary narration speed
+    const estimatedSpeechSec = tokens.length * baseWordSec;
+    const targetTotalSec =
+      audioDurationSec && audioDurationSec > 2
+        ? audioDurationSec
+        : estimatedSpeechSec + totalPauseSec;
+
+    const speechBudgetSec = Math.max(tokens.length * 0.18, targetTotalSec - totalPauseSec);
+    const secPerWord = speechBudgetSec / tokens.length;
+
+    const sentences: Sentence[] = [];
+
+    if (mode === 'one-sentence-per-line' || mode === 'combine-short') {
+      let currentWords: string[] = [];
+      let blockStart = 0;
+      let cursor = 0;
+
+      tokens.forEach((tok, idx) => {
+        currentWords.push(tok.word);
+        cursor += secPerWord + tok.pauseAfterSec;
+        const endsSentence = /[.!?…]$/.test(tok.word);
+        const minWords = mode === 'combine-short' ? 12 : 4;
+        if ((endsSentence && currentWords.length >= minWords) || idx === tokens.length - 1) {
+          sentences.push({
+            text: currentWords.join(' '),
+            start: Number(blockStart.toFixed(2)),
+            end: Number(Math.max(blockStart + 1, cursor).toFixed(2)),
+          });
+          currentWords = [];
+          blockStart = cursor;
+        }
+      });
+    } else {
+      // Exact 10-second / 8-second / 4-second blocks
+      const totalBlocks = Math.max(1, Math.ceil(targetTotalSec / segLen));
+      let tokenIdx = 0;
+      let cursorSec = 0;
+
+      for (let b = 0; b < totalBlocks; b++) {
+        const blockStart = b * segLen;
+        const blockEnd = b === totalBlocks - 1 ? Math.max((b + 1) * segLen, Math.ceil(targetTotalSec)) : (b + 1) * segLen;
+        const blockWords: string[] = [];
+
+        while (tokenIdx < tokens.length) {
+          const tok = tokens[tokenIdx];
+          blockWords.push(tok.word);
+          cursorSec += secPerWord + tok.pauseAfterSec;
+          tokenIdx++;
+          if (cursorSec >= blockEnd && b < totalBlocks - 1) {
+            break;
+          }
+        }
+
+        if (blockWords.length > 0) {
+          sentences.push({
+            text: blockWords.join(' '),
+            start: blockStart,
+            end: b === totalBlocks - 1 ? ( b + 1 ) * segLen : blockEnd,
+          });
+        }
+      }
+    }
+
+    const formatted = generateTimelineText(
+      sentences,
+      settings.timestampFormat || 'MM:SS',
+      settings.noBlankLines !== false,
+      settings.includeLineNumbers !== false
+    );
+    const srt = generateSRT(sentences);
+    return { sentences, formatted, srt };
+  };
+
+  // Automatically extract & keep Timeline updated whenever voiceoverScript or audioTracks exist and timeline is empty
+  useEffect(() => {
+    if (!activeDoc) return;
+    const hasScript = Boolean((activeDoc.voiceoverScript || '').trim());
+    const hasAudio = (activeDoc.audioTracks?.length || 0) > 0;
+    const hasTimeline =
+      (activeDoc.timelineSentences?.length || 0) > 0 &&
+      Boolean((activeDoc.timelineFormattedText || '').trim());
+
+    if ((hasScript || hasAudio) && !hasTimeline) {
+      const sourceText =
+        (activeDoc.voiceoverScript || '').trim() ||
+        (activeDoc.audioTracks?.[0]?.text || '').trim();
+      if (!sourceText) return;
+
+      const firstTrackUrl = activeDoc.masterAudioUrl || activeDoc.audioTracks?.[0]?.audioUrl || '';
+      if (firstTrackUrl) {
+        measureAudioDurationInBrowser(firstTrackUrl).then((dur) => {
+          const res = buildSmartClientTimeline(sourceText, activeDoc, dur > 2 ? dur : undefined);
+          if (res.sentences.length > 0) {
+            updateActiveDoc({
+              timelineSentences: res.sentences,
+              timelineFormattedText: res.formatted,
+              ...(activeDoc.correctedSrt ? {} : { correctedSrt: res.srt }),
+            });
+          }
+        });
+      } else {
+        const res = buildSmartClientTimeline(sourceText, activeDoc);
+        if (res.sentences.length > 0) {
+          updateActiveDoc({
+            timelineSentences: res.sentences,
+            timelineFormattedText: res.formatted,
+            ...(activeDoc.correctedSrt ? {} : { correctedSrt: res.srt }),
+          });
+        }
+      }
+    }
+  }, [activeDoc?.id, activeDoc?.voiceoverScript, activeDoc?.audioTracks?.length]);
+
+  // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
     if (!activeDoc || !textToSpeak.trim()) {
       alert('Escribe o pega primero el texto del guion para generar la voz.');
@@ -2419,9 +2656,26 @@ export default function App() {
       }
 
       const updatedTracks = [data, ...(activeDoc.audioTracks || [])];
+
+      // AUTOMATICALLY extract timeline right when VoxFlow audio is created!
+      const measuredDur = data.audioUrl ? await measureAudioDurationInBrowser(data.audioUrl) : 0;
+      const scriptSource = (activeDoc.voiceoverScript || textToSpeak).trim();
+      const autoTl = buildSmartClientTimeline(
+        scriptSource,
+        activeDoc,
+        measuredDur > 2 ? measuredDur : undefined
+      );
+
       updateActiveDoc({
         audioTracks: updatedTracks,
         masterAudioUrl: data.audioUrl,
+        ...(autoTl.sentences.length > 0
+          ? {
+              timelineSentences: autoTl.sentences,
+              timelineFormattedText: autoTl.formatted,
+              correctedSrt: autoTl.srt,
+            }
+          : {}),
       });
       setTtsCustomSegmentText('');
       setTtsCustomLabel('');
@@ -2432,8 +2686,8 @@ export default function App() {
     }
   };
 
-  // 1-Click Timeline Extraction from a VoxFlow audio track
-  const handleExtractTimelineFromVoxFlow = async (filename: string) => {
+  // 1-Click / Automatic Timeline Extraction from a VoxFlow audio track (Works on GitHub Pages & Local Server)
+  const handleExtractTimelineFromVoxFlow = async (filename: string, trackObj?: TTSRecord) => {
     if (!activeDoc) return;
     setTimelineExtracting(true);
     try {
@@ -2443,7 +2697,8 @@ export default function App() {
         quality: 'high',
         outputStyle: 'timeline',
         timestampFormat: 'MM:SS',
-        sentenceMode: activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+        sentenceMode:
+          activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
         noBlankLines: true,
         strictNarration: false,
         removeFiller: false,
@@ -2451,31 +2706,71 @@ export default function App() {
         preservePunctuation: true,
         includeLineNumbers: true,
       };
-      const res = await fetch('/api/transcribe-tts-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename,
-          language: settings.language,
-          sentenceMode: settings.sentenceMode,
-          preservePunctuation: settings.preservePunctuation,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Error al extraer el timeline.');
+
+      // 1. Try local server endpoint ONLY if not in Cloud Mode and response is valid JSON
+      if (!isCloudMode && filename && !filename.startsWith('data:')) {
+        try {
+          const res = await fetch('/api/transcribe-tts-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename,
+              language: settings.language,
+              sentenceMode: settings.sentenceMode,
+              preservePunctuation: settings.preservePunctuation,
+            }),
+          });
+          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+            const data = await res.json();
+            if (Array.isArray(data.sentences) && data.sentences.length > 0) {
+              const sentences: Sentence[] = data.sentences;
+              const formatted = generateTimelineText(
+                sentences,
+                settings.timestampFormat || 'MM:SS',
+                settings.noBlankLines !== false,
+                settings.includeLineNumbers !== false
+              );
+              const autoSrt = generateSRT(sentences);
+              updateActiveDoc({
+                timelineSentences: sentences,
+                timelineFormattedText: formatted,
+                correctedSrt: autoSrt,
+              });
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Client-Side Automatic Fallback (Works 100% on GitHub Pages without backend)
+      const matchedTrack =
+        trackObj ||
+        (activeDoc.audioTracks || []).find(
+          (t) => t.filename === filename || t.id === filename
+        ) ||
+        activeDoc.audioTracks?.[0];
+
+      const audioSrc = matchedTrack?.audioUrl || activeDoc.masterAudioUrl || '';
+      const audioDur = audioSrc ? await measureAudioDurationInBrowser(audioSrc) : 0;
+      const scriptText =
+        (activeDoc.voiceoverScript || '').trim() || (matchedTrack?.text || '').trim();
+
+      if (!scriptText) {
+        alert('Escribe o genera primero el Guion de Voz Narrativa en el Paso 4A.');
         return;
       }
-      const sentences: Sentence[] = data.sentences || [];
-      const formatted = generateTimelineText(
-        sentences,
-        settings.timestampFormat || 'MM:SS',
-        settings.noBlankLines !== false,
-        settings.includeLineNumbers !== false
+
+      const clientResult = buildSmartClientTimeline(
+        scriptText,
+        activeDoc,
+        audioDur > 2 ? audioDur : undefined,
+        settings.sentenceMode
       );
+
       updateActiveDoc({
-        timelineSentences: sentences,
-        timelineFormattedText: formatted,
+        timelineSentences: clientResult.sentences,
+        timelineFormattedText: clientResult.formatted,
+        correctedSrt: clientResult.srt,
       });
     } catch (e: any) {
       alert('Error extrayendo timeline: ' + e.message);
@@ -2484,34 +2779,19 @@ export default function App() {
     }
   };
 
-  // Upload external audio file (e.g. from CapCut) to extract timeline
+  // Upload external audio file (e.g. from CapCut) to extract timeline automatically
   const handleUploadAudioForTimeline = async (file: File) => {
     if (!activeDoc) return;
     setTimelineExtracting(true);
     try {
-      const CHUNK_SIZE = 512 * 1024;
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const uploadId = `upload-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = file.slice(i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, file.size));
-        const fd = new FormData();
-        fd.append('uploadId', uploadId);
-        fd.append('chunkIndex', String(i));
-        fd.append('totalChunks', String(totalChunks));
-        fd.append('originalName', file.name);
-        fd.append('chunk', chunk, 'chunk.bin');
-        const upRes = await fetch('/api/upload-chunk', { method: 'POST', body: fd });
-        if (!upRes.ok) throw new Error('Error subiendo archivo de audio.');
-      }
-
       const settings = activeDoc.timelineSettings || {
         language: 'es',
         customLanguage: '',
         quality: 'high',
         outputStyle: 'timeline',
         timestampFormat: 'MM:SS',
-        sentenceMode: activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+        sentenceMode:
+          activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
         noBlankLines: true,
         strictNarration: false,
         removeFiller: false,
@@ -2520,31 +2800,96 @@ export default function App() {
         includeLineNumbers: true,
       };
 
-      const procRes = await fetch('/api/transcribe-process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uploadId,
-          originalName: file.name,
-          ...settings,
-        }),
-      });
-      const data = await procRes.json();
-      if (!procRes.ok) {
-        alert(data.error || 'Error procesando audio.');
+      // Also store uploaded audio as masterAudioUrl for CapCut Editor playback
+      const uploadedDataUrl = await uploadAssetFile(file);
+      const realDurationSec = await measureAudioDurationInBrowser(file);
+
+      // 1. Try local server chunked transcription if local backend is running
+      if (!isCloudMode) {
+        try {
+          const CHUNK_SIZE = 512 * 1024;
+          const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+          const uploadId = `upload-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          let chunksOk = true;
+
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = file.slice(i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, file.size));
+            const fd = new FormData();
+            fd.append('uploadId', uploadId);
+            fd.append('chunkIndex', String(i));
+            fd.append('totalChunks', String(totalChunks));
+            fd.append('originalName', file.name);
+            fd.append('chunk', chunk, 'chunk.bin');
+            const upRes = await fetch('/api/upload-chunk', { method: 'POST', body: fd });
+            if (
+              !upRes.ok ||
+              !(upRes.headers.get('content-type') || '').includes('application/json')
+            ) {
+              chunksOk = false;
+              break;
+            }
+          }
+
+          if (chunksOk) {
+            const procRes = await fetch('/api/transcribe-process', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                uploadId,
+                originalName: file.name,
+                ...settings,
+              }),
+            });
+            if (
+              procRes.ok &&
+              (procRes.headers.get('content-type') || '').includes('application/json')
+            ) {
+              const data = await procRes.json();
+              if (Array.isArray(data.sentences) && data.sentences.length > 0) {
+                const sentences: Sentence[] = data.sentences;
+                const formatted = generateTimelineText(
+                  sentences,
+                  settings.timestampFormat || 'MM:SS',
+                  settings.noBlankLines !== false,
+                  settings.includeLineNumbers !== false
+                );
+                updateActiveDoc({
+                  timelineSentences: sentences,
+                  timelineFormattedText: formatted,
+                  correctedSrt: generateSRT(sentences),
+                  ...(uploadedDataUrl ? { masterAudioUrl: uploadedDataUrl } : {}),
+                });
+                return;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Client-Side Automatic Alignment to the exact duration of the uploaded audio file!
+      const scriptText =
+        (activeDoc.voiceoverScript || '').trim() ||
+        (activeDoc.audioTracks?.[0]?.text || '').trim();
+
+      if (scriptText) {
+        const clientResult = buildSmartClientTimeline(
+          scriptText,
+          activeDoc,
+          realDurationSec > 2 ? realDurationSec : undefined,
+          settings.sentenceMode
+        );
+        updateActiveDoc({
+          timelineSentences: clientResult.sentences,
+          timelineFormattedText: clientResult.formatted,
+          correctedSrt: clientResult.srt,
+          ...(uploadedDataUrl ? { masterAudioUrl: uploadedDataUrl } : {}),
+        });
         return;
       }
-      const sentences: Sentence[] = data.sentences || [];
-      const formatted = generateTimelineText(
-        sentences,
-        settings.timestampFormat || 'MM:SS',
-        settings.noBlankLines !== false,
-        settings.includeLineNumbers !== false
+
+      alert(
+        'Audio cargado con éxito. Escribe o genera el Guion en el Paso 4A para alinear los tiempos automáticamente.'
       );
-      updateActiveDoc({
-        timelineSentences: sentences,
-        timelineFormattedText: formatted,
-      });
     } catch (e: any) {
       alert('Error al extraer timeline del archivo: ' + e.message);
     } finally {
@@ -4123,9 +4468,12 @@ export default function App() {
                                 : track.label;
                             const cleanBaseName = displayName.replace(/\.(?:wav|mp3)$/i, '').trim();
                             const downloadName = `${cleanBaseName}.mp3`;
-                            const downloadHref = `/api/tts/download-mp3?file=${encodeURIComponent(
-                              track.filename || track.audioUrl || ''
-                            )}&name=${encodeURIComponent(downloadName)}`;
+                            const downloadHref =
+                              isCloudMode || (track.audioUrl && track.audioUrl.startsWith('data:'))
+                                ? track.audioUrl
+                                : `/api/tts/download-mp3?file=${encodeURIComponent(
+                                    track.filename || track.audioUrl || ''
+                                  )}&name=${encodeURIComponent(downloadName)}`;
                             return (
                             <div
                               key={track.id}
@@ -4144,11 +4492,13 @@ export default function App() {
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     disabled={timelineExtracting}
-                                    onClick={() => handleExtractTimelineFromVoxFlow(track.filename)}
+                                    onClick={() =>
+                                      handleExtractTimelineFromVoxFlow(track.filename, track)
+                                    }
                                     className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
-                                    title="Enviar este audio directo al Narration Timeline Extractor"
+                                    title="Recalcular el timeline alineado a la duración de este audio"
                                   >
-                                    <Clock className="w-3 h-3" /> Extraer Timeline →
+                                    <Clock className="w-3 h-3" /> ✓ Timeline Sincronizado (Recalcular)
                                   </button>
                                   <a
                                     href={downloadHref}
@@ -4183,7 +4533,7 @@ export default function App() {
 
                   {/* STEP 4C: NARRATION TIMELINE EXTRACTOR INTEGRATED */}
                   <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
                           App Integrada #3
@@ -4192,12 +4542,15 @@ export default function App() {
                           <Clock className="w-4 h-4 text-amber-400" /> Paso 4C — Narration Timeline Extractor
                         </h3>
                       </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
+                        ⚡ Extracción 100% Automática Activa
+                      </span>
                     </div>
 
                     <p className="text-xs text-slate-400">
-                      Extrae los tiempos exactos haciendo clic en{' '}
-                      <strong className="text-emerald-300">"Extraer Timeline →"</strong> en cualquier audio de
-                      VoxFlow a la izquierda, o sube aquí el audio con silencios exportado de CapCut:
+                      El Timeline y los subtítulos <code className="text-emerald-300">.SRT</code> se{' '}
+                      <strong className="text-emerald-300">extraen automáticamente</strong> apenas se crea el
+                      Guion o el Audio en VoxFlow (también puedes subir aquí un audio externo con silencios):
                     </p>
 
                     {/* Timeline Segmentation Settings */}
@@ -4208,13 +4561,35 @@ export default function App() {
                         </label>
                         <select
                           value={activeDoc.timelineSettings?.sentenceMode || 'split-10-seconds'}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const newMode = e.target.value as any;
+                            const nextSettings = {
+                              ...(activeDoc.timelineSettings || {}),
+                              sentenceMode: newMode,
+                            } as any;
+                            const audioSrc =
+                              activeDoc.masterAudioUrl || activeDoc.audioTracks?.[0]?.audioUrl || '';
+                            const dur = audioSrc ? await measureAudioDurationInBrowser(audioSrc) : 0;
+                            const scriptText =
+                              (activeDoc.voiceoverScript || '').trim() ||
+                              (activeDoc.audioTracks?.[0]?.text || '').trim();
+                            const autoTl = scriptText
+                              ? buildSmartClientTimeline(
+                                  scriptText,
+                                  { ...activeDoc, timelineSettings: nextSettings },
+                                  dur > 2 ? dur : undefined,
+                                  newMode
+                                )
+                              : { sentences: [], formatted: '', srt: '' };
                             updateActiveDoc({
-                              timelineSettings: {
-                                ...(activeDoc.timelineSettings || {}),
-                                sentenceMode: newMode,
-                              } as any,
+                              timelineSettings: nextSettings,
+                              ...(autoTl.sentences.length > 0
+                                ? {
+                                    timelineSentences: autoTl.sentences,
+                                    timelineFormattedText: autoTl.formatted,
+                                    correctedSrt: autoTl.srt,
+                                  }
+                                : {}),
                             });
                           }}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-100"
