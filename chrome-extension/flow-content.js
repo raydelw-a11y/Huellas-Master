@@ -422,15 +422,118 @@
     };
   }
 
-  function startFlowVideoWatcher({ clipNumber, clipId, prompt, attempt, baselineUrls }) {
+  function getAllCurrentImageUrlsSet() {
+    const urls = new Set();
+    for (const img of Array.from(document.querySelectorAll('img'))) {
+      const w = img.naturalWidth || img.width || 0;
+      const src = img.src || '';
+      if (src && !src.includes('avatar') && (w === 0 || w >= 220)) {
+        urls.add(src);
+      }
+    }
+    return urls;
+  }
+
+  function startFlowThumbnailWatcher({ optionLabel, baselineImageUrls }) {
+    if (window.__HUELLAS_FLOW_THUMB_WATCHER__) {
+      clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
+      window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
+    }
+
+    const startedAt = Date.now();
+    const maxWaitMs = 150000;
+    let capturing = false;
+
+    window.__HUELLAS_FLOW_THUMB_WATCHER__ = setInterval(async () => {
+      if (capturing) return;
+      if (Date.now() - startedAt > maxWaitMs) {
+        clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
+        window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
+        return;
+      }
+
+      const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
+        const w = img.naturalWidth || img.width || 0;
+        const src = img.src || '';
+        return src && !src.includes('avatar') && w >= 280 && !baselineImageUrls.has(src);
+      });
+
+      if (imgs.length === 0) return;
+
+      capturing = true;
+      clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
+      window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
+
+      let idx = 0;
+      for (const imgEl of imgs.slice(0, 2)) {
+        const src = imgEl.src;
+        baselineImageUrls.add(src);
+        const imageDataUrl = await fetchVideoBinaryDataUrl(src);
+        const opt = optionLabel || (idx === 0 ? 'A' : 'B');
+        idx++;
+        chrome.runtime
+          .sendMessage({
+            type: 'FLOW_THUMBNAIL_CAPTURED',
+            option: opt,
+            imageUrl: src,
+            imageDataUrl,
+          })
+          .catch(() => {});
+      }
+    }, 2000);
+  }
+
+  async function handleScanFlowThumbnails() {
+    const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
+      const w = img.naturalWidth || img.width || 0;
+      const src = img.src || '';
+      return src && !src.includes('avatar') && w >= 280;
+    });
+    if (imgs.length === 0) {
+      reportStatus('ERROR', 'No se encontraron imágenes de miniatura en Google Flow.');
+      return;
+    }
+    const latestTwo = imgs.slice(-2);
+    for (let i = 0; i < latestTwo.length; i++) {
+      const src = latestTwo[i].src;
+      const imageDataUrl = await fetchVideoBinaryDataUrl(src);
+      chrome.runtime
+        .sendMessage({
+          type: 'FLOW_THUMBNAIL_CAPTURED',
+          option: i === 0 ? 'A' : 'B',
+          imageUrl: src,
+          imageDataUrl,
+        })
+        .catch(() => {});
+    }
+  }
+
+  function startFlowVideoWatcher({
+    clipNumber,
+    clipId,
+    prompt,
+    attempt,
+    baselineUrls,
+    batchStartClip,
+    batchEndClip,
+    expectedCount,
+  }) {
     if (window.__HUELLAS_FLOW_WATCHER_TIMER__) {
       clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
       window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
     }
 
+    const totalExpected =
+      typeof expectedCount === 'number' && expectedCount > 1
+        ? expectedCount
+        : batchStartClip && batchEndClip && batchEndClip >= batchStartClip
+        ? batchEndClip - batchStartClip + 1
+        : 1;
+
     const startedAt = Date.now();
-    const maxWaitMs = 270000; // 4.5 minutes max for Flow video generation
+    const maxWaitMs = totalExpected > 1 ? 1500000 : 270000; // 25 min for 10-clip batch, 4.5 min for 1 clip
     let capturing = false;
+    let capturedCount = 0;
 
     window.__HUELLAS_FLOW_WATCHER_TIMER__ = setInterval(async () => {
       if (capturing) return;
@@ -441,9 +544,7 @@
         window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
         reportStatus(
           'ERROR',
-          `⚠️ Tiempo de espera agotado (${elapsedSec}s) esperando el video del Clip #${
-            clipNumber || '?'
-          } en Google Flow.`,
+          `⚠️ Tiempo de espera agotado (${elapsedSec}s) esperando video(s) en Google Flow.`,
           { clipNumber, clipId }
         );
         return;
@@ -465,32 +566,45 @@
 
       if (!candidateVideo) {
         if (elapsedSec % 4 === 0) {
+          const nextNum =
+            totalExpected > 1
+              ? (batchStartClip || clipNumber || 1) + capturedCount
+              : clipNumber || '?';
           reportStatus(
             'GENERATING',
-            `⏳ Google Flow generando video del Clip #${String(clipNumber || '?').padStart(
-              2,
-              '0'
-            )}... (${elapsedSec}s)`,
-            { clipNumber, clipId }
+            `⏳ Google Flow generando video del Clip #${String(nextNum).padStart(2, '0')}${
+              totalExpected > 1 ? ` (${capturedCount}/${totalExpected} del lote listos)` : ''
+            }... (${elapsedSec}s)`,
+            { clipNumber: nextNum, clipId }
           );
         }
         return;
       }
 
       capturing = true;
-      clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
-      window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
-
       const candidateUrl = getVideoElementUrl(candidateVideo);
       baselineUrls.add(candidateUrl);
 
+      const inferredNum =
+        inferClipNumberFromVideoCard(candidateVideo) ||
+        (totalExpected > 1
+          ? (batchStartClip || clipNumber || 1) + capturedCount
+          : clipNumber || 1);
+
+      capturedCount++;
+
+      if (capturedCount >= totalExpected) {
+        clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
+        window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
+      }
+
       reportStatus(
         'WORKING',
-        `🎞️ ¡Video del Clip #${String(clipNumber || '?').padStart(
+        `🎞️ ¡Video del Clip #${String(inferredNum).padStart(
           2,
           '0'
         )} detectado en Google Flow! Extrayendo fotogramas y archivo MP4 para auditoría automática...`,
-        { clipNumber, clipId }
+        { clipNumber: inferredNum, clipId }
       );
 
       // Give the video element 900ms to finish buffering initial metadata
@@ -501,8 +615,8 @@
       try {
         await chrome.runtime.sendMessage({
           type: 'FLOW_VIDEO_CAPTURED',
-          clipNumber,
-          clipId,
+          clipNumber: inferredNum,
+          clipId: totalExpected === 1 ? clipId : undefined,
           attempt: attempt || 1,
           prompt,
           videoUrl: captured.videoUrl,
@@ -515,8 +629,8 @@
         chrome.runtime
           .sendMessage({
             type: 'FLOW_VIDEO_CAPTURED',
-            clipNumber,
-            clipId,
+            clipNumber: inferredNum,
+            clipId: totalExpected === 1 ? clipId : undefined,
             attempt: attempt || 1,
             prompt,
             videoUrl: captured.videoUrl,
@@ -525,6 +639,8 @@
             duration: captured.duration,
           })
           .catch(() => {});
+      } finally {
+        capturing = false;
       }
     }, 1800);
   }
@@ -602,6 +718,7 @@
 
     const promptText = payload.prompt || '';
     const baselineUrls = getAllCurrentVideoUrlsSet();
+    const baselineImageUrls = getAllCurrentImageUrlsSet();
 
     setTimeout(() => {
       const inputEl = findFlowPromptInput();
@@ -645,13 +762,21 @@
               mediaType: payload.mediaType,
             }
           );
-          if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
+          if (payload.mediaType === 'THUMBNAILS') {
+            startFlowThumbnailWatcher({
+              optionLabel: payload.optionLabel,
+              baselineImageUrls,
+            });
+          } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
             startFlowVideoWatcher({
               clipNumber: payload.clipNumber,
               clipId: payload.clipId,
               prompt: promptText,
               attempt: payload.attempt || 1,
               baselineUrls,
+              batchStartClip: payload.batchStartClip,
+              batchEndClip: payload.batchEndClip,
+              expectedCount: payload.expectedCount,
             });
           }
           return;
@@ -669,13 +794,21 @@
             )} enviado a producción en Google Flow. Vigilando generación...`,
             { clipNumber: payload.clipNumber, clipId: payload.clipId }
           );
-          if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
+          if (payload.mediaType === 'THUMBNAILS') {
+            startFlowThumbnailWatcher({
+              optionLabel: payload.optionLabel,
+              baselineImageUrls,
+            });
+          } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
             startFlowVideoWatcher({
               clipNumber: payload.clipNumber,
               clipId: payload.clipId,
               prompt: promptText,
               attempt: payload.attempt || 1,
               baselineUrls,
+              batchStartClip: payload.batchStartClip,
+              batchEndClip: payload.batchEndClip,
+              expectedCount: payload.expectedCount,
             });
           }
         }
@@ -698,6 +831,12 @@
 
     if (msg.action === 'SCAN_FLOW_VIDEOS') {
       handleScanExistingFlowVideos(msg);
+      sendResponse({ handled: true });
+      return false;
+    }
+
+    if (msg.action === 'SCAN_FLOW_THUMBNAILS') {
+      handleScanFlowThumbnails();
       sendResponse({ handled: true });
       return false;
     }

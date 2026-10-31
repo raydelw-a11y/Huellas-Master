@@ -217,9 +217,12 @@ interface CapCutEditorProps {
   activeDoc: DocumentaryProject | null;
   updateActiveDoc: (patch: Partial<DocumentaryProject>) => void;
   capturedClipVideosMap: Record<number, string>; // clipNumber -> blob/data URL of MP4
+  capturedSunoAudioMap?: Record<number, string>; // trackNumber -> data URL of MP3
   onPickDownloadFolder: () => Promise<boolean>;
   downloadFolderName: string;
+  downloadFolderPath?: string;
   onSaveFileToChosenFolder: (fileName: string, blobOrDataUrl: Blob | string) => Promise<boolean>;
+  onExportOrganizedFolder?: () => Promise<void>;
 }
 
 const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
@@ -228,9 +231,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   activeDoc,
   updateActiveDoc,
   capturedClipVideosMap,
+  capturedSunoAudioMap = {},
   onPickDownloadFolder,
   downloadFolderName,
+  downloadFolderPath = '',
   onSaveFileToChosenFolder,
+  onExportOrganizedFolder,
 }) => {
   // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K)
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
@@ -413,7 +419,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           start: startSec,
           duration: durSec,
           volume: masterMusicVolume,
-          audioUrl: st.audioUrl,
+          audioUrl: capturedSunoAudioMap[idx + 1] || st.audioUrl,
           isLast90Sec: isLast,
         };
       });
@@ -423,7 +429,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   useEffect(() => {
     syncTracksFromDocumentary();
-  }, [activeDoc?.id, Object.keys(capturedClipVideosMap).length]);
+  }, [
+    activeDoc?.id,
+    Object.keys(capturedClipVideosMap).length,
+    Object.keys(capturedSunoAudioMap).length,
+  ]);
 
   // Auto-Generate Captions directly from Voiceover + Timeline Sentences (No external CapCut needed!)
   const handleGenerateAutoCaptionsFromVoice = (customEntryOffset?: number) => {
@@ -890,6 +900,75 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
+  // Ultra-Fast Native FFmpeg Server Render (Item 3)
+  const [isFfmpegRendering, setIsFfmpegRendering] = useState<boolean>(false);
+
+  const handleRenderNativeFfmpeg = async () => {
+    if (!activeDoc) return;
+    setIsFfmpegRendering(true);
+    setStatusMessage(
+      `⚡ Renderizando con FFmpeg nativo en ${RESOLUTION_PRESETS[exportResolution].badge} (${aspectRatio}) directo a disco...`
+    );
+    try {
+      const srtText = captions
+        .map((c, idx) => {
+          const fmt = (sec: number) => {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = Math.floor(sec % 60);
+            const ms = Math.round((sec - Math.floor(sec)) * 1000);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
+              s
+            ).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+          };
+          return `${idx + 1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${c.text}`;
+        })
+        .join('\n\n');
+
+      const resp = await fetch('/api/editor/render-ffmpeg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: downloadFolderPath,
+          docTitle: activeDoc.title,
+          aspectRatio,
+          resolution: exportResolution,
+          clips: timelineClips.map((c) => ({
+            clipNumber: c.clipNumber,
+            fileName: c.fileName,
+            durationSec: c.duration,
+            speed: c.speed,
+            foleyVolume: c.foleyVolume / 100,
+            transition: c.transition,
+            videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
+          })),
+          voiceoverStartSec: voiceStartOffsetSec,
+          voiceoverVolume: voiceVolume / 100,
+          voiceoverDataUrl:
+            activeDoc.masterAudioUrl && activeDoc.masterAudioUrl.startsWith('data:')
+              ? activeDoc.masterAudioUrl
+              : '',
+          sunoSilenceGapSec: 15,
+          sunoMasterVolume: masterMusicVolume / 100,
+          srtContent: srtText,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Error ejecutando FFmpeg en el servidor local.');
+      }
+      setStatusMessage(
+        `✅ ¡Renderizado FFmpeg completado en ${data.elapsedSec}s! Archivo guardado: ${data.outputPath}`
+      );
+    } catch (err: any) {
+      setStatusMessage(
+        `⚠️ FFmpeg local: ${err?.message || err}. Puedes usar el botón "🎬 Exportar" en navegador.`
+      );
+    } finally {
+      setIsFfmpegRendering(false);
+    }
+  };
+
   const selectedClip = timelineClips.find((c) => c.id === selectedClipId) || timelineClips[0] || null;
   const activePreset = RESOLUTION_PRESETS[exportResolution];
 
@@ -993,7 +1072,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             {downloadFolderName ? `📁 ${downloadFolderName}` : '📂 Elegir Carpeta'}
           </button>
 
-          {/* Export Final Video Button */}
+          {/* Ultra-Fast Native FFmpeg Render */}
+          <button
+            type="button"
+            disabled={isFfmpegRendering || isRenderingVideo}
+            onClick={handleRenderNativeFfmpeg}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+            title="Une todos los clips MP4, voz narrativa, silencios y subtítulos a máxima velocidad usando FFmpeg nativo en tu Mac"
+          >
+            ⚡{' '}
+            {isFfmpegRendering
+              ? 'FFmpeg Renderizando...'
+              : `Render FFmpeg ${activePreset.badge.split(' ')[0]} (${aspectRatio})`}
+          </button>
+
+          {/* Export Organized Final YouTube/Reels Package */}
+          {onExportOrganizedFolder && (
+            <button
+              type="button"
+              onClick={onExportOrganizedFolder}
+              className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              title="Genera en tu carpeta la estructura completa lista para YouTube: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
+            >
+              📦 Carpeta Final YouTube
+            </button>
+          )}
+
+          {/* Export Final Video Button (Browser Canvas Fallback) */}
           <button
             type="button"
             disabled={isRenderingVideo}

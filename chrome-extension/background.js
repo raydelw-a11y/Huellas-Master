@@ -36,9 +36,18 @@ async function getConnectedAiTabsInWindow(windowId) {
         url: t.url,
       }));
 
-    return { geminiTabs, flowTabs };
+    const sunoTabs = windowTabs
+      .filter((t) => t.url && t.url.includes('suno.com'))
+      .map((t) => ({
+        id: t.id,
+        windowId: t.windowId,
+        title: (t.title || 'Suno AI').trim() || 'Suno AI',
+        url: t.url,
+      }));
+
+    return { geminiTabs, flowTabs, sunoTabs };
   } catch {
-    return { geminiTabs: [], flowTabs: [] };
+    return { geminiTabs: [], flowTabs: [], sunoTabs: [] };
   }
 }
 
@@ -121,39 +130,63 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const senderWindowId = sender?.tab?.windowId;
 
-  // 1. Ping from Huellas Master: return ONLY Gemini & Flow tabs in the SAME window
+  // 1. Ping from Huellas Master: return Gemini, Flow & Suno tabs in the SAME window
   if (message.type === 'HUELLAS_PING_V2' || message.type === 'HUELLAS_PING') {
-    getConnectedAiTabsInWindow(senderWindowId).then(async ({ geminiTabs, flowTabs }) => {
-      for (const gt of geminiTabs) {
-        if (gt.id) ensureScriptInjected(gt.id, 'gemini-content.js');
+    getConnectedAiTabsInWindow(senderWindowId).then(
+      async ({ geminiTabs, flowTabs, sunoTabs }) => {
+        for (const gt of geminiTabs) {
+          if (gt.id) ensureScriptInjected(gt.id, 'gemini-content.js');
+        }
+        for (const ft of flowTabs) {
+          if (ft.id) ensureScriptInjected(ft.id, 'flow-content.js');
+        }
+        for (const st of sunoTabs || []) {
+          if (st.id) ensureScriptInjected(st.id, 'suno-content.js');
+        }
+        sendResponse({
+          ok: true,
+          version: '1.9.0',
+          windowId: senderWindowId,
+          geminiTabs,
+          flowTabs,
+          sunoTabs: sunoTabs || [],
+        });
       }
-      for (const ft of flowTabs) {
-        if (ft.id) ensureScriptInjected(ft.id, 'flow-content.js');
-      }
-      sendResponse({
-        ok: true,
-        version: '1.8.0',
-        windowId: senderWindowId,
-        geminiTabs,
-        flowTabs,
-      });
-    });
+    );
     return true;
   }
 
   // 2. Command execution strictly within the SAME Chrome window
   if (message.type === 'HUELLAS_COMMAND') {
-    const targetService = message.targetService === 'FLOW' ? 'FLOW' : 'GEMINI';
+    const targetService =
+      message.targetService === 'FLOW'
+        ? 'FLOW'
+        : message.targetService === 'SUNO'
+        ? 'SUNO'
+        : 'GEMINI';
     const payload = message.payload || {};
     const action = payload.action;
 
     (async () => {
-      const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(senderWindowId);
-      const serviceTabs = targetService === 'FLOW' ? flowTabs : geminiTabs;
+      const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(senderWindowId);
+      const serviceTabs =
+        targetService === 'FLOW'
+          ? flowTabs
+          : targetService === 'SUNO'
+          ? sunoTabs || []
+          : geminiTabs;
       const defaultUrl =
-        targetService === 'FLOW' ? 'https://flow.google.com/' : 'https://gemini.google.com/app';
+        targetService === 'FLOW'
+          ? 'https://flow.google.com/'
+          : targetService === 'SUNO'
+          ? 'https://suno.com/create'
+          : 'https://gemini.google.com/app';
       const contentScriptFile =
-        targetService === 'FLOW' ? 'flow-content.js' : 'gemini-content.js';
+        targetService === 'FLOW'
+          ? 'flow-content.js'
+          : targetService === 'SUNO'
+          ? 'suno-content.js'
+          : 'gemini-content.js';
 
       // Focus or open tab in the SAME window (never create a new window)
       if (action === 'FOCUS_TAB' || action === 'OPEN_DOCKED') {
@@ -183,7 +216,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           service: targetService,
           status: 'WORKING',
           message: `Abriendo pestaña de ${
-            targetService === 'FLOW' ? 'Google Flow' : 'Gemini Web'
+            targetService === 'FLOW'
+              ? 'Google Flow'
+              : targetService === 'SUNO'
+              ? 'Suno AI'
+              : 'Gemini Web'
           } en esta misma ventana...`,
         });
         const created = await chrome.tabs.create({
@@ -201,7 +238,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (payload.focusTab || (targetService === 'FLOW' && action === 'SEND_PROMPT')) {
+        if (
+          payload.focusTab ||
+          ((targetService === 'FLOW' || targetService === 'SUNO') && action === 'SEND_PROMPT')
+        ) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
@@ -226,12 +266,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 3. Forward status & responses from Gemini/Flow tab ONLY to Huellas Master in the SAME window
+  // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
   if (
     message.type === 'BRIDGE_STATUS' ||
     message.type === 'GEMINI_RESPONSE_READY' ||
     message.type === 'FLOW_MEDIA_READY' ||
-    message.type === 'FLOW_VIDEO_CAPTURED'
+    message.type === 'FLOW_VIDEO_CAPTURED' ||
+    message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
+    message.type === 'SUNO_AUDIO_CAPTURED'
   ) {
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });

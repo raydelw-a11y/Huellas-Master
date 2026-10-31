@@ -104,7 +104,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:53 AM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:40 AM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -417,8 +417,23 @@ export default function App() {
     useState<ExportResolutionPreset>('4K_2160P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
+  const [capturedSunoAudioMap, setCapturedSunoAudioMap] = useState<Record<number, string>>({});
+  const [capturedThumbnailsMap, setCapturedThumbnailsMap] = useState<Record<string, string>>({});
   const [flowCurrentBatchNum, setFlowCurrentBatchNum] = useState<number>(1);
+  const flowCurrentBatchNumRef = React.useRef<number>(1);
+  const [flowAutoChainBatches, setFlowAutoChainBatches] = useState<boolean>(true);
+  const flowAutoChainBatchesRef = React.useRef<boolean>(true);
+  const [isFullPreprodRunning, setIsFullPreprodRunning] = useState<boolean>(false);
+  const [fullPreprodStepMsg, setFullPreprodStepMsg] = useState<string>('');
   const activeDocRef = React.useRef<DocumentaryProject | null>(null);
+
+  useEffect(() => {
+    flowCurrentBatchNumRef.current = flowCurrentBatchNum;
+  }, [flowCurrentBatchNum]);
+
+  useEffect(() => {
+    flowAutoChainBatchesRef.current = flowAutoChainBatches;
+  }, [flowAutoChainBatches]);
 
   useEffect(() => {
     flowAutoPilotActiveRef.current = flowAutoPilotActive;
@@ -1310,7 +1325,7 @@ export default function App() {
         setBridgeStatusMsg(msgFail);
       }
 
-      // If Autopilot Queue is running, automatically advance to the next pending clip!
+      // A) If Sequential Autopilot Queue is running, automatically advance to the next pending clip!
       if (flowAutoPilotActiveRef.current && !fromScan) {
         const nextPendingClip = finalClips.find(
           (c) => c.clipNumber > targetClip.clipNumber && !c.videoReady && (c.videoPrompt || '').trim()
@@ -1326,6 +1341,36 @@ export default function App() {
           setFlowStatusLog(
             '🎉 ¡Piloto Automático completado! Todos los clips fueron producidos, auditados y descargados en tu carpeta.'
           );
+          handleExportOrganizedProjectFolder(true);
+        }
+      } else if (flowAutoChainBatchesRef.current && !fromScan) {
+        // B) ITEM 1: Auto-Chain Batches of 10 (Lote 1 -> Lote 2 -> Lote 3... -> Final)
+        const currentBatchNum = flowCurrentBatchNumRef.current || Math.ceil(targetClip.clipNumber / 10);
+        const batchStartIdx = (currentBatchNum - 1) * 10;
+        const currentBatchClips = finalClips.slice(batchStartIdx, batchStartIdx + 10);
+        const allCurrentBatchFinished =
+          currentBatchClips.length > 0 &&
+          currentBatchClips.every(
+            (c) => c.videoReady || (c.videoAttempts && c.videoAttempts >= 2)
+          );
+
+        if (allCurrentBatchFinished) {
+          const totalBatches = Math.ceil(finalClips.length / 10);
+          if (currentBatchNum < totalBatches) {
+            const nextBatch = currentBatchNum + 1;
+            setFlowStatusLog(
+              `✅ Lote #${currentBatchNum} completado (${currentBatchClips.length}/${currentBatchClips.length}). Lanzando automáticamente Lote #${nextBatch} en 3 segundos...`
+            );
+            setTimeout(() => {
+              handleSendBatch10ToFlow(nextBatch);
+            }, 3000);
+          } else {
+            setFlowCurrentClipNum(null);
+            setFlowStatusLog(
+              `🎉 ¡Todos los ${totalBatches} Lotes (${finalClips.length} clips) fueron generados, auditados y descargados! Paquete final actualizado en tu carpeta.`
+            );
+            handleExportOrganizedProjectFolder(true);
+          }
         }
       } else {
         setFlowCurrentClipNum(null);
@@ -1375,10 +1420,14 @@ export default function App() {
 
   // Send a Full Batch of 10 Pairs (9-Line Operational Header + Image X & Clip X Pairs) to Google Flow
   const handleSendBatch10ToFlow = async (batchNum: number = 1) => {
-    if (!activeDoc || !activeDoc.clips || activeDoc.clips.length === 0) {
+    const doc = activeDocRef.current || activeDoc;
+    if (!doc || !doc.clips || doc.clips.length === 0) {
       alert('Primero genera o sincroniza los clips en la Etapa 8.');
       return;
     }
+
+    // Support both 0-indexed and 1-indexed calls gracefully
+    const normalizedBatchNum = batchNum <= 0 ? 1 : batchNum;
 
     if (
       flowAutoDownloadEnabled &&
@@ -1394,14 +1443,14 @@ export default function App() {
       }
     }
 
-    const startIdx = (batchNum - 1) * 10;
-    const batchClips = activeDoc.clips.slice(startIdx, startIdx + 10);
+    const startIdx = (normalizedBatchNum - 1) * 10;
+    const batchClips = doc.clips.slice(startIdx, startIdx + 10);
     if (batchClips.length === 0) {
       alert('No hay clips en ese lote.');
       return;
     }
 
-    const opHeader = (activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+    const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
     const pairsBlock = batchClips
       .map((c) => {
         const imgLine = (c.imagePrompt || '').trim();
@@ -1413,14 +1462,15 @@ export default function App() {
     const fullBatchPrompt = `${opHeader}\n\n${pairsBlock}`;
     navigator.clipboard.writeText(fullBatchPrompt).catch(() => {});
 
-    setFlowCurrentBatchNum(batchNum);
+    setFlowCurrentBatchNum(normalizedBatchNum);
+    flowCurrentBatchNumRef.current = normalizedBatchNum;
     setFlowCurrentClipNum(batchClips[0].clipNumber);
     const rangeLabel = `${String(batchClips[0].clipNumber).padStart(2, '0')}-${String(
       batchClips[batchClips.length - 1].clipNumber
     ).padStart(2, '0')}`;
 
     setFlowStatusLog(
-      `📦 Lote #${batchNum} (Clips ${rangeLabel}) enviado a Google Flow con Orden Operativa de 9 líneas + ${batchClips.length} pares Image/Clip. Vigilando videos...`
+      `📦 Lote #${normalizedBatchNum} (Clips ${rangeLabel}) enviado a Google Flow con Orden Operativa de 9 líneas + ${batchClips.length} pares Image/Clip. Vigilando los ${batchClips.length} videos...`
     );
 
     sendCommandToWebBridge('FLOW', {
@@ -1428,6 +1478,9 @@ export default function App() {
       prompt: fullBatchPrompt,
       clipNumber: batchClips[0].clipNumber,
       clipId: batchClips[0].id,
+      batchStartClip: batchClips[0].clipNumber,
+      batchEndClip: batchClips[batchClips.length - 1].clipNumber,
+      expectedCount: batchClips.length,
       attempt: 1,
       watchForVideo: true,
       mediaType: 'VIDEO',
@@ -1464,6 +1517,314 @@ export default function App() {
     });
   };
 
+  // ITEM 5: Send Stage 5 Thumbnails A/B to Google Flow & Auto-Download Miniatura_Opcion_A.png & B.png
+  const handleSendThumbnailsToFlowAndCapture = async (optionLabel: 'A' | 'B' = 'A') => {
+    if (!activeDoc) return;
+    const promptText = (activeDoc.thumbnailPrompt || '').trim();
+    if (!promptText) {
+      alert('Primero genera el prompt de Miniatura en la Etapa 5.');
+      return;
+    }
+    if (
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      await handlePickFlowDownloadFolder();
+    }
+    navigator.clipboard.writeText(promptText).catch(() => {});
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(
+      `🖼️ Enviando Miniatura Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png...`
+    );
+    sendCommandToWebBridge('FLOW', {
+      action: 'SEND_PROMPT',
+      prompt: promptText,
+      mediaType: 'THUMBNAILS',
+      optionLabel,
+      autoSubmit: true,
+      focusTab: true,
+      tabId: selectedFlowTabId,
+    });
+  };
+
+  // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into /Audio & CapCut Track 5
+  const handleSendSunoTrackAndCapture = async (trackNumber: number, promptText: string, title?: string) => {
+    if (!promptText.trim()) return;
+    if (
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      await handlePickFlowDownloadFolder();
+    }
+    navigator.clipboard.writeText(promptText).catch(() => {});
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(
+      `🎵 Enviando Pista #${trackNumber} (${title || 'Instrumental'}) a Suno.com y vigilando para auto-descargar Suno_0${trackNumber}.mp3 e inyectarla en la Pista 5 del Editor CapCut...`
+    );
+    sendCommandToWebBridge('SUNO', {
+      action: 'SEND_PROMPT',
+      prompt: promptText,
+      trackNumber,
+      trackTitle: title || `Suno_${String(trackNumber).padStart(2, '0')}`,
+      autoSubmit: true,
+      focusTab: true,
+    });
+  };
+
+  // ITEM 6: Export Organized Final Project Folder (/Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt, SEO_YouTube_Copiar_Pegar.txt)
+  const handleExportOrganizedProjectFolder = async (silent: boolean = false) => {
+    const doc = activeDocRef.current || activeDoc;
+    if (!doc) return;
+
+    if (!silent && !flowServerFolderPath && !flowDownloadDirHandleRef.current) {
+      await handlePickFlowDownloadFolder();
+    }
+
+    try {
+      const srtText =
+        doc.correctedSrt ||
+        (doc.timelineSentences && doc.timelineSentences.length > 0
+          ? generateSRT(doc.timelineSentences)
+          : '');
+
+      if (!isCloudMode) {
+        const sunoTracksPayload = Object.entries(capturedSunoAudioMap).map(([num, dataUrl]) => ({
+          fileName: `Suno_${String(num).padStart(2, '0')}.mp3`,
+          audioDataUrl: dataUrl,
+        }));
+        const thumbsPayload = Object.entries(capturedThumbnailsMap).map(([opt, dataUrl]) => ({
+          option: opt,
+          fileName: `Miniatura_Opcion_${opt}.png`,
+          imageDataUrl: dataUrl,
+        }));
+
+        const resp = await fetch('/api/project/export-organized-package', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            folderPath: flowServerFolderPath,
+            docTitle: doc.title,
+            seoText: doc.rawYoutubeMetadata || doc.rawMetadataText || '',
+            scriptText: doc.voiceoverScript || '',
+            srtText,
+            rawClipsText: doc.rawClipsText || '',
+            pinnedCommentText: doc.pinnedComment || '',
+            thumbnailPromptsText: doc.thumbnailPrompt || '',
+            voiceoverDataUrl:
+              doc.masterAudioUrl && doc.masterAudioUrl.startsWith('data:')
+                ? doc.masterAudioUrl
+                : '',
+            sunoTracks: sunoTracksPayload,
+            thumbnails: thumbsPayload,
+          }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.ok) {
+          const msg = `📦 Paquete Final YouTube listo en "${data.folderPath}" (${
+            (data.savedFiles || []).length
+          } archivos organizados: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt).`;
+          setFlowStatusLog(msg);
+          setBridgeStatusMsg(msg);
+          if (!silent) {
+            alert(msg);
+          }
+          return;
+        }
+      }
+
+      // Fallback via File System Access API if in browser-only mode
+      if (srtText) {
+        await handleSaveAnyFileToChosenFolder('Subtitulos.srt', new Blob([srtText], { type: 'text/plain' }));
+      }
+      const seoBlob = new Blob(
+        [
+          `PROYECTO: ${doc.title}\n\n--- SEO YOUTUBE ---\n${
+            doc.rawYoutubeMetadata || doc.rawMetadataText || ''
+          }\n\n--- COMENTARIO FIJADO ---\n${doc.pinnedComment || ''}\n`,
+        ],
+        { type: 'text/plain' }
+      );
+      await handleSaveAnyFileToChosenFolder('SEO_YouTube_Copiar_Pegar.txt', seoBlob);
+      if (!silent) {
+        alert('✅ Archivos Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt guardados en tu carpeta.');
+      }
+    } catch (err: any) {
+      if (!silent) {
+        alert('Error creando carpeta organizada: ' + (err?.message || err));
+      }
+    }
+  };
+
+  // ITEM 4: 1-Click Full Pre-Production Autopilot (Runs Stages 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 Automatically)
+  const handleRunFullPreproduction1To8 = async () => {
+    if (!activeDoc) return;
+    if (isFullPreprodRunning) return;
+
+    setIsFullPreprodRunning(true);
+    let workingDoc: DocumentaryProject = { ...activeDoc };
+
+    const generateStageDirect = async (
+      stageNum: number,
+      docState: DocumentaryProject
+    ): Promise<string> => {
+      if (!isCloudMode) {
+        try {
+          const res = await fetch('/api/ai/generate-stage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stageNumber: stageNum,
+              documentary: docState,
+            }),
+          });
+          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+            const data = await res.json();
+            if (data.text) return String(data.text);
+          }
+        } catch {}
+      }
+      return await generateStageClientSide(stageNum, docState);
+    };
+
+    try {
+      // 1. Etapa 2/3: Estructura e Investigación si está vacía
+      if (!(workingDoc.sectionsStructure || '').trim()) {
+        setFullPreprodStepMsg('⏳ Paso 1/7: Generando Estructura Documental e Investigación...');
+        const structText = await generateStageDirect(2, workingDoc);
+        if (structText.trim()) {
+          workingDoc = { ...workingDoc, sectionsStructure: structText };
+          updateActiveDoc({ sectionsStructure: structText });
+        }
+      }
+
+      // 2. Etapa 4 (Guion de Voz Narrativa con números en letras y pausas)
+      if (!(workingDoc.voiceoverScript || '').trim()) {
+        setFullPreprodStepMsg('⏳ Paso 2/7: Escribiendo Guion de Voz Narrativa (Reglas Huellas)...');
+        const scriptText = normalizeQuantitiesToMil(await generateStageDirect(4, workingDoc));
+        if (scriptText.trim()) {
+          const parsedSentences = parseTimelineTextToSentences(
+            scriptText,
+            workingDoc.clip1DurationSeconds || 6
+          );
+          const formattedTl = generateTimelineText(parsedSentences);
+          const autoSrt = generateSRT(parsedSentences);
+          workingDoc = {
+            ...workingDoc,
+            voiceoverScript: scriptText,
+            timelineSentences: parsedSentences,
+            timelineFormattedText: formattedTl,
+            correctedSrt: autoSrt,
+          };
+          updateActiveDoc({
+            voiceoverScript: scriptText,
+            timelineSentences: parsedSentences,
+            timelineFormattedText: formattedTl,
+            correctedSrt: autoSrt,
+          });
+        }
+      }
+
+      // 3. Etapa 5 (Opciones de Texto + Prompts de Miniatura A/B)
+      setFullPreprodStepMsg('⏳ Paso 3/7: Diseñando Miniaturas A/B de Alto CTR...');
+      if (!(workingDoc.thumbnailTextOverlay || '').trim()) {
+        const optsRaw = await generateStageDirect(101, workingDoc);
+        const firstOpt = optsRaw
+          .split(/\r?\n/)
+          .map((l) => l.replace(/^\s*[\d•*-]+[.):\s]*/, '').replace(/["“”']/g, '').trim().toUpperCase())
+          .filter(Boolean)[0];
+        if (firstOpt) {
+          workingDoc = { ...workingDoc, thumbnailTextOverlay: firstOpt };
+          updateActiveDoc({ thumbnailTextOverlay: firstOpt });
+        }
+      }
+      if (!(workingDoc.thumbnailPrompt || '').trim()) {
+        const thumbText = await generateStageDirect(5, workingDoc);
+        if (thumbText.trim()) {
+          workingDoc = { ...workingDoc, thumbnailPrompt: thumbText };
+          updateActiveDoc({ thumbnailPrompt: thumbText });
+        }
+      }
+
+      // 4. Etapa 6 (@Referencias de Personajes y Lugares)
+      if (!(workingDoc.rawReferencePrompts || '').trim()) {
+        setFullPreprodStepMsg('⏳ Paso 4/7: Creando @Referencias de Personajes y Lugares...');
+        const refsText = await generateStageDirect(6, workingDoc);
+        if (refsText.trim()) {
+          const parsedRefs = parseReferencesFromRawText(refsText);
+          workingDoc = {
+            ...workingDoc,
+            rawReferencePrompts: refsText,
+            references: parsedRefs,
+          };
+          updateActiveDoc({ rawReferencePrompts: refsText, references: parsedRefs });
+        }
+      }
+
+      // 5. Etapa 7 (Prompts Musicales Suno con regla de 15s de silencio y 1:30 final)
+      if (!(workingDoc.rawSunoText || '').trim()) {
+        setFullPreprodStepMsg('⏳ Paso 5/7: Componiendo Prompts Musicales para Suno...');
+        const sunoText = await generateStageDirect(10, workingDoc);
+        if (sunoText.trim()) {
+          const parsedTracks = parseSunoTracksFromRawText(sunoText);
+          workingDoc = {
+            ...workingDoc,
+            rawSunoText: sunoText,
+            sunoTracks: parsedTracks,
+          };
+          updateActiveDoc({ rawSunoText: sunoText, sunoTracks: parsedTracks });
+        }
+      }
+
+      // 6. Etapa 8 (Todos los Pares Image X + Clip X con Orden Operativa de 9 líneas)
+      setFullPreprodStepMsg('⏳ Paso 6/7: Generando todos los Pares Image + Clip para Google Flow...');
+      const clipsRaw = await generateStageDirect(8, workingDoc);
+      if (clipsRaw.trim()) {
+        const textWithHeader = ensureOperationalHeaderInRawClips(
+          clipsRaw,
+          workingDoc.operationalHeader
+        );
+        const syncedClips = syncAndAuditProductionClips({
+          rawVoiceoverWithPauses: workingDoc.voiceoverScript || '',
+          timelineText: workingDoc.timelineFormattedText || '',
+          rawClipsText: textWithHeader,
+          existingClips: workingDoc.clips || [],
+          clip1Duration: workingDoc.clip1DurationSeconds || 6,
+          clip1SyncMode: workingDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+        });
+        workingDoc = {
+          ...workingDoc,
+          rawClipsText: textWithHeader,
+          clips: syncedClips,
+        };
+        updateActiveDoc({
+          rawClipsText: textWithHeader,
+          clips: syncedClips,
+        });
+      }
+
+      // 7. Etapa 4/9 SEO YouTube + Comentario Fijado
+      setFullPreprodStepMsg('⏳ Paso 7/7: Generando SEO de YouTube, Capítulos y Comentario Fijado...');
+      const seoText = await generateStageDirect(111, workingDoc);
+      const pinnedText = await generateStageDirect(113, workingDoc);
+      updateActiveDoc({
+        ...(seoText.trim() ? { rawYoutubeMetadata: seoText, rawMetadataText: seoText } : {}),
+        ...(pinnedText.trim() ? { pinnedComment: pinnedText.trim() } : {}),
+      });
+
+      setFullPreprodStepMsg('✅ ¡Pre-producción completa (Etapas 1 a 9) terminada automáticamente!');
+      setActiveStage(8);
+      if (flowServerFolderPath || flowDownloadDirHandleRef.current) {
+        await handleExportOrganizedProjectFolder(true);
+      }
+    } catch (err: any) {
+      setFullPreprodStepMsg(`⚠️ Error en pre-producción automática: ${err?.message || err}`);
+    } finally {
+      setIsFullPreprodRunning(false);
+    }
+  };
+
   const handleStopFlowAutoPilot = () => {
     setFlowAutoPilotActive(false);
     flowAutoPilotActiveRef.current = false;
@@ -1492,9 +1853,9 @@ export default function App() {
     });
   };
 
-  // Listen for Chrome Extension Web Bridge messages (Gemini Web & Google Flow)
+  // Listen for Chrome Extension Web Bridge messages (Gemini Web, Google Flow & Suno)
   useEffect(() => {
-    const handleBridgeMessage = (event: MessageEvent) => {
+    const handleBridgeMessage = async (event: MessageEvent) => {
       if (!event.data || event.data.source !== 'HUELLAS_EXTENSION') return;
       const msg = event.data;
 
@@ -1509,7 +1870,7 @@ export default function App() {
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
         setBridgeStatusMsg(msg.message || '');
-        if (msg.service === 'FLOW' && msg.message) {
+        if ((msg.service === 'FLOW' || msg.service === 'SUNO') && msg.message) {
           setFlowStatusLog(msg.message);
         }
         if (msg.previewText) {
@@ -1551,12 +1912,74 @@ export default function App() {
       } else if (msg.type === 'FLOW_VIDEO_CAPTURED') {
         setExtensionInstalled(true);
         handleCapturedFlowVideoAudit(msg);
+      } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
+        // ITEM 5: Auto-save captured Thumbnail A/B into /Miniaturas and state
+        setExtensionInstalled(true);
+        const opt = msg.option === 'B' ? 'B' : 'A';
+        const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        if (dataUrl) {
+          setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
+          updateActiveDoc({ thumbnailImageUrl: dataUrl, thumbnailReady: true });
+          const thumbFileName = `Miniatura_Opcion_${opt}.png`;
+          if (flowServerFolderPath && !isCloudMode && dataUrl.startsWith('data:')) {
+            fetch('/api/flow/save-asset-to-folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                folderPath: flowServerFolderPath,
+                subFolder: 'Miniaturas',
+                fileName: thumbFileName,
+                dataUrl,
+              }),
+            }).catch(() => {});
+          } else if (dataUrl.startsWith('data:')) {
+            handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl);
+          }
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(
+            `🖼️ ¡Miniatura Opción ${opt} capturada de Google Flow y guardada automáticamente como ${thumbFileName}!`
+          );
+        }
+      } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
+        // ITEM 2: Auto-save captured Suno MP3 into /Audio and inject into CapCut Editor Track 5
+        setExtensionInstalled(true);
+        const trackNum = Number(msg.trackNumber) || 1;
+        const dataUrl = msg.audioDataUrl || msg.audioUrl || '';
+        if (dataUrl) {
+          setCapturedSunoAudioMap((prev) => ({ ...prev, [trackNum]: dataUrl }));
+          const currentDoc = activeDocRef.current;
+          if (currentDoc && Array.isArray(currentDoc.sunoTracks)) {
+            const nextTracks = currentDoc.sunoTracks.map((st, idx) =>
+              idx + 1 === trackNum ? { ...st, audioUrl: dataUrl, ready: true } : st
+            );
+            updateActiveDoc({ sunoTracks: nextTracks });
+          }
+          const sunoFileName = `Suno_${String(trackNum).padStart(2, '0')}.mp3`;
+          if (flowServerFolderPath && !isCloudMode && dataUrl.startsWith('data:')) {
+            fetch('/api/flow/save-asset-to-folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                folderPath: flowServerFolderPath,
+                subFolder: 'Audio',
+                fileName: sunoFileName,
+                dataUrl,
+              }),
+            }).catch(() => {});
+          } else if (dataUrl.startsWith('data:')) {
+            handleSaveAnyFileToChosenFolder(sunoFileName, dataUrl);
+          }
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(
+            `🎵 ¡Pista #${trackNum} capturada de Suno, guardada en /Audio/${sunoFileName} e inyectada en la Pista 5 del Editor CapCut!`
+          );
+        }
       }
     };
 
     window.addEventListener('message', handleBridgeMessage);
     return () => window.removeEventListener('message', handleBridgeMessage);
-  }, [activeDoc, activeStage]);
+  }, [activeDoc, activeStage, flowServerFolderPath]);
 
   const handleSendStageToGeminiWeb = (stageNum: number, preferredTabId?: number) => {
     if (!activeDoc) return;
@@ -2841,9 +3264,12 @@ export default function App() {
           activeDoc={activeDoc}
           updateActiveDoc={updateActiveDoc}
           capturedClipVideosMap={capturedClipVideosMap}
+          capturedSunoAudioMap={capturedSunoAudioMap}
           onPickDownloadFolder={handlePickFlowDownloadFolder}
           downloadFolderName={flowDownloadFolderName}
+          downloadFolderPath={flowServerFolderPath}
           onSaveFileToChosenFolder={handleSaveAnyFileToChosenFolder}
+          onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
         />
       )}
 
@@ -2873,6 +3299,30 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {/* ITEM 4: 1-Click Full Pre-Production (Stages 1 to 9) */}
+                <button
+                  type="button"
+                  disabled={isFullPreprodRunning}
+                  onClick={handleRunFullPreproduction1To8}
+                  className="py-1 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-slate-950 text-xs font-black flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow"
+                  title="Genera de corrido Guion, Timeline, Subtítulos .SRT, Miniaturas A/B, @Referencias, Música Suno, todos los Pares Image/Clip y SEO YouTube en 1 clic"
+                >
+                  ⚡{' '}
+                  {isFullPreprodRunning
+                    ? fullPreprodStepMsg || 'Auto-Generando Etapas 1-9...'
+                    : 'Auto-Generar Etapas 1 a 9 (1 Clic)'}
+                </button>
+
+                {/* ITEM 6: Organized Final Project Folder */}
+                <button
+                  type="button"
+                  onClick={() => handleExportOrganizedProjectFolder(false)}
+                  className="py-1 px-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  title="Crea en tu carpeta: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
+                >
+                  📦 Carpeta Final YouTube
+                </button>
+
                 <select
                   value={activeDoc.productionType}
                   onChange={(e) =>
@@ -4142,20 +4592,35 @@ export default function App() {
                         <label className="text-xs font-semibold text-slate-300">
                           Prompt en Inglés ({currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16: Texto Centrado en el Medio + Logo HD Der' : 'Horizontal 16:9: Texto Abajo Izq + Logo 8K Der'} + Logo Oficial 5% Izq):
                         </label>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleSendThumbnailsToFlowAndCapture('A')}
+                            className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-2.5 py-1 rounded font-black cursor-pointer shadow"
+                            title="Envía el prompt a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta"
+                          >
+                            🖼️ Auto-Crear & Descargar Miniatura A
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSendThumbnailsToFlowAndCapture('B')}
+                            className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-bold cursor-pointer"
+                            title="Envía el prompt a Google Flow y descarga automáticamente Miniatura_Opcion_B.png en tu carpeta"
+                          >
+                            🖼️ Auto-Crear & Descargar Miniatura B
+                          </button>
                           <button
                             type="button"
                             onClick={() =>
-                              handleSendPromptToFlow(
-                                activeDoc.thumbnailPrompt,
-                                'IMAGE',
-                                'thumbnail'
-                              )
+                              sendCommandToWebBridge('FLOW', {
+                                action: 'SCAN_FLOW_THUMBNAILS',
+                                tabId: selectedFlowTabId,
+                              })
                             }
-                            className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
-                            title="Enviar prompt directamente a Google Flow / Gemini Web para generar la miniatura gratis"
+                            className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
+                            title="Captura las últimas 2 imágenes de la pestaña abierta de Google Flow como Miniatura_Opcion_A.png y B.png"
                           >
-                            🚀 Enviar a Flow / Gemini Web
+                            🔍 Capturar Miniaturas de Flow
                           </button>
                           <button
                             onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
@@ -4829,9 +5294,9 @@ export default function App() {
                           <button
                             key={ratio}
                             type="button"
-                            onClick={() => setEditorAspectRatio(ratio)}
+                            onClick={() => setFlowAspectRatio(ratio)}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                              editorAspectRatio === ratio
+                              flowAspectRatio === ratio
                                 ? 'bg-amber-500 text-slate-950 shadow'
                                 : 'text-slate-400 hover:text-white'
                             }`}
@@ -4843,8 +5308,10 @@ export default function App() {
 
                       {/* Resolution Selector (HD / 2K / 4K / 8K) */}
                       <select
-                        value={editorResolution}
-                        onChange={(e) => setEditorResolution(e.target.value as ExportResolutionKey)}
+                        value={flowDownloadResolution}
+                        onChange={(e) =>
+                          setFlowDownloadResolution(e.target.value as ExportResolutionPreset)
+                        }
                         className="bg-slate-950/90 border border-amber-500/40 rounded-xl px-2.5 py-1.5 text-[11px] font-black text-amber-300 focus:outline-none cursor-pointer"
                         title="Calidad de descarga y exportación (HD, 2K, 4K, 8K)"
                       >
@@ -4936,12 +5403,12 @@ export default function App() {
                               (batchIdx + 1) * 10,
                               activeDoc.clips?.length || 0
                             );
-                            const isActiveBatch = activeBatchIndex === batchIdx;
+                            const isActiveBatch = flowCurrentBatchNum === batchIdx + 1;
                             return (
                               <button
                                 key={batchIdx}
                                 type="button"
-                                onClick={() => handleSendBatch10ToFlow(batchIdx)}
+                                onClick={() => handleSendBatch10ToFlow(batchIdx + 1)}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
                                   isActiveBatch
                                     ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
@@ -4984,6 +5451,17 @@ export default function App() {
                           className="accent-amber-500"
                         />
                         <span>Auto-corregir prompt y re-hacer en Flow si un video falla (🚨 máx. 2 intentos)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 text-emerald-300 font-semibold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={flowAutoChainBatches}
+                          onChange={(e) => setFlowAutoChainBatches(e.target.checked)}
+                          className="accent-emerald-400"
+                        />
+                        <span>
+                          🌙 Auto-encadenar Lotes (Al terminar el Lote 1 dispara solo el Lote 2, 3...)
+                        </span>
                       </label>
                     </div>
 
@@ -5882,6 +6360,18 @@ export default function App() {
                         {aiGenerating ? 'Componiendo Prompts Suno...' : '✨ Generar Prompts Suno con Gemini'}
                       </button>
                       <button
+                        type="button"
+                        onClick={() =>
+                          sendCommandToWebBridge('SUNO', {
+                            action: 'SCAN_SUNO_TRACKS',
+                          })
+                        }
+                        className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
+                        title="Captura automáticamente las pistas MP3 generadas en la pestaña abierta de Suno.com, las guarda en /Audio y las inyecta en la Pista 5 del Editor CapCut"
+                      >
+                        🔍 Auto-Capturar MP3s de Suno
+                      </button>
+                      <button
                         onClick={() => {
                           const tracks = parseSunoTracksFromRawText(activeDoc.rawSunoText);
                           if (tracks.length > 0) updateActiveDoc({ sunoTracks: tracks });
@@ -6004,28 +6494,52 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Attach MP3 generated from Suno */}
+                      {/* Auto-Create in Suno or Attach MP3 */}
                       <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-                        <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
-                          <Upload className="w-3.5 h-3.5" /> Adjuntar MP3 de Suno
-                          <input
-                            type="file"
-                            accept="audio/*"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
-                              const url = await uploadAssetFile(f);
-                              if (url) {
-                                const next = [...activeDoc.sunoTracks];
-                                next[idx] = { ...track, audioUrl: url, isGenerated: true };
-                                updateActiveDoc({ sunoTracks: next });
-                              }
-                            }}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSendSunoTrackAndCapture(
+                                idx + 1,
+                                track.stylePrompt || track.lyricsPrompt,
+                                track.title
+                              )
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow"
+                            title="Envía la pista a Suno.com, vigila cuando termina, descarga Suno_0X.mp3 en /Audio y la coloca en la Pista 5 del Editor CapCut"
+                          >
+                            🎵 Auto-Crear & Descargar en Suno (Pista 5)
+                          </button>
+                          <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
+                            <Upload className="w-3.5 h-3.5" /> Adjuntar MP3 Manual
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                const url = await uploadAssetFile(f);
+                                if (url) {
+                                  const next = [...activeDoc.sunoTracks];
+                                  next[idx] = { ...track, audioUrl: url, isGenerated: true };
+                                  updateActiveDoc({ sunoTracks: next });
+                                  setCapturedSunoAudioMap((prev) => ({
+                                    ...prev,
+                                    [idx + 1]: url,
+                                  }));
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                        {(capturedSunoAudioMap[idx + 1] || track.audioUrl) && (
+                          <audio
+                            controls
+                            src={capturedSunoAudioMap[idx + 1] || track.audioUrl}
+                            className="h-8 flex-1 min-w-[180px]"
                           />
-                        </label>
-                        {track.audioUrl && (
-                          <audio controls src={track.audioUrl} className="h-8 flex-1" />
                         )}
                       </div>
                     </div>

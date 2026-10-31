@@ -2107,14 +2107,418 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
+    const clipsSubdir = path.join(folderPath, 'Clips_Aprobados');
+    if (!fs.existsSync(clipsSubdir)) {
+      fs.mkdirSync(clipsSubdir, { recursive: true });
+    }
     const fullTarget = path.join(folderPath, safeName);
+    const subdirTarget = path.join(clipsSubdir, safeName);
     const cleanBase64 = String(videoDataUrl).replace(/^data:[^;]+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
     fs.writeFileSync(fullTarget, buffer);
+    try {
+      fs.writeFileSync(subdirTarget, buffer);
+    } catch {}
     res.json({ ok: true, savedPath: fullTarget, fileName: safeName, bytes: buffer.length });
   } catch (err: any) {
     console.error('Error guardando video en carpeta elegida:', err);
     res.status(500).json({ error: err.message || 'Error guardando el archivo MP4.' });
+  }
+});
+
+// Save any captured asset (Thumbnails A/B, Suno MP3 tracks, Voiceover MP3) into organized subfolder
+app.post('/api/flow/save-asset-to-folder', async (req, res) => {
+  try {
+    const { folderPath, subFolder, fileName, dataUrl } = req.body;
+    if (!folderPath || !fileName || !dataUrl) {
+      res.status(400).json({ error: 'Faltan parámetros para guardar el archivo.' });
+      return;
+    }
+    const safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_'));
+    const targetDir = subFolder ? path.join(folderPath, String(subFolder)) : folderPath;
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const fullTarget = path.join(targetDir, safeName);
+    const cleanBase64 = String(dataUrl).replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    fs.writeFileSync(fullTarget, buffer);
+    res.json({ ok: true, savedPath: fullTarget, fileName: safeName, bytes: buffer.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error guardando activo en carpeta.' });
+  }
+});
+
+// ============================================================================
+// ITEM 6: EXPORT ORGANIZED FINAL PROJECT FOLDER (YOUTUBE / REELS READY PACKAGE)
+// ============================================================================
+app.post('/api/project/export-organized-package', async (req, res) => {
+  try {
+    const {
+      folderPath,
+      docTitle,
+      seoText,
+      scriptText,
+      srtText,
+      rawClipsText,
+      pinnedCommentText,
+      thumbnailPromptsText,
+      voiceoverDataUrl,
+      sunoTracks,
+      thumbnails,
+    } = req.body;
+
+    const targetRoot =
+      folderPath && String(folderPath).trim()
+        ? String(folderPath).trim()
+        : path.join(
+            process.env.HOME || '/tmp',
+            'Downloads',
+            `Huellas_${String(docTitle || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)}`
+          );
+
+    const clipsDir = path.join(targetRoot, 'Clips_Aprobados');
+    const audioDir = path.join(targetRoot, 'Audio');
+    const thumbsDir = path.join(targetRoot, 'Miniaturas');
+
+    for (const d of [targetRoot, clipsDir, audioDir, thumbsDir]) {
+      if (!fs.existsSync(d)) {
+        fs.mkdirSync(d, { recursive: true });
+      }
+    }
+
+    const savedFiles: string[] = [];
+
+    if (srtText) {
+      const srtPath = path.join(targetRoot, 'Subtitulos.srt');
+      fs.writeFileSync(srtPath, String(srtText), 'utf8');
+      savedFiles.push('Subtitulos.srt');
+    }
+
+    if (scriptText) {
+      const scriptPath = path.join(targetRoot, 'Guion_Master.txt');
+      fs.writeFileSync(scriptPath, String(scriptText), 'utf8');
+      savedFiles.push('Guion_Master.txt');
+    }
+
+    if (rawClipsText) {
+      const clipsTxtPath = path.join(targetRoot, 'Prompts_Clips_Flow.txt');
+      fs.writeFileSync(clipsTxtPath, String(rawClipsText), 'utf8');
+      savedFiles.push('Prompts_Clips_Flow.txt');
+    }
+
+    const seoPackageContent = [
+      '========================================================================',
+      `HUELLAS DE LA HUMANIDAD — PAQUETE DE PUBLICACIÓN YOUTUBE / REELS`,
+      `PROYECTO: ${docTitle || 'Documental'}`,
+      `FECHA: ${new Date().toLocaleString('es-ES')}`,
+      '========================================================================\n',
+      '--- 1. TÍTULOS, DESCRIPCIÓN CON CAPÍTULOS (00:00) Y TAGS SEO (ETAPA 4) ---\n',
+      seoText || '(Pendiente de generar Etapa 4)',
+      '\n\n--- 2. COMENTARIO FIJADO PARA DEBATE EN YOUTUBE (ETAPA 9) ---\n',
+      pinnedCommentText || '(Pendiente de generar Etapa 9)',
+      '\n\n--- 3. PROMPTS DE MINIATURAS A/B TESTING (ETAPA 5) ---\n',
+      thumbnailPromptsText || '(Pendiente de generar Etapa 5)',
+      '\n',
+    ].join('\n');
+
+    const seoPath = path.join(targetRoot, 'SEO_YouTube_Copiar_Pegar.txt');
+    fs.writeFileSync(seoPath, seoPackageContent, 'utf8');
+    savedFiles.push('SEO_YouTube_Copiar_Pegar.txt');
+
+    if (voiceoverDataUrl && String(voiceoverDataUrl).startsWith('data:')) {
+      const cleanB64 = String(voiceoverDataUrl).replace(/^data:[^;]+;base64,/, '');
+      const voPath = path.join(audioDir, 'Voz_Narrativa.mp3');
+      fs.writeFileSync(voPath, Buffer.from(cleanB64, 'base64'));
+      savedFiles.push('Audio/Voz_Narrativa.mp3');
+    }
+
+    if (Array.isArray(sunoTracks)) {
+      for (let i = 0; i < sunoTracks.length; i++) {
+        const st = sunoTracks[i];
+        if (st && st.audioDataUrl && String(st.audioDataUrl).startsWith('data:')) {
+          const cleanB64 = String(st.audioDataUrl).replace(/^data:[^;]+;base64,/, '');
+          const name = st.fileName || `Suno_${String(i + 1).padStart(2, '0')}.mp3`;
+          const stPath = path.join(audioDir, path.basename(name));
+          fs.writeFileSync(stPath, Buffer.from(cleanB64, 'base64'));
+          savedFiles.push(`Audio/${path.basename(name)}`);
+        }
+      }
+    }
+
+    if (Array.isArray(thumbnails)) {
+      for (const th of thumbnails) {
+        if (th && th.imageDataUrl && String(th.imageDataUrl).startsWith('data:')) {
+          const cleanB64 = String(th.imageDataUrl).replace(/^data:[^;]+;base64,/, '');
+          const name = th.fileName || `Miniatura_Opcion_${th.option || 'A'}.png`;
+          const thPath = path.join(thumbsDir, path.basename(name));
+          fs.writeFileSync(thPath, Buffer.from(cleanB64, 'base64'));
+          savedFiles.push(`Miniaturas/${path.basename(name)}`);
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      folderPath: targetRoot,
+      savedFiles,
+    });
+  } catch (err: any) {
+    console.error('Error exportando paquete organizado:', err);
+    res.status(500).json({ error: err.message || 'Error creando paquete organizado.' });
+  }
+});
+
+// ============================================================================
+// ITEM 3: ULTRA-FAST NATIVE FFMPEG MULTI-TRACK RENDERER (HD / 2K / 4K / 8K)
+// ============================================================================
+app.post('/api/editor/render-ffmpeg', async (req, res) => {
+  try {
+    const {
+      folderPath,
+      docTitle,
+      aspectRatio = '16:9',
+      resolution = 'HD_1080P',
+      clips = [],
+      voiceoverStartSec = 6,
+      voiceoverVolume = 1.0,
+      voiceoverDataUrl = '',
+      sunoSilenceGapSec = 15,
+      sunoMasterVolume = 0.22,
+      srtContent = '',
+    } = req.body;
+
+    const targetRoot =
+      folderPath && String(folderPath).trim()
+        ? String(folderPath).trim()
+        : path.join(process.env.HOME || '/tmp', 'Downloads');
+
+    if (!fs.existsSync(targetRoot)) {
+      fs.mkdirSync(targetRoot, { recursive: true });
+    }
+
+    const workDir = path.join(targetRoot, '.huellas_ffmpeg_temp');
+    if (!fs.existsSync(workDir)) {
+      fs.mkdirSync(workDir, { recursive: true });
+    }
+
+    // Resolution dimensions
+    const resMap: Record<string, { w169: number; h169: number; label: string }> = {
+      HD_1080P: { w169: 1920, h169: 1080, label: 'HD_1080p' },
+      '2K_1440P': { w169: 2560, h169: 1440, label: '2K_1440p' },
+      '4K_2160P': { w169: 3840, h169: 2160, label: '4K_2160p' },
+      '8K_4320P': { w169: 7680, h169: 4320, label: '8K_4320p' },
+    };
+    const preset = resMap[resolution] || resMap.HD_1080P;
+    const outW = aspectRatio === '9:16' ? preset.h169 : preset.w169;
+    const outH = aspectRatio === '9:16' ? preset.w169 : preset.h169;
+
+    // 1. Collect all available MP4 clips on disk (from clips array or folderPath)
+    const normalizedClipPaths: string[] = [];
+    const clipsSubdir = path.join(targetRoot, 'Clips_Aprobados');
+
+    for (let i = 0; i < clips.length; i++) {
+      const c = clips[i];
+      const fileName = c.fileName || `${String(c.clipNumber || i + 1).padStart(2, '0')}_Clip.mp4`;
+      let sourceMp4 = '';
+
+      const candidate1 = path.join(targetRoot, fileName);
+      const candidate2 = path.join(clipsSubdir, fileName);
+      if (fs.existsSync(candidate1)) {
+        sourceMp4 = candidate1;
+      } else if (fs.existsSync(candidate2)) {
+        sourceMp4 = candidate2;
+      } else if (c.videoDataUrl && String(c.videoDataUrl).startsWith('data:')) {
+        const cleanB64 = String(c.videoDataUrl).replace(/^data:[^;]+;base64,/, '');
+        sourceMp4 = candidate1;
+        fs.writeFileSync(sourceMp4, Buffer.from(cleanB64, 'base64'));
+      } else {
+        // Fallback: match by prefix number (e.g. "01_") in targetRoot or Clips_Aprobados
+        const prefix = `${String(c.clipNumber || i + 1).padStart(2, '0')}_`;
+        for (const searchDir of [targetRoot, clipsSubdir]) {
+          if (fs.existsSync(searchDir)) {
+            const found = fs
+              .readdirSync(searchDir)
+              .find((f) => f.startsWith(prefix) && f.toLowerCase().endsWith('.mp4'));
+            if (found) {
+              sourceMp4 = path.join(searchDir, found);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!sourceMp4 || !fs.existsSync(sourceMp4)) continue;
+
+      // Normalize each segment with FFmpeg so concat is 100% glitch-free
+      const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.mp4`);
+      const speed = Number(c.speed) > 0 ? Number(c.speed) : 1;
+      const ptsFactor = (1 / speed).toFixed(3);
+      const foleyVol = typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.35;
+
+      const vfFilter = `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
+
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            sourceMp4,
+            '-vf',
+            vfFilter,
+            '-af',
+            `volume=${foleyVol}`,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'ultrafast',
+            '-crf',
+            '18',
+            '-c:a',
+            'aac',
+            '-ar',
+            '44100',
+            '-ac',
+            '2',
+            segOut,
+          ],
+          { timeout: 180000 },
+          (err) => {
+            if (err) {
+              // Retry without audio filter if source clip had no audio stream
+              execFile(
+                'ffmpeg',
+                [
+                  '-y',
+                  '-i',
+                  sourceMp4,
+                  '-f',
+                  'lavfi',
+                  '-i',
+                  'anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-vf',
+                  vfFilter,
+                  '-c:v',
+                  'libx264',
+                  '-preset',
+                  'ultrafast',
+                  '-crf',
+                  '18',
+                  '-c:a',
+                  'aac',
+                  '-shortest',
+                  segOut,
+                ],
+                { timeout: 180000 },
+                (err2) => (err2 ? reject(err2) : resolve())
+              );
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+
+      normalizedClipPaths.push(segOut);
+    }
+
+    if (normalizedClipPaths.length === 0) {
+      res.status(400).json({
+        error:
+          'No se encontraron archivos MP4 en la carpeta elegida ni en memoria. Asegúrate de haber descargado o importado al menos un clip MP4.',
+      });
+      return;
+    }
+
+    const startedAt = Date.now();
+
+    // 2. Concatenate all normalized segments
+    const concatListPath = path.join(workDir, 'concat_list.txt');
+    const concatContent = normalizedClipPaths
+      .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
+      .join('\n');
+    fs.writeFileSync(concatListPath, concatContent, 'utf8');
+
+    const concatVideoPath = path.join(workDir, 'concat_video.mp4');
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        'ffmpeg',
+        ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', concatVideoPath],
+        { timeout: 300000 },
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    // 3. Check for Voiceover MP3 and Official Logo to mix/overlay in final pass
+    let voPath = path.join(targetRoot, 'Audio', 'Voz_Narrativa.mp3');
+    if (!fs.existsSync(voPath) && voiceoverDataUrl && String(voiceoverDataUrl).startsWith('data:')) {
+      const cleanB64 = String(voiceoverDataUrl).replace(/^data:[^;]+;base64,/, '');
+      voPath = path.join(workDir, 'voiceover_input.mp3');
+      fs.writeFileSync(voPath, Buffer.from(cleanB64, 'base64'));
+    }
+
+    const safeDocName = String(docTitle || 'Huellas_Documental')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 45);
+    const finalFileName = `${safeDocName}_${preset.label}_${aspectRatio.replace(':', 'x')}.mp4`;
+    const finalOutputPath = path.join(targetRoot, finalFileName);
+
+    if (srtContent) {
+      fs.writeFileSync(path.join(targetRoot, 'Subtitulos.srt'), String(srtContent), 'utf8');
+    }
+
+    if (fs.existsSync(voPath)) {
+      const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            concatVideoPath,
+            '-i',
+            voPath,
+            '-filter_complex',
+            `[1:a]adelay=${delayMs}|${delayMs},volume=${voiceoverVolume}[vo];[0:a][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]`,
+            '-map',
+            '0:v',
+            '-map',
+            '[aout]',
+            '-c:v',
+            'copy',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            finalOutputPath,
+          ],
+          { timeout: 300000 },
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+    } else {
+      fs.copyFileSync(concatVideoPath, finalOutputPath);
+    }
+
+    // Cleanup temp folder
+    try {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    } catch {}
+
+    const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    res.json({
+      ok: true,
+      outputPath: finalOutputPath,
+      fileName: finalFileName,
+      clipsRendered: normalizedClipPaths.length,
+      elapsedSec,
+    });
+  } catch (err: any) {
+    console.error('Error en renderizado nativo FFmpeg:', err);
+    res.status(500).json({
+      error: err.message || 'Error ejecutando FFmpeg para renderizar el documental.',
+    });
   }
 });
 

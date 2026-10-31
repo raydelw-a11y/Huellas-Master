@@ -3,7 +3,7 @@
 // Connects the React app to the Huellas Master Chrome Extension
 // ============================================================================
 
-export type WebServiceTarget = 'GEMINI' | 'FLOW';
+export type WebServiceTarget = 'GEMINI' | 'FLOW' | 'SUNO';
 
 export interface ConnectedAiTab {
   id: number;
@@ -18,6 +18,8 @@ export interface WebBridgeCommandPayload {
     | 'GRAB_LAST_RESPONSE'
     | 'GRAB_LAST_MEDIA'
     | 'SCAN_FLOW_VIDEOS'
+    | 'SCAN_FLOW_THUMBNAILS'
+    | 'SCAN_SUNO_TRACKS'
     | 'STOP_FLOW_WATCHER'
     | 'OPEN_DOCKED'
     | 'FOCUS_TAB';
@@ -28,7 +30,13 @@ export interface WebBridgeCommandPayload {
   clipId?: string;
   attempt?: number;
   watchForVideo?: boolean;
-  mediaType?: 'IMAGE' | 'VIDEO';
+  mediaType?: 'IMAGE' | 'VIDEO' | 'THUMBNAILS';
+  batchStartClip?: number;
+  batchEndClip?: number;
+  expectedCount?: number;
+  trackNumber?: number;
+  trackTitle?: string;
+  optionLabel?: string;
   autoSubmit?: boolean;
   preferDockedWindow?: boolean;
   focusTab?: boolean;
