@@ -226,7 +226,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
           url: defaultUrl,
-          active: true,
+          active: payload.focusTab === true,
         });
         await new Promise((r) => setTimeout(r, 4500));
         targetTab = {
@@ -238,10 +238,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (
-          payload.focusTab ||
-          ((targetService === 'FLOW' || targetService === 'SUNO') && action === 'SEND_PROMPT')
-        ) {
+        if (payload.focusTab === true) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
@@ -254,47 +251,106 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           })
           .catch(() => {});
 
-        // MAIN-world safety submit for Google Flow: if after 500ms the prompt is still sitting
-        // inside div.ProseMirror, click the exact Start generation button in Google Flow's MAIN world.
+        // MAIN-world safety injection & submit for Google Flow (works even when the Flow tab is in the background!)
         if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
           const flowTabId = targetTab.id;
+          const rawPromptArg = String(payload.prompt || '');
+          const mediaTypeArg = String(payload.mediaType || '');
           setTimeout(() => {
             chrome.scripting
               .executeScript({
                 target: { tabId: flowTabId },
                 world: 'MAIN',
-                func: () => {
+                args: [rawPromptArg, mediaTypeArg],
+                func: (expectedRawPrompt, mediaType) => {
                   try {
+                    const cleanExpected =
+                      mediaType === 'THUMBNAILS'
+                        ? expectedRawPrompt.replace(/^Thumbnail\s*:\s*/i, '').trim()
+                        : expectedRawPrompt.trim();
                     const inputEl = document.querySelector(
                       'div.ProseMirror[contenteditable="true"], div[role="textbox"][contenteditable="true"]'
                     );
-                    const remaining = (inputEl?.innerText || inputEl?.textContent || '').trim();
-                    if (!remaining || remaining.length < 5) return;
-                    const selectors = [
-                      'flow-generate-icon-button button',
-                      'span.submit-button-slot button',
-                      '[submitbutton] button',
-                      'button.generate-icon-button',
-                      'button[aria-label="Start generation"]',
-                      'button[aria-label*="Start generation" i]',
-                      'button[aria-label*="Iniciar generación" i]',
-                      'button[type="submit"]',
-                    ];
-                    for (const sel of selectors) {
-                      const btn = document.querySelector(sel);
-                      if (btn) {
-                        const r = btn.getBoundingClientRect();
-                        if (r.width >= 16 && r.height >= 16 && r.top > 0) {
-                          btn.click();
-                          return;
-                        }
+                    if (!inputEl) return;
+
+                    let currentText = (inputEl.innerText || inputEl.textContent || '').trim();
+                    // If the background tab still has an old prompt or didn't receive the new one, force-replace it in MAIN world
+                    if (
+                      cleanExpected &&
+                      currentText.length > 0 &&
+                      !currentText.includes(cleanExpected.slice(0, 35))
+                    ) {
+                      const clearBtn = document.querySelector(
+                        'button.clear-button[aria-label="Clear prompt"], button.clear-button'
+                      );
+                      if (clearBtn) {
+                        try {
+                          clearBtn.click();
+                        } catch {}
+                      }
+                      currentText = '';
+                    }
+
+                    if (cleanExpected && (!currentText || currentText.length < 5)) {
+                      try {
+                        inputEl.focus();
+                        const dt = new DataTransfer();
+                        dt.setData('text/plain', cleanExpected);
+                        inputEl.dispatchEvent(
+                          new ClipboardEvent('paste', {
+                            bubbles: true,
+                            cancelable: true,
+                            composed: true,
+                            clipboardData: dt,
+                          })
+                        );
+                      } catch {}
+                      const checkAfterPaste = (inputEl.innerText || inputEl.textContent || '').trim();
+                      if (!checkAfterPaste || !checkAfterPaste.includes(cleanExpected.slice(0, 25))) {
+                        inputEl.innerHTML = '';
+                        const p = document.createElement('p');
+                        p.textContent = cleanExpected;
+                        inputEl.appendChild(p);
+                        inputEl.dispatchEvent(
+                          new InputEvent('input', {
+                            bubbles: true,
+                            cancelable: true,
+                            inputType: 'insertText',
+                            data: cleanExpected,
+                          })
+                        );
                       }
                     }
+
+                    setTimeout(() => {
+                      const remaining = (inputEl?.innerText || inputEl?.textContent || '').trim();
+                      if (!remaining || remaining.length < 5) return;
+                      const selectors = [
+                        'flow-generate-icon-button button',
+                        'span.submit-button-slot button',
+                        '[submitbutton] button',
+                        'button.generate-icon-button',
+                        'button[aria-label="Start generation"]',
+                        'button[aria-label*="Start generation" i]',
+                        'button[aria-label*="Iniciar generación" i]',
+                        'button[type="submit"]',
+                      ];
+                      for (const sel of selectors) {
+                        const btn = document.querySelector(sel);
+                        if (btn) {
+                          const r = btn.getBoundingClientRect();
+                          if (r.width >= 16 && r.height >= 16 && r.top > 0) {
+                            btn.click();
+                            return;
+                          }
+                        }
+                      }
+                    }, 180);
                   } catch {}
                 },
               })
               .catch(() => {});
-          }, 500);
+          }, 420);
         }
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });

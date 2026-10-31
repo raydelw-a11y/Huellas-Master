@@ -127,7 +127,7 @@
   }
 
   function setFlowInputText(inputEl, text) {
-    // If there is a 'Clear prompt' button and the box already has text, clear it cleanly first
+    // 1. Always clear any existing text in the prompt box first so an old prompt is never submitted
     const existingText = (inputEl.value ?? inputEl.innerText ?? '').trim();
     if (existingText.length > 0) {
       const clearBtn = document.querySelector(
@@ -176,7 +176,7 @@
       return;
     }
 
-    // ProseMirror / Contenteditable div in Google Flow
+    // ProseMirror / Contenteditable div in Google Flow (works both when tab is active or in background)
     try {
       inputEl.focus();
       const selection = window.getSelection();
@@ -184,12 +184,18 @@
       range.selectNodeContents(inputEl);
       selection.removeAllRanges();
       selection.addRange(range);
+      try {
+        document.execCommand('delete', false);
+      } catch {}
       const inserted = document.execCommand('insertText', false, text);
 
-      // Fallback to native ClipboardEvent('paste') if execCommand did not populate ProseMirror
-      const afterText = (inputEl.innerText || inputEl.textContent || '').trim();
-      if (!inserted && afterText.length === 0) {
+      const expectedPrefix = text.trim().slice(0, 30);
+      let afterText = (inputEl.innerText || inputEl.textContent || '').trim();
+
+      // If execCommand failed (e.g. tab in background) or old text remained, force replace via paste + DOM
+      if (!inserted || !afterText.includes(expectedPrefix)) {
         try {
+          inputEl.innerHTML = '<p><br></p>';
           const dt = new DataTransfer();
           dt.setData('text/plain', text);
           inputEl.dispatchEvent(
@@ -201,6 +207,21 @@
             })
           );
         } catch {}
+        afterText = (inputEl.innerText || inputEl.textContent || '').trim();
+        if (!afterText.includes(expectedPrefix)) {
+          inputEl.innerHTML = '';
+          const p = document.createElement('p');
+          p.textContent = text;
+          inputEl.appendChild(p);
+          inputEl.dispatchEvent(
+            new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'insertText',
+              data: text,
+            })
+          );
+        }
       }
     } catch {}
   }
@@ -508,9 +529,8 @@
   function getAllCurrentImageUrlsSet() {
     const urls = new Set();
     for (const img of Array.from(document.querySelectorAll('img'))) {
-      const w = img.naturalWidth || img.width || 0;
-      const src = img.src || '';
-      if (src && !src.includes('avatar') && (w === 0 || w >= 220)) {
+      const src = (img.currentSrc || img.src || '').trim();
+      if (src) {
         urls.add(src);
       }
     }
@@ -529,15 +549,25 @@
 
     window.__HUELLAS_FLOW_THUMB_WATCHER__ = setInterval(async () => {
       if (capturing) return;
-      if (Date.now() - startedAt > maxWaitMs) {
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs > maxWaitMs) {
         clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
         window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
         return;
       }
 
+      //During the first 3.5 seconds while Google Flow is still starting the job, record any lazy-loaded existing gallery images into baseline
+      if (elapsedMs < 3500) {
+        for (const img of Array.from(document.querySelectorAll('img'))) {
+          const s = (img.currentSrc || img.src || '').trim();
+          if (s) baselineImageUrls.add(s);
+        }
+        return;
+      }
+
       const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
         const w = img.naturalWidth || img.width || 0;
-        const src = img.src || '';
+        const src = (img.currentSrc || img.src || '').trim();
         return src && !src.includes('avatar') && w >= 280 && !baselineImageUrls.has(src);
       });
 
@@ -549,7 +579,7 @@
 
       let idx = 0;
       for (const imgEl of imgs.slice(0, 2)) {
-        const src = imgEl.src;
+        const src = (imgEl.currentSrc || imgEl.src || '').trim();
         baselineImageUrls.add(src);
         const imageDataUrl = await fetchVideoBinaryDataUrl(src, imgEl);
         const opt = optionLabel || (idx === 0 ? 'A' : 'B');
@@ -569,17 +599,18 @@
   async function handleScanFlowThumbnails() {
     const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
       const w = img.naturalWidth || img.width || 0;
-      const src = img.src || '';
+      const src = (img.currentSrc || img.src || '').trim();
       return src && !src.includes('avatar') && w >= 280;
     });
     if (imgs.length === 0) {
       reportStatus('ERROR', 'No se encontraron imágenes de miniatura en Google Flow.');
       return;
     }
-    const latestThree = imgs.slice(-3);
+    // Newest generated images appear at the TOP of Google Flow's feed (imgs.slice(0, 3))
+    const latestThree = imgs.slice(0, 3);
     const labels = ['A', 'B', 'C'];
     for (let i = 0; i < latestThree.length; i++) {
-      const src = latestThree[i].src;
+      const src = (latestThree[i].currentSrc || latestThree[i].src || '').trim();
       const imageDataUrl = await fetchVideoBinaryDataUrl(src, latestThree[i]);
       chrome.runtime
         .sendMessage({
@@ -800,7 +831,11 @@
     }
     document.documentElement.setAttribute('data-huellas-flow-cmd-ts', String(now));
 
-    const promptText = payload.prompt || '';
+    const rawPromptText = payload.prompt || '';
+    const promptText =
+      payload.mediaType === 'THUMBNAILS'
+        ? rawPromptText.replace(/^Thumbnail\s*:\s*/i, '').trim()
+        : rawPromptText;
     const baselineUrls = getAllCurrentVideoUrlsSet();
     const baselineImageUrls = getAllCurrentImageUrlsSet();
 

@@ -384,17 +384,39 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
       (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
     const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
     const overlayText = (doc.thumbnailTextOverlay || '').trim() || 'EL SECRETO OCULTO';
+    const refsContext = Array.isArray(doc.references)
+      ? doc.references
+          .slice(0, 6)
+          .map((r) => `${r.tag}: ${r.prompt}`)
+          .join('\n')
+      : '';
+    const clipsContext = Array.isArray(doc.clips)
+      ? doc.clips
+          .slice(0, 6)
+          .map((c) => c.imagePrompt)
+          .filter(Boolean)
+          .join('\n')
+      : '';
     stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
-Tema del episodio: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Título del video (NO repetir en el texto ni regalar toda la respuesta): ${doc.title || ''}
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 900)}
+Tema / Título: ${doc.topic || doc.title} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
+Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+"""
+Personajes y Lugares del documental (@Referencias):
+${refsContext}
+Primeras escenas visuales del documental (Clips):
+${clipsContext}
 Orientación: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
 Texto en pantalla obligatorio (Curiosity Gap): "${overlayText}"
 
+REGLA CRÍTICA DE FIDELIDAD TEMÁTICA: Si el campo "Título" contiene el nombre de un video anterior o provisional (ej. "Video 75..."), IGNÓRALO y basa la escena visual de la miniatura 100% en el Guion REAL, los Personajes (@Referencias) y las escenas de los Clips de arriba.
+
 APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN:
-1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento detonante de peligro/misterio + texto gancho), instantáneamente legible en la pantalla diminuta de un móvil.
-2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
-3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante del protagonista real del guion en primer plano + 1 elemento detonante de peligro/misterio del guion + texto gancho), instantáneamente legible en la pantalla diminuta de un móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico real del guion ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática del guion que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
 4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Iluminación dramática de claroscuro con luz clave cálida de alto impacto (oro ardiente, fuego carmesí o ámbar intenso) sobre el rostro y luz de recorte (rim light) brillante que lo despega de un fondo oscuro saturado en tonos fríos (azul cian nocturno profundo o negro abismal).
 5. ELEMENTOS DE MARCA Y TEXTO OBLIGATORIOS:
    - Inicia el prompt en inglés con: "Thumbnail: Create an image in ${
@@ -456,11 +478,14 @@ Genera la ETAPA 10: BANDA SONORA PARA SUNO dejando silencios de 10-20s entre cad
     stagePrompt = `Actúa como experto en neuropsicología del clic (alto CTR en YouTube) y director creativo de miniaturas para "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 600)}
+Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+"""
 
 Aplicando el principio psicológico de LA BRECHA DE LA CURIOSIDAD (Curiosity Gap) y procesamiento en 13 milisegundos:
-Genera EXACTAMENTE 3 opciones magnéticas de TEXTO EN PANTALLA para la miniatura (de 2 a 4 palabras máximo en ESPAÑOL y MAYÚSCULAS) que:
+Genera EXACTAMENTE 3 opciones magnéticas de TEXTO EN PANTALLA para la miniatura basadas 100% en el Guion REAL de arriba (de 2 a 4 palabras máximo en ESPAÑOL y MAYÚSCULAS) que:
 1. Despierten una incógnita inmediata en el cerebro ("¿Qué pasó?", "¿Por qué hizo eso?") sin regalar la respuesta.
 2. Trabajen en equipo con el título del video pero SIN REPETIR ninguna frase del título ni del Texto del Clip 1.
 3. Sean legibles en 13 milisegundos en la pantalla de un teléfono móvil.
@@ -497,6 +522,58 @@ export async function generateStageClientSide(
     return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
   }
   return out;
+}
+
+export async function generateThumbnailImageClientSide(
+  prompt: string,
+  logoDataUrl?: string
+): Promise<string> {
+  const apiKey = getBrowserGeminiKey();
+  if (!apiKey) {
+    throw new Error('Configura tu Gemini API Key para generar la miniatura directamente.');
+  }
+
+  const cleanPrompt = String(prompt || '')
+    .replace(/^Thumbnail\s*:\s*/i, '')
+    .trim();
+  const parts: any[] = [];
+  if (logoDataUrl && logoDataUrl.startsWith('data:')) {
+    const match = logoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match && match[1] && match[2]) {
+      parts.push({
+        inlineData: {
+          mimeType: match[1],
+          data: match[2],
+        },
+      });
+    }
+  }
+  parts.push({ text: cleanPrompt });
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(
+    apiKey
+  )}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+      },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Error HTTP ${res.status}`);
+  }
+  const candidateParts = data?.candidates?.[0]?.content?.parts || [];
+  const imgPart = candidateParts.find((p: any) => p?.inlineData?.data);
+  if (!imgPart || !imgPart.inlineData?.data) {
+    throw new Error('No se recibió imagen desde Nano Banana (gemini-2.5-flash-image).');
+  }
+  const mime = imgPart.inlineData.mimeType || 'image/png';
+  return `data:${mime};base64,${imgPart.inlineData.data}`;
 }
 
 export async function auditClipsClientSide(doc: DocumentaryProject, clipsList: any[]): Promise<any> {

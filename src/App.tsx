@@ -95,6 +95,7 @@ import {
   auditClipVideoClientSide,
   auditThumbnailPsychologyClientSide,
   ThumbnailPsychologyAuditResult,
+  generateThumbnailImageClientSide,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
   PUBLIC_GITHUB_PAGES_URL,
@@ -108,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:03 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:18 PM - 10/31/2026';
 
 // Persist FileSystemDirectoryHandle in IndexedDB so once selected in Stage 1,
 // there is ONE SINGLE DOWNLOAD FOLDER for the entire app without ever asking again.
@@ -344,20 +345,65 @@ function buildPsychologicalThumbnailVariantPrompt(
   const closingClause =
     'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
-  const subject = doc?.topic || doc?.title || 'a dramatic historical documentary scene';
-  const era = [doc?.historicalTime, doc?.historicalLocation].filter(Boolean).join(', ');
-  const sceneContext = era ? `${subject} (${era})` : subject;
+  const rawTitle = (doc?.title || '').trim();
+  const isProvisionalTitle = /^video\s*\d+/i.test(rawTitle) || /^documental\s*\d*/i.test(rawTitle);
+  const cleanTopic = (doc?.topic || '').trim();
+  const refNames = (doc?.references || [])
+    .map((r: any) => (r?.tag || r?.name || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const firstClipScene = (doc?.clips || [])
+    .map((c: any) => (c?.imagePrompt || '').trim())
+    .find(Boolean) || '';
+  const clip1HookContext = [doc?.clip1Line1LocationTime, doc?.clip1Line2Hook]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .join(' — ');
+  const scriptOpening = (doc?.voiceoverScript || doc?.researchSummary || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 260);
+
+  let derivedSubject = cleanTopic;
+  if (!derivedSubject) {
+    if (firstClipScene) {
+      derivedSubject = firstClipScene
+        .replace(/^create an image in (16:9|9:16)[^,]*,?\s*/i, '')
+        .slice(0, 220);
+    } else if (refNames.length > 0 || scriptOpening) {
+      derivedSubject = [
+        refNames.length > 0 ? `historical figures ${refNames.join(', ')}` : '',
+        clip1HookContext,
+        scriptOpening ? `historical context: "${scriptOpening}"` : '',
+      ]
+        .filter(Boolean)
+        .join(' — ');
+    } else if (rawTitle && !isProvisionalTitle) {
+      derivedSubject = rawTitle;
+    } else {
+      derivedSubject = rawTitle || 'a dramatic historical documentary scene';
+    }
+  }
+
+  const era = [doc?.historicalTime, doc?.historicalLocation, doc?.clip1Line1LocationTime]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .join(', ');
+  const protagonistHint =
+    refNames.length > 0 ? ` (${refNames.join(', ')})` : '';
+  const sceneContext = `${derivedSubject}${protagonistHint}${era ? ` [${era}]` : ''}`;
 
   if (variant === 'A') {
     // Opción A: Rostro Humano + Emoción Extrema + Contacto Visual Directo (13ms)
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and terrifying realization, hyper-realistic skin pores and sweat, illuminated by blazing warm golden-amber and crimson rim light against a deep cold midnight-cyan background, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and terrifying realization, hyper-realistic skin pores and period-accurate attire, illuminated by blazing warm golden-amber and crimson rim light against a deep cold midnight-cyan historical background, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
   if (variant === 'B') {
     // Opción B: Brecha de la Curiosidad (Curiosity Gap / El Secreto o Traición en el Segundo Antes del Desastre)
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext} at the exact split-second before catastrophe, showing the historical protagonist in sharp foreground looking at the camera in tense disbelief while a single enigmatic forbidden historical object or shadowy betrayal emerges behind them opening an irresistible curiosity gap, high-impact chiaroscuro contrast with fiery amber key light against cold abyssal blue shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext} at the exact split-second before catastrophe, showing the historical protagonist in sharp foreground looking at the camera in tense disbelief while a single enigmatic forbidden historical detail or shadowy betrayal from this exact story emerges behind them opening an irresistible curiosity gap, high-impact chiaroscuro contrast with fiery amber key light against cold abyssal blue shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
   // Opción C: Escala Épica + Peligro Inminente + Contraste Cromático Extremo
-  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, contrasting an expressive historical protagonist face in the foreground looking back in awe and terror against a colossal unmistakable historical threat looming in the background, dramatic complementary color psychology of blazing crimson-gold firelight against deep emerald-night shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, contrasting an expressive historical protagonist face in the foreground looking back in awe and terror against the monumental historical setting and threat looming in the background, dramatic complementary color psychology of blazing crimson-gold firelight against deep emerald-night shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
 }
 
 const STAGES_LIST = [
@@ -530,6 +576,9 @@ export default function App() {
     Record<string, ThumbnailPsychologyAuditResult>
   >({});
   const [thumbnailPsychAuditing, setThumbnailPsychAuditing] = useState<boolean>(false);
+  const [thumbnailGeneratingOption, setThumbnailGeneratingOption] = useState<
+    'A' | 'B' | 'C' | null
+  >(null);
   // Global Official Logo shared across ALL documentaries (uploaded once)
   const [officialLogoUrl, setOfficialLogoUrl] = useState<string>(() => {
     return localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
@@ -1929,7 +1978,7 @@ export default function App() {
     }
   };
 
-  // ITEM 5: Send Stage 5 Thumbnails A/B/C to Google Flow & Auto-Download Miniatura_Opcion_A/B/C.png
+  // ITEM 5: Generate & Auto-Import Stage 5 Thumbnails A/B/C Directly into Our Site + Single Folder (Without Leaving the Tab)
   const handleSendThumbnailsToFlowAndCapture = async (
     optionLabel: 'A' | 'B' | 'C' = 'A',
     usePsychVariant: boolean = true
@@ -1948,6 +1997,7 @@ export default function App() {
         optionLabel === 'B' ? 1 : optionLabel === 'C' ? 2 : 0
       ];
 
+    const existingPrompt = (activeDoc.thumbnailPrompt || '').trim();
     const promptText = usePsychVariant
       ? buildPsychologicalThumbnailVariantPrompt(
           optionLabel,
@@ -1955,7 +2005,7 @@ export default function App() {
           effectiveOverlay,
           activeDoc
         )
-      : (activeDoc.thumbnailPrompt || '').trim() ||
+      : existingPrompt ||
         buildPsychologicalThumbnailVariantPrompt(
           optionLabel,
           currentOrientation,
@@ -1971,21 +2021,80 @@ export default function App() {
 
     await ensureSingleDownloadFolderReadyOnGesture();
     navigator.clipboard.writeText(promptText).catch(() => {});
+
+    const folderLabel =
+      flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta única';
+
+    setThumbnailGeneratingOption(optionLabel);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Miniatura Psicológica Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png en "${
-        flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta'
-      }"...`
+      `🖼️ Creando Miniatura Opción ${optionLabel} en segundo plano con el prompt exacto e importándola automáticamente a nuestro sitio y a "${folderLabel}" (sin cambiar de ventana)...`
     );
+
+    // 1. Trigger Google Flow in background WITHOUT switching tabs (focusTab: false)
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
       mediaType: 'THUMBNAILS',
       optionLabel,
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: selectedFlowTabId,
     });
+
+    // 2. Simultaneously generate & import the exact thumbnail directly into our site via Nano Banana (gemini-2.5-flash-image)
+    try {
+      let generatedDataUrl = '';
+      if (!isCloudMode) {
+        try {
+          const resp = await fetch('/api/ai/generate-thumbnail-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: promptText,
+              logoDataUrl: officialLogoUrl,
+            }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.imageDataUrl) {
+              generatedDataUrl = data.imageDataUrl;
+            }
+          }
+        } catch {
+          // Fallback to client-side Gemini Nano Banana below
+        }
+      }
+
+      if (!generatedDataUrl) {
+        generatedDataUrl = await generateThumbnailImageClientSide(promptText, officialLogoUrl);
+      }
+
+      if (generatedDataUrl) {
+        const fileName = `Miniatura_Opcion_${optionLabel}.png`;
+        setCapturedThumbnailsMap((prev) => ({
+          ...prev,
+          [optionLabel]: generatedDataUrl,
+        }));
+        updateActiveDoc({
+          thumbnailImageUrl: generatedDataUrl,
+          thumbnailReady: true,
+        });
+        await handleSaveAnyFileToChosenFolder(fileName, generatedDataUrl);
+        setBridgeStatusType('SUCCESS');
+        setBridgeStatusMsg(
+          `✅ Miniatura Opción ${optionLabel} creada con tu prompt exacto, importada automáticamente al sitio y guardada como ${fileName} en "${folderLabel}".`
+        );
+        handleAuditThumbnailPsychology(optionLabel, generatedDataUrl);
+      }
+    } catch (err: any) {
+      console.warn('Direct thumbnail generation fallback to Flow watcher:', err);
+      setBridgeStatusMsg(
+        `⏳ Esperando captura automática de Miniatura Opción ${optionLabel} desde Google Flow en segundo plano...`
+      );
+    } finally {
+      setThumbnailGeneratingOption(null);
+    }
   };
 
   // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into the Single Folder & CapCut Track 5
@@ -5677,14 +5786,19 @@ export default function App() {
                               </button>
                               <button
                                 type="button"
+                                disabled={thumbnailGeneratingOption !== null}
                                 onClick={() => handleSendThumbnailsToFlowAndCapture(item.opt, true)}
-                                className={`flex-1 py-1 px-2 rounded text-[10px] font-black cursor-pointer ${
+                                className={`flex-1 py-1 px-2 rounded text-[10px] font-black cursor-pointer disabled:opacity-60 ${
                                   officialLogoUrl
                                     ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                                     : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
                                 }`}
                               >
-                                {officialLogoUrl ? `🚀 Crear ${item.opt}` : `🔒 Logo Req.`}
+                                {!officialLogoUrl
+                                  ? '🔒 Logo Req.'
+                                  : thumbnailGeneratingOption === item.opt
+                                  ? `⏳ Creando ${item.opt}...`
+                                  : `🚀 Crear ${item.opt}`}
                               </button>
                             </div>
                           </div>
@@ -5700,19 +5814,24 @@ export default function App() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
+                            disabled={thumbnailGeneratingOption !== null}
                             onClick={() => handleSendThumbnailsToFlowAndCapture('A', false)}
-                            className={`text-xs px-2.5 py-1 rounded font-black cursor-pointer shadow ${
+                            className={`text-xs px-2.5 py-1 rounded font-black cursor-pointer shadow disabled:opacity-60 ${
                               officialLogoUrl
                                 ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                                 : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
                             }`}
                             title={
                               officialLogoUrl
-                                ? 'Envía el prompt actual a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta'
+                                ? 'Crea la miniatura usando exactamente el prompt escrito abajo, sin cambiar de ventana, e impórtala automáticamente aquí y en tu carpeta única'
                                 : '🔒 Primero debes subir el Logo Oficial arriba'
                             }
                           >
-                            {officialLogoUrl ? '🖼️ Enviar Prompt Actual a Flow' : '🔒 Subir Logo para Crear Miniatura'}
+                            {!officialLogoUrl
+                              ? '🔒 Subir Logo para Crear Miniatura'
+                              : thumbnailGeneratingOption
+                              ? '⏳ Creando e Importando Miniatura...'
+                              : '🖼️ Crear Miniatura con Prompt Actual'}
                           </button>
                           <button
                             type="button"
@@ -5807,7 +5926,17 @@ export default function App() {
                           : 'aspect-video w-full'
                       } bg-slate-950 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative`}
                     >
-                      {activeDoc.thumbnailImageUrl ? (
+                      {thumbnailGeneratingOption ? (
+                        <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+                          <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                          <span className="text-xs font-bold text-amber-300">
+                            Creando e importando Miniatura Opción {thumbnailGeneratingOption} con tu prompt exacto...
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            Sin salir de esta ventana • Se guardará automáticamente en tu carpeta única
+                          </span>
+                        </div>
+                      ) : activeDoc.thumbnailImageUrl ? (
                         <img
                           src={activeDoc.thumbnailImageUrl}
                           alt="Miniatura Oficial"
@@ -5815,7 +5944,7 @@ export default function App() {
                         />
                       ) : (
                         <span className="text-xs text-slate-500 px-4 text-center">
-                          Crea las opciones A / B / C en Google Flow o sube aquí la miniatura generada con Nano Banana 2.1
+                          Haz clic en &quot;🚀 Crear A / B / C&quot; o &quot;🖼️ Crear Miniatura con Prompt Actual&quot; para generar e importar la miniatura automáticamente aquí (sin cambiar de ventana)
                         </span>
                       )}
                     </div>

@@ -1606,17 +1606,39 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
         (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
       const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
       const overlayText = (doc.thumbnailTextOverlay || '').trim() || 'EL SECRETO OCULTO';
+      const refsContext = Array.isArray(doc.references)
+        ? doc.references
+            .slice(0, 6)
+            .map((r: any) => `${r.tag}: ${r.prompt}`)
+            .join('\n')
+        : '';
+      const clipsContext = Array.isArray(doc.clips)
+        ? doc.clips
+            .slice(0, 6)
+            .map((c: any) => c.imagePrompt)
+            .filter(Boolean)
+            .join('\n')
+        : '';
       stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
-Tema del episodio: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Título del video (NO repetir en el texto ni regalar toda la respuesta): ${doc.title || ''}
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+Tema / Título: ${doc.topic || doc.title} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
+Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+"""
+Personajes y Lugares del documental (@Referencias):
+${refsContext}
+Primeras escenas visuales del documental (Clips):
+${clipsContext}
 Orientación seleccionada: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
 Texto en pantalla obligatorio (Curiosity Gap): "${overlayText}"
 
+REGLA CRÍTICA DE FIDELIDAD TEMÁTICA: Si el campo "Título" contiene el nombre de un video anterior o provisional (ej. "Video 75..."), IGNÓRALO y basa la escena visual de la miniatura 100% en el Guion REAL, los Personajes (@Referencias) y las escenas de los Clips de arriba.
+
 APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN:
-1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento detonante de peligro/misterio + texto gancho), instantáneamente legible en la pantalla diminuta de un teléfono móvil.
-2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
-3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante del protagonista real del guion en primer plano + 1 elemento detonante de peligro/misterio del guion + texto gancho), instantáneamente legible en la pantalla diminuta de un teléfono móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico real del guion ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática del guion que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
 4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Iluminación dramática de claroscuro con luz clave cálida de alto impacto (oro ardiente, fuego carmesí o ámbar intenso) sobre el rostro y luz de recorte (rim light) brillante que lo despega de un fondo oscuro saturado en tonos fríos (azul cian nocturno profundo o negro abismal).
 5. POSICIÓN Y TEXTO EN PANTALLA OBLIGATORIO:
    ${
@@ -1633,7 +1655,7 @@ APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN
 7. LOGO OFICIAL SUPERIOR IZQUIERDO AL 5% (IMAGEN DE REFERENCIA):
    Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
 8. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
-Entrega únicamente el prompt listo para copiar y pegar.`;
+Entrega únicamente el prompt en inglés listo para copiar y pegar.`;
     } else if (stageNumber === 6) {
       stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
 Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
@@ -1709,11 +1731,14 @@ Genera la ETAPA 10: BANDA SONORA PARA SUNO cumpliendo estas REGLAS OBLIGATORIAS 
       stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
+Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+"""
 
 TAREA OBLIGATORIA:
-Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial del video.
+Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial del video basadas 100% en el Guion REAL de arriba.
 REGLAS INQUEBRANTABLES:
 1. Cada opción debe tener estrictamente de 1 a 3 palabras contundentes en ESPAÑOL y en MAYÚSCULAS (ejemplo: EL PACTO OCULTO, TRAICIÓN REAL, LA NOCHE FINAL).
 2. PROHIBICIÓN ESTRICTA DE REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS: Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura, el Título del video ("${doc.title || ''}") y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"). Cada opción debe ser completamente distinta y complementarlos psicológicamente sin repetir lo mismo.
@@ -1823,6 +1848,88 @@ Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas i
     res.json({ text: outputText });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error al generar etapa con IA.' });
+  }
+});
+
+// ============================================================================
+// DIRECT IN-APP THUMBNAIL IMAGE GENERATOR (NANO BANANA / GEMINI-2.5-FLASH-IMAGE)
+// Generates the exact thumbnail image from the Stage 5 prompt + Official Logo
+// ============================================================================
+app.post('/api/ai/generate-thumbnail-image', async (req, res) => {
+  try {
+    const { prompt, logoDataUrl } = req.body || {};
+    const ai = getGeminiClient();
+    if (!ai) {
+      res.status(400).json({
+        error: 'No hay Gemini API Key activa en el servidor.',
+      });
+      return;
+    }
+
+    const cleanPrompt = String(prompt || '')
+      .replace(/^Thumbnail\s*:\s*/i, '')
+      .trim();
+    if (!cleanPrompt) {
+      res.status(400).json({ error: 'El prompt de la miniatura está vacío.' });
+      return;
+    }
+
+    const parts: any[] = [];
+    if (logoDataUrl && typeof logoDataUrl === 'string') {
+      if (logoDataUrl.startsWith('data:')) {
+        const match = logoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (match && match[1] && match[2]) {
+          parts.push({
+            inlineData: {
+              mimeType: match[1],
+              data: match[2],
+            },
+          });
+        }
+      } else if (logoDataUrl.startsWith('/assets/')) {
+        const localAssetPath = path.join(ASSETS_DIR, path.basename(logoDataUrl));
+        if (fs.existsSync(localAssetPath)) {
+          const buf = fs.readFileSync(localAssetPath);
+          const ext = path.extname(localAssetPath).toLowerCase();
+          const mime =
+            ext === '.webp' ? 'image/webp' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+          parts.push({
+            inlineData: {
+              mimeType: mime,
+              data: buf.toString('base64'),
+            },
+          });
+        }
+      }
+    }
+
+    parts.push({ text: cleanPrompt });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: [{ role: 'user', parts }],
+      config: {
+        responseModalities: ['TEXT', 'IMAGE'],
+      },
+    });
+
+    const candidateParts = response?.candidates?.[0]?.content?.parts || [];
+    const imgPart: any = candidateParts.find((p: any) => p?.inlineData?.data);
+    if (!imgPart || !imgPart.inlineData?.data) {
+      res.status(500).json({
+        error: 'Nano Banana (gemini-2.5-flash-image) no devolvió imagen en este intento.',
+      });
+      return;
+    }
+
+    const mimeType = imgPart.inlineData.mimeType || 'image/png';
+    const imageDataUrl = `data:${mimeType};base64,${imgPart.inlineData.data}`;
+    res.json({ ok: true, imageDataUrl });
+  } catch (err: any) {
+    console.error('[Thumbnail Image Gen Error]:', err);
+    res.status(500).json({
+      error: err?.message || 'Error generando imagen de miniatura con Nano Banana.',
+    });
   }
 });
 
