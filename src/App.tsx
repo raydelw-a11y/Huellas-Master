@@ -32,6 +32,13 @@ import {
 import PromptGenerator from './components/PromptGenerator';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
 import {
+  CapCutEditor,
+  buildClipSixWordFileName,
+  ExportResolutionPreset,
+  EditorAspectRatio,
+  RESOLUTION_PRESETS,
+} from './components/CapCutEditor';
+import {
   DocumentaryProject,
   AVAILABLE_VOICES,
   AVAILABLE_STYLES,
@@ -97,7 +104,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:02 PM - 10/30/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:53 AM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -296,10 +303,18 @@ export default function App() {
   });
   const [passwordInput, setPasswordInput] = useState('');
 
-  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt'
-  const [mainView, setMainView] = useState<'dashboard' | 'studio' | 'standalone_prompt'>(() => {
+  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor'
+  const [mainView, setMainView] = useState<
+    'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor'
+  >(() => {
     const saved = localStorage.getItem('huellas_master_view');
-    if (saved === 'studio' || saved === 'standalone_prompt' || saved === 'dashboard') return saved;
+    if (
+      saved === 'studio' ||
+      saved === 'standalone_prompt' ||
+      saved === 'capcut_editor' ||
+      saved === 'dashboard'
+    )
+      return saved;
     return 'dashboard';
   });
   const [documentaries, setDocumentaries] = useState<DocumentaryProject[]>([]);
@@ -398,6 +413,11 @@ export default function App() {
   const flowAutoDownloadEnabledRef = React.useRef<boolean>(true);
   const [flowCurrentClipNum, setFlowCurrentClipNum] = useState<number | null>(null);
   const [flowStatusLog, setFlowStatusLog] = useState<string>('');
+  const [flowDownloadResolution, setFlowDownloadResolution] =
+    useState<ExportResolutionPreset>('4K_2160P');
+  const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
+  const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
+  const [flowCurrentBatchNum, setFlowCurrentBatchNum] = useState<number>(1);
   const activeDocRef = React.useRef<DocumentaryProject | null>(null);
 
   useEffect(() => {
@@ -1020,38 +1040,50 @@ export default function App() {
     return false;
   };
 
-  // 2. Save Approved Clip MP4 Directly into the User's Chosen Folder
-  const saveApprovedClipVideoToFolder = async (
-    clipNumber: number,
-    videoDataUrl?: string
-  ): Promise<string> => {
-    if (!videoDataUrl) return '';
-    const padded = String(clipNumber).padStart(2, '0');
-    const fileName = `${padded}_Clip.mp4`;
-
+  // Save any Blob or DataURL file into the User's Chosen Folder
+  const handleSaveAnyFileToChosenFolder = async (
+    fileName: string,
+    blobOrDataUrl: Blob | string
+  ): Promise<boolean> => {
     // A) Write directly via File System Access API (Chrome Directory Handle)
     if (flowDownloadDirHandleRef.current) {
       try {
-        const parts = videoDataUrl.split(',');
-        const bstr = atob(parts[1] || '');
-        const u8arr = new Uint8Array(bstr.length);
-        for (let i = 0; i < bstr.length; i++) {
-          u8arr[i] = bstr.charCodeAt(i);
-        }
         const fileHandle = await flowDownloadDirHandleRef.current.getFileHandle(fileName, {
           create: true,
         });
         const writable = await fileHandle.createWritable();
-        await writable.write(u8arr);
+        if (typeof blobOrDataUrl === 'string') {
+          const parts = blobOrDataUrl.split(',');
+          const bstr = atob(parts[1] || '');
+          const u8arr = new Uint8Array(bstr.length);
+          for (let i = 0; i < bstr.length; i++) {
+            u8arr[i] = bstr.charCodeAt(i);
+          }
+          await writable.write(u8arr);
+        } else {
+          await writable.write(blobOrDataUrl);
+        }
         await writable.close();
-        return fileName;
+        return true;
       } catch (e) {
         console.warn('Error writing via DirectoryHandle, falling back:', e);
       }
     }
 
-    // B) Write via local server folder path if chosen
-    if (flowServerFolderPath && !isCloudMode) {
+    // B) Convert Blob to DataURL if needed for server/anchor fallback
+    let dataUrl = '';
+    if (typeof blobOrDataUrl === 'string') {
+      dataUrl = blobOrDataUrl;
+    } else {
+      dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blobOrDataUrl);
+      });
+    }
+
+    if (flowServerFolderPath && !isCloudMode && dataUrl) {
       try {
         const res = await fetch('/api/flow/save-video-to-folder', {
           method: 'POST',
@@ -1059,27 +1091,36 @@ export default function App() {
           body: JSON.stringify({
             folderPath: flowServerFolderPath,
             fileName,
-            videoDataUrl,
+            videoDataUrl: dataUrl,
           }),
         });
-        if (res.ok) {
-          return fileName;
-        }
+        if (res.ok) return true;
       } catch {}
     }
 
-    // C) Fallback: standard anchor download
-    try {
-      const a = document.createElement('a');
-      a.href = videoDataUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return fileName;
-    } catch {
-      return '';
+    if (dataUrl) {
+      try {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return true;
+      } catch {}
     }
+    return false;
+  };
+
+  // 2. Save Approved Clip MP4 Directly into the User's Chosen Folder (Named 01_primeras_seis_palabras.mp4)
+  const saveApprovedClipVideoToFolder = async (
+    clipObj: DocumentaryClip,
+    videoDataUrl?: string
+  ): Promise<string> => {
+    if (!videoDataUrl) return '';
+    const fileName = buildClipSixWordFileName(clipObj, activeDocRef.current);
+    const ok = await handleSaveAnyFileToChosenFolder(fileName, videoDataUrl);
+    return ok ? fileName : '';
   };
 
   // 3. Send a Specific Clip to Google Flow with Automatic Video Watcher Enabled
@@ -1152,6 +1193,13 @@ export default function App() {
     const attempt: number = Number(msg.attempt) || 1;
     const fromScan: boolean = Boolean(msg.fromScan);
 
+    if (videoDataUrl) {
+      setCapturedClipVideosMap((prev) => ({
+        ...prev,
+        [targetClip.clipNumber]: videoDataUrl,
+      }));
+    }
+
     // Immediately show the 3 extracted frames and "Auditing..." state on the clip card
     const auditingClipsList = currentDoc.clips.map((c) =>
       c.id === targetClip.id
@@ -1220,10 +1268,10 @@ export default function App() {
         return;
       }
 
-      // CASE B: APPROVED or WARNING -> Auto-Download to Chosen Folder
+      // CASE B: APPROVED or WARNING -> Auto-Download to Chosen Folder with 6-Word Filename
       let savedFileName = targetClip.videoSavedFileName || '';
       if (verdict !== 'rejected' && flowAutoDownloadEnabledRef.current && videoDataUrl) {
-        savedFileName = await saveApprovedClipVideoToFolder(targetClip.clipNumber, videoDataUrl);
+        savedFileName = await saveApprovedClipVideoToFolder(targetClip, videoDataUrl);
       }
 
       const latestDoc = activeDocRef.current || currentDoc;
@@ -1323,6 +1371,97 @@ export default function App() {
     setFlowAutoPilotActive(true);
     flowAutoPilotActiveRef.current = true;
     sendClipToFlowWithAutoAudit(firstPending, undefined, 1);
+  };
+
+  // Send a Full Batch of 10 Pairs (9-Line Operational Header + Image X & Clip X Pairs) to Google Flow
+  const handleSendBatch10ToFlow = async (batchNum: number = 1) => {
+    if (!activeDoc || !activeDoc.clips || activeDoc.clips.length === 0) {
+      alert('Primero genera o sincroniza los clips en la Etapa 8.');
+      return;
+    }
+
+    if (
+      flowAutoDownloadEnabled &&
+      !flowDownloadDirHandleRef.current &&
+      !flowServerFolderPath
+    ) {
+      const picked = await handlePickFlowDownloadFolder();
+      if (!picked) {
+        alert(
+          '📂 Por favor elige primero la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
+        );
+        return;
+      }
+    }
+
+    const startIdx = (batchNum - 1) * 10;
+    const batchClips = activeDoc.clips.slice(startIdx, startIdx + 10);
+    if (batchClips.length === 0) {
+      alert('No hay clips en ese lote.');
+      return;
+    }
+
+    const opHeader = (activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+    const pairsBlock = batchClips
+      .map((c) => {
+        const imgLine = (c.imagePrompt || '').trim();
+        const vidLine = (c.videoPrompt || '').trim();
+        return [imgLine, vidLine].filter(Boolean).join('\n\n');
+      })
+      .join('\n\n');
+
+    const fullBatchPrompt = `${opHeader}\n\n${pairsBlock}`;
+    navigator.clipboard.writeText(fullBatchPrompt).catch(() => {});
+
+    setFlowCurrentBatchNum(batchNum);
+    setFlowCurrentClipNum(batchClips[0].clipNumber);
+    const rangeLabel = `${String(batchClips[0].clipNumber).padStart(2, '0')}-${String(
+      batchClips[batchClips.length - 1].clipNumber
+    ).padStart(2, '0')}`;
+
+    setFlowStatusLog(
+      `📦 Lote #${batchNum} (Clips ${rangeLabel}) enviado a Google Flow con Orden Operativa de 9 líneas + ${batchClips.length} pares Image/Clip. Vigilando videos...`
+    );
+
+    sendCommandToWebBridge('FLOW', {
+      action: 'SEND_PROMPT',
+      prompt: fullBatchPrompt,
+      clipNumber: batchClips[0].clipNumber,
+      clipId: batchClips[0].id,
+      attempt: 1,
+      watchForVideo: true,
+      mediaType: 'VIDEO',
+      autoSubmit: true,
+      focusTab: true,
+      tabId: selectedFlowTabId,
+    });
+  };
+
+  // Send Stage 6 @References Block to Google Flow
+  const handleSendReferencesBlockToFlow = () => {
+    if (!activeDoc) return;
+    const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
+    const builtFromList = (activeDoc.references || [])
+      .map((r) => `${r.tag}: ${r.prompt}`)
+      .join('\n\n');
+    const body = rawRefs || builtFromList;
+    if (!body) {
+      alert('Primero genera o escribe las @Referencias en la Etapa 6.');
+      return;
+    }
+    const header =
+      'Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.';
+    const fullText = body.includes('Cambia los nombres') ? body : `${header}\n\n${body}`;
+    navigator.clipboard.writeText(fullText).catch(() => {});
+    setFlowStatusLog('🚀 Enviando bloque de @Referencias (@Personas y Lugares) a Google Flow...');
+    sendCommandToWebBridge('FLOW', {
+      action: 'SEND_PROMPT',
+      prompt: fullText,
+      mediaType: 'IMAGE',
+      autoSubmit: true,
+      focusTab: true,
+      tabId: selectedFlowTabId,
+    });
   };
 
   const handleStopFlowAutoPilot = () => {
@@ -2250,6 +2389,19 @@ export default function App() {
             <span>Prompt Maestro</span>
           </button>
 
+          <button
+            onClick={() => setMainView('capcut_editor')}
+            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${
+              mainView === 'capcut_editor'
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
+                : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/40'
+            }`}
+            title="Abrir el Estudio de Montaje Multipista estilo CapCut (Clips, Voz, Logo Oficial, Música Suno, Captions, Transiciones y Exportación HD/2K/4K/8K en 16:9 y 9:16)"
+          >
+            <Film className="w-3.5 h-3.5" />
+            <span>🎬 Editor CapCut</span>
+          </button>
+
           {activeDoc && (
             <button
               onClick={() => {
@@ -2679,6 +2831,20 @@ export default function App() {
         <div className="flex-1 py-4">
           <PromptGenerator />
         </div>
+      )}
+
+      {/* =====================================================================
+          VIEW 2B: CAPCUT MULTI-TRACK EDITOR (CLIPS, VOICE, LOGO, SUNO, CAPTIONS)
+      ===================================================================== */}
+      {mainView === 'capcut_editor' && (
+        <CapCutEditor
+          activeDoc={activeDoc}
+          updateActiveDoc={updateActiveDoc}
+          capturedClipVideosMap={capturedClipVideosMap}
+          onPickDownloadFolder={handlePickFlowDownloadFolder}
+          downloadFolderName={flowDownloadFolderName}
+          onSaveFileToChosenFolder={handleSaveAnyFileToChosenFolder}
+        />
       )}
 
       {/* =====================================================================
@@ -4638,24 +4804,56 @@ export default function App() {
                 </div>
 
                 {/* ===============================================================
-                    PILOTO AUTOMÁTICO GOOGLE FLOW + CARPETA ELEGIDA + AUDITOR VISUAL
+                    PILOTO AUTOMÁTICO GOOGLE FLOW + LOTES DE 10 + CARPETA ELEGIDA + AUDITOR VISUAL
                 =============================================================== */}
                 <div className="bg-gradient-to-r from-emerald-950/60 via-[#14120f] to-amber-950/40 border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 max-w-3xl">
                       <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
-                        🤖 Piloto Automático Google Flow: Producción + Auditoría Visual IA + Auto-Descarga
+                        🤖 Piloto Automático Google Flow: Lotes de 10 + Auditoría Visual IA + Auto-Descarga (6 Palabras)
                       </h4>
-                      <p className="text-xs text-slate-300">
-                        1️⃣ Elige primero tu carpeta de descarga. 2️⃣ El sistema envía cada clip a Google Flow, captura el
-                        video apenas termina, lo compara contra su <strong>Prompt</strong> y su{' '}
-                        <strong>Voz Narrativa</strong>, lo re-hace solo si sale mal y descarga los aprobados como{' '}
-                        <code className="text-amber-300">01_Clip.mp4</code>,{' '}
-                        <code className="text-amber-300">02_Clip.mp4</code>...
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        1️⃣ Elige primero tu carpeta de descarga. 2️⃣ Envía tus{' '}
+                        <strong className="text-amber-300">@Referencias</strong> y los{' '}
+                        <strong className="text-amber-300">Lotes de 10 en 10</strong> (con la Orden Operativa de 9
+                        líneas + Pares Image/Clip). 3️⃣ El sistema vigila Google Flow, audita cada video contra su{' '}
+                        <strong>Prompt</strong> y su <strong>Voz Narrativa</strong>, y descarga los aprobados como{' '}
+                        <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Aspect Ratio Selector (16:9 / 9:16) */}
+                      <div className="flex items-center bg-slate-950/90 border border-slate-700 rounded-xl p-0.5">
+                        {(['16:9', '9:16'] as EditorAspectRatio[]).map((ratio) => (
+                          <button
+                            key={ratio}
+                            type="button"
+                            onClick={() => setEditorAspectRatio(ratio)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                              editorAspectRatio === ratio
+                                ? 'bg-amber-500 text-slate-950 shadow'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {ratio === '16:9' ? '🖥️ 16:9' : '📱 9:16'}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Resolution Selector (HD / 2K / 4K / 8K) */}
+                      <select
+                        value={editorResolution}
+                        onChange={(e) => setEditorResolution(e.target.value as ExportResolutionKey)}
+                        className="bg-slate-950/90 border border-amber-500/40 rounded-xl px-2.5 py-1.5 text-[11px] font-black text-amber-300 focus:outline-none cursor-pointer"
+                        title="Calidad de descarga y exportación (HD, 2K, 4K, 8K)"
+                      >
+                        <option value="HD_1080P">Calidad: HD (1080p)</option>
+                        <option value="2K_1440P">Calidad: 2K (1440p)</option>
+                        <option value="4K_2160P">Calidad: 4K (2160p)</option>
+                        <option value="8K_4320P">Calidad: 8K Ultra (4320p)</option>
+                      </select>
+
                       {/* Step 1: Choose Destination Folder on Computer */}
                       <button
                         type="button"
@@ -4680,7 +4878,7 @@ export default function App() {
                           className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
                         >
                           <Film className="w-4 h-4" />
-                          🚀 2. Iniciar Producción y Auditoría Automática en Flow
+                          🚀 2. Piloto Automático Secuencial
                         </button>
                       ) : (
                         <button
@@ -4688,7 +4886,7 @@ export default function App() {
                           onClick={handleStopFlowAutoPilot}
                           className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer animate-pulse"
                         >
-                          ⏹️ Detener Piloto Automático (Clip #{String(flowCurrentClipNum || 1).padStart(2, '0')})
+                          ⏹️ Detener Piloto (Clip #{String(flowCurrentClipNum || 1).padStart(2, '0')})
                         </button>
                       )}
 
@@ -4701,8 +4899,67 @@ export default function App() {
                       >
                         🔍 Auditar Videos Actuales en Flow
                       </button>
+
+                      {/* Open CapCut Multi-Track Editor */}
+                      <button
+                        type="button"
+                        onClick={() => setMainView('capcut_editor')}
+                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+                      >
+                        🎬 Abrir en Editor CapCut
+                      </button>
                     </div>
                   </div>
+
+                  {/* BATCHES OF 10 EXECUTION BAR (Orden Operativa 9 líneas + 10 Pares Image/Clip) */}
+                  {(activeDoc.clips?.length || 0) > 0 && (
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                          📦 Envío por Lotes a Google Flow (Orden Operativa + 10 Pares Image/Clip):
+                        </span>
+                        {(activeDoc.references?.length || 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleSendReferencesBlockToFlow}
+                            className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-[11px] font-bold cursor-pointer transition"
+                            title="Envía el bloque de @Personas y @Lugares para fijar consistencia antes de los lotes"
+                          >
+                            🧬 0. Enviar @{activeDoc.references.length} Referencias
+                          </button>
+                        )}
+                        {Array.from(
+                          { length: Math.ceil((activeDoc.clips?.length || 0) / 10) },
+                          (_, batchIdx) => {
+                            const startClipNum = batchIdx * 10 + 1;
+                            const endClipNum = Math.min(
+                              (batchIdx + 1) * 10,
+                              activeDoc.clips?.length || 0
+                            );
+                            const isActiveBatch = activeBatchIndex === batchIdx;
+                            return (
+                              <button
+                                key={batchIdx}
+                                type="button"
+                                onClick={() => handleSendBatch10ToFlow(batchIdx)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                                  isActiveBatch
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
+                                    : 'bg-slate-900/90 hover:bg-slate-800 text-emerald-300 border-emerald-500/30'
+                                }`}
+                                title={`Envía la Orden Operativa de 9 líneas + Pares Image/Clip del ${String(
+                                  startClipNum
+                                ).padStart(2, '0')} al ${String(endClipNum).padStart(2, '0')} a Google Flow`}
+                              >
+                                🚀 Lote {batchIdx + 1} ({String(startClipNum).padStart(2, '0')}-
+                                {String(endClipNum).padStart(2, '0')})
+                              </button>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Toggles & Live Status Bar */}
                   <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-800/80 text-xs">
@@ -4714,7 +4971,10 @@ export default function App() {
                           onChange={(e) => setFlowAutoDownloadEnabled(e.target.checked)}
                           className="accent-emerald-500"
                         />
-                        <span>Auto-descargar videos aprobados (✅) en la carpeta elegida</span>
+                        <span>
+                          Auto-descargar aprobados (✅) como{' '}
+                          <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>
+                        </span>
                       </label>
                       <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
                         <input

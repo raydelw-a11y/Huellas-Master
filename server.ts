@@ -2119,6 +2119,45 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
 });
 
 // ============================================================================
+// PERMANENT OFFICIAL LOGO ("HUELLAS DE LA HUMANIDAD") — UPLOAD ONCE FOREVER
+// ============================================================================
+const OFFICIAL_LOGO_FILE = path.join(DATA_DIR, 'official_huellas_logo.json');
+
+app.get('/api/assets/official-logo', (_req, res) => {
+  try {
+    if (fs.existsSync(OFFICIAL_LOGO_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(OFFICIAL_LOGO_FILE, 'utf8'));
+      res.json({ ok: true, logoDataUrl: parsed.logoDataUrl || '', updatedAt: parsed.updatedAt || '' });
+      return;
+    }
+    res.json({ ok: true, logoDataUrl: '' });
+  } catch {
+    res.json({ ok: true, logoDataUrl: '' });
+  }
+});
+
+app.post('/api/assets/official-logo', (req, res) => {
+  try {
+    const { logoDataUrl } = req.body;
+    if (!logoDataUrl) {
+      res.status(400).json({ error: 'No se envió imagen de logo.' });
+      return;
+    }
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const payload = {
+      logoDataUrl: String(logoDataUrl),
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(OFFICIAL_LOGO_FILE, JSON.stringify(payload, null, 2), 'utf8');
+    res.json({ ok: true, ...payload });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error guardando logo oficial.' });
+  }
+});
+
+// ============================================================================
 // ETAPA 12: POST-PRODUCTION AUDIENCE COMMENT REPLIES (SCREENSHOTS OR TEXT)
 // ============================================================================
 app.post('/api/ai/reply-comments', async (req, res) => {
