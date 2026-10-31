@@ -110,7 +110,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:40 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:44 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -510,7 +510,7 @@ const STATUS_OPTIONS: { value: DocumentaryStatusType; label: string; color: stri
   { value: 'guion', label: 'En Guion e Investigación', color: 'bg-blue-900/70 text-blue-200 border-blue-700' },
   { value: 'locucion', label: 'En Locución y Timeline', color: 'bg-purple-900/70 text-purple-200 border-purple-700' },
   { value: 'clips', label: 'Generando Imágenes y Clips', color: 'bg-amber-900/70 text-amber-200 border-amber-700' },
-  { value: 'edicion_capcut', label: 'En Edición CapCut / Suno', color: 'bg-indigo-900/70 text-indigo-200 border-indigo-700' },
+  { value: 'edicion_capcut', label: 'En Edición de Video / Suno', color: 'bg-indigo-900/70 text-indigo-200 border-indigo-700' },
   { value: 'publicado', label: 'Terminado / Publicado', color: 'bg-emerald-900/70 text-emerald-200 border-emerald-700' },
 ];
 
@@ -5126,10 +5126,10 @@ export default function App() {
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
                 : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/40'
             }`}
-            title="Abrir el Estudio de Montaje Multipista estilo CapCut (Clips, Voz, Logo Oficial, Música Suno, Captions, Transiciones y Exportación HD/2K/4K/8K en 16:9 y 9:16)"
+            title="Abrir el Editor de Video Multipista (Clips, Voz, Logo Oficial, Música Suno, Captions, Transiciones y Exportación HD/2K/4K/8K en 16:9 y 9:16)"
           >
             <Film className="w-3.5 h-3.5" />
-            <span>🎬 Editor CapCut</span>
+            <span>🎬 Editor de Video</span>
           </button>
 
           {activeDoc && (
@@ -6945,7 +6945,7 @@ export default function App() {
                           </div>
                           <p className="text-[11px] text-slate-300 mt-0.5">
                             {officialLogoUrl
-                              ? 'Este mismo logo se aplica automáticamente en las miniaturas y en el Editor CapCut de todos tus documentales.'
+                              ? 'Este mismo logo se aplica automáticamente en las miniaturas y en el Editor de Video de todos tus documentales.'
                               : 'No se permite crear la miniatura en la Etapa 5 ni descargar/renderizar el video en el Editor hasta que subas el logo oficial.'}
                           </p>
                         </div>
@@ -8243,13 +8243,13 @@ export default function App() {
                         🔍 Auditar Videos Actuales en Flow
                       </button>
 
-                      {/* Open CapCut Multi-Track Editor */}
+                      {/* Open Multi-Track Video Editor */}
                       <button
                         type="button"
                         onClick={() => setMainView('capcut_editor')}
                         className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
                       >
-                        🎬 Abrir en Editor CapCut
+                        🎬 Abrir en Editor de Video
                       </button>
                     </div>
                   </div>
@@ -8528,6 +8528,23 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allReviewed = activeDoc.clips.every((c) => c.reviewedForEditor);
+                          const next = activeDoc.clips.map((c) => ({
+                            ...c,
+                            reviewedForEditor: !allReviewed,
+                            videoReady: !allReviewed ? true : c.videoReady,
+                          }));
+                          updateActiveDoc({ clips: next });
+                        }}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
+                        title="Marca o desmarca todos los clips como Revisados para enviarlos al Editor de Video"
+                      >
+                        ☑️ Revisados en Editor de Video ({activeDoc.clips.filter((c) => c.reviewedForEditor).length}/{activeDoc.clips.length})
+                      </button>
+
                       <span
                         className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
                         title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación de 0s a 10s con cámara controlada y el Escudo Anti-Violencia"
@@ -8659,7 +8676,39 @@ export default function App() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Selectable Checkbox: Mark Clip Reviewed & Send to Editor de Video */}
+                              <label
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition select-none ${
+                                  clip.reviewedForEditor
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-lg shadow-emerald-500/20'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
+                                }`}
+                                title="Marca este clip como revisado y lo envía automáticamente a la línea de tiempo del Editor de Video"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(clip.reviewedForEditor)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = [...activeDoc.clips];
+                                    next[realIdx] = {
+                                      ...clip,
+                                      reviewedForEditor: checked,
+                                      videoReady: checked ? true : clip.videoReady,
+                                    };
+                                    updateActiveDoc({ clips: next });
+                                    if (checked && !capturedClipVideosMap[clip.clipNumber]) {
+                                      handleLoadClipVideoFromFolder(clip, true);
+                                    }
+                                  }}
+                                  className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                />
+                                {clip.reviewedForEditor
+                                  ? `✅ Revisado (En Editor de Video)`
+                                  : `☑️ Revisado → Enviar al Editor de Video`}
+                              </label>
+
                               <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -8827,7 +8876,7 @@ export default function App() {
                                 : 'bg-slate-950/90 border-slate-800'
                             }`}
                           >
-                            {/* Header + 4 Surgical Error Fix Buttons */}
+                            {/* Header + Review Checkbox + 4 Surgical Error Fix Buttons */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <span className="text-sm font-black text-amber-300 flex items-center gap-2">
                                 🎞️ Visor Grande .MP4 del Clip {paddedNum} y Auditoría Anti-Mutación (Inicio 1.2s • Mitad 5.0s • Final 8.8s)
@@ -8835,11 +8884,51 @@ export default function App() {
                                   ? ` • Intento #${clip.videoAttempts}`
                                   : ''}
                               </span>
-                              {clip.videoSavedFileName && (
-                                <span className="text-xs font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">
-                                  ✓ En 05_Clips_Video: {clip.videoSavedFileName}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {clip.videoSavedFileName && (
+                                  <span className="text-xs font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">
+                                    ✓ En 05_Clips_Video: {clip.videoSavedFileName}
+                                  </span>
+                                )}
+                                <label
+                                  className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs font-black cursor-pointer transition select-none ${
+                                    clip.reviewedForEditor
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/40'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(clip.reviewedForEditor)}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = {
+                                        ...clip,
+                                        reviewedForEditor: checked,
+                                        videoReady: checked ? true : clip.videoReady,
+                                      };
+                                      updateActiveDoc({ clips: next });
+                                      if (checked && !capturedClipVideosMap[clip.clipNumber]) {
+                                        handleLoadClipVideoFromFolder(clip, true);
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+                                  />
+                                  {clip.reviewedForEditor
+                                    ? '✅ Revisado en Editor de Video'
+                                    : '☑️ Marcar Revisado y Enviar al Editor de Video'}
+                                </label>
+                                {clip.reviewedForEditor && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMainView('capcut_editor')}
+                                    className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
+                                  >
+                                    🎬 Ver en Editor de Video
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* 4 Quick Surgical Anti-Mutation Buttons (1-Click Re-adjust + Re-send to Google Flow) */}

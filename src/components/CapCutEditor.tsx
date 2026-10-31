@@ -49,6 +49,7 @@ export interface TimelineClipItem {
   transition: ClipTransitionType;
   videoUrl?: string; // local blob URL or data URL of the MP4
   posterUrl?: string; // keyframe or preview image
+  reviewedForEditor?: boolean;
 }
 
 export interface TimelineCaptionItem {
@@ -274,6 +275,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
+  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(true);
 
   // Voiceover Track (Track 4)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(
@@ -360,7 +362,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setVoiceStartOffsetSec(entrySec);
 
     // 1. Build Clips Track (Track 3)
-    const docClips = activeDoc.clips || [];
+    const allDocClips = activeDoc.clips || [];
+    const reviewedClips = allDocClips.filter((c) => c.reviewedForEditor);
+    const docClips =
+      showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
     const builtClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = c.clipNumber === 1 || idx === 0;
       const srcDur = isClip1 ? c1BaseDur : standardDur;
@@ -386,6 +391,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         transition: existingItem ? existingItem.transition : defaultTransition,
         videoUrl,
         posterUrl,
+        reviewedForEditor: Boolean(c.reviewedForEditor),
       };
     });
     setTimelineClips(builtClips);
@@ -439,10 +445,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
+  const reviewedClipsSignature = (activeDoc?.clips || [])
+    .map((c) => `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}`)
+    .join('|');
+
   useEffect(() => {
     syncTracksFromDocumentary();
   }, [
     activeDoc?.id,
+    reviewedClipsSignature,
+    showOnlyReviewedClips,
     Object.keys(capturedClipVideosMap).length,
     Object.keys(capturedSunoAudioMap).length,
   ]);
@@ -999,7 +1011,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5">
               <Film className="w-3.5 h-3.5" />
-              HUELLAS CAPCUT STUDIO
+              EDITOR DE VIDEO
             </span>
             <span className="text-sm font-bold text-amber-200 truncate max-w-[260px]">
               {activeDoc?.title || 'Sin Documental Seleccionado'}
@@ -1015,6 +1027,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <RefreshCw className="w-3.5 h-3.5" />
             Sincronizar Todo del Documental
           </button>
+
+          {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
+            <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-xl p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowOnlyReviewedClips(true)}
+                className={`px-2.5 py-1 rounded-lg font-black cursor-pointer transition ${
+                  showOnlyReviewedClips
+                    ? 'bg-emerald-500 text-slate-950 shadow'
+                    : 'text-emerald-300 hover:text-white'
+                }`}
+                title="Mostrar en el Editor de Video los clips marcados como Revisados en la Etapa 8"
+              >
+                ✅ Revisados ({(activeDoc?.clips || []).filter((c) => c.reviewedForEditor).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOnlyReviewedClips(false)}
+                className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer transition ${
+                  !showOnlyReviewedClips
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Mostrar todos los clips del guion en la línea de tiempo"
+              >
+                📋 Todos ({(activeDoc?.clips || []).length})
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
@@ -1896,8 +1937,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
                         #{String(idx + 1).padStart(2, '0')} (Clip {String(clip.clipNumber).padStart(2, '0')})
+                        {clip.reviewedForEditor && (
+                          <span title="Revisado y enviado desde Etapa 8">✅</span>
+                        )}
                       </span>
                       <span className="text-[11px] font-mono text-slate-300">
                         {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
