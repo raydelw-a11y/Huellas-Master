@@ -80,6 +80,7 @@
       message.type === 'GEMINI_RESPONSE_READY' ||
       message.type === 'FLOW_MEDIA_READY' ||
       message.type === 'FLOW_VIDEO_CAPTURED' ||
+      message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||
       message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
       message.type === 'FLOW_REFERENCE_CAPTURED' ||
       message.type === 'SUNO_AUDIO_CAPTURED' ||

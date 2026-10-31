@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:28 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:55 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1727,6 +1727,7 @@ export default function App() {
       imagePrompt: clip.imagePrompt || '',
       aspectRatio: flowAspectRatio,
       referenceAssetsForClips: refAssets,
+      storyStudioProjectJson: currentDoc ? buildStoryStudioProjectJson(currentDoc, true) : undefined,
       clipNumber: clip.clipNumber,
       clipId: clip.id,
       attempt: attemptNum,
@@ -2080,6 +2081,21 @@ export default function App() {
         includeInspirationInImageGen: true,
       };
     });
+
+    if (assets.length === 0) {
+      assets.push({
+        id: 'loc-default-1',
+        type: 'location',
+        name: doc.historicalLocation || doc.title || 'Historical Setting',
+        description: eraContext || 'Historical documentary setting',
+        physicalCharacteristics: eraContext || 'Historical documentary setting',
+        timeOfDay: doc.historicalTime || 'Dramatic historical documentary atmosphere',
+        base64: undefined,
+        supportingImages: [],
+        referenceImageId: undefined,
+        includeInspirationInImageGen: true,
+      });
+    }
 
     const clips = doc.clips || [];
     const frames = includeScriptAndFrames

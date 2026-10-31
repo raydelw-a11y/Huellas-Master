@@ -1,5 +1,5 @@
 // ============================================================================
-// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.5.3)
+// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.5.4)
 // 1. Inyecta el prompt en el editor inferior de Google Flow ANTES de adjuntar debugger
 //    (usando el selector y ordenamiento exacto por bottom que sí pega el texto en pantalla).
 // 2. Adjunta chrome.debugger, espera 350ms a que baje la barra superior, verifica que el
@@ -17,35 +17,61 @@ async function getConnectedAiTabsInWindow(windowId) {
   try {
     const queryOpts = typeof windowId === 'number' ? { windowId } : { currentWindow: true };
     const windowTabs = await chrome.tabs.query(queryOpts);
+    const allTabs = await chrome.tabs.query({}).catch(() => windowTabs);
 
-    const geminiTabs = windowTabs
+    const isFlowTabUrl = (url) => {
+      if (!url) return false;
+      const lower = url.toLowerCase();
+      return (
+        lower.includes('flow.google.com') ||
+        (lower.includes('labs.google') && lower.includes('flow')) ||
+        lower.includes('usercontent.goog')
+      );
+    };
+
+    const mapGemini = (t) => ({
+      id: t.id,
+      windowId: t.windowId,
+      title:
+        (t.title || 'Google Gemini').replace(/ - Google Gemini$/i, '').trim() ||
+        'Google Gemini',
+      url: t.url,
+    });
+
+    const mapFlow = (t) => ({
+      id: t.id,
+      windowId: t.windowId,
+      active: Boolean(t.active),
+      title:
+        (t.title || 'Google Flow').replace(/^Google Flow - /i, '').trim() ||
+        'Google Flow',
+      url: t.url,
+    });
+
+    const sortFlowTabs = (list) =>
+      [...list].sort((a, b) => {
+        const aAbout = /\/about(\/|$|\?)/i.test(a.url || '') ? 1 : 0;
+        const bAbout = /\/about(\/|$|\?)/i.test(b.url || '') ? 1 : 0;
+        if (aAbout !== bAbout) return aAbout - bAbout;
+        if (Boolean(a.active) !== Boolean(b.active)) return a.active ? -1 : 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
+    let geminiTabs = windowTabs
       .filter((t) => t.url && t.url.startsWith('https://gemini.google.com/'))
-      .map((t) => ({
-        id: t.id,
-        windowId: t.windowId,
-        title:
-          (t.title || 'Google Gemini').replace(/ - Google Gemini$/i, '').trim() ||
-          'Google Gemini',
-        url: t.url,
-      }));
+      .map(mapGemini);
+    if (geminiTabs.length === 0) {
+      geminiTabs = allTabs
+        .filter((t) => t.url && t.url.startsWith('https://gemini.google.com/'))
+        .map(mapGemini);
+    }
 
-    const flowTabs = windowTabs
-      .filter(
-        (t) =>
-          t.url &&
-          (t.url.includes('flow.google.com') ||
-            (t.url.includes('labs.google') && t.url.toLowerCase().includes('flow')))
-      )
-      .map((t) => ({
-        id: t.id,
-        windowId: t.windowId,
-        title:
-          (t.title || 'Google Flow').replace(/^Google Flow - /i, '').trim() ||
-          'Google Flow',
-        url: t.url,
-      }));
+    let flowTabs = sortFlowTabs(windowTabs.filter((t) => isFlowTabUrl(t.url)).map(mapFlow));
+    if (flowTabs.length === 0) {
+      flowTabs = sortFlowTabs(allTabs.filter((t) => isFlowTabUrl(t.url)).map(mapFlow));
+    }
 
-    const sunoTabs = windowTabs
+    let sunoTabs = windowTabs
       .filter((t) => t.url && t.url.includes('suno.com'))
       .map((t) => ({
         id: t.id,
@@ -53,6 +79,16 @@ async function getConnectedAiTabsInWindow(windowId) {
         title: (t.title || 'Suno AI').trim() || 'Suno AI',
         url: t.url,
       }));
+    if (sunoTabs.length === 0) {
+      sunoTabs = allTabs
+        .filter((t) => t.url && t.url.includes('suno.com'))
+        .map((t) => ({
+          id: t.id,
+          windowId: t.windowId,
+          title: (t.title || 'Suno AI').trim() || 'Suno AI',
+          url: t.url,
+        }));
+    }
 
     return { geminiTabs, flowTabs, sunoTabs };
   } catch {
@@ -150,24 +186,34 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       : String(rawPromptText || '').trim();
   const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
 
-  function findBottomPromptEditor() {
-    const collectNodes = (root, selector) => {
-      const list = Array.from(root.querySelectorAll(selector));
+  const collectNodesDeep = (root, selector, visited = new Set()) => {
+    if (!root || visited.has(root)) return [];
+    visited.add(root);
+    const list = [];
+    try {
+      list.push(...Array.from(root.querySelectorAll(selector)));
+    } catch {}
+    try {
       const allEls = root.querySelectorAll('*');
       for (const el of allEls) {
         if (el.shadowRoot) {
-          list.push(...el.shadowRoot.querySelectorAll(selector));
+          list.push(...collectNodesDeep(el.shadowRoot, selector, visited));
         }
       }
-      return list;
-    };
+    } catch {}
+    return list;
+  };
 
+  function findBottomPromptEditor() {
     const rawList = [
-      ...collectNodes(document, 'div.ProseMirror[contenteditable="true"]'),
-      ...collectNodes(document, 'div[contenteditable="true"][role="textbox"]'),
-      ...collectNodes(document, 'rich-textarea [contenteditable="true"], .ql-editor[contenteditable="true"]'),
-      ...collectNodes(document, '[contenteditable="true"]:not([aria-hidden="true"])'),
-      ...collectNodes(document, 'textarea:not(.g-recaptcha-response):not([readonly])'),
+      ...collectNodesDeep(document, 'div.ProseMirror[contenteditable="true"]'),
+      ...collectNodesDeep(document, 'div[contenteditable="true"][role="textbox"]'),
+      ...collectNodesDeep(
+        document,
+        'rich-textarea [contenteditable="true"], .ql-editor[contenteditable="true"]'
+      ),
+      ...collectNodesDeep(document, '[contenteditable="true"]:not([aria-hidden="true"])'),
+      ...collectNodesDeep(document, 'textarea:not(.g-recaptcha-response):not([readonly])'),
     ];
 
     const seen = new Set();
@@ -176,8 +222,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       seen.add(el);
       const r = el.getBoundingClientRect();
       return (
-        r.width > 60 &&
-        r.height > 14 &&
+        r.width > 50 &&
+        r.height > 12 &&
         r.bottom > 0 &&
         getComputedStyle(el).visibility !== 'hidden' &&
         !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
@@ -197,18 +243,79 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
 
   let editorEl = findBottomPromptEditor();
   if (!editorEl) {
-    // Si estamos en la pantalla de inicio de Google Flow ("New project" / "+ New"), abrir o enfocar la caja
-    const newProjBtn = Array.from(document.querySelectorAll('button, a[role="button"]')).find((b) =>
-      /\b(new project|nuevo proyecto|create project|start creating)\b/i.test(
-        (b.textContent || '').trim()
-      )
+    // 1. Si estamos en Story Studio ("Get started" o pestaña Storyboard/Assets sin tarjeta seleccionada)
+    const allBtns = collectNodesDeep(document, 'button, a[role="button"], a[href*="flow"]');
+    const getStartedBtn = allBtns.find((b) =>
+      /^get started$/i.test((b.textContent || '').trim())
     );
-    if (newProjBtn) {
+    if (getStartedBtn) {
       try {
-        newProjBtn.click();
-        await sleepMain(900);
+        getStartedBtn.click();
+        await sleepMain(500);
         editorEl = findBottomPromptEditor();
       } catch {}
+    }
+
+    if (!editorEl) {
+      // Si estamos en Story Studio en "3. Storyboard" o "2. Assets", abrir o seleccionar una tarjeta para que aparezca el <textarea> de edición
+      const storyboardTabBtn = allBtns.find((b) =>
+        /3\.\s*Storyboard/i.test((b.textContent || '').trim())
+      );
+      const scriptTabBtn = allBtns.find((b) =>
+        /1\.\s*Script/i.test((b.textContent || '').trim())
+      );
+      if (storyboardTabBtn || scriptTabBtn) {
+        try {
+          const createFirstBtn = allBtns.find((b) =>
+            /create your first frame|add frame/i.test((b.textContent || '').trim())
+          );
+          if (createFirstBtn) {
+            createFirstBtn.click();
+            await sleepMain(350);
+          } else {
+            // Hacer clic en la primera tarjeta de frame si existe
+            const frameCard = document.querySelector('main [role="button"], main .aspect-video');
+            if (frameCard) {
+              frameCard.click();
+              await sleepMain(350);
+            }
+          }
+          editorEl = findBottomPromptEditor();
+          if (!editorEl && scriptTabBtn) {
+            scriptTabBtn.click();
+            await sleepMain(350);
+            editorEl = findBottomPromptEditor();
+          }
+        } catch {}
+      }
+    }
+
+    if (!editorEl) {
+      // 2. Si estamos en la pantalla de inicio / listado de proyectos de Google Flow ("addNew project" / "Create with Flow" / "+ New")
+      const refreshedBtns = collectNodesDeep(document, 'button, a[role="button"], a[href]');
+      const newProjBtn = refreshedBtns.find((b) =>
+        /(new project|nuevo proyecto|create with flow|create project|start creating|try flow|\+\s*new)/i.test(
+          (b.textContent || '').trim()
+        )
+      );
+      if (newProjBtn) {
+        try {
+          if (
+            newProjBtn.tagName === 'A' &&
+            newProjBtn.href &&
+            newProjBtn.target === '_blank' &&
+            /\/about/i.test(location.href)
+          ) {
+            location.href = newProjBtn.href;
+          } else {
+            newProjBtn.click();
+          }
+          for (let w = 0; w < 4 && !editorEl; w++) {
+            await sleepMain(550);
+            editorEl = findBottomPromptEditor();
+          }
+        } catch {}
+      }
     }
   }
   if (!editorEl) {
@@ -630,27 +737,300 @@ async function sendHardwareEnterKey(target) {
 }
 
 /**
- * Verifica si algún frame de la pestaña de Google Flow tiene expuesto window.__HUELLAS_FLOW_SDK__ = Flow
+ * Obtiene todos los executionContexts (MAIN world) de un debuggee ({ tabId } o { targetId } de OOPIF).
  */
-async function checkFlowSdkAvailableInTab(tabId) {
+async function getCdpExecutionContexts(debuggee) {
+  try {
+    await chrome.debugger.attach(debuggee, '1.3');
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    if (!msg.includes('Already attached') && !msg.includes('Another debugger is already attached')) {
+      throw err;
+    }
+  }
+
+  const contexts = [];
+  const onEvent = (source, method, params) => {
+    const sameTarget =
+      (debuggee.targetId && source.targetId === debuggee.targetId) ||
+      (debuggee.tabId && source.tabId === debuggee.tabId);
+    if (sameTarget && method === 'Runtime.executionContextCreated' && params?.context) {
+      contexts.push(params.context);
+    }
+  };
+
+  chrome.debugger.onEvent.addListener(onEvent);
+  try {
+    await chrome.debugger.sendCommand(debuggee, 'Runtime.disable').catch(() => {});
+    await chrome.debugger.sendCommand(debuggee, 'Runtime.enable');
+    await sleep(140);
+  } finally {
+    chrome.debugger.onEvent.removeListener(onEvent);
+  }
+
+  return contexts;
+}
+
+/**
+ * Devuelve todos los targets candidatos de una pestaña de Google Flow, incluyendo:
+ * 1) Todos los Out-Of-Process Iframes (OOPIF: <iframe sandbox="allow-scripts" src="https://...usercontent.goog/...">)
+ *    que chrome.scripting.executeScript NO puede alcanzar por tener origen opaco null.
+ * 2) El tab principal ({ tabId }) y sus subframes en el mismo proceso.
+ */
+async function getFlowCdpCandidateDebuggees(tabId) {
+  const candidates = [];
+
+  try {
+    const allTargets = await chrome.debugger.getTargets();
+    const subTargets = (allTargets || []).filter((t) => {
+      if (!t || !t.id) return false;
+      if (t.type === 'service_worker' || t.type === 'background_page' || t.type === 'worker') {
+        return false;
+      }
+      const u = String(t.url || '').toLowerCase();
+      if (
+        u.startsWith('chrome-extension://') ||
+        u.startsWith('chrome://') ||
+        u.startsWith('devtools://') ||
+        u.startsWith('edge://') ||
+        u.includes('gemini.google.com') ||
+        u.includes('suno.com') ||
+        isHuellasUrl(u)
+      ) {
+        return false;
+      }
+      if (t.tabId === tabId && t.type === 'page') return false;
+      if (t.tabId === tabId) return true;
+      return (
+        t.type === 'iframe' ||
+        t.type === 'other' ||
+        u.includes('usercontent.goog') ||
+        u.includes('googleusercontent.com') ||
+        u.includes('scf.usercontent') ||
+        u.includes('aisandbox') ||
+        u.includes('flow.google') ||
+        u.includes('labs.google') ||
+        u.includes('aistudio.google') ||
+        u.startsWith('blob:') ||
+        u === 'about:srcdoc'
+      );
+    });
+
+    // Priorizar iframes de usercontent.goog / googleusercontent.com (donde corre Story Studio)
+    subTargets.sort((a, b) => {
+      const aUrl = String(a.url || '').toLowerCase();
+      const bUrl = String(b.url || '').toLowerCase();
+      const aScore =
+        (a.type === 'iframe' ? 5 : 0) +
+        (aUrl.includes('usercontent.goog') || aUrl.includes('googleusercontent.com') ? 6 : 0) +
+        (a.tabId === tabId ? 3 : 0);
+      const bScore =
+        (b.type === 'iframe' ? 5 : 0) +
+        (bUrl.includes('usercontent.goog') || bUrl.includes('googleusercontent.com') ? 6 : 0) +
+        (b.tabId === tabId ? 3 : 0);
+      return bScore - aScore;
+    });
+
+    for (const t of subTargets) {
+      candidates.push({ debuggee: { targetId: t.id }, contextId: undefined, url: t.url, type: t.type });
+    }
+  } catch {}
+
+  try {
+    const mainContexts = await getCdpExecutionContexts({ tabId });
+    const mainDefaults = mainContexts.filter((c) => c.auxData?.isDefault !== false);
+    if (mainDefaults.length > 0) {
+      for (const ctx of mainDefaults) {
+        candidates.push({ debuggee: { tabId }, contextId: ctx.id });
+      }
+    } else {
+      candidates.push({ debuggee: { tabId }, contextId: undefined });
+    }
+  } catch {
+    candidates.push({ debuggee: { tabId }, contextId: undefined });
+  }
+
+  return candidates;
+}
+
+/**
+ * Ejecuta una función asíncrona en todos los frames/OOPIFs de la pestaña de Google Flow
+ * (primero vía chrome.scripting.executeScript y luego vía CDP Runtime.evaluate en todos los OOPIFs)
+ * hasta encontrar el frame donde matchPredicate(result) sea verdadero.
+ */
+async function evaluateAcrossAllFlowFramesAndOopifs(
+  tabId,
+  func,
+  args = [],
+  matchPredicate = (r) => Boolean(r && (r.hasSdk || r.ok || r.injected || r.synced))
+) {
+  // 1. Intento rápido con chrome.scripting.executeScript
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
       world: 'MAIN',
-      func: () => ({
+      args,
+      func,
+    });
+    const hit = (results || []).find((r) => matchPredicate(r?.result));
+    if (hit && hit.result) {
+      return hit.result;
+    }
+  } catch {}
+
+  // 2. Intento profundo con CDP Runtime.evaluate en cada OOPIF (<iframe sandbox="allow-scripts">)
+  const candidates = await getFlowCdpCandidateDebuggees(tabId);
+  const serializedArgs = args
+    .map((a) => (a === undefined ? 'undefined' : JSON.stringify(a)))
+    .join(', ');
+  const expression = `(${func.toString()})(${serializedArgs})`;
+
+  let lastResult = null;
+  for (const cand of candidates) {
+    try {
+      try {
+        await chrome.debugger.attach(cand.debuggee, '1.3');
+      } catch {}
+      const evalRes = await chrome.debugger.sendCommand(cand.debuggee, 'Runtime.evaluate', {
+        expression,
+        awaitPromise: true,
+        returnByValue: true,
+        ...(cand.contextId ? { contextId: cand.contextId } : {}),
+      });
+      const val = evalRes?.result?.value;
+      if (val) {
+        lastResult = val;
+        if (matchPredicate(val)) {
+          return val;
+        }
+      }
+    } catch {}
+  }
+
+  return lastResult;
+}
+
+/**
+ * Verifica si algún frame o iframe OOPIF (<iframe sandbox="allow-scripts">) de la pestaña de Google Flow
+ * tiene expuesto window.__HUELLAS_FLOW_SDK__ = Flow, import('flow-sdk'), o Story Studio abierto.
+ */
+async function checkFlowSdkAvailableInTab(tabId) {
+  try {
+    const probeRes = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      async () => {
+        const sleepProbe = (ms) => new Promise((r) => setTimeout(r, ms));
+        let sdk = window.__HUELLAS_FLOW_SDK__ || window.Flow || null;
+
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const mod = await import('flow-sdk');
+            if (mod && (mod.Flow || mod.default)) {
+              sdk = mod.Flow || mod.default;
+              window.__HUELLAS_FLOW_SDK__ = sdk;
+            }
+          } catch {}
+        }
+
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const imScripts = Array.from(document.querySelectorAll('script[type="importmap"]'));
+            for (const s of imScripts) {
+              try {
+                const map = JSON.parse(s.textContent || '{}');
+                const flowUrl = map?.imports?.['flow-sdk'];
+                if (flowUrl) {
+                  const mod = await import(flowUrl);
+                  if (mod && (mod.Flow || mod.default)) {
+                    sdk = mod.Flow || mod.default;
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const resources = performance.getEntriesByType('resource') || [];
+            for (const r of resources) {
+              if (r.name && /flow-sdk/i.test(r.name)) {
+                try {
+                  const mod = await import(r.name);
+                  if (mod && (mod.Flow || mod.default)) {
+                    sdk = mod.Flow || mod.default;
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+        }
+
+        const isStoryStudio = Boolean(
+          document.getElementById('story-studio-modal-root') ||
+            (Array.from(document.querySelectorAll('button')).some((b) =>
+              /1\.\s*Script/i.test(b.textContent || '')
+            ) &&
+              Array.from(document.querySelectorAll('button')).some((b) =>
+                /2\.\s*Assets/i.test(b.textContent || '')
+              )) ||
+            Array.from(document.querySelectorAll('button')).some((b) =>
+              /^get started$/i.test((b.textContent || '').trim())
+            )
+        );
+
+        if (isStoryStudio && (!sdk || typeof sdk.generate?.image !== 'function')) {
+          const getStartedBtn = Array.from(document.querySelectorAll('button')).find((b) =>
+            /^get started$/i.test((b.textContent || '').trim())
+          );
+          if (getStartedBtn) {
+            try {
+              getStartedBtn.click();
+              await sleepProbe(350);
+              sdk = window.__HUELLAS_FLOW_SDK__ || window.Flow || null;
+            } catch {}
+          }
+        }
+
+        return {
+          hasSdk: Boolean(sdk && typeof sdk.generate?.image === 'function'),
+          isStoryStudio,
+        };
+      },
+      [],
+      (r) => Boolean(r && r.hasSdk)
+    );
+
+    if (probeRes && probeRes.hasSdk) {
+      return { hasSdk: true, isStoryStudio: true };
+    }
+
+    // Segunda pasada por si no tiene hasSdk pero sí tiene Story Studio abierto
+    const ssRes = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      () => ({
         hasSdk: Boolean(
           window.__HUELLAS_FLOW_SDK__ &&
             typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function'
         ),
-        isStoryStudio: Boolean(document.getElementById('story-studio-modal-root')),
+        isStoryStudio: Boolean(
+          document.getElementById('story-studio-modal-root') ||
+            Array.from(document.querySelectorAll('button')).some((b) =>
+              /1\.\s*Script|2\.\s*Assets|3\.\s*Storyboard/i.test(b.textContent || '')
+            )
+        ),
       }),
-    });
-    const sdkFrame = (results || []).find((r) => r?.result?.hasSdk);
-    const ssFrame = (results || []).find((r) => r?.result?.isStoryStudio);
+      [],
+      (r) => Boolean(r && (r.hasSdk || r.isStoryStudio))
+    );
+
     return {
-      hasSdk: Boolean(sdkFrame),
-      sdkFrameId: sdkFrame?.frameId,
-      isStoryStudio: Boolean(ssFrame || sdkFrame),
+      hasSdk: Boolean(ssRes?.hasSdk),
+      isStoryStudio: Boolean(ssRes?.isStoryStudio || ssRes?.hasSdk),
     };
   } catch {
     return { hasSdk: false, isStoryStudio: false };
@@ -659,7 +1039,7 @@ async function checkFlowSdkAvailableInTab(tabId) {
 
 /**
  * Genera 1 imagen directamente usando window.__HUELLAS_FLOW_SDK__.generate.image(...)
- * dentro del frame de Story Studio y devuelve { ok, mediaId, imageDataUrl } directamente a background.js
+ * dentro del frame/OOPIF de Story Studio y devuelve { ok, mediaId, imageDataUrl } directamente a background.js
  * sin depender de postMessage ni de clics en el DOM.
  */
 async function generateSingleImageViaFlowSdk(
@@ -669,12 +1049,53 @@ async function generateSingleImageViaFlowSdk(
   logoDataUrl = ''
 ) {
   try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      world: 'MAIN',
-      args: [rawPrompt, aspectRatio, logoDataUrl],
-      func: async (promptText, ratio, logoData) => {
-        const sdk = window.__HUELLAS_FLOW_SDK__;
+    const res = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      async (promptText, ratio, logoData) => {
+        let sdk = window.__HUELLAS_FLOW_SDK__ || window.Flow || null;
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const mod = await import('flow-sdk');
+            sdk = mod?.Flow || mod?.default || null;
+            if (sdk) window.__HUELLAS_FLOW_SDK__ = sdk;
+          } catch {}
+        }
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const imScripts = Array.from(document.querySelectorAll('script[type="importmap"]'));
+            for (const s of imScripts) {
+              try {
+                const map = JSON.parse(s.textContent || '{}');
+                const flowUrl = map?.imports?.['flow-sdk'];
+                if (flowUrl) {
+                  const mod = await import(flowUrl);
+                  sdk = mod?.Flow || mod?.default || null;
+                  if (sdk) {
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const resources = performance.getEntriesByType('resource') || [];
+            for (const r of resources) {
+              if (r.name && /flow-sdk/i.test(r.name)) {
+                try {
+                  const mod = await import(r.name);
+                  sdk = mod?.Flow || mod?.default || null;
+                  if (sdk) {
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+        }
         if (!sdk || typeof sdk.generate?.image !== 'function') {
           return { hasSdk: false };
         }
@@ -707,26 +1128,25 @@ async function generateSingleImageViaFlowSdk(
         let lastError = '';
         for (const modelDisplayName of modelsToTry) {
           try {
-            const res = await sdk.generate.image({
+            const imgRes = await sdk.generate.image({
               prompt: cleanPrompt,
               aspectRatio: ratio || '16:9',
               referenceImageMediaIds,
               modelDisplayName,
             });
-            if (res && res.base64) {
-              const mime = res.mimeType || 'image/jpeg';
+            if (imgRes && imgRes.base64) {
+              const mime = imgRes.mimeType || 'image/jpeg';
               return {
                 hasSdk: true,
                 ok: true,
-                mediaId: res.mediaId,
+                mediaId: imgRes.mediaId,
                 mimeType: mime,
-                imageDataUrl: `data:${mime};base64,${res.base64}`,
+                imageDataUrl: `data:${mime};base64,${imgRes.base64}`,
                 modelUsed: modelDisplayName,
               };
             }
           } catch (err) {
             lastError = String(err?.message || err || '');
-            // Si el error no es por nombre de modelo, esperar un segundo antes de reintentar
             await new Promise((r) => setTimeout(r, 800));
           }
         }
@@ -736,10 +1156,11 @@ async function generateSingleImageViaFlowSdk(
           error: lastError || 'Flow.generate.image no devolvió base64.',
         };
       },
-    });
+      [rawPrompt, aspectRatio, logoDataUrl],
+      (r) => Boolean(r && r.hasSdk)
+    );
 
-    const hit = (results || []).find((r) => r?.result?.hasSdk);
-    return hit ? hit.result : { hasSdk: false, ok: false };
+    return res && res.hasSdk ? res : { hasSdk: false, ok: false };
   } catch (err) {
     return { hasSdk: false, ok: false, error: String(err?.message || err) };
   }
@@ -749,7 +1170,7 @@ let stopFlowAutoPilotRequested = false;
 
 /**
  * Genera el cuadro inicial (Flow.generate.image) y el video (Flow.generate.video + fallback cinematográfico)
- * de un Clip de Etapa 8 directamente vía window.__HUELLAS_FLOW_SDK__ dentro de Story Studio.
+ * de un Clip de Etapa 8 directamente vía window.__HUELLAS_FLOW_SDK__ dentro del frame/OOPIF de Story Studio.
  */
 async function generateSingleClipViaFlowSdk(
   tabId,
@@ -758,12 +1179,53 @@ async function generateSingleClipViaFlowSdk(
   referenceAssets = []
 ) {
   try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      world: 'MAIN',
-      args: [clipItem, aspectRatio, referenceAssets],
-      func: async (item, ratio, refsList) => {
-        const sdk = window.__HUELLAS_FLOW_SDK__;
+    const res = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      async (item, ratio, refsList) => {
+        let sdk = window.__HUELLAS_FLOW_SDK__ || window.Flow || null;
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const mod = await import('flow-sdk');
+            sdk = mod?.Flow || mod?.default || null;
+            if (sdk) window.__HUELLAS_FLOW_SDK__ = sdk;
+          } catch {}
+        }
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const imScripts = Array.from(document.querySelectorAll('script[type="importmap"]'));
+            for (const s of imScripts) {
+              try {
+                const map = JSON.parse(s.textContent || '{}');
+                const flowUrl = map?.imports?.['flow-sdk'];
+                if (flowUrl) {
+                  const mod = await import(flowUrl);
+                  sdk = mod?.Flow || mod?.default || null;
+                  if (sdk) {
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          try {
+            const resources = performance.getEntriesByType('resource') || [];
+            for (const r of resources) {
+              if (r.name && /flow-sdk/i.test(r.name)) {
+                try {
+                  const mod = await import(r.name);
+                  sdk = mod?.Flow || mod?.default || null;
+                  if (sdk) {
+                    window.__HUELLAS_FLOW_SDK__ = sdk;
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+        }
         if (!sdk || typeof sdk.generate?.image !== 'function') {
           return { hasSdk: false };
         }
@@ -1030,36 +1492,43 @@ async function generateSingleClipViaFlowSdk(
           duration: 8,
         };
       },
-    });
+      [clipItem, aspectRatio, referenceAssets],
+      (r) => Boolean(r && r.hasSdk)
+    );
 
-    const hit = (results || []).find((r) => r?.result?.hasSdk);
-    return hit ? hit.result : { hasSdk: false, ok: false };
+    return res && res.hasSdk ? res : { hasSdk: false, ok: false };
   } catch (err) {
     return { hasSdk: false, ok: false, error: String(err?.message || err) };
   }
 }
 
 /**
- * Inyecta el JSON del proyecto en la interfaz visual de Story Studio (pestaña "2. Assets")
- * para que las tarjetas y sus imágenes generadas también se vean en pantalla dentro de Story Studio.
+ * Inyecta el JSON del proyecto en la interfaz visual de Story Studio (pestaña "2. Assets" o "3. Storyboard")
+ * dentro del frame/OOPIF para que las tarjetas y sus imágenes generadas se vean en pantalla dentro de Story Studio.
  */
-async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, triggerAutocreate = false) {
+async function syncProjectJsonIntoStoryStudioUI(
+  tabId,
+  storyStudioJsonStr,
+  triggerAutocreate = false,
+  targetSection = 'ASSETS'
+) {
   if (!storyStudioJsonStr) return { synced: false };
   try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      world: 'MAIN',
-      args: [storyStudioJsonStr, triggerAutocreate],
-      func: async (jsonStr, shouldAutocreate) => {
+    const res = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      async (jsonStr, shouldAutocreate, sectionTarget) => {
         const sleepFrame = (ms) => new Promise((r) => setTimeout(r, ms));
         const isStoryStudioFrame =
           Boolean(document.getElementById('story-studio-modal-root')) ||
-          (Array.from(document.querySelectorAll('header button')).some((b) =>
+          (Array.from(document.querySelectorAll('button')).some((b) =>
             /1\.\s*Script/i.test(b.textContent || '')
           ) &&
-            Array.from(document.querySelectorAll('header button')).some((b) =>
+            Array.from(document.querySelectorAll('button')).some((b) =>
               /2\.\s*Assets/i.test(b.textContent || '')
-            ));
+            )) ||
+          Array.from(document.querySelectorAll('button')).some((b) =>
+            /^get started$/i.test((b.textContent || '').trim())
+          );
 
         if (!isStoryStudioFrame) return { synced: false };
 
@@ -1069,7 +1538,7 @@ async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, trigg
         if (getStartedBtn) {
           try {
             getStartedBtn.click();
-            await sleepFrame(120);
+            await sleepFrame(220);
           } catch {}
         }
 
@@ -1102,7 +1571,7 @@ async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, trigg
         );
         if (headerMoreBtn) {
           headerMoreBtn.click();
-          await sleepFrame(140);
+          await sleepFrame(150);
           const openStoryBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
             /open story/i.test((b.textContent || '').trim())
           );
@@ -1117,31 +1586,51 @@ async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, trigg
 
         await sleepFrame(450);
 
-        const assetsTabBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
-          /2\.\s*Assets/i.test((b.textContent || '').trim())
+        const targetTabRegex =
+          sectionTarget === 'STORYBOARD' ? /3\.\s*Storyboard/i : /2\.\s*Assets/i;
+        const tabBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
+          targetTabRegex.test((b.textContent || '').trim())
         );
-        if (assetsTabBtn) {
-          assetsTabBtn.click();
-          await sleepFrame(350);
+        if (tabBtn) {
+          tabBtn.click();
+          await sleepFrame(400);
         }
 
         let triggeredSections = 0;
         if (shouldAutocreate) {
-          const sections = Array.from(document.querySelectorAll('main section'));
-          for (const sec of sections) {
-            const secMoreBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+          if (sectionTarget === 'STORYBOARD') {
+            const moreBtns = Array.from(document.querySelectorAll('main button')).filter((b) =>
               (b.textContent || '').includes('more_vert')
             );
-            if (secMoreBtn) {
-              secMoreBtn.click();
-              await sleepFrame(150);
-              const autoCreateBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+            for (const mb of moreBtns) {
+              mb.click();
+              await sleepFrame(160);
+              const autoBtn = Array.from(document.querySelectorAll('main button')).find((b) =>
                 /autocreate images/i.test((b.textContent || '').trim())
               );
-              if (autoCreateBtn && !autoCreateBtn.disabled) {
-                autoCreateBtn.click();
+              if (autoBtn && !autoBtn.disabled) {
+                autoBtn.click();
                 triggeredSections++;
-                await sleepFrame(200);
+                await sleepFrame(220);
+              }
+            }
+          } else {
+            const sections = Array.from(document.querySelectorAll('main section'));
+            for (const sec of sections) {
+              const secMoreBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+                (b.textContent || '').includes('more_vert')
+              );
+              if (secMoreBtn) {
+                secMoreBtn.click();
+                await sleepFrame(150);
+                const autoCreateBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+                  /autocreate images/i.test((b.textContent || '').trim())
+                );
+                if (autoCreateBtn && !autoCreateBtn.disabled) {
+                  autoCreateBtn.click();
+                  triggeredSections++;
+                  await sleepFrame(200);
+                }
               }
             }
           }
@@ -1149,9 +1638,10 @@ async function syncProjectJsonIntoStoryStudioUI(tabId, storyStudioJsonStr, trigg
 
         return { synced: true, jsonInjected, triggeredSections };
       },
-    });
-    const hit = (results || []).find((r) => r?.result?.synced);
-    return hit ? hit.result : { synced: false };
+      [storyStudioJsonStr, triggerAutocreate, targetSection],
+      (r) => Boolean(r && r.synced)
+    );
+    return res && res.synced ? res : { synced: false };
   } catch {
     return { synced: false };
   }
@@ -1293,6 +1783,21 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
     matchedFrameId > 0 ? { tabId, frameIds: [matchedFrameId] } : { tabId };
 
   if (!mainAttempt?.result?.injected) {
+    // 2B. Buscar también en todos los Out-Of-Process Iframes (OOPIFs / Story Studio) vía CDP
+    const oopifAttempt = await evaluateAcrossAllFlowFramesAndOopifs(
+      tabId,
+      injectPromptIntoBottomEditor,
+      [rawPromptText, mediaType, logoDataUrl],
+      (r) => Boolean(r && r.injected)
+    );
+    if (oopifAttempt && oopifAttempt.injected) {
+      return {
+        success: true,
+        submitted: true,
+        method: 'CDP_OOPIF_DIRECT',
+      };
+    }
+
     throw new Error(
       mainAttempt?.result?.error || 'No se encontró la caja de prompt en Google Flow.'
     );
@@ -1461,7 +1966,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.5.1',
+          version: '2.5.4',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -1571,8 +2076,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ) {
           stopFlowAutoPilotRequested = false;
           try {
-            // 1. Verificar si window.__HUELLAS_FLOW_SDK__ = Flow está disponible en la pestaña de Google Flow
-            const sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
+            // 1. Verificar si window.__HUELLAS_FLOW_SDK__ = Flow o Story Studio está disponible en targetTab (o en otra pestaña abierta de Google Flow)
+            let sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
+            if (!sdkStatus.hasSdk && !sdkStatus.isStoryStudio && serviceTabs.length > 1) {
+              for (const candidateTab of serviceTabs) {
+                if (!candidateTab.id || candidateTab.id === targetTab.id) continue;
+                const candStatus = await checkFlowSdkAvailableInTab(candidateTab.id);
+                if (candStatus.hasSdk || candStatus.isStoryStudio) {
+                  targetTab = candidateTab;
+                  sdkStatus = candStatus;
+                  await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
+                  break;
+                }
+              }
+            }
 
             // 1A. Etapa 6 (Todas las @Referencias o 1 tarjeta individual de @Referencia) vía window.__HUELLAS_FLOW_SDK__
             if (
@@ -1741,7 +2258,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   await syncProjectJsonIntoStoryStudioUI(
                     targetTab.id,
                     payload.storyStudioProjectJson,
-                    false
+                    false,
+                    'STORYBOARD'
                   ).catch(() => {});
                 }
 
@@ -1816,17 +2334,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             // 1E. Si Story Studio está abierto pero aún sin window.__HUELLAS_FLOW_SDK__, inyectar JSON y pulsar Autocreate images
             if (sdkStatus.isStoryStudio && payload.storyStudioProjectJson) {
+              const targetSection =
+                payload.mediaType === 'VIDEO' || (payload.mediaType === 'IMAGE' && !payload.referenceId)
+                  ? 'STORYBOARD'
+                  : 'ASSETS';
               const ssRes = await syncProjectJsonIntoStoryStudioUI(
                 targetTab.id,
                 payload.storyStudioProjectJson,
-                true
+                true,
+                targetSection
               );
               if (ssRes && ssRes.synced) {
                 broadcastToHuellasTabsInSameWindow(senderWindowId, {
                   type: 'BRIDGE_STATUS',
                   service: 'FLOW',
                   status: 'GENERATING',
-                  message: `🎬 Proyecto cargado en Story Studio (Google Flow) y ejecutando Autocreate images...`,
+                  message: `🎬 Proyecto cargado en Story Studio (Google Flow • ${targetSection}) y ejecutando Autocreate images...`,
                   mediaType: payload.mediaType,
                 });
                 sendResponse({
@@ -2123,6 +2646,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'GEMINI_RESPONSE_READY' ||
     message.type === 'FLOW_MEDIA_READY' ||
     message.type === 'FLOW_VIDEO_CAPTURED' ||
+    message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||
     message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
     message.type === 'FLOW_REFERENCE_CAPTURED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
