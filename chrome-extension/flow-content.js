@@ -97,28 +97,159 @@
       'button[aria-label="Start generation"]',
       'button[aria-label*="Start generation" i]',
       'button[aria-label*="Iniciar generación" i]',
+      'button[aria-label*="Send" i]',
+      'button[aria-label*="Enviar" i]',
+      'button[aria-label*="Submit" i]',
       'button[type="submit"]',
     ];
 
+    const matchedDirect = [];
     for (const sel of directSelectors) {
       const buttons = Array.from(document.querySelectorAll(sel));
       for (const btn of buttons) {
         const r = btn.getBoundingClientRect();
-        if (r.width >= 16 && r.height >= 16 && r.top > 0) {
-          return btn;
+        if (r.width >= 16 && r.height >= 16 && r.bottom > 0) {
+          matchedDirect.push({
+            btn,
+            right: r.right,
+            disabled: Boolean(btn.disabled || btn.getAttribute('aria-disabled') === 'true'),
+          });
         }
       }
     }
+    if (matchedDirect.length > 0) {
+      matchedDirect.sort((a, b) => {
+        if (a.disabled !== b.disabled) return a.disabled ? 1 : -1;
+        return b.right - a.right;
+      });
+      return matchedDirect[0].btn;
+    }
 
-    // 2. Fallback: find actual <button> (never a parent container!) with mat-icon 'arrow_forward' near inputEl
-    const inputRect = inputEl ? inputEl.getBoundingClientRect() : { top: 600, left: 800 };
+    const inputRect = inputEl
+      ? inputEl.getBoundingClientRect()
+      : {
+          top: window.innerHeight - 160,
+          bottom: window.innerHeight - 40,
+          left: 300,
+          right: 900,
+          width: 600,
+          height: 120,
+        };
+
+    // 2. Walk up from inputEl (up to 7 levels) to find the prompt composer container and pick its submit/action button
+    let container = inputEl ? inputEl.parentElement : null;
+    for (let depth = 0; depth < 7 && container && container !== document.body; depth++) {
+      const cRect = container.getBoundingClientRect();
+      if (cRect.height > 680) break;
+      const btnsInContainer = Array.from(container.querySelectorAll('button')).filter((btn) => {
+        const r = btn.getBoundingClientRect();
+        if (r.width < 18 || r.height < 18 || r.bottom <= 0) return false;
+        const meta = (
+          (btn.getAttribute('aria-label') || '') +
+          ' ' +
+          (btn.getAttribute('title') || '') +
+          ' ' +
+          (btn.className || '') +
+          ' ' +
+          (btn.innerText || btn.textContent || '')
+        ).toLowerCase();
+        if (
+          meta.includes('clear') ||
+          meta.includes('limpiar') ||
+          meta.includes('borrar') ||
+          meta.includes('close') ||
+          meta.includes('cerrar') ||
+          meta.includes('delete') ||
+          meta.includes('settings') ||
+          meta.includes('ajustes') ||
+          meta.includes('config') ||
+          meta.includes('tune') ||
+          meta.includes('add-menu') ||
+          meta.includes('add ingredient') ||
+          meta.includes('añadir') ||
+          meta.includes('agregar') ||
+          meta.includes('upload') ||
+          meta.includes('subir') ||
+          meta.includes('aspect') ||
+          meta.includes('16:9') ||
+          meta.includes('9:16') ||
+          meta.includes('text to video') ||
+          meta.includes('texto a video') ||
+          meta.includes('ingredients to video') ||
+          meta.includes('image to video') ||
+          meta.includes('expand')
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      if (btnsInContainer.length > 0) {
+        const iconOrActionBtn = btnsInContainer.find((b) => {
+          const t = (
+            (b.innerText || b.textContent || '') +
+            ' ' +
+            (b.getAttribute('aria-label') || '') +
+            ' ' +
+            (b.getAttribute('title') || '')
+          )
+            .trim()
+            .toLowerCase();
+          return (
+            t.includes('arrow_forward') ||
+            t.includes('arrow_upward') ||
+            t.includes('send') ||
+            t.includes('enviar') ||
+            t.includes('start generation') ||
+            t.includes('iniciar generación') ||
+            t.includes('generate') ||
+            t.includes('generar') ||
+            t.includes('create') ||
+            t.includes('crear') ||
+            t.includes('submit') ||
+            t.includes('spark') ||
+            t.includes('auto_awesome')
+          );
+        });
+        if (iconOrActionBtn) return iconOrActionBtn;
+
+        const rightSideBtns = btnsInContainer.filter(
+          (b) =>
+            b.getBoundingClientRect().left >= inputRect.left + Math.min(80, inputRect.width * 0.3)
+        );
+        if (rightSideBtns.length > 0) {
+          rightSideBtns.sort(
+            (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right
+          );
+          return rightSideBtns[0];
+        }
+      }
+      container = container.parentElement;
+    }
+
+    // 3. Fallback: find actual <button> near inputEl (checking both inputRect.bottom and inputRect.top so tall multi-line prompts work)
     const allButtons = Array.from(document.querySelectorAll('button'));
     for (const btn of allButtons) {
       const r = btn.getBoundingClientRect();
-      if (r.width < 16 || r.height < 16 || r.top <= 0) continue;
-      if (Math.abs(r.top - inputRect.top) > 250) continue;
-      const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-      if (text === 'arrow_forward' || text === 'arrow_upward' || text === 'send') {
+      if (r.width < 16 || r.height < 16 || r.bottom <= 0) continue;
+      const nearBottom = Math.abs(r.bottom - inputRect.bottom) <= 240;
+      const nearTop = Math.abs(r.top - inputRect.top) <= 250;
+      if (!nearBottom && !nearTop) continue;
+      const text = (
+        (btn.innerText || btn.textContent || '') +
+        ' ' +
+        (btn.getAttribute('aria-label') || '')
+      )
+        .trim()
+        .toLowerCase();
+      if (
+        text.includes('arrow_forward') ||
+        text.includes('arrow_upward') ||
+        text.includes('send') ||
+        text.includes('start generation') ||
+        text.includes('iniciar generación') ||
+        text.includes('enviar')
+      ) {
         return btn;
       }
     }
@@ -126,19 +257,25 @@
     return null;
   }
 
-  function setFlowInputText(inputEl, text) {
-    // 1. Always clear any existing text in the prompt box first so an old prompt is never submitted
-    const existingText = (inputEl.value ?? inputEl.innerText ?? '').trim();
-    if (existingText.length > 0) {
-      const clearBtn = document.querySelector(
-        'button.clear-button[aria-label="Clear prompt"], button.clear-button'
-      );
-      if (clearBtn) {
-        try {
-          clearBtn.click();
-        } catch {}
+  function collapseSelectionToEnd(inputEl) {
+    if (!inputEl) return;
+    try {
+      inputEl.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(inputEl);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
       }
-    }
+    } catch {}
+  }
+
+  function setFlowInputText(inputEl, text) {
+    // Append a trailing space so the cursor at the end is never stuck inside an @mention autocomplete token
+    const safeText = String(text || '').endsWith(' ') ? String(text || '') : `${text || ''} `;
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
 
     inputEl.focus();
     inputEl.click();
@@ -154,29 +291,30 @@
       try {
         inputEl.focus();
         inputEl.select();
-        insertedByExec = document.execCommand('insertText', false, text);
+        insertedByExec = document.execCommand('insertText', false, safeText);
       } catch {}
 
-      if (!insertedByExec || inputEl.value !== text) {
+      if (!insertedByExec || norm(inputEl.value) !== norm(safeText)) {
         if (nativeSetter) {
-          nativeSetter.call(inputEl, text);
+          nativeSetter.call(inputEl, safeText);
         } else {
-          inputEl.value = text;
+          inputEl.value = safeText;
         }
         inputEl.dispatchEvent(
           new InputEvent('input', {
             bubbles: true,
             cancelable: true,
+            composed: true,
             inputType: 'insertText',
-            data: text,
+            data: safeText,
           })
         );
-        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
       }
       return;
     }
 
-    // ProseMirror / Contenteditable div in Google Flow (works both when tab is active or in background)
+    // ProseMirror / Contenteditable div in Google Flow
     try {
       inputEl.focus();
       const selection = window.getSelection();
@@ -184,20 +322,17 @@
       range.selectNodeContents(inputEl);
       selection.removeAllRanges();
       selection.addRange(range);
-      try {
-        document.execCommand('delete', false);
-      } catch {}
-      const inserted = document.execCommand('insertText', false, text);
 
-      const expectedPrefix = text.trim().slice(0, 30);
-      let afterText = (inputEl.innerText || inputEl.textContent || '').trim();
+      // Replace selection atomically via execCommand('insertText') so ProseMirror's internal EditorState updates natively
+      const inserted = document.execCommand('insertText', false, safeText);
+      const afterNorm = norm(inputEl.innerText || inputEl.textContent || '');
+      const expectedPrefixNorm = norm(safeText).slice(0, 20);
 
-      // If execCommand failed (e.g. tab in background) or old text remained, force replace via paste + DOM
-      if (!inserted || !afterText.includes(expectedPrefix)) {
+      // Only fallback if execCommand truly left the editor empty or with stale text
+      if (!inserted && afterNorm.length < 5) {
         try {
-          inputEl.innerHTML = '<p><br></p>';
           const dt = new DataTransfer();
-          dt.setData('text/plain', text);
+          dt.setData('text/plain', safeText);
           inputEl.dispatchEvent(
             new ClipboardEvent('paste', {
               bubbles: true,
@@ -207,90 +342,213 @@
             })
           );
         } catch {}
-        afterText = (inputEl.innerText || inputEl.textContent || '').trim();
-        if (!afterText.includes(expectedPrefix)) {
-          inputEl.innerHTML = '';
-          const p = document.createElement('p');
-          p.textContent = text;
-          inputEl.appendChild(p);
-          inputEl.dispatchEvent(
-            new InputEvent('input', {
-              bubbles: true,
-              cancelable: true,
-              inputType: 'insertText',
-              data: text,
-            })
-          );
-        }
       }
+
+      const afterPasteNorm = norm(inputEl.innerText || inputEl.textContent || '');
+      if (
+        afterPasteNorm.length < 5 ||
+        (expectedPrefixNorm.length >= 6 && !afterPasteNorm.includes(expectedPrefixNorm))
+      ) {
+        try {
+          inputEl.focus();
+          const sel2 = window.getSelection();
+          const r2 = document.createRange();
+          r2.selectNodeContents(inputEl);
+          sel2.removeAllRanges();
+          sel2.addRange(r2);
+          document.execCommand('insertText', false, safeText);
+        } catch {}
+      }
+
+      collapseSelectionToEnd(inputEl);
+      inputEl.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: ' ',
+        })
+      );
+      document.documentElement.setAttribute('data-huellas-flow-injected-ts', String(Date.now()));
     } catch {}
   }
 
   function dispatchEnterKeyOnInput(inputEl) {
     if (!inputEl) return;
     try {
-      inputEl.focus();
+      collapseSelectionToEnd(inputEl);
       const evInit = {
         key: 'Enter',
         code: 'Enter',
         keyCode: 13,
         which: 13,
+        charCode: 13,
+        shiftKey: false,
+        ctrlKey: false,
+        altKey: false,
+        metaKey: false,
         bubbles: true,
         cancelable: true,
         composed: true,
       };
       inputEl.dispatchEvent(new KeyboardEvent('keydown', evInit));
       inputEl.dispatchEvent(new KeyboardEvent('keypress', evInit));
+      try {
+        inputEl.dispatchEvent(
+          new InputEvent('beforeinput', {
+            inputType: 'insertParagraph',
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+          })
+        );
+      } catch {}
       inputEl.dispatchEvent(new KeyboardEvent('keyup', evInit));
+
+      const form = inputEl.closest?.('form');
+      if (form && typeof form.requestSubmit === 'function') {
+        try {
+          form.requestSubmit();
+        } catch {}
+      }
     } catch {}
   }
 
-  function clickFlowSubmitButton(btn, inputEl) {
-    // IMPORTANT: Never pass `view: window` to PointerEvent/MouseEvent in an ISOLATED content script world,
-    // because Chrome throws `TypeError: Failed to construct 'PointerEvent': member view is not of type Window`,
-    // which previously aborted execution right before `btn.click()`!
-    if (btn) {
-      try {
-        btn.click();
-      } catch {}
+  function fireRealClickOnButton(btn) {
+    if (!btn) return;
+    try {
+      const rect = btn.getBoundingClientRect();
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        button: 0,
+        buttons: 1,
+      };
+      btn.dispatchEvent(new PointerEvent('pointerdown', opts));
+      btn.dispatchEvent(new MouseEvent('mousedown', opts));
+      btn.dispatchEvent(new PointerEvent('pointerup', opts));
+      btn.dispatchEvent(new MouseEvent('mouseup', opts));
+    } catch {}
+    try {
+      btn.click();
+    } catch {}
+  }
+
+  function clickFlowSubmitButton(btn, inputEl, promptText) {
+    let submittedSuccessfully = false;
+
+    if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
+      fireRealClickOnButton(btn);
     } else if (inputEl) {
       dispatchEnterKeyOnInput(inputEl);
     }
 
-    // Follow-up verification at 380ms and 850ms: if the prompt text is still sitting un-submitted
-    // in the ProseMirror box, click the submit button again and dispatch Enter.
-    [380, 850].forEach((delayMs) => {
+    // Immediate 160ms check: if button click didn't clear the box, also press Enter & click button
+    setTimeout(() => {
+      const currentInput = findFlowPromptInput() || inputEl;
+      if (!currentInput) return;
+      const remaining = (
+        currentInput.value ??
+        currentInput.innerText ??
+        currentInput.textContent ??
+        ''
+      ).trim();
+      if (remaining.length <= 4) {
+        submittedSuccessfully = true;
+        return;
+      }
+      const freshBtn = findExactFlowSubmitButton(currentInput);
+      if (freshBtn && !freshBtn.disabled && freshBtn.getAttribute('aria-disabled') !== 'true') {
+        fireRealClickOnButton(freshBtn);
+      }
+      dispatchEnterKeyOnInput(currentInput);
+    }, 160);
+
+    // Check at 350ms whether the prompt box is now empty (submitted!)
+    setTimeout(() => {
+      const currentInput = findFlowPromptInput() || inputEl;
+      if (!currentInput) return;
+      const remaining = (
+        currentInput.value ??
+        currentInput.innerText ??
+        currentInput.textContent ??
+        ''
+      ).trim();
+      if (remaining.length <= 4) {
+        submittedSuccessfully = true;
+      }
+    }, 350);
+
+    // Follow-up checkpoints at 540ms, 860ms, 1250ms, and 1750ms
+    [540, 860, 1250, 1750].forEach((delayMs) => {
       setTimeout(() => {
         const currentInput = findFlowPromptInput() || inputEl;
         if (!currentInput) return;
-        const remaining = (currentInput.value ?? currentInput.innerText ?? '').trim();
-        if (remaining.length > 10) {
-          const freshBtn = findExactFlowSubmitButton(currentInput);
-          if (freshBtn && !freshBtn.disabled && freshBtn.getAttribute('aria-disabled') !== 'true') {
-            try {
-              freshBtn.click();
-            } catch {}
-            try {
-              const rect = freshBtn.getBoundingClientRect();
-              const opts = {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: rect.left + rect.width / 2,
-                clientY: rect.top + rect.height / 2,
-                button: 0,
-                buttons: 1,
-              };
-              freshBtn.dispatchEvent(new PointerEvent('pointerdown', opts));
-              freshBtn.dispatchEvent(new MouseEvent('mousedown', opts));
-              freshBtn.dispatchEvent(new PointerEvent('pointerup', opts));
-              freshBtn.dispatchEvent(new MouseEvent('mouseup', opts));
-            } catch {}
+        const remaining = (
+          currentInput.value ??
+          currentInput.innerText ??
+          currentInput.textContent ??
+          ''
+        ).trim();
+
+        // If it already submitted earlier and an old background script re-pasted text at 420ms, clear the duplicate text
+        if (submittedSuccessfully) {
+          if (remaining.length > 4) {
+            const clearBtn = document.querySelector(
+              'button.clear-button[aria-label="Clear prompt"], button.clear-button'
+            );
+            if (clearBtn) {
+              try {
+                clearBtn.click();
+              } catch {}
+            } else {
+              try {
+                currentInput.focus();
+                const sel = window.getSelection();
+                const r = document.createRange();
+                r.selectNodeContents(currentInput);
+                sel.removeAllRanges();
+                sel.addRange(r);
+                document.execCommand('delete', false);
+              } catch {}
+            }
           }
-          if (delayMs >= 800) {
-            dispatchEnterKeyOnInput(currentInput);
-          }
+          return;
         }
+
+        if (remaining.length <= 4) {
+          submittedSuccessfully = true;
+          return;
+        }
+
+        // If at 540ms the prompt is still unsubmitted (or was overwritten via innerHTML at 420ms), re-sync ProseMirror via insertText
+        if (delayMs === 540 && promptText) {
+          setFlowInputText(currentInput, promptText);
+        } else {
+          collapseSelectionToEnd(currentInput);
+        }
+
+        const freshBtn = findExactFlowSubmitButton(currentInput);
+        if (freshBtn && !freshBtn.disabled && freshBtn.getAttribute('aria-disabled') !== 'true') {
+          fireRealClickOnButton(freshBtn);
+        }
+        setTimeout(() => {
+          const checkAgain = (
+            currentInput.value ??
+            currentInput.innerText ??
+            currentInput.textContent ??
+            ''
+          ).trim();
+          if (checkAgain.length > 4 && !submittedSuccessfully) {
+            dispatchEnterKeyOnInput(currentInput);
+          } else if (checkAgain.length <= 4) {
+            submittedSuccessfully = true;
+          }
+        }, 75);
       }, delayMs);
     });
   }
@@ -628,6 +886,137 @@
     }
   }
 
+  function startFlowReferenceImagesWatcher({
+    referenceId,
+    referenceTag,
+    referenceTags,
+    expectedCount,
+    baselineImageUrls,
+  }) {
+    if (window.__HUELLAS_FLOW_REF_WATCHER__) {
+      clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+      window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+    }
+
+    const tagsList = Array.isArray(referenceTags) ? referenceTags : [];
+    const totalExpected =
+      typeof expectedCount === 'number' && expectedCount > 0
+        ? expectedCount
+        : tagsList.length > 0
+        ? tagsList.length
+        : 1;
+
+    const startedAt = Date.now();
+    const maxWaitMs = Math.max(180000, totalExpected * 75000);
+    let capturing = false;
+    let capturedCount = 0;
+
+    window.__HUELLAS_FLOW_REF_WATCHER__ = setInterval(async () => {
+      if (capturing) return;
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs > maxWaitMs) {
+        clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+        window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+        return;
+      }
+
+      if (elapsedMs < 3500) {
+        for (const img of Array.from(document.querySelectorAll('img'))) {
+          const s = (img.currentSrc || img.src || '').trim();
+          if (s) baselineImageUrls.add(s);
+        }
+        return;
+      }
+
+      const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
+        const w = img.naturalWidth || img.width || 0;
+        const h = img.naturalHeight || img.height || 0;
+        const src = (img.currentSrc || img.src || '').trim();
+        if (!src || src.includes('avatar') || baselineImageUrls.has(src)) return false;
+        const r = img.getBoundingClientRect();
+        if (r.width > 0 && r.width < 120 && r.height < 120) return false;
+        return w >= 220 && h >= 150;
+      });
+
+      if (imgs.length === 0) return;
+
+      capturing = true;
+      try {
+        for (const imgEl of imgs) {
+          const src = (imgEl.currentSrc || imgEl.src || '').trim();
+          if (!src || baselineImageUrls.has(src)) continue;
+          baselineImageUrls.add(src);
+
+          const imageDataUrl = await fetchVideoBinaryDataUrl(src, imgEl);
+          const matchedTag =
+            (totalExpected === 1 ? referenceTag : tagsList[capturedCount]) ||
+            tagsList[capturedCount] ||
+            referenceTag ||
+            '';
+
+          chrome.runtime
+            .sendMessage({
+              type: 'FLOW_REFERENCE_CAPTURED',
+              referenceId: totalExpected === 1 ? referenceId : undefined,
+              referenceTag: matchedTag,
+              referenceIndex: capturedCount,
+              imageUrl: src,
+              imageDataUrl,
+            })
+            .catch(() => {});
+
+          capturedCount++;
+          if (capturedCount >= totalExpected) {
+            clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+            window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+            break;
+          }
+        }
+      } finally {
+        capturing = false;
+      }
+    }, 2000);
+  }
+
+  async function handleScanFlowReferences(payload) {
+    const imgs = Array.from(document.querySelectorAll('img')).filter((img) => {
+      const w = img.naturalWidth || img.width || 0;
+      const h = img.naturalHeight || img.height || 0;
+      const src = (img.currentSrc || img.src || '').trim();
+      return src && !src.includes('avatar') && w >= 220 && h >= 150;
+    });
+    if (imgs.length === 0) {
+      reportStatus(
+        'ERROR',
+        'No se encontraron imágenes de referencia generadas en la pestaña de Google Flow.'
+      );
+      return;
+    }
+
+    const tagsList = Array.isArray(payload?.referenceTags) ? payload.referenceTags : [];
+    const maxToScan = Math.min(imgs.length, Math.max(tagsList.length || 6, 6));
+    const sliceImgs = imgs.slice(0, maxToScan);
+
+    reportStatus(
+      'WORKING',
+      `🔍 Importando ${sliceImgs.length} imagen(es) de @Referencias desde Google Flow...`
+    );
+
+    for (let i = 0; i < sliceImgs.length; i++) {
+      const src = (sliceImgs[i].currentSrc || sliceImgs[i].src || '').trim();
+      const imageDataUrl = await fetchVideoBinaryDataUrl(src, sliceImgs[i]);
+      chrome.runtime
+        .sendMessage({
+          type: 'FLOW_REFERENCE_CAPTURED',
+          referenceTag: tagsList[i] || '',
+          referenceIndex: i,
+          imageUrl: src,
+          imageDataUrl,
+        })
+        .catch(() => {});
+    }
+  }
+
   function startFlowVideoWatcher({
     clipNumber,
     clipId,
@@ -891,7 +1280,7 @@
     const lastTs = Number(
       document.documentElement.getAttribute('data-huellas-flow-cmd-ts') || '0'
     );
-    if (now - lastTs < 1200) {
+    if (now - lastTs < 600) {
       return true;
     }
     document.documentElement.setAttribute('data-huellas-flow-cmd-ts', String(now));
@@ -903,6 +1292,34 @@
         : rawPromptText;
     const baselineUrls = getAllCurrentVideoUrlsSet();
     const baselineImageUrls = getAllCurrentImageUrlsSet();
+
+    const startAppropriateWatcher = () => {
+      if (payload.mediaType === 'THUMBNAILS') {
+        startFlowThumbnailWatcher({
+          optionLabel: payload.optionLabel,
+          baselineImageUrls,
+        });
+      } else if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
+        startFlowReferenceImagesWatcher({
+          referenceId: payload.referenceId || payload.clipId || payload.clipNumber,
+          referenceTag: payload.referenceTag,
+          referenceTags: payload.referenceTags,
+          expectedCount: payload.expectedCount,
+          baselineImageUrls,
+        });
+      } else if (payload.watchForVideo !== false) {
+        startFlowVideoWatcher({
+          clipNumber: payload.clipNumber,
+          clipId: payload.clipId,
+          prompt: promptText,
+          attempt: payload.attempt || 1,
+          baselineUrls,
+          batchStartClip: payload.batchStartClip,
+          batchEndClip: payload.batchEndClip,
+          expectedCount: payload.expectedCount,
+        });
+      }
+    };
 
     setTimeout(() => {
       const inputEl = findFlowPromptInput();
@@ -949,7 +1366,7 @@
               !submitBtn.disabled &&
               submitBtn.getAttribute('aria-disabled') !== 'true'
             ) {
-              clickFlowSubmitButton(submitBtn, inputEl);
+              clickFlowSubmitButton(submitBtn, inputEl, promptText);
               reportStatus(
                 'GENERATING',
                 `🎬 Prompt enviado a producción en Google Flow. Vigilando generación automáticamente...`,
@@ -959,56 +1376,24 @@
                   mediaType: payload.mediaType,
                 }
               );
-              if (payload.mediaType === 'THUMBNAILS') {
-                startFlowThumbnailWatcher({
-                  optionLabel: payload.optionLabel,
-                  baselineImageUrls,
-                });
-              } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
-                startFlowVideoWatcher({
-                  clipNumber: payload.clipNumber,
-                  clipId: payload.clipId,
-                  prompt: promptText,
-                  attempt: payload.attempt || 1,
-                  baselineUrls,
-                  batchStartClip: payload.batchStartClip,
-                  batchEndClip: payload.batchEndClip,
-                  expectedCount: payload.expectedCount,
-                });
-              }
+              startAppropriateWatcher();
               return;
             }
 
-            if (attempts < 10) {
-              setTimeout(trySubmit, 220);
+            if (attempts < 8) {
+              setTimeout(trySubmit, 180);
             } else {
-              clickFlowSubmitButton(submitBtn, inputEl);
+              clickFlowSubmitButton(submitBtn, inputEl, promptText);
               reportStatus(
                 'GENERATING',
                 `🎬 Prompt enviado a producción en Google Flow. Vigilando generación...`,
                 { clipNumber: payload.clipNumber, clipId: payload.clipId }
               );
-              if (payload.mediaType === 'THUMBNAILS') {
-                startFlowThumbnailWatcher({
-                  optionLabel: payload.optionLabel,
-                  baselineImageUrls,
-                });
-              } else if (payload.watchForVideo !== false && payload.mediaType !== 'IMAGE') {
-                startFlowVideoWatcher({
-                  clipNumber: payload.clipNumber,
-                  clipId: payload.clipId,
-                  prompt: promptText,
-                  attempt: payload.attempt || 1,
-                  baselineUrls,
-                  batchStartClip: payload.batchStartClip,
-                  batchEndClip: payload.batchEndClip,
-                  expectedCount: payload.expectedCount,
-                });
-              }
+              startAppropriateWatcher();
             }
           };
 
-          setTimeout(trySubmit, hasLogo ? 650 : 220);
+          setTimeout(trySubmit, hasLogo ? 600 : 180);
         },
         hasLogo ? 450 : 0
       );
@@ -1038,10 +1423,20 @@
       return false;
     }
 
+    if (msg.action === 'SCAN_FLOW_REFERENCES') {
+      handleScanFlowReferences(msg);
+      sendResponse({ handled: true });
+      return false;
+    }
+
     if (msg.action === 'STOP_FLOW_WATCHER') {
       if (window.__HUELLAS_FLOW_WATCHER_TIMER__) {
         clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
         window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
+      }
+      if (window.__HUELLAS_FLOW_REF_WATCHER__) {
+        clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+        window.__HUELLAS_FLOW_REF_WATCHER__ = null;
       }
       sendResponse({ handled: true });
       return false;

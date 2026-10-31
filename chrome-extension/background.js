@@ -145,7 +145,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.0.0',
+          version: '2.1.0',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -238,7 +238,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (payload.focusTab === true) {
+        if (
+          payload.focusTab !== false ||
+          ((targetService === 'FLOW' || targetService === 'SUNO') && action === 'SEND_PROMPT')
+        ) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
@@ -251,7 +254,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           })
           .catch(() => {});
 
-        // MAIN-world safety injection & submit for Google Flow (attaches logoDataUrl if present + works even when the Flow tab is in the background!)
+        // MAIN-world safety injection & submit for Google Flow (attaches logoDataUrl if present + ensures submit button / Enter fires in MAIN world)
         if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
           const flowTabId = targetTab.id;
           const rawPromptArg = String(payload.prompt || '');
@@ -296,7 +299,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         const dt = new DataTransfer();
                         dt.items.add(logoFile);
 
-                        // Intercept HTMLInputElement.prototype.click briefly in case Google Flow creates a hidden <input type="file">
                         let capturedInput = document.querySelector(
                           'input[type="file"][accept*="image" i], input[type="file"]'
                         );
@@ -338,17 +340,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                             capturedInput.dispatchEvent(new Event('input', { bubbles: true }));
                           } catch {}
                         }
-
-                        try {
-                          inputEl.dispatchEvent(
-                            new ClipboardEvent('paste', {
-                              bubbles: true,
-                              cancelable: true,
-                              composed: true,
-                              clipboardData: dt,
-                            })
-                          );
-                        } catch {}
                       } catch {}
                     }
 
@@ -356,62 +347,65 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       mediaType === 'THUMBNAILS' &&
                       logoDataUrl &&
                       logoDataUrl.startsWith('data:')
-                        ? 500
+                        ? 400
                         : 0;
 
                     setTimeout(() => {
-                      let currentText = (inputEl.innerText || inputEl.textContent || '').trim();
-                      if (
-                        cleanExpected &&
-                        currentText.length > 0 &&
-                        !currentText.includes(cleanExpected.slice(0, 35))
-                      ) {
-                        const clearBtn = document.querySelector(
-                          'button.clear-button[aria-label="Clear prompt"], button.clear-button'
-                        );
-                        if (clearBtn) {
-                          try {
-                            clearBtn.click();
-                          } catch {}
-                        }
-                        currentText = '';
+                      const injectedTs = Number(
+                        document.documentElement.getAttribute('data-huellas-flow-injected-ts') || '0'
+                      );
+                      const currentText = (inputEl.innerText || inputEl.textContent || '').trim();
+
+                      // If flow-content.js already injected and submitted (box is now empty), DO NOT re-paste!
+                      if (currentText.length < 5 && Date.now() - injectedTs < 5000) {
+                        return;
                       }
 
-                      if (cleanExpected && (!currentText || currentText.length < 5)) {
-                        try {
-                          inputEl.focus();
-                          const dtText = new DataTransfer();
-                          dtText.setData('text/plain', cleanExpected);
-                          inputEl.dispatchEvent(
-                            new ClipboardEvent('paste', {
-                              bubbles: true,
-                              cancelable: true,
-                              composed: true,
-                              clipboardData: dtText,
-                            })
-                          );
-                        } catch {}
-                        const checkAfterPaste = (
-                          inputEl.innerText ||
-                          inputEl.textContent ||
-                          ''
-                        ).trim();
+                      // If flow-content.js could not inject at all, insert via ProseMirror view or execCommand
+                      if (currentText.length < 5 && cleanExpected) {
+                        const safeText = cleanExpected.endsWith(' ')
+                          ? cleanExpected
+                          : `${cleanExpected} `;
+                        const pmView = inputEl.pmViewDesc?.view;
+                        if (pmView && pmView.state) {
+                          try {
+                            const tr = pmView.state.tr.insertText(
+                              safeText,
+                              0,
+                              pmView.state.doc.content.size
+                            );
+                            pmView.dispatch(tr);
+                          } catch {}
+                        } else {
+                          try {
+                            inputEl.focus();
+                            const sel = window.getSelection();
+                            const r = document.createRange();
+                            r.selectNodeContents(inputEl);
+                            sel.removeAllRanges();
+                            sel.addRange(r);
+                            document.execCommand('insertText', false, safeText);
+                          } catch {}
+                        }
+                      }
+
+                      // Ensure ProseMirror's internal EditorView state is synced if text is in DOM
+                      const textNow = (inputEl.innerText || inputEl.textContent || '').trim();
+                      if (textNow.length >= 5) {
+                        const pmView = inputEl.pmViewDesc?.view;
                         if (
-                          !checkAfterPaste ||
-                          !checkAfterPaste.includes(cleanExpected.slice(0, 25))
+                          pmView &&
+                          pmView.state &&
+                          (pmView.state.doc.textContent || '').trim().length < 5
                         ) {
-                          inputEl.innerHTML = '';
-                          const p = document.createElement('p');
-                          p.textContent = cleanExpected;
-                          inputEl.appendChild(p);
-                          inputEl.dispatchEvent(
-                            new InputEvent('input', {
-                              bubbles: true,
-                              cancelable: true,
-                              inputType: 'insertText',
-                              data: cleanExpected,
-                            })
-                          );
+                          try {
+                            const tr = pmView.state.tr.insertText(
+                              `${textNow} `,
+                              0,
+                              pmView.state.doc.content.size
+                            );
+                            pmView.dispatch(tr);
+                          } catch {}
                         }
                       }
 
@@ -422,6 +416,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                           ''
                         ).trim();
                         if (!remaining || remaining.length < 5) return;
+
                         const selectors = [
                           'flow-generate-icon-button button',
                           'span.submit-button-slot button',
@@ -430,25 +425,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                           'button[aria-label="Start generation"]',
                           'button[aria-label*="Start generation" i]',
                           'button[aria-label*="Iniciar generación" i]',
+                          'button[aria-label*="Send" i]',
+                          'button[aria-label*="Enviar" i]',
                           'button[type="submit"]',
                         ];
                         for (const sel of selectors) {
                           const btn = document.querySelector(sel);
-                          if (btn) {
+                          if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
                             const r = btn.getBoundingClientRect();
-                            if (r.width >= 16 && r.height >= 16 && r.top > 0) {
+                            if (r.width >= 16 && r.height >= 16 && r.bottom > 0) {
                               btn.click();
-                              return;
+                              break;
                             }
                           }
                         }
-                      }, 280);
+
+                        // If 180ms later the prompt is still sitting in inputEl, press Enter in MAIN world
+                        setTimeout(() => {
+                          const stillThere = (
+                            inputEl?.innerText ||
+                            inputEl?.textContent ||
+                            ''
+                          ).trim();
+                          if (!stillThere || stillThere.length < 5) return;
+                          try {
+                            inputEl.focus();
+                            const sel = window.getSelection();
+                            if (sel) {
+                              const range = document.createRange();
+                              range.selectNodeContents(inputEl);
+                              range.collapse(false);
+                              sel.removeAllRanges();
+                              sel.addRange(range);
+                            }
+                            const evInit = {
+                              key: 'Enter',
+                              code: 'Enter',
+                              keyCode: 13,
+                              which: 13,
+                              charCode: 13,
+                              bubbles: true,
+                              cancelable: true,
+                              composed: true,
+                            };
+                            inputEl.dispatchEvent(new KeyboardEvent('keydown', evInit));
+                            inputEl.dispatchEvent(new KeyboardEvent('keypress', evInit));
+                            inputEl.dispatchEvent(new KeyboardEvent('keyup', evInit));
+                          } catch {}
+                        }, 180);
+                      }, 180);
                     }, hasLogoDelay);
                   } catch {}
                 },
               })
               .catch(() => {});
-          }, 420);
+          }, 380);
         }
 
         // MAIN-world safety injection & submit for Gemini Web (works even when the Gemini tab is in the background!)
@@ -562,6 +593,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'FLOW_MEDIA_READY' ||
     message.type === 'FLOW_VIDEO_CAPTURED' ||
     message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
+    message.type === 'FLOW_REFERENCE_CAPTURED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
   ) {
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);

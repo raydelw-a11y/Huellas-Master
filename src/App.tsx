@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:28 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:48 PM - 10/31/2026';
 
 export const DOCUMENTARY_SUBFOLDERS = [
   '01_Guion_y_SEO',
@@ -1664,7 +1664,7 @@ export default function App() {
       watchForVideo: true,
       mediaType: 'VIDEO',
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
       tabId: selectedFlowTabId,
     });
   };
@@ -1880,19 +1880,27 @@ export default function App() {
       watchForVideo: true,
       mediaType: 'VIDEO',
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
       tabId: selectedFlowTabId,
     });
   };
 
-  // Send Stage 6 @References Block to Google Flow
+  // Send Stage 6 @References Block to Google Flow & Generate All Reference Images Automatically
   const handleSendReferencesBlockToFlow = async () => {
     if (!activeDoc) return;
+    let refsList = activeDoc.references || [];
     const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
-    const builtFromList = (activeDoc.references || [])
+    if (refsList.length === 0 && rawRefs) {
+      const autoParsed = parseReferencesFromRawText(rawRefs);
+      if (autoParsed.length > 0) {
+        refsList = autoParsed;
+        updateActiveDoc({ references: autoParsed });
+      }
+    }
+    const builtFromList = refsList
       .map((r) => `${r.tag}: ${r.prompt}`)
       .join('\n\n');
-    const body = rawRefs || builtFromList;
+    const body = builtFromList || rawRefs;
     if (!body) {
       alert('Primero genera o escribe las @Referencias en la Etapa 6.');
       return;
@@ -1907,15 +1915,33 @@ export default function App() {
       '04_Referencias'
     );
     navigator.clipboard.writeText(fullText).catch(() => {});
-    setFlowStatusLog(
-      '🚀 Enviando bloque de @Referencias (@Personas y Lugares) a tu cuenta de Google Flow...'
-    );
+    const statusText = `🎬 Enviando y sometiendo ${
+      refsList.length > 0 ? `las ${refsList.length} @Referencias` : 'el bloque de @Referencias'
+    } (@Personas y Lugares) en Google Flow para generar todas las imágenes de referencia...`;
+    setFlowStatusLog(statusText);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(statusText);
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: fullText,
-      mediaType: 'IMAGE',
+      mediaType: 'REFERENCES',
+      referenceTags: refsList.map((r) => r.tag),
+      expectedCount: Math.max(1, refsList.length),
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
+      tabId: selectedFlowTabId,
+    });
+  };
+
+  const handleScanFlowReferencesInTab = async () => {
+    if (!activeDoc) return;
+    await ensureSingleDownloadFolderReadyOnGesture();
+    const refsList = activeDoc.references || [];
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg('🔍 Escaneando imágenes de @Referencias generadas en Google Flow...');
+    sendCommandToWebBridge('FLOW', {
+      action: 'SCAN_FLOW_REFERENCES',
+      referenceTags: refsList.map((r) => r.tag),
       tabId: selectedFlowTabId,
     });
   };
@@ -2063,7 +2089,7 @@ export default function App() {
       `🖼️ Enviando Prompt + Logo Oficial a tu cuenta de Google Flow en segundo plano (sin cambiar de ventana) y esperando para importar automáticamente Miniatura_Opcion_${optionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
 
-    // Send Prompt + Official Logo DataURL to logged-in Google Flow tab WITHOUT switching tabs (focusTab: false)
+    // Send Prompt + Official Logo DataURL to logged-in Google Flow tab and focus it for reliable submission
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
@@ -2071,7 +2097,7 @@ export default function App() {
       mediaType: 'THUMBNAILS',
       optionLabel,
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
       tabId: selectedFlowTabId,
     });
   };
@@ -2093,7 +2119,7 @@ export default function App() {
       trackNumber,
       trackTitle: title || `Suno_${String(trackNumber).padStart(2, '0')}`,
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
     });
   };
 
@@ -2386,6 +2412,60 @@ export default function App() {
           );
           handleAuditThumbnailPsychology(opt, dataUrl);
         }
+      } else if (msg.type === 'FLOW_REFERENCE_CAPTURED') {
+        setExtensionInstalled(true);
+        const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        const refIdx = typeof msg.referenceIndex === 'number' ? msg.referenceIndex : -1;
+        const refTagFromMsg = String(msg.referenceTag || '').trim();
+        const refIdFromMsg = String(msg.referenceId || '').trim();
+        if (dataUrl) {
+          const currentDoc = activeDocRef.current;
+          let matchedTag = refTagFromMsg;
+          if (currentDoc) {
+            let currentRefs =
+              currentDoc.references && currentDoc.references.length > 0
+                ? [...currentDoc.references]
+                : (currentDoc.rawReferencePrompts || '').trim()
+                ? parseReferencesFromRawText(currentDoc.rawReferencePrompts)
+                : [];
+            let targetIndex = -1;
+            if (refIdFromMsg) {
+              targetIndex = currentRefs.findIndex((r) => r.id === refIdFromMsg);
+            }
+            if (targetIndex === -1 && refTagFromMsg) {
+              const cleanTarget = refTagFromMsg.replace(/^@+/, '').toLowerCase();
+              targetIndex = currentRefs.findIndex(
+                (r) => r.tag.replace(/^@+/, '').toLowerCase() === cleanTarget
+              );
+            }
+            if (targetIndex === -1 && refIdx >= 0 && refIdx < currentRefs.length) {
+              targetIndex = refIdx;
+            }
+            if (targetIndex === -1) {
+              targetIndex = currentRefs.findIndex((r) => !r.imageUrl);
+            }
+            if (targetIndex >= 0 && targetIndex < currentRefs.length) {
+              matchedTag = currentRefs[targetIndex].tag || matchedTag || `Ref_${targetIndex + 1}`;
+              currentRefs[targetIndex] = {
+                ...currentRefs[targetIndex],
+                imageUrl: dataUrl,
+                isCreated: true,
+              };
+              updateActiveDoc({ references: currentRefs });
+            }
+          }
+          const safeTagName = (matchedTag || `Referencia_${refIdx >= 0 ? refIdx + 1 : Date.now()}`)
+            .replace(/^@+/, '')
+            .replace(/[^a-zA-Z0-9_-]/g, '_');
+          const refFileName = `Ref_${safeTagName}.png`;
+          await handleSaveAnyFileToChosenFolder(refFileName, dataUrl, '04_Referencias');
+          const folderLabel =
+            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
+          const logText = `🖼️ ¡Imagen de referencia ${matchedTag || refFileName} generada en Google Flow, importada a la tarjeta y guardada en "${folderLabel}/04_Referencias/${refFileName}"!`;
+          setFlowStatusLog(logText);
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(logText);
+        }
       } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
         // ITEM 2: Auto-save captured Suno MP3 into 02_Audio inside Root Folder and inject into CapCut Editor Track 5
         setExtensionInstalled(true);
@@ -2471,7 +2551,7 @@ export default function App() {
       stageNumber: stageNum,
       taskType: 'STAGE_GENERATION',
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
       tabId: preferredTabId || selectedGeminiTabId,
     });
   };
@@ -2502,22 +2582,31 @@ export default function App() {
       return;
     }
 
+    const matchedRef =
+      mediaType === 'IMAGE' && clipIdentifier
+        ? activeDoc?.references?.find((r) => r.id === String(clipIdentifier))
+        : undefined;
+
     if (!showWebStudio) {
       setShowWebStudio(true);
     }
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🎬 Enviando prompt a tu cuenta de Google Flow en segundo plano...`
+      `🎬 Enviando prompt a tu cuenta de Google Flow y ejecutando envío automático...`
     );
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
       clipNumber: matchedClip ? matchedClip.clipNumber : clipIdentifier,
       clipId: matchedClip ? matchedClip.id : undefined,
+      referenceId: matchedRef ? matchedRef.id : mediaType === 'IMAGE' && clipIdentifier ? String(clipIdentifier) : undefined,
+      referenceTag: matchedRef ? matchedRef.tag : undefined,
+      referenceTags: matchedRef ? [matchedRef.tag] : undefined,
+      expectedCount: matchedRef ? 1 : undefined,
       watchForVideo: mediaType === 'VIDEO',
       mediaType,
       autoSubmit: true,
-      focusTab: false,
+      focusTab: true,
       tabId: preferredTabId || selectedFlowTabId,
     });
   };
@@ -5833,6 +5922,22 @@ export default function App() {
                         {aiGenerating ? 'Generando Referencias...' : '✨ Generar @Referencias con Gemini'}
                       </button>
                       <button
+                        type="button"
+                        onClick={handleSendReferencesBlockToFlow}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                        title="Envía la orden y todos los prompts de referencia a Google Flow, presiona Enviar automáticamente e importa las imágenes creadas"
+                      >
+                        🎬 Generar Imágenes con Flow
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleScanFlowReferencesInTab}
+                        className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                        title="Importar imágenes de referencia ya generadas en la pestaña abierta de Google Flow"
+                      >
+                        📥 Importar de Flow
+                      </button>
+                      <button
                         onClick={() => {
                           const parsed = parseReferencesFromRawText(activeDoc.rawReferencePrompts);
                           if (parsed.length === 0) {
@@ -5869,22 +5974,44 @@ export default function App() {
                   </div>
 
                   {/* Mandatory Single-Sentence Order Box */}
-                  <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between flex-wrap gap-3">
                     <code className="text-xs text-amber-300">
                       Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.
                     </code>
-                    <button
-                      onClick={() =>
-                        copyText(
-                          `Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.\n\n${activeDoc.rawReferencePrompts}`,
-                          'copy-all-refs'
-                        )
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold shrink-0 cursor-pointer"
-                    >
-                      {copiedId === 'copy-all-refs' ? '✓ Copiado' : '📋 Copiar Orden + Todos los Prompts'}
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSendReferencesBlockToFlow}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shrink-0 cursor-pointer"
+                      >
+                        🎬 Generar Imágenes con Flow
+                      </button>
+                      <button
+                        onClick={() =>
+                          copyText(
+                            `Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.\n\n${activeDoc.rawReferencePrompts}`,
+                            'copy-all-refs'
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold shrink-0 cursor-pointer"
+                      >
+                        {copiedId === 'copy-all-refs' ? '✓ Copiado' : '📋 Copiar Orden + Todos los Prompts'}
+                      </button>
+                    </div>
                   </div>
+
+                  {flowStatusLog && (
+                    <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2">
+                      <span>{flowStatusLog}</span>
+                      <button
+                        type="button"
+                        onClick={handleScanFlowReferencesInTab}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-semibold text-[11px] shrink-0 cursor-pointer"
+                      >
+                        🔄 Escanear Imágenes en Flow
+                      </button>
+                    </div>
+                  )}
 
                   <textarea
                     rows={5}
@@ -5992,11 +6119,17 @@ export default function App() {
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleSendPromptToFlow(ref.prompt, 'IMAGE', ref.id)}
+                            onClick={() =>
+                              handleSendPromptToFlow(
+                                `${ref.tag.startsWith('@') ? ref.tag : `@${ref.tag}`}: ${ref.prompt}`,
+                                'IMAGE',
+                                ref.id
+                              )
+                            }
                             className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold cursor-pointer"
-                            title="Enviar a Google Flow para crear imagen de referencia gratis"
+                            title="Enviar esta tarjeta a Google Flow para generar e importar su imagen de referencia"
                           >
-                            🚀 Flow
+                            🎬 Generar en Flow
                           </button>
                           <button
                             onClick={() => copyText(ref.prompt, `ref-${ref.id}`)}

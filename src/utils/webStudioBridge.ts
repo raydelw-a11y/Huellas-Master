@@ -19,6 +19,7 @@ export interface WebBridgeCommandPayload {
     | 'GRAB_LAST_MEDIA'
     | 'SCAN_FLOW_VIDEOS'
     | 'SCAN_FLOW_THUMBNAILS'
+    | 'SCAN_FLOW_REFERENCES'
     | 'SCAN_SUNO_TRACKS'
     | 'STOP_FLOW_WATCHER'
     | 'OPEN_DOCKED'
@@ -30,7 +31,10 @@ export interface WebBridgeCommandPayload {
   clipId?: string;
   attempt?: number;
   watchForVideo?: boolean;
-  mediaType?: 'IMAGE' | 'VIDEO' | 'THUMBNAILS';
+  mediaType?: 'IMAGE' | 'VIDEO' | 'THUMBNAILS' | 'REFERENCES';
+  referenceId?: string;
+  referenceTag?: string;
+  referenceTags?: string[];
   batchStartClip?: number;
   batchEndClip?: number;
   expectedCount?: number;
