@@ -236,7 +236,9 @@ export interface DocumentaryProject {
   createdAt: string;
   updatedAt: string;
 
-  // Etapa 1: Configuración y Prompt Maestro
+  // Etapa 1: Configuración, Carpeta de Descarga Obligatoria y Prompt Maestro
+  downloadFolderName?: string;
+  downloadFolderPath?: string;
   promptConfig: Record<string, any>;
   compiledMasterPrompt: string;
 

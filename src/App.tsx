@@ -104,7 +104,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:45 AM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:01 PM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -1021,7 +1021,39 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
-  // 1. Choose Destination Folder on User's Computer from the Site (Before Auto-Download)
+  const effectiveDocFolderName =
+    (activeDoc?.downloadFolderName || '').trim() ||
+    flowDownloadFolderName.trim() ||
+    flowServerFolderPath.trim();
+  const hasSelectedDocFolder = Boolean(effectiveDocFolderName);
+
+  // Sync folder state when switching documentaries, and force Stage 1 if no folder is selected yet
+  useEffect(() => {
+    if (!activeDoc) return;
+    const savedName = (activeDoc.downloadFolderName || '').trim();
+    const savedPath = (activeDoc.downloadFolderPath || '').trim();
+    setFlowDownloadFolderName(savedName);
+    setFlowServerFolderPath(savedPath);
+    if (!savedName && !savedPath) {
+      flowDownloadDirHandleRef.current = null;
+      setActiveStage(1);
+    }
+  }, [activeDoc?.id]);
+
+  // Gate Stages 2-12 until the Documentary Download Folder is selected in Stage 1
+  const handleTrySelectStage = (targetStage: number) => {
+    if (targetStage > 1 && !hasSelectedDocFolder) {
+      alert(
+        '🔒 Paso Obligatorio en Etapa 1: Primero debes seleccionar la Carpeta de Descarga del Documental en la Etapa 1 antes de poder entrar a las demás etapas.'
+      );
+      setActiveStage(1);
+      return false;
+    }
+    setActiveStage(targetStage);
+    return true;
+  };
+
+  // 1. Choose Destination Folder on User's Computer in Stage 1 (Unlocks Stages 2 to 12)
   const handlePickFlowDownloadFolder = async (): Promise<boolean> => {
     try {
       if (typeof (window as any).showDirectoryPicker === 'function') {
@@ -1029,11 +1061,16 @@ export default function App() {
           mode: 'readwrite',
         });
         if (dirHandle) {
+          const pickedName = dirHandle.name || 'Carpeta Seleccionada';
           flowDownloadDirHandleRef.current = dirHandle;
-          setFlowDownloadFolderName(dirHandle.name || 'Carpeta Seleccionada');
+          setFlowDownloadFolderName(pickedName);
           setFlowServerFolderPath('');
+          updateActiveDoc({
+            downloadFolderName: pickedName,
+            downloadFolderPath: '',
+          });
           setFlowStatusLog(
-            `📁 Carpeta de auto-descarga lista: "${dirHandle.name}". Todos los videos aprobados se guardarán aquí automáticamente.`
+            `📁 Carpeta del documental seleccionada: "${pickedName}". ¡Etapas 2 a 12 desbloqueadas!`
           );
           return true;
         }
@@ -1048,19 +1085,43 @@ export default function App() {
     if (!isCloudMode) {
       try {
         const res = await fetch('/api/system/pick-folder', { method: 'POST' });
-        if (res.ok) {
+        if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
           const data = await res.json();
           if (data.folderPath) {
             flowDownloadDirHandleRef.current = null;
             setFlowServerFolderPath(data.folderPath);
             setFlowDownloadFolderName(data.folderPath);
+            updateActiveDoc({
+              downloadFolderName: data.folderPath,
+              downloadFolderPath: data.folderPath,
+            });
             setFlowStatusLog(
-              `📁 Carpeta de auto-descarga lista: "${data.folderPath}". Todos los videos aprobados se guardarán aquí automáticamente.`
+              `📁 Carpeta del documental seleccionada: "${data.folderPath}". ¡Etapas 2 a 12 desbloqueadas!`
             );
             return true;
           }
         }
       } catch {}
+    }
+
+    // Universal fallback for browsers without showDirectoryPicker (e.g., Safari / iOS on GitHub Pages)
+    const defaultFolderSlug = (activeDoc?.title || 'Documental_Huellas')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 40);
+    const manualFolder = window.prompt(
+      '📂 Ingresa o confirma el nombre de la carpeta de descarga para este documental:',
+      defaultFolderSlug
+    );
+    if (manualFolder && manualFolder.trim()) {
+      const cleanFolder = manualFolder.trim();
+      setFlowDownloadFolderName(cleanFolder);
+      updateActiveDoc({
+        downloadFolderName: cleanFolder,
+      });
+      setFlowStatusLog(
+        `📁 Carpeta del documental configurada: "${cleanFolder}". ¡Etapas 2 a 12 desbloqueadas!`
+      );
+      return true;
     }
 
     return false;
@@ -1672,6 +1733,14 @@ export default function App() {
   const handleRunFullPreproduction1To8 = async () => {
     if (!activeDoc) return;
     if (isFullPreprodRunning) return;
+    if (!hasSelectedDocFolder) {
+      updateDoc({ currentStage: 1 });
+      alert(
+        '🔒 Antes de avanzar o autogenerar las demás etapas, primero debes seleccionar la Carpeta de Descarga del Documental en la Etapa 1.'
+      );
+      await handlePickFlowDownloadFolder();
+      return;
+    }
 
     setIsFullPreprodRunning(true);
     let workingDoc: DocumentaryProject = { ...activeDoc };
@@ -3707,15 +3776,17 @@ export default function App() {
             <div className="md:hidden">
               <select
                 value={activeStage}
-                onChange={(e) => setActiveStage(Number(e.target.value))}
+                onChange={(e) => handleTrySelectStage(Number(e.target.value))}
                 className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs font-bold text-amber-200 outline-none"
               >
                 {STAGES_LIST.map((st) => {
                   const done = isStageDone(activeDoc, st.num);
+                  const isLocked = st.num > 1 && !hasSelectedDocFolder;
                   return (
                     <option key={st.num} value={st.num}>
-                      {done ? '✓ ' : '○ '}
+                      {isLocked ? '🔒 ' : done ? '✓ ' : '○ '}
                       {st.title} — {st.subtitle}
+                      {isLocked ? ' (Elige Carpeta en Etapa 1)' : ''}
                     </option>
                   );
                 })}
@@ -3728,30 +3799,41 @@ export default function App() {
                 const IconComp = st.icon;
                 const done = isStageDone(activeDoc, st.num);
                 const isCurrent = activeStage === st.num;
+                const isLocked = st.num > 1 && !hasSelectedDocFolder;
                 return (
                   <button
                     key={st.num}
-                    onClick={() => setActiveStage(st.num)}
-                    title={`${st.title} — ${st.subtitle}`}
-                    className={`px-2.5 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition cursor-pointer border ${
-                      isCurrent
-                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/15'
+                    onClick={() => handleTrySelectStage(st.num)}
+                    title={
+                      isLocked
+                        ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga del Documental en la Etapa 1`
+                        : `${st.title} — ${st.subtitle}`
+                    }
+                    className={`px-2.5 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
+                      isLocked
+                        ? 'bg-slate-950/50 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
+                        : isCurrent
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/15 cursor-pointer'
                         : done
-                        ? 'bg-slate-900/90 hover:bg-slate-800/90 text-slate-200 border-emerald-500/30'
-                        : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border-slate-800/80'
+                        ? 'bg-slate-900/90 hover:bg-slate-800/90 text-slate-200 border-emerald-500/30 cursor-pointer'
+                        : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border-slate-800/80 cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1 w-full">
                       <IconComp
                         className={`w-3.5 h-3.5 shrink-0 ${
-                          isCurrent
+                          isLocked
+                            ? 'text-slate-600'
+                            : isCurrent
                             ? 'text-slate-950'
                             : done
                             ? 'text-emerald-400'
                             : 'text-amber-400/80'
                         }`}
                       />
-                      {done ? (
+                      {isLocked ? (
+                        <Lock className="w-3 h-3 shrink-0 text-amber-500/70" />
+                      ) : done ? (
                         <CheckCircle2
                           className={`w-3.5 h-3.5 shrink-0 ${
                             isCurrent ? 'text-slate-950' : 'text-emerald-400'
@@ -3804,20 +3886,111 @@ export default function App() {
                 )}
                 {activeStage < 12 && (
                   <button
-                    onClick={() => setActiveStage((s) => s + 1)}
-                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleTrySelectStage(activeStage + 1)}
+                    className={`px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 ${
+                      !hasSelectedDocFolder
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer'
+                    }`}
                   >
-                    Siguiente Etapa <ChevronRight className="w-3.5 h-3.5" />
+                    {!hasSelectedDocFolder ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5" /> Elige Carpeta Abajo Primero
+                      </>
+                    ) : (
+                      <>
+                        Siguiente Etapa <ChevronRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
                   </button>
                 )}
               </div>
             </div>
 
             {/* ===============================================================
-                ETAPA 1: CONFIGURACIÓN Y PROMPT MAESTRO INTEGRADO
+                ETAPA 1: CARPETA DE DESCARGA OBLIGATORIA + PROMPT MAESTRO INTEGRADO
             =============================================================== */}
             {activeStage === 1 && (
               <div className="space-y-4">
+                {/* MANDATORY STEP IN STAGE 1: SELECT DOCUMENTARY DOWNLOAD FOLDER */}
+                <div
+                  className={`rounded-2xl p-5 border-2 transition-all shadow-lg ${
+                    hasSelectedDocFolder
+                      ? 'bg-gradient-to-r from-emerald-950/70 via-[#14120f] to-slate-950 border-emerald-500/60'
+                      : 'bg-gradient-to-r from-amber-950/80 via-rose-950/40 to-[#14120f] border-amber-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="space-y-1 max-w-3xl">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                            hasSelectedDocFolder
+                              ? 'bg-emerald-500 text-slate-950'
+                              : 'bg-amber-500 text-slate-950 animate-pulse'
+                          }`}
+                        >
+                          {hasSelectedDocFolder
+                            ? '✓ Paso Obligatorio Completado'
+                            : '🔒 Paso 1 Obligatorio para Desbloquear Etapas 2 a 12'}
+                        </span>
+                        <h3 className="text-sm sm:text-base font-black text-slate-100">
+                          📂 Carpeta de Descarga del Documental
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {hasSelectedDocFolder ? (
+                          <>
+                            Todos los archivos generados en este documental (Clips aprobados{' '}
+                            <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>,
+                            Miniaturas A/B, Audio VoxFlow, Música Suno, <code className="text-amber-300">.SRT</code> y
+                            el Video Final) se guardarán automáticamente en:{' '}
+                            <strong className="text-emerald-300 font-mono underline">
+                              {effectiveDocFolderName}
+                            </strong>
+                            . ¡Las Etapas 2 a 12 ya están desbloqueadas!
+                          </>
+                        ) : (
+                          <>
+                            Antes de avanzar a las demás etapas, selecciona la carpeta de tu
+                            computadora donde se descargarán automáticamente todos los clips,
+                            miniaturas, audios y el video final de este documental.{' '}
+                            <strong className="text-amber-300">
+                              Las Etapas 2 a 12 permanecerán bloqueadas hasta que elijas la carpeta.
+                            </strong>
+                          </>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handlePickFlowDownloadFolder}
+                        className={`px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition shadow-lg ${
+                          hasSelectedDocFolder
+                            ? 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/50'
+                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25'
+                        }`}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        {hasSelectedDocFolder
+                          ? `📁 Carpeta: ${effectiveDocFolderName} (Cambiar)`
+                          : '📂 Seleccionar Carpeta de Descarga del Documental'}
+                      </button>
+
+                      {hasSelectedDocFolder && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveStage(2)}
+                          className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                        >
+                          Continuar a Etapa 2 <ChevronRight className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
                   <p className="text-xs text-amber-200">
                     💡 Configura las opciones de tu episodio abajo y presiona{' '}

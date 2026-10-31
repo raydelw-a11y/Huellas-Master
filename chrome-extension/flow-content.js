@@ -97,30 +97,116 @@
       'button[aria-label="Start generation"]',
       'button[aria-label*="Start generation" i]',
       'button[aria-label*="Iniciar generación" i]',
+      'button[aria-label*="Generate" i]',
+      'button[aria-label*="Create" i]',
+      'button[aria-label*="Generar" i]',
+      'button[aria-label*="Crear" i]',
+      'button[aria-label*="Send" i]',
+      'button[aria-label*="Submit" i]',
+      'button[aria-label*="Enviar" i]',
       'button[type="submit"]',
     ];
 
+    const matchedDirect = [];
     for (const sel of directSelectors) {
       const buttons = Array.from(document.querySelectorAll(sel));
       for (const btn of buttons) {
         const r = btn.getBoundingClientRect();
         if (r.width >= 16 && r.height >= 16 && r.top > 0) {
-          return btn;
+          matchedDirect.push({ btn, right: r.right });
         }
       }
     }
+    if (matchedDirect.length > 0) {
+      matchedDirect.sort((a, b) => b.right - a.right);
+      return matchedDirect[0].btn;
+    }
 
-    // 2. Fallback: find actual <button> (never a parent container!) with mat-icon 'arrow_forward' near inputEl
-    const inputRect = inputEl ? inputEl.getBoundingClientRect() : { top: 600, left: 800 };
+    const inputRect = inputEl
+      ? inputEl.getBoundingClientRect()
+      : { top: window.innerHeight - 140, left: 400, width: 400, right: 800, bottom: window.innerHeight - 60 };
+
+    // 2. Walk up from inputEl (up to 6 levels) to find the prompt bar container and pick its RIGHTMOST action button
+    let container = inputEl ? inputEl.parentElement : null;
+    for (let depth = 0; depth < 6 && container; depth++) {
+      const btnsInContainer = Array.from(container.querySelectorAll('button')).filter((btn) => {
+        const r = btn.getBoundingClientRect();
+        if (r.width < 18 || r.height < 18 || r.top <= 0) return false;
+        // Must be to the right side of the prompt box start
+        if (r.left < inputRect.left + Math.min(80, inputRect.width * 0.25)) return false;
+        const meta = (
+          (btn.getAttribute('aria-label') || '') +
+          ' ' +
+          (btn.className || '') +
+          ' ' +
+          (btn.innerText || '')
+        ).toLowerCase();
+        if (
+          meta.includes('clear') ||
+          meta.includes('limpiar') ||
+          meta.includes('borrar') ||
+          meta.includes('close') ||
+          meta.includes('cerrar') ||
+          meta.includes('delete') ||
+          meta.includes('settings') ||
+          meta.includes('ajustes') ||
+          meta.includes('config')
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      if (btnsInContainer.length > 0) {
+        // First check if any button in the container has arrow_forward / arrow_upward / send
+        const arrowBtn = btnsInContainer.find((b) => {
+          const t = (b.innerText || b.textContent || '').trim().toLowerCase();
+          return (
+            t.includes('arrow_forward') ||
+            t.includes('arrow_upward') ||
+            t.includes('send') ||
+            t.includes('crear') ||
+            t.includes('generate') ||
+            t.includes('create')
+          );
+        });
+        if (arrowBtn) return arrowBtn;
+
+        // Otherwise, in Google Flow's prompt bar, the submit button is ALWAYS the rightmost button
+        btnsInContainer.sort(
+          (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right
+        );
+        return btnsInContainer[0];
+      }
+      container = container.parentElement;
+    }
+
+    // 3. Global fallback near inputEl
     const allButtons = Array.from(document.querySelectorAll('button'));
+    const nearRightButtons = [];
     for (const btn of allButtons) {
       const r = btn.getBoundingClientRect();
       if (r.width < 16 || r.height < 16 || r.top <= 0) continue;
       if (Math.abs(r.top - inputRect.top) > 250) continue;
       const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-      if (text === 'arrow_forward' || text === 'arrow_upward' || text === 'send') {
+      if (
+        text === 'arrow_forward' ||
+        text === 'arrow_upward' ||
+        text === 'send' ||
+        text === 'create' ||
+        text === 'generate' ||
+        text === 'crear' ||
+        text === 'generar'
+      ) {
         return btn;
       }
+      if (r.left >= inputRect.left + inputRect.width * 0.5) {
+        nearRightButtons.push({ btn, right: r.right });
+      }
+    }
+    if (nearRightButtons.length > 0) {
+      nearRightButtons.sort((a, b) => b.right - a.right);
+      return nearRightButtons[0].btn;
     }
 
     return null;
@@ -163,16 +249,17 @@
         } else {
           inputEl.value = text;
         }
-        inputEl.dispatchEvent(
-          new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: text,
-          })
-        );
-        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
+      inputEl.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: text,
+        })
+      );
+      inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
       return;
     }
 
@@ -184,29 +271,105 @@
       range.selectNodeContents(inputEl);
       selection.removeAllRanges();
       selection.addRange(range);
-      document.execCommand('insertText', false, text);
+
+      try {
+        inputEl.dispatchEvent(
+          new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            inputType: 'insertText',
+            data: text,
+          })
+        );
+      } catch {}
+
+      const okExec = document.execCommand('insertText', false, text);
+      const currentAfterExec = (inputEl.innerText || inputEl.textContent || '').trim();
+      if (!okExec || currentAfterExec.length < Math.min(8, text.trim().length)) {
+        inputEl.textContent = text;
+      }
+
+      inputEl.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: text,
+        })
+      );
+      inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      inputEl.dispatchEvent(
+        new KeyboardEvent('keyup', {
+          key: ' ',
+          code: 'Space',
+          bubbles: true,
+          composed: true,
+        })
+      );
     } catch {}
   }
 
-  function clickFlowSubmitButton(btn) {
-    const rect = btn.getBoundingClientRect();
-    const clientX = rect.left + rect.width / 2;
-    const clientY = rect.top + rect.height / 2;
-    const opts = {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window,
-      clientX,
-      clientY,
-      button: 0,
-      buttons: 1,
-    };
-    btn.dispatchEvent(new PointerEvent('pointerdown', opts));
-    btn.dispatchEvent(new MouseEvent('mousedown', opts));
-    btn.dispatchEvent(new PointerEvent('pointerup', opts));
-    btn.dispatchEvent(new MouseEvent('mouseup', opts));
-    btn.click();
+  function dispatchEnterKeyOnInput(inputEl) {
+    if (!inputEl) return;
+    try {
+      inputEl.focus();
+      const evInit = {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      };
+      inputEl.dispatchEvent(new KeyboardEvent('keydown', evInit));
+      inputEl.dispatchEvent(new KeyboardEvent('keypress', evInit));
+      inputEl.dispatchEvent(new KeyboardEvent('keyup', evInit));
+    } catch {}
+  }
+
+  function clickFlowSubmitButton(btn, inputEl) {
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+        button: 0,
+        buttons: 1,
+      };
+      btn.dispatchEvent(new PointerEvent('pointerdown', opts));
+      btn.dispatchEvent(new MouseEvent('mousedown', opts));
+      btn.dispatchEvent(new PointerEvent('pointerup', opts));
+      btn.dispatchEvent(new MouseEvent('mouseup', opts));
+      btn.click();
+    } else if (inputEl) {
+      dispatchEnterKeyOnInput(inputEl);
+    }
+
+    // Safety follow-up: if after 320ms the prompt text is still sitting un-submitted in the input box,
+    // click the freshly-queried submit button and press Enter on inputEl.
+    if (inputEl) {
+      setTimeout(() => {
+        const remaining = (inputEl.value ?? inputEl.innerText ?? '').trim();
+        if (remaining.length > 12) {
+          const freshBtn = findExactFlowSubmitButton(inputEl);
+          if (freshBtn && !freshBtn.disabled && freshBtn.getAttribute('aria-disabled') !== 'true') {
+            try {
+              freshBtn.click();
+            } catch {}
+          }
+          dispatchEnterKeyOnInput(inputEl);
+        }
+      }, 320);
+    }
   }
 
   function getVideoElementUrl(videoEl) {
@@ -749,13 +912,10 @@
           !submitBtn.disabled &&
           submitBtn.getAttribute('aria-disabled') !== 'true'
         ) {
-          clickFlowSubmitButton(submitBtn);
+          clickFlowSubmitButton(submitBtn, inputEl);
           reportStatus(
             'GENERATING',
-            `🎬 Clip #${String(payload.clipNumber || '?').padStart(
-              2,
-              '0'
-            )} enviado a producción en Google Flow. Vigilando generación automáticamente...`,
+            `🎬 Prompt enviado a producción en Google Flow. Vigilando generación automáticamente...`,
             {
               clipNumber: payload.clipNumber,
               clipId: payload.clipId,
@@ -784,14 +944,11 @@
 
         if (attempts < 8) {
           setTimeout(trySubmit, 180);
-        } else if (submitBtn) {
-          clickFlowSubmitButton(submitBtn);
+        } else {
+          clickFlowSubmitButton(submitBtn, inputEl);
           reportStatus(
             'GENERATING',
-            `🎬 Clip #${String(payload.clipNumber || '?').padStart(
-              2,
-              '0'
-            )} enviado a producción en Google Flow. Vigilando generación...`,
+            `🎬 Prompt enviado a producción en Google Flow. Vigilando generación...`,
             { clipNumber: payload.clipNumber, clipId: payload.clipId }
           );
           if (payload.mediaType === 'THUMBNAILS') {
