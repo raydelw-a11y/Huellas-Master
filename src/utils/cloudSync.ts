@@ -439,9 +439,12 @@ Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.hist
 """
 ${doc.voiceoverScript || doc.sectionsStructure || ''}
 """
-Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
-- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
-- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
+Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 (estándar oficial de continuidad de Google Flow):
+- Antepón en la primera línea literalmente la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
+- Para cada PERSONAJE principal, escribe una sola línea con el formato:
+  @Nombre_Personaje: Create an image in 16:9 of a character sheet with a head and shoulders shot showing the character's face on the left and a full body shot of the character on the right wearing the same period-accurate clothing and accessories (${doc.historicalTime}, ${doc.historicalLocation}) against a seamless white background, bright even lighting with minimal shadow, neutral forward-facing expression. Physical Characteristics & Clothing: [rasgos físicos detallados, edad, cabello, rostro y vestimenta histórica de pies a cabeza]. Visual Style: Hyper-realistic cinematic film still, ultra-high-fidelity textures, visible skin pores, uncropped full frame, textless, no lines or text/words in the image.
+- Para cada LUGAR principal (sin @ al inicio), escribe una sola línea con el formato:
+  Nombre_Lugar: Create an image in 16:9 with 4 different 16:9 views of this same location (${doc.historicalTime}, ${doc.historicalLocation}) with perfect continuity: one wide establishing shot of the environment well-lit for the historical atmosphere, and three shots from different angles and perspectives showing architectural details, materials, and lighting. Physical Characteristics: [arquitectura, materiales, época e iluminación]. Visual Style: Hyper-realistic cinematic film still, atmospheric lighting, no people, animals, or characters in the image, textless, no lines or text/words in the image.`;
   } else if (stageNumber === 7) {
     stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}

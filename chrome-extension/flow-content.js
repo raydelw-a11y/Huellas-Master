@@ -1434,4 +1434,28 @@
   };
 
   chrome.runtime.onMessage.addListener(window.__HUELLAS_FLOW_MESSAGE_HANDLER__);
+
+  // Listen for images captured inside the Story Studio (flow-sdk) iframe and forward to Huellas Master
+  if (!window.__HUELLAS_STORY_STUDIO_BRIDGE_LISTENER__) {
+    window.__HUELLAS_STORY_STUDIO_BRIDGE_LISTENER__ = true;
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (
+        data &&
+        data.source === 'HUELLAS_STORY_STUDIO_FRAME' &&
+        data.type === 'FLOW_REFERENCE_CAPTURED'
+      ) {
+        chrome.runtime
+          .sendMessage({
+            type: 'FLOW_REFERENCE_CAPTURED',
+            referenceId: data.referenceId,
+            referenceTag: data.referenceTag,
+            referenceIndex: data.referenceIndex,
+            mediaId: data.mediaId,
+            imageDataUrl: data.imageDataUrl,
+          })
+          .catch(() => {});
+      }
+    });
+  }
 })();

@@ -597,6 +597,268 @@ async function sendHardwareEnterKey(target) {
 }
 
 /**
+ * Automatiza directamente el Applet interno "Story Studio" (flow-sdk) de Google Flow
+ * si está abierto dentro de algún iframe de la pestaña de Google Flow:
+ * 1. Intercepta HTMLInputElement.prototype.click para inyectar el JSON del proyecto sin abrir diálogo de archivos.
+ * 2. Abre el menú ⋮ del header -> clic en "Open Story" -> hidrata todos los @Personajes y Lugares.
+ * 3. Cambia a la pestaña "2. Assets" y pulsa "Autocreate images" en Characters y Locations (que invoca Flow.generate.image nativamente en cola de 2 en 2).
+ * 4. Vigila las tarjetas dentro de Story Studio para capturar cada imagen blob: generada y enviarla de vuelta a Huellas Master.
+ */
+async function tryAutomateStoryStudioInTab(tabId, storyStudioJsonStr, referenceItems = []) {
+  if (!storyStudioJsonStr) return { storyStudioFound: false };
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      args: [storyStudioJsonStr, referenceItems],
+      func: async (jsonStr, refItems) => {
+        const sleepFrame = (ms) => new Promise((r) => setTimeout(r, ms));
+        const isStoryStudioFrame =
+          Boolean(document.getElementById('story-studio-modal-root')) ||
+          (Array.from(document.querySelectorAll('header button')).some((b) =>
+            /1\.\s*Script/i.test(b.textContent || '')
+          ) &&
+            Array.from(document.querySelectorAll('header button')).some((b) =>
+              /2\.\s*Assets/i.test(b.textContent || '')
+            ));
+
+        if (!isStoryStudioFrame) {
+          return { storyStudioFound: false };
+        }
+
+        // 0. Si el usuario expuso window.__HUELLAS_FLOW_SDK__ = Flow en Story Studio, llamarlo directamente
+        if (
+          window.__HUELLAS_FLOW_SDK__ &&
+          typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function' &&
+          Array.isArray(refItems) &&
+          refItems.length > 0
+        ) {
+          (async () => {
+            for (let i = 0; i < refItems.length; i++) {
+              const item = refItems[i];
+              try {
+                const res = await window.__HUELLAS_FLOW_SDK__.generate.image({
+                  prompt: item.formattedPrompt || item.prompt,
+                  aspectRatio: '16:9',
+                  modelDisplayName: '🍌 Nano Banana 2',
+                });
+                if (res && res.base64) {
+                  const mime = res.mimeType || 'image/jpeg';
+                  window.postMessage(
+                    {
+                      source: 'HUELLAS_STORY_STUDIO_FRAME',
+                      type: 'FLOW_REFERENCE_CAPTURED',
+                      referenceId: item.id,
+                      referenceTag: item.tag,
+                      referenceIndex: i,
+                      mediaId: res.mediaId,
+                      imageDataUrl: `data:${mime};base64,${res.base64}`,
+                    },
+                    '*'
+                  );
+                }
+              } catch (e) {
+                console.warn('[Huellas Story Studio SDK] Error generating image:', e);
+              }
+            }
+          })();
+          return { storyStudioFound: true, method: 'DIRECT_FLOW_SDK', count: refItems.length };
+        }
+
+        // 1. Cerrar modal de bienvenida "Welcome to Story Studio" / "Get Started" si está abierto
+        const getStartedBtn = Array.from(document.querySelectorAll('button')).find((b) =>
+          /get started/i.test((b.textContent || '').trim())
+        );
+        if (getStartedBtn) {
+          try {
+            getStartedBtn.click();
+            await sleepFrame(150);
+          } catch {}
+        }
+
+        // Registrar las imágenes blob: que ya existían antes de inyectar para no re-importar viejas
+        const preExistingBlobs = new Set(
+          Array.from(document.querySelectorAll('img'))
+            .map((img) => img.src)
+            .filter(Boolean)
+        );
+
+        // 2. Interceptar HTMLInputElement.prototype.click para inyectar el archivo .json en "Open Story" sin abrir Finder
+        const origInputClick = HTMLInputElement.prototype.click;
+        let jsonInjected = false;
+        HTMLInputElement.prototype.click = function () {
+          if (this.type === 'file' && (this.accept === '.json' || !this.accept)) {
+            HTMLInputElement.prototype.click = origInputClick;
+            try {
+              const file = new File([jsonStr], 'Huellas_Story_Studio.json', {
+                type: 'application/json',
+              });
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              this.files = dt.files;
+              jsonInjected = true;
+              if (typeof this.onchange === 'function') {
+                this.onchange({ target: this });
+              } else {
+                this.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            } catch (err) {
+              console.warn('[Huellas Story Studio] Error injecting JSON file:', err);
+            }
+            return;
+          }
+          return origInputClick.apply(this, arguments);
+        };
+
+        // 3. Abrir el menú ⋮ del header y hacer clic en "Open Story"
+        const headerMoreBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
+          (b.textContent || '').includes('more_vert')
+        );
+        if (headerMoreBtn) {
+          headerMoreBtn.click();
+          await sleepFrame(150);
+          const openStoryBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
+            /open story/i.test((b.textContent || '').trim())
+          );
+          if (openStoryBtn) {
+            openStoryBtn.click();
+          }
+        }
+
+        // Restaurar HTMLInputElement.prototype.click por seguridad
+        setTimeout(() => {
+          HTMLInputElement.prototype.click = origInputClick;
+        }, 1500);
+
+        await sleepFrame(550);
+
+        // 4. Cambiar a la pestaña "2. Assets"
+        const assetsTabBtn = Array.from(document.querySelectorAll('header button')).find((b) =>
+          /2\.\s*Assets/i.test((b.textContent || '').trim())
+        );
+        if (assetsTabBtn) {
+          assetsTabBtn.click();
+          await sleepFrame(450);
+        }
+
+        // 5. En cada sección (Characters y Locations), abrir su menú ⋮ y pulsar "Autocreate images"
+        let triggeredSections = 0;
+        const sections = Array.from(document.querySelectorAll('main section'));
+        for (const sec of sections) {
+          const secMoreBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+            (b.textContent || '').includes('more_vert')
+          );
+          if (secMoreBtn) {
+            secMoreBtn.click();
+            await sleepFrame(160);
+            const autoCreateBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+              /autocreate images/i.test((b.textContent || '').trim())
+            );
+            if (autoCreateBtn && !autoCreateBtn.disabled) {
+              autoCreateBtn.click();
+              triggeredSections++;
+              await sleepFrame(220);
+            } else {
+              // Si no hay botón "Autocreate images", intentar el botón "Autofill Characters/Locations"
+              const autofillBtn = Array.from(sec.querySelectorAll('button')).find((b) =>
+                /autofill/i.test((b.textContent || '').trim())
+              );
+              if (autofillBtn && !autofillBtn.disabled) {
+                autofillBtn.click();
+                triggeredSections++;
+                await sleepFrame(220);
+              }
+            }
+          }
+        }
+
+        // 6. Vigilar las tarjetas dentro de Story Studio para capturar cada nueva imagen blob: generada
+        if (window.__HUELLAS_STORY_STUDIO_WATCHER__) {
+          clearInterval(window.__HUELLAS_STORY_STUDIO_WATCHER__);
+        }
+        const capturedSrcs = new Set(preExistingBlobs);
+        let elapsed = 0;
+        window.__HUELLAS_STORY_STUDIO_WATCHER__ = setInterval(async () => {
+          elapsed += 2500;
+          if (elapsed > 360000) {
+            clearInterval(window.__HUELLAS_STORY_STUDIO_WATCHER__);
+            window.__HUELLAS_STORY_STUDIO_WATCHER__ = null;
+            return;
+          }
+
+          const imgs = Array.from(document.querySelectorAll('main section img'));
+          for (const img of imgs) {
+            const src = img.src || '';
+            if (!src || capturedSrcs.has(src)) continue;
+            if (!img.complete || (img.naturalWidth > 0 && img.naturalWidth < 120)) continue;
+            capturedSrcs.add(src);
+
+            try {
+              const resp = await fetch(src);
+              const blob = await resp.blob();
+              const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+
+              // Identificar a qué @Referencia pertenece leyendo el texto de su tarjeta
+              const cardEl = img.closest('[class*="rounded"]') || img.parentElement?.parentElement;
+              const cardText = (cardEl?.innerText || cardEl?.textContent || '').toLowerCase();
+              let matchedItem = null;
+              let matchedIdx = -1;
+              if (Array.isArray(refItems)) {
+                for (let idx = 0; idx < refItems.length; idx++) {
+                  const candidate = refItems[idx];
+                  const cleanName = (candidate.name || candidate.tag || '')
+                    .replace(/^@+/, '')
+                    .replace(/_/g, ' ')
+                    .toLowerCase()
+                    .trim();
+                  if (cleanName && cardText.includes(cleanName)) {
+                    matchedItem = candidate;
+                    matchedIdx = idx;
+                    break;
+                  }
+                }
+              }
+
+              window.postMessage(
+                {
+                  source: 'HUELLAS_STORY_STUDIO_FRAME',
+                  type: 'FLOW_REFERENCE_CAPTURED',
+                  referenceId: matchedItem?.id,
+                  referenceTag: matchedItem?.tag,
+                  referenceIndex: matchedIdx >= 0 ? matchedIdx : undefined,
+                  imageDataUrl: dataUrl,
+                },
+                '*'
+              );
+            } catch (e) {
+              console.warn('[Huellas Story Studio] Failed to read blob image:', e);
+            }
+          }
+        }, 2500);
+
+        return {
+          storyStudioFound: true,
+          jsonInjected,
+          triggeredSections,
+          method: 'STORY_STUDIO_AUTOCREATE_IMAGES',
+        };
+      },
+    });
+
+    const hit = (results || []).find((r) => r?.result?.storyStudioFound);
+    return hit ? hit.result : { storyStudioFound: false };
+  } catch (err) {
+    console.warn('[Huellas Story Studio] executeScript allFrames warning:', err);
+    return { storyStudioFound: false };
+  }
+}
+
+/**
  * Orquestador completo para Google Flow:
  * 1. Pega el prompt en MAIN world ANTES de abrir chrome.debugger.
  * 2. Si el prompt sigue en la caja, abre chrome.debugger, espera 350ms, hace clic físico
@@ -791,7 +1053,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.4.0',
+          version: '2.5.0',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -891,11 +1153,93 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await ensureScriptInjected(targetTab.id, contentScriptFile);
         await sleep(100);
 
-        if (targetService === 'FLOW' && action === 'SEND_PROMPT') {
+        if (
+          targetService === 'FLOW' &&
+          (action === 'SEND_PROMPT' || action === 'LOAD_STORY_STUDIO_PROJECT')
+        ) {
           try {
+            // 1. Si el comando trae proyecto para Story Studio (ej. Etapa 6 Referencias), intentar primero inyectarlo en Story Studio (flow-sdk nativo)
+            if (payload.storyStudioProjectJson) {
+              const ssRes = await tryAutomateStoryStudioInTab(
+                targetTab.id,
+                payload.storyStudioProjectJson,
+                payload.referenceItems || []
+              );
+              if (ssRes && ssRes.storyStudioFound) {
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'BRIDGE_STATUS',
+                  service: 'FLOW',
+                  status: 'GENERATING',
+                  message: `🎬 ¡Conectado a Story Studio (flow-sdk) en Google Flow! Generando automáticamente las ${(payload.referenceItems || []).length || ''} @Referencias en cola de 2 en 2...`,
+                  mediaType: payload.mediaType,
+                });
+                sendResponse({
+                  ok: true,
+                  tabId: targetTab.id,
+                  tabTitle: targetTab.title,
+                  ...ssRes,
+                });
+                return;
+              }
+            }
+
+            // 2. Si Story Studio no está abierto y estamos en la Etapa 6 (múltiples @Referencias), enviarlas en COLA SECUENCIAL 1 por 1 (< 3,950 chars cada una)
+            if (
+              payload.mediaType === 'REFERENCES' &&
+              Array.isArray(payload.referenceItems) &&
+              payload.referenceItems.length > 1
+            ) {
+              const items = payload.referenceItems;
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'SEQUENTIAL_REFERENCE_QUEUE',
+                total: items.length,
+              });
+
+              (async () => {
+                for (let i = 0; i < items.length; i++) {
+                  const item = items[i];
+                  const singlePrompt = String(item.formattedPrompt || item.prompt || '').slice(
+                    0,
+                    3950
+                  );
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'GENERATING',
+                    message: `🎬 Cola Flow (${i + 1}/${items.length}): Enviando y sometiendo ${item.tag} (< 3,950 chars)...`,
+                    mediaType: 'REFERENCES',
+                  });
+                  try {
+                    await executeFlowPromptHardware(targetTab.id, singlePrompt, {
+                      ...payload,
+                      mediaType: 'IMAGE',
+                    });
+                  } catch (qErr) {
+                    console.warn('[Huellas Queue] Error en item:', item.tag, qErr);
+                  }
+                  if (i < items.length - 1) {
+                    await sleep(6500);
+                  }
+                }
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'BRIDGE_STATUS',
+                  service: 'FLOW',
+                  status: 'SUCCESS',
+                  message: `✅ Cola de ${items.length} @Referencias enviada una por una a Google Flow. Usa "📥 Importar de Flow" cuando terminen de renderizar.`,
+                  mediaType: 'REFERENCES',
+                });
+              })();
+              return;
+            }
+
+            // 3. Envío individual normal (< 3,950 chars) en la barra inferior de Google Flow
+            const safeSinglePrompt = String(payload.prompt || '').slice(0, 3950);
             const autoRes = await executeFlowPromptHardware(
               targetTab.id,
-              String(payload.prompt || ''),
+              safeSinglePrompt,
               payload
             );
 

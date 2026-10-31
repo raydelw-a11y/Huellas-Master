@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Suno)",
-  "version": "2.4.0",
-  "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow y Suno abiertas en la misma ventana.",
+  "version": "2.5.0",
+  "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow (incluyendo Story Studio flow-sdk) y Suno abiertas en la misma ventana.",
   "permissions": [
     "debugger",
     "tabs",
@@ -14,6 +14,8 @@
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",
+    "https://*.usercontent.goog/*",
+    "https://*.scf.usercontent.goog/*",
     "https://suno.com/*",
     "https://*.suno.com/*",
     "https://*.suno.ai/*",
@@ -53,10 +55,16 @@
       "matches": [
         "https://flow.google.com/*",
         "https://*.flow.google.com/*",
-        "https://labs.google/*"
+        "https://labs.google/*",
+        "https://*.usercontent.goog/*",
+        "https://*.scf.usercontent.goog/*",
+        "https://*.googleusercontent.com/*"
       ],
       "js": ["flow-content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true
     },
     {
       "matches": [

@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:01 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:46 PM - 10/31/2026';
 
 export const DOCUMENTARY_SUBFOLDERS = [
   '01_Guion_y_SEO',
@@ -1885,7 +1885,234 @@ export default function App() {
     });
   };
 
-  // Send Stage 6 @References Block to Google Flow & Generate All Reference Images Automatically
+  // Official Google Flow (Gesso / Story Studio) Prompt Formatter for @Personas (Character Sheet) & Lugares (4-View Location Sheet)
+  // Enforces the hard 3,950-char Flow SDK limit so prompts are never truncated or rejected
+  const formatReferencePromptForFlow = (
+    ref: ReferenceAsset,
+    doc: DocumentaryProject | null = activeDoc
+  ): string => {
+    const cleanTag = (ref.tag || '').trim();
+    const isPerson = ref.category === 'persona' || cleanTag.startsWith('@');
+    const displayName = cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim() || 'Historical Subject';
+    const eraContext = [doc?.historicalTime, doc?.historicalLocation]
+      .map((s) => (s || '').trim())
+      .filter(Boolean)
+      .join(', ');
+    const rawDesc = (ref.prompt || '')
+      .replace(/^@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*/i, '')
+      .replace(/^[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ\s]+\s*:\s*(?=Create an image|Frame Description)/i, '')
+      .trim();
+
+    const realisticStyle =
+      'Hyper-realistic cinematic film still. Shallow depth of field, atmospheric lighting, ultra-high-fidelity textures. Lifelike characters exhibit visible skin pores, natural flaws, and nuanced micro-expressions within a softly focused, immersive environment. Characters ignore the camera. Uncropped full frame, textless, no letterboxing.';
+
+    let fullPrompt = '';
+    if (/Frame Description\s*:/i.test(rawDesc) || /character sheet with a head and shoulders shot/i.test(rawDesc) || /4 different 16:9 views of this same location/i.test(rawDesc)) {
+      fullPrompt = rawDesc.includes('Visual Style:')
+        ? rawDesc
+        : `${rawDesc}\nVisual Style: ${realisticStyle}`;
+    } else if (isPerson) {
+      fullPrompt = [
+        'Frame Description: A character sheet with a head and shoulders shot showing the characters face on the left and a full body shot of the character on the right wearing the same clothing and accessories against a seamless white background. Bright, even lighting clearly shows the individual\'s features with minimal shadow. Their expression is neutral and forward-facing, creating an objective "asset" shot for casting. No lines or text/words in the image.',
+        `Character: ${displayName}${eraContext ? ` (${eraContext})` : ''}`,
+        `Physical Characteristics: ${rawDesc}`,
+        `Clothing and Accessories: Period-accurate historical attire (${eraContext || 'historical documentary'}). ${rawDesc}`,
+        `Visual Style: ${realisticStyle}`,
+      ].join('\n');
+    } else {
+      fullPrompt = [
+        'Frame Description: Make a single image with 4 different 16:9 views of this same location with perfect continuity. One image should be a wide establishing shot of the environment, well-lit for the atmosphere of the film. There are no other people, animals, or characters in the image. No lines or text/words in the image. The other three shots of the location should be from different angles and perspectives, showing different parts of the environment.',
+        `Location: ${displayName}${eraContext ? ` (${eraContext})` : ''}`,
+        `Time of Day: ${doc?.historicalTime || 'Dramatic historical documentary lighting'}`,
+        `Physical Characteristics: ${rawDesc}`,
+        `Visual Style: ${realisticStyle}`,
+      ].join('\n');
+    }
+
+    const maxPromptLength = 3950;
+    return fullPrompt.length > maxPromptLength
+      ? `${fullPrompt.slice(0, maxPromptLength - 3)}...`
+      : fullPrompt;
+  };
+
+  // Build Official Google Flow Story Studio Project JSON (v1.2)
+  const buildStoryStudioProjectJson = (
+    doc: DocumentaryProject,
+    includeScriptAndFrames: boolean = true
+  ): string => {
+    const refsList = doc.references || [];
+    const eraContext = [doc.historicalTime, doc.historicalLocation]
+      .map((s) => (s || '').trim())
+      .filter(Boolean)
+      .join(', ');
+
+    const assets = refsList.map((ref, idx) => {
+      const cleanTag = (ref.tag || `Referencia_${idx + 1}`).trim();
+      const isPerson = ref.category === 'persona' || cleanTag.startsWith('@');
+      const cleanName = cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim();
+      const cleanDesc = (ref.prompt || '')
+        .replace(/^@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*/i, '')
+        .replace(/^Create an image[^,.:]*[,.:]?\s*/i, '')
+        .trim();
+
+      const rawBase64 =
+        ref.imageUrl && ref.imageUrl.startsWith('data:image/')
+          ? ref.imageUrl.split(',')[1]
+          : undefined;
+
+      if (isPerson) {
+        return {
+          id: ref.id || `char-${idx + 1}`,
+          type: 'character',
+          name: cleanName,
+          description: cleanDesc,
+          physicalCharacteristics: `${cleanDesc}${eraContext ? ` (${eraContext})` : ''}`,
+          clothingAccessories: `Period-accurate historical clothing and accessories from ${eraContext || 'the era'}. ${cleanDesc}`,
+          backstory: `Main historical figure in "${doc.title || doc.topic}".`,
+          base64: rawBase64,
+          supportingImages: rawBase64
+            ? [{ id: `img-${ref.id}`, base64: rawBase64 }]
+            : [],
+          referenceImageId: rawBase64 ? `img-${ref.id}` : undefined,
+          includeInspirationInImageGen: true,
+        };
+      }
+
+      return {
+        id: ref.id || `loc-${idx + 1}`,
+        type: 'location',
+        name: cleanName,
+        description: cleanDesc,
+        physicalCharacteristics: `${cleanDesc}${eraContext ? ` (${eraContext})` : ''}`,
+        timeOfDay: doc.historicalTime || 'Dramatic historical documentary atmosphere',
+        base64: rawBase64,
+        supportingImages: rawBase64
+          ? [{ id: `img-${ref.id}`, base64: rawBase64 }]
+          : [],
+        referenceImageId: rawBase64 ? `img-${ref.id}` : undefined,
+        includeInspirationInImageGen: true,
+      };
+    });
+
+    const clips = doc.clips || [];
+    const frames = includeScriptAndFrames
+      ? clips.map((clip) => {
+          const numStr = String(clip.clipNumber).padStart(2, '0');
+          const combinedText = `${clip.imagePrompt || ''} ${clip.videoPrompt || ''} ${clip.narrationText || ''}`.toLowerCase();
+          const linkedAssetIds = assets
+            .filter((a) => {
+              const nameLower = a.name.toLowerCase();
+              const slugLower = a.name.replace(/\s+/g, '_').toLowerCase();
+              return (
+                combinedText.includes(nameLower) ||
+                combinedText.includes(`@${slugLower}`) ||
+                combinedText.includes(slugLower)
+              );
+            })
+            .map((a) => a.id);
+
+          return {
+            id: clip.id || `frame-${numStr}`,
+            sceneId: `scene-${numStr}`,
+            sceneNumber: numStr,
+            sceneTitle: `Scene ${numStr} (${clip.startTime || '00:00'} - ${clip.endTime || '00:10'})`,
+            shotNumber: '01',
+            title: `Clip ${numStr}`,
+            visualDescription: clip.imagePrompt || '',
+            motionDescription: clip.videoPrompt || '',
+            audioDescription: clip.narrationText || '',
+            linkedAssetIds,
+            imageHistory: [],
+          };
+        })
+      : [];
+
+    const fullMarkdown = includeScriptAndFrames
+      ? [
+          `# ${doc.title || doc.topic || 'Huellas de la Humanidad'}`,
+          '',
+          ...(clips.length > 0
+            ? clips.flatMap((clip) => {
+                const numStr = String(clip.clipNumber).padStart(2, '0');
+                return [
+                  `<!-- scene-id: scene-${numStr} -->`,
+                  `### Scene ${numStr} (${clip.startTime || '00:00'} - ${clip.endTime || '00:10'})`,
+                  clip.narrationText || clip.imagePrompt || '',
+                  '',
+                ];
+              })
+            : [doc.voiceoverScript || doc.sectionsStructure || '']),
+        ].join('\n')
+      : '';
+
+    const projectData = {
+      version: '1.2',
+      projectTitle: doc.title || doc.topic || 'Huellas de la Humanidad',
+      fullMarkdown,
+      globalStyle: 'Realistic',
+      customStyleLibrary: {},
+      assets,
+      frames,
+    };
+
+    return JSON.stringify(projectData, null, 2);
+  };
+
+  // Upgrade all Stage 6 reference cards to Google Flow's official Character Sheet / 4-View Location Sheet format
+  const handleUpgradeReferencesToOfficialFlowFormat = () => {
+    if (!activeDoc) return;
+    let refsList = activeDoc.references || [];
+    const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
+    if (refsList.length === 0 && rawRefs) {
+      refsList = parseReferencesFromRawText(rawRefs);
+    }
+    if (refsList.length === 0) {
+      alert('Primero genera o pega las @Referencias en la Etapa 6.');
+      return;
+    }
+    const upgraded = refsList.map((r) => ({
+      ...r,
+      prompt: formatReferencePromptForFlow(r, activeDoc),
+    }));
+    const header =
+      'Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.';
+    const updatedRaw = `${header}\n\n${upgraded
+      .map((r) => `${r.tag}: ${r.prompt.replace(/\n+/g, ' ')}`)
+      .join('\n\n')}`;
+    updateActiveDoc({
+      references: upgraded,
+      rawReferencePrompts: updatedRaw,
+    });
+    setFlowStatusLog(
+      `✨ ${upgraded.length} tarjetas actualizadas al Formato Oficial de Google Flow (Character Sheet para @Personas y 4-View Sheet para Lugares, < 3,950 chars).`
+    );
+  };
+
+  // Export & Download Story Studio JSON (.json) for Google Flow's "Open Story"
+  const handleExportStoryStudioJson = async () => {
+    if (!activeDoc) return;
+    await ensureSingleDownloadFolderReadyOnGesture();
+    const jsonStr = buildStoryStudioProjectJson(activeDoc, true);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const safeTitle = (activeDoc.title || activeDoc.topic || 'Huellas_Documental')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 45);
+    const fileName = `Story_Studio_${safeTitle}.json`;
+    await handleSaveAnyFileToChosenFolder(fileName, blob, '04_Referencias');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    setFlowStatusLog(
+      `📦 Proyecto Story Studio exportado (${fileName}). Puedes abrirlo en Google Flow → Story Studio → menú ⋮ → "Open Story".`
+    );
+  };
+
+  // Send Stage 6 @References to Google Flow (Auto-detects Story Studio flow-sdk OR runs Sequential 1-by-1 Queue on Main Bar)
   const handleSendReferencesBlockToFlow = async () => {
     if (!activeDoc) return;
     let refsList = activeDoc.references || [];
@@ -1897,36 +2124,72 @@ export default function App() {
         updateActiveDoc({ references: autoParsed });
       }
     }
-    const builtFromList = refsList
-      .map((r) => `${r.tag}: ${r.prompt}`)
-      .join('\n\n');
-    const body = builtFromList || rawRefs;
-    if (!body) {
+    if (refsList.length === 0 && !rawRefs) {
       alert('Primero genera o escribe las @Referencias en la Etapa 6.');
       return;
     }
     await ensureSingleDownloadFolderReadyOnGesture();
+
+    const referenceItems = refsList.map((r) => {
+      const cleanTag = (r.tag || '').trim();
+      const isPerson = r.category === 'persona' || cleanTag.startsWith('@');
+      const normalizedTag = isPerson
+        ? cleanTag.startsWith('@')
+          ? cleanTag
+          : `@${cleanTag}`
+        : cleanTag.replace(/^@+/, '');
+      const formatted = formatReferencePromptForFlow(r, activeDoc);
+      return {
+        id: r.id,
+        tag: normalizedTag,
+        name: cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
+        category: (isPerson ? 'persona' : 'lugar') as 'persona' | 'lugar',
+        prompt: r.prompt,
+        formattedPrompt: `${normalizedTag}: ${formatted}`.slice(0, 3950),
+      };
+    });
+
     const header =
       'Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.';
+    const builtFromList = referenceItems
+      .map((item) => item.formattedPrompt)
+      .join('\n\n');
+    const body = builtFromList || rawRefs;
     const fullText = body.includes('Cambia los nombres') ? body : `${header}\n\n${body}`;
+
     await handleSaveAnyFileToChosenFolder(
       'Prompts_Referencias.txt',
       new Blob([fullText], { type: 'text/plain' }),
       '04_Referencias'
     );
+
+    const storyStudioJson = buildStoryStudioProjectJson(
+      { ...activeDoc, references: refsList },
+      false
+    );
+    await handleSaveAnyFileToChosenFolder(
+      'Story_Studio_Referencias.json',
+      new Blob([storyStudioJson], { type: 'application/json' }),
+      '04_Referencias'
+    );
+
     navigator.clipboard.writeText(fullText).catch(() => {});
-    const statusText = `🎬 Enviando y sometiendo ${
-      refsList.length > 0 ? `las ${refsList.length} @Referencias` : 'el bloque de @Referencias'
-    } (@Personas y Lugares) en Google Flow para generar todas las imágenes de referencia...`;
+    const statusText = `🎬 Enviando ${
+      referenceItems.length > 0 ? `${referenceItems.length} @Referencias` : '@Referencias'
+    } a Google Flow (Modo Nativo Story Studio flow-sdk + Cola Secuencial < 3,950 chars con Character Sheet y 4-View Sheet)...`;
     setFlowStatusLog(statusText);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(statusText);
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
-      prompt: fullText,
+      prompt: referenceItems[0]?.formattedPrompt || fullText.slice(0, 3950),
       mediaType: 'REFERENCES',
-      referenceTags: refsList.map((r) => r.tag),
-      expectedCount: Math.max(1, refsList.length),
+      referenceTags: referenceItems.map((r) => r.tag),
+      referenceItems,
+      storyStudioProjectJson: storyStudioJson,
+      storyStudioTargetTab: 'assets',
+      autoCreateImages: true,
+      expectedCount: Math.max(1, referenceItems.length),
       autoSubmit: true,
       focusTab: true,
       tabId: selectedFlowTabId,
@@ -5931,6 +6194,22 @@ export default function App() {
                       </button>
                       <button
                         type="button"
+                        onClick={handleUpgradeReferencesToOfficialFlowFormat}
+                        className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                        title="Convierte cada @Persona al formato oficial Character Sheet (rostro izquierda + cuerpo entero derecha) y cada Lugar a 4-View Sheet (4 ángulos 16:9)"
+                      >
+                        ✨ Formato Oficial Flow (Character / 4-View)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportStoryStudioJson}
+                        className="px-3 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                        title="Descarga el archivo .json compatible con 'Open Story' del tool Story Studio en Google Flow"
+                      >
+                        📦 Exportar JSON Story Studio
+                      </button>
+                      <button
+                        type="button"
                         onClick={handleScanFlowReferencesInTab}
                         className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                         title="Importar imágenes de referencia ya generadas en la pestaña abierta de Google Flow"
@@ -6119,15 +6398,22 @@ export default function App() {
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
+                              const formattedSingle = formatReferencePromptForFlow(ref, activeDoc);
+                              const tagPrefix =
+                                ref.category === 'persona' || ref.tag.startsWith('@')
+                                  ? ref.tag.startsWith('@')
+                                    ? ref.tag
+                                    : `@${ref.tag}`
+                                  : ref.tag;
                               handleSendPromptToFlow(
-                                `${ref.tag.startsWith('@') ? ref.tag : `@${ref.tag}`}: ${ref.prompt}`,
+                                `${tagPrefix}: ${formattedSingle}`.slice(0, 3950),
                                 'IMAGE',
                                 ref.id
-                              )
-                            }
+                              );
+                            }}
                             className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold cursor-pointer"
-                            title="Enviar esta tarjeta a Google Flow para generar e importar su imagen de referencia"
+                            title="Enviar esta tarjeta a Google Flow con formato oficial Character Sheet / 4-View Sheet (< 3,950 chars)"
                           >
                             🎬 Generar en Flow
                           </button>

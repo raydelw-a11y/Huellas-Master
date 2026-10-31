@@ -453,8 +453,8 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
     if (!line) continue;
     if (/^Cambia los nombres y ponles @/i.test(line)) continue;
 
-    // Si la línea tiene "Create an image"
-    const createImgIdx = line.search(/Create an image/i);
+    // Si la línea tiene "Create an image" o "Frame Description:"
+    const createImgIdx = line.search(/Create an image|Frame Description\s*:/i);
     if (createImgIdx !== -1) {
       const before = line.slice(0, createImgIdx).replace(/[:\-–*#\d.)]/g, '').trim();
       const promptPart = line.slice(createImgIdx).trim();
@@ -462,7 +462,9 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
       const tag = atMatch
         ? `@${atMatch[1]}`
         : before || currentTag || `Referencia_${results.length + 1}`;
-      const isPerson = tag.startsWith('@') || /portrait|person|character|man|woman|emperor|king|queen/i.test(promptPart);
+      const isPerson =
+        tag.startsWith('@') ||
+        /character sheet|portrait|person|character|man|woman|emperor|king|queen/i.test(promptPart);
 
       results.push({
         id: `ref-${Date.now()}-${results.length + 1}`,

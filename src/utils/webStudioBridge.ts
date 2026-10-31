@@ -12,9 +12,19 @@ export interface ConnectedAiTab {
   url: string;
 }
 
+export interface WebBridgeReferenceQueueItem {
+  id: string;
+  tag: string;
+  name: string;
+  category: 'persona' | 'lugar';
+  prompt: string;
+  formattedPrompt: string;
+}
+
 export interface WebBridgeCommandPayload {
   action:
     | 'SEND_PROMPT'
+    | 'LOAD_STORY_STUDIO_PROJECT'
     | 'GRAB_LAST_RESPONSE'
     | 'GRAB_LAST_MEDIA'
     | 'SCAN_FLOW_VIDEOS'
@@ -35,6 +45,10 @@ export interface WebBridgeCommandPayload {
   referenceId?: string;
   referenceTag?: string;
   referenceTags?: string[];
+  referenceItems?: WebBridgeReferenceQueueItem[];
+  storyStudioProjectJson?: string;
+  storyStudioTargetTab?: 'assets' | 'storyboard';
+  autoCreateImages?: boolean;
   batchStartClip?: number;
   batchEndClip?: number;
   expectedCount?: number;
