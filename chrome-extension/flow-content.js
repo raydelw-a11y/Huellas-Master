@@ -36,15 +36,22 @@
   }
 
   function findFlowPromptInput() {
-    // 1. Direct match for Google Flow's ProseMirror prompt box
-    const proseMirror = document.querySelector(
-      'div.ProseMirror[contenteditable="true"], div[role="textbox"][contenteditable="true"][aria-label*="create" i], div[role="textbox"][contenteditable="true"]'
-    );
-    if (proseMirror) {
-      const r = proseMirror.getBoundingClientRect();
-      if (r.width > 60 && r.height > 14) {
-        return proseMirror;
-      }
+    // 1. Direct match for Google Flow's ProseMirror prompt box (excluding side panels like .agent-panel-animation-container)
+    const proseCandidates = Array.from(
+      document.querySelectorAll(
+        'div.ProseMirror[contenteditable="true"], div[role="textbox"][contenteditable="true"][aria-label*="create" i], div[role="textbox"][contenteditable="true"]'
+      )
+    ).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return (
+        r.width > 40 &&
+        r.height > 12 &&
+        !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+      );
+    });
+    if (proseCandidates.length > 0) {
+      proseCandidates.sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
+      return proseCandidates[0];
     }
 
     // 2. Fallback for textarea or other contenteditable inputs
@@ -57,6 +64,9 @@
     let bestScore = -999999;
 
     for (const el of allCandidates) {
+      if (el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')) {
+        continue;
+      }
       const rect = el.getBoundingClientRect();
       if (rect.width < 60 || rect.height < 14) continue;
       if (rect.bottom <= 0 || rect.top >= window.innerHeight) continue;
@@ -88,43 +98,6 @@
   }
 
   function findExactFlowSubmitButton(inputEl) {
-    // 1. Exact Google Flow submit button selectors verified from live DOM (strict priority order)
-    const directSelectors = [
-      'flow-generate-icon-button button',
-      'span.submit-button-slot button',
-      '[submitbutton] button',
-      'button.generate-icon-button',
-      'button[aria-label="Start generation"]',
-      'button[aria-label*="Start generation" i]',
-      'button[aria-label*="Iniciar generación" i]',
-      'button[aria-label*="Send" i]',
-      'button[aria-label*="Enviar" i]',
-      'button[aria-label*="Submit" i]',
-      'button[type="submit"]',
-    ];
-
-    const matchedDirect = [];
-    for (const sel of directSelectors) {
-      const buttons = Array.from(document.querySelectorAll(sel));
-      for (const btn of buttons) {
-        const r = btn.getBoundingClientRect();
-        if (r.width >= 16 && r.height >= 16 && r.bottom > 0) {
-          matchedDirect.push({
-            btn,
-            right: r.right,
-            disabled: Boolean(btn.disabled || btn.getAttribute('aria-disabled') === 'true'),
-          });
-        }
-      }
-    }
-    if (matchedDirect.length > 0) {
-      matchedDirect.sort((a, b) => {
-        if (a.disabled !== b.disabled) return a.disabled ? 1 : -1;
-        return b.right - a.right;
-      });
-      return matchedDirect[0].btn;
-    }
-
     const inputRect = inputEl
       ? inputEl.getBoundingClientRect()
       : {
@@ -136,9 +109,19 @@
           height: 120,
         };
 
-    // 2. Walk up from inputEl (up to 7 levels) to find the prompt composer container and pick its submit/action button
+    // 1. Walk up from inputEl (up to 8 levels) to find button.generate-icon-button or submit button strictly inside the composer container
     let container = inputEl ? inputEl.parentElement : null;
-    for (let depth = 0; depth < 7 && container && container !== document.body; depth++) {
+    for (let depth = 0; depth < 8 && container && container !== document.body; depth++) {
+      const exactGenerateBtn = container.querySelector(
+        'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
+      );
+      if (exactGenerateBtn) {
+        const r = exactGenerateBtn.getBoundingClientRect();
+        if (r.width >= 16 && r.height >= 16 && r.bottom > 0) {
+          return exactGenerateBtn;
+        }
+      }
+
       const cRect = container.getBoundingClientRect();
       if (cRect.height > 680) break;
       const btnsInContainer = Array.from(container.querySelectorAll('button')).filter((btn) => {
@@ -1276,16 +1259,7 @@
   }
 
   function handleSendFlowPrompt(payload) {
-    const now = Date.now();
-    const lastTs = Number(
-      document.documentElement.getAttribute('data-huellas-flow-cmd-ts') || '0'
-    );
-    if (now - lastTs < 600) {
-      return true;
-    }
-    document.documentElement.setAttribute('data-huellas-flow-cmd-ts', String(now));
-
-    const rawPromptText = payload.prompt || '';
+    const rawPromptText = payload.prompt || payload.text || '';
     const promptText =
       payload.mediaType === 'THUMBNAILS'
         ? rawPromptText.replace(/^Thumbnail\s*:\s*/i, '').trim()
@@ -1321,89 +1295,61 @@
       }
     };
 
-    setTimeout(() => {
-      const inputEl = findFlowPromptInput();
-      if (!inputEl) {
-        reportStatus(
-          'ERROR',
-          'No se encontró la caja de prompt en Google Flow. Asegúrate de haber entrado a tu proyecto en Google Flow.'
-        );
-        return;
-      }
+    // Iniciar inmediatamente el Watcher (Videos / Miniaturas / Referencias) con la línea base previa al envío
+    startAppropriateWatcher();
 
-      const hasLogo =
-        payload.mediaType === 'THUMBNAILS' &&
-        payload.logoDataUrl &&
-        typeof payload.logoDataUrl === 'string' &&
-        payload.logoDataUrl.startsWith('data:');
+    // Si background.js ya está ejecutando la Doble Capa (MAIN World + CDP Hardware Debugger), no competir en el DOM
+    if (payload.delegatedToBackground) {
+      return true;
+    }
 
-      if (hasLogo) {
-        attachLogoImageToFlow(inputEl, payload.logoDataUrl);
-        reportStatus(
-          'WORKING',
-          '🖼️ Logo Oficial "Huellas de la Humanidad" adjuntado en Google Flow (posición superior izquierda 5%)...'
-        );
-      }
-
-      setTimeout(
-        () => {
-          setFlowInputText(inputEl, promptText);
-          reportStatus('PROMPT_INJECTED', 'Prompt pegado en Google Flow, iniciando producción...', {
-            clipNumber: payload.clipNumber,
-            clipId: payload.clipId,
-            mediaType: payload.mediaType,
-          });
-
-          if (payload.autoSubmit === false) return;
-
-          let attempts = 0;
-          const trySubmit = () => {
-            attempts++;
-            const submitBtn = findExactFlowSubmitButton(inputEl);
-
-            if (
-              submitBtn &&
-              !submitBtn.disabled &&
-              submitBtn.getAttribute('aria-disabled') !== 'true'
-            ) {
-              clickFlowSubmitButton(submitBtn, inputEl, promptText);
-              reportStatus(
-                'GENERATING',
-                `🎬 Prompt enviado a producción en Google Flow. Vigilando generación automáticamente...`,
-                {
-                  clipNumber: payload.clipNumber,
-                  clipId: payload.clipId,
-                  mediaType: payload.mediaType,
-                }
-              );
-              startAppropriateWatcher();
-              return;
-            }
-
-            if (attempts < 8) {
-              setTimeout(trySubmit, 180);
-            } else {
-              clickFlowSubmitButton(submitBtn, inputEl, promptText);
-              reportStatus(
-                'GENERATING',
-                `🎬 Prompt enviado a producción en Google Flow. Vigilando generación...`,
-                { clipNumber: payload.clipNumber, clipId: payload.clipId }
-              );
-              startAppropriateWatcher();
-            }
-          };
-
-          setTimeout(trySubmit, hasLogo ? 600 : 180);
+    // Si llegó directamente a flow-content.js (ej. EXECUTE_FLOW_PROMPT), delegar al Service Worker (background.js)
+    chrome.runtime.sendMessage(
+      {
+        action: 'SEND_PROMPT',
+        payload: {
+          ...payload,
+          text: promptText,
+          prompt: promptText,
         },
-        hasLogo ? 450 : 0
-      );
-    }, 50);
+      },
+      (response) => {
+        if (chrome.runtime.lastError || !response || !response.ok) {
+          // Fallback local únicamente si el Service Worker no respondió
+          const inputEl = findFlowPromptInput();
+          if (!inputEl) return;
+          setFlowInputText(inputEl, promptText);
+          if (payload.autoSubmit !== false) {
+            setTimeout(() => {
+              const submitBtn = findExactFlowSubmitButton(inputEl);
+              clickFlowSubmitButton(submitBtn, inputEl, promptText);
+            }, 220);
+          }
+        }
+      }
+    );
 
     return true;
   }
 
   window.__HUELLAS_FLOW_MESSAGE_HANDLER__ = (msg, _sender, sendResponse) => {
-    if (!msg || msg.target !== 'FLOW') return false;
+    if (!msg) return false;
+
+    if (msg.action === 'EXECUTE_FLOW_PROMPT' || msg.type === 'EXECUTE_FLOW_PROMPT') {
+      const text = msg.payload?.text || msg.text || msg.prompt || '';
+      chrome.runtime.sendMessage(
+        {
+          action: 'SEND_PROMPT',
+          payload: { ...(msg.payload || {}), text, prompt: text },
+        },
+        (response) => {
+          sendResponse(response);
+        }
+      );
+      return true;
+    }
+
+    if (msg.target !== 'FLOW') return false;
 
     if (msg.action === 'SEND_PROMPT' || msg.action === 'SEND_PROMPT_V2') {
       const ok = handleSendFlowPrompt(msg);
