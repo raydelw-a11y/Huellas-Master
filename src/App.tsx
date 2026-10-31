@@ -28,6 +28,7 @@ import {
   BookOpen,
   Sliders,
   Globe,
+  Lock,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
@@ -104,7 +105,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:01 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:06 PM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -1734,7 +1735,7 @@ export default function App() {
     if (!activeDoc) return;
     if (isFullPreprodRunning) return;
     if (!hasSelectedDocFolder) {
-      updateDoc({ currentStage: 1 });
+      setActiveStage(1);
       alert(
         '🔒 Antes de avanzar o autogenerar las demás etapas, primero debes seleccionar la Carpeta de Descarga del Documental en la Etapa 1.'
       );
