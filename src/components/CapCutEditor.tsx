@@ -1070,19 +1070,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             )}
           </div>
 
-          {/* Choose Folder First */}
-          <button
-            type="button"
-            onClick={onPickDownloadFolder}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer ${
-              downloadFolderName
-                ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                : 'bg-slate-900 border-amber-500/40 text-amber-300 hover:bg-slate-800'
-            }`}
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-            {downloadFolderName ? `📁 ${downloadFolderName}` : '📂 Elegir Carpeta'}
-          </button>
+          {/* Confirmed Folder from Stage 1 */}
+          {downloadFolderName ? (
+            <div className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-950/60 border-emerald-500/40 text-emerald-300">
+              <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+              ✓ Carpeta: {downloadFolderName}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onPickDownloadFolder}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer bg-slate-900 border-amber-500/40 text-amber-300 hover:bg-slate-800"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              📂 Elegir Carpeta
+            </button>
+          )}
 
           {/* Export Organized Final YouTube/Reels Package */}
           {onExportOrganizedFolder && (

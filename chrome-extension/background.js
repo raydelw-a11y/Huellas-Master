@@ -145,7 +145,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '1.9.0',
+          version: '2.0.0',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -253,6 +253,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             ...payload,
           })
           .catch(() => {});
+
+        // MAIN-world safety submit for Google Flow: if after 500ms the prompt is still sitting
+        // inside div.ProseMirror, click the exact Start generation button in Google Flow's MAIN world.
+        if (targetService === 'FLOW' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
+          const flowTabId = targetTab.id;
+          setTimeout(() => {
+            chrome.scripting
+              .executeScript({
+                target: { tabId: flowTabId },
+                world: 'MAIN',
+                func: () => {
+                  try {
+                    const inputEl = document.querySelector(
+                      'div.ProseMirror[contenteditable="true"], div[role="textbox"][contenteditable="true"]'
+                    );
+                    const remaining = (inputEl?.innerText || inputEl?.textContent || '').trim();
+                    if (!remaining || remaining.length < 5) return;
+                    const selectors = [
+                      'flow-generate-icon-button button',
+                      'span.submit-button-slot button',
+                      '[submitbutton] button',
+                      'button.generate-icon-button',
+                      'button[aria-label="Start generation"]',
+                      'button[aria-label*="Start generation" i]',
+                      'button[aria-label*="Iniciar generación" i]',
+                      'button[type="submit"]',
+                    ];
+                    for (const sel of selectors) {
+                      const btn = document.querySelector(sel);
+                      if (btn) {
+                        const r = btn.getBoundingClientRect();
+                        if (r.width >= 16 && r.height >= 16 && r.top > 0) {
+                          btn.click();
+                          return;
+                        }
+                      }
+                    }
+                  } catch {}
+                },
+              })
+              .catch(() => {});
+          }, 500);
+        }
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
       } else {

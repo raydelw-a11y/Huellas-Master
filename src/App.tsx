@@ -108,7 +108,64 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:28 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:41 PM - 10/31/2026';
+
+// Persist FileSystemDirectoryHandle in IndexedDB so once selected in Stage 1,
+// the browser remembers the directory handle across reloads without ever asking again.
+const DIR_HANDLE_DB_NAME = 'huellas_dir_handles_db_v1';
+const DIR_HANDLE_STORE_NAME = 'dir_handles';
+
+function openDirHandleDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(DIR_HANDLE_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(DIR_HANDLE_STORE_NAME)) {
+          db.createObjectStore(DIR_HANDLE_STORE_NAME);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+async function saveDirHandleToIndexedDB(docId: string | undefined, handle: any): Promise<void> {
+  if (!handle) return;
+  try {
+    const db = await openDirHandleDB();
+    const tx = db.transaction(DIR_HANDLE_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(DIR_HANDLE_STORE_NAME);
+    if (docId) store.put(handle, docId);
+    store.put(handle, 'default_doc_folder');
+    db.close();
+  } catch {}
+}
+
+async function loadDirHandleFromIndexedDB(docId?: string): Promise<any | null> {
+  try {
+    const db = await openDirHandleDB();
+    const getByKey = (key: string) =>
+      new Promise<any>((resolve) => {
+        const tx = db.transaction(DIR_HANDLE_STORE_NAME, 'readonly');
+        const store = tx.objectStore(DIR_HANDLE_STORE_NAME);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    let handle = docId ? await getByKey(docId) : null;
+    if (!handle) {
+      handle = await getByKey('default_doc_folder');
+    }
+    db.close();
+    return handle || null;
+  } catch {
+    return null;
+  }
+}
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -1129,6 +1186,12 @@ export default function App() {
     if (!savedName && !savedPath) {
       flowDownloadDirHandleRef.current = null;
       setActiveStage(1);
+    } else if (!flowDownloadDirHandleRef.current) {
+      loadDirHandleFromIndexedDB(activeDoc.id).then((restoredHandle) => {
+        if (restoredHandle) {
+          flowDownloadDirHandleRef.current = restoredHandle;
+        }
+      });
     }
   }, [activeDoc?.id]);
 
@@ -1155,6 +1218,7 @@ export default function App() {
         if (dirHandle) {
           const pickedName = dirHandle.name || 'Carpeta Seleccionada';
           flowDownloadDirHandleRef.current = dirHandle;
+          await saveDirHandleToIndexedDB(activeDoc?.id, dirHandle);
           setFlowDownloadFolderName(pickedName);
           setFlowServerFolderPath('');
           updateActiveDoc({
@@ -1224,9 +1288,23 @@ export default function App() {
     fileName: string,
     blobOrDataUrl: Blob | string
   ): Promise<boolean> => {
+    // Restore handle from IndexedDB if needed
+    if (!flowDownloadDirHandleRef.current) {
+      const restored = await loadDirHandleFromIndexedDB(activeDocRef.current?.id);
+      if (restored) {
+        flowDownloadDirHandleRef.current = restored;
+      }
+    }
+
     // A) Write directly via File System Access API (Chrome Directory Handle)
     if (flowDownloadDirHandleRef.current) {
       try {
+        if (typeof flowDownloadDirHandleRef.current.queryPermission === 'function') {
+          const perm = await flowDownloadDirHandleRef.current.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted' && typeof flowDownloadDirHandleRef.current.requestPermission === 'function') {
+            await flowDownloadDirHandleRef.current.requestPermission({ mode: 'readwrite' });
+          }
+        }
         const fileHandle = await flowDownloadDirHandleRef.current.getFileHandle(fileName, {
           create: true,
         });
@@ -1552,16 +1630,12 @@ export default function App() {
       return;
     }
 
-    // Ensure user chooses the download destination folder FIRST from the site if Auto-Download is enabled
-    if (
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    // Once the Documentary Folder is selected in Stage 1, never prompt for it again
+    if (!hasSelectedDocFolder) {
       const picked = await handlePickFlowDownloadFolder();
       if (!picked) {
         alert(
-          '📂 Por favor elige primero la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
+          '📂 Por favor elige primero en la Etapa 1 la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
         );
         return;
       }
@@ -1593,15 +1667,11 @@ export default function App() {
     // Support both 0-indexed and 1-indexed calls gracefully
     const normalizedBatchNum = batchNum <= 0 ? 1 : batchNum;
 
-    if (
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    if (!hasSelectedDocFolder) {
       const picked = await handlePickFlowDownloadFolder();
       if (!picked) {
         alert(
-          '📂 Por favor elige primero la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
+          '📂 Por favor elige primero en la Etapa 1 la carpeta donde deseas que se descarguen automáticamente los videos aprobados.'
         );
         return;
       }
@@ -1768,11 +1838,7 @@ export default function App() {
       thumbnailPrompt: promptText,
     });
 
-    if (
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    if (!hasSelectedDocFolder) {
       await handlePickFlowDownloadFolder();
     }
     navigator.clipboard.writeText(promptText).catch(() => {});
@@ -1794,11 +1860,7 @@ export default function App() {
   // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into /Audio & CapCut Track 5
   const handleSendSunoTrackAndCapture = async (trackNumber: number, promptText: string, title?: string) => {
     if (!promptText.trim()) return;
-    if (
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    if (!hasSelectedDocFolder) {
       await handlePickFlowDownloadFolder();
     }
     navigator.clipboard.writeText(promptText).catch(() => {});
@@ -1821,7 +1883,7 @@ export default function App() {
     const doc = activeDocRef.current || activeDoc;
     if (!doc) return;
 
-    if (!silent && !flowServerFolderPath && !flowDownloadDirHandleRef.current) {
+    if (!silent && !hasSelectedDocFolder) {
       await handlePickFlowDownloadFolder();
     }
 
@@ -2088,11 +2150,7 @@ export default function App() {
   };
 
   const handleScanExistingFlowVideosInTab = async () => {
-    if (
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    if (!hasSelectedDocFolder) {
       await handlePickFlowDownloadFolder();
     }
     setFlowStatusLog(
@@ -2298,14 +2356,8 @@ export default function App() {
     if (!promptText.trim()) return;
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // If sending a VIDEO clip from Stage 8 and Auto-Download is enabled, make sure folder is chosen first
-    if (
-      mediaType === 'VIDEO' &&
-      clipIdentifier &&
-      flowAutoDownloadEnabled &&
-      !flowDownloadDirHandleRef.current &&
-      !flowServerFolderPath
-    ) {
+    // Once folder is selected in Stage 1, never prompt again
+    if (mediaType === 'VIDEO' && clipIdentifier && !hasSelectedDocFolder) {
       const picked = await handlePickFlowDownloadFolder();
       if (!picked) {
         return;
@@ -3875,8 +3927,8 @@ export default function App() {
           capturedClipVideosMap={capturedClipVideosMap}
           capturedSunoAudioMap={capturedSunoAudioMap}
           onPickDownloadFolder={handlePickFlowDownloadFolder}
-          downloadFolderName={flowDownloadFolderName}
-          downloadFolderPath={flowServerFolderPath}
+          downloadFolderName={effectiveDocFolderName}
+          downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
           onSaveFileToChosenFolder={handleSaveAnyFileToChosenFolder}
           onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
           officialLogoUrl={officialLogoUrl}
@@ -4161,28 +4213,28 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={handlePickFlowDownloadFolder}
-                        className={`px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition shadow-lg ${
-                          hasSelectedDocFolder
-                            ? 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/50'
-                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25'
-                        }`}
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        {hasSelectedDocFolder
-                          ? `📁 Carpeta: ${effectiveDocFolderName} (Cambiar)`
-                          : '📂 Seleccionar Carpeta de Descarga del Documental'}
-                      </button>
-
-                      {hasSelectedDocFolder && (
+                      {hasSelectedDocFolder ? (
+                        <>
+                          <div className="px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-2">
+                            <FolderOpen className="w-4 h-4 text-emerald-400" />
+                            ✓ Carpeta Fijada: {effectiveDocFolderName}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveStage(2)}
+                            className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                          >
+                            Continuar a Etapa 2 <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => setActiveStage(2)}
-                          className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                          onClick={handlePickFlowDownloadFolder}
+                          className="px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25"
                         >
-                          Continuar a Etapa 2 <ChevronRight className="w-4 h-4" />
+                          <FolderOpen className="w-4 h-4" />
+                          📂 Seleccionar Carpeta de Descarga del Documental
                         </button>
                       )}
                     </div>
@@ -6311,21 +6363,22 @@ export default function App() {
                         <option value="8K_4320P">Calidad: 8K Ultra (4320p)</option>
                       </select>
 
-                      {/* Step 1: Choose Destination Folder on Computer */}
-                      <button
-                        type="button"
-                        onClick={handlePickFlowDownloadFolder}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
-                          flowDownloadFolderName
-                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30'
-                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow'
-                        }`}
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        {flowDownloadFolderName
-                          ? `📁 Carpeta: ${flowDownloadFolderName} (Cambiar)`
-                          : '📂 1. Elegir Carpeta de Descarga'}
-                      </button>
+                      {/* Confirmed Destination Folder from Stage 1 */}
+                      {hasSelectedDocFolder ? (
+                        <div className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-500/15 border-emerald-500/40 text-emerald-200">
+                          <FolderOpen className="w-4 h-4 text-emerald-400" />
+                          ✓ Carpeta: {effectiveDocFolderName}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handlePickFlowDownloadFolder}
+                          className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow"
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                          📂 Elegir Carpeta de Descarga
+                        </button>
+                      )}
 
                       {/* Step 2: Start / Stop Full Autopilot Queue */}
                       {!flowAutoPilotActive ? (
