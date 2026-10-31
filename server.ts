@@ -1605,43 +1605,34 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
         doc.thumbnailOrientation ||
         (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
       const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
-      const overlayText = (doc.thumbnailTextOverlay || '').trim();
-      if (!overlayText) {
-        res.status(400).json({
-          error:
-            'Antes de generar el prompt de la miniatura, es obligatorio proveer el Texto en Pantalla en la imagen.',
-        });
-        return;
-      }
-      stagePrompt = `Actúa como diseñador de miniaturas cinematográficas de alto CTR para "Huellas de la Humanidad".
+      const overlayText = (doc.thumbnailTextOverlay || '').trim() || 'EL SECRETO OCULTO';
+      stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
 Tema del episodio: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Título del video (NO repetir en el texto ni regalar toda la respuesta): ${doc.title || ''}
 Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
 Orientación seleccionada: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
-Texto en pantalla obligatorio proporcionado por el director: "${overlayText}"
+Texto en pantalla obligatorio (Curiosity Gap): "${overlayText}"
 
-REGLAS OBLIGATORIAS E INQUEBRANTABLES DEL PROMPT EN INGLÉS (NANO BANANA 2.1):
-1. El prompt debe redactarse 100% en inglés (excepto el texto en pantalla "${overlayText}" y el nombre del logo "Huellas de la Humanidad") e iniciar con: "Thumbnail: Create an image "
-2. Relación de aspecto: ${
-        isThumbHorizontal
-          ? '16:9 horizontal aspect ratio'
-          : '9:16 vertical aspect ratio'
-      }
-3. Escena histórica de alto impacto psicológico y contradicción visual, anclando época y lugar, con personaje principal expresivo e iluminación dramática de claroscuro.
-4. POSICIÓN Y TEXTO EN PANTALLA OBLIGATORIO:
+APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN:
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento detonante de peligro/misterio + texto gancho), instantáneamente legible en la pantalla diminuta de un teléfono móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
+4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Iluminación dramática de claroscuro con luz clave cálida de alto impacto (oro ardiente, fuego carmesí o ámbar intenso) sobre el rostro y luz de recorte (rim light) brillante que lo despega de un fondo oscuro saturado en tonos fríos (azul cian nocturno profundo o negro abismal).
+5. POSICIÓN Y TEXTO EN PANTALLA OBLIGATORIO:
    ${
      isThumbHorizontal
        ? `Al ser HORIZONTAL (16:9), el texto en pantalla "${overlayText}" debe ir OBLIGATORIAMENTE ABAJO A LA IZQUIERDA: incluye textualmente 'bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image reading "${overlayText}"'.`
        : `Al ser VERTICAL (9:16), el texto en pantalla "${overlayText}" debe ir OBLIGATORIAMENTE CENTRADO Y JUSTIFICADO EN EL MEDIO DE LA IMAGEN: incluye textualmente 'bold high-contrast cinematic documentary typography text overlay centered and middle-justified right in the middle center of the image reading "${overlayText}"'.`
    }
-5. LOGO SUPERIOR DERECHO AL 5% EN DORADO:
+6. LOGO SUPERIOR DERECHO AL 5% EN DORADO:
    ${
      isThumbHorizontal
        ? `Al ser HORIZONTAL (16:9), el logo superior derecho es "8K": incluye textualmente 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold'.`
        : `Al ser VERTICAL (9:16), el logo superior derecho es "HD": incluye textualmente 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'.`
    }
-6. LOGO OFICIAL SUPERIOR IZQUIERDO AL 5% (IMAGEN DE REFERENCIA):
+7. LOGO OFICIAL SUPERIOR IZQUIERDO AL 5% (IMAGEN DE REFERENCIA):
    Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
-7. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
+8. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 Entrega únicamente el prompt listo para copiar y pegar.`;
     } else if (stageNumber === 6) {
       stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".

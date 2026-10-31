@@ -92,6 +92,8 @@ import {
   generateStageClientSide,
   auditClipsClientSide,
   auditClipVideoClientSide,
+  auditThumbnailPsychologyClientSide,
+  ThumbnailPsychologyAuditResult,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
   PUBLIC_GITHUB_PAGES_URL,
@@ -105,7 +107,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:06 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:19 PM - 10/31/2026';
 
 function getVoiceoverAudioName(docTitle?: string): string {
   const raw = (docTitle || '').trim();
@@ -167,10 +169,10 @@ function buildOrUpdateThumbnailPrompt(
 
   if (!prompt) {
     const subject = doc?.topic || doc?.title || 'a dramatic historical documentary scene';
-    const era = [doc?.historicalEra, doc?.year, doc?.cityCountry].filter(Boolean).join(', ');
+    const era = [doc?.historicalTime, doc?.historicalLocation].filter(Boolean).join(', ');
     const sceneContext = era ? `${subject} (${era})` : subject;
     const textPart = textPositionClause ? `${textPositionClause}, ` : '';
-    return `Thumbnail: Create an image in ${aspectPhrase} depicting ${sceneContext}, dramatic historical period atmosphere, intense emotional expression and high-impact visual tension, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} depicting an ultra-clean 3-element composition readable in 13 milliseconds on mobile of ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) with direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, a single enigmatic historical trigger element opening a strong curiosity gap, dramatic high-impact color contrast with warm golden-amber and crimson rim lighting against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
 
   if (!/^Thumbnail:\s*Create an image/i.test(prompt)) {
@@ -252,6 +254,49 @@ function buildOrUpdateThumbnailPrompt(
   }
 
   return prompt;
+}
+
+function getDefaultCuriosityGapHooks(doc?: DocumentaryProject | null): string[] {
+  const existing = (doc?.thumbnailTextOptions || []).filter(Boolean);
+  if (existing.length >= 3) return existing.slice(0, 3);
+  return ['EL SECRETO OCULTO', 'LA TRAMPA MORTAL', 'NADIE LO SUPO'];
+}
+
+function buildPsychologicalThumbnailVariantPrompt(
+  variant: 'A' | 'B' | 'C',
+  orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
+  overlayText: string,
+  doc?: DocumentaryProject | null
+): string {
+  const isVertical = orientation === 'VERTICAL_9X16';
+  const cleanText = (overlayText || '').trim() || getDefaultCuriosityGapHooks(doc)[0];
+  const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
+  const positionOnlyPhrase = isVertical
+    ? 'centered and middle-justified right in the middle center of the image'
+    : 'positioned in the bottom-left area of the image';
+  const textPositionClause = `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} reading "${cleanText}"`;
+  const rightLogoClause = isVertical
+    ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
+    : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
+  const leftLogoClause =
+    'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
+  const closingClause =
+    'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
+
+  const subject = doc?.topic || doc?.title || 'a dramatic historical documentary scene';
+  const era = [doc?.historicalTime, doc?.historicalLocation].filter(Boolean).join(', ');
+  const sceneContext = era ? `${subject} (${era})` : subject;
+
+  if (variant === 'A') {
+    // Opción A: Rostro Humano + Emoción Extrema + Contacto Visual Directo (13ms)
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and terrifying realization, hyper-realistic skin pores and sweat, illuminated by blazing warm golden-amber and crimson rim light against a deep cold midnight-cyan background, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+  }
+  if (variant === 'B') {
+    // Opción B: Brecha de la Curiosidad (Curiosity Gap / El Secreto o Traición en el Segundo Antes del Desastre)
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext} at the exact split-second before catastrophe, showing the historical protagonist in sharp foreground looking at the camera in tense disbelief while a single enigmatic forbidden historical object or shadowy betrayal emerges behind them opening an irresistible curiosity gap, high-impact chiaroscuro contrast with fiery amber key light against cold abyssal blue shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+  }
+  // Opción C: Escala Épica + Peligro Inminente + Contraste Cromático Extremo
+  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, contrasting an expressive historical protagonist face in the foreground looking back in awe and terror against a colossal unmistakable historical threat looming in the background, dramatic complementary color psychology of blazing crimson-gold firelight against deep emerald-night shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
 }
 
 const STAGES_LIST = [
@@ -420,6 +465,10 @@ export default function App() {
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
   const [capturedSunoAudioMap, setCapturedSunoAudioMap] = useState<Record<number, string>>({});
   const [capturedThumbnailsMap, setCapturedThumbnailsMap] = useState<Record<string, string>>({});
+  const [thumbnailPsychAudits, setThumbnailPsychAudits] = useState<
+    Record<string, ThumbnailPsychologyAuditResult>
+  >({});
+  const [thumbnailPsychAuditing, setThumbnailPsychAuditing] = useState<boolean>(false);
   const [flowCurrentBatchNum, setFlowCurrentBatchNum] = useState<number>(1);
   const flowCurrentBatchNumRef = React.useRef<number>(1);
   const [flowAutoChainBatches, setFlowAutoChainBatches] = useState<boolean>(true);
@@ -1590,14 +1639,87 @@ export default function App() {
     });
   };
 
-  // ITEM 5: Send Stage 5 Thumbnails A/B to Google Flow & Auto-Download Miniatura_Opcion_A.png & B.png
-  const handleSendThumbnailsToFlowAndCapture = async (optionLabel: 'A' | 'B' = 'A') => {
-    if (!activeDoc) return;
-    const promptText = (activeDoc.thumbnailPrompt || '').trim();
-    if (!promptText) {
-      alert('Primero genera el prompt de Miniatura en la Etapa 5.');
+  // Audit a Thumbnail against the 5 Neuropsychological CTR Rules (0-100 Score) and auto-pick winner
+  const handleAuditThumbnailPsychology = async (
+    optionLabel: 'A' | 'B' | 'C' | 'OFICIAL' = 'A',
+    imageDataUrl?: string
+  ) => {
+    const doc = activeDocRef.current || activeDoc;
+    if (!doc) return;
+    const targetUrl =
+      imageDataUrl ||
+      capturedThumbnailsMap[optionLabel] ||
+      doc.thumbnailImageUrl ||
+      '';
+    if (!targetUrl) {
+      alert('Primero genera o sube una imagen de miniatura para auditar su CTR psicológico.');
       return;
     }
+    setThumbnailPsychAuditing(true);
+    try {
+      const result = await auditThumbnailPsychologyClientSide(doc, targetUrl, optionLabel);
+      setThumbnailPsychAudits((prev) => {
+        const next = { ...prev, [optionLabel]: result };
+        // If multiple options exist, automatically set the highest-CTR option as the official thumbnail
+        const entries = Object.entries(next);
+        if (entries.length > 0) {
+          entries.sort((a, b) => (b[1]?.ctrScore || 0) - (a[1]?.ctrScore || 0));
+          const bestOpt = entries[0][0];
+          const bestImg =
+            bestOpt === optionLabel
+              ? targetUrl
+              : capturedThumbnailsMap[bestOpt] || doc.thumbnailImageUrl;
+          if (bestImg) {
+            updateActiveDoc({ thumbnailImageUrl: bestImg, thumbnailReady: true });
+          }
+        }
+        return next;
+      });
+      setBridgeStatusType('SUCCESS');
+      setBridgeStatusMsg(
+        `🧠 Auditoría Psicológica Opción ${optionLabel}: ${result.ctrScore}/100 (${result.verdict}) — ${result.summary}`
+      );
+    } catch (err: any) {
+      console.warn('Thumbnail psychology audit fallback:', err);
+    } finally {
+      setThumbnailPsychAuditing(false);
+    }
+  };
+
+  // ITEM 5: Send Stage 5 Thumbnails A/B/C to Google Flow & Auto-Download Miniatura_Opcion_A/B/C.png
+  const handleSendThumbnailsToFlowAndCapture = async (
+    optionLabel: 'A' | 'B' | 'C' = 'A',
+    usePsychVariant: boolean = true
+  ) => {
+    if (!activeDoc) return;
+    const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
+    const effectiveOverlay =
+      (activeDoc.thumbnailTextOverlay || '').trim() ||
+      getDefaultCuriosityGapHooks(activeDoc)[
+        optionLabel === 'B' ? 1 : optionLabel === 'C' ? 2 : 0
+      ];
+
+    const promptText = usePsychVariant
+      ? buildPsychologicalThumbnailVariantPrompt(
+          optionLabel,
+          currentOrientation,
+          effectiveOverlay,
+          activeDoc
+        )
+      : (activeDoc.thumbnailPrompt || '').trim() ||
+        buildPsychologicalThumbnailVariantPrompt(
+          optionLabel,
+          currentOrientation,
+          effectiveOverlay,
+          activeDoc
+        );
+
+    updateActiveDoc({
+      thumbnailTextOverlay: effectiveOverlay,
+      thumbnailOrientation: currentOrientation,
+      thumbnailPrompt: promptText,
+    });
+
     if (
       flowAutoDownloadEnabled &&
       !flowDownloadDirHandleRef.current &&
@@ -1608,7 +1730,7 @@ export default function App() {
     navigator.clipboard.writeText(promptText).catch(() => {});
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Miniatura Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png...`
+      `🖼️ Enviando Miniatura Psicológica Opción ${optionLabel} a Google Flow (Nano Banana 2.1) y vigilando para auto-descargar Miniatura_Opcion_${optionLabel}.png...`
     );
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
@@ -1994,9 +2116,10 @@ export default function App() {
         setExtensionInstalled(true);
         handleCapturedFlowVideoAudit(msg);
       } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
-        // ITEM 5: Auto-save captured Thumbnail A/B into /Miniaturas and state
+        // ITEM 5: Auto-save captured Thumbnail A/B/C into /Miniaturas, state & run 5-Rule CTR Psychology Audit
         setExtensionInstalled(true);
-        const opt = msg.option === 'B' ? 'B' : 'A';
+        const opt: 'A' | 'B' | 'C' =
+          msg.option === 'B' ? 'B' : msg.option === 'C' ? 'C' : 'A';
         const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
@@ -2018,8 +2141,9 @@ export default function App() {
           }
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
-            `🖼️ ¡Miniatura Opción ${opt} capturada de Google Flow y guardada automáticamente como ${thumbFileName}!`
+            `🖼️ ¡Miniatura Opción ${opt} capturada de Google Flow y guardada como ${thumbFileName}! Evaluando puntaje CTR (5 Reglas Psicológicas)...`
           );
+          handleAuditThumbnailPsychology(opt, dataUrl);
         }
       } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
         // ITEM 2: Auto-save captured Suno MP3 into /Audio and inject into CapCut Editor Track 5
@@ -2064,18 +2188,23 @@ export default function App() {
 
   const handleSendStageToGeminiWeb = (stageNum: number, preferredTabId?: number) => {
     if (!activeDoc) return;
-    if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
-      alert(
-        '⚠️ Obligatorio: Primero debes escribir el Texto en Pantalla en la Imagen antes de generar el prompt de la miniatura.'
-      );
-      const inputEl = document.getElementById('thumbnail-text-overlay-input');
-      if (inputEl) inputEl.focus();
-      return;
+    let workingOverlay = (activeDoc.thumbnailTextOverlay || '').trim();
+    if (stageNum === 5 && !workingOverlay) {
+      const autoHooks = getDefaultCuriosityGapHooks(activeDoc);
+      workingOverlay = autoHooks[0];
+      updateActiveDoc({
+        thumbnailTextOverlay: workingOverlay,
+        thumbnailTextOptions: autoHooks,
+      });
     }
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
     const docForPayload =
       stageNum === 5
-        ? { ...activeDoc, thumbnailOrientation: orientationForThumb }
+        ? {
+            ...activeDoc,
+            thumbnailOrientation: orientationForThumb,
+            thumbnailTextOverlay: workingOverlay,
+          }
         : activeDoc;
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
@@ -2161,13 +2290,14 @@ export default function App() {
   // Hybrid AI Generator handler (Web Free Mode + Local Server + Mobile Client-Side Fallback)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
-    if (stageNum === 5 && !(activeDoc.thumbnailTextOverlay || '').trim()) {
-      alert(
-        '⚠️ Obligatorio: Primero debes escribir el Texto en Pantalla en la Imagen antes de generar el prompt de la miniatura.'
-      );
-      const inputEl = document.getElementById('thumbnail-text-overlay-input');
-      if (inputEl) inputEl.focus();
-      return;
+    let workingOverlay = (activeDoc.thumbnailTextOverlay || '').trim();
+    if (stageNum === 5 && !workingOverlay) {
+      const autoHooks = getDefaultCuriosityGapHooks(activeDoc);
+      workingOverlay = autoHooks[0];
+      updateActiveDoc({
+        thumbnailTextOverlay: workingOverlay,
+        thumbnailTextOptions: autoHooks,
+      });
     }
 
     // If user selected Web Free Mode (or has no API Key and Extension is installed), route via Gemini Web Free!
@@ -2179,7 +2309,11 @@ export default function App() {
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
     const docForPayload =
       stageNum === 5
-        ? { ...activeDoc, thumbnailOrientation: orientationForThumb }
+        ? {
+            ...activeDoc,
+            thumbnailOrientation: orientationForThumb,
+            thumbnailTextOverlay: workingOverlay,
+          }
         : activeDoc;
 
     setAiGenerating(true);
@@ -5053,7 +5187,7 @@ export default function App() {
                       )}
                       {!hasOverlayText && (
                         <p className="text-[11px] text-amber-300/90 mt-1.5 font-medium">
-                          ⚠️ Obligatorio: Debes proveer el texto en pantalla en la imagen (o generar las 3 opciones arriba) antes de generar el prompt de la miniatura.
+                          💡 Psicología de la Curiosidad (Curiosity Gap): Si dejas este campo vacío al generar, el sistema elegirá automáticamente un gancho corto de 2 a 4 palabras que complemente el título sin repetirlo.
                         </p>
                       )}
                     </div>
@@ -5136,6 +5270,77 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DE ALTO CTR (A / B / C) */}
+                    <div className="space-y-2 bg-slate-950/90 border border-indigo-500/30 rounded-xl p-3.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="text-xs font-extrabold text-indigo-300">
+                          🧠 3. Disparadores Neuropsicológicos del Clic (Regla de 13ms + Rostro + Curiosity Gap):
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Selecciona un ángulo psicológico o envíalo directo a Google Flow
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {[
+                          {
+                            opt: 'A' as const,
+                            title: 'Opción A: Rostro + Shock (13ms)',
+                            desc: 'Primer plano 60%, contacto visual directo a cámara, ojos muy abiertos y luz cálida vs. fondo frío.',
+                          },
+                          {
+                            opt: 'B' as const,
+                            title: 'Opción B: Curiosity Gap',
+                            desc: 'El segundo exacto antes del desastre o traición oculta que obliga al cerebro a hacer clic.',
+                          },
+                          {
+                            opt: 'C' as const,
+                            title: 'Opción C: Escala + Peligro',
+                            desc: 'Rostro humano vulnerable en shock frente a la magnitud colosal del suceso en alto contraste.',
+                          },
+                        ].map((item) => (
+                          <div
+                            key={item.opt}
+                            className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-lg p-2.5 flex flex-col justify-between gap-2"
+                          >
+                            <div>
+                              <div className="text-[11px] font-black text-amber-300">{item.title}</div>
+                              <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const overlay =
+                                    (activeDoc.thumbnailTextOverlay || '').trim() ||
+                                    getDefaultCuriosityGapHooks(activeDoc)[0];
+                                  const built = buildPsychologicalThumbnailVariantPrompt(
+                                    item.opt,
+                                    currentOrientation,
+                                    overlay,
+                                    activeDoc
+                                  );
+                                  updateActiveDoc({
+                                    thumbnailTextOverlay: overlay,
+                                    thumbnailPrompt: built,
+                                  });
+                                }}
+                                className="flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 text-[10px] font-bold cursor-pointer"
+                              >
+                                Ver Prompt {item.opt}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendThumbnailsToFlowAndCapture(item.opt, true)}
+                                className="flex-1 py-1 px-2 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer"
+                              >
+                                🚀 Crear {item.opt}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center flex-wrap gap-2">
                         <label className="text-xs font-semibold text-slate-300">
@@ -5144,19 +5349,11 @@ export default function App() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => handleSendThumbnailsToFlowAndCapture('A')}
+                            onClick={() => handleSendThumbnailsToFlowAndCapture('A', false)}
                             className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-2.5 py-1 rounded font-black cursor-pointer shadow"
-                            title="Envía el prompt a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta"
+                            title="Envía el prompt actual a Google Flow (Nano Banana 2.1) y descarga automáticamente Miniatura_Opcion_A.png en tu carpeta"
                           >
-                            🖼️ Auto-Crear & Descargar Miniatura A
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSendThumbnailsToFlowAndCapture('B')}
-                            className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-bold cursor-pointer"
-                            title="Envía el prompt a Google Flow y descarga automáticamente Miniatura_Opcion_B.png en tu carpeta"
-                          >
-                            🖼️ Auto-Crear & Descargar Miniatura B
+                            🖼️ Enviar Prompt Actual a Flow
                           </button>
                           <button
                             type="button"
@@ -5167,7 +5364,7 @@ export default function App() {
                               })
                             }
                             className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
-                            title="Captura las últimas 2 imágenes de la pestaña abierta de Google Flow como Miniatura_Opcion_A.png y B.png"
+                            title="Captura las últimas imágenes de la pestaña abierta de Google Flow"
                           >
                             🔍 Capturar Miniaturas de Flow
                           </button>
@@ -5189,20 +5386,35 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Upload & Preview Official Thumbnail */}
+                  {/* Upload, Preview & 5-Rule CTR Psychology Audit */}
                   <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-amber-300">
-                        Miniatura Final Guardada en el Expediente
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-semibold">
-                        Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'}
-                      </span>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h3 className="text-base font-bold text-amber-300">
+                          Miniatura Final + Auditoría Psicológica CTR
+                        </h3>
+                        <span className="text-[11px] text-slate-400 font-semibold">
+                          Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={thumbnailPsychAuditing || !activeDoc.thumbnailImageUrl}
+                        onClick={() =>
+                          handleAuditThumbnailPsychology('OFICIAL', activeDoc.thumbnailImageUrl)
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {thumbnailPsychAuditing
+                          ? 'Auditando Psicología CTR...'
+                          : '🧠 Auditar CTR (5 Reglas)'}
+                      </button>
                     </div>
                     <div
                       className={`${
                         currentOrientation === 'VERTICAL_9X16'
-                          ? 'aspect-[9/16] max-h-[420px] mx-auto'
+                          ? 'aspect-[9/16] max-h-[380px] mx-auto'
                           : 'aspect-video w-full'
                       } bg-slate-950 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative`}
                     >
@@ -5214,10 +5426,103 @@ export default function App() {
                         />
                       ) : (
                         <span className="text-xs text-slate-500 px-4 text-center">
-                          Sube aquí la miniatura generada con Nano Banana 2.1
+                          Crea las opciones A / B / C en Google Flow o sube aquí la miniatura generada con Nano Banana 2.1
                         </span>
                       )}
                     </div>
+
+                    {/* Captured A / B / C Thumbnails Strip + CTR Score Comparison */}
+                    {Object.keys(capturedThumbnailsMap).length > 0 && (
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                        <span className="text-[11px] font-bold text-amber-300 block">
+                          Miniaturas Capturadas de Google Flow (Haz clic para elegir como ganadora):
+                        </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['A', 'B', 'C'] as const).map((opt) => {
+                            const url = capturedThumbnailsMap[opt];
+                            const audit = thumbnailPsychAudits[opt];
+                            if (!url) return null;
+                            const isCurrent = activeDoc.thumbnailImageUrl === url;
+                            return (
+                              <div
+                                key={opt}
+                                onClick={() =>
+                                  updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true })
+                                }
+                                className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
+                                  isCurrent
+                                    ? 'border-emerald-400 bg-emerald-500/10'
+                                    : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                                }`}
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Opción ${opt}`}
+                                  className="w-full h-16 object-cover rounded"
+                                />
+                                <div className="flex items-center justify-between mt-1 text-[10px]">
+                                  <span className="font-bold text-amber-300">Opción {opt}</span>
+                                  {audit && (
+                                    <span className="font-black text-emerald-400">
+                                      {audit.ctrScore}/100
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5 Neuropsychological CTR Rules Scorecard */}
+                    {(() => {
+                      const allAudits = Object.values(thumbnailPsychAudits) as ThumbnailPsychologyAuditResult[];
+                      if (allAudits.length === 0) return null;
+                      allAudits.sort((a, b) => (b.ctrScore || 0) - (a.ctrScore || 0));
+                      const topAudit = allAudits[0];
+                      return (
+                        <div className="bg-slate-950/95 border border-indigo-500/40 rounded-xl p-3.5 space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-indigo-300">
+                              🏆 Evaluación Neuropsicológica CTR ({topAudit.optionLabel}):
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black">
+                              {topAudit.ctrScore}/100 — {topAudit.verdict}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[10px]">
+                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                              <div className="text-slate-400">1. Claridad 13ms</div>
+                              <div className="font-bold text-amber-300">{topAudit.rule1_13msClarity}/20</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                              <div className="text-slate-400">2. Rostro/Ojos</div>
+                              <div className="font-bold text-amber-300">{topAudit.rule2_faceEmotionEyeContact}/20</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                              <div className="text-slate-400">3. Curiosity Gap</div>
+                              <div className="font-bold text-amber-300">{topAudit.rule3_curiosityGap}/20</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                              <div className="text-slate-400">4. Contraste Color</div>
+                              <div className="font-bold text-amber-300">{topAudit.rule4_colorContrast}/20</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                              <div className="text-slate-400">5. Título/Logos</div>
+                              <div className="font-bold text-amber-300">{topAudit.rule5_titleBrandSynergy}/20</div>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-300 leading-snug">{topAudit.summary}</p>
+                          {topAudit.improvementTip && (
+                            <p className="text-[10px] text-amber-300/90">
+                              💡 Mejora sugerida: {topAudit.improvementTip}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     <label className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
                       <Upload className="w-4 h-4" /> Subir Imagen de Miniatura Oficial
                       <input
@@ -5230,6 +5535,7 @@ export default function App() {
                           const url = await uploadAssetFile(file);
                           if (url) {
                             updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
+                            handleAuditThumbnailPsychology('OFICIAL', url);
                           }
                         }}
                       />

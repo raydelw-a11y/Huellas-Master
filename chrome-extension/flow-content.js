@@ -656,14 +656,15 @@
       reportStatus('ERROR', 'No se encontraron imágenes de miniatura en Google Flow.');
       return;
     }
-    const latestTwo = imgs.slice(-2);
-    for (let i = 0; i < latestTwo.length; i++) {
-      const src = latestTwo[i].src;
+    const latestThree = imgs.slice(-3);
+    const labels = ['A', 'B', 'C'];
+    for (let i = 0; i < latestThree.length; i++) {
+      const src = latestThree[i].src;
       const imageDataUrl = await fetchVideoBinaryDataUrl(src);
       chrome.runtime
         .sendMessage({
           type: 'FLOW_THUMBNAIL_CAPTURED',
-          option: i === 0 ? 'A' : 'B',
+          option: labels[i] || 'A',
           imageUrl: src,
           imageDataUrl,
         })

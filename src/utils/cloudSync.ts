@@ -383,16 +383,34 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
       doc.thumbnailOrientation ||
       (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
     const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
-    const overlayText = (doc.thumbnailTextOverlay || '').trim();
-    stagePrompt = `Actúa como diseñador de miniaturas cinematográficas de alto CTR para "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+    const overlayText = (doc.thumbnailTextOverlay || '').trim() || 'EL SECRETO OCULTO';
+    stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
+Tema del episodio: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Título del video (NO repetir en el texto ni regalar toda la respuesta): ${doc.title || ''}
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 900)}
 Orientación: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
-Texto en pantalla obligatorio: "${overlayText}"
-Redacta el prompt 100% en inglés iniciando con "Thumbnail: Create an image " en formato ${
-      isThumbHorizontal ? '16:9 horizontal aspect ratio' : '9:16 vertical aspect ratio'
-    }, incluyendo el texto "${overlayText}", el logo "${
-      isThumbHorizontal ? '8K' : 'HD'
-    }" en dorado arriba a la derecha al 5%, y el logo oficial arriba a la izquierda al 5% con el texto "Huellas de la Humanidad".`;
+Texto en pantalla obligatorio (Curiosity Gap): "${overlayText}"
+
+APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN:
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento detonante de peligro/misterio + texto gancho), instantáneamente legible en la pantalla diminuta de un móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
+4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Iluminación dramática de claroscuro con luz clave cálida de alto impacto (oro ardiente, fuego carmesí o ámbar intenso) sobre el rostro y luz de recorte (rim light) brillante que lo despega de un fondo oscuro saturado en tonos fríos (azul cian nocturno profundo o negro abismal).
+5. ELEMENTOS DE MARCA Y TEXTO OBLIGATORIOS:
+   - Inicia el prompt en inglés con: "Thumbnail: Create an image in ${
+     isThumbHorizontal ? '16:9 horizontal aspect ratio' : '9:16 vertical aspect ratio'
+   } "
+   - ${
+     isThumbHorizontal
+       ? `Incluye textualmente: 'bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image reading "${overlayText}"'`
+       : `Incluye textualmente: 'bold high-contrast cinematic documentary typography text overlay centered and middle-justified right in the middle center of the image reading "${overlayText}"'`
+   }
+   - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${
+     isThumbHorizontal ? '8K' : 'HD'
+   }" in metallic gold'
+   - Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
+   - Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
+Entrega únicamente el prompt en inglés listo para copiar y pegar.`;
   } else if (stageNumber === 6) {
     stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
 Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
@@ -435,11 +453,18 @@ Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
 Guion: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
 Genera la ETAPA 10: BANDA SONORA PARA SUNO dejando silencios de 10-20s entre cada canción y haciendo que la última canción dure obligatoriamente 1:30. Entrega cada canción con sus 6 campos exactos (1. Título, 2. Duración, 3. De dónde a dónde cubre en el video en tiempo, 4. Prompt de Lyrics, 5. Prompt de Style, 6. Explicación de la Canción).`;
   } else if (stageNumber === 101) {
-    stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para "Huellas de la Humanidad".
+    stagePrompt = `Actúa como experto en neuropsicología del clic (alto CTR en YouTube) y director creativo de miniaturas para "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
 Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Genera EXACTAMENTE 3 opciones de TEXTO EN PANTALLA para la miniatura oficial (1 a 3 palabras en ESPAÑOL y MAYÚSCULAS, sin repetir el título ni el Clip 1), una por línea, sin numeración ni comillas.`;
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 600)}
+
+Aplicando el principio psicológico de LA BRECHA DE LA CURIOSIDAD (Curiosity Gap) y procesamiento en 13 milisegundos:
+Genera EXACTAMENTE 3 opciones magnéticas de TEXTO EN PANTALLA para la miniatura (de 2 a 4 palabras máximo en ESPAÑOL y MAYÚSCULAS) que:
+1. Despierten una incógnita inmediata en el cerebro ("¿Qué pasó?", "¿Por qué hizo eso?") sin regalar la respuesta.
+2. Trabajen en equipo con el título del video pero SIN REPETIR ninguna frase del título ni del Texto del Clip 1.
+3. Sean legibles en 13 milisegundos en la pantalla de un teléfono móvil.
+Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`;
   } else if (stageNumber === 11 || stageNumber === 111) {
     stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
@@ -566,6 +591,68 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido:
         },
       });
     }
+  }
+
+  const raw = await callGeminiGenerateContentClientSide(parts, true);
+  return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+}
+
+export interface ThumbnailPsychologyAuditResult {
+  optionLabel: string;
+  ctrScore: number; // 0 to 100
+  rule1_13msClarity: number; // 0 to 20
+  rule2_faceEmotionEyeContact: number; // 0 to 20
+  rule3_curiosityGap: number; // 0 to 20
+  rule4_colorContrast: number; // 0 to 20
+  rule5_titleBrandSynergy: number; // 0 to 20
+  verdict: 'EXCELENTE' | 'BUENA' | 'MEJORABLE';
+  summary: string;
+  improvementTip?: string;
+}
+
+export async function auditThumbnailPsychologyClientSide(
+  doc: DocumentaryProject,
+  imageDataUrl: string,
+  optionLabel: string = 'A'
+): Promise<ThumbnailPsychologyAuditResult> {
+  const overlayText = (doc.thumbnailTextOverlay || '').trim();
+  const promptText = `Actúa como Experto en Neuropsicología de Miniaturas de YouTube (CTR) y Director de Arte de "Huellas de la Humanidad".
+Evalúa la miniatura adjunta (Opción ${optionLabel}) para el documental "${doc.title || doc.topic}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+Texto esperado en pantalla: "${overlayText}"
+
+Califica del 0 al 20 cada una de las 5 Reglas Psicológicas del Clic (Total 0 a 100):
+1. rule1_13msClarity (0-20): Procesamiento ultrarrápido en 13 milisegundos. ¿Es ultra-limpia (máximo 3 elementos), sin ruido visual y legible en un móvil pequeño?
+2. rule2_faceEmotionEyeContact (0-20): Rostro humano expresivo, emoción visceral intensa (asombro, shock, terror, misterio) y contacto visual directo con el espectador.
+3. rule3_curiosityGap (0-20): Brecha de la curiosidad (Curiosity Gap). ¿Plantea una incógnita visual irresistible ("¿Qué acaba de pasar?") sin regalar toda la respuesta?
+4. rule4_colorContrast (0-20): Psicología del color y contraste (luz cálida dorada/roja/ámbar de alto impacto contra fondo oscuro frío + legibilidad del texto).
+5. rule5_titleBrandSynergy (0-20): Sincronización con el título, texto en pantalla "${overlayText}" bien escrito, logo oficial "Huellas de la Humanidad" arriba a la izquierda y sello "8K"/"HD" arriba a la derecha.
+
+Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura exacta:
+{
+  "optionLabel": "${optionLabel}",
+  "ctrScore": 92,
+  "rule1_13msClarity": 19,
+  "rule2_faceEmotionEyeContact": 19,
+  "rule3_curiosityGap": 18,
+  "rule4_colorContrast": 18,
+  "rule5_titleBrandSynergy": 18,
+  "verdict": "EXCELENTE",
+  "summary": "Explicación concisa en español (1-2 oraciones) del impacto psicológico de esta miniatura.",
+  "improvementTip": "Sugerencia breve opcional si algún punto bajó de 17."
+}`;
+
+  const cleanB64 = String(imageDataUrl).replace(/^data:[^;]+;base64,/, '');
+  const mimeMatch = String(imageDataUrl).match(/^data:([^;]+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+
+  const parts: any[] = [{ text: promptText }];
+  if (cleanB64 && !imageDataUrl.startsWith('http')) {
+    parts.push({
+      inlineData: {
+        data: cleanB64,
+        mimeType,
+      },
+    });
   }
 
   const raw = await callGeminiGenerateContentClientSide(parts, true);
