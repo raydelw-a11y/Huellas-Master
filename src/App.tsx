@@ -2044,22 +2044,22 @@ export default function App() {
       const centerRate1 = avgCenter1 / 3.5;
       const centerRate2 = avgCenter2 / 2.7;
 
-      // Case 1: Sudden subject pop-in / disappearance / morphing in the center during 4.5s -> 7.2s
+      // Case 1: Sudden subject pop-in / disappearance / morphing in the center during 5.0s -> 8.8s
       if (suddenPopInBlocks >= 18 || (avgCenter2 > 44 && centerRate2 > Math.max(4.5, centerRate1 * 2.35))) {
         return {
           mutationSuspected: true,
           mutationReason:
-            '🧬 ⚠️ Sospecha de mutación en Mitad/Final (4.5s–7.2s): aparición repentina o transformación brusca de personas/objetos en el plano central.',
+            '🧬 ⚠️ Sospecha de mutación en Mitad/Final (5.0s–8.8s): aparición repentina o transformación brusca de personas/objetos en el plano central.',
           suggestedFixMode: 'PEOPLE',
         };
       }
 
-      // Case 2: Peripheral walls/architecture mutating abruptly in the second half (4.5s -> 7.2s)
+      // Case 2: Peripheral walls/architecture mutating abruptly in the second half (5.0s -> 8.8s)
       if (avgWall2 > 42 && wallRate2 > Math.max(4.2, wallRate1 * 2.25)) {
         return {
           mutationSuspected: true,
           mutationReason:
-            '🧬 ⚠️ Sospecha de mutación de Paredes/Fondo en Mitad/Final (4.5s–7.2s): deformación estructural brusca en los bordes arquitectónicos.',
+            '🧬 ⚠️ Sospecha de mutación de Paredes/Fondo en Mitad/Final (5.0s–8.8s): deformación estructural brusca en los bordes arquitectónicos.',
           suggestedFixMode: 'WALLS',
         };
       }
@@ -2076,7 +2076,7 @@ export default function App() {
   ): Promise<string[]> => {
     const incoming = Array.isArray(fallbackFrames) ? fallbackFrames.filter(Boolean) : [];
 
-    // 1. If we have the MP4 videoDataUrl in the foreground tab, decode 3 distinct timestamps (Inicio 1.0s, Mitad 4.5s, Final 7.2s) directly
+    // 1. If we have the MP4 videoDataUrl in the foreground tab, decode 3 distinct timestamps (Inicio 1.2s, Mitad 5.0s, Final 8.8s) directly
     if (videoDataUrl && videoDataUrl.startsWith('data:video')) {
       let tempVideo: HTMLVideoElement | null = null;
       let blobUrl = '';
@@ -2110,9 +2110,9 @@ export default function App() {
         const dur =
           Number.isFinite(tempVideo.duration) && tempVideo.duration > 0.5
             ? tempVideo.duration
-            : 8;
-        // Exact target timestamps for 8s clip: 1.0s (12.5%), 4.5s (56.25%), 7.2s (90%)
-        const ratios = [0.125, 0.5625, 0.9];
+            : 10;
+        // Exact target timestamps for 10s clip: 1.2s (12%), 5.0s (50%), 8.8s (88%)
+        const ratios = [0.12, 0.5, 0.88];
         const extracted: string[] = [];
 
         for (let i = 0; i < ratios.length; i++) {
@@ -2191,16 +2191,19 @@ export default function App() {
     return [];
   };
 
-  // Option 1 & Option 2 Surgical Anti-Mutation Prompt Shield (Preserves all Master Prompt camera movements while making them controlled + 10s sustained action)
+  // Unified Automatic Shield: Combines Anti-Filtro "Prominent People" / Policy Shield + Controlled Camera + 10s Sustained Action + Anti-Mutation Physics
   const applyAntiMutationShieldToPrompt = (
     rawPrompt: string,
     mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
     isImagePrompt: boolean = false
   ): string => {
     if (!rawPrompt || !rawPrompt.trim()) return '';
-    let p = rawPrompt.trim();
-    const isReelFormat = (activeDocRef.current || activeDoc)?.productionFormat === 'reel';
+    const currentDoc = activeDocRef.current || activeDoc;
+    const isReelFormat = currentDoc?.productionFormat === 'reel';
     const clipSec = isReelFormat ? 5 : 10;
+
+    // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
+    let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
 
     let prefix = '';
     const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
@@ -2209,7 +2212,7 @@ export default function App() {
       p = p.slice(prefix.length).trim();
     }
 
-    // Remove any previously injected anti-mutation clause so it never duplicates
+    // Remove any previously injected anti-mutation or duplicate safety clause so it never duplicates
     p = p
       .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
       .replace(
@@ -2223,15 +2226,22 @@ export default function App() {
       .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
       .replace(/All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
+      .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
       .trim();
 
     if (isImagePrompt) {
       const imgClause =
-        'clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects';
+        'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
       if (!p.toLowerCase().includes('rigid architectural perspective')) {
-        p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}.`;
+        if (/\bno\s+text\b/i.test(p)) {
+          p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
+        } else {
+          p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
+        }
+      } else if (!/no real public figures/i.test(p)) {
+        p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
       }
-      return `${prefix}${p}`.trim();
+      return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
     }
 
     // Keep all Master Prompt camera movements (pan, dolly, crane, tracking, tilt, orbit), but ensure they are smooth & controlled (never abrupt/whip)
@@ -2241,15 +2251,17 @@ export default function App() {
       .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
     let shieldDirective = '';
+    const safetyDisclaimer =
+      'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).';
     if (mode === 'PEOPLE') {
-      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.`;
+      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. ${safetyDisclaimer}`;
     } else if (mode === 'OBJECTS') {
-      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving or floating objects.`;
+      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving or floating objects. ${safetyDisclaimer}`;
     } else if (mode === 'WALLS') {
-      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement.`;
+      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement. ${safetyDisclaimer}`;
     } else {
       // 'ALL'
-      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects.`;
+      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. ${safetyDisclaimer}`;
     }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
@@ -2410,37 +2422,67 @@ export default function App() {
     return '';
   };
 
-  // Automatically ensure all clips in activeDoc have the 10s (or 5s for Reel) Anti-Mutation Physics Shield from construction
+  // Automatically ensure all clips and references in activeDoc have ALL shields (Anti-Filtro Flow + 10s Anti-Mutation Physics + Anti-Violencia) from construction
   useEffect(() => {
-    if (!activeDoc || !Array.isArray(activeDoc.clips) || activeDoc.clips.length === 0) return;
-    const needsAutoShield = activeDoc.clips.some(
-      (c) =>
-        ((c.videoPrompt || '').trim() &&
-          !/Fixed subject count from 0s to \d+s/i.test(c.videoPrompt || '')) ||
-        ((c.imagePrompt || '').trim() &&
-          !/rigid architectural perspective/i.test(c.imagePrompt || ''))
-    );
-    if (!needsAutoShield) return;
+    if (!activeDoc) return;
+    const hasClips = Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0;
+    const hasRefs = Array.isArray(activeDoc.references) && activeDoc.references.length > 0;
+    if (!hasClips && !hasRefs) return;
 
-    const nextClips = activeDoc.clips.map((c) => ({
-      ...c,
-      imagePrompt: (c.imagePrompt || '').trim()
-        ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
-        : c.imagePrompt,
-      videoPrompt: (c.videoPrompt || '').trim()
-        ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
-        : c.videoPrompt,
-    }));
+    const needsClipShield =
+      hasClips &&
+      activeDoc.clips.some(
+        (c) =>
+          ((c.videoPrompt || '').trim() &&
+            (!/Fixed subject count from 0s to \d+s/i.test(c.videoPrompt || '') ||
+              !/no real public figures/i.test(c.videoPrompt || ''))) ||
+          ((c.imagePrompt || '').trim() &&
+            (!/rigid architectural perspective/i.test(c.imagePrompt || '') ||
+              !/no real public figures/i.test(c.imagePrompt || '')))
+      );
 
-    const nextRawClipsText = nextClips
-      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
-      .join('\n\n');
+    const needsRefShield =
+      hasRefs &&
+      activeDoc.references.some(
+        (r) =>
+          r.category === 'persona' &&
+          (r.prompt || '').trim() &&
+          !/no real public figures/i.test(r.prompt || '')
+      );
 
-    updateActiveDoc({
-      clips: nextClips,
-      rawClipsText: nextRawClipsText,
-    });
-  }, [activeDoc?.id, activeDoc?.clips?.length, activeDoc?.productionFormat]);
+    if (!needsClipShield && !needsRefShield) return;
+
+    const patch: Partial<DocumentaryProject> = {};
+
+    if (needsClipShield) {
+      const nextClips = activeDoc.clips.map((c) => ({
+        ...c,
+        imagePrompt: (c.imagePrompt || '').trim()
+          ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
+          : c.imagePrompt,
+        videoPrompt: (c.videoPrompt || '').trim()
+          ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
+          : c.videoPrompt,
+      }));
+      patch.clips = nextClips;
+      patch.rawClipsText = nextClips
+        .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+        .join('\n\n');
+    }
+
+    if (needsRefShield) {
+      patch.references = activeDoc.references.map((r) => {
+        if (r.category !== 'persona' || !(r.prompt || '').trim()) return r;
+        let shielded = applyAutomaticFlowPolicyShield(r.prompt, true);
+        if (!/no real public figures/i.test(shielded)) {
+          shielded = `${shielded.replace(/\.?\s*$/, '')}. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).`;
+        }
+        return { ...r, prompt: shielded };
+      });
+    }
+
+    updateActiveDoc(patch);
+  }, [activeDoc?.id, activeDoc?.clips?.length, activeDoc?.references?.length, activeDoc?.productionFormat]);
 
   // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed
   useEffect(() => {
@@ -2703,7 +2745,9 @@ export default function App() {
                 videoFrames: distinctFrames.length > 0 ? distinctFrames : c.videoFrames,
                 videoAuditStatus: 'generating' as const,
                 videoAuditScore: 62,
-                videoAuditReason: `${mutationCheck.mutationReason} Re-ajustando prompt automáticamente con blindaje Anti-Mutación 8s y regenerando en Google Flow (Intento #2)...`,
+                videoAuditReason: `${mutationCheck.mutationReason} Re-ajustando prompt automáticamente con blindaje Anti-Mutación ${
+                  latestDocPre.productionFormat === 'reel' ? '5s' : '10s'
+                } y regenerando en Google Flow (Intento #2)...`,
               }
             : c
         );
@@ -8486,20 +8530,11 @@ export default function App() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
-                        title="Todos los prompts de imagen y video incluyen automáticamente desde su construcción el blindaje de cámara controlada, acción continua de 0s a 10s y física anti-mutación"
+                        title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación de 0s a 10s con cámara controlada y el Escudo Anti-Violencia"
                       >
-                        ✅ Blindaje Física + Anti-Mutación{' '}
-                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'} Activo en Todos los Prompts
+                        ✅ Todos los Blindajes Activos Automáticamente (Anti-Filtro Flow + Física Anti-Mutación{' '}
+                        {activeDoc.productionFormat === 'reel' ? '5s' : '10s'})
                       </span>
-
-                      <button
-                        type="button"
-                        onClick={handleEvadeFilterAllClips}
-                        className="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold cursor-pointer"
-                        title="Reemplaza nombres de personas prominentes, reyes y @Personas por descripciones físicas anónimas de recreación histórica en todos los clips"
-                      >
-                        🛡️ Blindar Todos los Prompts (Anti-Filtro Flow)
-                      </button>
 
                       <button
                         onClick={() => {
