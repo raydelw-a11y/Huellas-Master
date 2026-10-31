@@ -109,7 +109,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:09 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:28 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1714,9 +1714,19 @@ export default function App() {
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(statusText);
 
+    const refAssets = (currentDoc?.references || []).map((r) => ({
+      id: r.id,
+      tag: r.tag,
+      name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
+      imageUrl: r.imageUrl,
+    }));
+
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptToSend,
+      imagePrompt: clip.imagePrompt || '',
+      aspectRatio: flowAspectRatio,
+      referenceAssetsForClips: refAssets,
       clipNumber: clip.clipNumber,
       clipId: clip.id,
       attempt: attemptNum,
@@ -1927,9 +1937,27 @@ export default function App() {
       `📦 Lote #${normalizedBatchNum} (Clips ${rangeLabel}) enviado a Google Flow con Orden Operativa de 9 líneas + ${batchClips.length} pares Image/Clip. Vigilando los ${batchClips.length} videos...`
     );
 
+    const refAssets = (doc.references || []).map((r) => ({
+      id: r.id,
+      tag: r.tag,
+      name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
+      imageUrl: r.imageUrl,
+    }));
+
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: fullBatchPrompt,
+      imagePrompt: batchClips[0].imagePrompt || '',
+      aspectRatio: flowAspectRatio,
+      referenceAssetsForClips: refAssets,
+      batchClipsData: batchClips.map((c) => ({
+        id: c.id,
+        clipNumber: c.clipNumber,
+        imagePrompt: c.imagePrompt || '',
+        videoPrompt: c.videoPrompt || '',
+        timeRange: c.timeRange || '',
+      })),
+      storyStudioProjectJson: buildStoryStudioProjectJson(doc, true),
       clipNumber: batchClips[0].clipNumber,
       clipId: batchClips[0].id,
       batchStartClip: batchClips[0].clipNumber,
@@ -2714,6 +2742,41 @@ export default function App() {
       } else if (msg.type === 'FLOW_VIDEO_CAPTURED') {
         setExtensionInstalled(true);
         handleCapturedFlowVideoAudit(msg);
+      } else if (msg.type === 'FLOW_CLIP_IMAGE_CAPTURED') {
+        setExtensionInstalled(true);
+        const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        const clipNum = Number(msg.clipNumber) || 1;
+        const clipIdFromMsg = String(msg.clipId || '').trim();
+        if (dataUrl) {
+          const currentDoc = activeDocRef.current;
+          if (currentDoc && Array.isArray(currentDoc.clips)) {
+            const targetClip =
+              currentDoc.clips.find((c) => clipIdFromMsg && c.id === clipIdFromMsg) ||
+              currentDoc.clips.find((c) => c.clipNumber === clipNum);
+            if (targetClip) {
+              const padded = String(targetClip.clipNumber).padStart(2, '0');
+              const nextClips = currentDoc.clips.map((c) =>
+                c.id === targetClip.id
+                  ? {
+                      ...c,
+                      imageReady: true,
+                      videoFrames:
+                        c.videoFrames && c.videoFrames.length > 0 ? c.videoFrames : [dataUrl],
+                    }
+                  : c
+              );
+              updateActiveDoc({ clips: nextClips });
+              const imgFileName = `Imagen_Clip_${padded}.png`;
+              await handleSaveAnyFileToChosenFolder(imgFileName, dataUrl, '05_Clips_Video');
+              if (!flowAutoPilotActiveRef.current) {
+                const logMsg = `🖼️ Imagen inicial del Clip #${padded} generada en Google Flow y guardada en 05_Clips_Video/${imgFileName}.`;
+                setFlowStatusLog(logMsg);
+                setBridgeStatusType('SUCCESS');
+                setBridgeStatusMsg(logMsg);
+              }
+            }
+          }
+        }
       } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
         // ITEM 5: Auto-import captured Thumbnail A/B/C from Google Flow into our site & save into 03_Miniaturas inside Root Folder
         setExtensionInstalled(true);
@@ -2919,9 +2982,21 @@ export default function App() {
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
+      imagePrompt: matchedClip ? matchedClip.imagePrompt : undefined,
+      aspectRatio: flowAspectRatio,
+      referenceAssetsForClips: (activeDoc?.references || []).map((r) => ({
+        id: r.id,
+        tag: r.tag,
+        name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
+        imageUrl: r.imageUrl,
+      })),
       clipNumber: matchedClip ? matchedClip.clipNumber : clipIdentifier,
       clipId: matchedClip ? matchedClip.id : undefined,
-      referenceId: matchedRef ? matchedRef.id : mediaType === 'IMAGE' && clipIdentifier ? String(clipIdentifier) : undefined,
+      referenceId: matchedRef
+        ? matchedRef.id
+        : !matchedClip && mediaType === 'IMAGE' && clipIdentifier
+        ? String(clipIdentifier)
+        : undefined,
       referenceTag: matchedRef ? matchedRef.tag : undefined,
       referenceTags: matchedRef ? [matchedRef.tag] : undefined,
       expectedCount: matchedRef ? 1 : undefined,

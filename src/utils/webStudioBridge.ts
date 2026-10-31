@@ -35,6 +35,8 @@ export interface WebBridgeCommandPayload {
     | 'OPEN_DOCKED'
     | 'FOCUS_TAB';
   prompt?: string;
+  imagePrompt?: string;
+  aspectRatio?: '16:9' | '9:16';
   stageNumber?: number;
   taskType?: string;
   clipNumber?: number | string;
@@ -46,6 +48,19 @@ export interface WebBridgeCommandPayload {
   referenceTag?: string;
   referenceTags?: string[];
   referenceItems?: WebBridgeReferenceQueueItem[];
+  referenceAssetsForClips?: Array<{
+    id: string;
+    tag: string;
+    name: string;
+    imageUrl?: string;
+  }>;
+  batchClipsData?: Array<{
+    id: string;
+    clipNumber: number;
+    imagePrompt: string;
+    videoPrompt: string;
+    timeRange?: string;
+  }>;
   storyStudioProjectJson?: string;
   storyStudioTargetTab?: 'assets' | 'storyboard';
   autoCreateImages?: boolean;

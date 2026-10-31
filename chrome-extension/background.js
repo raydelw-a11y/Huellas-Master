@@ -1,5 +1,5 @@
 // ============================================================================
-// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.4.0)
+// HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.5.3)
 // 1. Inyecta el prompt en el editor inferior de Google Flow ANTES de adjuntar debugger
 //    (usando el selector y ordenamiento exacto por bottom que sí pega el texto en pantalla).
 // 2. Adjunta chrome.debugger, espera 350ms a que baje la barra superior, verifica que el
@@ -151,11 +151,29 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
   const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
 
   function findBottomPromptEditor() {
-    const allCandidates = [
-      ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
-      ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
-      ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
-    ].filter((el) => {
+    const collectNodes = (root, selector) => {
+      const list = Array.from(root.querySelectorAll(selector));
+      const allEls = root.querySelectorAll('*');
+      for (const el of allEls) {
+        if (el.shadowRoot) {
+          list.push(...el.shadowRoot.querySelectorAll(selector));
+        }
+      }
+      return list;
+    };
+
+    const rawList = [
+      ...collectNodes(document, 'div.ProseMirror[contenteditable="true"]'),
+      ...collectNodes(document, 'div[contenteditable="true"][role="textbox"]'),
+      ...collectNodes(document, 'rich-textarea [contenteditable="true"], .ql-editor[contenteditable="true"]'),
+      ...collectNodes(document, '[contenteditable="true"]:not([aria-hidden="true"])'),
+      ...collectNodes(document, 'textarea:not(.g-recaptcha-response):not([readonly])'),
+    ];
+
+    const seen = new Set();
+    const allCandidates = rawList.filter((el) => {
+      if (seen.has(el)) return false;
+      seen.add(el);
       const r = el.getBoundingClientRect();
       return (
         r.width > 60 &&
@@ -177,7 +195,22 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     return allCandidates[0];
   }
 
-  const editorEl = findBottomPromptEditor();
+  let editorEl = findBottomPromptEditor();
+  if (!editorEl) {
+    // Si estamos en la pantalla de inicio de Google Flow ("New project" / "+ New"), abrir o enfocar la caja
+    const newProjBtn = Array.from(document.querySelectorAll('button, a[role="button"]')).find((b) =>
+      /\b(new project|nuevo proyecto|create project|start creating)\b/i.test(
+        (b.textContent || '').trim()
+      )
+    );
+    if (newProjBtn) {
+      try {
+        newProjBtn.click();
+        await sleepMain(900);
+        editorEl = findBottomPromptEditor();
+      } catch {}
+    }
+  }
   if (!editorEl) {
     return { injected: false, error: 'No se encontró la caja de prompt en Google Flow.' };
   }
@@ -712,6 +745,300 @@ async function generateSingleImageViaFlowSdk(
   }
 }
 
+let stopFlowAutoPilotRequested = false;
+
+/**
+ * Genera el cuadro inicial (Flow.generate.image) y el video (Flow.generate.video + fallback cinematográfico)
+ * de un Clip de Etapa 8 directamente vía window.__HUELLAS_FLOW_SDK__ dentro de Story Studio.
+ */
+async function generateSingleClipViaFlowSdk(
+  tabId,
+  clipItem = {},
+  aspectRatio = '16:9',
+  referenceAssets = []
+) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      args: [clipItem, aspectRatio, referenceAssets],
+      func: async (item, ratio, refsList) => {
+        const sdk = window.__HUELLAS_FLOW_SDK__;
+        if (!sdk || typeof sdk.generate?.image !== 'function') {
+          return { hasSdk: false };
+        }
+
+        window.__HUELLAS_REF_MEDIA_IDS__ = window.__HUELLAS_REF_MEDIA_IDS__ || {};
+        const refCache = window.__HUELLAS_REF_MEDIA_IDS__;
+
+        const rawImagePrompt = String(item.imagePrompt || item.prompt || '').trim();
+        const rawVideoPrompt = String(item.videoPrompt || item.prompt || '').trim();
+        const combinedLower = `${rawImagePrompt} ${rawVideoPrompt}`.toLowerCase();
+
+        // 1. Resolver hasta 3 @Referencias vinculadas al clip (subiéndolas una sola vez con Flow.upload si tienen base64)
+        const referenceImageMediaIds = [];
+        if (Array.isArray(refsList) && refsList.length > 0 && typeof sdk.upload === 'function') {
+          const matchedRefs = refsList.filter((r) => {
+            const tagClean = String(r.tag || '')
+              .replace(/^@+/, '')
+              .toLowerCase();
+            const nameClean = String(r.name || '').toLowerCase();
+            return (
+              (tagClean && combinedLower.includes(tagClean)) ||
+              (nameClean && combinedLower.includes(nameClean))
+            );
+          });
+          const chosenRefs = (matchedRefs.length > 0 ? matchedRefs : refsList).slice(0, 3);
+          for (const ref of chosenRefs) {
+            const cacheKey = ref.id || ref.tag || ref.name;
+            if (cacheKey && refCache[cacheKey]) {
+              referenceImageMediaIds.push(refCache[cacheKey]);
+              continue;
+            }
+            if (ref.imageUrl && String(ref.imageUrl).startsWith('data:image/')) {
+              try {
+                const parts = String(ref.imageUrl).split(',');
+                const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+                const b64 = parts[1] || '';
+                if (b64) {
+                  const up = await sdk.upload({
+                    base64: b64,
+                    mimeType: mime,
+                    name: `Ref - ${ref.name || ref.tag || 'Asset'}`,
+                  });
+                  if (up?.mediaId) {
+                    if (cacheKey) refCache[cacheKey] = up.mediaId;
+                    referenceImageMediaIds.push(up.mediaId);
+                  }
+                }
+              } catch (upErr) {
+                console.warn('[Huellas Flow SDK] Ref upload skipped:', upErr);
+              }
+            }
+          }
+        }
+
+        const realisticStyle =
+          'Hyper-realistic cinematic film still. Shallow depth of field, atmospheric lighting, ultra-high-fidelity textures. Lifelike characters exhibit visible skin pores, natural flaws, and nuanced micro-expressions within a softly focused, immersive environment. Characters ignore the camera. Uncropped full frame, textless, no letterboxing.';
+
+        const cleanImgPromptBase = (rawImagePrompt || rawVideoPrompt)
+          .replace(/^\*\*?Image\s*\d+\s*:\*\*?\s*/i, '')
+          .replace(/^Image\s*\d+\s*:\s*/i, '')
+          .replace(/^\*\*?Clip\s*\d+\s*(?:\([^)]*\))?\s*:\*\*?\s*/i, '')
+          .replace(/^Clip\s*\d+\s*(?:\([^)]*\))?\s*:\s*/i, '')
+          .trim();
+
+        const fullImgPrompt = cleanImgPromptBase.includes('Visual Style:')
+          ? cleanImgPromptBase.slice(0, 3950)
+          : `${cleanImgPromptBase.slice(0, 3550)}\nVisual Style: ${realisticStyle}`.slice(0, 3950);
+
+        const cleanVidPrompt = (rawVideoPrompt || rawImagePrompt)
+          .replace(/^\*\*?Clip\s*\d+\s*(?:\([^)]*\))?\s*:\*\*?\s*/i, '')
+          .replace(/^Clip\s*\d+\s*(?:\([^)]*\))?\s*:\s*/i, '')
+          .replace(/^\*\*?Image\s*\d+\s*:\*\*?\s*/i, '')
+          .replace(/^Image\s*\d+\s*:\s*/i, '')
+          .trim()
+          .slice(0, 3950);
+
+        // 2. Generar primero el Cuadro Inicial (Image N) con Flow.generate.image (🍌 Nano Banana 2)
+        const imgModels = ['🍌 Nano Banana 2', '🍌 Nano Banana Pro', '🍌 Nano Banana 2.1'];
+        let startImageMediaId = undefined;
+        let startImageDataUrl = '';
+        let lastError = '';
+
+        for (const modelDisplayName of imgModels) {
+          try {
+            const imgRes = await sdk.generate.image({
+              prompt: fullImgPrompt,
+              aspectRatio: ratio || '16:9',
+              referenceImageMediaIds:
+                referenceImageMediaIds.length > 0 ? referenceImageMediaIds : undefined,
+              modelDisplayName,
+            });
+            if (imgRes && imgRes.base64) {
+              const mime = imgRes.mimeType || 'image/jpeg';
+              startImageMediaId = imgRes.mediaId;
+              startImageDataUrl = `data:${mime};base64,${imgRes.base64}`;
+              break;
+            }
+          } catch (imgErr) {
+            lastError = String(imgErr?.message || imgErr || '');
+            // Si falló por mediaId expirado, reintentar sin referenceImageMediaIds
+            if (referenceImageMediaIds.length > 0) {
+              try {
+                const retryRes = await sdk.generate.image({
+                  prompt: fullImgPrompt,
+                  aspectRatio: ratio || '16:9',
+                  modelDisplayName,
+                });
+                if (retryRes && retryRes.base64) {
+                  const mime = retryRes.mimeType || 'image/jpeg';
+                  startImageMediaId = retryRes.mediaId;
+                  startImageDataUrl = `data:${mime};base64,${retryRes.base64}`;
+                  break;
+                }
+              } catch {}
+            }
+          }
+        }
+
+        // 3. Intentar generar Video nativo con Flow.generate.video encadenando firstFrameImageMediaId
+        let videoDataUrl = '';
+        let videoMediaId = undefined;
+        let videoMode = 'FLOW_SDK';
+
+        if (typeof sdk.generate?.video === 'function') {
+          const vidModels = ['Omni 1.1 Flash', 'Veo 3.1 - Fast', 'Veo 2', undefined];
+          for (const modelDisplayName of vidModels) {
+            try {
+              const vidOpts = {
+                prompt: cleanVidPrompt,
+                aspectRatio: ratio || '16:9',
+                resolution: '720p',
+                durationSeconds: 8,
+                ...(startImageMediaId ? { firstFrameImageMediaId: startImageMediaId } : {}),
+                ...(modelDisplayName ? { modelDisplayName } : {}),
+              };
+              const vidRes = await sdk.generate.video(vidOpts);
+              if (vidRes && vidRes.base64) {
+                const vMime = vidRes.mimeType || 'video/mp4';
+                videoDataUrl = `data:${vMime};base64,${vidRes.base64}`;
+                videoMediaId = vidRes.mediaId;
+                videoMode = `NATIVE_VIDEO_${modelDisplayName || 'DEFAULT'}`;
+                break;
+              }
+            } catch (vErr) {
+              lastError = String(vErr?.message || vErr || '');
+            }
+          }
+        }
+
+        // 4. Extraer los 3 Keyframes de auditoría (Inicio, Mitad, Final) y si el sandbox de Story Studio
+        //    sólo tiene habilitado Flow.generate.image, sintetizar el clip de movimiento cinematográfico (Ken Burns 30fps)
+        //    a partir de la imagen real recién generada en Nano Banana 2
+        const frames = [];
+        if (startImageDataUrl) {
+          try {
+            const img = await new Promise((resolve, reject) => {
+              const im = new Image();
+              im.onload = () => resolve(im);
+              im.onerror = reject;
+              im.src = startImageDataUrl;
+            });
+
+            const isVert = ratio === '9:16';
+            const kfW = isVert ? 360 : 640;
+            const kfH = isVert ? 640 : 360;
+            const kfCanvas = document.createElement('canvas');
+            kfCanvas.width = kfW;
+            kfCanvas.height = kfH;
+            const kfCtx = kfCanvas.getContext('2d');
+
+            if (kfCtx) {
+              for (const zoom of [1.0, 1.06, 1.12]) {
+                kfCtx.clearRect(0, 0, kfW, kfH);
+                const sw = img.width / zoom;
+                const sh = img.height / zoom;
+                const sx = (img.width - sw) / 2;
+                const sy = (img.height - sh) / 2;
+                kfCtx.drawImage(img, sx, sy, sw, sh, 0, 0, kfW, kfH);
+                frames.push(kfCanvas.toDataURL('image/jpeg', 0.85));
+              }
+            }
+
+            if (!videoDataUrl && typeof MediaRecorder !== 'undefined') {
+              const recW = isVert ? 720 : 1280;
+              const recH = isVert ? 1280 : 720;
+              const recCanvas = document.createElement('canvas');
+              recCanvas.width = recW;
+              recCanvas.height = recH;
+              const recCtx = recCanvas.getContext('2d');
+
+              if (recCtx && typeof recCanvas.captureStream === 'function') {
+                const stream = recCanvas.captureStream(30);
+                const mimeTypes = [
+                  'video/mp4',
+                  'video/webm;codecs=vp9',
+                  'video/webm;codecs=vp8',
+                  'video/webm',
+                ];
+                const chosenMime =
+                  mimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+                const recorder = chosenMime
+                  ? new MediaRecorder(stream, {
+                      mimeType: chosenMime,
+                      videoBitsPerSecond: 4500000,
+                    })
+                  : new MediaRecorder(stream);
+
+                const chunks = [];
+                recorder.ondataavailable = (ev) => {
+                  if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+                };
+
+                const recordPromise = new Promise((resolveRec) => {
+                  recorder.onstop = () => {
+                    const blob = new Blob(chunks, {
+                      type: chosenMime || 'video/webm',
+                    });
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolveRec(String(reader.result || ''));
+                    reader.onerror = () => resolveRec('');
+                    reader.readAsDataURL(blob);
+                  };
+                });
+
+                recorder.start();
+                const totalFrames = 90; // 3 seconds smooth render @ 30fps
+                for (let f = 0; f < totalFrames; f++) {
+                  const progress = f / Math.max(1, totalFrames - 1);
+                  const zoom = 1.0 + progress * 0.12;
+                  const sw = img.width / zoom;
+                  const sh = img.height / zoom;
+                  const sx = (img.width - sw) * (0.5 - progress * 0.08);
+                  const sy = (img.height - sh) * 0.5;
+                  recCtx.drawImage(img, sx, sy, sw, sh, 0, 0, recW, recH);
+                  await new Promise((r) => setTimeout(r, 28));
+                }
+                recorder.stop();
+                videoDataUrl = await recordPromise;
+                videoMode = 'FLOW_SDK_NANO_BANANA_MOTION';
+              }
+            }
+          } catch (synthErr) {
+            console.warn('[Huellas Flow SDK] Keyframe/Motion synthesis warning:', synthErr);
+          }
+        }
+
+        if (!videoDataUrl && !startImageDataUrl) {
+          return {
+            hasSdk: true,
+            ok: false,
+            error: lastError || 'No se pudo generar el clip vía Flow SDK.',
+          };
+        }
+
+        return {
+          hasSdk: true,
+          ok: true,
+          mode: videoMode,
+          mediaId: videoMediaId || startImageMediaId,
+          startImageMediaId,
+          startImageDataUrl,
+          videoDataUrl: videoDataUrl || startImageDataUrl,
+          frames: frames.length > 0 ? frames : startImageDataUrl ? [startImageDataUrl] : [],
+          duration: 8,
+        };
+      },
+    });
+
+    const hit = (results || []).find((r) => r?.result?.hasSdk);
+    return hit ? hit.result : { hasSdk: false, ok: false };
+  } catch (err) {
+    return { hasSdk: false, ok: false, error: String(err?.message || err) };
+  }
+}
+
 /**
  * Inyecta el JSON del proyecto en la interfaz visual de Story Studio (pestaña "2. Assets")
  * para que las tarjetas y sus imágenes generadas también se vean en pantalla dentro de Story Studio.
@@ -951,13 +1278,19 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   }
   await sleep(150);
 
-  // 2. Inyectar el prompt en MAIN world ANTES de adjuntar chrome.debugger
-  const [mainAttempt] = await chrome.scripting.executeScript({
-    target: { tabId },
+  // 2. Inyectar el prompt en MAIN world ANTES de adjuntar chrome.debugger (buscando en todos los frames)
+  const mainAttempts = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
     world: 'MAIN',
     args: [rawPromptText, mediaType, logoDataUrl],
     func: injectPromptIntoBottomEditor,
   });
+
+  const mainAttempt =
+    (mainAttempts || []).find((r) => r?.result?.injected) || (mainAttempts || [])[0];
+  const matchedFrameId = typeof mainAttempt?.frameId === 'number' ? mainAttempt.frameId : 0;
+  const frameTarget =
+    matchedFrameId > 0 ? { tabId, frameIds: [matchedFrameId] } : { tabId };
 
   if (!mainAttempt?.result?.injected) {
     throw new Error(
@@ -972,7 +1305,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   // Esperar 280ms por si el click en MAIN world ya envió el prompt
   await sleep(280);
   const [checkInitial] = await chrome.scripting.executeScript({
-    target: { tabId },
+    target: frameTarget,
     world: 'MAIN',
     func: checkBottomEditorSubmitted,
   });
@@ -997,7 +1330,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   try {
     // 4. Asegurar que el texto sigue en el editor inferior y obtener las coordenadas exactas de button.generate-icon-button
     const [prep] = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameTarget,
       world: 'MAIN',
       args: [rawPromptText, mediaType],
       func: ensurePromptAndGetSubmitCoords,
@@ -1017,7 +1350,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
 
     // Comprobar si el clic físico sobre button.generate-icon-button ya sometió el prompt
     const [afterBtnCheck] = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameTarget,
       world: 'MAIN',
       func: checkBottomEditorSubmitted,
     });
@@ -1228,10 +1561,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await ensureScriptInjected(targetTab.id, contentScriptFile);
         await sleep(100);
 
+        if (targetService === 'FLOW' && action === 'STOP_FLOW_WATCHER') {
+          stopFlowAutoPilotRequested = true;
+        }
+
         if (
           targetService === 'FLOW' &&
           (action === 'SEND_PROMPT' || action === 'LOAD_STORY_STUDIO_PROJECT')
         ) {
+          stopFlowAutoPilotRequested = false;
           try {
             // 1. Verificar si window.__HUELLAS_FLOW_SDK__ = Flow está disponible en la pestaña de Google Flow
             const sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
@@ -1319,7 +1657,164 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               return;
             }
 
-            // 1C. Si Story Studio está abierto pero aún sin window.__HUELLAS_FLOW_SDK__, inyectar JSON y pulsar Autocreate images
+            // 1C. Etapa 8 (Imagen Inicial de un Clip individual "🚀 Flow Imagen") vía window.__HUELLAS_FLOW_SDK__
+            if (sdkStatus.hasSdk && payload.mediaType === 'IMAGE' && !payload.referenceId) {
+              const clipNum = Number(payload.clipNumber) || 1;
+              const padded = String(clipNum).padStart(2, '0');
+              const ratio = payload.aspectRatio === '9:16' ? '9:16' : '16:9';
+
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'DIRECT_FLOW_SDK_CLIP_IMAGE',
+              });
+
+              (async () => {
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'BRIDGE_STATUS',
+                  service: 'FLOW',
+                  status: 'GENERATING',
+                  message: `🍌 Flow SDK: Generando Imagen Inicial del Clip #${padded} (${ratio}) en Nano Banana 2...`,
+                  clipNumber: clipNum,
+                  clipId: payload.clipId,
+                  mediaType: 'IMAGE',
+                });
+
+                const imgRes = await generateSingleImageViaFlowSdk(
+                  targetTab.id,
+                  payload.prompt || '',
+                  ratio
+                );
+
+                if (imgRes && imgRes.ok && imgRes.imageDataUrl) {
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'FLOW_CLIP_IMAGE_CAPTURED',
+                    clipNumber: clipNum,
+                    clipId: payload.clipId,
+                    mediaId: imgRes.mediaId,
+                    imageUrl: imgRes.imageDataUrl,
+                    imageDataUrl: imgRes.imageDataUrl,
+                  });
+                } else {
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'ERROR',
+                    message: `⚠️ Error generando Imagen Inicial del Clip #${padded}: ${
+                      imgRes?.error || 'Desconocido'
+                    }`,
+                  });
+                }
+              })();
+              return;
+            }
+
+            // 1D. Etapa 8 (Piloto Automático Secuencial / Video de Clip individual / Lotes de 10) vía window.__HUELLAS_FLOW_SDK__
+            if (sdkStatus.hasSdk && payload.mediaType === 'VIDEO') {
+              const ratio = payload.aspectRatio === '9:16' ? '9:16' : '16:9';
+              const refAssets = Array.isArray(payload.referenceAssetsForClips)
+                ? payload.referenceAssetsForClips
+                : [];
+              const clipsToRun =
+                Array.isArray(payload.batchClipsData) && payload.batchClipsData.length > 0
+                  ? payload.batchClipsData
+                  : [
+                      {
+                        id: payload.clipId,
+                        clipNumber: Number(payload.clipNumber) || 1,
+                        imagePrompt: payload.imagePrompt || payload.prompt || '',
+                        videoPrompt: payload.prompt || '',
+                      },
+                    ];
+
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'DIRECT_FLOW_SDK_VIDEO_PIPELINE',
+                total: clipsToRun.length,
+              });
+
+              (async () => {
+                if (payload.storyStudioProjectJson) {
+                  await syncProjectJsonIntoStoryStudioUI(
+                    targetTab.id,
+                    payload.storyStudioProjectJson,
+                    false
+                  ).catch(() => {});
+                }
+
+                for (let i = 0; i < clipsToRun.length; i++) {
+                  if (stopFlowAutoPilotRequested) {
+                    break;
+                  }
+                  const clipItem = clipsToRun[i];
+                  const clipNum = Number(clipItem.clipNumber) || i + 1;
+                  const padded = String(clipNum).padStart(2, '0');
+
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'GENERATING',
+                    message: `🎬 Flow SDK (Clip #${padded}${
+                      clipsToRun.length > 1 ? ` • ${i + 1}/${clipsToRun.length}` : ''
+                    }): Generando cuadro inicial (🍌 Nano Banana 2) y produciendo video en Google Flow...`,
+                    clipNumber: clipNum,
+                    clipId: clipItem.id,
+                    mediaType: 'VIDEO',
+                  });
+
+                  const clipRes = await generateSingleClipViaFlowSdk(
+                    targetTab.id,
+                    clipItem,
+                    ratio,
+                    refAssets
+                  );
+
+                  if (stopFlowAutoPilotRequested) {
+                    break;
+                  }
+
+                  if (clipRes && clipRes.ok) {
+                    if (clipRes.startImageDataUrl) {
+                      broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                        type: 'FLOW_CLIP_IMAGE_CAPTURED',
+                        clipNumber: clipNum,
+                        clipId: clipItem.id,
+                        mediaId: clipRes.startImageMediaId,
+                        imageUrl: clipRes.startImageDataUrl,
+                        imageDataUrl: clipRes.startImageDataUrl,
+                      });
+                    }
+
+                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                      type: 'FLOW_VIDEO_CAPTURED',
+                      clipNumber: clipNum,
+                      clipId: clipItem.id,
+                      attempt: payload.attempt || 1,
+                      prompt: clipItem.videoPrompt || payload.prompt,
+                      videoUrl: clipRes.videoDataUrl,
+                      videoDataUrl: clipRes.videoDataUrl,
+                      frames: clipRes.frames || [],
+                      duration: clipRes.duration || 8,
+                    });
+                  } else {
+                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                      type: 'BRIDGE_STATUS',
+                      service: 'FLOW',
+                      status: 'ERROR',
+                      message: `⚠️ Error en Clip #${padded} vía Flow SDK: ${
+                        clipRes?.error || 'Desconocido'
+                      }`,
+                    });
+                  }
+                }
+              })();
+              return;
+            }
+
+            // 1E. Si Story Studio está abierto pero aún sin window.__HUELLAS_FLOW_SDK__, inyectar JSON y pulsar Autocreate images
             if (sdkStatus.isStoryStudio && payload.storyStudioProjectJson) {
               const ssRes = await syncProjectJsonIntoStoryStudioUI(
                 targetTab.id,
@@ -1361,6 +1856,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
               (async () => {
                 for (let i = 0; i < items.length; i++) {
+                  if (stopFlowAutoPilotRequested) break;
                   const item = items[i];
                   const singlePrompt = String(item.formattedPrompt || item.prompt || '').slice(
                     0,
@@ -1392,6 +1888,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   message: `✅ Cola de ${items.length} @Referencias enviada una por una a Google Flow. Usa "📥 Importar de Flow" cuando terminen de renderizar.`,
                   mediaType: 'REFERENCES',
                 });
+              })();
+              return;
+            }
+
+            // 2B. Si Story Studio no está abierto y se envió un Lote de 10 (batchClipsData) en la barra inferior de Google Flow, enviarlos 1 por 1 (< 3,950 chars cada uno)
+            if (
+              payload.mediaType === 'VIDEO' &&
+              Array.isArray(payload.batchClipsData) &&
+              payload.batchClipsData.length > 1
+            ) {
+              const bClips = payload.batchClipsData;
+              sendResponse({
+                ok: true,
+                tabId: targetTab.id,
+                tabTitle: targetTab.title,
+                method: 'SEQUENTIAL_BATCH_CLIPS_QUEUE',
+                total: bClips.length,
+              });
+
+              (async () => {
+                for (let i = 0; i < bClips.length; i++) {
+                  if (stopFlowAutoPilotRequested) break;
+                  const cItem = bClips[i];
+                  const singleClipPrompt = String(cItem.videoPrompt || cItem.imagePrompt || '').slice(
+                    0,
+                    3950
+                  );
+                  const padded = String(cItem.clipNumber || i + 1).padStart(2, '0');
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'GENERATING',
+                    message: `🎬 Cola Lote Flow (${i + 1}/${bClips.length}): Enviando y sometiendo Clip #${padded} (< 3,950 chars)...`,
+                    clipNumber: cItem.clipNumber,
+                    clipId: cItem.id,
+                    mediaType: 'VIDEO',
+                  });
+                  try {
+                    await executeFlowPromptHardware(targetTab.id, singleClipPrompt, {
+                      ...payload,
+                      clipNumber: cItem.clipNumber,
+                      clipId: cItem.id,
+                      mediaType: 'VIDEO',
+                    });
+                    chrome.tabs
+                      .sendMessage(targetTab.id, {
+                        target: 'FLOW',
+                        ...payload,
+                        clipNumber: cItem.clipNumber,
+                        clipId: cItem.id,
+                        action: 'START_FLOW_WATCHER_AFTER_SUBMIT',
+                      })
+                      .catch(() => {});
+                  } catch (bErr) {
+                    console.warn('[Huellas Batch Queue] Error en Clip:', cItem.clipNumber, bErr);
+                  }
+                  if (i < bClips.length - 1) {
+                    await sleep(9000);
+                  }
+                }
               })();
               return;
             }

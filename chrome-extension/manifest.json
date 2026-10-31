@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Suno)",
-  "version": "2.5.2",
+  "version": "2.5.3",
   "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow (incluyendo Story Studio flow-sdk) y Suno abiertas en la misma ventana.",
   "permissions": [
     "debugger",
