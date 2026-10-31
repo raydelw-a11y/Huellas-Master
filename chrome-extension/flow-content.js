@@ -22,6 +22,14 @@
     clearInterval(window.__HUELLAS_FLOW_WATCHER_TIMER__);
     window.__HUELLAS_FLOW_WATCHER_TIMER__ = null;
   }
+  if (window.__HUELLAS_FLOW_REF_WATCHER__) {
+    clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+    window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+  }
+  if (window.__HUELLAS_FLOW_THUMB_WATCHER__) {
+    clearInterval(window.__HUELLAS_FLOW_THUMB_WATCHER__);
+    window.__HUELLAS_FLOW_THUMB_WATCHER__ = null;
+  }
 
   function reportStatus(status, message, extra = {}) {
     chrome.runtime
@@ -1281,6 +1289,16 @@
   }
 
   function startWatcherForPayload(payload) {
+    // Asegurar que no quede ningún watcher automático de imágenes corriendo en segundo plano
+    if (window.__HUELLAS_FLOW_REF_WATCHER__) {
+      clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
+      window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+    }
+    if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
+      // No iniciar autodescarga en segundo plano para Referencias (evita descargar imágenes antiguas de otros proyectos)
+      return;
+    }
+
     const rawPromptText = payload.prompt || payload.text || '';
     const promptText =
       payload.mediaType === 'THUMBNAILS'
@@ -1292,14 +1310,6 @@
     if (payload.mediaType === 'THUMBNAILS') {
       startFlowThumbnailWatcher({
         optionLabel: payload.optionLabel,
-        baselineImageUrls,
-      });
-    } else if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
-      startFlowReferenceImagesWatcher({
-        referenceId: payload.referenceId || payload.clipId || payload.clipNumber,
-        referenceTag: payload.referenceTag,
-        referenceTags: payload.referenceTags,
-        expectedCount: payload.expectedCount,
         baselineImageUrls,
       });
     } else if (payload.watchForVideo !== false) {
