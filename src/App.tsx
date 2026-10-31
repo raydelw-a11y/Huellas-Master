@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:52 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:54 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -558,6 +558,74 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('huellas_master_view', mainView);
   }, [mainView]);
+
+  // Auto-pause any playing clip video in Stage 8 when it scrolls out of view or when leaving Stage 8
+  useEffect(() => {
+    if (mainView !== 'studio' || activeStage !== 8) {
+      document
+        .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
+        .forEach((v) => {
+          if (!v.paused) v.pause();
+        });
+      return;
+    }
+
+    const pauseOffscreenVideos = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      document
+        .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
+        .forEach((v) => {
+          if (v.paused || document.fullscreenElement === v) return;
+          const rect = v.getBoundingClientRect();
+          const visibleHeight = Math.min(rect.bottom, vh) - Math.max(rect.top, 56);
+          if (rect.bottom <= 70 || rect.top >= vh - 40 || visibleHeight < rect.height * 0.2) {
+            v.pause();
+          }
+        });
+    };
+
+    const observer =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                const vid = entry.target as HTMLVideoElement;
+                if (
+                  (!entry.isIntersecting || entry.intersectionRatio < 0.2) &&
+                  !vid.paused &&
+                  document.fullscreenElement !== vid
+                ) {
+                  vid.pause();
+                }
+              });
+            },
+            { threshold: [0, 0.2] }
+          )
+        : null;
+
+    const observed = new Set<HTMLVideoElement>();
+    const syncObservedVideos = () => {
+      if (!observer) return;
+      document
+        .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
+        .forEach((v) => {
+          if (!observed.has(v)) {
+            observed.add(v);
+            observer.observe(v);
+          }
+        });
+    };
+
+    syncObservedVideos();
+    window.addEventListener('scroll', pauseOffscreenVideos, { passive: true, capture: true });
+    const intervalId = window.setInterval(syncObservedVideos, 1500);
+
+    return () => {
+      window.removeEventListener('scroll', pauseOffscreenVideos, { capture: true } as any);
+      window.clearInterval(intervalId);
+      if (observer) observer.disconnect();
+    };
+  }, [mainView, activeStage]);
 
   useEffect(() => {
     if (activeDocId) {
@@ -9136,11 +9204,24 @@ export default function App() {
                               <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video min-h-[280px] sm:min-h-[380px] lg:min-h-[460px] shadow-2xl flex items-center justify-center">
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
+                                    data-stage8-clip-video="true"
                                     src={capturedClipVideosMap[clip.clipNumber]}
                                     controls
                                     playsInline
                                     loop
                                     preload="metadata"
+                                    onPlay={(e) => {
+                                      const currentVid = e.currentTarget;
+                                      document
+                                        .querySelectorAll<HTMLVideoElement>(
+                                          'video[data-stage8-clip-video="true"]'
+                                        )
+                                        .forEach((v) => {
+                                          if (v !== currentVid && !v.paused) {
+                                            v.pause();
+                                          }
+                                        });
+                                    }}
                                     className="w-full h-full object-contain bg-black"
                                   />
                                 ) : (
