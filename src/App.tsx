@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:54 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:59 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -711,7 +711,7 @@ export default function App() {
   const [flowCurrentClipNum, setFlowCurrentClipNum] = useState<number | null>(null);
   const [flowStatusLog, setFlowStatusLog] = useState<string>('');
   const [flowDownloadResolution, setFlowDownloadResolution] =
-    useState<ExportResolutionPreset>('4K_2160P');
+    useState<ExportResolutionPreset>('8K_4320P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
   const [capturedSunoAudioMap, setCapturedSunoAudioMap] = useState<Record<number, string>>({});

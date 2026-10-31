@@ -247,7 +247,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
     activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9'
   );
-  const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('4K_2160P');
+  const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('8K_4320P');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
 
   // 2. Permanent Official Logo (Uploaded ONCE, stored forever across all documentaries)
