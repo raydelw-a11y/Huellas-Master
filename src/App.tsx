@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:29 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:33 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -9958,11 +9958,6 @@ export default function App() {
                                     : ''}
                                 </span>
                               )}
-                              {clip.videoAuditStatus === 'generating' && (
-                                <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[11px] font-bold animate-pulse">
-                                  🎬 Generando en Flow...
-                                </span>
-                              )}
                               {clip.videoAuditStatus === 'approved' && (
                                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
                                   🎥 ✅ Aprobado
@@ -10109,6 +10104,11 @@ export default function App() {
 
                                 {/* Quick Direct Flow Actions */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {clip.videoAuditStatus === 'generating' && (
+                                    <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[11px] font-bold animate-pulse">
+                                      🎬 Generando en Flow...
+                                    </span>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() =>
