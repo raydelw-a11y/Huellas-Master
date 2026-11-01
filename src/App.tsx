@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:12 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:17 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -9760,98 +9760,6 @@ export default function App() {
                             />
                           </div>
 
-                          {/* Current Image & Video Prompts */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {/* Image Prompt */}
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                <span className="text-xs font-semibold text-amber-300">
-                                  🖼️ Prompt de Imagen Inicial (Nano Banana 2.1)
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
-                                    }
-                                    className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
-                                    title="Enviar prompt de imagen a Google Flow (Gratis)"
-                                  >
-                                    🚀 Flow Imagen
-                                  </button>
-                                  <button
-                                    onClick={() => copyText(clip.imagePrompt, `img-${clip.id}`)}
-                                    className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 cursor-pointer"
-                                  >
-                                    {copiedId === `img-${clip.id}` ? '✓ Copiado' : '📋 Copiar Image'}
-                                  </button>
-                                </div>
-                              </div>
-                              <textarea
-                                rows={5}
-                                value={clip.imagePrompt}
-                                onChange={(e) => {
-                                  const next = [...activeDoc.clips];
-                                  next[realIdx] = { ...clip, imagePrompt: e.target.value };
-                                  updateActiveDoc({ clips: next });
-                                }}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
-                              />
-                            </div>
-
-                            {/* Video Prompt */}
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                <span className="text-xs font-semibold text-emerald-300">
-                                  🎬 Prompt de Video (Omni Flash + Foley)
-                                </span>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleEvadeFilterAndResendClip(
-                                        clip,
-                                        (clip.videoAttempts || 1) + 1,
-                                        'Reajuste manual Anti-Filtro Prominent People'
-                                      )
-                                    }
-                                    className="px-2.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-300 font-semibold cursor-pointer"
-                                    title="Si este clip falló por política de Personas Prominentes en Google Flow, reajusta el prompt para evadir el filtro y lo reenvía automáticamente"
-                                  >
-                                    🛡️ Evadir Filtro y Re-enviar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
-                                    }
-                                    className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
-                                    title="Enviar prompt de video a Google Flow (Gratis)"
-                                  >
-                                    🎬 Flow Video
-                                  </button>
-                                  <button
-                                    onClick={() => copyText(clip.videoPrompt, `vid-${clip.id}`)}
-                                    className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
-                                  >
-                                    {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
-                                  </button>
-                                </div>
-                              </div>
-                              <textarea
-                                rows={5}
-                                value={clip.videoPrompt}
-                                onChange={(e) => {
-                                  const next = [...activeDoc.clips];
-                                  next[realIdx] = { ...clip, videoPrompt: e.target.value };
-                                  updateActiveDoc({ clips: next });
-                                }}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
-                              />
-                            </div>
-                          </div>
-
-                          {/* SURGICAL ANTI-MUTATION QUICK FIX BAR + LARGE CINEMA .MP4 PLAYER & 3-KEYFRAME VIEWER */}
                           {/* ZERO-SCROLL SIDE-BY-SIDE COCKPIT: .MP4 CLIP VIEWER (LEFT) + REVISADO BUTTON & CORRECTION LIST (RIGHT) */}
                           <div
                             className={`rounded-2xl border p-3 ${
@@ -9896,13 +9804,24 @@ export default function App() {
                                       <p className="text-xs text-slate-300 max-w-sm">
                                         El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí al generarse en Google Flow o desde tu carpeta.
                                       </p>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleLoadClipVideoFromFolder(clip, false)}
-                                        className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
-                                      >
-                                        ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
-                                      </button>
+                                      <div className="flex items-center gap-2 flex-wrap justify-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleLoadClipVideoFromFolder(clip, false)}
+                                          className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
+                                        >
+                                          ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                          }
+                                          className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
+                                        >
+                                          🎬 Crear Video en Flow
+                                        </button>
+                                      </div>
                                     </div>
                                   )}
                                   <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-[11px] font-mono font-bold text-emerald-300 pointer-events-none shadow">
@@ -9980,6 +9899,44 @@ export default function App() {
                                     )}
                                   </div>
 
+                                  {/* Quick Direct Flow Actions Row (No need to open prompts) */}
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                      }
+                                      className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold cursor-pointer truncate text-center"
+                                      title="Enviar prompt de video a Google Flow en segundo plano"
+                                    >
+                                      🎬 Flow Video
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
+                                      }
+                                      className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer truncate text-center"
+                                      title="Enviar prompt de imagen inicial a Google Flow en segundo plano"
+                                    >
+                                      🚀 Flow Imagen
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleEvadeFilterAndResendClip(
+                                          clip,
+                                          (clip.videoAttempts || 1) + 1,
+                                          'Reajuste manual Anti-Filtro Prominent People'
+                                        )
+                                      }
+                                      className="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer truncate text-center"
+                                      title="Evadir filtro Prominent People y re-enviar a Google Flow"
+                                    >
+                                      🛡️ Evadir Filtro
+                                    </button>
+                                  </div>
+
                                   {clip.videoSavedFileName && (
                                     <div className="text-[11px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-lg truncate">
                                       💾 05_Clips_Video/{clip.videoSavedFileName}
@@ -9990,7 +9947,7 @@ export default function App() {
                                 {/* 2. Compact 2-Column Correction List Directly Below Revisado */}
                                 <div className="space-y-1.5">
                                   <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                    🔧 Lista de Corrección Rápida (Re-enviar a Flow):
+                                    🔧 Lista de Recreación Rápida (Re-enviar a Flow):
                                   </span>
                                   <div className="grid grid-cols-2 gap-1.5">
                                     <button
@@ -10104,6 +10061,105 @@ export default function App() {
                               </div>
                             </div>
                           </div>
+
+                          {/* Collapsible Prompts Section (Hidden by default so Video Viewer + Recreación + Revisado stay clean) */}
+                          <details className="group bg-slate-950/60 border border-slate-800/80 rounded-xl overflow-hidden">
+                            <summary className="px-3.5 py-2 text-xs font-bold text-slate-400 hover:text-amber-300 cursor-pointer flex items-center justify-between select-none">
+                              <span>📝 Ver / Editar Prompts de Imagen y Video del Clip {paddedNum}</span>
+                              <span className="text-[11px] text-slate-500 group-open:text-amber-300">
+                                Haz clic para desplegar / ocultar ▾
+                              </span>
+                            </summary>
+                            <div className="p-3 pt-1 border-t border-slate-800/80 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {/* Image Prompt */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                  <span className="text-xs font-semibold text-amber-300">
+                                    🖼️ Prompt de Imagen Inicial (Nano Banana 2.1)
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
+                                      }
+                                      className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
+                                      title="Enviar prompt de imagen a Google Flow (Gratis)"
+                                    >
+                                      🚀 Flow Imagen
+                                    </button>
+                                    <button
+                                      onClick={() => copyText(clip.imagePrompt, `img-${clip.id}`)}
+                                      className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 cursor-pointer"
+                                    >
+                                      {copiedId === `img-${clip.id}` ? '✓ Copiado' : '📋 Copiar Image'}
+                                    </button>
+                                  </div>
+                                </div>
+                                <textarea
+                                  rows={4}
+                                  value={clip.imagePrompt}
+                                  onChange={(e) => {
+                                    const next = [...activeDoc.clips];
+                                    next[realIdx] = { ...clip, imagePrompt: e.target.value };
+                                    updateActiveDoc({ clips: next });
+                                  }}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
+                                />
+                              </div>
+
+                              {/* Video Prompt */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                  <span className="text-xs font-semibold text-emerald-300">
+                                    🎬 Prompt de Video (Omni Flash + Foley)
+                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleEvadeFilterAndResendClip(
+                                          clip,
+                                          (clip.videoAttempts || 1) + 1,
+                                          'Reajuste manual Anti-Filtro Prominent People'
+                                        )
+                                      }
+                                      className="px-2.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-300 font-semibold cursor-pointer"
+                                      title="Si este clip falló por política de Personas Prominentes en Google Flow, reajusta el prompt para evadir el filtro y lo reenvía automáticamente"
+                                    >
+                                      🛡️ Evadir Filtro y Re-enviar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                      }
+                                      className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
+                                      title="Enviar prompt de video a Google Flow (Gratis)"
+                                    >
+                                      🎬 Flow Video
+                                    </button>
+                                    <button
+                                      onClick={() => copyText(clip.videoPrompt, `vid-${clip.id}`)}
+                                      className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
+                                    >
+                                      {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
+                                    </button>
+                                  </div>
+                                </div>
+                                <textarea
+                                  rows={4}
+                                  value={clip.videoPrompt}
+                                  onChange={(e) => {
+                                    const next = [...activeDoc.clips];
+                                    next[realIdx] = { ...clip, videoPrompt: e.target.value };
+                                    updateActiveDoc({ clips: next });
+                                  }}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
+                                />
+                              </div>
+                            </div>
+                          </details>
 
                           {/* AI Suggested Replacement Prompts Box (if any) */}
                           {hasSuggestion && (

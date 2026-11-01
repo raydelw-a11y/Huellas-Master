@@ -132,7 +132,7 @@
         "language": "es-la",
         "consistencyMode": true,
         "filename": "tts-1793103539750-763.wav",
-        "audioUrl": "/tts-files/tts-1793103539750-763.wav",
+        "audioUrl": "tts-files/tts-1793103539750-763.mp3",
         "createdAt": "2026-10-27T12:18:59.764Z",
         "storageMode": "local",
         "wordCount": 2142,
@@ -140,7 +140,7 @@
         "providerUsed": "Gemini Flash TTS"
       }
     ],
-    "masterAudioUrl": "/tts-files/tts-1793103539750-763.wav",
+    "masterAudioUrl": "tts-files/tts-1793103539750-763.mp3",
     "timelineSentences": [
       {
         "index": 1,
