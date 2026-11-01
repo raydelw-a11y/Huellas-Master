@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:35 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:40 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -763,6 +763,41 @@ export default function App() {
     useState<ExportResolutionPreset>('8K_4320P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
+  const [selectedRecreationModesByClip, setSelectedRecreationModesByClip] = useState<
+    Record<
+      string,
+      Array<
+        | 'PEOPLE'
+        | 'OBJECTS'
+        | 'WALLS'
+        | 'ADULTS_ONLY'
+        | 'SINGLE_SHOT'
+        | 'VISUAL_LOGIC'
+        | 'CLEAN_FOLEY_AUDIO'
+        | 'ERRATIC_ACTING'
+      >
+    >
+  >({});
+
+  const toggleClipRecreationMode = (
+    clipId: string,
+    criterion:
+      | 'PEOPLE'
+      | 'OBJECTS'
+      | 'WALLS'
+      | 'ADULTS_ONLY'
+      | 'SINGLE_SHOT'
+      | 'VISUAL_LOGIC'
+      | 'CLEAN_FOLEY_AUDIO'
+      | 'ERRATIC_ACTING'
+  ) => {
+    setSelectedRecreationModesByClip((prev) => {
+      const current = prev[clipId] || [];
+      const exists = current.includes(criterion);
+      const next = exists ? current.filter((m) => m !== criterion) : [...current, criterion];
+      return { ...prev, [clipId]: next };
+    });
+  };
   const [capturedSunoAudioMap, setCapturedSunoAudioMap] = useState<Record<number, string>>({});
   const [capturedThumbnailsMap, setCapturedThumbnailsMap] = useState<Record<string, string>>({});
   const [thumbnailPsychAudits, setThumbnailPsychAudits] = useState<
@@ -2521,7 +2556,18 @@ export default function App() {
       | 'VISUAL_LOGIC'
       | 'CLEAN_FOLEY_AUDIO'
       | 'ERRATIC_ACTING'
-      | 'ALL' = 'ALL',
+      | 'ALL'
+      | Array<
+          | 'PEOPLE'
+          | 'OBJECTS'
+          | 'WALLS'
+          | 'ADULTS_ONLY'
+          | 'SINGLE_SHOT'
+          | 'VISUAL_LOGIC'
+          | 'CLEAN_FOLEY_AUDIO'
+          | 'ERRATIC_ACTING'
+          | 'ALL'
+        > = 'ALL',
     isImagePrompt: boolean = false,
     explicitClipSec?: number
   ): string => {
@@ -2536,16 +2582,26 @@ export default function App() {
         ? clip1Sec
         : standardClipSec;
 
+    const modeList = Array.isArray(mode) ? mode : [mode];
+    const modeSet = new Set(modeList);
+    const isAll = modeSet.has('ALL');
+
     const hadAdultsOnly =
-      mode === 'ADULTS_ONLY' || /STRICT\s*ADULTS-ONLY\s*CAST/i.test(rawPrompt);
+      modeSet.has('ADULTS_ONLY') || /STRICT\s*ADULTS-ONLY\s*CAST/i.test(rawPrompt);
+    const hadPeople =
+      isAll || modeSet.has('PEOPLE') || /Fixed\s*subject\s*count\s*from\s*0s/i.test(rawPrompt);
+    const hadObjects =
+      isAll || modeSet.has('OBJECTS') || /gravity-locked/i.test(rawPrompt);
+    const hadWalls =
+      isAll || modeSet.has('WALLS') || /Solid,\s*non-deforming\s*walls/i.test(rawPrompt);
     const hadSingleShot =
-      mode === 'SINGLE_SHOT' || /SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE/i.test(rawPrompt);
+      modeSet.has('SINGLE_SHOT') || /SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE/i.test(rawPrompt);
     const hadVisualLogic =
-      mode === 'VISUAL_LOGIC' || /STRICT\s*LITERAL\s*VISUAL\s*LOGIC/i.test(rawPrompt);
+      modeSet.has('VISUAL_LOGIC') || /STRICT\s*LITERAL\s*VISUAL\s*LOGIC/i.test(rawPrompt);
     const hadCleanFoleyAudio =
-      mode === 'CLEAN_FOLEY_AUDIO' || /STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY/i.test(rawPrompt);
+      modeSet.has('CLEAN_FOLEY_AUDIO') || /STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY/i.test(rawPrompt);
     const hadErraticActing =
-      mode === 'ERRATIC_ACTING' || /STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING/i.test(rawPrompt);
+      modeSet.has('ERRATIC_ACTING') || /STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING/i.test(rawPrompt);
 
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
@@ -2689,45 +2745,46 @@ export default function App() {
       .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
       .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
-    let shieldDirective = '';
     const safetyDisclaimer =
       'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).';
-    if (mode === 'PEOPLE') {
-      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. ${safetyDisclaimer}`;
-    } else if (mode === 'OBJECTS') {
-      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. ${safetyDisclaimer}`;
-    } else if (mode === 'WALLS') {
-      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement. ${safetyDisclaimer}`;
-    } else if (mode === 'ADULTS_ONLY') {
-      shieldDirective = `${adultsOnlyClause} Sustained, unhurried continuous action across the full ${clipSec} seconds with fixed adult subject count from 0s to ${clipSec}s. ${safetyDisclaimer}`;
-    } else if (mode === 'SINGLE_SHOT') {
-      shieldDirective = `${singleShotClause} Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second single continuous shot. ${safetyDisclaimer}`;
-    } else if (mode === 'VISUAL_LOGIC') {
-      shieldDirective = `${visualLogicClause} Sustained, coherent physical action from 0s to ${clipSec}s with fixed subject count, gravity-locked props, and rigid 3D spatial geometry. ${safetyDisclaimer}`;
-    } else if (mode === 'CLEAN_FOLEY_AUDIO') {
-      shieldDirective = `${cleanFoleyAudioClause} Sustained, unhurried continuous action across the full ${clipSec} seconds. ${safetyDisclaimer}`;
-    } else if (mode === 'ERRATIC_ACTING') {
-      shieldDirective = `${erraticActingClause} Fixed subject count from 0s to ${clipSec}s with locked human anatomy and background figures stationary in soft f/1.8 bokeh. ${safetyDisclaimer}`;
-    } else {
-      // 'ALL'
-      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, weapons, furniture, and props remain 100% gravity-locked, physically solid, and stationary with zero self-moving, morphing, or mutating objects. ${safetyDisclaimer}`;
+
+    const directiveParts: string[] = [];
+    if (adultsOnlyClause) directiveParts.push(adultsOnlyClause);
+    if (singleShotClause) directiveParts.push(singleShotClause);
+    if (visualLogicClause) directiveParts.push(visualLogicClause);
+    if (cleanFoleyAudioClause) directiveParts.push(cleanFoleyAudioClause);
+    if (erraticActingClause) directiveParts.push(erraticActingClause);
+
+    if (isAll || hadWalls || hadSingleShot) {
+      directiveParts.push(
+        `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot.`
+      );
     }
 
-    if (mode !== 'ADULTS_ONLY' && adultsOnlyClause) {
-      shieldDirective = `${adultsOnlyClause} ${shieldDirective}`;
+    directiveParts.push(
+      `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame.`
+    );
+
+    if (isAll || hadPeople || hadAdultsOnly || hadErraticActing || hadVisualLogic) {
+      directiveParts.push(
+        `Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.`
+      );
     }
-    if (mode !== 'SINGLE_SHOT' && singleShotClause) {
-      shieldDirective = `${singleShotClause} ${shieldDirective}`;
+
+    if (isAll || hadWalls || hadVisualLogic) {
+      directiveParts.push(
+        `Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement.`
+      );
     }
-    if (mode !== 'VISUAL_LOGIC' && visualLogicClause) {
-      shieldDirective = `${visualLogicClause} ${shieldDirective}`;
+
+    if (isAll || hadObjects || hadVisualLogic) {
+      directiveParts.push(
+        `All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects.`
+      );
     }
-    if (mode !== 'CLEAN_FOLEY_AUDIO' && cleanFoleyAudioClause) {
-      shieldDirective = `${cleanFoleyAudioClause} ${shieldDirective}`;
-    }
-    if (mode !== 'ERRATIC_ACTING' && erraticActingClause) {
-      shieldDirective = `${erraticActingClause} ${shieldDirective}`;
-    }
+
+    directiveParts.push(safetyDisclaimer);
+    const shieldDirective = directiveParts.join(' ');
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
       p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -2741,7 +2798,7 @@ export default function App() {
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   };
 
-  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'CLEAN_FOLEY_AUDIO' | 'ERRATIC_ACTING' | 'ALL') + Immediate Re-send to Google Flow
+  // Option 2: Surgical Multi-Criteria or Single-Criteria Fix + Immediate Re-send to Google Flow
   const handleFixMutationAndResendClip = (
     clip: DocumentaryClip,
     mode:
@@ -2753,7 +2810,18 @@ export default function App() {
       | 'VISUAL_LOGIC'
       | 'CLEAN_FOLEY_AUDIO'
       | 'ERRATIC_ACTING'
-      | 'ALL' = 'ALL',
+      | 'ALL'
+      | Array<
+          | 'PEOPLE'
+          | 'OBJECTS'
+          | 'WALLS'
+          | 'ADULTS_ONLY'
+          | 'SINGLE_SHOT'
+          | 'VISUAL_LOGIC'
+          | 'CLEAN_FOLEY_AUDIO'
+          | 'ERRATIC_ACTING'
+          | 'ALL'
+        > = 'ALL',
     isAutoMutationRetry: boolean = false
   ) => {
     const currentDoc = activeDocRef.current || activeDoc;
@@ -2761,9 +2829,22 @@ export default function App() {
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
     const clipSec = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
 
+    const rawModes = Array.isArray(mode) ? mode.filter(Boolean) : [mode];
+    const normalizedModes = rawModes.length > 0 ? rawModes : (['ALL'] as const);
+
     const nextAttempt = (clip.videoAttempts || 1) + 1;
-    const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true, clipSec);
-    const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false, clipSec);
+    const shieldedImg = applyAntiMutationShieldToPrompt(
+      clip.imagePrompt || '',
+      normalizedModes,
+      true,
+      clipSec
+    );
+    const shieldedVid = applyAntiMutationShieldToPrompt(
+      clip.videoPrompt || '',
+      normalizedModes,
+      false,
+      clipSec
+    );
 
     const modeLabels: Record<
       | 'PEOPLE'
@@ -2788,10 +2869,11 @@ export default function App() {
       ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
+    const combinedLabel = normalizedModes.map((m) => modeLabels[m]).join(' + ');
     const padded = String(clip.clipNumber).padStart(2, '0');
     const reasonMsg = isAutoMutationRetry
-      ? `🧬 Auto-Regeneración Anti-Mutación activada para Clip #${padded} (${modeLabels[mode]}). Re-enviando a Google Flow (Intento #${nextAttempt})...`
-      : `🔧 Clip #${padded} reajustado con ${modeLabels[mode]} y re-enviado a Google Flow para reemplazar el archivo .mp4...`;
+      ? `🧬 Auto-Regeneración Anti-Mutación activada para Clip #${padded} (${combinedLabel}). Re-enviando a Google Flow (Intento #${nextAttempt})...`
+      : `🔧 Clip #${padded} reajustado con ${normalizedModes.length} criterio(s) [${combinedLabel}] y re-enviado a Google Flow para reemplazar el archivo .mp4...`;
 
     const nextClips = (currentDoc.clips || []).map((c) =>
       c.id === clip.id
@@ -10146,81 +10228,207 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {/* Lista de Corrección / Recreación Rápida (Arriba del Visor, Ultra Compacta) */}
-                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 pt-1 border-t border-slate-800/80">
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
-                                  className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
-                                >
-                                  🔞 Solo Adultos
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
-                                  className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
-                                >
-                                  🚷 Aparece / Muta Gente
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
-                                  className="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
-                                >
-                                  🪑 Objeto muta / se mueve solo
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
-                                  className="px-2 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
-                                >
-                                  🧱 Pared / Fondo muta
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
-                                  className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
-                                >
-                                  🎬 Salto de shot
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
-                                  className="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
-                                >
-                                  🧠 Sin lógica visual
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
-                                  className="px-2 py-1 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
-                                >
-                                  🔇 Eliminar música/voz
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
-                                  className="px-2 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition text-left truncate"
-                                  title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
-                                >
-                                  🧍‍♂️ Actuación errática
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
-                                  className="sm:col-span-2 px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition text-center truncate"
-                                  title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
-                                >
-                                  🔧 Aplicar Todo Anti-Mutación y Re-enviar a Flow
-                                </button>
-                              </div>
+                              {/* Lista de Corrección / Recreación Rápida Multi-Criterio (Arriba del Visor, Ultra Compacta) */}
+                              {(() => {
+                                const selectedModesForClip =
+                                  selectedRecreationModesByClip[clip.id] || [];
+                                const isSel = (
+                                  m:
+                                    | 'ADULTS_ONLY'
+                                    | 'PEOPLE'
+                                    | 'OBJECTS'
+                                    | 'WALLS'
+                                    | 'SINGLE_SHOT'
+                                    | 'VISUAL_LOGIC'
+                                    | 'CLEAN_FOLEY_AUDIO'
+                                    | 'ERRATIC_ACTING'
+                                ) => selectedModesForClip.includes(m);
+                                const allEightModes: Array<
+                                  | 'ADULTS_ONLY'
+                                  | 'PEOPLE'
+                                  | 'OBJECTS'
+                                  | 'WALLS'
+                                  | 'SINGLE_SHOT'
+                                  | 'VISUAL_LOGIC'
+                                  | 'CLEAN_FOLEY_AUDIO'
+                                  | 'ERRATIC_ACTING'
+                                > = [
+                                  'ADULTS_ONLY',
+                                  'PEOPLE',
+                                  'OBJECTS',
+                                  'WALLS',
+                                  'SINGLE_SHOT',
+                                  'VISUAL_LOGIC',
+                                  'CLEAN_FOLEY_AUDIO',
+                                  'ERRATIC_ACTING',
+                                ];
+
+                                return (
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 pt-1 border-t border-slate-800/80">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'ADULTS_ONLY')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('ADULTS_ONLY')
+                                          ? 'bg-rose-500/40 border-rose-300 text-white ring-1 ring-rose-400/70 shadow'
+                                          : 'bg-rose-500/15 hover:bg-rose-500/30 border-rose-500/40 text-rose-200'
+                                      }`}
+                                      title="Marca/desmarca: Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente"
+                                    >
+                                      {isSel('ADULTS_ONLY') ? '☑️' : '⬜'} 🔞 Solo Adultos
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'PEOPLE')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('PEOPLE')
+                                          ? 'bg-amber-500/40 border-amber-300 text-white ring-1 ring-amber-400/70 shadow'
+                                          : 'bg-amber-500/15 hover:bg-amber-500/30 border-amber-500/40 text-amber-200'
+                                      }`}
+                                      title="Marca/desmarca: Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas"
+                                    >
+                                      {isSel('PEOPLE') ? '☑️' : '⬜'} 🚷 Aparece / Muta Gente
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'OBJECTS')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('OBJECTS')
+                                          ? 'bg-purple-500/40 border-purple-300 text-white ring-1 ring-purple-400/70 shadow'
+                                          : 'bg-purple-500/15 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
+                                      }`}
+                                      title="Marca/desmarca: Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute"
+                                    >
+                                      {isSel('OBJECTS') ? '☑️' : '⬜'} 🪑 Objeto muta / se mueve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'WALLS')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('WALLS')
+                                          ? 'bg-sky-500/40 border-sky-300 text-white ring-1 ring-sky-400/70 shadow'
+                                          : 'bg-sky-500/15 hover:bg-sky-500/30 border-sky-500/40 text-sky-200'
+                                      }`}
+                                      title="Marca/desmarca: Mantiene el movimiento de cámara suave y controlado y clava la geometría 3D para que las paredes y fondos nunca muten"
+                                    >
+                                      {isSel('WALLS') ? '☑️' : '⬜'} 🧱 Pared / Fondo muta
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'SINGLE_SHOT')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('SINGLE_SHOT')
+                                          ? 'bg-indigo-500/40 border-indigo-300 text-white ring-1 ring-indigo-400/70 shadow'
+                                          : 'bg-indigo-500/15 hover:bg-indigo-500/30 border-indigo-500/40 text-indigo-200'
+                                      }`}
+                                      title="Marca/desmarca: Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes o saltos de plano"
+                                    >
+                                      {isSel('SINGLE_SHOT') ? '☑️' : '⬜'} 🎬 Salto de shot
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleClipRecreationMode(clip.id, 'VISUAL_LOGIC')}
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('VISUAL_LOGIC')
+                                          ? 'bg-cyan-500/40 border-cyan-300 text-white ring-1 ring-cyan-400/70 shadow'
+                                          : 'bg-cyan-500/15 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-200'
+                                      }`}
+                                      title="Marca/desmarca: Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt"
+                                    >
+                                      {isSel('VISUAL_LOGIC') ? '☑️' : '⬜'} 🧠 Sin lógica visual
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleClipRecreationMode(clip.id, 'CLEAN_FOLEY_AUDIO')
+                                      }
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('CLEAN_FOLEY_AUDIO')
+                                          ? 'bg-teal-500/40 border-teal-300 text-white ring-1 ring-teal-400/70 shadow'
+                                          : 'bg-teal-500/15 hover:bg-teal-500/30 border-teal-500/40 text-teal-200'
+                                      }`}
+                                      title="Marca/desmarca: Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley"
+                                    >
+                                      {isSel('CLEAN_FOLEY_AUDIO') ? '☑️' : '⬜'} 🔇 Eliminar música/voz
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleClipRecreationMode(clip.id, 'ERRATIC_ACTING')
+                                      }
+                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                        isSel('ERRATIC_ACTING')
+                                          ? 'bg-orange-500/40 border-orange-300 text-white ring-1 ring-orange-400/70 shadow'
+                                          : 'bg-orange-500/15 hover:bg-orange-500/30 border-orange-500/40 text-orange-200'
+                                      }`}
+                                      title="Marca/desmarca: Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos o espasmódicos"
+                                    >
+                                      {isSel('ERRATIC_ACTING') ? '☑️' : '⬜'} 🧍‍♂️ Actuación errática
+                                    </button>
+                                    <div className="sm:col-span-2 flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleFixMutationAndResendClip(
+                                            clip,
+                                            selectedModesForClip.length > 0
+                                              ? selectedModesForClip
+                                              : 'ALL',
+                                            false
+                                          )
+                                        }
+                                        className={`flex-1 px-2 py-1 rounded-lg border text-[11px] font-black cursor-pointer transition text-center truncate ${
+                                          selectedModesForClip.length > 0
+                                            ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-md shadow-emerald-500/20'
+                                            : 'bg-emerald-500/20 hover:bg-emerald-500/35 border-emerald-500/50 text-emerald-200'
+                                        }`}
+                                        title={
+                                          selectedModesForClip.length > 0
+                                            ? `Aplicar los ${selectedModesForClip.length} criterios seleccionados y mandar a rehacer el clip en Google Flow`
+                                            : 'Selecciona 1 o más criterios arriba o haz clic aquí para aplicar todos los blindajes juntos y re-enviar a Google Flow'
+                                        }
+                                      >
+                                        {selectedModesForClip.length > 0
+                                          ? `🔄 Rehacer Clip en Flow (${selectedModesForClip.length} ${
+                                              selectedModesForClip.length === 1
+                                                ? 'criterio'
+                                                : 'criterios'
+                                            })`
+                                          : '🔧 Rehacer con Todo (o marca criterios)'}
+                                      </button>
+                                      {selectedModesForClip.length > 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedRecreationModesByClip((prev) => ({
+                                              ...prev,
+                                              [clip.id]: [],
+                                            }))
+                                          }
+                                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-bold cursor-pointer shrink-0"
+                                          title="Limpiar criterios seleccionados para este clip"
+                                        >
+                                          ✖
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedRecreationModesByClip((prev) => ({
+                                              ...prev,
+                                              [clip.id]: allEightModes,
+                                            }))
+                                          }
+                                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-emerald-300 font-bold cursor-pointer shrink-0"
+                                          title="Marcar los 8 criterios a la vez"
+                                        >
+                                          ☑️ 8
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (ENLARGED USING VERTICAL SPACE SAVED FROM INLINE STAGE MENU) */}
