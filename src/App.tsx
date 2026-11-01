@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:54 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:56 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2306,7 +2306,14 @@ export default function App() {
   // Unified Automatic Shield: Combines Anti-Filtro "Prominent People" / Policy Shield + Controlled Camera + Stage 1 Sustained Action + Anti-Mutation Physics
   const applyAntiMutationShieldToPrompt = (
     rawPrompt: string,
-    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL' = 'ALL',
+    mode:
+      | 'PEOPLE'
+      | 'OBJECTS'
+      | 'WALLS'
+      | 'ADULTS_ONLY'
+      | 'SINGLE_SHOT'
+      | 'VISUAL_LOGIC'
+      | 'ALL' = 'ALL',
     isImagePrompt: boolean = false,
     explicitClipSec?: number
   ): string => {
@@ -2325,6 +2332,8 @@ export default function App() {
       mode === 'ADULTS_ONLY' || /STRICT\s*ADULTS-ONLY\s*CAST/i.test(rawPrompt);
     const hadSingleShot =
       mode === 'SINGLE_SHOT' || /SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE/i.test(rawPrompt);
+    const hadVisualLogic =
+      mode === 'VISUAL_LOGIC' || /STRICT\s*LITERAL\s*VISUAL\s*LOGIC/i.test(rawPrompt);
 
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
@@ -2386,6 +2395,7 @@ export default function App() {
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
       .replace(/SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE[^.]*\.\s*/gi, '')
+      .replace(/STRICT\s*LITERAL\s*VISUAL\s*LOGIC[^.]*\.\s*/gi, '')
       .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
       .trim();
 
@@ -2395,6 +2405,10 @@ export default function App() {
 
     const singleShotClause = hadSingleShot
       ? `SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to ${clipSec}s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip.`
+      : '';
+
+    const visualLogicClause = hadVisualLogic
+      ? `STRICT LITERAL VISUAL LOGIC & PROMPT FIDELITY: Execute the exact literal physical staging, subject action, eye-line direction, and cause-and-effect spatial logic described in the prompt from 0s to ${clipSec}s with 100% narrative coherence; strictly zero random, contradictory, or unrelated actions, zero surreal or nonsensical behavior, and natural grounded human physics matching the exact visual idea.`
       : '';
 
     if (isImagePrompt) {
@@ -2411,6 +2425,9 @@ export default function App() {
       }
       if (adultsOnlyClause) {
         p = `${p.replace(/\.?\s*$/, '')}. ${adultsOnlyClause}`;
+      }
+      if (visualLogicClause) {
+        p = `${p.replace(/\.?\s*$/, '')}. ${visualLogicClause}`;
       }
       return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
     }
@@ -2434,6 +2451,8 @@ export default function App() {
       shieldDirective = `${adultsOnlyClause} Sustained, unhurried continuous action across the full ${clipSec} seconds with fixed adult subject count from 0s to ${clipSec}s. ${safetyDisclaimer}`;
     } else if (mode === 'SINGLE_SHOT') {
       shieldDirective = `${singleShotClause} Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second single continuous shot. ${safetyDisclaimer}`;
+    } else if (mode === 'VISUAL_LOGIC') {
+      shieldDirective = `${visualLogicClause} Sustained, coherent physical action from 0s to ${clipSec}s with fixed subject count, gravity-locked props, and rigid 3D spatial geometry. ${safetyDisclaimer}`;
     } else {
       // 'ALL'
       shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, weapons, furniture, and props remain 100% gravity-locked, physically solid, and stationary with zero self-moving, morphing, or mutating objects. ${safetyDisclaimer}`;
@@ -2445,6 +2464,9 @@ export default function App() {
     if (mode !== 'SINGLE_SHOT' && singleShotClause) {
       shieldDirective = `${singleShotClause} ${shieldDirective}`;
     }
+    if (mode !== 'VISUAL_LOGIC' && visualLogicClause) {
+      shieldDirective = `${visualLogicClause} ${shieldDirective}`;
+    }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
       p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -2455,10 +2477,17 @@ export default function App() {
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   };
 
-  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL') + Immediate Re-send to Google Flow
+  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'ALL') + Immediate Re-send to Google Flow
   const handleFixMutationAndResendClip = (
     clip: DocumentaryClip,
-    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL' = 'ALL',
+    mode:
+      | 'PEOPLE'
+      | 'OBJECTS'
+      | 'WALLS'
+      | 'ADULTS_ONLY'
+      | 'SINGLE_SHOT'
+      | 'VISUAL_LOGIC'
+      | 'ALL' = 'ALL',
     isAutoMutationRetry: boolean = false
   ) => {
     const currentDoc = activeDocRef.current || activeDoc;
@@ -2470,12 +2499,16 @@ export default function App() {
     const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true, clipSec);
     const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false, clipSec);
 
-    const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL', string> = {
+    const modeLabels: Record<
+      'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'ALL',
+      string
+    > = {
       PEOPLE: `🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–${clipSec}s + fondo bokeh estático)`,
       OBJECTS: '🪑 Anti-Movimiento / Anti-Mutación de Objetos (objetos 100% sólidos y anclados a gravedad, sin moverse solos ni mutar)',
       WALLS: '🧱 Anti-Mutación de Paredes/Fondo (cámara controlada + geometría 3D rígida)',
       ADULTS_ONLY: '🔞 Solo Adultos (100% personajes adultos de 35–60 años, cero niños o menores en escena)',
       SINGLE_SHOT: `🎬 Un Solo Shot Continuo (toma única ininterrumpida de 0s a ${clipSec}s sin cortes ni saltos de cámara)`,
+      VISUAL_LOGIC: `🧠 Fidelidad y Lógica Visual Estricta (ejecución literal de la idea visual y acción física del prompt de 0s a ${clipSec}s sin incoherencias)`,
       ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
@@ -9864,6 +9897,14 @@ export default function App() {
                                 title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
                               >
                                 🎬 Salto de shot innecesario
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
+                                className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition"
+                                title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
+                              >
+                                🧠 Sin lógica con la idea visual
                               </button>
                               <button
                                 type="button"
