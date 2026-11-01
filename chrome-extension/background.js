@@ -1795,12 +1795,14 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   const mediaType = String(payload.mediaType || '');
   const logoDataUrl = String(payload.logoDataUrl || '');
 
-  // 1. Activar la pestaña de Google Flow
-  const tab = await chrome.tabs.update(tabId, { active: true }).catch(() => null);
-  if (tab?.windowId) {
-    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  // 1. Activar la pestaña de Google Flow únicamente si focusTab === true
+  if (payload.focusTab === true) {
+    const tab = await chrome.tabs.update(tabId, { active: true }).catch(() => null);
+    if (tab?.windowId) {
+      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+    }
+    await sleep(150);
   }
-  await sleep(150);
 
   // 2. Inyectar el prompt en MAIN world ANTES de adjuntar chrome.debugger (buscando en todos los frames)
   const mainAttempts = await chrome.scripting.executeScript({
@@ -2079,7 +2081,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
           url: defaultUrl,
-          active: true,
+          active: payload.focusTab === true,
         });
         await sleep(4500);
         targetTab = {
@@ -2091,10 +2093,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (
-          payload.focusTab !== false ||
-          ((targetService === 'FLOW' || targetService === 'SUNO') && action === 'SEND_PROMPT')
-        ) {
+        if (payload.focusTab === true) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);
@@ -2119,7 +2118,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (candStatus.hasSdk || candStatus.isStoryStudio) {
                   targetTab = candidateTab;
                   sdkStatus = candStatus;
-                  await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
+                  if (payload.focusTab === true) {
+                    await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
+                  }
                   break;
                 }
               }

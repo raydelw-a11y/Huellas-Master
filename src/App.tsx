@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:03 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:06 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3036,7 +3036,7 @@ export default function App() {
       watchForVideo: true,
       mediaType: 'VIDEO',
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: selectedFlowTabId,
     });
   };
@@ -3442,7 +3442,7 @@ export default function App() {
       watchForVideo: true,
       mediaType: 'VIDEO',
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: selectedFlowTabId,
     });
   };
@@ -3776,7 +3776,7 @@ export default function App() {
       autoCreateImages: true,
       expectedCount: Math.max(1, referenceItems.length),
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: selectedFlowTabId,
     });
   };
@@ -3937,7 +3937,7 @@ export default function App() {
       `🖼️ Enviando Prompt + Logo Oficial a tu cuenta de Google Flow en segundo plano (sin cambiar de ventana) y esperando para importar automáticamente Miniatura_Opcion_${optionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
 
-    // Send Prompt + Official Logo DataURL to logged-in Google Flow tab and focus it for reliable submission
+    // Send Prompt + Official Logo DataURL to logged-in Google Flow tab in background without switching tabs
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: promptText,
@@ -3945,7 +3945,7 @@ export default function App() {
       mediaType: 'THUMBNAILS',
       optionLabel,
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: selectedFlowTabId,
     });
   };
@@ -4268,7 +4268,7 @@ export default function App() {
                 optionLabel: opt,
                 attempt: nextAttempt,
                 autoSubmit: true,
-                focusTab: true,
+                focusTab: false,
                 tabId: selectedFlowTabId,
               });
             }, 1200);
@@ -4548,12 +4548,9 @@ export default function App() {
         ? activeDoc?.references?.find((r) => r.id === String(clipIdentifier))
         : undefined;
 
-    if (!showWebStudio) {
-      setShowWebStudio(true);
-    }
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🎬 Enviando prompt a tu cuenta de Google Flow y ejecutando envío automático...`
+      `🎬 Enviando prompt a tu cuenta de Google Flow en segundo plano (sin cambiar de pestaña)...`
     );
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
     const resolvedClipNum = matchedClip ? matchedClip.clipNumber : Number(clipIdentifier) || 1;
@@ -4583,7 +4580,7 @@ export default function App() {
       watchForVideo: mediaType === 'VIDEO',
       mediaType,
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: preferredTabId || selectedFlowTabId,
     });
   };
