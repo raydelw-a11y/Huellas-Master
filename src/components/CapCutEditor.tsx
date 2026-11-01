@@ -322,6 +322,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
+  const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -330,6 +331,99 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const webAudioCtxRef = useRef<AudioContext | null>(null);
   const ambientGainRef = useRef<GainNode | null>(null);
   const lastSpokenClipIdRef = useRef<string>('');
+  const extractedVideoUrlByClipRef = useRef<Record<number, string>>({});
+
+  // Reset extracted first frames when switching documentaries
+  useEffect(() => {
+    setFirstFrameByClip({});
+    extractedVideoUrlByClipRef.current = {};
+  }, [activeDoc?.id]);
+
+  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video
+  useEffect(() => {
+    let cancelled = false;
+    const clipsToExtract = timelineClips.filter(
+      (c) =>
+        c.videoUrl &&
+        extractedVideoUrlByClipRef.current[c.clipNumber] !== c.videoUrl
+    );
+    if (clipsToExtract.length === 0) return;
+
+    const extractFirstFrameFromVideoUrl = (videoUrl: string): Promise<string> =>
+      new Promise((resolve) => {
+        const vid = document.createElement('video');
+        vid.crossOrigin = 'anonymous';
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.preload = 'auto';
+
+        let resolved = false;
+        const finish = (dataUrl: string) => {
+          if (resolved) return;
+          resolved = true;
+          try {
+            vid.pause();
+            vid.removeAttribute('src');
+            vid.load();
+          } catch {}
+          resolve(dataUrl);
+        };
+
+        const timer = setTimeout(() => finish(''), 4500);
+
+        const captureFrame = () => {
+          try {
+            const w = vid.videoWidth || 640;
+            const h = vid.videoHeight || 360;
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(vid, 0, 0, w, h);
+              const out = canvas.toDataURL('image/jpeg', 0.84);
+              clearTimeout(timer);
+              finish(out && out.length > 200 ? out : '');
+              return;
+            }
+          } catch {}
+          clearTimeout(timer);
+          finish('');
+        };
+
+        vid.onloadedmetadata = () => {
+          try {
+            vid.currentTime = Math.min(0.08, Math.max(0, (vid.duration || 1) * 0.02));
+          } catch {
+            captureFrame();
+          }
+        };
+        vid.onseeked = () => captureFrame();
+        vid.onerror = () => {
+          clearTimeout(timer);
+          finish('');
+        };
+        vid.src = videoUrl;
+      });
+
+    (async () => {
+      for (const item of clipsToExtract) {
+        if (cancelled || !item.videoUrl) return;
+        extractedVideoUrlByClipRef.current[item.clipNumber] = item.videoUrl;
+        const frameDataUrl = await extractFirstFrameFromVideoUrl(item.videoUrl);
+        if (!cancelled && frameDataUrl) {
+          setFirstFrameByClip((prev) => ({
+            ...prev,
+            [item.clipNumber]: frameDataUrl,
+          }));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timelineClips]);
 
   // Resolve Voiceover URL across masterAudioUrl, audioTracks, folderVoiceoverUrl, or any doc with TTS
   const effectiveVoiceoverUrl = useMemo(() => {
@@ -417,19 +511,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const videoUrl =
         capturedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
 
-      // Find any matching @Reference image if clip doesn't have its own frame/preview yet
-      const combinedPrompt = `${c.imagePrompt || ''} ${c.videoPrompt || ''}`;
-      const matchedRefImg = docRefs.find((r) => {
-        const cleanTag = (r.tag || '').replace(/^@/, '').trim();
-        return cleanTag && r.imageUrl && combinedPrompt.toLowerCase().includes(cleanTag.toLowerCase());
-      })?.imageUrl;
-
+      // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
       const posterUrl =
+        firstFrameByClip[c.clipNumber] ||
         (c.videoFrames && c.videoFrames[0]) ||
         c.imagePreviewUrl ||
-        existingItem?.posterUrl ||
-        matchedRefImg ||
-        activeDoc.thumbnailImageUrl ||
         '';
 
       return {
@@ -472,7 +558,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           foleyVolume: isClip1 ? 80 : 35,
           transition: defaultTransition,
           videoUrl: capturedClipVideosMap[num],
-          posterUrl: activeDoc.thumbnailImageUrl || '',
+          posterUrl: firstFrameByClip[num] || '',
           reviewedForEditor: true,
         });
       });
@@ -2505,13 +2591,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   >
                     {isFitEntireProject ? (
                       <>
-                        {clip.posterUrl && (
+                        {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
                           <img
-                            src={clip.posterUrl}
+                            src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
                             alt={clip.fileName}
-                            className="absolute inset-0 w-full h-full object-cover opacity-55 group-hover:opacity-85 transition"
+                            className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
                           />
-                        )}
+                        ) : clip.videoUrl ? (
+                          <video
+                            src={clip.videoUrl}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            onLoadedMetadata={(e) => {
+                              try {
+                                e.currentTarget.currentTime = 0.08;
+                              } catch {}
+                            }}
+                            className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition pointer-events-none"
+                          />
+                        ) : null}
                         <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
                           <span className="px-1 py-0.5 rounded bg-black/80 text-amber-300 font-black text-[9px] leading-none truncate max-w-full">
                             {String(clip.clipNumber).padStart(2, '0')}
@@ -2535,13 +2634,43 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           </span>
                         </div>
 
-                        {clip.posterUrl && (
-                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
+                        {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
+                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800 relative">
                             <img
-                              src={clip.posterUrl}
+                              src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
                               alt={clip.fileName}
                               className="w-full h-full object-cover"
                             />
+                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
+                              Fotograma 1
+                            </span>
+                          </div>
+                        ) : clip.videoUrl ? (
+                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800 relative">
+                            <video
+                              src={clip.videoUrl}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              onLoadedMetadata={(e) => {
+                                try {
+                                  e.currentTarget.currentTime = 0.08;
+                                } catch {}
+                              }}
+                              className="w-full h-full object-cover pointer-events-none"
+                            />
+                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
+                              Fotograma 1
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-2 text-center">
+                            <span className="text-[10px] font-bold text-amber-300/90">
+                              🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
+                            </span>
+                            <span className="text-[9px] text-slate-400 line-clamp-2 mt-0.5">
+                              {stripPauseTags(clip.narrationSegment || clip.videoPrompt || 'Sin .MP4 aún')}
+                            </span>
                           </div>
                         )}
 
