@@ -85,15 +85,16 @@ export function applyStoredClipReviewStateToDocs(
   list: DocumentaryProject[]
 ): DocumentaryProject[] {
   if (!Array.isArray(list) || list.length === 0) return list;
-  const map = loadStoredClipReviewStateMap();
-  if (!map || Object.keys(map).length === 0) return list;
+  const map = loadStoredClipReviewStateMap() || {};
 
   return list.map((doc) => {
-    if (!doc || !doc.id || !Array.isArray(doc.clips) || doc.clips.length === 0) return doc;
-    const docMap = map[doc.id];
-    if (!docMap) return doc;
+    if (!doc || !doc.id) return doc;
+    const baseDoc = normalizeDocumentaryVoiceoverAudio(doc);
+    if (!Array.isArray(baseDoc.clips) || baseDoc.clips.length === 0) return baseDoc;
+    const docMap = map[baseDoc.id];
+    if (!docMap) return baseDoc;
     let changed = false;
-    const nextClips = doc.clips.map((c) => {
+    const nextClips = baseDoc.clips.map((c) => {
       const saved = docMap[c.clipNumber];
       if (!saved) return c;
       const mergedRev = Boolean(saved.reviewedForEditor);
@@ -120,8 +121,8 @@ export function applyStoredClipReviewStateToDocs(
       }
       return c;
     });
-    const updatedDoc = changed ? { ...doc, clips: nextClips } : doc;
-    return normalizeDocumentaryVoiceoverAudio(updatedDoc);
+    const updatedDoc = changed ? { ...baseDoc, clips: nextClips } : baseDoc;
+    return updatedDoc;
   });
 }
 
@@ -193,11 +194,58 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     masterAudioUrl = 'tts-files/tts-1793103539750-763.mp3';
   }
 
-  if (masterAudioUrl !== doc.masterAudioUrl || audioTracks !== doc.audioTracks) {
+  let nextClips = doc.clips;
+  let nextRawClipsText = doc.rawClipsText;
+  if (isVideo76Exodo) {
+    const newImg19 =
+      'Image 19: Create an image of a bright sunlit outdoor harbor pier in Santander, Spain, 1885, a weathered peasant hand holding a printed third-class steamship ticket and silver peseta coins in the foreground while a massive black-hulled transatlantic steamship vents white steam in the background, 16:9 horizontal, cinematic daylight, historical accuracy, no text.';
+    const newClip19 =
+      "Clip 19 (02:56 - 03:06): Create a video showing a slow camera push-in past the peasant's hand holding the third-class steamship ticket and silver coins on the sunlit stone pier toward the towering black hull of the transatlantic steamship in Santander harbor, Spain, 1885. Ambient Foley: crisp paper ticket fluttering in sea breeze, clinking silver coins, distant steamship horn and harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. billete de tercera clase en vapor hacia La Habana o Veracruz costaba entre 205 y 235 pesetas. La aritmética de la supervivencia no dejaba alternativa: o. fix the name";
+
+    if (Array.isArray(doc.clips)) {
+      let clip19Changed = false;
+      const updated = doc.clips.map((c) => {
+        if (
+          c &&
+          c.clipNumber === 19 &&
+          (/shipping agent's counter|wooden counter in Santander/i.test(c.imagePrompt || '') ||
+            /shipping agent's hand stamps|wooden counter in Santander/i.test(c.videoPrompt || ''))
+        ) {
+          clip19Changed = true;
+          return {
+            ...c,
+            imagePrompt: newImg19,
+            videoPrompt: newClip19,
+          };
+        }
+        return c;
+      });
+      if (clip19Changed) {
+        nextClips = updated;
+      }
+    }
+    if (
+      typeof doc.rawClipsText === 'string' &&
+      /Image 19:[^\n]*shipping agent's counter/i.test(doc.rawClipsText)
+    ) {
+      nextRawClipsText = doc.rawClipsText
+        .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
+        .replace(/Clip 19\s*\([^)]*\):[^\n]*wooden counter in Santander[^\n]*/i, newClip19);
+    }
+  }
+
+  if (
+    masterAudioUrl !== doc.masterAudioUrl ||
+    audioTracks !== doc.audioTracks ||
+    nextClips !== doc.clips ||
+    nextRawClipsText !== doc.rawClipsText
+  ) {
     return {
       ...doc,
       masterAudioUrl,
       audioTracks,
+      clips: nextClips,
+      rawClipsText: nextRawClipsText,
     };
   }
   return doc;
@@ -818,7 +866,7 @@ ${doc.timelineFormattedText || doc.voiceoverScript || ''}
 Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
 ${opHeader}
 
-Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s):
+Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s + REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS: si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente jamás —prohibido poner dos oficinas seguidas, dos escritorios/mostradores con documentos seguidos o el mismo encuadre consecutivo—, sino mostrar algo visualmente diferente pero referente a la locución, alternando por ejemplo de un interior oscuro en un escritorio a un exterior luminoso en un muelle frente a un buque de vapor):
 Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con época y lugar describiendo a los personajes por sus rasgos físicos y vestimenta de época como actores anónimos de recreación histórica sin usar títulos ni nombres propios de figuras públicas reales], clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
 Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}fix the name`;
@@ -946,7 +994,7 @@ ${JSON.stringify(
   null,
   2
 )}
-Si un clip requiere mejora, redacta "suggestedImagePrompt" conciso (~20-35 palabras) y "suggestedVideoPrompt" de 1 sola oración física simple (~12-22 palabras) ${
+REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS (Clip N vs Clip N-1): Si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, el Clip [N] NO debe duplicar visualmente la misma puesta en escena del Clip [N-1] (ej. prohibido encadenar dos escenas seguidas de escritorio/mostrador de madera en una oficina con documentos, o dos habitaciones iguales seguidas). Si el Clip [N] repite un escenario o composición similar al Clip [N-1], márcalo como "warning" o "mismatch" y redacta en "suggestedImagePrompt" (~20-35 palabras) y "suggestedVideoPrompt" (1 sola oración física simple ~12-22 palabras) una escena visualmente diferente pero referente a la locución (ej. un exterior luminoso en un muelle frente a un buque de vapor, o un entorno/escala radicalmente distinto) ${
     includeVoiceInClips ? 'con la voz narrativa y ' : ''
   }cerrando con "fix the name".
 Devuelve EXCLUSIVAMENTE un JSON válido con {"summary": "...", "audits": [{"clipNumber": 1, "auditStatus": "ok"|"warning"|"mismatch", "auditReason": "...", "suggestedImagePrompt": "", "suggestedVideoPrompt": ""}]}`;

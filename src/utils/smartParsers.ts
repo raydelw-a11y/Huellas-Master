@@ -737,6 +737,21 @@ export function syncAndAuditProductionClips(
       if (imgP && !/no text/i.test(imgP)) {
         issues.push('El prompt de imagen inicial debe incluir "no text".');
       }
+      const prevClip = finalClips[finalClips.length - 1];
+      if (prevClip && prevClip.clipNumber === num - 1 && prevClip.imagePrompt && imgP) {
+        const deskOfficeRegex = /\b(office|desk|counter|moneylender|clerk|notary|wooden table|ledger)\b/i;
+        const outdoorContrastRegex = /\b(outdoor|sunlit|harbor|pier|dock|street|plaza|courtyard|exterior|mountain|ocean|sea)\b/i;
+        if (
+          deskOfficeRegex.test(prevClip.imagePrompt) &&
+          deskOfficeRegex.test(imgP) &&
+          !outdoorContrastRegex.test(imgP) &&
+          !outdoorContrastRegex.test(prevClip.imagePrompt)
+        ) {
+          issues.push(
+            `⚠️ Posible duplicación visual con el Clip ${num - 1} (ambos describen escritorio/mostrador en oficina interior). Según el Prompt Maestro, cuando la voz narrativa continúa en la misma escena o hilo, el siguiente clip debe mostrar un entorno o plano diferente pero visualmente referente (ej. exterior luminoso).`
+          );
+        }
+      }
       if (issues.length > 0) {
         auditStatus = 'warning';
         auditReason = issues.join(' ');
