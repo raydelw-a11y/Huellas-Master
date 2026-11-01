@@ -1664,70 +1664,8 @@ async function generateSingleClipViaFlowSdk(
                 frames.push(kfCanvas.toDataURL('image/jpeg', 0.85));
               }
             }
-
-            if (!videoDataUrl && typeof MediaRecorder !== 'undefined') {
-              const recW = isVert ? 720 : 1280;
-              const recH = isVert ? 1280 : 720;
-              const recCanvas = document.createElement('canvas');
-              recCanvas.width = recW;
-              recCanvas.height = recH;
-              const recCtx = recCanvas.getContext('2d');
-
-              if (recCtx && typeof recCanvas.captureStream === 'function') {
-                const stream = recCanvas.captureStream(30);
-                const mimeTypes = [
-                  'video/mp4',
-                  'video/webm;codecs=vp9',
-                  'video/webm;codecs=vp8',
-                  'video/webm',
-                ];
-                const chosenMime =
-                  mimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || '';
-                const recorder = chosenMime
-                  ? new MediaRecorder(stream, {
-                      mimeType: chosenMime,
-                      videoBitsPerSecond: 4500000,
-                    })
-                  : new MediaRecorder(stream);
-
-                const chunks = [];
-                recorder.ondataavailable = (ev) => {
-                  if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-                };
-
-                const recordPromise = new Promise((resolveRec) => {
-                  recorder.onstop = () => {
-                    const blob = new Blob(chunks, {
-                      type: chosenMime || 'video/webm',
-                    });
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolveRec(String(reader.result || ''));
-                    reader.onerror = () => resolveRec('');
-                    reader.readAsDataURL(blob);
-                  };
-                });
-
-                recorder.start();
-                const targetDurationMs = Math.max(1000, targetDurationSec * 1000);
-                const startRecMs = performance.now();
-                while (performance.now() - startRecMs < targetDurationMs) {
-                  const elapsed = performance.now() - startRecMs;
-                  const progress = Math.min(1, Math.max(0, elapsed / targetDurationMs));
-                  const zoom = 1.0 + progress * 0.12;
-                  const sw = img.width / zoom;
-                  const sh = img.height / zoom;
-                  const sx = (img.width - sw) * (0.5 - progress * 0.08);
-                  const sy = (img.height - sh) * 0.5;
-                  recCtx.drawImage(img, sx, sy, sw, sh, 0, 0, recW, recH);
-                  await new Promise((r) => setTimeout(r, 33));
-                }
-                recorder.stop();
-                videoDataUrl = await recordPromise;
-                videoMode = 'FLOW_SDK_NANO_BANANA_MOTION';
-              }
-            }
           } catch (synthErr) {
-            console.warn('[Huellas Flow SDK] Keyframe/Motion synthesis warning:', synthErr);
+            console.warn('[Huellas Flow SDK] Keyframe extraction warning:', synthErr);
           }
         }
 
@@ -1735,6 +1673,7 @@ async function generateSingleClipViaFlowSdk(
           return {
             hasSdk: true,
             ok: false,
+            isNativeVideo: false,
             error: lastError || 'No se pudo generar el clip vía Flow SDK.',
           };
         }
@@ -1742,11 +1681,12 @@ async function generateSingleClipViaFlowSdk(
         return {
           hasSdk: true,
           ok: true,
+          isNativeVideo: Boolean(videoDataUrl && String(videoMode).startsWith('NATIVE_VIDEO')),
           mode: videoMode,
           mediaId: videoMediaId || startImageMediaId,
           startImageMediaId,
           startImageDataUrl,
-          videoDataUrl: videoDataUrl || startImageDataUrl,
+          videoDataUrl: videoDataUrl || '',
           frames: frames.length > 0 ? frames : startImageDataUrl ? [startImageDataUrl] : [],
           duration: targetDurationSec,
         };
@@ -2573,21 +2513,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       });
                     }
 
-                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                      type: 'FLOW_VIDEO_CAPTURED',
-                      clipNumber: clipNum,
-                      clipId: clipItem.id,
-                      attempt: payload.attempt || 1,
-                      prompt: clipItem.videoPrompt || payload.prompt,
-                      videoUrl: clipRes.videoDataUrl,
-                      videoDataUrl: clipRes.videoDataUrl,
-                      frames: clipRes.frames || [],
-                      duration:
-                        clipRes.duration ||
-                        Number(clipItem.durationSeconds) ||
-                        Number(payload.durationSeconds) ||
-                        (clipNum === 1 ? 6 : 10),
-                    });
+                    if (clipRes.isNativeVideo && clipRes.videoDataUrl) {
+                      broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                        type: 'FLOW_VIDEO_CAPTURED',
+                        clipNumber: clipNum,
+                        clipId: clipItem.id,
+                        attempt: payload.attempt || 1,
+                        prompt: clipItem.videoPrompt || payload.prompt,
+                        videoUrl: clipRes.videoDataUrl,
+                        videoDataUrl: clipRes.videoDataUrl,
+                        frames: clipRes.frames || [],
+                        duration:
+                          clipRes.duration ||
+                          Number(clipItem.durationSeconds) ||
+                          Number(payload.durationSeconds) ||
+                          (clipNum === 1 ? 6 : 10),
+                      });
+                    } else {
+                      // Flow SDK only generated the initial frame (or video API isn't enabled inside Story Studio sandbox):
+                      // Submit the real video prompt to Google Flow's Veo composer so it renders a real moving video (never a static image with zoom)
+                      const singleClipPrompt = String(
+                        clipItem.videoPrompt || payload.prompt || ''
+                      ).slice(0, 3950);
+                      try {
+                        await executeFlowPromptHardware(targetTab.id, singleClipPrompt, {
+                          ...payload,
+                          clipNumber: clipNum,
+                          clipId: clipItem.id,
+                          mediaType: 'VIDEO',
+                          logoDataUrl: clipRes.startImageDataUrl || payload.logoDataUrl,
+                        });
+                        chrome.tabs
+                          .sendMessage(targetTab.id, {
+                            target: 'FLOW',
+                            ...payload,
+                            clipNumber: clipNum,
+                            clipId: clipItem.id,
+                            action: 'START_FLOW_WATCHER_AFTER_SUBMIT',
+                          })
+                          .catch(() => {});
+                      } catch (hwErr) {
+                        console.warn('[Huellas Flow Video Fallback] Error:', hwErr);
+                      }
+                    }
                   } else {
                     broadcastToHuellasTabsInSameWindow(senderWindowId, {
                       type: 'BRIDGE_STATUS',

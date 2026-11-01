@@ -205,9 +205,9 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
   let nextRawClipsText = doc.rawClipsText;
   if (isVideo76Exodo) {
     const newImg2 =
-      'Image 2: Create an image of an adult Spanish farmer wearing a dark wool beret and brown corduroy jacket standing on the wet stone dock of Maliaño in Santander, Spain, 1885, holding a single flat rectangular paper steamship ticket in his right hand (strictly no coins or pouches), facing a port clerk in a dark wool coat and cap who is already seated on a wooden chair behind a small wooden registration table on the dock with his open hand resting on the tabletop ready to receive the ticket, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
+      'Image 2: Create an image of an adult Spanish farmer wearing a dark wool beret and brown corduroy jacket standing on the left side of a small wooden registration table on the wet stone dock of Maliaño in Santander, Spain, 1885, holding a single white rectangular paper steamship ticket in his right hand near his chest (strictly no coins or pouches), facing a port clerk in a dark wool coat and cap who is already seated on a wooden chair on the right side of the wooden table with his open hand resting on the tabletop waiting to receive the ticket, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
     const newClip2 =
-      'Clip 2 (00:06 - 00:16): Create a video showing a slow dolly push-in on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the wool beret extends his right hand across the wooden table and hands that exact same single flat rectangular paper steamship ticket directly into the hand of the port clerk sitting on the wooden chair at the table, who calmly takes the paper ticket over the tabletop, strictly no voiceover. The exact same single rectangular paper ticket remains rigid and unchanged in shape, size, and appearance from 0s to 10s without morphing, folding, multiplying, or transforming into any other object. STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Both men keep their mouths completely closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only with strictly zero voiceover, zero narration, zero dialogue, zero background music, and zero human voices. Ambient Foley: steady rain pattering on wet stone, soft paper ticket rustle, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. Año 1885, muelle de Maliaño, Santander, España. La rampa de piedra húmeda donde miles de campesinos del norte entregaban los ahorros de toda una vida para cruzar. fix the name';
+      "Clip 2 (00:06 - 00:16): Create a video in a steady medium two-shot on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the dark wool beret reaches his right arm forward across the wooden table and places the single white rectangular paper steamship ticket directly into the waiting hand of the port clerk sitting on the wooden chair at the table, who closes his fingers around the paper ticket, pulls it toward himself over the tabletop, and looks down to inspect it, strictly no voiceover. The paper ticket stays a single flat rectangular paper ticket as it passes smoothly from the farmer's hand into the seated clerk's hand without morphing or transforming into coins or any other object. Both men keep their mouths closed in silent action with zero spoken words, zero narration, and zero voiceover. Ambient Foley: steady rain pattering on wet stone, crisp paper ticket rustle as it changes hands, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. Año 1885, muelle de Maliaño, Santander, España. La rampa de piedra húmeda donde miles de campesinos del norte entregaban los ahorros de toda una vida para cruzar. fix the name";
 
     const newImg19 =
       'Image 19: Create an image of a bright sunlit outdoor harbor pier in Santander, Spain, 1885, a weathered peasant hand holding a printed third-class steamship ticket and silver peseta coins in the foreground while a massive black-hulled transatlantic steamship vents white steam in the background, 16:9 horizontal, cinematic daylight, historical accuracy, no text.';
@@ -277,8 +277,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           c &&
           c.clipNumber === 2 &&
           (/holding a ticket and coin pouch|period historical artifact/i.test(c.imagePrompt || '') ||
-            /handing his savings|narrative voice enters at 00:08/i.test(c.videoPrompt || '') ||
-            !/already seated on a wooden chair behind a small wooden registration table/i.test(
+            /handing his savings|narrative voice enters at 00:08|showing a slow dolly push-in on the wet stone dock/i.test(
+              c.videoPrompt || ''
+            ) ||
+            !/standing on the left side of a small wooden registration table/i.test(
               c.imagePrompt || ''
             ))
         ) {
@@ -521,9 +523,11 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       }
       if (
         /Image 2:[^\n]*(?:holding a ticket and coin pouch|period historical artifact)/i.test(rawText) ||
-        /Clip 2\s*\([^)]*\):[^\n]*(?:handing his savings|narrative voice enters at 00:08)/i.test(rawText) ||
+        /Clip 2\s*\([^)]*\):[^\n]*(?:handing his savings|narrative voice enters at 00:08|showing a slow dolly push-in on the wet stone dock)/i.test(
+          rawText
+        ) ||
         (/Image 2:[^\n]*/i.test(rawText) &&
-          !/Image 2:[^\n]*already seated on a wooden chair behind a small wooden registration table/i.test(
+          !/Image 2:[^\n]*standing on the left side of a small wooden registration table/i.test(
             rawText
           ))
       ) {
