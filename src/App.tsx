@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:36 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:39 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -9603,7 +9603,7 @@ export default function App() {
                                       const el = document.getElementById(
                                         `prod-clip-card-${clip.clipNumber}`
                                       );
-                                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                     }, 50);
                                   }}
                                   className={`min-w-[235px] max-w-[270px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${statusColor}`}
@@ -9882,12 +9882,12 @@ export default function App() {
                         <div
                           id={`prod-clip-card-${clip.clipNumber}`}
                           key={clip.id}
-                          className={`bg-[#14120f] border rounded-2xl p-5 space-y-4 transition ${borderClass}`}
+                          className={`bg-[#14120f] border rounded-2xl p-3 space-y-2 transition scroll-mt-3 ${borderClass}`}
                         >
-                          {/* Top Row: Clip Badge, Time Range, Audit Badge, Ready Checkboxes */}
-                          <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                              <span className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-xs">
+                          {/* Compact Single-Line Header + Voiceover Segment */}
+                          <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-950/90 border border-slate-800/90 rounded-xl px-3 py-1.5">
+                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[260px]">
+                              <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-xs shrink-0">
                                 CLIP {paddedNum}
                               </span>
                               <input
@@ -9899,77 +9899,60 @@ export default function App() {
                                   updateActiveDoc({ clips: next });
                                 }}
                                 placeholder="00:06 - 00:16"
-                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 w-32"
+                                className="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-xs font-mono text-amber-300 w-28 shrink-0"
                               />
+                              <span className="text-[11px] font-bold text-slate-400 shrink-0">🎙️ Voz:</span>
+                              <input
+                                type="text"
+                                value={clip.narrationSegment}
+                                onChange={(e) => {
+                                  const next = [...activeDoc.clips];
+                                  next[realIdx] = { ...clip, narrationSegment: e.target.value };
+                                  updateActiveDoc({ clips: next });
+                                }}
+                                placeholder="Fragmento de voz en off de este clip..."
+                                className="flex-1 min-w-[180px] bg-transparent text-xs text-emerald-300 font-medium focus:outline-none truncate"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
                               {isRecreatedClip && (
-                                <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-200 text-xs font-black">
+                                <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-200 text-[11px] font-black">
                                   🔄 Recreado
                                   {clip.videoAttempts && clip.videoAttempts > 1
-                                    ? ` (Intento #${clip.videoAttempts})`
+                                    ? ` (#${clip.videoAttempts})`
                                     : ''}
                                 </span>
                               )}
-                              {clip.auditStatus === 'ok' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
-                                  ✅ Hace sentido con la voz
-                                </span>
-                              )}
-                              {clip.auditStatus === 'warning' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold">
-                                  ⚠️ Revisar detalle / pausa
-                                </span>
-                              )}
-                              {clip.auditStatus === 'mismatch' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold">
-                                  🚨 No coincide con la voz / Sugerencia lista
-                                </span>
-                              )}
-                              {clip.pauseNotes && (
-                                <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-mono">
-                                  ⏸ {clip.pauseNotes}
-                                </span>
-                              )}
                               {clip.videoAuditStatus === 'generating' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-xs font-bold animate-pulse">
-                                  🎬 Generando video en Flow...
-                                </span>
-                              )}
-                              {clip.videoAuditStatus === 'auditing' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold animate-pulse">
-                                  🔍 Auditando video real...
+                                <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[11px] font-bold animate-pulse">
+                                  🎬 Generando en Flow...
                                 </span>
                               )}
                               {clip.videoAuditStatus === 'approved' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
-                                  🎥 ✅ Video Flow Aprobado ({clip.videoAuditScore ?? 92}/100)
+                                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
+                                  🎥 ✅ Aprobado
                                 </span>
                               )}
                               {clip.videoAuditStatus === 'warning' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
-                                  🎥 ⚠️ Video Flow con Observación ({clip.videoAuditScore ?? 70}/100)
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold">
+                                  🎥 ⚠️ Observación
                                 </span>
                               )}
                               {clip.videoAuditStatus === 'rejected' && (
-                                <span className="px-2.5 py-1 rounded-lg bg-rose-500/25 border border-rose-500/50 text-rose-300 text-xs font-bold">
-                                  🎥 🚨 Video Flow Rechazado ({clip.videoAuditScore ?? 40}/100)
+                                <span className="px-2 py-0.5 rounded bg-rose-500/25 border border-rose-500/50 text-rose-300 text-[11px] font-bold">
+                                  🎥 🚨 Rechazado
                                 </span>
                               )}
-                              {clip.videoSavedFileName && (
-                                <span className="px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono">
-                                  💾 {clip.videoSavedFileName}
-                                </span>
-                              )}
-                            </div>
 
-                            <div className="flex items-center gap-3 flex-wrap">
                               {/* Selectable Checkbox: Mark Clip Recreated */}
                               <label
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition select-none ${
+                                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[11px] font-black cursor-pointer transition select-none ${
                                   isRecreatedClip
-                                    ? 'bg-purple-500 text-slate-950 border-purple-300 shadow-lg shadow-purple-500/20'
+                                    ? 'bg-purple-500 text-slate-950 border-purple-300'
                                     : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-500/40'
                                 }`}
-                                title="Marca este clip como Recreado (también se activa automáticamente al re-hacer un clip en Flow)"
+                                title="Marca este clip como Recreado"
                               >
                                 <input
                                   type="checkbox"
@@ -9986,12 +9969,12 @@ export default function App() {
                                     };
                                     updateActiveDoc({ clips: next });
                                   }}
-                                  className="w-4 h-4 accent-purple-600 cursor-pointer"
+                                  className="w-3.5 h-3.5 accent-purple-600 cursor-pointer"
                                 />
-                                {isRecreatedClip ? '🔄 Recreado' : '🔄 Marcar Recreado'}
+                                Recreado
                               </label>
 
-                              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                              <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={clip.imageReady}
@@ -10002,9 +9985,9 @@ export default function App() {
                                   }}
                                   className="accent-emerald-500"
                                 />
-                                Imagen {paddedNum} Lista
+                                Img
                               </label>
-                              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                              <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={clip.videoReady}
@@ -10015,7 +9998,7 @@ export default function App() {
                                   }}
                                   className="accent-emerald-500"
                                 />
-                                Video {paddedNum} Listo
+                                Video
                               </label>
                               <button
                                 onClick={() =>
@@ -10025,39 +10008,14 @@ export default function App() {
                                 }
                                 className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
 
-                          {/* Voiceover Narration Segment Aligned to this Clip */}
-                          <div className="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                🎙️ Voz Narrativa durante este Clip ({clip.timeRange || 'Sin tiempo'})
-                              </span>
-                              {clip.auditReason && (
-                                <span className="text-xs text-amber-200/90 font-medium">
-                                  {clip.auditReason}
-                                </span>
-                              )}
-                            </div>
-                            <input
-                              type="text"
-                              value={clip.narrationSegment}
-                              onChange={(e) => {
-                                const next = [...activeDoc.clips];
-                                next[realIdx] = { ...clip, narrationSegment: e.target.value };
-                                updateActiveDoc({ clips: next });
-                              }}
-                              placeholder="Fragmento de voz en off correspondiente a este rango de tiempo..."
-                              className="w-full bg-transparent text-xs text-emerald-300 font-medium focus:outline-none"
-                            />
-                          </div>
-
-                          {/* TOP PANEL: SINGLE "MARCAR REVISADO" BUTTON + COMPACT CORRECTION LIST ABOVE FULL-WIDTH VIDEO VIEWER */}
+                          {/* TOP PANEL: STICKY SINGLE "MARCAR REVISADO" BUTTON + COMPACT CORRECTION LIST ABOVE FULL-WIDTH VIDEO VIEWER */}
                           <div
-                            className={`rounded-2xl border p-3.5 space-y-3 ${
+                            className={`rounded-2xl border p-2.5 space-y-2 ${
                               clip.videoAuditStatus === 'rejected'
                                 ? 'bg-rose-950/25 border-rose-500/40'
                                 : clip.videoAuditStatus === 'warning'
@@ -10067,8 +10025,8 @@ export default function App() {
                                 : 'bg-slate-950/90 border-slate-800'
                             }`}
                           >
-                            {/* 1. TOP CONTROL BAR: Single "Marcar Revisado" Button + Quick Flow Actions + Correction List */}
-                            <div className="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 space-y-2.5">
+                            {/* 1. STICKY TOP CONTROL BAR: Single "Marcar Revisado" Button + Quick Flow Actions + Correction List */}
+                            <div className="sticky top-2 z-20 bg-slate-950/95 backdrop-blur-md border border-amber-500/30 rounded-xl p-2 space-y-1.5 shadow-lg">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* ÚNICO Botón de Marcar Revisado */}
@@ -10087,14 +10045,14 @@ export default function App() {
                                         handleLoadClipVideoFromFolder(clip, true);
                                       }
                                     }}
-                                    className={`py-2 px-4 rounded-xl border text-xs sm:text-sm font-black cursor-pointer transition flex items-center gap-2 shadow-lg ${
+                                    className={`py-1.5 px-3.5 rounded-xl border text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow ${
                                       clip.reviewedForEditor
                                         ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-emerald-500/25'
                                         : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
                                     }`}
                                   >
                                     {clip.reviewedForEditor
-                                      ? `✅ Clip ${paddedNum} Revisado (Enviado al Editor)`
+                                      ? `✅ Clip ${paddedNum} Revisado (En Editor)`
                                       : `☑️ Marcar Revisado Clip ${paddedNum}`}
                                   </button>
 
@@ -10102,15 +10060,15 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => setMainView('capcut_editor')}
-                                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer"
+                                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer"
                                     >
-                                      🎬 Ver en Editor de Video
+                                      🎬 Ver en Editor
                                     </button>
                                   )}
 
                                   {clip.videoSavedFileName && (
-                                    <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg truncate">
-                                      💾 05_Clips_Video/{clip.videoSavedFileName}
+                                    <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-1 rounded-lg truncate max-w-[240px]">
+                                      💾 {clip.videoSavedFileName}
                                     </span>
                                   )}
                                 </div>
@@ -10122,7 +10080,7 @@ export default function App() {
                                     onClick={() =>
                                       handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
                                     }
-                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold cursor-pointer"
                                     title="Enviar prompt de video a Google Flow en segundo plano"
                                   >
                                     🎬 Flow Video
@@ -10132,7 +10090,7 @@ export default function App() {
                                     onClick={() =>
                                       handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
                                     }
-                                    className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer"
                                     title="Enviar prompt de imagen inicial a Google Flow en segundo plano"
                                   >
                                     🚀 Flow Imagen
@@ -10146,7 +10104,7 @@ export default function App() {
                                         'Reajuste manual Anti-Filtro Prominent People'
                                       )
                                     }
-                                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer"
                                     title="Evadir filtro Prominent People y re-enviar a Google Flow"
                                   >
                                     🛡️ Evadir Filtro
@@ -10154,125 +10112,86 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {/* Lista de Corrección / Recreación Rápida (Arriba del Visor) */}
-                              <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                                <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                  🔧 Lista de Corrección Rápida (Re-enviar a Flow en 2º plano):
-                                </span>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
-                                  >
-                                    🔞 Solo Adultos
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
-                                  >
-                                    🚷 Aparece / Muta Gente
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
-                                  >
-                                    🪑 Objeto muta / se mueve solo
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
-                                  >
-                                    🧱 Pared / Fondo muta
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
-                                  >
-                                    🎬 Salto de shot
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
-                                  >
-                                    🧠 Sin lógica visual
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
-                                  >
-                                    🔇 Eliminar música/voz
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition text-left truncate"
-                                    title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
-                                  >
-                                    🧍‍♂️ Actuación errática
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
-                                    className="sm:col-span-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition text-center truncate"
-                                    title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
-                                  >
-                                    🔧 Aplicar Todo Anti-Mutación y Re-enviar a Flow
-                                  </button>
-                                </div>
+                              {/* Lista de Corrección / Recreación Rápida (Arriba del Visor, Ultra Compacta) */}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 pt-1 border-t border-slate-800/80">
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
+                                  className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
+                                >
+                                  🔞 Solo Adultos
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
+                                  className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
+                                >
+                                  🚷 Aparece / Muta Gente
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
+                                  className="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
+                                >
+                                  🪑 Objeto se mueve solo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
+                                  className="px-2 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
+                                >
+                                  🧱 Pared / Fondo muta
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
+                                  className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
+                                >
+                                  🎬 Salto de shot
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
+                                  className="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
+                                >
+                                  🧠 Sin lógica visual
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
+                                  className="px-2 py-1 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
+                                >
+                                  🔇 Eliminar música/voz
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
+                                  className="px-2 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition text-left truncate"
+                                  title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
+                                >
+                                  🧍‍♂️ Actuación errática
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
+                                  className="sm:col-span-2 px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition text-center truncate"
+                                  title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
+                                >
+                                  🔧 Aplicar Todo Anti-Mutación y Re-enviar a Flow
+                                </button>
                               </div>
-
-                              {(clip.videoAuditReason || (clip.videoAuditIssues && clip.videoAuditIssues.length > 0)) && (
-                                <div className="pt-1 border-t border-slate-800/80 space-y-1">
-                                  {clip.videoAuditReason && (
-                                    <p className="text-[11px] text-slate-300 leading-snug">
-                                      {clip.videoAuditReason}
-                                    </p>
-                                  )}
-                                  {clip.videoAuditIssues &&
-                                    clip.videoAuditIssues.filter(
-                                      (iss) =>
-                                        iss &&
-                                        !(clip.videoAuditReason || '')
-                                          .toLowerCase()
-                                          .includes(iss.trim().toLowerCase())
-                                    ).length > 0 && (
-                                      <ul className="list-disc list-inside text-[11px] text-amber-300 space-y-0.5">
-                                        {Array.from(
-                                          new Set(
-                                            clip.videoAuditIssues.filter(
-                                              (iss) =>
-                                                iss &&
-                                                !(clip.videoAuditReason || '')
-                                                  .toLowerCase()
-                                                  .includes(iss.trim().toLowerCase())
-                                            )
-                                          )
-                                        ).map((iss, iIdx) => (
-                                          <li key={iIdx}>{iss}</li>
-                                        ))}
-                                      </ul>
-                                    )}
-                                </div>
-                              )}
                             </div>
 
-                            {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (OCCUPIES 100% WIDTH) */}
-                            <div className="w-full space-y-2">
-                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video max-h-[68vh] shadow-2xl flex items-center justify-center">
+                            {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (100% HORIZONTAL WIDTH + FITS 100% ZOOM SCREEN WITH TOP BAR) */}
+                            <div className="w-full">
+                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[48vh] max-h-[430px] shadow-2xl flex items-center justify-center">
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
                                     data-stage8-clip-video="true"
@@ -10296,10 +10215,10 @@ export default function App() {
                                     className="w-full h-full object-contain bg-black"
                                   />
                                 ) : (
-                                  <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-                                    <Film className="w-10 h-10 text-amber-400/70" />
+                                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                                    <Film className="w-9 h-9 text-amber-400/70" />
                                     <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí a pantalla ancha al generarse en Google Flow o desde tu carpeta.
+                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí a todo el ancho horizontal al generarse en Google Flow o desde tu carpeta.
                                     </p>
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
                                       <button
@@ -10321,38 +10240,13 @@ export default function App() {
                                     </div>
                                   </div>
                                 )}
-                                <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
+                                <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
                                   🎬 Clip {paddedNum} ({clip.timeRange || 'S/T'})
                                   {clip.videoAttempts && clip.videoAttempts > 1
                                     ? ` • Intento #${clip.videoAttempts}`
                                     : ''}
                                 </span>
                               </div>
-
-                              {/* Compact 3 Keyframe Strip (Inicio 1.2s, Mitad 5.0s, Final 8.8s) */}
-                              {(clip.videoFrames || []).length > 0 && (
-                                <div className="grid grid-cols-3 gap-2.5">
-                                  {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
-                                    <div
-                                      key={fIdx}
-                                      className="relative rounded-lg overflow-hidden border border-slate-700 bg-black h-24 sm:h-28 shadow"
-                                    >
-                                      <img
-                                        src={frameSrc}
-                                        alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/85 border border-amber-500/40 text-[10px] font-mono font-bold text-amber-300">
-                                        {fIdx === 0
-                                          ? 'Inicio • 1.2s'
-                                          : fIdx === 1
-                                          ? 'Mitad • 5.0s'
-                                          : 'Final • 8.8s'}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           </div>
 
