@@ -211,6 +211,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       'Image 35: Create an image of the dark iron boiler room of a Spanish transatlantic steamship in 1907, soot-covered stokers resting their shovels as the glowing coal furnaces dim and white steam settles around brass pressure gauges, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
     const newClip35 =
       'Clip 35 (05:36 - 05:46): Create a video showing a slow push-in toward the dimming iron coal furnaces and brass pressure gauges in the quiet steamship boiler room in 1907 as thin white steam gently dissipates in the air. Ambient Foley: dying furnace embers crackling softly, final steam valve hiss fading into silence, cooling iron ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. de Alfonso XIII, todos compartían la misma incertidumbre al divisar la costa americana. ¿Qué ocurría realmente cuando las calderas se apagaban y aquellos viajeros exhaustos se. fix the name';
+    const newImg42 =
+      "Image 42: Create an image of stacked emigrants' wooden trunks with tied cardboard quarantine tags in the reception hall of Triscornia camp, Havana, Cuba, 1905, beside a wooden table holding amber glass bottles of disinfectant and a brass medical seal, 16:9 horizontal, warm window light, cinematic lighting, historical accuracy, no text.";
+    const newClip42 =
+      'Clip 42 (06:46 - 06:56): Create a video showing a slow lateral camera dolly across the stacked wooden trunks with quarantine tags and the amber glass disinfectant bottles in the sunlit reception hall of Triscornia, Havana, Cuba, 1905, as dust motes float in the air. Ambient Foley: paper quarantine tags fluttering softly in the draft, wooden floorboards creaking, distant footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. paseo central por jardines con 35 mil rosales. Al mando del campamento se encontraba el doctor Frank Menocal, cirujano de 39 años de edad hacia 1905. fix the name';
 
     if (Array.isArray(doc.clips)) {
       let clipsChanged = false;
@@ -256,6 +260,19 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             videoPrompt: newClip35,
           };
         }
+        if (
+          c &&
+          c.clipNumber === 42 &&
+          (/Disinfection Brigade|steam autoclave/i.test(c.imagePrompt || '') ||
+            /steam autoclave|iron door of the steam autoclave/i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg42,
+            videoPrompt: newClip42,
+          };
+        }
         return c;
       });
       if (clipsChanged) {
@@ -287,6 +304,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 35:[^\n]*heavy iron anchor[^\n]*/i, newImg35)
           .replace(/Clip 35\s*\([^)]*\):[^\n]*anchor chain plunges[^\n]*/i, newClip35);
+      }
+      if (
+        /Image 42:[^\n]*Disinfection Brigade/i.test(rawText) ||
+        /Clip 42\s*\([^)]*\):[^\n]*steam autoclave/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 42:[^\n]*Disinfection Brigade[^\n]*/i, newImg42)
+          .replace(/Clip 42\s*\([^)]*\):[^\n]*steam autoclave[^\n]*/i, newClip42);
       }
       nextRawClipsText = rawText;
     }
