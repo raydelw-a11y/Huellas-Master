@@ -214,6 +214,11 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const newClip20 =
       "Clip 20 (03:06 - 03:16): Create a video showing a steady shot from behind as @Ricardo_Ruiz_Balbin gently releases his weeping mother's embrace in the foreground, turns his back to the camera, and walks straight away from her and away from the camera down the misty dirt road into the distance in Asturias, Spain, 1885, without ever turning back or changing direction. Ambient Foley: rough wool fabric rustling, wooden trunk handle creaking, footsteps receding on wet gravel, single continuous shot, strictly no shot changes, no music, no speech, no text. pagar 2 mil pesetas para no ir a la guerra en la manigua, o embarcar por la décima parte antes de cumplir los 20 años. fix the name";
 
+    const newImg23 =
+      'Image 23: Create an image from behind of a single Spanish soldier in a straw hat and canvas pack standing still with his hands resting on the iron deck railing of a transport steamship departing Cádiz harbor, Spain, 1895, looking out at the receding stone pier across the water, 16:9 horizontal, golden late-afternoon light, cinematic lighting, historical accuracy, no text.';
+    const newClip23 =
+      "Clip 23 (03:36 - 03:46): Create a video showing a slow over-the-shoulder push-in behind the single Spanish soldier standing still at the ship's iron railing in Cádiz harbor, Spain, 1895, as sea breeze gently moves his hat brim and ocean waves ripple below. Ambient Foley: deep steamship horn echoing across the bay, ocean waves lapping against the hull, sea wind, single continuous shot, strictly no shot changes, no music, no speech, no text. y Gibraltar. Incluso el aparato militar operó como un puente sin retorno: de los 345 mil soldados enviados a Cuba a finales del siglo XIX, cerca. fix the name";
+
     const newImg35 =
       'Image 35: Create an image of the dark iron boiler room of a Spanish transatlantic steamship in 1907, soot-covered stokers resting their shovels as the glowing coal furnaces dim and white steam settles around brass pressure gauges, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
     const newClip35 =
@@ -256,6 +261,19 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             ...c,
             imagePrompt: newImg20,
             videoPrompt: newClip20,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 23 &&
+          (/rayadillo|marching onto a transport ship/i.test(c.imagePrompt || '') ||
+            /rayadillo|boarding the transport vessel/i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg23,
+            videoPrompt: newClip23,
           };
         }
         if (
@@ -321,6 +339,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             /Clip 20\s*\([^)]*\):[^\n]*walk down the misty lane in Asturias[^\n]*/i,
             newClip20
           );
+      }
+      if (
+        /Image 23:[^\n]*rayadillo/i.test(rawText) ||
+        /Clip 23\s*\([^)]*\):[^\n]*rayadillo/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 23:[^\n]*rayadillo[^\n]*/i, newImg23)
+          .replace(/Clip 23\s*\([^)]*\):[^\n]*rayadillo[^\n]*/i, newClip23);
       }
       if (
         /Image 35:[^\n]*heavy iron anchor/i.test(rawText) ||
