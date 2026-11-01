@@ -202,8 +202,13 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const newClip19 =
       "Clip 19 (02:56 - 03:06): Create a video showing a slow camera push-in past the peasant's hand holding the third-class steamship ticket and silver coins on the sunlit stone pier toward the towering black hull of the transatlantic steamship in Santander harbor, Spain, 1885. Ambient Foley: crisp paper ticket fluttering in sea breeze, clinking silver coins, distant steamship horn and harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. billete de tercera clase en vapor hacia La Habana o Veracruz costaba entre 205 y 235 pesetas. La aritmética de la supervivencia no dejaba alternativa: o. fix the name";
 
+    const newImg20 =
+      'Image 20: Create an image of @Ricardo_Ruiz_Balbin holding a rope-tied wooden trunk and embracing his weeping mother in black wool shawls in the foreground beside their stone cottage in Lué, Asturias, Spain, 1885, with a long misty dirt road stretching straight away into the background distance, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
+    const newClip20 =
+      "Clip 20 (03:06 - 03:16): Create a video showing a steady shot from behind as @Ricardo_Ruiz_Balbin gently releases his weeping mother's embrace in the foreground, turns his back to the camera, and walks straight away from her and away from the camera down the misty dirt road into the distance in Asturias, Spain, 1885, without ever turning back or changing direction. Ambient Foley: rough wool fabric rustling, wooden trunk handle creaking, footsteps receding on wet gravel, single continuous shot, strictly no shot changes, no music, no speech, no text. pagar 2 mil pesetas para no ir a la guerra en la manigua, o embarcar por la décima parte antes de cumplir los 20 años. fix the name";
+
     if (Array.isArray(doc.clips)) {
-      let clip19Changed = false;
+      let clipsChanged = false;
       const updated = doc.clips.map((c) => {
         if (
           c &&
@@ -211,26 +216,53 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           (/shipping agent's counter|wooden counter in Santander/i.test(c.imagePrompt || '') ||
             /shipping agent's hand stamps|wooden counter in Santander/i.test(c.videoPrompt || ''))
         ) {
-          clip19Changed = true;
+          clipsChanged = true;
           return {
             ...c,
             imagePrompt: newImg19,
             videoPrompt: newClip19,
           };
         }
+        if (
+          c &&
+          c.clipNumber === 20 &&
+          (/stone doorway of their cottage/i.test(c.imagePrompt || '') ||
+            /slow dolly-out as @Ricardo_Ruiz_Balbin|picks up his wooden trunk to walk down the misty lane/i.test(
+              c.videoPrompt || ''
+            ))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg20,
+            videoPrompt: newClip20,
+          };
+        }
         return c;
       });
-      if (clip19Changed) {
+      if (clipsChanged) {
         nextClips = updated;
       }
     }
-    if (
-      typeof doc.rawClipsText === 'string' &&
-      /Image 19:[^\n]*shipping agent's counter/i.test(doc.rawClipsText)
-    ) {
-      nextRawClipsText = doc.rawClipsText
-        .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
-        .replace(/Clip 19\s*\([^)]*\):[^\n]*wooden counter in Santander[^\n]*/i, newClip19);
+    if (typeof doc.rawClipsText === 'string') {
+      let rawText = doc.rawClipsText;
+      if (/Image 19:[^\n]*shipping agent's counter/i.test(rawText)) {
+        rawText = rawText
+          .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
+          .replace(/Clip 19\s*\([^)]*\):[^\n]*wooden counter in Santander[^\n]*/i, newClip19);
+      }
+      if (
+        /Image 20:[^\n]*stone doorway of their cottage/i.test(rawText) ||
+        /Clip 20\s*\([^)]*\):[^\n]*slow dolly-out as @Ricardo_Ruiz_Balbin/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 20:[^\n]*stone doorway of their cottage[^\n]*/i, newImg20)
+          .replace(
+            /Clip 20\s*\([^)]*\):[^\n]*walk down the misty lane in Asturias[^\n]*/i,
+            newClip20
+          );
+      }
+      nextRawClipsText = rawText;
     }
   }
 

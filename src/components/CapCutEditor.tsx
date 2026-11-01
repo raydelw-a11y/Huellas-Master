@@ -136,6 +136,54 @@ export const TRANSITION_OPTIONS: { value: ClipTransitionType; label: string }[] 
   { value: 'flash_sepia', label: 'Flash Histórico Sutil' },
 ];
 
+export type OverlayShadowStyle = 'none' | 'soft' | 'cinema' | 'outline' | 'gold_glow';
+export type OverlayBgStyle = 'none' | 'semi' | 'solid' | 'pill';
+
+export const EDITOR_FONT_OPTIONS: { value: string; label: string }[] = [
+  { value: "'Cinzel', Georgia, 'Times New Roman', serif", label: 'Cinzel / Romano Clásico' },
+  { value: "'Playfair Display', Georgia, serif", label: 'Playfair / Editorial Histórico' },
+  { value: "'Montserrat', 'Helvetica Neue', Arial, sans-serif", label: 'Montserrat / Sans Moderna' },
+  { value: "'Oswald', Impact, 'Arial Narrow', sans-serif", label: 'Oswald / Documental Épico' },
+  { value: "Impact, 'Arial Black', sans-serif", label: 'Impact / Titular Cine' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier / Archivo Confidencial' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'Georgia / Crónica Literaria' },
+  { value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif", label: 'Inter / Sans Limpia' },
+];
+
+export const EDITOR_SHADOW_OPTIONS: { value: OverlayShadowStyle; label: string }[] = [
+  { value: 'cinema', label: 'Sombra Profunda Cine' },
+  { value: 'outline', label: 'Borde Negro Fuerte (Contorno)' },
+  { value: 'soft', label: 'Sombra Suave' },
+  { value: 'gold_glow', label: 'Resplandor Dorado' },
+  { value: 'none', label: 'Sin Sombra' },
+];
+
+export function getTextShadowCss(style: OverlayShadowStyle): string {
+  switch (style) {
+    case 'none':
+      return 'none';
+    case 'soft':
+      return '0 2px 6px rgba(0,0,0,0.85)';
+    case 'cinema':
+      return '0 4px 16px rgba(0,0,0,0.98), 0 2px 4px rgba(0,0,0,0.95)';
+    case 'outline':
+      return '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 4px 10px rgba(0,0,0,0.95)';
+    case 'gold_glow':
+      return '0 0 14px rgba(245,158,11,0.75), 0 3px 10px rgba(0,0,0,0.95)';
+    default:
+      return '0 4px 14px rgba(0,0,0,0.95)';
+  }
+}
+
+export function hexToRgba(hex: string, opacityPct: number): string {
+  const clean = (hex || '#000000').replace('#', '');
+  const r = parseInt(clean.substring(0, 2) || '00', 16) || 0;
+  const g = parseInt(clean.substring(2, 4) || '00', 16) || 0;
+  const b = parseInt(clean.substring(4, 6) || '00', 16) || 0;
+  const a = Math.min(1, Math.max(0, opacityPct / 100));
+  return `rgba(${r}, ${g}, ${b}, ${a.toFixed(2)})`;
+}
+
 export function buildClipSixWordFileName(
   clip: DocumentaryClip,
   doc?: DocumentaryProject | null,

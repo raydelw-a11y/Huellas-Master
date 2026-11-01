@@ -842,13 +842,56 @@ function extractPcmFromWav(wavBuffer: Buffer): Buffer {
       else break;
     }
   }
+  if (current.length % 2 !== 0) {
+    current = current.subarray(0, current.length - 1);
+  }
   return current;
 }
 
 function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 240): Buffer {
-  const numSamples = Math.floor(pcmBuffer.length / 2);
-  if (numSamples < fadeSamples * 2) return pcmBuffer;
-  const out = Buffer.from(pcmBuffer);
+  const evenLen = pcmBuffer.length - (pcmBuffer.length % 2);
+  const numSamples = Math.floor(evenLen / 2);
+  if (numSamples < fadeSamples * 2) return pcmBuffer.subarray(0, evenLen);
+  const out = Buffer.from(pcmBuffer.subarray(0, evenLen));
+
+  // Detect and silence any high-frequency static/radio interference bursts (e.g. trailing Gemini TTS artifacts)
+  const winSamples = 480; // 20ms at 24kHz
+  const numWins = Math.floor(numSamples / winSamples);
+  if (numWins > 0) {
+    const burstWins = new Uint8Array(numWins);
+    for (let w = 0; w < numWins; w++) {
+      const startSample = w * winSamples;
+      let sumSq = 0;
+      let diffSq = 0;
+      let maxAbs = 0;
+      let prev = out.readInt16LE(startSample * 2);
+      for (let i = 0; i < winSamples; i++) {
+        const s = out.readInt16LE((startSample + i) * 2);
+        const a = Math.abs(s);
+        if (a > maxAbs) maxAbs = a;
+        sumSq += s * s;
+        const d = s - prev;
+        diffSq += d * d;
+        prev = s;
+      }
+      const rms = Math.sqrt(sumSq / winSamples) / 32768;
+      const peak = maxAbs / 32768;
+      const hfRms = Math.sqrt(diffSq / winSamples) / 65536;
+      if (hfRms > 0.13 && (peak > 0.72 || rms > 0.11)) {
+        burstWins[w] = 1;
+      }
+    }
+    for (let w = 0; w < numWins; w++) {
+      if (burstWins[w] === 1) {
+        const s0 = Math.max(0, (w - 1) * winSamples);
+        const s1 = Math.min(numSamples, (w + 2) * winSamples);
+        for (let i = s0; i < s1; i++) {
+          out.writeInt16LE(0, i * 2);
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < fadeSamples; i++) {
     const factor = i / fadeSamples;
     const sample = out.readInt16LE(i * 2);
