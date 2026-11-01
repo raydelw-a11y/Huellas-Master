@@ -904,32 +904,58 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
 }
 
 // ============================================================================
-// 3. AUTO-DETECTOR DE PISTAS DE SUNO (ETAPA 9)
+// 3. AUTO-DETECTOR DE PISTAS DE FLOW MUSIC / SUNO (ETAPA 10)
 // ============================================================================
 export function parseSunoTracksFromRawText(rawText: string): SunoTrack[] {
   if (!rawText || !rawText.trim()) return [];
   const tracks: SunoTrack[] = [];
 
-  // Separar si hay múltiples pistas o bloques "1. Título:"
-  const blocks = rawText.split(/(?=(?:^|\n)\s*(?:[#*\-\s]*)(?:Pista\s+\d+|Canción\s+\d+|1\.\s*T[ií]tulo\s*:))/i).filter((b) => b.trim());
+  // Limpiar asteriscos de negrita alrededor de etiquetas numeradas para facilitar el parseo
+  const normalized = rawText.replace(/\*\*([^*]+)\*\*/g, '$1');
 
-  blocks.forEach((block, idx) => {
-    const titleMatch = block.match(/(?:1\.\s*)?T[ií]tulo\s*:\s*([^\n]+)/i);
+  // Separar si hay múltiples pistas o bloques "Canción X", "Pista X" o "1. Título..."
+  const blocks = normalized
+    .split(
+      /(?=(?:^|\n)\s*(?:[#*\-\s]*)(?:Pista\s+\d+|Canci[oó]n\s+\d+|Track\s+\d+|1\.\s*T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?\s*:))/i
+    )
+    .filter((b) => b.trim());
+
+  blocks.forEach((block) => {
+    const titleMatch = block.match(
+      /(?:1\.\s*)?T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?\s*:\s*([^\n]+)/i
+    );
     const durationMatch = block.match(/(?:2\.\s*)?Duraci[oó]n\s*:\s*([^\n]+)/i);
-    const rangeMatch = block.match(/(?:3\.\s*)?De d[oó]nde a d[oó]nde cubre[^:]*:\s*([^\n]+)/i);
-    const lyricsMatch = block.match(/(?:4\.\s*)?Prompt de Lyrics\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:5\.|Prompt de Style))|$)/i);
-    const styleMatch = block.match(/(?:5\.\s*)?Prompt de Style\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:6\.|Explicaci[oó]n de la Canci[oó]n))|$)/i);
-    const expMatch = block.match(/(?:6\.\s*)?Explicaci[oó]n de la Canci[oó]n\s*:\s*([\s\S]*?)$/i);
+    const rangeMatch = block.match(
+      /(?:3\.\s*)?(?:De d[oó]nde a d[oó]nde cubre|Rango de tiempo|Tramo)[^:]*:\s*([^\n]+)/i
+    );
+    const lyricsMatch = block.match(
+      /(?:4\.\s*)?Prompt de Lyrics\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:5\.|Prompt de Style))|$)/i
+    );
+    const styleMatch = block.match(
+      /(?:5\.\s*)?Prompt de Style\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:6\.|Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?))|$)/i
+    );
+    const expMatch = block.match(
+      /(?:6\.\s*)?Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?\s*:\s*([\s\S]*?)$/i
+    );
 
     if (titleMatch || styleMatch || lyricsMatch) {
+      const nextNum = tracks.length + 1;
+      let rawStyle = styleMatch ? styleMatch[1].trim() : '';
+      if (rawStyle && !/fade-in/i.test(rawStyle)) {
+        rawStyle = `${rawStyle}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore mixed softly below narrator voice, 100% instrumental, strictly no vocals`;
+      }
       tracks.push({
-        id: `suno-${Date.now()}-${idx + 1}`,
-        trackNumber: idx + 1,
-        title: titleMatch ? titleMatch[1].trim() : `Pista ${idx + 1}`,
-        duration: durationMatch ? durationMatch[1].trim() : '3:00 min',
+        id: `suno-${Date.now()}-${nextNum}`,
+        trackNumber: nextNum,
+        title: titleMatch
+          ? titleMatch[1].replace(/^["«']+|["»']+$/g, '').trim()
+          : `Pista ${nextNum}`,
+        duration: durationMatch ? durationMatch[1].trim() : '2:00',
         videoTimeRange: rangeMatch ? rangeMatch[1].trim() : '00:00 - Final',
-        lyricsPrompt: lyricsMatch ? lyricsMatch[1].trim() : '[Instrumental]\n[Dark Contemplative Intro]\n[Fading Outro]',
-        stylePrompt: styleMatch ? styleMatch[1].trim() : '',
+        lyricsPrompt: lyricsMatch
+          ? lyricsMatch[1].trim()
+          : '[Instrumental]\n[Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[Gentle 3s Fade-Out Outro]',
+        stylePrompt: rawStyle,
         explanation: expMatch ? expMatch[1].trim() : '',
         isGenerated: false,
       });

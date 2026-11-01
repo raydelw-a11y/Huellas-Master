@@ -3124,11 +3124,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-1.5 flex flex-col items-center">
-                        {clip1Line1 && liveHookLine1Anim.visible && (
+                        {clip1Line1 && (
                           <div
                             className="leading-snug"
                             style={{
-                              opacity: liveHookLine1Anim.opacity,
+                              opacity: liveHookLine1Anim.visible ? liveHookLine1Anim.opacity : 0,
+                              visibility: liveHookLine1Anim.visible ? 'visible' : 'hidden',
                               transform: `translate3d(${liveHookLine1Anim.translateX}px, ${liveHookLine1Anim.translateY}px, 0) scale(${liveHookLine1Anim.scale})`,
                               filter:
                                 liveHookLine1Anim.blurPx > 0.1
@@ -3160,11 +3161,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             </span>
                           </div>
                         )}
-                        {clip1Line2 && liveHookLine2Anim.visible && (
+                        {clip1Line2 && (
                           <div
                             className="leading-snug"
                             style={{
-                              opacity: liveHookLine2Anim.opacity,
+                              opacity: liveHookLine2Anim.visible ? liveHookLine2Anim.opacity : 0,
+                              visibility: liveHookLine2Anim.visible ? 'visible' : 'hidden',
                               transform: `translate3d(${liveHookLine2Anim.translateX}px, ${liveHookLine2Anim.translateY}px, 0) scale(${liveHookLine2Anim.scale})`,
                               filter:
                                 liveHookLine2Anim.blurPx > 0.1

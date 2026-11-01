@@ -1300,11 +1300,94 @@ Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con époc
 
 Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}fix the name`;
   } else if (stageNumber === 10) {
-    stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
-Guion: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
-Genera la ETAPA 10: BANDA SONORA PARA SUNO dejando silencios de 10-20s entre cada canción y haciendo que la última canción dure obligatoriamente 1:30. Entrega cada canción con sus 6 campos exactos (1. Título, 2. Duración, 3. De dónde a dónde cubre en el video en tiempo, 4. Prompt de Lyrics, 5. Prompt de Style, 6. Explicación de la Canción).`;
+    // Calcular automáticamente la duración real del documental a partir del último clip, audio de voz o duración confirmada
+    const parseMmSsToSec = (str?: string): number => {
+      if (!str) return 0;
+      const m = String(str).match(/(\d{1,3}):(\d{2})/);
+      if (!m) return 0;
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    };
+    const formatSecToMmSs = (sec: number): string => {
+      const safe = Math.max(60, Math.round(sec));
+      const mm = Math.floor(safe / 60);
+      const ss = safe % 60;
+      return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    };
+
+    let lastClipEndSec = 0;
+    if (Array.isArray(doc.clips) && doc.clips.length > 0) {
+      for (const c of doc.clips) {
+        const rangeParts = String(c.timeRange || '').split('-');
+        const endPart = rangeParts[1] || rangeParts[0] || '';
+        const endSec = parseMmSsToSec(endPart);
+        if (endSec > lastClipEndSec) lastClipEndSec = endSec;
+      }
+      if (!lastClipEndSec) {
+        lastClipEndSec = clip2StartSec + Math.max(0, doc.clips.length - 1) * standardClipSec;
+      }
+    }
+    const voiceDurSec =
+      Array.isArray(doc.audioTracks) && doc.audioTracks[0]?.duration
+        ? Math.round(clip2StartSec + Number(doc.audioTracks[0].duration))
+        : 0;
+    const confirmedSec = parseMmSsToSec(doc.confirmedFinalDuration);
+    const totalDocSec = Math.max(
+      lastClipEndSec,
+      voiceDurSec,
+      confirmedSec > 125 ? confirmedSec : 0,
+      doc.targetDurationSeconds || 120
+    );
+    const resolvedFinalDuration = formatSecToMmSs(totalDocSec);
+    const outroStartSec = Math.max(0, totalDocSec - 90);
+    const outroStartMmSs = formatSecToMmSs(outroStartSec);
+
+    // Determinar cantidad dinámica de canciones según la duración y riqueza visual del documental
+    const minRecommendedTracks =
+      totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 4 : 3;
+    const maxRecommendedTracks =
+      totalDocSec >= 660 ? 8 : totalDocSec >= 420 ? 7 : totalDocSec >= 240 ? 5 : 4;
+
+    const clipsVisualSummary =
+      Array.isArray(doc.clips) && doc.clips.length > 0
+        ? doc.clips
+            .filter(
+              (_, idx, arr) =>
+                idx === 0 ||
+                idx === arr.length - 1 ||
+                idx % Math.max(1, Math.floor(arr.length / 18)) === 0
+            )
+            .map(
+              (c) =>
+                `Clip ${c.clipNumber} (${c.timeRange || ''}): ${(c.imagePrompt || '').slice(0, 120)} | Voz: "${(c.narrationSegment || '').slice(0, 90)}"`
+            )
+            .join('\n')
+        : '';
+
+    stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **Google Flow Music (https://www.flowmusic.app/)**.
+Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Duración total exacta del documental (calculada automáticamente de la Voz Narrativa y los Clips): ${resolvedFinalDuration} (${totalDocSec} segundos en total)
+Total de clips visuales del documental: ${Array.isArray(doc.clips) ? doc.clips.length : 'Seguir Timeline'}
+
+Guion y estructura narrativa:
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
+"""
+${clipsVisualSummary ? `\nMapa de escenas visuales y clips del documental:\n${clipsVisualSummary}\n` : ''}
+Genera la **ETAPA 10: BANDA SONORA CINEMATOGRÁFICA MULTIESCENA PARA FLOW MUSIC (flowmusic.app)** cumpliendo estrictamente estas leyes de dirección musical:
+1. **CANTIDAD DINÁMICA DE CANCIONES SEGÚN LA TRAMA Y LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones)**: Diseña entre **${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas** (más de 3 canciones cuando la duración y los giros dramáticos lo requieren). Cada canción debe acompañar un acto visual y emocional específico del documental (ej. Acto I: origen/tensión inicial; Acto II: travesía o peligro; Acto III: choque, penuria o revelación; Acto IV: transformación o clímax; Acto Final: reflexión histórica).
+2. **SILENCIOS DRAMÁTICOS OBLIGATORIOS (10 a 20 SEGUNDOS ENTRE CANCIONES)**: Entre el final de una canción y el inicio de la siguiente DEBE existir un silencio musical de **10 a 20 segundos** ubicado exactamente en una transición de escena, pregunta retórica o golpe dramático donde solo se escuche la Voz Narrativa y el sonido ambiente (Foley) de los clips.
+3. **ÚLTIMA CANCIÓN OBLIGATORIA DE 1:30 (${outroStartMmSs} - ${resolvedFinalDuration})**: La última canción que cierra el documental DEBE durar obligatoriamente **01:30** (1 minuto y 30 segundos), entrando en **${outroStartMmSs}** y cerrando en **${resolvedFinalDuration}**.
+4. **FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL)**:
+   - Todas las canciones deben entrar con **Fade-In suave (2.5s)** y salir con **Fade-Out gradual (3.0s)**.
+   - El **Prompt de Style (en inglés)** de CADA canción debe estar optimizado para **Google Flow Music (flowmusic.app)** e incluir obligatoriamente: \`100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range\` junto con los instrumentos acústicos históricos auténticos de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+5. **FORMATO EXACTO DE ENTREGA (6 CAMPOS POR CANCIÓN)**:
+   Entrega cada canción numerada ("Canción 1", "Canción 2", ..., "Canción N") con estos 6 puntos exactos:
+   1. Título de la Canción: [Título evocador acorde a la escena]
+   2. Duración: [MM:SS]
+   3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y)]
+   4. Prompt de Lyrics: [Instrumental — mapa de evolución dinámica con [00:00 Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Subtle Emotional Swell], [Gentle 3s Fade-Out Outro]]
+   5. Prompt de Style: [Prompt completo en inglés listo para enviar automáticamente a Flow Music (flowmusic.app), 100% instrumental, con instrumentos de época, tempo BPM, atmósfera, fade-in intro, fade-out outro y mezcla cálida por debajo de la voz narrativa]
+   6. Explicación de la Canción: [Por qué cambia la música en esta escena visual y qué silencio dramático de 10-20s la precede]`;
   } else if (stageNumber === 101) {
     stagePrompt = `Actúa como experto en neuropsicología del clic (alto CTR en YouTube) y director creativo de miniaturas para "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}

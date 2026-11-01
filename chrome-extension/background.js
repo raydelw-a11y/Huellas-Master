@@ -71,23 +71,40 @@ async function getConnectedAiTabsInWindow(windowId) {
       flowTabs = sortFlowTabs(allTabs.filter((t) => isFlowTabUrl(t.url)).map(mapFlow));
     }
 
-    let sunoTabs = windowTabs
-      .filter((t) => t.url && t.url.includes('suno.com'))
-      .map((t) => ({
-        id: t.id,
-        windowId: t.windowId,
-        title: (t.title || 'Suno AI').trim() || 'Suno AI',
-        url: t.url,
-      }));
+    const isMusicTabUrl = (url) => {
+      if (!url) return false;
+      const lower = url.toLowerCase();
+      return (
+        lower.includes('flowmusic.app') ||
+        lower.includes('producer.ai') ||
+        lower.includes('suno.com')
+      );
+    };
+
+    const mapMusicTab = (t) => ({
+      id: t.id,
+      windowId: t.windowId,
+      title:
+        (t.title || (t.url && t.url.includes('flowmusic') ? 'Flow Music' : 'Flow Music')).trim() ||
+        'Flow Music',
+      url: t.url,
+    });
+
+    const sortMusicTabs = (list) =>
+      [...list].sort((a, b) => {
+        const aFlowMusic = (a.url || '').toLowerCase().includes('flowmusic.app') ? 0 : 1;
+        const bFlowMusic = (b.url || '').toLowerCase().includes('flowmusic.app') ? 0 : 1;
+        if (aFlowMusic !== bFlowMusic) return aFlowMusic - bFlowMusic;
+        return (b.id || 0) - (a.id || 0);
+      });
+
+    let sunoTabs = sortMusicTabs(
+      windowTabs.filter((t) => isMusicTabUrl(t.url)).map(mapMusicTab)
+    );
     if (sunoTabs.length === 0) {
-      sunoTabs = allTabs
-        .filter((t) => t.url && t.url.includes('suno.com'))
-        .map((t) => ({
-          id: t.id,
-          windowId: t.windowId,
-          title: (t.title || 'Suno AI').trim() || 'Suno AI',
-          url: t.url,
-        }));
+      sunoTabs = sortMusicTabs(
+        allTabs.filter((t) => isMusicTabUrl(t.url)).map(mapMusicTab)
+      );
     }
 
     return { geminiTabs, flowTabs, sunoTabs };
@@ -129,6 +146,12 @@ function isHuellasUrl(url) {
         (tab.url.includes('labs.google') && tab.url.toLowerCase().includes('flow'))
       ) {
         ensureScriptInjected(tab.id, 'flow-content.js');
+      } else if (
+        tab.url.includes('flowmusic.app') ||
+        tab.url.includes('producer.ai') ||
+        tab.url.includes('suno.com')
+      ) {
+        ensureScriptInjected(tab.id, 'suno-content.js');
       }
     }
   } catch {}
@@ -149,22 +172,24 @@ async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (!tab || typeof tab.windowId !== 'number') return;
   if (changeInfo.status === 'complete' || changeInfo.title) {
-    const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(tab.windowId);
+    const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(tab.windowId);
     broadcastToHuellasTabsInSameWindow(tab.windowId, {
       type: 'HUELLAS_CONNECTED_TABS_UPDATE',
       geminiTabs,
       flowTabs,
+      sunoTabs: sunoTabs || [],
     });
   }
 });
 
 chrome.tabs.onRemoved.addListener(async (_tabId, removeInfo) => {
   if (!removeInfo || removeInfo.isWindowClosing || typeof removeInfo.windowId !== 'number') return;
-  const { geminiTabs, flowTabs } = await getConnectedAiTabsInWindow(removeInfo.windowId);
+  const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(removeInfo.windowId);
   broadcastToHuellasTabsInSameWindow(removeInfo.windowId, {
     type: 'HUELLAS_CONNECTED_TABS_UPDATE',
     geminiTabs,
     flowTabs,
+    sunoTabs: sunoTabs || [],
   });
 });
 
@@ -2002,7 +2027,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.5.4',
+          version: '2.6.0',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,
@@ -2036,7 +2061,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         targetService === 'FLOW'
           ? 'https://flow.google.com/'
           : targetService === 'SUNO'
-          ? 'https://suno.com/create'
+          ? 'https://www.flowmusic.app/'
           : 'https://gemini.google.com/app';
       const contentScriptFile =
         targetService === 'FLOW'
@@ -2066,7 +2091,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       const shouldFocusTargetTab =
-        targetService === 'GEMINI' || targetService === 'FLOW'
+        targetService === 'GEMINI' || targetService === 'FLOW' || targetService === 'SUNO'
           ? false
           : payload.focusTab === true;
 
@@ -2079,7 +2104,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             targetService === 'FLOW'
               ? 'Google Flow'
               : targetService === 'SUNO'
-              ? 'Suno AI'
+              ? 'Flow Music (flowmusic.app)'
               : 'Gemini Web'
           } en segundo plano...`,
         });
@@ -2674,6 +2699,147 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }, 420);
         }
 
+        // MAIN-world network hook + React Fiber scanner + prompt submitter for Flow Music (flowmusic.app)
+        if (targetService === 'SUNO' && action === 'SEND_PROMPT') {
+          const sunoTabId = targetTab.id;
+          const sunoPromptArg = String(payload.prompt || '');
+          const autoSubmitArg = payload.autoSubmit !== false;
+          chrome.scripting
+            .executeScript({
+              target: { tabId: sunoTabId },
+              world: 'MAIN',
+              args: [sunoPromptArg, autoSubmitArg],
+              func: (expectedPrompt, shouldSubmit) => {
+                try {
+                  // 1. Install network & React Fiber audio URL collector in MAIN world
+                  if (!window.__HUELLAS_FLOWMUSIC_NET_HOOK__) {
+                    window.__HUELLAS_FLOWMUSIC_NET_HOOK__ = true;
+                    window.__HUELLAS_FLOWMUSIC_URLS__ = new Set();
+
+                    const publishUrls = () => {
+                      try {
+                        document.documentElement.setAttribute(
+                          'data-huellas-flowmusic-urls',
+                          JSON.stringify(Array.from(window.__HUELLAS_FLOWMUSIC_URLS__))
+                        );
+                      } catch {}
+                    };
+
+                    const extractClipUrlsFromText = (txt) => {
+                      if (!txt || typeof txt !== 'string') return;
+                      const rx =
+                        /https:\/\/storage\.googleapis\.com\/producer-app-public\/clips\/[a-zA-Z0-9_-]+\.(?:m4a|mp3|wav)/g;
+                      let m;
+                      let added = false;
+                      while ((m = rx.exec(txt)) !== null) {
+                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                          added = true;
+                        }
+                      }
+                      if (added) publishUrls();
+                    };
+
+                    const origFetch = window.fetch;
+                    window.fetch = async function (...args) {
+                      const res = await origFetch.apply(this, args);
+                      try {
+                        const clone = res.clone();
+                        clone
+                          .text()
+                          .then((t) => extractClipUrlsFromText(t))
+                          .catch(() => {});
+                      } catch {}
+                      return res;
+                    };
+
+                    // Periodic React Fiber & DOM attribute scan in MAIN world
+                    setInterval(() => {
+                      try {
+                        const els = document.querySelectorAll('main *, audio, source');
+                        for (const el of els) {
+                          if (el.src && el.src.includes('producer-app-public/clips/')) {
+                            extractClipUrlsFromText(el.src);
+                          }
+                          for (const k of Object.keys(el)) {
+                            if (k.startsWith('__reactProps$') || k.startsWith('__reactFiber$')) {
+                              try {
+                                const s = JSON.stringify(el[k], (key, val) => {
+                                  if (key.startsWith('_') || val instanceof Node || val instanceof Window)
+                                    return undefined;
+                                  return val;
+                                });
+                                if (s && s.includes('producer-app-public/clips/')) {
+                                  extractClipUrlsFromText(s);
+                                }
+                              } catch {}
+                            }
+                          }
+                        }
+                      } catch {}
+                    }, 2200);
+                  }
+
+                  // 2. Ensure prompt is injected into Flow Music React textarea and submitted
+                  setTimeout(() => {
+                    try {
+                      const inputEl =
+                        document.querySelector('textarea[aria-label="Chat message"]') ||
+                        document.querySelector('textarea[placeholder*="Describe your song" i]') ||
+                        document.querySelector('textarea');
+                      if (!inputEl || !expectedPrompt) return;
+
+                      const currentVal = (inputEl.value || '').trim();
+                      if (currentVal.length < Math.min(12, expectedPrompt.length)) {
+                        inputEl.focus();
+                        const proto = window.HTMLTextAreaElement.prototype;
+                        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                        const tracker = inputEl._valueTracker;
+                        if (tracker) tracker.setValue('');
+                        if (setter) setter.call(inputEl, expectedPrompt);
+                        else inputEl.value = expectedPrompt;
+                        inputEl.dispatchEvent(
+                          new InputEvent('input', {
+                            bubbles: true,
+                            cancelable: true,
+                            inputType: 'insertText',
+                            data: expectedPrompt,
+                          })
+                        );
+                        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+
+                      if (shouldSubmit) {
+                        setTimeout(() => {
+                          const rem = (inputEl.value || '').trim();
+                          if (rem.length < 3) return;
+                          const sendBtn =
+                            document.querySelector('button[aria-label="Send message"]:not([disabled])') ||
+                            document.querySelector('button[aria-label*="Send" i]:not([disabled])');
+                          if (sendBtn) {
+                            sendBtn.click();
+                          } else {
+                            inputEl.dispatchEvent(
+                              new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                which: 13,
+                                bubbles: true,
+                                cancelable: true,
+                              })
+                            );
+                          }
+                        }, 250);
+                      }
+                    } catch {}
+                  }, 300);
+                } catch {}
+              },
+            })
+            .catch(() => {});
+        }
+
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
       } else {
         sendResponse({
@@ -2720,8 +2886,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const b64 = btoa(binary);
-        const mime = resp.headers.get('content-type') || 'video/mp4';
-        sendResponse({ ok: true, dataUrl: `data:${mime};base64,${b64}` });
+        let rawMime = (resp.headers.get('content-type') || '').toLowerCase();
+        const lowerUrl = String(message.url || '').toLowerCase();
+        if (!rawMime || rawMime.includes('octet-stream')) {
+          if (lowerUrl.includes('.m4a')) rawMime = 'audio/mp4';
+          else if (lowerUrl.includes('.mp3')) rawMime = 'audio/mpeg';
+          else if (lowerUrl.includes('.wav')) rawMime = 'audio/wav';
+          else rawMime = 'video/mp4';
+        }
+        sendResponse({ ok: true, dataUrl: `data:${rawMime};base64,${b64}` });
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
       }
