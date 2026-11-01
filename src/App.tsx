@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:06 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:10 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3235,11 +3235,9 @@ export default function App() {
         : 'approved';
       const score = mutationCheck.mutationSuspected ? 68 : 96;
       const reason = mutationCheck.mutationSuspected
-        ? `${mutationCheck.mutationReason} Puedes revisarlo en el reproductor .MP4 integrado o pulsar cualquiera de los 4 botones rápidos Anti-Mutación.`
+        ? `${mutationCheck.mutationReason} Puedes revisarlo en el reproductor .MP4 integrado o pulsar cualquiera de los botones rápidos de corrección.`
         : 'Video capturado desde Google Flow con 3 fotogramas (Inicio 1.0s, Mitad 4.5s, Final 7.2s) y auditado sin mutaciones detectadas en la segunda mitad.';
-      const issues: string[] = mutationCheck.mutationSuspected
-        ? [mutationCheck.mutationReason]
-        : [];
+      const issues: string[] = [];
 
       // Auto-Download to 05_Clips_Video Subfolder inside Chosen Root Folder with 6-Word Filename
       let savedFileName = targetClip.videoSavedFileName || '';
@@ -10005,13 +10003,30 @@ export default function App() {
                               </p>
                             )}
 
-                            {clip.videoAuditIssues && clip.videoAuditIssues.length > 0 && (
-                              <ul className="list-disc list-inside text-xs text-amber-300 space-y-0.5">
-                                {clip.videoAuditIssues.map((iss, iIdx) => (
-                                  <li key={iIdx}>{iss}</li>
-                                ))}
-                              </ul>
-                            )}
+                            {clip.videoAuditIssues &&
+                              clip.videoAuditIssues.filter(
+                                (iss) =>
+                                  iss &&
+                                  !(clip.videoAuditReason || '')
+                                    .toLowerCase()
+                                    .includes(iss.trim().toLowerCase())
+                              ).length > 0 && (
+                                <ul className="list-disc list-inside text-xs text-amber-300 space-y-0.5">
+                                  {Array.from(
+                                    new Set(
+                                      clip.videoAuditIssues.filter(
+                                        (iss) =>
+                                          iss &&
+                                          !(clip.videoAuditReason || '')
+                                            .toLowerCase()
+                                            .includes(iss.trim().toLowerCase())
+                                      )
+                                    )
+                                  ).map((iss, iIdx) => (
+                                    <li key={iIdx}>{iss}</li>
+                                  ))}
+                                </ul>
+                              )}
 
                             {/* LARGE CINEMA .MP4 VIDEO VIEWER + 3 LARGE KEYFRAME PREVIEWS */}
                             <div className="space-y-2.5 pt-1">
