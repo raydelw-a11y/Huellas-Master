@@ -221,7 +221,10 @@ function formatTimeMMSS(sec: number): string {
   return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
 }
 
-function parseSrtToCaptionItems(srtText: string): TimelineCaptionItem[] {
+function parseSrtToCaptionItems(
+  srtText: string,
+  alignStartSec?: number
+): TimelineCaptionItem[] {
   if (!srtText || !srtText.trim()) return [];
   const blocks = srtText.trim().split(/\r?\n\r?\n+/);
   const items: TimelineCaptionItem[] = [];
@@ -264,6 +267,17 @@ function parseSrtToCaptionItems(srtText: string): TimelineCaptionItem[] {
       });
     }
   });
+
+  if (items.length > 0 && typeof alignStartSec === 'number') {
+    const delta = alignStartSec - items[0].start;
+    if (Math.abs(delta) > 0.2) {
+      return items.map((it) => ({
+        ...it,
+        start: Number(Math.max(0, it.start + delta).toFixed(2)),
+        end: Number(Math.max(0.5, it.end + delta).toFixed(2)),
+      }));
+    }
+  }
 
   return items;
 }
@@ -312,6 +326,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('8K_4320P');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
 
+  // Interactive Selection of Objects inside the Video Viewer ('logo' | 'hook_text' | 'captions' | null)
+  const [selectedCanvasObject, setSelectedCanvasObject] = useState<
+    'logo' | 'hook_text' | 'captions' | null
+  >(null);
+
   // 2. Permanent Official Logo (Uploaded ONCE, stored forever across all documentaries)
   const [officialLogoUrl, setOfficialLogoUrl] = useState<string>(() => {
     return propOfficialLogoUrl || localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
@@ -323,15 +342,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   }, [propOfficialLogoUrl]);
   const [logoScalePct, setLogoScalePct] = useState<number>(6);
-  const [showRightQualityBadge, setShowRightQualityBadge] = useState<boolean>(true);
   const [logoOpacity, setLogoOpacity] = useState<number>(95);
+  const [logoPosX, setLogoPosX] = useState<number>(3);
+  const [logoPosY, setLogoPosY] = useState<number>(3);
 
-  // 3. Clip 1 Hook Overlay Text (First 6s-8s)
+  // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background & Position
   const [clip1Line1, setClip1Line1] = useState<string>(activeDoc?.clip1Line1LocationTime || '');
   const [clip1Line2, setClip1Line2] = useState<string>(activeDoc?.clip1Line2Hook || '');
-  const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(
-    activeDoc?.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 8 : activeDoc?.clip1DurationSeconds || 6
-  );
+  const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
+    const { clip1Sec } = getStage1ClipDurations(activeDoc);
+    return clip1Sec || 8;
+  });
+  const [hookFontFamily, setHookFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[0].value);
+  const [hookLine1FontSize, setHookLine1FontSize] = useState<number>(15);
+  const [hookLine2FontSize, setHookLine2FontSize] = useState<number>(24);
+  const [hookLine1Color, setHookLine1Color] = useState<string>('#fcd34d');
+  const [hookLine2Color, setHookLine2Color] = useState<string>('#ffffff');
+  const [hookShadowStyle, setHookShadowStyle] = useState<OverlayShadowStyle>('cinema');
+  const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>('semi');
+  const [hookBgColor, setHookBgColor] = useState<string>('#000000');
+  const [hookBgOpacity, setHookBgOpacity] = useState<number>(55);
+  const [hookTopPct, setHookTopPct] = useState<number>(35);
 
   // 4. Five Multi-Tracks State
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
@@ -339,20 +370,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(true);
 
-  // Voiceover Track (Track 4)
-  const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(
-    activeDoc?.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 8 : activeDoc?.clip1DurationSeconds || 6
-  );
+  // Voiceover Track (Track 4) — Always starts at Stage 1 clip1Sec (8s)
+  const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
+    const { clip1Sec } = getStage1ClipDurations(activeDoc);
+    return clip1Sec || 8;
+  });
+  const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
   const [voiceVolume, setVoiceVolume] = useState<number>(100);
   const [autoDuckingEnabled, setAutoDuckingEnabled] = useState<boolean>(true);
   const [foleyHighVolume, setFoleyHighVolume] = useState<number>(80); // When narrator is silent
   const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(35); // When narrator speaks
 
-  // Captions Track (Track 2)
+  // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
   const [captions, setCaptions] = useState<TimelineCaptionItem[]>([]);
+  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[2].value);
   const [captionFontSize, setCaptionFontSize] = useState<number>(22);
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(11);
-  const [captionColor, setCaptionColor] = useState<'white' | 'amber'>('white');
+  const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>('white');
+  const [captionCustomColor, setCaptionCustomColor] = useState<string>('#ffffff');
+  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>('outline');
+  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>('semi');
+  const [captionBgColor, setCaptionBgColor] = useState<string>('#000000');
+  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(78);
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
@@ -565,25 +604,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const effectiveVoiceDurationSec = useMemo(() => {
+    if (voiceDurationSec > 1) return voiceDurationSec;
+    const trackDur = Number(activeDoc?.audioTracks?.[0]?.duration || 0);
+    if (trackDur > 1) return trackDur;
+    if (effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol')) return 909.22;
+    if (effectiveVoiceoverUrl.includes('tts-1793103539750-763')) return 739.76;
+    return 0;
+  }, [voiceDurationSec, activeDoc?.audioTracks, effectiveVoiceoverUrl]);
+
   // Sync tracks from activeDoc whenever documentary changes or user clicks "Sincronizar"
   const syncTracksFromDocumentary = () => {
     if (!activeDoc) return;
 
     const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
-    const hasClip1Video = Boolean(capturedClipVideosMap[1]);
-    // If Clip 1 .MP4 video is loaded, voiceover enters after Clip 1; if Clip 1 .MP4 is not loaded yet, start voiceover from 0s so pressing Play immediately plays audio!
-    const entrySec = hasClip1Video
-      ? activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-        ? c1BaseDur + 2
-        : c1BaseDur
-      : 0;
+    // Voiceover and Captions ALWAYS start right after Clip 1 (8s when 8s is selected in Stage 1)
+    const entrySec = c1BaseDur || 8;
 
     setClip1Line1(
       activeDoc.clip1Line1LocationTime ||
         [activeDoc.historicalLocation, activeDoc.historicalTime].filter(Boolean).join(' • ')
     );
     setClip1Line2(activeDoc.clip1Line2Hook || activeDoc.title || '');
-    setClip1OverlayEndSec(c1BaseDur);
+    setClip1OverlayEndSec(entrySec);
     setVoiceStartOffsetSec(entrySec);
 
     // 1. Build Clips Track (Track 3)
@@ -591,7 +634,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const reviewedClips = allDocClips.filter((c) => c.reviewedForEditor);
     const docClips =
       showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
-    const docRefs = activeDoc.references || [];
 
     const builtClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = c.clipNumber === 1 || idx === 0;
@@ -659,18 +701,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setSelectedClipId(builtClips[0].id);
     }
 
-    // 2. Build Captions Track (Track 2)
+    // 2. Build Captions Track (Track 2) aligned to entrySec (8s)
     if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
-      setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt));
+      setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec));
     } else {
-      handleGenerateAutoCaptionsFromVoice(entrySec);
+      handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
     }
 
     // 3. Build Suno Music Track (Track 5) with 15s mandatory silence gaps & 1:30 final track
-    const totalTimelineSec =
-      builtClips.reduce((acc, item) => acc + item.duration, 0) ||
-      activeDoc.targetDurationSeconds ||
-      120;
+    const fullVoiceSpanSec =
+      effectiveVoiceDurationSec > 0 ? entrySec + effectiveVoiceDurationSec : 0;
+    const totalTimelineSec = Math.max(
+      builtClips.reduce((acc, item) => acc + item.duration, 0),
+      fullVoiceSpanSec,
+      activeDoc.targetDurationSeconds || 120
+    );
     const sunoList = activeDoc.sunoTracks || [];
     if (sunoList.length > 0) {
       let cursorSec = 0;
@@ -720,14 +765,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     folderVoiceoverUrl,
   ]);
 
-  // Auto-Generate Captions directly from Voiceover + Timeline Sentences (No external CapCut needed!)
-  const handleGenerateAutoCaptionsFromVoice = (customEntryOffset?: number) => {
+  // Auto-Generate Captions directly from Voiceover starting at voiceStartOffsetSec (8s) and calibrated to exact voice duration
+  const handleGenerateAutoCaptionsFromVoice = (
+    customEntryOffset?: number,
+    customVoiceDurSec?: number
+  ) => {
     if (!activeDoc) return;
     const offset =
       typeof customEntryOffset === 'number' ? customEntryOffset : voiceStartOffsetSec;
-    const maxCharsPerCaption = 32;
-    const generated: TimelineCaptionItem[] = [];
-    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const targetVoiceDur =
+      typeof customVoiceDurSec === 'number' && customVoiceDurSec > 1
+        ? customVoiceDurSec
+        : effectiveVoiceDurationSec;
+    const maxCharsPerCaption = 34;
 
     const splitIntoShortChunks = (text: string): string[] => {
       const clean = normalizeQuantitiesToMil(stripPauseTags(text)).trim();
@@ -749,51 +799,101 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return chunks;
     };
 
-    if (activeDoc.clips && activeDoc.clips.length > 1) {
-      let runningSec = 0;
-      activeDoc.clips.forEach((clip, idx) => {
-        const clipDur =
-          Number(clip.durationSeconds) > 0
-            ? Number(clip.durationSeconds)
-            : idx === 0
-            ? clip1Sec
-            : standardClipSec;
-        if (idx > 0 && clip.narrationSegment && clip.narrationSegment.trim()) {
-          const chunks = splitIntoShortChunks(clip.narrationSegment);
-          const subDur = clipDur / Math.max(1, chunks.length);
-          chunks.forEach((ch, cIdx) => {
-            generated.push({
-              id: `autocap-${clip.clipNumber}-${cIdx}`,
-              index: generated.length + 1,
-              start: Number((runningSec + cIdx * subDur).toFixed(2)),
-              end: Number((runningSec + (cIdx + 1) * subDur - 0.08).toFixed(2)),
-              text: ch,
-            });
-          });
-        }
-        runningSec += clipDur;
-      });
-    } else if (activeDoc.voiceoverScript) {
-      const allChunks = splitIntoShortChunks(activeDoc.voiceoverScript);
-      let cursor = offset;
-      allChunks.forEach((ch, idx) => {
-        const dur = Math.max(1.4, Math.min(3.2, ch.length / 13));
-        generated.push({
-          id: `autocap-vo-${idx}`,
-          index: idx + 1,
-          start: Number(cursor.toFixed(2)),
-          end: Number((cursor + dur).toFixed(2)),
+    // Build source script preserving explicit [pausa Xs] / [Xs] tags
+    const rawVoiceScript =
+      activeDoc.voiceoverScript && activeDoc.voiceoverScript.trim()
+        ? activeDoc.voiceoverScript.trim()
+        : (activeDoc.clips || [])
+            .filter(
+              (c, idx) =>
+                idx > 0 &&
+                c.clipNumber > 1 &&
+                c.narrationSegment &&
+                !c.narrationSegment.includes('Sin Voz Narrativa')
+            )
+            .map((c) => c.narrationSegment)
+            .join(' ');
+
+    if (!rawVoiceScript) {
+      setCaptions([]);
+      return;
+    }
+
+    // Tokenize into speech chunks and explicit pause gaps
+    type RawToken =
+      | { kind: 'speech'; text: string; rawSec: number; postGapSec: number }
+      | { kind: 'pause'; rawSec: number };
+
+    const tokens: RawToken[] = [];
+    const parts = rawVoiceScript.split(
+      /(\[\s*(?:pausa\s*:?\s*)?\d+(?:[.,]\d+)?\s*s(?:egundos?)?\s*\])/gi
+    );
+
+    for (const part of parts) {
+      if (!part || !part.trim()) continue;
+      const pauseMatch = part.match(
+        /^\[\s*(?:pausa\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*s(?:egundos?)?\s*\]$/i
+      );
+      if (pauseMatch) {
+        const pSec = Math.min(4.0, Math.max(0.25, parseFloat(pauseMatch[1].replace(',', '.')) || 1.0));
+        tokens.push({ kind: 'pause', rawSec: pSec });
+        continue;
+      }
+
+      const chunks = splitIntoShortChunks(part);
+      chunks.forEach((ch) => {
+        const endsSentence = /[.!?;:]$/.test(ch);
+        const endsComma = /[,]$/.test(ch);
+        const charCount = ch.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9]/g, '').length || ch.length;
+        const rawSec = Math.max(0.85, charCount / 13.8);
+        const postGapSec = endsSentence ? 0.32 : endsComma ? 0.14 : 0.05;
+        tokens.push({
+          kind: 'speech',
           text: ch,
+          rawSec,
+          postGapSec,
         });
-        cursor += dur + 0.05;
       });
     }
 
-    setCaptions(generated);
-    setStatusMessage(
-      `💬 ${generated.length} subtítulos generados y sincronizados automáticamente desde tu Voz Narrativa (sin usar CapCut externo).`
+    const totalRawSec = tokens.reduce(
+      (acc, tk) => acc + tk.rawSec + (tk.kind === 'speech' ? tk.postGapSec : 0),
+      0
     );
+    const scaleFactor =
+      targetVoiceDur > 5 && totalRawSec > 1 ? targetVoiceDur / totalRawSec : 1;
+
+    const generated: TimelineCaptionItem[] = [];
+    let cursor = offset;
+    tokens.forEach((tk) => {
+      if (tk.kind === 'pause') {
+        cursor += tk.rawSec * scaleFactor;
+      } else {
+        const dur = Math.max(0.65, tk.rawSec * scaleFactor);
+        const gap = tk.postGapSec * scaleFactor;
+        generated.push({
+          id: `autocap-vo-${generated.length + 1}`,
+          index: generated.length + 1,
+          start: Number(cursor.toFixed(2)),
+          end: Number((cursor + dur).toFixed(2)),
+          text: tk.text,
+        });
+        cursor += dur + gap;
+      }
+    });
+
+    setCaptions(generated);
   };
+
+  // Re-align captions automatically whenever voiceStartOffsetSec or effectiveVoiceDurationSec updates
+  useEffect(() => {
+    if (!activeDoc) return;
+    if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
+      setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, voiceStartOffsetSec));
+    } else {
+      handleGenerateAutoCaptionsFromVoice(voiceStartOffsetSec, effectiveVoiceDurationSec);
+    }
+  }, [voiceStartOffsetSec, effectiveVoiceDurationSec, activeDoc?.id]);
 
   // Compute each clip's start & end time on the master timeline
   const clipsWithTimelineBounds = useMemo(() => {
@@ -811,13 +911,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   }, [timelineClips]);
 
+  // Total timeline duration ALWAYS spans the entire Voiceover Narration (00:08 -> 15:17) as well as all clips
   const totalDurationSec = useMemo(() => {
     const clipsEnd =
       clipsWithTimelineBounds.length > 0
         ? clipsWithTimelineBounds[clipsWithTimelineBounds.length - 1].end
         : 60;
-    return Math.max(10, clipsEnd);
-  }, [clipsWithTimelineBounds]);
+    const voiceEnd =
+      effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec : 0;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const allScriptClipsEnd =
+      activeDoc?.clips && activeDoc.clips.length > 0
+        ? clip1Sec + Math.max(0, activeDoc.clips.length - 1) * standardClipSec
+        : 0;
+    return Math.max(10, clipsEnd, Math.ceil(voiceEnd), allScriptClipsEnd);
+  }, [
+    clipsWithTimelineBounds,
+    effectiveVoiceDurationSec,
+    voiceStartOffsetSec,
+    activeDoc?.clips?.length,
+    activeDoc?.clipDurationMode,
+  ]);
 
   const activeClipAtPlayhead = useMemo(() => {
     return (
