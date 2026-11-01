@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:16 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:29 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -5761,14 +5761,22 @@ export default function App() {
       </div>
 
       {/* TOP NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-3 flex-wrap">
+      <header
+        className={`sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-5 ${
+          mainView === 'studio' && activeStage === 8 ? 'py-1.5' : 'py-2.5 sm:py-3'
+        } flex items-center justify-between gap-2.5 flex-wrap`}
+      >
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMainView('dashboard')}
             className="flex items-center gap-2.5 text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0">
-              <Film className="w-5 h-5" />
+            <div
+              className={`${
+                mainView === 'studio' && activeStage === 8 ? 'w-7 h-7' : 'w-9 h-9'
+              } rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0`}
+            >
+              <Film className={mainView === 'studio' && activeStage === 8 ? 'w-4 h-4' : 'w-5 h-5'} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -5779,9 +5787,11 @@ export default function App() {
                   {isCloudMode ? '📱 Nube Móvil + GitHub' : '💻 Laptop + Nube GitHub'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Prompt Maestro + VoxFlow + Narration Timeline Extractor + Corrector .SRT
-              </p>
+              {!(mainView === 'studio' && activeStage === 8) && (
+                <p className="text-[11px] text-slate-400 hidden sm:block">
+                  Prompt Maestro + VoxFlow + Narration Timeline Extractor + Corrector .SRT
+                </p>
+              )}
             </div>
           </button>
         </div>
@@ -5906,9 +5916,9 @@ export default function App() {
           </button>
         </div>
 
-        {/* COMPACT STICKY STAGES SQUARES BAR (Appears when scrolling down in Studio) */}
+        {/* COMPACT STICKY STAGES BAR (Icon right next to stage number to free vertical space) */}
         {mainView === 'studio' && activeDoc && isStagesBarCompact && (
-          <div className="w-full pt-2 mt-1 border-t border-amber-500/20 flex items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
+          <div className="w-full pt-1 mt-0.5 border-t border-amber-500/20 flex items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
             {STAGES_LIST.map((st) => {
               const IconComp = st.icon;
               const done = isStageDone(activeDoc, st.num);
@@ -5924,7 +5934,7 @@ export default function App() {
                       ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga en la Etapa 1`
                       : `${st.title} — ${st.subtitle}`
                   }
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition shrink-0 ${
+                  className={`h-7 px-2.5 rounded-lg flex flex-row items-center justify-center gap-1 border transition shrink-0 ${
                     isLocked
                       ? 'bg-slate-950/60 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
                       : isCurrent
@@ -5934,7 +5944,7 @@ export default function App() {
                       : 'bg-slate-900/80 hover:bg-slate-800 text-amber-300/90 border-slate-700/80 cursor-pointer'
                   }`}
                 >
-                  <span className="text-[10px] leading-none font-black">{st.num}</span>
+                  <span className="text-[11px] leading-none font-black">{st.num}</span>
                   <IconComp
                     className={`w-3.5 h-3.5 shrink-0 ${
                       isLocked
@@ -6480,13 +6490,16 @@ export default function App() {
             {/* Row 2: 12 Stages Horizontal Navigation Bar (Desktop & Tablet) */}
             <nav
               data-stages-full-nav="true"
-              className="hidden md:grid md:grid-cols-6 xl:grid-cols-12 gap-1.5"
+              className={`hidden md:grid md:grid-cols-6 xl:grid-cols-12 ${
+                activeStage === 8 ? 'gap-1' : 'gap-1.5'
+              }`}
             >
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
                 const done = isStageDone(activeDoc, st.num);
                 const isCurrent = activeStage === st.num;
                 const isLocked = st.num > 1 && !hasSelectedDocFolder;
+                const cleanTitle = st.title.replace(/^\d+\.\s*/, '');
                 return (
                   <button
                     key={st.num}
@@ -6497,8 +6510,8 @@ export default function App() {
                         : `${st.title} — ${st.subtitle}`
                     }
                     className={`px-2 ${
-                      activeStage === 8 ? 'py-1.5' : 'py-1.5'
-                    } rounded-xl flex flex-col justify-center gap-0.5 text-left transition border ${
+                      activeStage === 8 ? 'py-1 h-7 rounded-lg' : 'py-1.5 rounded-xl'
+                    } flex flex-col justify-center gap-0.5 text-left transition border ${
                       isLocked
                         ? 'bg-slate-950/50 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
                         : isCurrent
@@ -6510,6 +6523,9 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between gap-1 w-full min-w-0">
                       <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-[11px] font-black leading-none shrink-0">
+                          {st.num}.
+                        </span>
                         <IconComp
                           className={`w-3.5 h-3.5 shrink-0 ${
                             isLocked
@@ -6521,7 +6537,7 @@ export default function App() {
                               : 'text-amber-400/80'
                           }`}
                         />
-                        <div className="text-[11px] leading-tight truncate">{st.title}</div>
+                        <div className="text-[11px] leading-tight truncate">{cleanTitle}</div>
                       </div>
                       {isLocked ? (
                         <Lock className="w-3 h-3 shrink-0 text-amber-500/70" />
@@ -6557,15 +6573,25 @@ export default function App() {
           {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
           <section
             data-stage-scroll-container="true"
-            className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5"
+            className={`flex-1 ${
+              activeStage === 8 ? 'p-2.5 sm:p-4 space-y-3' : 'p-4 sm:p-6 space-y-5'
+            } overflow-y-auto`}
           >
             {/* Stage Header Banner */}
-            <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-              <div>
+            <div
+              className={`bg-[#16130f] border border-amber-500/25 rounded-2xl ${
+                activeStage === 8 ? 'px-3.5 py-2' : 'px-4 py-3'
+              } flex flex-wrap items-center justify-between gap-3`}
+            >
+              <div className={activeStage === 8 ? 'flex items-center gap-2.5 flex-wrap' : ''}>
                 <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
                   Etapa {activeStage} de 12 — {activeDoc.title}
                 </span>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-100 mt-0.5">
+                <h2
+                  className={`${
+                    activeStage === 8 ? 'text-sm sm:text-base' : 'text-lg sm:text-xl mt-0.5'
+                  } font-bold text-slate-100`}
+                >
                   {STAGES_LIST[activeStage - 1]?.title} — {STAGES_LIST[activeStage - 1]?.subtitle}
                 </h2>
               </div>
@@ -10034,7 +10060,7 @@ export default function App() {
                             }`}
                           >
                             {/* 1. STICKY TOP CONTROL BAR: Single "Marcar Revisado" Button + Quick Flow Actions + Correction List */}
-                            <div className="sticky top-2 z-20 bg-slate-950/95 backdrop-blur-md border border-amber-500/30 rounded-xl p-2 space-y-1.5 shadow-lg">
+                            <div className="sticky top-1 z-20 bg-slate-950/95 backdrop-blur-md border border-amber-500/30 rounded-xl p-1.5 space-y-1 shadow-lg">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* ÚNICO Botón de Marcar Revisado */}
@@ -10197,9 +10223,9 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (100% HORIZONTAL WIDTH + FITS 100% ZOOM SCREEN WITH TOP BAR) */}
+                            {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (ENLARGED USING VERTICAL SPACE SAVED FROM INLINE STAGE MENU) */}
                             <div className="w-full">
-                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[56vh] max-h-[520px] shadow-2xl flex items-center justify-center">
+                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[68vh] max-h-[720px] shadow-2xl flex items-center justify-center">
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
                                     data-stage8-clip-video="true"
