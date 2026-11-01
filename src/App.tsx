@@ -116,7 +116,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:49 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:51 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -5781,7 +5781,7 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-100 relative p-4">
-        <div className="fixed bottom-2 right-3 text-[11px] text-amber-300/90 font-mono bg-slate-900/95 px-2.5 py-0.5 rounded border border-amber-500/30 z-50 pointer-events-none">
+        <div className="fixed bottom-2 right-3 text-[11px] text-amber-300/90 font-mono bg-slate-900/80 backdrop-blur-sm px-2.5 py-0.5 rounded border border-amber-500/30 z-50 opacity-50 pointer-events-none">
           Actualizado: {LAST_UPDATED_TEXT}
         </div>
         <form
@@ -5849,11 +5849,11 @@ export default function App() {
           }}
           title="Subir al inicio de la página"
           aria-label="Subir al inicio de la página"
-          className="pointer-events-auto w-9 h-9 rounded-full bg-slate-900/95 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 shadow-lg shadow-black/60 flex items-center justify-center transition cursor-pointer"
+          className="pointer-events-auto w-9 h-9 rounded-full bg-slate-900/80 backdrop-blur-sm hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 shadow-lg shadow-black/40 flex items-center justify-center opacity-50 hover:opacity-100 transition cursor-pointer"
         >
           <ArrowUp className="w-4 h-4 stroke-[2.5]" />
         </button>
-        <div className="text-[11px] text-amber-300/90 font-mono bg-slate-900/95 px-2.5 py-0.5 rounded border border-amber-500/30">
+        <div className="text-[11px] text-amber-300/90 font-mono bg-slate-900/80 backdrop-blur-sm px-2.5 py-0.5 rounded border border-amber-500/30 opacity-50">
           Actualizado: {LAST_UPDATED_TEXT}
         </div>
       </div>
