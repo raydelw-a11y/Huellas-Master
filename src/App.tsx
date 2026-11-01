@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:48 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:54 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2306,7 +2306,7 @@ export default function App() {
   // Unified Automatic Shield: Combines Anti-Filtro "Prominent People" / Policy Shield + Controlled Camera + Stage 1 Sustained Action + Anti-Mutation Physics
   const applyAntiMutationShieldToPrompt = (
     rawPrompt: string,
-    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
+    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL' = 'ALL',
     isImagePrompt: boolean = false,
     explicitClipSec?: number
   ): string => {
@@ -2321,6 +2321,11 @@ export default function App() {
         ? clip1Sec
         : standardClipSec;
 
+    const hadAdultsOnly =
+      mode === 'ADULTS_ONLY' || /STRICT\s*ADULTS-ONLY\s*CAST/i.test(rawPrompt);
+    const hadSingleShot =
+      mode === 'SINGLE_SHOT' || /SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE/i.test(rawPrompt);
+
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
 
@@ -2329,6 +2334,40 @@ export default function App() {
     if (prefixMatch) {
       prefix = prefixMatch[1];
       p = p.slice(prefix.length).trim();
+    }
+
+    // If ADULTS_ONLY mode is requested or was previously applied, strictly sanitize any child/minor/youth references into mature adults (35–60)
+    if (hadAdultsOnly) {
+      p = p
+        .replace(
+          /\b(\d{1,2}-year-old|child\s+bride|young\s+girl|little\s+girl|teenage\s+girl|schoolgirl|girl|niña|joven\s+mujer|adolescente|hija\s+pequeña)\b/gi,
+          'mature adult woman (age 38)'
+        )
+        .replace(
+          /\b(young\s+boy|little\s+boy|teenage\s+boy|schoolboy|boy|young\s+prince|niño|hijo\s+pequeño|muchacho|joven)\b/gi,
+          'mature adult man (age 40)'
+        )
+        .replace(
+          /\b(children|kids|infants|babies|toddlers|minors|teenagers|adolescents|youths|niños|bebés|infantes|menores)\b/gi,
+          'mature adult historical figures (ages 38–55)'
+        )
+        .replace(
+          /\b(child|kid|infant|baby|toddler|minor|underage|teenager|bebé|infante|menor)\b/gi,
+          'mature adult historical figure (age 40)'
+        );
+    }
+
+    // If SINGLE_SHOT mode is requested or was previously applied, neutralize multi-shot / camera-cut wording
+    if (hadSingleShot) {
+      p = p
+        .replace(
+          /\b(then\s+cuts?\s+to|camera\s+cuts?\s+to|cuts?\s+to|cutting\s+to|switches?\s+angle\s+to|switch(?:es)?\s+to\s+a\s+new\s+shot|jump\s+cut\s+to|match\s+cut\s+to|cross-?cuts?\s+to|second\s+shot\s+shows|next\s+shot\s+shows)\b/gi,
+          'while remaining in the exact same unbroken single-take camera shot showing'
+        )
+        .replace(
+          /\b(montage\s+of\s+shots|sequence\s+of\s+shots|multiple\s+camera\s+angles|two\s+separate\s+shots|split\s+screen)\b/gi,
+          'single continuous unbroken camera shot'
+        );
     }
 
     // Remove any previously injected anti-mutation or duplicate safety clause so it never duplicates
@@ -2343,14 +2382,24 @@ export default function App() {
         ''
       )
       .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
-      .replace(/All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi, '')
+      .replace(/All\s*tables,\s*documents,[^.]*gravity-locked[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
+      .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
+      .replace(/SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE[^.]*\.\s*/gi, '')
       .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
       .trim();
 
+    const adultsOnlyClause = hadAdultsOnly
+      ? 'STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.'
+      : '';
+
+    const singleShotClause = hadSingleShot
+      ? `SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to ${clipSec}s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip.`
+      : '';
+
     if (isImagePrompt) {
       const imgClause =
-        'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
+        'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people)';
       if (!p.toLowerCase().includes('rigid architectural perspective')) {
         if (/\bno\s+text\b/i.test(p)) {
           p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
@@ -2358,7 +2407,10 @@ export default function App() {
           p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
         }
       } else if (!/no real public figures/i.test(p)) {
-        p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
+        p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
+      }
+      if (adultsOnlyClause) {
+        p = `${p.replace(/\.?\s*$/, '')}. ${adultsOnlyClause}`;
       }
       return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
     }
@@ -2375,12 +2427,23 @@ export default function App() {
     if (mode === 'PEOPLE') {
       shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. ${safetyDisclaimer}`;
     } else if (mode === 'OBJECTS') {
-      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, furniture, and props remain 100% gravity-locked and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving or floating objects. ${safetyDisclaimer}`;
+      shieldDirective = `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. ${safetyDisclaimer}`;
     } else if (mode === 'WALLS') {
       shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to ${clipSec}s that never warp, breathe, or mutate during camera movement. ${safetyDisclaimer}`;
+    } else if (mode === 'ADULTS_ONLY') {
+      shieldDirective = `${adultsOnlyClause} Sustained, unhurried continuous action across the full ${clipSec} seconds with fixed adult subject count from 0s to ${clipSec}s. ${safetyDisclaimer}`;
+    } else if (mode === 'SINGLE_SHOT') {
+      shieldDirective = `${singleShotClause} Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second single continuous shot. ${safetyDisclaimer}`;
     } else {
       // 'ALL'
-      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. ${safetyDisclaimer}`;
+      shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, weapons, furniture, and props remain 100% gravity-locked, physically solid, and stationary with zero self-moving, morphing, or mutating objects. ${safetyDisclaimer}`;
+    }
+
+    if (mode !== 'ADULTS_ONLY' && adultsOnlyClause) {
+      shieldDirective = `${adultsOnlyClause} ${shieldDirective}`;
+    }
+    if (mode !== 'SINGLE_SHOT' && singleShotClause) {
+      shieldDirective = `${singleShotClause} ${shieldDirective}`;
     }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
@@ -2392,10 +2455,10 @@ export default function App() {
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   };
 
-  // Option 2: Surgical 1-Click Fix for Specific Visual Mutation ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL') + Immediate Re-send to Google Flow
+  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL') + Immediate Re-send to Google Flow
   const handleFixMutationAndResendClip = (
     clip: DocumentaryClip,
-    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL' = 'ALL',
+    mode: 'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL' = 'ALL',
     isAutoMutationRetry: boolean = false
   ) => {
     const currentDoc = activeDocRef.current || activeDoc;
@@ -2407,10 +2470,12 @@ export default function App() {
     const shieldedImg = applyAntiMutationShieldToPrompt(clip.imagePrompt || '', mode, true, clipSec);
     const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false, clipSec);
 
-    const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ALL', string> = {
+    const modeLabels: Record<'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'ALL', string> = {
       PEOPLE: `🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–${clipSec}s + fondo bokeh estático)`,
-      OBJECTS: '🪑 Anti-Movimiento de Objetos Solos (objetos 100% anclados a gravedad)',
+      OBJECTS: '🪑 Anti-Movimiento / Anti-Mutación de Objetos (objetos 100% sólidos y anclados a gravedad, sin moverse solos ni mutar)',
       WALLS: '🧱 Anti-Mutación de Paredes/Fondo (cámara controlada + geometría 3D rígida)',
+      ADULTS_ONLY: '🔞 Solo Adultos (100% personajes adultos de 35–60 años, cero niños o menores en escena)',
+      SINGLE_SHOT: `🎬 Un Solo Shot Continuo (toma única ininterrumpida de 0s a ${clipSec}s sin cortes ni saltos de cámara)`,
       ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
@@ -9755,11 +9820,19 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* 4 Quick Surgical Anti-Mutation Buttons (1-Click Re-adjust + Re-send to Google Flow) */}
+                            {/* 6 Quick Surgical Anti-Mutation / Error Fix Buttons (1-Click Re-adjust + Re-send to Google Flow) */}
                             <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-lg p-2.5">
                               <span className="text-[11px] font-bold text-slate-400 mr-1">
                                 Corregir error visual y re-enviar a Flow:
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
+                                className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition"
+                                title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
+                              >
+                                🔞 Solo Adultos
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
@@ -9772,9 +9845,9 @@ export default function App() {
                                 type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
                                 className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition"
-                                title="Ancla todos los muebles, papeles y objetos a la gravedad (100% estacionarios) para que nada se mueva solo"
+                                title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
                               >
-                                🪑 Objeto se mueve solo
+                                🪑 Objeto se mueve solo / Muta
                               </button>
                               <button
                                 type="button"
@@ -9786,9 +9859,17 @@ export default function App() {
                               </button>
                               <button
                                 type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
+                                className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition"
+                                title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
+                              >
+                                🎬 Salto de shot innecesario
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition"
-                                title="Aplica los 3 blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
+                                title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
                               >
                                 🔧 Todo Anti-Mutación
                               </button>
