@@ -314,6 +314,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [timelineZoom, setTimelineZoom] = useState<number>(18); // pixels per second
+  const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(false);
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'clips' | 'audio' | 'branding' | 'captions'
   >('clips');
@@ -1288,16 +1289,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const selectedClip = timelineClips.find((c) => c.id === selectedClipId) || timelineClips[0] || null;
   const activePreset = RESOLUTION_PRESETS[exportResolution];
+  const clipProgressRatio = activeClipAtPlayhead
+    ? Math.min(
+        1,
+        Math.max(
+          0,
+          (currentTime - activeClipAtPlayhead.start) / Math.max(0.5, activeClipAtPlayhead.duration)
+        )
+      )
+    : 0;
+  const kenBurnsScale = (1.02 + clipProgressRatio * 0.14).toFixed(3);
+  const kenBurnsPanX = (
+    ((activeClipAtPlayhead?.clipNumber || 1) % 2 === 0 ? -1 : 1) *
+    clipProgressRatio *
+    2.4
+  ).toFixed(2);
 
   return (
     <div className="flex-1 flex flex-col bg-[#0c0a08] text-slate-100 min-h-0">
-      {/* Hidden audio element for Voiceover playback */}
-      {activeDoc?.masterAudioUrl && (
-        <audio ref={voiceAudioRef} src={activeDoc.masterAudioUrl} preload="auto" />
+      {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
+      {effectiveVoiceoverUrl && (
+        <audio
+          ref={voiceAudioRef}
+          src={effectiveVoiceoverUrl}
+          preload="auto"
+          onError={() => setVoiceAudioError(true)}
+          onLoadedMetadata={() => setVoiceAudioError(false)}
+        />
       )}
+      <audio ref={musicAudioRef} preload="auto" />
 
       {/* =====================================================================
-          TOP BAR: PROJECT TITLE, ASPECT RATIO (16:9 / 9:16), QUALITY (HD/2K/4K/8K) & EXPORT
+          TOP BAR: PROJECT SELECTOR, ASPECT RATIO (16:9 / 9:16), QUALITY (HD/2K/4K/8K) & EXPORT
       ===================================================================== */}
       <div className="bg-[#14110d] border-b border-amber-500/25 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -1306,19 +1329,51 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <Film className="w-3.5 h-3.5" />
               EDITOR DE VIDEO
             </span>
-            <span className="text-sm font-bold text-amber-200 truncate max-w-[260px]">
-              {activeDoc?.title || 'Sin Documental Seleccionado'}
-            </span>
+            {documentaries.length > 0 && onSelectDoc ? (
+              <select
+                value={activeDoc?.id || ''}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  setCurrentTime(0);
+                  onSelectDoc(e.target.value);
+                }}
+                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2.5 py-1 text-xs font-bold text-amber-200 max-w-[300px] cursor-pointer outline-none"
+                title="Cambiar de documental directamente desde el Editor de Video"
+              >
+                {documentaries.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.title} ({(d.clips || []).length} clips
+                    {d.masterAudioUrl ? ' • 🎙️ Voz' : ''})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-bold text-amber-200 truncate max-w-[260px]">
+                {activeDoc?.title || 'Sin Documental Seleccionado'}
+              </span>
+            )}
           </div>
 
           <button
             type="button"
-            onClick={syncTracksFromDocumentary}
+            onClick={async () => {
+              if (onReloadFolderMedia) {
+                const count = await onReloadFolderMedia();
+                syncTracksFromDocumentary();
+                setStatusMessage(
+                  count > 0
+                    ? `✅ ${count} clip(s) .MP4 y audio cargados automáticamente desde tu carpeta 05_Clips_Video / 02_Audio.`
+                    : '🔄 Pistas sincronizadas con el documental activo.'
+                );
+              } else {
+                syncTracksFromDocumentary();
+              }
+            }}
             className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
-            title="Traer clips, voz narrativa, texto del Clip 1, captions y música de Suno del documental activo"
+            title="Sincronizar clips, voz narrativa, texto del Clip 1, captions, música de Suno y videos .MP4 desde tu carpeta"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Sincronizar Todo del Documental
+            Sincronizar Todo + Carpeta
           </button>
 
           {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
@@ -1406,10 +1461,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* Confirmed Folder from Stage 1 */}
           {downloadFolderName ? (
-            <div className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-950/60 border-emerald-500/40 text-emerald-300">
+            <button
+              type="button"
+              onClick={async () => {
+                if (onReloadFolderMedia) {
+                  await onReloadFolderMedia();
+                } else {
+                  await onPickDownloadFolder();
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/40 text-emerald-300 cursor-pointer"
+              title="Haz clic para recargar los videos .MP4 de 05_Clips_Video y audios de 02_Audio"
+            >
               <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
               ✓ Carpeta: {downloadFolderName}
-            </div>
+            </button>
           ) : (
             <button
               type="button"
@@ -1478,7 +1544,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 bg-[#100d0a] border-b border-slate-800/90">
         {/* PREVIEW MONITOR (8 COLS — LARGER CINEMA VIEWER) */}
         <div className="lg:col-span-8 flex flex-col items-center justify-between bg-[#080705] border border-slate-800 rounded-2xl p-4 space-y-3">
-          <div className="w-full flex items-center justify-between text-xs text-slate-400">
+          <div className="w-full flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
             <span className="font-mono text-amber-300 font-bold">
               Monitor en Tiempo Real • {aspectRatio} • Salida:{' '}
               {aspectRatio === '16:9'
@@ -1486,43 +1552,147 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 : `${activePreset.width9x16}×${activePreset.height9x16}`}{' '}
               ({activePreset.badge})
             </span>
-            <span className="font-mono text-emerald-300">
-              {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  effectiveVoiceoverUrl && !voiceAudioError
+                    ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300'
+                    : 'bg-amber-500/15 border border-amber-500/40 text-amber-300'
+                }`}
+              >
+                {effectiveVoiceoverUrl && !voiceAudioError
+                  ? `🎙️ Locución Master Lista (entra en ${formatTimeMMSS(voiceStartOffsetSec)})`
+                  : '🗣️ Narración en Vivo (Sintetizador Activo)'}
+              </span>
+              <span className="font-mono text-emerald-300 font-bold">
+                {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
+              </span>
+            </div>
           </div>
 
           {/* Aspect-Ratio Locked Screen (Enlarged Cinema Size) */}
           <div
-            className={`relative bg-black rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-2xl flex items-center justify-center ${
+            onClick={handleTogglePlay}
+            className={`relative bg-black rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-2xl flex items-center justify-center cursor-pointer group ${
               aspectRatio === '16:9'
                 ? 'w-full max-w-[1060px] min-h-[340px] sm:min-h-[440px] lg:min-h-[520px] aspect-video'
                 : 'h-[540px] aspect-[9/16]'
             }`}
+            title="Haz clic en la pantalla para Reproducir / Pausar"
           >
-            {/* Layer 1: Active Clip Video or Poster */}
+            {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
             {activeClipAtPlayhead?.videoUrl ? (
               <video
+                key={activeClipAtPlayhead.videoUrl}
                 ref={previewVideoRef}
                 src={activeClipAtPlayhead.videoUrl}
                 className="w-full h-full object-cover"
                 playsInline
+                preload="auto"
+                onLoadedMetadata={(e) => {
+                  const vid = e.currentTarget;
+                  const offsetInClip =
+                    (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
+                    activeClipAtPlayhead.trimStart;
+                  try {
+                    vid.currentTime = Math.max(0, offsetInClip);
+                    vid.playbackRate = activeClipAtPlayhead.speed || 1;
+                    vid.muted = false;
+                    vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+                    if (isPlaying) {
+                      vid.play().catch(() => {});
+                    }
+                  } catch {}
+                }}
               />
             ) : activeClipAtPlayhead?.posterUrl ? (
-              <img
-                src={activeClipAtPlayhead.posterUrl}
-                alt={activeClipAtPlayhead.fileName}
-                className="w-full h-full object-cover"
-              />
+              <div className="w-full h-full overflow-hidden relative bg-black">
+                <img
+                  src={activeClipAtPlayhead.posterUrl}
+                  alt={activeClipAtPlayhead.fileName}
+                  className="w-full h-full object-cover transition-transform duration-150 ease-linear"
+                  style={{
+                    transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/35 pointer-events-none" />
+              </div>
             ) : (
-              <div className="text-center p-6 space-y-2">
-                <p className="text-xs font-mono text-amber-400">
-                  CLIP {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} •{' '}
-                  {activeClipAtPlayhead?.fileName || '01_Clip.mp4'}
-                </p>
-                <p className="text-xs text-slate-400 max-w-md">
-                  {activeClipAtPlayhead?.narrationSegment ||
-                    'Los videos aprobados en Google Flow (o importados desde tu carpeta) se reproducen aquí automáticamente.'}
-                </p>
+              /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
+              <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-8 text-center">
+                {/* Animated Ken Burns Ambient Backdrop */}
+                <div
+                  className="absolute inset-0 opacity-35 pointer-events-none transition-transform duration-150 ease-linear"
+                  style={{
+                    transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+                    backgroundImage:
+                      'radial-gradient(circle at 30% 35%, rgba(245, 158, 11, 0.35), transparent 55%), radial-gradient(circle at 75% 65%, rgba(14, 165, 233, 0.22), transparent 55%)',
+                  }}
+                />
+                <div className="relative z-10 max-w-2xl space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black tracking-wide">
+                    <span>
+                      🎬 ESCENA {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} DE{' '}
+                      {timelineClips.length || 1}
+                    </span>
+                    <span>•</span>
+                    <span className="font-mono">
+                      {activeClipAtPlayhead
+                        ? `${Math.max(0, currentTime - activeClipAtPlayhead.start).toFixed(1)}s / ${activeClipAtPlayhead.duration}s`
+                        : '0.0s'}
+                    </span>
+                  </div>
+
+                  <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
+                    {stripPauseTags(
+                      activeClipAtPlayhead?.narrationSegment ||
+                        activeCaptionAtPlayhead?.text ||
+                        clip1Line2 ||
+                        activeDoc?.title ||
+                        'Documental Histórico — Huellas de la Humanidad'
+                    )}
+                  </p>
+
+                  {(activeClipAtPlayhead?.videoPrompt || activeClipAtPlayhead?.imagePrompt) && (
+                    <p className="text-[11px] text-slate-300/85 line-clamp-3 font-mono bg-black/55 border border-white/10 rounded-xl px-3.5 py-2">
+                      🎥 Dirección Visual:{' '}
+                      {(activeClipAtPlayhead.videoPrompt || activeClipAtPlayhead.imagePrompt || '')
+                        .replace(/^Create (?:a video|an image)[^,]*,\s*/i, '')
+                        .slice(0, 220)}
+                      ...
+                    </p>
+                  )}
+
+                  {/* Clip Progress Bar inside Storyboard */}
+                  <div className="w-64 mx-auto h-1.5 bg-slate-800/90 rounded-full overflow-hidden border border-slate-700">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-100"
+                      style={{ width: `${Math.round(clipProgressRatio * 100)}%` }}
+                    />
+                  </div>
+
+                  <div
+                    className="pt-1 flex items-center justify-center gap-2 flex-wrap"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {onReloadFolderMedia && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const loaded = await onReloadFolderMedia();
+                          setStatusMessage(
+                            loaded > 0
+                              ? `✅ ¡${loaded} video(s) .MP4 cargados desde 05_Clips_Video!`
+                              : '📂 Selecciona tu carpeta con la subcarpeta 05_Clips_Video o importa tus .MP4.'
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-bold cursor-pointer"
+                      >
+                        📂 Conectar Clips .MP4 de 05_Clips_Video
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1619,7 +1789,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setIsPlaying((p) => !p)}
+              onClick={handleTogglePlay}
               className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
