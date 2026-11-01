@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:05 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:07 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2681,15 +2681,20 @@ export default function App() {
         );
     }
 
+    // Strip any old parenthetical foley clauses or "narrative voice enters" instructions so Veo never generates spoken voiceover
+    p = p
+      .replace(/\s*\(\s*first\s+\d+\s+seconds[^)]*narrative[^)]*\)/gi, ', strictly no voiceover')
+      .replace(/(?:\s*\(\s*100%\s*pure\s*ambient\s*foley\s*only[^)]*\)\.?)+/gi, '');
+
     // If CLEAN_FOLEY_AUDIO mode is requested or was previously applied, strip any music, singing, dialogue, or voice cues
     if (hadCleanFoleyAudio) {
       p = p
         .replace(
-          /\b(background\s+music|orchestral\s+music|dramatic\s+music|cinematic\s+score|musical\s+score|soundtrack|choir|chanting|singing|gregorian\s+chant|violin|cello|drums|horns|música|coro|canto)\b/gi,
+          /(?<!no\s+)(?<!zero\s+)\b(background\s+music|orchestral\s+music|dramatic\s+music|cinematic\s+score|musical\s+score|soundtrack|choir|chanting|singing|gregorian\s+chant|violin|cello|drums|horns|música|coro|canto)\b/gi,
           'subtle natural room tone and environmental foley'
         )
         .replace(
-          /\b(speaking\s+aloud|talking\s+aloud|speaking|talking|whispering\s+words|murmuring\s+voices|distant\s+voices|crowd\s+voices|dialogue|monologue|narration|voiceover|shouting|screaming|hablando|susurrando|voces|diálogo|narración)\b/gi,
+          /(?<!no\s+)(?<!zero\s+)(?<!without\s+)\b(speaking\s+aloud|talking\s+aloud|speaking|talking|whispering\s+words|murmuring\s+voices|distant\s+voices|crowd\s+voices|dialogue|monologue|narration|voiceover|shouting|screaming|hablando|susurrando|voces|diálogo|narración)\b/gi,
           'silent composed facial expression with natural ambient foley'
         );
     }

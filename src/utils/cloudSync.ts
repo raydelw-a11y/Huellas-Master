@@ -204,6 +204,11 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
   let nextClips = doc.clips;
   let nextRawClipsText = doc.rawClipsText;
   if (isVideo76Exodo) {
+    const newImg2 =
+      'Image 2: Create an image of an adult Spanish farmer wearing a dark wool beret and brown corduroy jacket standing on the wet stone dock of Maliaño in Santander, Spain, 1885, holding a single flat rectangular paper steamship ticket in his right hand (strictly no coins or pouches), facing a port clerk in a dark wool coat and cap who is already seated on a wooden chair behind a small wooden registration table on the dock with his open hand resting on the tabletop ready to receive the ticket, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
+    const newClip2 =
+      'Clip 2 (00:06 - 00:16): Create a video showing a slow dolly push-in on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the wool beret extends his right hand across the wooden table and hands that exact same single flat rectangular paper steamship ticket directly into the hand of the port clerk sitting on the wooden chair at the table, who calmly takes the paper ticket over the tabletop, strictly no voiceover. The exact same single rectangular paper ticket remains rigid and unchanged in shape, size, and appearance from 0s to 10s without morphing, folding, multiplying, or transforming into any other object. STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Both men keep their mouths completely closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only with strictly zero voiceover, zero narration, zero dialogue, zero background music, and zero human voices. Ambient Foley: steady rain pattering on wet stone, soft paper ticket rustle, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. Año 1885, muelle de Maliaño, Santander, España. La rampa de piedra húmeda donde miles de campesinos del norte entregaban los ahorros de toda una vida para cruzar. fix the name';
+
     const newImg19 =
       'Image 19: Create an image of a bright sunlit outdoor harbor pier in Santander, Spain, 1885, a weathered peasant hand holding a printed third-class steamship ticket and silver peseta coins in the foreground while a massive black-hulled transatlantic steamship vents white steam in the background, 16:9 horizontal, cinematic daylight, historical accuracy, no text.';
     const newClip19 =
@@ -268,6 +273,22 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     if (Array.isArray(doc.clips)) {
       let clipsChanged = false;
       const updated = doc.clips.map((c) => {
+        if (
+          c &&
+          c.clipNumber === 2 &&
+          (/holding a ticket and coin pouch|period historical artifact/i.test(c.imagePrompt || '') ||
+            /handing his savings|narrative voice enters at 00:08/i.test(c.videoPrompt || '') ||
+            !/already seated on a wooden chair behind a small wooden registration table/i.test(
+              c.imagePrompt || ''
+            ))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg2,
+            videoPrompt: newClip2,
+          };
+        }
         if (
           c &&
           c.clipNumber === 19 &&
@@ -498,6 +519,18 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       if (/8\s*bokeh\)\./i.test(rawText)) {
         rawText = rawText.replace(/(?:\s*8\s*bokeh\)\.)+/gi, '');
       }
+      if (
+        /Image 2:[^\n]*(?:holding a ticket and coin pouch|period historical artifact)/i.test(rawText) ||
+        /Clip 2\s*\([^)]*\):[^\n]*(?:handing his savings|narrative voice enters at 00:08)/i.test(rawText) ||
+        (/Image 2:[^\n]*/i.test(rawText) &&
+          !/Image 2:[^\n]*already seated on a wooden chair behind a small wooden registration table/i.test(
+            rawText
+          ))
+      ) {
+        rawText = rawText
+          .replace(/Image 2:[^\n]*/i, newImg2)
+          .replace(/Clip 2\s*\([^)]*\):[^\n]*/i, newClip2);
+      }
       if (/Image 19:[^\n]*shipping agent's counter/i.test(rawText)) {
         rawText = rawText
           .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
@@ -654,6 +687,103 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     }
   }
 
+  let nextConfirmedFinalDuration = doc.confirmedFinalDuration;
+  let nextSunoTracks = doc.sunoTracks;
+
+  if (isVideo76Exodo) {
+    if (!nextConfirmedFinalDuration || nextConfirmedFinalDuration === '02:00') {
+      nextConfirmedFinalDuration = '13:26';
+    }
+    if (!Array.isArray(nextSunoTracks) || nextSunoTracks.length <= 3) {
+      nextSunoTracks = [
+        {
+          id: 'flowmusic-v76-track-1',
+          trackNumber: 1,
+          title: 'El Muelle de la Despedida (Santander y Asturias, 1885)',
+          duration: '02:16',
+          videoTimeRange: '00:00 - 02:16 (Clip 1 al Clip 15)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Melancholic Spanish Acoustic Guitar & Cello Underscore Below Narrator Voice]\n[Subtle Atlantic Fog Tension]\n[Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Cinematic historical documentary score, 19th century northern Spain farewell atmosphere, solo nylon-string Spanish guitar, mournful cello, soft distant Galician-Asturian woodwind drone, slow tempo 62 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words',
+          explanation:
+            'Acompaña el Hook en el muelle de Santander y el desgarro de las aldeas del norte ante la redención en metálico de 2 mil pesetas. Se apaga con Fade-Out en 02:16 dejando un silencio dramático de 20s (02:16 - 02:36).',
+          isGenerated: false,
+        },
+        {
+          id: 'flowmusic-v76-track-2',
+          trackNumber: 2,
+          title: 'Las Entrañas del Vapor Transatlántico',
+          duration: '02:10',
+          videoTimeRange: '02:36 - 04:46 (Clip 18 al Clip 30)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Dark Low Strings & Subdued Maritime Pulse Below Voice]\n[Deep Ocean Crossing Suspense]\n[Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Dark cinematic orchestral documentary underscore, late 19th century transatlantic steamship crossing in steerage, deep double bass, tremolo violas, muted French horn, subtle deep heartbeat percussion, slow-mid tempo 66 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary mix sitting softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing, no lyrics',
+          explanation:
+            'Entra tras 20s de silencio para acompañar el pasaje de tercera clase, las literas de hierro del entrepuente y la travesía oceánica. Cierra en 04:46 con 20s de silencio dramático (04:46 - 05:06).',
+          isGenerated: false,
+        },
+        {
+          id: 'flowmusic-v76-track-3',
+          trackNumber: 3,
+          title: 'Cuarentena en Triscornia y Muelles de Veracruz',
+          duration: '02:10',
+          videoTimeRange: '05:06 - 07:16 (Clip 33 al Clip 45)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Tropical Noir Strings & Subtle Harp Underscore]\n[solemn Arrival & Uncertainty]\n[Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Atmospheric historical documentary film score, turn-of-the-century Havana and Veracruz harbor arrival, chamber strings, solo classical guitar, warm bassoon, delicate harp harmonics, slow contemplative tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore below narrator voice without vocal range clash, 100% instrumental, strictly no vocals, no singing',
+          explanation:
+            'Acompaña la llegada al trópico, el campamento de cuarentena de Triscornia y el desembarco en Veracruz. Se desvanece en 07:16 dejando 20s de silencio (07:16 - 07:36).',
+          isGenerated: false,
+        },
+        {
+          id: 'flowmusic-v76-track-4',
+          trackNumber: 4,
+          title: 'Dieciséis Horas Detrás del Mostrador',
+          duration: '02:00',
+          videoTimeRange: '07:36 - 09:36 (Clip 48 al Clip 59)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Intimate Piano & Solo Cello Documentary Underscore]\n[Quiet Perseverance & Solitude]\n[Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Intimate minimalist historical documentary score, early 20th century immigrant clerk working in dim wooden store, felt piano, warm solo cello, soft upright bass pizzicato, slow reflective tempo 60 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore mixed softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing',
+          explanation:
+            'Retrata la dura realidad del dependiente durmiendo sobre el mostrador de cedro y las jornadas de 16 horas. Termina en 09:36 dejando 20s de silencio dramático (09:36 - 09:56).',
+          isGenerated: false,
+        },
+        {
+          id: 'flowmusic-v76-track-5',
+          trackNumber: 5,
+          title: 'Palacios de Piedra y Escuelas de Indianos',
+          duration: '01:40',
+          videoTimeRange: '09:56 - 11:36 (Clip 62 al Clip 71)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Noble Chamber Orchestra & Classical Guitar Underscore]\n[Dignified Historical Transformation]\n[Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Noble cinematic documentary orchestral score, early 20th century mutual aid palaces and rural schools in Spain, warm string ensemble, classical Spanish guitar arpeggios, soft oboe, dignified tempo 68 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore sitting softly below narrator voice, 100% instrumental, strictly no vocals, no singing',
+          explanation:
+            'Acompaña el auge de los centros regionales, hospitales, remesas y las 500 escuelas financiadas en el norte de España. Cierra en 11:36 antes del silencio dramático del exilio en el Sinaia (11:36 - 11:56).',
+          isGenerated: false,
+        },
+        {
+          id: 'flowmusic-v76-track-6',
+          trackNumber: 6,
+          title: 'La Sangre de Dos Orillas (Cierre Documental)',
+          duration: '01:30',
+          videoTimeRange: '11:56 - 13:26 (Clip 74 al Clip 81)',
+          lyricsPrompt:
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Emotional Cello & Spanish Guitar Finale Below Narrator Voice]\n[01:05 Sweeping Cinematic Resolution]\n[01:25 Gentle 3s Fade-Out Outro]',
+          stylePrompt:
+            'Sweeping emotional historical documentary finale score, 1 minute 30 seconds duration, poignant solo cello, expressive Spanish acoustic guitar, warm orchestral strings, timeless Atlantic horizon atmosphere, slow noble tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore below narrator voice rising gently in the final seconds, 100% instrumental, strictly no vocals, no singing, no spoken words',
+          explanation:
+            'Última canción obligatoria de 1:30 (11:56 - 13:26) que acompaña el legado de los tres millones de emigrantes y el cierre con el lema oficial de Huellas de la Humanidad.',
+          isGenerated: false,
+        },
+      ];
+    }
+  }
+
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
     audioTracks !== doc.audioTracks ||
@@ -661,7 +791,9 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextRawClipsText !== doc.rawClipsText ||
     nextClip1Line1 !== (doc.clip1Line1LocationTime || '') ||
     nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
-    nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '')
+    nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '') ||
+    nextConfirmedFinalDuration !== doc.confirmedFinalDuration ||
+    nextSunoTracks !== doc.sunoTracks
   ) {
     return {
       ...doc,
@@ -672,6 +804,8 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       clip1Line1LocationTime: nextClip1Line1,
       clip1Line2Hook: nextClip1Line2,
       clip1OptionsRaw: nextClip1OptionsRaw,
+      confirmedFinalDuration: nextConfirmedFinalDuration,
+      sunoTracks: nextSunoTracks,
     };
   }
   return doc;

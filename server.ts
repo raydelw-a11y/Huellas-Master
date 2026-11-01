@@ -1861,26 +1861,85 @@ Image [N]: Create an image of [escena clara con época y lugar], cinematic light
 
 Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
     } else if (stageNumber === 10) {
-      stagePrompt = `Actúa como compositor cinematográfico de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
-Duración final confirmada del video: ${doc.confirmedFinalDuration || '02:00'}
-Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+      const parseMmSsToSec = (str?: string): number => {
+        if (!str) return 0;
+        const m = String(str).match(/(\d{1,3}):(\d{2})/);
+        if (!m) return 0;
+        return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      };
+      const formatSecToMmSs = (sec: number): string => {
+        const safe = Math.max(60, Math.round(sec));
+        const mm = Math.floor(safe / 60);
+        const ss = safe % 60;
+        return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+      };
+      const stdClipSec = doc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
+      let lastClipEndSec = 0;
+      if (Array.isArray(doc.clips) && doc.clips.length > 0) {
+        for (const c of doc.clips) {
+          const rangeParts = String(c.timeRange || '').split('-');
+          const endPart = rangeParts[1] || rangeParts[0] || '';
+          const endSec = parseMmSsToSec(endPart);
+          if (endSec > lastClipEndSec) lastClipEndSec = endSec;
+        }
+        if (!lastClipEndSec) {
+          lastClipEndSec = clip2StartSec + Math.max(0, doc.clips.length - 1) * stdClipSec;
+        }
+      }
+      const voiceDurSec =
+        Array.isArray(doc.audioTracks) && doc.audioTracks[0]?.duration
+          ? Math.round(clip2StartSec + Number(doc.audioTracks[0].duration))
+          : 0;
+      const confirmedSec = parseMmSsToSec(doc.confirmedFinalDuration);
+      const totalDocSec = Math.max(
+        lastClipEndSec,
+        voiceDurSec,
+        confirmedSec > 125 ? confirmedSec : 0,
+        doc.targetDurationSeconds || 120
+      );
+      const resolvedFinalDuration = formatSecToMmSs(totalDocSec);
+      const outroStartMmSs = formatSecToMmSs(Math.max(0, totalDocSec - 90));
+      const minRecommendedTracks =
+        totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 4 : 3;
+      const maxRecommendedTracks =
+        totalDocSec >= 660 ? 8 : totalDocSec >= 420 ? 7 : totalDocSec >= 240 ? 5 : 4;
+      const clipsVisualSummary =
+        Array.isArray(doc.clips) && doc.clips.length > 0
+          ? doc.clips
+              .filter(
+                (_: any, idx: number, arr: any[]) =>
+                  idx === 0 ||
+                  idx === arr.length - 1 ||
+                  idx % Math.max(1, Math.floor(arr.length / 18)) === 0
+              )
+              .map(
+                (c: any) =>
+                  `Clip ${c.clipNumber} (${c.timeRange || ''}): ${(c.imagePrompt || '').slice(0, 120)} | Voz: "${(c.narrationSegment || '').slice(0, 90)}"`
+              )
+              .join('\n')
+          : '';
 
-Genera la ETAPA 10: BANDA SONORA PARA SUNO cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
-1. Límites de Suno: mínimo 1:00 min y máximo 6:00 min por pista.
-2. SILENCIOS OBLIGATORIOS ENTRE CADA CANCIÓN:
-   - Queda terminantemente prohibido pegar una canción inmediatamente después de otra sin descanso.
-   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical (de unos 10 a 20 segundos sin música, donde el video queda solo con la voz narrativa y el Foley ambiental).
-   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito ese espacio de silencio entre canción y canción (ej. si Canción 1 cubre 00:00 - 04:45, deja silencio de 04:45 - 05:00 y Canción 2 inicia en 05:00).
+      stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **Google Flow Music (https://www.flowmusic.app/)**.
+Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración total exacta del documental (calculada de la Voz Narrativa y el Timeline de Clips): ${resolvedFinalDuration} (${totalDocSec} segundos)
+Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
+${clipsVisualSummary ? `\nMapa de escenas visuales y clips:\n${clipsVisualSummary}\n` : ''}
+Genera la **ETAPA 10: BANDA SONORA CINEMATOGRÁFICA MULTIESCENA PARA FLOW MUSIC (flowmusic.app)** cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
+1. CANTIDAD DINÁMICA DE CANCIONES SEGÚN LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones): Diseña entre ${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas acompañando los cambios visuales de escena, giros de la trama y actos emocionales del documental.
+2. SILENCIOS DRAMÁTICOS OBLIGATORIOS ENTRE CADA CANCIÓN (10 a 20 segundos):
+   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical de 10 a 20 segundos sin música, ubicado en un cambio de escena o pregunta retórica donde solo se escuche la Voz Narrativa y el Foley ambiental.
+   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito el rango exacto y los clips que cubre (ej. 00:00 - 02:16 (Clip 1 al Clip 15)).
 3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (01:30):
-   - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (1 minuto y 30 segundos), cubriendo exactamente el último minuto y medio del video hasta el segundo final (${doc.confirmedFinalDuration || '02:00'}).
-4. Entrega cada canción con los 6 campos exactos en este orden:
-1. Título: [Título]
-2. Duración: [Duración exacta en Suno; la última canción OBLIGATORIAMENTE 1:30]
-3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (indicando el silencio musical antes de la siguiente canción)]
-4. Prompt de Lyrics: [Metatags instrumentales en corchetes sin voz]
-5. Prompt de Style: [Prompt técnico 100% en inglés para Suno con instrumentos auténticos de la época, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
-6. Explicación de la Canción: [Explicación de cómo suena, instrumentos e intención dramática]`;
+   - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (${outroStartMmSs} - ${resolvedFinalDuration}), cubriendo el último minuto y medio del documental.
+4. FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL):
+   - En cada "5. Prompt de Style" (en inglés para Flow Music) incluye obligatoriamente: \`smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words\`.
+5. Entrega cada canción con los 6 campos exactos en este orden:
+1. Título: [Título evocador de la escena]
+2. Duración: [Duración exacta en Flow Music; la última canción OBLIGATORIAMENTE 01:30]
+3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y)]
+4. Prompt de Lyrics: [Mapa instrumental en corchetes con [Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Gentle 3s Fade-Out Outro]]
+5. Prompt de Style: [Prompt técnico 100% en inglés para Flow Music (flowmusic.app) con instrumentos auténticos de la época, fade-in intro, fade-out outro y mezcla cálida debajo de la voz narrativa, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
+6. Explicación de la Canción: [Explicación de cómo suena, instrumentos, escenas que cubre y silencio dramático de 10-20s previo]`;
     } else if (stageNumber === 101) {
       stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}
@@ -2708,7 +2767,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       voiceoverVolume = 1.0,
       voiceoverDataUrl = '',
       sunoSilenceGapSec = 15,
-      sunoMasterVolume = 0.22,
+      sunoMasterVolume = 0.14,
+      musicTracks = [],
       srtContent = '',
     } = req.body;
 
@@ -2874,12 +2934,57 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       );
     });
 
-    // 3. Check for Voiceover MP3 and Official Logo to mix/overlay in final pass
-    let voPath = path.join(targetRoot, 'Audio', 'Voz_Narrativa.mp3');
+    // 3. Check for Voiceover MP3 and Flow Music / Suno tracks to mix in final pass
+    let voPath = path.join(targetRoot, '02_Audio', 'Voz_Narrativa.mp3');
+    if (!fs.existsSync(voPath)) {
+      voPath = path.join(targetRoot, 'Audio', 'Voz_Narrativa.mp3');
+    }
     if (!fs.existsSync(voPath) && voiceoverDataUrl && String(voiceoverDataUrl).startsWith('data:')) {
       const cleanB64 = String(voiceoverDataUrl).replace(/^data:[^;]+;base64,/, '');
       voPath = path.join(workDir, 'voiceover_input.mp3');
       fs.writeFileSync(voPath, Buffer.from(cleanB64, 'base64'));
+    }
+
+    // Discover Flow Music / Suno tracks on disk or from base64 payload
+    const resolvedMusicInputs: Array<{
+      filePath: string;
+      startSec: number;
+      durationSec: number;
+      fadeInSec: number;
+      fadeOutSec: number;
+    }> = [];
+    const audioDirs = [path.join(targetRoot, '02_Audio'), path.join(targetRoot, 'Audio'), targetRoot];
+    if (Array.isArray(musicTracks) && musicTracks.length > 0) {
+      for (let i = 0; i < musicTracks.length; i++) {
+        const mt = musicTracks[i] || {};
+        const tNum = Number(mt.trackNumber || i + 1);
+        let foundTrackPath = '';
+        for (const ad of audioDirs) {
+          if (!fs.existsSync(ad) || !fs.statSync(ad).isDirectory()) continue;
+          const matchFile = fs.readdirSync(ad).find((f) => {
+            const m = f.match(/(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i);
+            return m && parseInt(m[1], 10) === tNum && /\.(mp3|m4a|wav)$/i.test(f);
+          });
+          if (matchFile) {
+            foundTrackPath = path.join(ad, matchFile);
+            break;
+          }
+        }
+        if (!foundTrackPath && mt.audioDataUrl && String(mt.audioDataUrl).startsWith('data:')) {
+          const cleanB64 = String(mt.audioDataUrl).replace(/^data:[^;]+;base64,/, '');
+          foundTrackPath = path.join(workDir, `flowmusic_${tNum}.mp3`);
+          fs.writeFileSync(foundTrackPath, Buffer.from(cleanB64, 'base64'));
+        }
+        if (foundTrackPath && fs.existsSync(foundTrackPath)) {
+          resolvedMusicInputs.push({
+            filePath: foundTrackPath,
+            startSec: Math.max(0, Number(mt.startSec || 0)),
+            durationSec: Math.max(10, Number(mt.durationSec || 90)),
+            fadeInSec: Math.max(0.5, Number(mt.fadeInSec || 2.5)),
+            fadeOutSec: Math.max(0.5, Number(mt.fadeOutSec || 3.0)),
+          });
+        }
+      }
     }
 
     const safeDocName = String(docTitle || 'Huellas_Documental')
@@ -2892,34 +2997,65 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fs.writeFileSync(path.join(targetRoot, 'Subtitulos.srt'), String(srtContent), 'utf8');
     }
 
-    if (fs.existsSync(voPath)) {
-      const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          'ffmpeg',
-          [
-            '-y',
-            '-i',
-            concatVideoPath,
-            '-i',
-            voPath,
-            '-filter_complex',
-            `[1:a]adelay=${delayMs}|${delayMs},volume=${voiceoverVolume}[vo];[0:a][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]`,
-            '-map',
-            '0:v',
-            '-map',
-            '[aout]',
-            '-c:v',
-            'copy',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '192k',
-            finalOutputPath,
-          ],
-          { timeout: 300000 },
-          (err) => (err ? reject(err) : resolve())
+    const hasVo = fs.existsSync(voPath);
+    if (hasVo || resolvedMusicInputs.length > 0) {
+      const ffmpegArgs: string[] = ['-y', '-i', concatVideoPath];
+      const filterParts: string[] = [];
+      const mixLabels: string[] = ['[0:a]'];
+      let nextInputIdx = 1;
+
+      const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
+      if (hasVo) {
+        ffmpegArgs.push('-i', voPath);
+        const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
+        filterParts.push(
+          `[${nextInputIdx}:a]adelay=${delayMs}|${delayMs},volume=${safeVoVol.toFixed(2)}[vo]`
         );
+        mixLabels.push('[vo]');
+        nextInputIdx++;
+      }
+
+      // Strict Voice-Priority Ceiling: music volume is always capped <= 18% of narrator voice volume
+      const safeMusicVol = Math.min(
+        safeVoVol * 0.18,
+        Math.max(0.08, Number(sunoMasterVolume || 0.14))
+      );
+      for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
+        const mItem = resolvedMusicInputs[mIdx];
+        ffmpegArgs.push('-i', mItem.filePath);
+        const startMs = Math.max(0, Math.round(mItem.startSec * 1000));
+        const dur = Math.max(8, mItem.durationSec);
+        const fadeOutStart = Math.max(0.5, Number((dur - mItem.fadeOutSec).toFixed(2)));
+        const lbl = `mus${mIdx}`;
+        filterParts.push(
+          `[${nextInputIdx}:a]atrim=0:${dur},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=${mItem.fadeInSec}:curve=tri,afade=t=out:st=${fadeOutStart}:d=${mItem.fadeOutSec}:curve=tri,volume=${safeMusicVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
+        );
+        mixLabels.push(`[${lbl}]`);
+        nextInputIdx++;
+      }
+
+      filterParts.push(
+        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0[aout]`
+      );
+
+      ffmpegArgs.push(
+        '-filter_complex',
+        filterParts.join(';'),
+        '-map',
+        '0:v',
+        '-map',
+        '[aout]',
+        '-c:v',
+        'copy',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '192k',
+        finalOutputPath
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        execFile('ffmpeg', ffmpegArgs, { timeout: 300000 }, (err) => (err ? reject(err) : resolve()));
       });
     } else {
       fs.copyFileSync(concatVideoPath, finalOutputPath);
@@ -3075,7 +3211,9 @@ app.get('/api/flow/list-folder-media', (req, res) => {
           const st = fs.statSync(full);
           if (!st.isFile()) continue;
           if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
-          const sunoMatch = entry.match(/suno[_\-\s]*0*(\d+)/i);
+          const sunoMatch = entry.match(
+            /(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i
+          );
           if (sunoMatch) {
             sunoFiles.push({
               trackNumber: parseInt(sunoMatch[1], 10) || 1,

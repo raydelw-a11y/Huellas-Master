@@ -76,6 +76,9 @@ export interface TimelineMusicItem {
   volume: number; // default 15%
   audioUrl?: string;
   isLast90Sec?: boolean;
+  fadeInSec?: number; // default 2.5s
+  fadeOutSec?: number; // default 3.0s
+  videoTimeRange?: string;
 }
 
 export const RESOLUTION_PRESETS: Record<
@@ -961,7 +964,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
     }
 
-    // 3. Build Suno Music Track (Track 5) with 15s mandatory silence gaps & 1:30 final track
+    // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) with exact scene timestamps, 10-20s dramatic silences, 1:30 final track, Fade-In (2.5s) & Fade-Out (3.0s)
     const fullVoiceSpanSec =
       effectiveVoiceDurationSec > 0 ? entrySec + effectiveVoiceDurationSec : 0;
     const totalTimelineSec = Math.max(
@@ -981,12 +984,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           : isLast
           ? 90
           : 150;
-        if (isLast) {
-          durSec = 90; // Mandatory 1:30 for last song
+
+        // Parse exact scene range MM:SS - MM:SS from st.videoTimeRange when present
+        const rangeMatch = (st.videoTimeRange || '').match(
+          /(\d{1,3}):(\d{2})\s*[-–—a]+\s*(\d{1,3}):(\d{2})/
+        );
+        let startSec = cursorSec;
+        if (rangeMatch) {
+          const parsedStart =
+            parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
+          const parsedEnd =
+            parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
+          if (parsedEnd > parsedStart) {
+            startSec = parsedStart;
+            durSec = isLast ? 90 : parsedEnd - parsedStart;
+          }
+        } else {
+          if (isLast) {
+            durSec = 90; // Mandatory 1:30 for last song
+          }
+          startSec = isLast
+            ? Math.max(cursorSec, totalTimelineSec - 90)
+            : cursorSec;
         }
-        const startSec = isLast
-          ? Math.max(cursorSec, totalTimelineSec - 90)
-          : cursorSec;
+
         cursorSec = startSec + durSec + silenceGapSec;
         return {
           id: st.id || `music-${idx + 1}`,
@@ -997,6 +1018,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           volume: masterMusicVolume,
           audioUrl: capturedSunoAudioMap[idx + 1] || st.audioUrl,
           isLast90Sec: isLast,
+          fadeInSec: 2.5,
+          fadeOutSec: 3.0,
+          videoTimeRange: st.videoTimeRange,
         };
       });
       setMusicTracks(builtMusic);
@@ -1012,6 +1036,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .map(([k, v]) => `${k}:${v ? v.slice(-32) : ''}`)
     .join('|');
 
+  const sunoTracksSignature = (activeDoc?.sunoTracks || [])
+    .map((t, i) => `${i + 1}:${t.title || ''}:${t.videoTimeRange || ''}:${t.duration || ''}:${(t.audioUrl || '').slice(-24)}`)
+    .join('|');
+
+  const capturedSunoSignature = Object.entries(capturedSunoAudioMap)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([k, v]) => `${k}:${v ? v.slice(-24) : ''}`)
+    .join('|');
+
   useEffect(() => {
     syncTracksFromDocumentary();
   }, [
@@ -1019,7 +1052,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     reviewedClipsSignature,
     showOnlyReviewedClips,
     capturedClipVideosSignature,
-    Object.keys(capturedSunoAudioMap).length,
+    sunoTracksSignature,
+    capturedSunoSignature,
     folderVoiceoverUrl,
   ]);
 
@@ -1545,6 +1579,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     foleyHighVolume,
   ]);
 
+  // Automatic Fade-In (2.5s), Fade-Out (3.0s) & Voice-Priority Ducking (Music NEVER louder than Narrator Voice)
+  const effectiveMusicVolumeAtPlayhead = useMemo(() => {
+    if (!activeMusicAtPlayhead) return 0;
+    const rawBasePct = activeMusicAtPlayhead.volume || masterMusicVolume || 15;
+    // Strict ceiling: music can never exceed 30% of narrator's voiceVolume
+    const maxAllowedByVoice = Math.max(8, Math.min(35, Math.round(voiceVolume * 0.3)));
+    const duckedPct = Math.min(rawBasePct, 14, Math.round(voiceVolume * 0.16));
+    const pausePct = Math.min(Math.max(rawBasePct, 22), maxAllowedByVoice);
+    const targetBasePct = autoDuckingEnabled
+      ? isNarratorSpeakingAtPlayhead
+        ? duckedPct
+        : pausePct
+      : Math.min(rawBasePct, maxAllowedByVoice);
+
+    const fadeInSec = activeMusicAtPlayhead.fadeInSec ?? 2.5;
+    const fadeOutSec = activeMusicAtPlayhead.fadeOutSec ?? 3.0;
+    const elapsedInTrack = Math.max(0, currentTime - activeMusicAtPlayhead.start);
+    const remainingInTrack = Math.max(
+      0,
+      activeMusicAtPlayhead.start + activeMusicAtPlayhead.duration - currentTime
+    );
+    const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInTrack / fadeInSec) : 1;
+    const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInTrack / fadeOutSec) : 1;
+    const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
+
+    return Number(Math.min(maxAllowedByVoice, targetBasePct * fadeEnvelope).toFixed(2));
+  }, [
+    activeMusicAtPlayhead,
+    masterMusicVolume,
+    voiceVolume,
+    autoDuckingEnabled,
+    isNarratorSpeakingAtPlayhead,
+    currentTime,
+  ]);
+
   // Subtle Web Audio API Cinematic Ambience & Foley Synthesizer when a clip has no .MP4 audio yet
   const setCinemaAmbienceActive = (shouldPlay: boolean, volumePct: number = 25) => {
     try {
@@ -1650,13 +1719,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       } catch {}
     }
 
-    // 3. Unlock & play Track 5 Suno Music <audio> if present
+    // 3. Unlock & play Track 5 Flow Music <audio> if present (with Fade-In / Fade-Out & Voice-Priority Ducking)
     const mus = musicAudioRef.current;
     if (mus && activeMusicAtPlayhead?.audioUrl) {
       try {
         mus.src = activeMusicAtPlayhead.audioUrl;
         mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
-        mus.volume = Math.min(1, Math.max(0, (activeMusicAtPlayhead.volume || masterMusicVolume) / 100));
+        mus.volume = Math.min(1, Math.max(0, effectiveMusicVolumeAtPlayhead / 100));
         mus.play().catch(() => {});
       } catch {}
     }
@@ -1770,7 +1839,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
         mus.volume = Math.min(
           1,
-          Math.max(0, (activeMusicAtPlayhead.volume || masterMusicVolume) / 100)
+          Math.max(0, effectiveMusicVolumeAtPlayhead / 100)
         );
         if (isPlaying && mus.paused) {
           mus.play().catch(() => {});
@@ -1787,6 +1856,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeMusicAtPlayhead?.audioUrl,
     isPlaying,
     effectiveFoleyVolumeAtPlayhead,
+    effectiveMusicVolumeAtPlayhead,
     voiceStartOffsetSec,
     voiceVolume,
     effectiveVoiceoverUrl,
@@ -1954,7 +2024,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? activeDoc.masterAudioUrl
                   : '',
               sunoSilenceGapSec: 15,
-              sunoMasterVolume: masterMusicVolume / 100,
+              sunoMasterVolume: Math.min(masterMusicVolume, Math.round(voiceVolume * 0.16)) / 100,
+              musicTracks: musicTracks.map((mt) => ({
+                trackNumber: mt.trackNumber,
+                title: mt.title,
+                startSec: mt.start,
+                durationSec: mt.duration,
+                fadeInSec: mt.fadeInSec ?? 2.5,
+                fadeOutSec: mt.fadeOutSec ?? 3.0,
+                audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
+              })),
               srtContent: srtText,
             }),
           });
@@ -3766,7 +3845,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              🎙️ Voz / Foley / Suno
+              🎙️ Voz / Foley / Flow Music
             </button>
             <button
               type="button"
@@ -4173,20 +4252,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
 
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-bold text-purple-300">
-                    🎵 Pista 5: Música Suno (Con Silencios de 15s y Cierre de 1:30)
+                    🎵 Pista 5: Música Flow Music (Fade-In 2.5s • Fade-Out 3.0s • Bajo Voz)
                   </span>
-                  <span className="font-mono text-purple-200">Volumen: {masterMusicVolume}%</span>
+                  <span className="font-mono text-purple-200">
+                    Base: {masterMusicVolume}% • Actual: {effectiveMusicVolumeAtPlayhead}%
+                  </span>
                 </div>
                 <input
                   type="range"
                   min={0}
-                  max={50}
-                  value={masterMusicVolume}
-                  onChange={(e) => setMasterMusicVolume(Number(e.target.value))}
+                  max={Math.max(15, Math.min(35, Math.round(voiceVolume * 0.3)))}
+                  value={Math.min(masterMusicVolume, Math.round(voiceVolume * 0.3))}
+                  onChange={(e) =>
+                    setMasterMusicVolume(
+                      Math.min(Number(e.target.value), Math.round(voiceVolume * 0.3))
+                    )
+                  }
                   className="w-full accent-purple-500"
                 />
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-purple-300/90">
+                  <span>✨ Fade-In 2.5s y Fade-Out 3.0s automáticos en cada pista</span>
+                  <span>
+                    🎙️ Ducking activo: {isNarratorSpeakingAtPlayhead ? '~14% (Narrador hablando)' : '~22% (Pausa/Intro/Cierre)'} (Voz: {voiceVolume}%)
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -5279,10 +5370,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           </div>
 
-          {/* TRACK 5: SUNO BACKGROUND MUSIC (WITH MANDATORY SILENCE GAPS & 1:30 FINAL SONG) */}
+          {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (WITH FADE-IN/OUT, DUCKING & SILENCE GAPS) */}
           <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300">
-              5. 🎵 Música Suno ({musicTracks.length})
+              5. 🎵 Flow Music ({musicTracks.length})
             </div>
             <div
               className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
@@ -5291,40 +5382,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             >
               {musicTracks.length === 0 ? (
                 <span className="text-[11px] text-slate-500 px-3 py-1">
-                  Las pistas instrumentales de la Etapa 10 (Suno) aparecen aquí respetando los silencios de 15s y el cierre de 1:30.
+                  Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí con Fade-In (2.5s), Fade-Out (3.0s), Auto-Ducking bajo la voz, silencios de 10-20s y cierre de 1:30.
                 </span>
               ) : (
-                musicTracks.map((mt, mIdx) => (
-                  <React.Fragment key={mt.id}>
-                    {mIdx > 0 && (
+                musicTracks.map((mt, mIdx) => {
+                  const prevEnd =
+                    mIdx > 0
+                      ? musicTracks[mIdx - 1].start + musicTracks[mIdx - 1].duration
+                      : 0;
+                  const gapSec =
+                    mIdx > 0 ? Math.max(10, Math.round(mt.start - prevEnd)) : 0;
+                  return (
+                    <React.Fragment key={mt.id}>
+                      {mIdx > 0 && (
+                        <div
+                          style={
+                            isFitEntireProject
+                              ? { flex: `${Math.max(10, gapSec)} 0 0%`, minWidth: '36px' }
+                              : undefined
+                          }
+                          className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center"
+                          title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
+                        >
+                          🔇 Silencio {gapSec}s
+                        </div>
+                      )}
                       <div
                         style={
                           isFitEntireProject
-                            ? { flex: '15 0 0%', minWidth: '36px' }
+                            ? { flex: `${Math.max(1, mt.duration)} 1 0%`, minWidth: 0 }
                             : undefined
                         }
-                        className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center"
+                        className="px-3 py-1.5 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-2 truncate"
+                        title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(
+                          mt.start + mt.duration
+                        )}) • Fade-In ${mt.fadeInSec ?? 2.5}s / Fade-Out ${
+                          mt.fadeOutSec ?? 3.0
+                        }s • Auto-Ducking Bajo Voz`}
                       >
-                        🔇 Silencio 15s
+                        <Music className="w-3 h-3 text-purple-400 shrink-0" />
+                        <span className="truncate">
+                          #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
+                          {formatTimeMMSS(mt.start + mt.duration)}) • 🎚️ Fade In/Out
+                          {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
+                        </span>
                       </div>
-                    )}
-                    <div
-                      style={
-                        isFitEntireProject
-                          ? { flex: `${Math.max(1, mt.duration)} 1 0%`, minWidth: 0 }
-                          : undefined
-                      }
-                      className="px-3 py-1.5 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-2 truncate"
-                    >
-                      <Music className="w-3 h-3 text-purple-400 shrink-0" />
-                      <span className="truncate">
-                        {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
-                        {formatTimeMMSS(mt.start + mt.duration)})
-                        {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
-                      </span>
-                    </div>
-                  </React.Fragment>
-                ))
+                    </React.Fragment>
+                  );
+                })
               )}
             </div>
           </div>
