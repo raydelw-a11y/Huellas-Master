@@ -2307,54 +2307,137 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>Zoom de Pistas:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFitEntireProject(false);
+                setTimelineZoom((z) => Math.max(2, z - 4));
+              }}
+              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
+              title="Alejar línea de tiempo"
+            >
+              −
+            </button>
             <input
               type="range"
-              min={10}
+              min={2}
               max={40}
-              value={timelineZoom}
-              onChange={(e) => setTimelineZoom(Number(e.target.value))}
-              className="w-28 accent-amber-500"
+              value={isFitEntireProject ? 2 : timelineZoom}
+              onChange={(e) => {
+                setIsFitEntireProject(false);
+                setTimelineZoom(Number(e.target.value));
+              }}
+              className="w-28 accent-amber-500 cursor-pointer"
             />
+            <button
+              type="button"
+              onClick={() => {
+                setIsFitEntireProject(false);
+                setTimelineZoom((z) => Math.min(40, z + 4));
+              }}
+              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
+              title="Acercar línea de tiempo"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFitEntireProject((prev) => !prev)}
+              className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                isFitEntireProject
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
+                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
+              }`}
+              title="Ajusta automáticamente toda la línea de tiempo (00:00 hasta el final) al ancho de la pantalla para ver todo el proyecto entero de un vistazo"
+            >
+              📐 {isFitEntireProject ? 'Viendo Proyecto Entero (Volver a Zoom)' : 'Ver Todo el Proyecto'}
+            </button>
           </div>
         </div>
 
         {/* Scrollable Multi-Track Container */}
-        <div className="bg-[#120f0c] border border-slate-800 rounded-2xl p-3 overflow-x-auto space-y-2">
+        <div
+          className={`bg-[#120f0c] border border-slate-800 rounded-2xl p-3 space-y-2 ${
+            isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
+          }`}
+        >
           {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
-          <div className="flex items-center gap-2 min-w-max">
+          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-amber-300">
               1. 🏷️ Logo + Texto Clip 1
             </div>
-            <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-              <div className="px-3 py-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-200 font-semibold">
-                 Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
+            <div
+              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
+                isFitEntireProject ? 'flex-1 min-w-0' : ''
+              }`}
+            >
+              <div
+                style={
+                  isFitEntireProject
+                    ? {
+                        flex: `${Math.max(1, clip1OverlayEndSec)} 0 0%`,
+                        minWidth: '80px',
+                      }
+                    : undefined
+                }
+                className="px-3 py-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate"
+              >
+                Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
               </div>
-              <div className="px-4 py-1.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold">
+              <div
+                style={
+                  isFitEntireProject
+                    ? {
+                        flex: `${Math.max(1, totalDurationSec - clip1OverlayEndSec)} 1 0%`,
+                        minWidth: 0,
+                      }
+                    : undefined
+                }
+                className="px-4 py-1.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold truncate"
+              >
                 🖼️ Logo Oficial "Huellas de la Humanidad" (5%) + Sello {aspectRatio === '16:9' ? '8K' : 'HD'} (Todo el Video: 00:00 - {formatTimeMMSS(totalDurationSec)})
               </div>
             </div>
           </div>
 
           {/* TRACK 2: CAPTIONS (.SRT) */}
-          <div className="flex items-center gap-2 min-w-max">
+          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-sky-300">
               2. 💬 Captions ({captions.length})
             </div>
-            <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
+            <div
+              className={`flex items-center gap-1 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
+                isFitEntireProject ? 'flex-1 min-w-0 overflow-hidden' : ' gap-1.5'
+              }`}
+            >
               {captions.length === 0 ? (
                 <span className="text-[11px] text-slate-500 px-3 py-1">
                   Haz clic en "✨ Auto-Generar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
                 </span>
               ) : (
-                captions.slice(0, 40).map((cap) => (
+                (isFitEntireProject ? captions : captions.slice(0, 40)).map((cap) => (
                   <button
                     key={cap.id}
                     type="button"
                     onClick={() => setCurrentTime(cap.start)}
-                    className="px-2.5 py-1 rounded bg-sky-950/60 hover:bg-sky-900/70 border border-sky-500/30 text-[10px] text-sky-200 max-w-[160px] truncate cursor-pointer"
+                    style={
+                      isFitEntireProject
+                        ? {
+                            flex: `${Math.max(1, cap.end - cap.start)} 1 0%`,
+                            minWidth: 0,
+                          }
+                        : undefined
+                    }
+                    className={`rounded bg-sky-950/60 hover:bg-sky-900/70 border border-sky-500/30 text-sky-200 truncate cursor-pointer ${
+                      isFitEntireProject
+                        ? 'px-1 py-1 text-[9px]'
+                        : 'px-2.5 py-1 text-[10px] max-w-[160px]'
+                    }`}
                     title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
                   >
-                    <span className="font-mono text-sky-400 mr-1">{formatTimeMMSS(cap.start)}</span>
+                    {!isFitEntireProject && (
+                      <span className="font-mono text-sky-400 mr-1">{formatTimeMMSS(cap.start)}</span>
+                    )}
                     {cap.text}
                   </button>
                 ))
@@ -2363,16 +2446,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
 
           {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING) */}
-          <div className="flex items-center gap-2 min-w-max">
+          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-4 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300">
               3. 🎬 Clips + Foley ({timelineClips.length})
             </div>
-            <div className="flex items-stretch gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+            <div
+              className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-xl ${
+                isFitEntireProject ? 'flex-1 min-w-0 gap-[2px] p-1.5' : 'gap-2 p-2.5'
+              }`}
+            >
               {clipsWithTimelineBounds.map((clip, idx) => {
                 const isSelected = selectedClip?.id === clip.id;
                 const isCurrent =
                   currentTime >= clip.start && currentTime < clip.end;
-                const cardWidth = Math.max(195, Math.round(clip.duration * timelineZoom));
+                const cardWidth = Math.max(
+                  timelineZoom < 12 ? Math.max(48, timelineZoom * 10) : 195,
+                  Math.round(clip.duration * timelineZoom)
+                );
 
                 return (
                   <div
@@ -2390,47 +2480,83 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       setSelectedClipId(clip.id);
                       setCurrentTime(clip.start);
                     }}
-                    style={{ width: `${cardWidth}px` }}
-                    className={`group relative rounded-xl border p-2.5 flex flex-col justify-between gap-2 cursor-grab active:cursor-grabbing transition select-none ${
+                    title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
+                      clip.clipNumber
+                    ).padStart(2, '0')}) • ${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(
+                      clip.end
+                    )} • ${clip.fileName}`}
+                    style={
+                      isFitEntireProject
+                        ? {
+                            flex: `${Math.max(1, clip.duration)} 1 0%`,
+                            minWidth: 0,
+                          }
+                        : { width: `${cardWidth}px` }
+                    }
+                    className={`group relative rounded-lg border flex flex-col justify-between cursor-grab active:cursor-grabbing transition select-none overflow-hidden ${
+                      isFitEntireProject ? 'p-0.5 min-h-[76px]' : 'rounded-xl p-2.5 gap-2'
+                    } ${
                       isSelected
-                        ? 'border-amber-400 bg-amber-500/15 shadow-lg shadow-amber-500/10'
+                        ? 'border-amber-400 bg-amber-500/20 shadow-lg shadow-amber-500/10 z-10'
                         : isCurrent
-                        ? 'border-emerald-400 bg-emerald-950/30'
-                        : 'border-slate-800 bg-[#16130f] hover:border-slate-700'
+                        ? 'border-emerald-400 bg-emerald-950/40 z-10'
+                        : 'border-slate-800 bg-[#16130f] hover:border-amber-500/50'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
-                        #{String(idx + 1).padStart(2, '0')} (Clip {String(clip.clipNumber).padStart(2, '0')})
-                        {clip.reviewedForEditor && (
-                          <span title="Revisado y enviado desde Etapa 8">✅</span>
+                    {isFitEntireProject ? (
+                      <>
+                        {clip.posterUrl && (
+                          <img
+                            src={clip.posterUrl}
+                            alt={clip.fileName}
+                            className="absolute inset-0 w-full h-full object-cover opacity-55 group-hover:opacity-85 transition"
+                          />
                         )}
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-300">
-                        {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
-                      </span>
-                    </div>
+                        <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
+                          <span className="px-1 py-0.5 rounded bg-black/80 text-amber-300 font-black text-[9px] leading-none truncate max-w-full">
+                            {String(clip.clipNumber).padStart(2, '0')}
+                          </span>
+                          <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
+                            {formatTimeMMSS(clip.start)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
+                            #{String(idx + 1).padStart(2, '0')} (Clip {String(clip.clipNumber).padStart(2, '0')})
+                            {clip.reviewedForEditor && (
+                              <span title="Revisado y enviado desde Etapa 8">✅</span>
+                            )}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-300">
+                            {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
+                          </span>
+                        </div>
 
-                    {clip.posterUrl && (
-                      <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
-                        <img
-                          src={clip.posterUrl}
-                          alt={clip.fileName}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                        {clip.posterUrl && (
+                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
+                            <img
+                              src={clip.posterUrl}
+                              alt={clip.fileName}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
+                        <div className="text-[11px] font-mono text-emerald-300 truncate" title={clip.fileName}>
+                          {clip.fileName}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+                          <span>
+                            {clip.duration}s • {clip.speed}x
+                          </span>
+                          <span>Foley {clip.foleyVolume}%</span>
+                        </div>
+                      </>
                     )}
-
-                    <div className="text-[11px] font-mono text-emerald-300 truncate" title={clip.fileName}>
-                      {clip.fileName}
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
-                      <span>
-                        {clip.duration}s • {clip.speed}x
-                      </span>
-                      <span>Foley {clip.foleyVolume}%</span>
-                    </div>
                   </div>
                 );
               })}
@@ -2438,25 +2564,46 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
 
           {/* TRACK 4: VOICEOVER NARRATION (VOXFLOW) */}
-          <div className="flex items-center gap-2 min-w-max">
+          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-emerald-300">
               4. 🎙️ Voz Narrativa
             </div>
-            <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
+            <div
+              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
+                isFitEntireProject ? 'flex-1 min-w-0' : ''
+              }`}
+            >
               {/* Initial Silence Block for Clip 1 Hook */}
               <div
-                style={{ width: `${Math.max(70, voiceStartOffsetSec * timelineZoom)}px` }}
+                style={
+                  isFitEntireProject
+                    ? {
+                        flex: `${Math.max(1, voiceStartOffsetSec)} 0 0%`,
+                        minWidth: '54px',
+                      }
+                    : { width: `${Math.max(70, voiceStartOffsetSec * timelineZoom)}px` }
+                }
                 className="px-2 py-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate"
               >
                 🔇 {voiceStartOffsetSec}s Hook Sin Voz
               </div>
               {/* Main Voiceover Bar */}
-              <div className="px-4 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center gap-3">
-                <span>
+              <div
+                style={
+                  isFitEntireProject
+                    ? {
+                        flex: `${Math.max(1, totalDurationSec - voiceStartOffsetSec)} 1 0%`,
+                        minWidth: 0,
+                      }
+                    : undefined
+                }
+                className="px-4 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center justify-between gap-3 truncate"
+              >
+                <span className="truncate">
                   🎙️ Pista Maestra de Voz Narrativa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
                   {formatTimeMMSS(totalDurationSec)}) • Vol: {voiceVolume}%
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={() => setVoiceStartOffsetSec((s) => Math.max(0, s - 0.5))}
@@ -2477,11 +2624,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
 
           {/* TRACK 5: SUNO BACKGROUND MUSIC (WITH MANDATORY SILENCE GAPS & 1:30 FINAL SONG) */}
-          <div className="flex items-center gap-2 min-w-max">
+          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300">
               5. 🎵 Música Suno ({musicTracks.length})
             </div>
-            <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
+            <div
+              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
+                isFitEntireProject ? 'flex-1 min-w-0' : ''
+              }`}
+            >
               {musicTracks.length === 0 ? (
                 <span className="text-[11px] text-slate-500 px-3 py-1">
                   Las pistas instrumentales de la Etapa 10 (Suno) aparecen aquí respetando los silencios de 15s y el cierre de 1:30.
@@ -2490,13 +2641,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 musicTracks.map((mt, mIdx) => (
                   <React.Fragment key={mt.id}>
                     {mIdx > 0 && (
-                      <div className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400">
+                      <div
+                        style={
+                          isFitEntireProject
+                            ? { flex: '15 0 0%', minWidth: '36px' }
+                            : undefined
+                        }
+                        className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center"
+                      >
                         🔇 Silencio 15s
                       </div>
                     )}
-                    <div className="px-3 py-1.5 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-2">
-                      <Music className="w-3 h-3 text-purple-400" />
-                      <span>
+                    <div
+                      style={
+                        isFitEntireProject
+                          ? { flex: `${Math.max(1, mt.duration)} 1 0%`, minWidth: 0 }
+                          : undefined
+                      }
+                      className="px-3 py-1.5 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-2 truncate"
+                    >
+                      <Music className="w-3 h-3 text-purple-400 shrink-0" />
+                      <span className="truncate">
                         {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
                         {formatTimeMMSS(mt.start + mt.duration)})
                         {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
