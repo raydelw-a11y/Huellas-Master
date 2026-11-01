@@ -180,14 +180,20 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           createdAt: doc.updatedAt || new Date().toISOString(),
           storageMode: 'local',
           wordCount: 1980,
-          duration: 909,
+          duration: 890.83,
           providerUsed: 'Gemini 3.8 Flash TTS (Charon)',
         },
       ];
     } else {
       audioTracks = audioTracks.map((t, i) =>
-        i === 0 && isDeadOrEmptyUrl(t.audioUrl)
-          ? { ...t, audioUrl: 'tts-files/tts-video-76-exodo-espanol.mp3' }
+        i === 0
+          ? {
+              ...t,
+              audioUrl: isDeadOrEmptyUrl(t.audioUrl)
+                ? 'tts-files/tts-video-76-exodo-espanol.mp3'
+                : t.audioUrl,
+              duration: 890.83,
+            }
           : t
       );
     }

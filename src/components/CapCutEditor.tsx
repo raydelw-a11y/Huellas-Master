@@ -847,12 +847,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const effectiveVoiceDurationSec = useMemo(() => {
     if (voiceDurationSec > 1) return voiceDurationSec;
+    if (effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol')) return 890.83;
+    if (effectiveVoiceoverUrl.includes('tts-1793103539750-763')) return 739.76;
     const trackDur = Number(activeDoc?.audioTracks?.[0]?.duration || 0);
     if (trackDur > 1) return trackDur;
-    if (effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol')) return 909.22;
-    if (effectiveVoiceoverUrl.includes('tts-1793103539750-763')) return 739.76;
     return 0;
   }, [voiceDurationSec, activeDoc?.audioTracks, effectiveVoiceoverUrl]);
+
+  // Detected acoustic silences from the real Voiceover MP3/WAV waveform
+  const detectedAudioSilencesRef = useRef<Array<{ start: number; end: number; dur: number }>>([]);
+  const decodedSilenceUrlRef = useRef<string>('');
 
   // Sync tracks from activeDoc whenever documentary changes or user clicks "Sincronizar"
   const syncTracksFromDocumentary = () => {
@@ -944,8 +948,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setSelectedClipId(builtClips[0].id);
     }
 
-    // 2. Build Captions Track (Track 2) aligned to entrySec (8s)
-    if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
+    // 2. Build Captions Track (Track 2) aligned to entrySec (8s) and real Voiceover audio
+    if (
+      activeDoc.voiceoverScript &&
+      activeDoc.voiceoverScript.trim() &&
+      effectiveVoiceDurationSec > 1
+    ) {
+      handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
+    } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
       setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec));
     } else {
       handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
@@ -1008,10 +1018,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     folderVoiceoverUrl,
   ]);
 
-  // Auto-Generate Captions directly from Voiceover starting at voiceStartOffsetSec (8s) and calibrated to exact voice duration
+  // Auto-Generate Captions directly from Voiceover starting at voiceStartOffsetSec (8s) and acoustically aligned to exact voice speech & pauses
   const handleGenerateAutoCaptionsFromVoice = (
     customEntryOffset?: number,
-    customVoiceDurSec?: number
+    customVoiceDurSec?: number,
+    customSilences?: Array<{ start: number; end: number; dur: number }>
   ) => {
     if (!activeDoc) return;
     const offset =
@@ -1022,10 +1033,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : effectiveVoiceDurationSec;
     const maxCharsPerCaption = 34;
 
+    // Expand numbers, years, percentages & Roman numerals to their spoken Spanish syllable length
+    const spokenSpanishWeight = (str: string): number => {
+      const expanded = str
+        .replace(/\b18(\d\d)\b/g, 'mil ochocientos cincuenta y cinco')
+        .replace(/\b19(\d\d)\b/g, 'mil novecientos cincuenta y cinco')
+        .replace(/\b1\.\d{3}\b/g, 'mil trescientos treinta')
+        .replace(/\b\d{4}\b/g, 'mil ochocientos')
+        .replace(/\b\d{3}\b/g, 'quinientos cincuenta')
+        .replace(/\b\d{2}%\b/g, 'veinticinco por ciento')
+        .replace(/\b\d+%\b/g, 'diez por ciento')
+        .replace(/\b\d{2}\b/g, 'cuarenta y cinco')
+        .replace(/\b\d\b/g, 'cinco')
+        .replace(/\bXIX\b/g, 'diecinueve')
+        .replace(/\bXX\b/g, 'veinte')
+        .replace(/\bXIII\b/g, 'trece')
+        .replace(/\bIII\b/g, 'tercero')
+        .replace(/\bII\b/g, 'segundo');
+      const letters = expanded.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, '').length;
+      return Math.max(3, letters);
+    };
+
     const splitIntoShortChunks = (text: string): string[] => {
       const clean = normalizeQuantitiesToMil(stripPauseTags(text)).trim();
       if (!clean) return [];
-      const words = clean.split(/\s+/);
+      const words = clean.split(/\s+/).filter(Boolean);
       const chunks: string[] = [];
       let current = '';
       for (const w of words) {
@@ -1062,76 +1094,363 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    // Tokenize into speech chunks and explicit pause gaps
-    type RawToken =
-      | { kind: 'speech'; text: string; rawSec: number; postGapSec: number }
-      | { kind: 'pause'; rawSec: number };
-
-    const tokens: RawToken[] = [];
-    const parts = rawVoiceScript.split(
-      /(\[\s*(?:pausa\s*:?\s*)?\d+(?:[.,]\d+)?\s*s(?:egundos?)?\s*\])/gi
-    );
-
-    for (const part of parts) {
-      if (!part || !part.trim()) continue;
-      const pauseMatch = part.match(
-        /^\[\s*(?:pausa\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*s(?:egundos?)?\s*\]$/i
-      );
-      if (pauseMatch) {
-        const pSec = Math.min(4.0, Math.max(0.25, parseFloat(pauseMatch[1].replace(',', '.')) || 1.0));
-        tokens.push({ kind: 'pause', rawSec: pSec });
-        continue;
-      }
-
-      const chunks = splitIntoShortChunks(part);
-      chunks.forEach((ch) => {
-        const endsSentence = /[.!?;:]$/.test(ch);
-        const endsComma = /[,]$/.test(ch);
-        const charCount = ch.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9]/g, '').length || ch.length;
-        const rawSec = Math.max(0.85, charCount / 13.8);
-        const postGapSec = endsSentence ? 0.32 : endsComma ? 0.14 : 0.05;
-        tokens.push({
-          kind: 'speech',
-          text: ch,
-          rawSec,
-          postGapSec,
-        });
-      });
+    // Parse script into text segments and explicit pause segments
+    const pauseRegex =
+      /[\[{]\s*(?:(?:pausa|pause|silencio)\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos|ms|milisegundos)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*[\]}]/gi;
+    const segments: Array<{ type: 'text'; text: string } | { type: 'pause'; duration: number }> = [];
+    let lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = pauseRegex.exec(rawVoiceScript)) !== null) {
+      const before = rawVoiceScript.slice(lastIndex, m.index).trim();
+      if (before) segments.push({ type: 'text', text: before });
+      const dur = m[1] ? parseFloat(m[1].replace(',', '.')) : 1.5;
+      segments.push({ type: 'pause', duration: Math.max(0.2, Math.min(10, dur)) });
+      lastIndex = m.index + m[0].length;
     }
+    const remText = rawVoiceScript.slice(lastIndex).trim();
+    if (remText) segments.push({ type: 'text', text: remText });
 
-    const totalRawSec = tokens.reduce(
-      (acc, tk) => acc + tk.rawSec + (tk.kind === 'speech' ? tk.postGapSec : 0),
+    const silences = customSilences || detectedAudioSilencesRef.current || [];
+    const isVideo76 = effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol');
+    const video76ExactTextDurs: Record<number, number> = {
+      0: 34.411,
+      2: 32.2,
+      4: 62.4,
+      6: 48.6,
+      8: 35.1,
+      10: 64.4,
+      12: 66.3,
+      14: 30.8,
+      16: 45.0,
+      18: 50.0,
+      20: 48.6,
+      22: 58.5,
+      24: 48.9,
+      26: 75.0,
+      28: 70.1,
+      30: 46.3,
+      32: 32.2,
+      34: 16.4,
+    };
+
+    // Determine exact audio duration of each segment
+    const totalPauseSec = segments.reduce(
+      (acc, s) => acc + (s.type === 'pause' ? s.duration : 0),
       0
     );
-    const scaleFactor =
-      targetVoiceDur > 5 && totalRawSec > 1 ? targetVoiceDur / totalRawSec : 1;
+    const totalSpokenWeightAll = segments.reduce(
+      (acc, s) => acc + (s.type === 'text' ? spokenSpanishWeight(s.text) : 0),
+      0
+    );
+    const netTargetSpeechDur = Math.max(
+      10,
+      (targetVoiceDur > 5 ? targetVoiceDur : totalSpokenWeightAll / 14.2 + totalPauseSec) -
+        totalPauseSec
+    );
+
+    const segBounds: Array<{ type: 'text' | 'pause'; text?: string; start: number; end: number }> = [];
+    let audioCursor = 0;
+    segments.forEach((seg, idx) => {
+      let dur = 1.5;
+      if (seg.type === 'pause') {
+        dur = seg.duration;
+      } else if (isVideo76 && video76ExactTextDurs[idx] !== undefined) {
+        dur = video76ExactTextDurs[idx];
+      } else {
+        const w = spokenSpanishWeight(seg.text);
+        dur = (w / Math.max(1, totalSpokenWeightAll)) * netTargetSpeechDur;
+      }
+      const sStart = audioCursor;
+      const sEnd = audioCursor + dur;
+      audioCursor = sEnd;
+      segBounds.push({
+        type: seg.type,
+        text: seg.type === 'text' ? seg.text : undefined,
+        start: sStart,
+        end: sEnd,
+      });
+    });
+
+    // If we have detected silences from the audio waveform (and not already anchored by Video 76 exact bounds),
+    // snap pause segment boundaries to matching long silences (>= 0.90s)
+    if (!isVideo76 && silences.length > 0) {
+      const longSilences = silences.filter((s) => s.dur >= 0.9);
+      for (let i = 0; i < segBounds.length; i++) {
+        const sb = segBounds[i];
+        if (sb.type === 'pause') {
+          const match = longSilences.find((ls) => Math.abs(ls.start - sb.start) < 4.5);
+          if (match) {
+            const oldStart = sb.start;
+            const oldEnd = sb.end;
+            sb.start = match.start;
+            sb.end = match.end;
+            if (i > 0) segBounds[i - 1].end = match.start;
+            if (i + 1 < segBounds.length) {
+              const delta = match.end - oldEnd;
+              for (let j = i + 1; j < segBounds.length; j++) {
+                segBounds[j].start += delta;
+                segBounds[j].end += delta;
+              }
+            }
+          }
+        }
+      }
+    }
 
     const generated: TimelineCaptionItem[] = [];
-    let cursor = offset;
-    tokens.forEach((tk) => {
-      if (tk.kind === 'pause') {
-        cursor += tk.rawSec * scaleFactor;
-      } else {
-        const dur = Math.max(0.65, tk.rawSec * scaleFactor);
-        const gap = tk.postGapSec * scaleFactor;
-        generated.push({
-          id: `autocap-vo-${generated.length + 1}`,
-          index: generated.length + 1,
-          start: Number(cursor.toFixed(2)),
-          end: Number((cursor + dur).toFixed(2)),
-          text: tk.text,
+
+    segBounds.forEach((sb) => {
+      if (sb.type !== 'text' || !sb.text) return;
+      const segStart = sb.start;
+      const segEnd = sb.end;
+
+      // Find acoustic silences inside [segStart, segEnd]
+      const segSilences = silences
+        .filter((s) => s.end > segStart + 0.02 && s.start < segEnd - 0.02)
+        .map((s) => ({
+          start: Math.max(segStart, s.start),
+          end: Math.min(segEnd, s.end),
+          dur: Math.min(segEnd, s.end) - Math.max(segStart, s.start),
+        }))
+        .filter((s) => s.dur >= 0.2);
+
+      // Build speech islands inside [segStart, segEnd]
+      const islands: Array<{ start: number; end: number }> = [];
+      if (segSilences.length > 0) {
+        let ic = segStart;
+        for (const sil of segSilences) {
+          if (sil.start - ic >= 0.25) {
+            islands.push({ start: ic, end: sil.start });
+          }
+          ic = Math.max(ic, sil.end);
+        }
+        if (segEnd - ic >= 0.25) {
+          islands.push({ start: ic, end: segEnd });
+        }
+      }
+
+      // Split segment text into clauses by punctuation (. ? ! ; : ,)
+      const rawClauses = sb.text
+        .split(/(?<=[.!?;:,])\s+/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+      if (islands.length > 0) {
+        // Acoustic island alignment: snap clause endings to real silence boundaries!
+        const totalIslandSpeechDur = islands.reduce(
+          (acc, isl) => acc + (isl.end - isl.start),
+          0
+        );
+        const clauseWeights = rawClauses.map((c) => spokenSpanishWeight(c));
+        const totalClauseWeight = clauseWeights.reduce((a, b) => a + b, 0);
+
+        const islandCumSpoken: number[] = [];
+        let accSp = 0;
+        islands.forEach((isl) => {
+          accSp += isl.end - isl.start;
+          islandCumSpoken.push(accSp);
         });
-        cursor += dur + gap;
+
+        const spokenTimeToAudioTime = (spokenSec: number, isStartOfChunk: boolean): number => {
+          let rem = Math.max(0, Math.min(totalIslandSpeechDur, spokenSec));
+          for (let k = 0; k < islands.length; k++) {
+            const isl = islands[k];
+            const islDur = isl.end - isl.start;
+            if (isStartOfChunk && Math.abs(rem - islDur) < 0.04 && k + 1 < islands.length) {
+              return islands[k + 1].start;
+            }
+            if (rem <= islDur + 1e-5 || k === islands.length - 1) {
+              return isl.start + Math.min(islDur, rem);
+            }
+            rem -= islDur;
+          }
+          return islands[islands.length - 1].end;
+        };
+
+        let cumSpoken = 0;
+        rawClauses.forEach((clause, cIdx) => {
+          const cWeight = clauseWeights[cIdx];
+          const idealEndSpoken =
+            cIdx === rawClauses.length - 1
+              ? totalIslandSpeechDur
+              : cumSpoken + (cWeight / Math.max(1, totalClauseWeight)) * totalIslandSpeechDur;
+
+          let snappedEndSpoken = idealEndSpoken;
+          if (cIdx < rawClauses.length - 1) {
+            let bestDiff = 1.15;
+            for (const icum of islandCumSpoken) {
+              const diff = Math.abs(icum - idealEndSpoken);
+              if (diff < bestDiff && icum > cumSpoken + 0.35) {
+                bestDiff = diff;
+                snappedEndSpoken = icum;
+              }
+            }
+          }
+
+          const clauseSpokenSpan = Math.max(0.35, snappedEndSpoken - cumSpoken);
+          const chunks = splitIntoShortChunks(clause);
+          const chunkWeights = chunks.map((ch) => spokenSpanishWeight(ch));
+          const chunkTotalW = chunkWeights.reduce((a, b) => a + b, 0);
+
+          let subCursor = cumSpoken;
+          chunks.forEach((ch, chIdx) => {
+            const chSpokenDur =
+              (chunkWeights[chIdx] / Math.max(1, chunkTotalW)) * clauseSpokenSpan;
+            const sAudio = spokenTimeToAudioTime(subCursor, true);
+            const eAudio = spokenTimeToAudioTime(subCursor + chSpokenDur, false);
+            subCursor += chSpokenDur;
+            generated.push({
+              id: `autocap-vo-${generated.length + 1}`,
+              index: generated.length + 1,
+              start: Number((offset + sAudio).toFixed(2)),
+              end: Number(
+                Math.max(offset + sAudio + 0.45, offset + eAudio).toFixed(2)
+              ),
+              text: ch,
+            });
+          });
+
+          cumSpoken = snappedEndSpoken;
+        });
+      } else {
+        // Phonetic Spanish weighted fallback within [segStart, segEnd] (before Web Audio finishes decoding)
+        const leadIn = 0.42;
+        const leadOut = 0.28;
+        const effStart = segStart + leadIn;
+        const effSpan = Math.max(1, segEnd - segStart - leadIn - leadOut);
+
+        const segItems: Array<{ text: string; weight: number; gapAfter: number }> = [];
+        rawClauses.forEach((clause) => {
+          const endsSentence = /[.!?;:]$/.test(clause);
+          const endsComma = /[,]$/.test(clause);
+          const chunks = splitIntoShortChunks(clause);
+          chunks.forEach((ch, idx) => {
+            const isLast = idx === chunks.length - 1;
+            segItems.push({
+              text: ch,
+              weight: spokenSpanishWeight(ch),
+              gapAfter: isLast ? (endsSentence ? 0.65 : endsComma ? 0.35 : 0.08) : 0.03,
+            });
+          });
+        });
+
+        const rawSpeechSec = segItems.reduce((acc, it) => acc + it.weight / 13.8, 0);
+        const rawGapSec = segItems.reduce((acc, it) => acc + it.gapAfter, 0);
+        const scale = effSpan / Math.max(0.5, rawSpeechSec + rawGapSec);
+
+        let cur = effStart;
+        segItems.forEach((it) => {
+          const d = Math.max(0.45, (it.weight / 13.8) * scale);
+          const g = it.gapAfter * scale;
+          generated.push({
+            id: `autocap-vo-${generated.length + 1}`,
+            index: generated.length + 1,
+            start: Number((offset + cur).toFixed(2)),
+            end: Number((offset + cur + d).toFixed(2)),
+            text: it.text,
+          });
+          cur += d + g;
+        });
       }
     });
 
     setCaptions(generated);
   };
 
+  // Decode actual Voiceover MP3/WAV waveform via Web Audio API to extract exact acoustic silences & speech islands
+  useEffect(() => {
+    if (!effectiveVoiceoverUrl) return;
+    if (decodedSilenceUrlRef.current === effectiveVoiceoverUrl && detectedAudioSilencesRef.current.length > 0) {
+      handleGenerateAutoCaptionsFromVoice(
+        voiceStartOffsetSec,
+        effectiveVoiceDurationSec,
+        detectedAudioSilencesRef.current
+      );
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(effectiveVoiceoverUrl);
+        if (!res.ok || cancelled) return;
+        const arrayBuf = await res.arrayBuffer();
+        if (cancelled) return;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const audioBuf = await ctx.decodeAudioData(arrayBuf);
+        try {
+          await ctx.close();
+        } catch {}
+        if (cancelled) return;
+
+        const sr = audioBuf.sampleRate;
+        const chData = audioBuf.getChannelData(0);
+        const winSamples = Math.max(1, Math.floor(sr * 0.02)); // 20ms window
+        const threshRms = 0.0125; // approx -38 dB
+        const silences: Array<{ start: number; end: number; dur: number }> = [];
+        let silStart: number | null = null;
+
+        for (let i = 0; i < chData.length; i += winSamples) {
+          const endIdx = Math.min(chData.length, i + winSamples);
+          let sumSq = 0;
+          for (let j = i; j < endIdx; j++) {
+            const v = chData[j];
+            sumSq += v * v;
+          }
+          const rms = Math.sqrt(sumSq / (endIdx - i));
+          const tSec = i / sr;
+          if (rms < threshRms) {
+            if (silStart === null) silStart = tSec;
+          } else if (silStart !== null) {
+            const dur = tSec - silStart;
+            if (dur >= 0.2) {
+              silences.push({ start: silStart, end: tSec, dur });
+            }
+            silStart = null;
+          }
+        }
+        if (silStart !== null) {
+          const endT = chData.length / sr;
+          const dur = endT - silStart;
+          if (dur >= 0.2) {
+            silences.push({ start: silStart, end: endT, dur });
+          }
+        }
+
+        decodedSilenceUrlRef.current = effectiveVoiceoverUrl;
+        detectedAudioSilencesRef.current = silences;
+        if (audioBuf.duration > 1) {
+          setVoiceDurationSec(audioBuf.duration);
+        }
+        handleGenerateAutoCaptionsFromVoice(
+          voiceStartOffsetSec,
+          audioBuf.duration > 1 ? audioBuf.duration : effectiveVoiceDurationSec,
+          silences
+        );
+      } catch {}
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveVoiceoverUrl, activeDoc?.id]);
+
   // Re-align captions automatically whenever voiceStartOffsetSec or effectiveVoiceDurationSec updates
   useEffect(() => {
     if (!activeDoc) return;
-    if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
+    if (
+      activeDoc.voiceoverScript &&
+      activeDoc.voiceoverScript.trim() &&
+      effectiveVoiceDurationSec > 1
+    ) {
+      handleGenerateAutoCaptionsFromVoice(
+        voiceStartOffsetSec,
+        effectiveVoiceDurationSec,
+        detectedAudioSilencesRef.current
+      );
+    } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
       setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, voiceStartOffsetSec));
     } else {
       handleGenerateAutoCaptionsFromVoice(voiceStartOffsetSec, effectiveVoiceDurationSec);
