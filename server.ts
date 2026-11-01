@@ -2721,7 +2721,7 @@ app.post('/api/project/export-organized-package', async (req, res) => {
         const st = sunoTracks[i];
         if (st && st.audioDataUrl && String(st.audioDataUrl).startsWith('data:')) {
           const cleanB64 = String(st.audioDataUrl).replace(/^data:[^;]+;base64,/, '');
-          const name = st.fileName || `Suno_${String(i + 1).padStart(2, '0')}.mp3`;
+          const name = st.fileName || `FlowMusic_${String(i + 1).padStart(2, '0')}.mp3`;
           const stPath = path.join(audioDir, path.basename(name));
           fs.writeFileSync(stPath, Buffer.from(cleanB64, 'base64'));
           savedFiles.push(`02_Audio/${path.basename(name)}`);
@@ -3206,13 +3206,31 @@ app.get('/api/flow/list-folder-media', (req, res) => {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
         const entries = fs.readdirSync(dir);
+        const hasFlowMusicByNum = new Set<number>();
+        for (const entry of entries) {
+          const fm = entry.match(/^(?:flowmusic|flow_music)[_\-\s]*0*(\d+)/i);
+          if (fm) hasFlowMusicByNum.add(parseInt(fm[1], 10) || 1);
+        }
         for (const entry of entries) {
           const full = path.join(dir, entry);
-          const st = fs.statSync(full);
+          let st: fs.Stats;
+          try {
+            st = fs.statSync(full);
+          } catch {
+            continue;
+          }
           if (!st.isFile()) continue;
           if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
+          // Auto-clean duplicate legacy Suno_0X.mp3 when FlowMusic_0X...mp3 exists in the same folder
+          const legacySunoMatch = entry.match(/^suno[_\-\s]*0*(\d+)\.(mp3|wav|m4a|ogg)$/i);
+          if (legacySunoMatch && hasFlowMusicByNum.has(parseInt(legacySunoMatch[1], 10) || 1)) {
+            try {
+              fs.unlinkSync(full);
+              continue;
+            } catch {}
+          }
           const sunoMatch = entry.match(
-            /(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i
+            /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
           );
           if (sunoMatch) {
             sunoFiles.push({

@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:26 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:30 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3125,7 +3125,7 @@ export default function App() {
             setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
           }
 
-          // Scan 02_Audio / Audio for Voiceover and Suno tracks
+          // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
           const audioSubCandidates = ['02_Audio', 'Audio', ''];
           const newSunoUrls: Record<number, string> = {};
           for (const sub of audioSubCandidates) {
@@ -3133,15 +3133,20 @@ export default function App() {
               const audioDir = sub
                 ? await activeHandle.getDirectoryHandle(sub, { create: false })
                 : activeHandle;
+              const legacySunoEntriesToDelete: string[] = [];
               for await (const [entryName, entryHandle] of (audioDir as any).entries()) {
                 if (entryHandle.kind !== 'file') continue;
                 if (!/\.(mp3|wav|m4a|ogg)$/i.test(entryName)) continue;
+                if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(entryName)) {
+                  legacySunoEntriesToDelete.push(String(entryName));
+                }
                 const sunoMatch = String(entryName).match(
-                  /(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i
+                  /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
                 );
                 if (sunoMatch) {
                   const tNum = parseInt(sunoMatch[1], 10) || 1;
-                  if (!newSunoUrls[tNum]) {
+                  const isFlowMusicName = /^(?:flowmusic|flow_music)/i.test(String(entryName));
+                  if (!newSunoUrls[tNum] || isFlowMusicName) {
                     const file = await entryHandle.getFile();
                     newSunoUrls[tNum] = URL.createObjectURL(file);
                   }
@@ -3150,6 +3155,13 @@ export default function App() {
                   const voObjUrl = URL.createObjectURL(file);
                   setFolderVoiceoverUrl((prev) => prev || voObjUrl);
                 }
+              }
+              for (const oldSunoName of legacySunoEntriesToDelete) {
+                try {
+                  if (typeof (audioDir as any).removeEntry === 'function') {
+                    await (audioDir as any).removeEntry(oldSunoName);
+                  }
+                } catch {}
               }
             } catch {}
           }
@@ -4444,7 +4456,7 @@ export default function App() {
       const activeServerPath = (flowServerFolderPath || globalStoredFolderPath || '').trim();
       if (!flowDownloadDirHandleRef.current && activeServerPath && !isCloudMode) {
         const sunoTracksPayload = Object.entries(capturedSunoAudioMap).map(([num, dataUrl]) => ({
-          fileName: `Suno_${String(num).padStart(2, '0')}.mp3`,
+          fileName: `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
           audioDataUrl: dataUrl,
         }));
         const thumbsPayload = Object.entries(capturedThumbnailsMap).map(([opt, dataUrl]) => ({
@@ -4542,7 +4554,7 @@ export default function App() {
       for (const [num, dataUrl] of Object.entries(capturedSunoAudioMap)) {
         if (dataUrl) {
           await handleSaveAnyFileToChosenFolder(
-            `Suno_${String(num).padStart(2, '0')}.mp3`,
+            `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
             String(dataUrl),
             '02_Audio'
           );
@@ -4898,9 +4910,19 @@ export default function App() {
             .replace(/_+/g, '_')
             .slice(0, 36);
           const flowMusicFileName = `FlowMusic_${padded}_${safeSlug}.mp3`;
-          const legacySunoFileName = `Suno_${padded}.mp3`;
           await handleSaveAnyFileToChosenFolder(flowMusicFileName, dataUrl, '02_Audio');
-          await handleSaveAnyFileToChosenFolder(legacySunoFileName, dataUrl, '02_Audio');
+          // Remove any legacy duplicate Suno_0X.mp3 in 02_Audio if present
+          try {
+            if (flowDownloadDirHandleRef.current) {
+              const audioSubDir = await flowDownloadDirHandleRef.current.getDirectoryHandle(
+                '02_Audio',
+                { create: false }
+              );
+              if (audioSubDir && typeof (audioSubDir as any).removeEntry === 'function') {
+                await (audioSubDir as any).removeEntry(`Suno_${padded}.mp3`).catch(() => {});
+              }
+            }
+          } catch {}
           const folderLabel =
             flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
