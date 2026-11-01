@@ -5861,7 +5861,7 @@ export default function App() {
       {/* TOP NAVIGATION BAR */}
       <header
         className={`sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-5 ${
-          mainView === 'studio' && activeStage === 8 ? 'py-1.5' : 'py-2.5 sm:py-3'
+          mainView === 'studio' && isStagesBarCompact ? 'py-1.5' : 'py-2.5 sm:py-3'
         } flex items-center justify-between gap-2.5 flex-wrap`}
       >
         <div className="flex items-center gap-3">
@@ -5871,10 +5871,10 @@ export default function App() {
           >
             <div
               className={`${
-                mainView === 'studio' && activeStage === 8 ? 'w-7 h-7' : 'w-9 h-9'
+                mainView === 'studio' && isStagesBarCompact ? 'w-7 h-7' : 'w-9 h-9'
               } rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0`}
             >
-              <Film className={mainView === 'studio' && activeStage === 8 ? 'w-4 h-4' : 'w-5 h-5'} />
+              <Film className={mainView === 'studio' && isStagesBarCompact ? 'w-4 h-4' : 'w-5 h-5'} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -5885,7 +5885,7 @@ export default function App() {
                   {isCloudMode ? '📱 Nube Móvil + GitHub' : '💻 Laptop + Nube GitHub'}
                 </span>
               </div>
-              {!(mainView === 'studio' && activeStage === 8) && (
+              {!(mainView === 'studio' && isStagesBarCompact) && (
                 <p className="text-[11px] text-slate-400 hidden sm:block">
                   Prompt Maestro + VoxFlow + Narration Timeline Extractor + Corrector .SRT
                 </p>
@@ -6481,11 +6481,7 @@ export default function App() {
       {mainView === 'studio' && activeDoc && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
-          <div
-            className={`w-full bg-[#12100d] border-b border-amber-500/20 px-4 ${
-              activeStage === 8 ? 'py-1.5 gap-1.5' : 'py-2.5 gap-2.5'
-            } flex flex-col shrink-0`}
-          >
+          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-4 py-2 gap-2 flex flex-col shrink-0">
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2">
               <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
@@ -6667,25 +6663,15 @@ export default function App() {
           {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
           <section
             data-stage-scroll-container="true"
-            className={`flex-1 ${
-              activeStage === 8 ? 'p-2.5 sm:p-4 space-y-3' : 'p-4 sm:p-6 space-y-5'
-            } overflow-y-auto`}
+            className="flex-1 p-3 sm:p-5 space-y-4 overflow-y-auto"
           >
             {/* Stage Header Banner */}
-            <div
-              className={`bg-[#16130f] border border-amber-500/25 rounded-2xl ${
-                activeStage === 8 ? 'px-3.5 py-2' : 'px-4 py-3'
-              } flex flex-wrap items-center justify-between gap-3`}
-            >
-              <div className={activeStage === 8 ? 'flex items-center gap-2.5 flex-wrap' : ''}>
+            <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+              <div>
                 <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
                   Etapa {activeStage} de 12 — {activeDoc.title}
                 </span>
-                <h2
-                  className={`${
-                    activeStage === 8 ? 'text-sm sm:text-base' : 'text-lg sm:text-xl mt-0.5'
-                  } font-bold text-slate-100`}
-                >
+                <h2 className="text-base sm:text-lg font-bold text-slate-100 mt-0.5">
                   {STAGES_LIST[activeStage - 1]?.title} — {STAGES_LIST[activeStage - 1]?.subtitle}
                 </h2>
               </div>
