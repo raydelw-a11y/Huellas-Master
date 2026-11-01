@@ -365,7 +365,106 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>('word_shadow');
   const [hookBgColor, setHookBgColor] = useState<string>('#000000');
   const [hookBgOpacity, setHookBgOpacity] = useState<number>(55);
-  const [hookTopPct, setHookTopPct] = useState<number>(35);
+  const [hookLeftPct, setHookLeftPct] = useState<number>(50);
+  const [hookTopPct, setHookTopPct] = useState<number>(50);
+  const [hookBoxWidthPct, setHookBoxWidthPct] = useState<number>(82);
+  const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
+  const viewerCanvasRef = useRef<HTMLDivElement | null>(null);
+
+  const handleStartHookBoxDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    setSelectedCanvasObject('hook_text');
+    setActiveInspectorTab('branding');
+    const canvasEl = viewerCanvasRef.current;
+    if (!canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initLeft = hookLeftPct;
+    const initTop = hookTopPct;
+    let moved = false;
+
+    const onMove = (moveEvt: MouseEvent) => {
+      const dxPx = moveEvt.clientX - startX;
+      const dyPx = moveEvt.clientY - startY;
+      if (!moved && Math.hypot(dxPx, dyPx) < 3) return;
+      moved = true;
+      setIsDraggingOrResizingHook(true);
+
+      let nextLeft = Math.max(8, Math.min(92, initLeft + (dxPx / rect.width) * 100));
+      let nextTop = Math.max(8, Math.min(92, initTop + (dyPx / rect.height) * 100));
+
+      // Magnetic snap to center lines (50% horizontal & 50% vertical)
+      if (Math.abs(nextLeft - 50) <= 2.2) nextLeft = 50;
+      if (Math.abs(nextTop - 50) <= 2.2) nextTop = 50;
+
+      setHookLeftPct(Number(nextLeft.toFixed(1)));
+      setHookTopPct(Number(nextTop.toFixed(1)));
+    };
+
+    const onUp = () => {
+      setIsDraggingOrResizingHook(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const handleStartHookBoxResize = (
+    e: React.MouseEvent,
+    handle: 'nw' | 'ne' | 'sw' | 'se' | 'w' | 'e'
+  ) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedCanvasObject('hook_text');
+    setActiveInspectorTab('branding');
+    const canvasEl = viewerCanvasRef.current;
+    if (!canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initWidth = hookBoxWidthPct;
+    const initF1 = hookLine1FontSize;
+    const initF2 = hookLine2FontSize;
+    setIsDraggingOrResizingHook(true);
+
+    const onMove = (moveEvt: MouseEvent) => {
+      const dxPx = moveEvt.clientX - startX;
+      const dyPx = moveEvt.clientY - startY;
+      const dirX = handle.includes('w') ? -1 : 1;
+      const deltaWidthPct = ((dxPx * dirX * 2) / rect.width) * 100;
+      const nextWidth = Math.max(22, Math.min(96, initWidth + deltaWidthPct));
+      setHookBoxWidthPct(Math.round(nextWidth));
+
+      // If pulling a corner handle vertically, also scale font sizes proportionally
+      if (handle === 'nw' || handle === 'ne' || handle === 'sw' || handle === 'se') {
+        const dirY = handle.includes('n') ? -1 : 1;
+        const scaleDelta = (dyPx * dirY) / 140;
+        if (Math.abs(dyPx) > 6) {
+          const factor = Math.max(0.55, Math.min(2.2, 1 + scaleDelta));
+          setHookLine1FontSize(Math.max(10, Math.min(44, Math.round(initF1 * factor))));
+          setHookLine2FontSize(Math.max(14, Math.min(60, Math.round(initF2 * factor))));
+        }
+      }
+    };
+
+    const onUp = () => {
+      setIsDraggingOrResizingHook(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // 4. Five Multi-Tracks State
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
@@ -1498,6 +1597,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const scaleRatio = height / 520;
           const f1 = Math.round(hookLine1FontSize * scaleRatio);
           const f2 = Math.round(hookLine2FontSize * scaleRatio);
+          const xCenter = Math.round(width * (hookLeftPct / 100));
           const yCenter = Math.round(height * (hookTopPct / 100));
 
           const line1Rows = (clip1Line1 || '').split('\n');
@@ -1510,17 +1610,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               hookBgColor,
               hookBgStyle === 'solid' ? 95 : hookBgOpacity
             );
-            const boxW = Math.round(width * 0.78);
+            const boxW = Math.round(width * (hookBoxWidthPct / 100));
             const boxH = Math.round(totalH1 + totalH2 + f1 * 0.9);
             ctx.fillRect(
-              Math.round((width - boxW) / 2),
-              Math.round(yCenter - f1 * 1.3),
+              Math.round(xCenter - boxW / 2),
+              Math.round(yCenter - (totalH1 + totalH2) / 2 - f1 * 0.4),
               boxW,
               boxH
             );
           }
 
-          let cursorY = yCenter;
+          let cursorY = Math.round(yCenter - (totalH1 + totalH2) / 2 + f1 * 0.65);
           if (clip1Line1) {
             ctx.font = `700 ${f1}px ${hookFontFamily}`;
             for (const rowText of line1Rows) {
@@ -1529,14 +1629,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 const m1 = ctx.measureText(rowText);
                 const padX1 = Math.round(f1 * 0.45);
                 const padY1 = Math.round(f1 * 0.22);
-                const w1 = Math.min(width * 0.9, m1.width + padX1 * 2);
+                const w1 = Math.min(width * 0.94, m1.width + padX1 * 2);
                 const h1 = f1 + padY1 * 2;
                 ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
                 ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
                 ctx.shadowBlur = Math.round(f1 * 0.55);
                 ctx.beginPath();
                 ctx.roundRect(
-                  Math.round((width - w1) / 2),
+                  Math.round(xCenter - w1 / 2),
                   Math.round(cursorY - f1 * 0.88 - padY1),
                   Math.round(w1),
                   Math.round(h1),
@@ -1554,16 +1654,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               if (hookShadowStyle === 'outline') {
                 ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
                 ctx.strokeStyle = '#000000';
-                ctx.strokeText(rowText, width / 2, cursorY);
+                ctx.strokeText(rowText, xCenter, cursorY);
               }
               ctx.fillStyle = hookLine1Color;
-              ctx.fillText(rowText, width / 2, cursorY);
+              ctx.fillText(rowText, xCenter, cursorY);
               cursorY += Math.round(f1 * 1.25);
             }
           }
           if (clip1Line2) {
             if (!clip1Line1) {
-              cursorY = yCenter + Math.round(f2 * 1.25);
+              cursorY = Math.round(yCenter - totalH2 / 2 + f2 * 0.75);
             } else {
               cursorY += Math.round(f2 * 0.25);
             }
@@ -1574,14 +1674,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 const m2 = ctx.measureText(rowText);
                 const padX2 = Math.round(f2 * 0.45);
                 const padY2 = Math.round(f2 * 0.22);
-                const w2 = Math.min(width * 0.92, m2.width + padX2 * 2);
+                const w2 = Math.min(width * 0.94, m2.width + padX2 * 2);
                 const h2 = f2 + padY2 * 2;
                 ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
                 ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
                 ctx.shadowBlur = Math.round(f2 * 0.55);
                 ctx.beginPath();
                 ctx.roundRect(
-                  Math.round((width - w2) / 2),
+                  Math.round(xCenter - w2 / 2),
                   Math.round(cursorY - f2 * 0.88 - padY2),
                   Math.round(w2),
                   Math.round(h2),
@@ -1599,10 +1699,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               if (hookShadowStyle === 'outline') {
                 ctx.lineWidth = Math.max(4, Math.round(f2 * 0.16));
                 ctx.strokeStyle = '#000000';
-                ctx.strokeText(rowText, width / 2, cursorY);
+                ctx.strokeText(rowText, xCenter, cursorY);
               }
               ctx.fillStyle = hookLine2Color;
-              ctx.fillText(rowText, width / 2, cursorY);
+              ctx.fillText(rowText, xCenter, cursorY);
               cursorY += Math.round(f2 * 1.25);
             }
           }
@@ -2032,6 +2132,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             } rounded-xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col`}
           >
             <div
+              ref={viewerCanvasRef}
               onClick={() => {
                 setSelectedCanvasObject(null);
                 handleTogglePlay();
@@ -2177,48 +2278,161 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 )}
               </div>
 
-              {/* Layer 3: Clip 1 Hook Text Overlay (Selectable & Editable directly inside the Video Viewer!) */}
+              {/* Center Alignment Guide Lines (Horizontal + Vertical Crosshair in Center of Video Viewer) */}
+              {(selectedCanvasObject === 'hook_text' || isDraggingOrResizingHook) && (
+                <div className="absolute inset-0 pointer-events-none z-10">
+                  {/* Vertical Center Guide Line (X = 50%) */}
+                  <div
+                    className={`absolute inset-y-0 left-1/2 -translate-x-1/2 transition-all ${
+                      Math.abs(hookLeftPct - 50) <= 0.6
+                        ? 'w-[2px] bg-amber-400 shadow-[0_0_10px_#fbbf24]'
+                        : 'w-0 border-l border-dashed border-amber-300/65'
+                    }`}
+                  />
+                  {/* Horizontal Center Guide Line (Y = 50%) */}
+                  <div
+                    className={`absolute inset-x-0 top-1/2 -translate-y-1/2 transition-all ${
+                      Math.abs(hookTopPct - 50) <= 0.6
+                        ? 'h-[2px] bg-amber-400 shadow-[0_0_10px_#fbbf24]'
+                        : 'h-0 border-t border-dashed border-amber-300/65'
+                    }`}
+                  />
+                  {/* Center Crosshair Dot */}
+                  <div
+                    className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border transition-all ${
+                      Math.abs(hookLeftPct - 50) <= 0.6 && Math.abs(hookTopPct - 50) <= 0.6
+                        ? 'bg-amber-400 border-white scale-125 shadow-[0_0_12px_#fbbf24]'
+                        : 'bg-amber-400/40 border-amber-300/80'
+                    }`}
+                  />
+                </div>
+              )}
+
+              {/* Layer 3: Clip 1 Hook Text Overlay (Selectable, Draggable & Corner-Resizable directly inside the Video Viewer!) */}
               {(currentTime <= clip1OverlayEndSec || selectedCanvasObject === 'hook_text') &&
                 (clip1Line1 || clip1Line2 || selectedCanvasObject === 'hook_text') && (
                   <div
+                    onMouseDown={handleStartHookBoxDrag}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedCanvasObject('hook_text');
                       setActiveInspectorTab('branding');
                     }}
-                    className={`absolute inset-x-6 z-20 text-center cursor-pointer transition rounded-xl p-2 mx-auto max-w-[88%] ${
+                    className={`absolute z-20 text-center cursor-move transition-shadow rounded-xl p-2.5 ${
                       selectedCanvasObject === 'hook_text'
-                        ? 'ring-2 ring-amber-400 shadow-2xl'
+                        ? 'ring-2 ring-amber-400 shadow-2xl bg-black/20'
                         : 'hover:ring-1 hover:ring-amber-300/60'
                     }`}
                     style={{
+                      left: `${hookLeftPct}%`,
                       top: `${hookTopPct}%`,
+                      width: `${hookBoxWidthPct}%`,
+                      transform: 'translate(-50%, -50%)',
                       fontFamily: hookFontFamily,
                       textShadow: getTextShadowCss(hookShadowStyle),
                       backgroundColor:
                         hookBgStyle === 'none' || hookBgStyle === 'word_shadow'
-                          ? 'transparent'
+                          ? undefined
                           : hexToRgba(hookBgColor, hookBgStyle === 'solid' ? 95 : hookBgOpacity),
                     }}
-                    title="Haz clic para seleccionar y editar el Texto en Pantalla directamente aquí"
+                    title="Mantén presionado y arrastra para mover por todo el video, o jala de las esquinas para alargar/achicar la caja de texto"
                   >
+                    {/* 4 Corner Handles + 2 Side Handles when Selected */}
+                    {selectedCanvasObject === 'hook_text' && (
+                      <>
+                        {/* Top-Left Corner (NW) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'nw')}
+                          className="
+                            absolute -top-2 -left-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            cursor-nwse-resize shadow-md hover:scale-125 transition z-30
+                          "
+                          title="Jalar esquina para alargar/achicar caja y tamaño de texto"
+                        />
+                        {/* Top-Right Corner (NE) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'ne')}
+                          className="
+                            absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            cursor-nesw-resize shadow-md hover:scale-125 transition z-30
+                          "
+                          title="Jalar esquina para alargar/achicar caja y tamaño de texto"
+                        />
+                        {/* Bottom-Left Corner (SW) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'sw')}
+                          className="
+                            absolute -bottom-2 -left-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            cursor-nesw-resize shadow-md hover:scale-125 transition z-30
+                          "
+                          title="Jalar esquina para alargar/achicar caja y tamaño de texto"
+                        />
+                        {/* Bottom-Right Corner (SE) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'se')}
+                          className="
+                            absolute -bottom-2 -right-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            cursor-nwse-resize shadow-md hover:scale-125 transition z-30
+                          "
+                          title="Jalar esquina para alargar/achicar caja y tamaño de texto"
+                        />
+                        {/* Left Edge Handle (W) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'w')}
+                          className="
+                            absolute top-1/2 -left-2 -translate-y-1/2 w-2.5 h-6 rounded-full bg-amber-300 border border-slate-950
+                            cursor-ew-resize shadow hover:scale-110 transition z-30
+                          "
+                          title="Jalar lado izquierdo para alargar o achicar el ancho de la caja"
+                        />
+                        {/* Right Edge Handle (E) */}
+                        <div
+                          onMouseDown={(e) => handleStartHookBoxResize(e, 'e')}
+                          className="
+                            absolute top-1/2 -right-2 -translate-y-1/2 w-2.5 h-6 rounded-full bg-amber-300 border border-slate-950
+                            cursor-ew-resize shadow hover:scale-110 transition z-30
+                          "
+                          title="Jalar lado derecho para alargar o achicar el ancho de la caja"
+                        />
+                      </>
+                    )}
+
                     {selectedCanvasObject === 'hook_text' ? (
                       <div
                         className="space-y-1.5"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1">
-                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950">
-                            🔤 Editando Texto en Pantalla (00:00 - 00:0{clip1OverlayEndSec}) • Pulsa Enter para saltar de línea
+                        <div
+                          onMouseDown={handleStartHookBoxDrag}
+                          className="flex items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1 cursor-move select-none"
+                        >
+                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow">
+                            ✥ Arrastra aquí para mover • Jala esquinas para alargar/achicar • Enter salta línea
                           </span>
+                          {(hookLeftPct !== 50 || hookTopPct !== 50) && (
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHookLeftPct(50);
+                                setHookTopPct(50);
+                              }}
+                              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400/60 cursor-pointer"
+                              title="Centrar exactamente en la cruz central (50% X, 50% Y)"
+                            >
+                              🎯 Centrar
+                            </button>
+                          )}
                         </div>
                         <textarea
                           rows={Math.max(1, (clip1Line1 || '').split('\n').length)}
                           value={clip1Line1}
                           onChange={(e) => setClip1Line1(e.target.value)}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                           placeholder="Línea 1: Lugar y Año... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300 resize-none leading-snug"
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300 resize-none leading-snug cursor-text"
                           style={{
                             fontFamily: hookFontFamily,
                             fontSize: `${hookLine1FontSize}px`,
@@ -2230,9 +2444,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           rows={Math.max(1, (clip1Line2 || '').split('\n').length)}
                           value={clip1Line2}
                           onChange={(e) => setClip1Line2(e.target.value)}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                           placeholder="Línea 2: Título Gancho en Pantalla... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300 resize-none leading-snug"
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300 resize-none leading-snug cursor-text"
                           style={{
                             fontFamily: hookFontFamily,
                             fontSize: `${hookLine2FontSize}px`,
