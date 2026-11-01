@@ -240,6 +240,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       "Image 55: Create an image of a stern older Spanish store owner in a dark vest standing with both hands resting empty on a polished mahogany counter in a traditional grocery store in Mexico City, Mexico, 1910, speaking seriously to an adult newly arrived Spanish clerk in a white linen apron standing across the counter with empty hands (strictly no brooms or tools in anyone's hands), 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.";
     const newClip55 =
       'Clip 55 (08:56 - 09:06): Create a video showing a steady medium shot as the stern Spanish store owner stands behind the mahogany counter in Mexico City, Mexico, 1910, speaking and giving instructions with a calm authoritative gesture of his empty hand (without handing over any broom or object), while the clerk in the white apron nods respectfully, turns away from the counter, and walks out of the scene to go work. Ambient Foley: hands resting on polished mahogany wood, linen apron rustling, leather boots walking away on wooden floorboards, pocket watch ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. tiendas y panaderías para alcanzar la prometida prosperidad? Lejos del mito romántico del indiano que amasaba fortuna al instante, los almacenes de abarrotes como El. fix the name';
+    const newImg60 =
+      'Image 60: Create an image of an exhausted adult Spanish store clerk sitting quietly on an already unrolled straw petate mat and folded canvas blanket atop a long mahogany and zinc store counter at night in Mexico City, Mexico, 1910, beside a stationary brass scale and a dim oil lantern, 16:9 horizontal, cinematic low-key night lighting, historical accuracy, no text.';
+    const newClip60 =
+      'Clip 60 (09:46 - 09:56): Create a video showing a slow dolly push-in on the exhausted Spanish clerk sitting still on the straw mat atop the mahogany counter in the dark store in Mexico City, Mexico, 1910, resting his head on his hand beside the brass scale as the oil lantern flame flickers softly. Ambient Foley: quiet night room tone, faint oil lamp hum, tired sigh, wooden counter creaking slightly, single continuous shot, strictly no shot changes, no music, no speech, no text. de la noche. Para ahorrar alquileres y vigilar la mercancía frente a robos o incendios, los dependientes tenían prohibido vivir fuera de la tienda. fix the name';
     const newImg76 =
       'Image 76: Create an image of @Pedro_Garfias_Zurita wearing thick tortoise-shell glasses, a black beret, and a worn shepherd jacket standing thoughtfully at the iron railing on the Sinaia steamship deck in Veracruz harbor, Mexico, 1939, surrounded only by adult passengers aged 35 to 60 in the background, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip76 =
@@ -362,6 +366,19 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         }
         if (
           c &&
+          c.clipNumber === 60 &&
+          (/unrolling a straw petate mat/i.test(c.imagePrompt || '') ||
+            /unrolls his straw mat|lies down beside the brass scale/i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg60,
+            videoPrompt: newClip60,
+          };
+        }
+        if (
+          c &&
           c.clipNumber === 76 &&
           (/period historical artifact|Pedro Garfias Zurita/i.test(c.imagePrompt || '') ||
             /period historical artifact|Pedro Garfias Zurita/i.test(c.videoPrompt || '') ||
@@ -446,6 +463,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 55:[^\n]*/i, newImg55)
           .replace(/Clip 55\s*\([^)]*\):[^\n]*/i, newClip55);
+      }
+      if (
+        /Image 60:[^\n]*unrolling a straw petate mat/i.test(rawText) ||
+        /Clip 60\s*\([^)]*\):[^\n]*unrolls his straw mat/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 60:[^\n]*/i, newImg60)
+          .replace(/Clip 60\s*\([^)]*\):[^\n]*/i, newClip60);
       }
       if (
         /Image 76:[^\n]*(?:period historical artifact|Sinaia deck)/i.test(rawText) ||

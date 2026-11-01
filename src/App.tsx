@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:48 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:49 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2685,7 +2685,9 @@ export default function App() {
         /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
         ''
       )
-      .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
+      .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s.*?(?:bokeh\)?\.|morphing\.)\s*/gi, '')
+      .replace(/Strictly\s*zero\s*people\s*or\s*human\s*figures\s*appearing\s*anywhere\s*in\s*the\s*frame\s*from\s*0s\s*to\s*\d+s\.\s*/gi, '')
+      .replace(/(?:8\s*bokeh\)?\.?\s*)+/gi, '')
       .replace(/All\s*tables,\s*documents,[^.]*gravity-locked[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
@@ -2693,12 +2695,15 @@ export default function App() {
       .replace(/STRICT\s*LITERAL\s*VISUAL\s*LOGIC[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING[^.]*\.\s*/gi, '')
-      .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
+      .replace(/Cinematic\s*historical\s*(?:drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors|documentary\s*still-life\s*cinematography)[^.]*\.\s*/gi, '')
       .trim();
 
-    const adultsOnlyClause = hadAdultsOnly
-      ? 'STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.'
-      : '';
+    const isZeroPeopleShot = /\bzero\s+people\b|\bno\s+human\s+figures\b/i.test(p);
+
+    const adultsOnlyClause =
+      hadAdultsOnly && !isZeroPeopleShot
+        ? 'STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.'
+        : '';
 
     const singleShotClause = hadSingleShot
       ? `SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to ${clipSec}s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip.`
@@ -2712,13 +2717,21 @@ export default function App() {
       ? 'STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices.'
       : '';
 
-    const erraticActingClause = hadErraticActing
-      ? `STRICT CALM COMPOSED NATURAL HUMAN ACTING (ZERO ERRATIC MOVEMENTS): All characters perform slow, deliberate, dignified, and anatomically natural micro-movements from 0s to ${clipSec}s (subtle breathing, calm steady eye-line, composed posture, and smooth natural hand gestures); strictly zero erratic, jerky, spastic, frantic, twitchy, or unnatural body movements, zero sudden head snaps, and zero exaggerated facial contortions.`
-      : '';
+    const erraticActingClause =
+      hadErraticActing && !isZeroPeopleShot
+        ? `STRICT CALM COMPOSED NATURAL HUMAN ACTING (ZERO ERRATIC MOVEMENTS): All characters perform slow, deliberate, dignified, and anatomically natural micro-movements from 0s to ${clipSec}s (subtle breathing, calm steady eye-line, composed posture, and smooth natural hand gestures); strictly zero erratic, jerky, spastic, frantic, twitchy, or unnatural body movements, zero sudden head snaps, and zero exaggerated facial contortions.`
+        : '';
 
     if (isImagePrompt) {
-      const imgClause =
-        'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people)';
+      if (isZeroPeopleShot) {
+        p = p.replace(
+          /,?\s*portrayed by anonymous(?: mature adult)? historical reenactment actors in authentic period costume\s*\(no real public figures or prominent people\)/gi,
+          ' (no real public figures or prominent people)'
+        );
+      }
+      const imgClause = isZeroPeopleShot
+        ? 'clean uncluttered composition with rigid architectural perspective and stationary period props (no real public figures or prominent people)'
+        : 'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people)';
       if (!p.toLowerCase().includes('rigid architectural perspective')) {
         if (/\bno\s+text\b/i.test(p)) {
           p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
@@ -2726,7 +2739,11 @@ export default function App() {
           p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
         }
       } else if (!/no real public figures/i.test(p)) {
-        p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
+        p = `${p.replace(/\.?\s*$/, '')}${
+          isZeroPeopleShot
+            ? ' (no real public figures or prominent people).'
+            : ', portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people).'
+        }`;
       }
       if (adultsOnlyClause) {
         p = `${p.replace(/\.?\s*$/, '')}. ${adultsOnlyClause}`;
@@ -2746,8 +2763,9 @@ export default function App() {
       .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
       .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
-    const safetyDisclaimer =
-      'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).';
+    const safetyDisclaimer = isZeroPeopleShot
+      ? 'Cinematic historical documentary still-life cinematography (no real public figures or prominent people, no unintended explosions or flashes).'
+      : 'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).';
 
     const directiveParts: string[] = [];
     if (adultsOnlyClause) directiveParts.push(adultsOnlyClause);
@@ -2766,7 +2784,11 @@ export default function App() {
       `Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame.`
     );
 
-    if (isAll || hadPeople || hadAdultsOnly || hadErraticActing || hadVisualLogic) {
+    if (isZeroPeopleShot) {
+      directiveParts.push(
+        `Strictly zero people or human figures appearing anywhere in the frame from 0s to ${clipSec}s.`
+      );
+    } else if (isAll || hadPeople || hadAdultsOnly || hadErraticActing || hadVisualLogic) {
       directiveParts.push(
         `Fixed subject count from 0s to ${clipSec}s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh.`
       );
@@ -2975,21 +2997,26 @@ export default function App() {
         clip.videoSavedFileName || buildClipSixWordFileName(clip, currentDoc || null);
 
       let matchedFile: File | null = null;
+      // Scan directory for all files starting with `${padded}_` and ending in `.mp4`, picking the newest lastModified
       try {
-        const fh = await clipsDir.getFileHandle(expectedName, { create: false });
-        matchedFile = await fh.getFile();
-      } catch {
-        // Scan directory for any file starting with `${padded}_` and ending in `.mp4`
         for await (const [entryName, entryHandle] of (clipsDir as any).entries()) {
           if (
             entryHandle.kind === 'file' &&
             entryName.startsWith(`${padded}_`) &&
             entryName.toLowerCase().endsWith('.mp4')
           ) {
-            matchedFile = await entryHandle.getFile();
-            break;
+            const candidate = await entryHandle.getFile();
+            if (!matchedFile || candidate.lastModified >= matchedFile.lastModified) {
+              matchedFile = candidate;
+            }
           }
         }
+      } catch {}
+      if (!matchedFile) {
+        try {
+          const fh = await clipsDir.getFileHandle(expectedName, { create: false });
+          matchedFile = await fh.getFile();
+        } catch {}
       }
 
       if (matchedFile) {
@@ -3031,6 +3058,7 @@ export default function App() {
 
         if (perm === 'granted') {
           const newClipUrls: Record<number, string> = {};
+          const bestFileMtimeByClip: Record<number, number> = {};
           const subCandidates = ['05_Clips_Video', 'Clips_Aprobados', ''];
           for (const sub of subCandidates) {
             try {
@@ -3042,10 +3070,13 @@ export default function App() {
                 const m = String(entryName).match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
                 if (m) {
                   const num = parseInt(m[1], 10);
-                  if (num > 0 && !newClipUrls[num]) {
+                  if (num > 0) {
                     const file = await entryHandle.getFile();
-                    newClipUrls[num] = URL.createObjectURL(file);
-                    loadedCount++;
+                    if (!bestFileMtimeByClip[num] || file.lastModified >= bestFileMtimeByClip[num]) {
+                      if (!bestFileMtimeByClip[num]) loadedCount++;
+                      bestFileMtimeByClip[num] = file.lastModified;
+                      newClipUrls[num] = URL.createObjectURL(file);
+                    }
                   }
                 }
               }
@@ -3111,7 +3142,12 @@ export default function App() {
             setCapturedClipVideosMap((prev) => {
               const next = { ...prev };
               for (const item of data.clipVideos) {
-                if (item.clipNumber > 0 && item.url && !next[item.clipNumber]) {
+                if (
+                  item.clipNumber > 0 &&
+                  item.url &&
+                  (!next[item.clipNumber] ||
+                    next[item.clipNumber].startsWith('/api/flow/serve-folder-file'))
+                ) {
                   next[item.clipNumber] = item.url;
                   loadedCount++;
                 }
@@ -3154,16 +3190,26 @@ export default function App() {
   // Automatically ensure all clips and references in activeDoc have ALL shields (Anti-Filtro Flow + 10s Anti-Mutation Physics + Anti-Violencia) from construction
   useEffect(() => {
     if (!activeDoc) return;
-    const hasClips = Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0;
-    const hasRefs = Array.isArray(activeDoc.references) && activeDoc.references.length > 0;
+    const normalizedBase = normalizeDocumentaryVoiceoverAudio(activeDoc);
+    const baseClips = normalizedBase.clips || activeDoc.clips || [];
+    const baseRefs = normalizedBase.references || activeDoc.references || [];
+    const hasClips = Array.isArray(baseClips) && baseClips.length > 0;
+    const hasRefs = Array.isArray(baseRefs) && baseRefs.length > 0;
     if (!hasClips && !hasRefs) return;
+
+    const normalizedChanged =
+      normalizedBase.clips !== activeDoc.clips ||
+      normalizedBase.rawClipsText !== activeDoc.rawClipsText;
 
     const needsClipShield =
       hasClips &&
-      activeDoc.clips.some(
+      baseClips.some(
         (c) =>
           ((c.videoPrompt || '').trim() &&
-            (!/Fixed subject count from 0s to \d+s/i.test(c.videoPrompt || '') ||
+            (!/Fixed subject count from 0s to \d+s|Strictly zero people or human figures/i.test(
+              c.videoPrompt || ''
+            ) ||
+              /8\s*bokeh/i.test(c.videoPrompt || '') ||
               !/no real public figures/i.test(c.videoPrompt || ''))) ||
           ((c.imagePrompt || '').trim() &&
             (!/rigid architectural perspective/i.test(c.imagePrompt || '') ||
@@ -3172,19 +3218,19 @@ export default function App() {
 
     const needsRefShield =
       hasRefs &&
-      activeDoc.references.some(
+      baseRefs.some(
         (r) =>
           r.category === 'persona' &&
           (r.prompt || '').trim() &&
           !/no real public figures/i.test(r.prompt || '')
       );
 
-    if (!needsClipShield && !needsRefShield) return;
+    if (!normalizedChanged && !needsClipShield && !needsRefShield) return;
 
     const patch: Partial<DocumentaryProject> = {};
 
-    if (needsClipShield) {
-      const nextClips = activeDoc.clips.map((c) => ({
+    if (normalizedChanged || needsClipShield) {
+      const nextClips = baseClips.map((c) => ({
         ...c,
         imagePrompt: (c.imagePrompt || '').trim()
           ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
@@ -3200,7 +3246,7 @@ export default function App() {
     }
 
     if (needsRefShield) {
-      patch.references = activeDoc.references.map((r) => {
+      patch.references = baseRefs.map((r) => {
         if (r.category !== 'persona' || !(r.prompt || '').trim()) return r;
         let shielded = applyAutomaticFlowPolicyShield(r.prompt, true);
         if (!/no real public figures/i.test(shielded)) {
@@ -3251,6 +3297,11 @@ export default function App() {
         }
       }
     } catch {}
+
+    setCapturedClipVideosMap((prev) => ({
+      ...prev,
+      [clipObj.clipNumber]: finalVideoDataUrl,
+    }));
 
     const ok = await handleSaveAnyFileToChosenFolder(fileName, finalVideoDataUrl, '05_Clips_Video');
     return ok ? fileName : '';
@@ -10424,6 +10475,7 @@ export default function App() {
                               >
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
+                                    key={capturedClipVideosMap[clip.clipNumber]}
                                     data-stage8-clip-video="true"
                                     src={capturedClipVideosMap[clip.clipNumber]}
                                     controls

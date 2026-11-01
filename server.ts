@@ -3028,10 +3028,17 @@ app.get('/api/flow/list-folder-media', (req, res) => {
       for (const sub of videoSubfolders) {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-        const entries = fs.readdirSync(dir);
+        const entries = fs.readdirSync(dir).sort((a, b) => {
+          try {
+            return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
+          } catch {
+            return 0;
+          }
+        });
         for (const entry of entries) {
           const full = path.join(dir, entry);
-          if (!fs.statSync(full).isFile()) continue;
+          const st = fs.statSync(full);
+          if (!st.isFile()) continue;
           const mVid = entry.match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
           if (mVid) {
             const num = parseInt(mVid[1], 10);
@@ -3040,7 +3047,7 @@ app.get('/api/flow/list-folder-media', (req, res) => {
               clipVideos.push({
                 clipNumber: num,
                 fileName: entry,
-                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
               });
             }
           }
@@ -3051,7 +3058,7 @@ app.get('/api/flow/list-folder-media', (req, res) => {
               clipFrames.push({
                 clipNumber: num,
                 fileName: entry,
-                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
               });
             }
           }
@@ -3065,19 +3072,20 @@ app.get('/api/flow/list-folder-media', (req, res) => {
         const entries = fs.readdirSync(dir);
         for (const entry of entries) {
           const full = path.join(dir, entry);
-          if (!fs.statSync(full).isFile()) continue;
+          const st = fs.statSync(full);
+          if (!st.isFile()) continue;
           if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
           const sunoMatch = entry.match(/suno[_\-\s]*0*(\d+)/i);
           if (sunoMatch) {
             sunoFiles.push({
               trackNumber: parseInt(sunoMatch[1], 10) || 1,
               fileName: entry,
-              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
             });
           } else {
             voiceoverFiles.push({
               fileName: entry,
-              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
             });
           }
         }
@@ -3137,6 +3145,7 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       res.status(404).send('Archivo no encontrado');
       return;
     }
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.sendFile(path.resolve(filePath));
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
