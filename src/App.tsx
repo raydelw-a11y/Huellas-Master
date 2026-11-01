@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:50 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:53 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2687,7 +2687,7 @@ export default function App() {
       )
       .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s.*?(?:bokeh\)?\.|morphing\.)\s*/gi, '')
       .replace(/Strictly\s*zero\s*people\s*or\s*human\s*figures\s*appearing\s*anywhere\s*in\s*the\s*frame\s*from\s*0s\s*to\s*\d+s\.\s*/gi, '')
-      .replace(/(?:8\s*bokeh\)?\.?\s*)+/gi, '')
+      .replace(/(?<!f\/1\.)(?:8\s*bokeh\)?\.?\s*)+/gi, '')
       .replace(/All\s*tables,\s*documents,[^.]*gravity-locked[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
@@ -3209,7 +3209,7 @@ export default function App() {
             (!/Fixed subject count from 0s to \d+s|Strictly zero people or human figures/i.test(
               c.videoPrompt || ''
             ) ||
-              /8\s*bokeh/i.test(c.videoPrompt || '') ||
+              /(?<!f\/1\.)8\s*bokeh/i.test(c.videoPrompt || '') ||
               !/no real public figures/i.test(c.videoPrompt || ''))) ||
           ((c.imagePrompt || '').trim() &&
             (!/rigid architectural perspective/i.test(c.imagePrompt || '') ||
@@ -3239,10 +3239,19 @@ export default function App() {
           ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
           : c.videoPrompt,
       }));
-      patch.clips = nextClips;
-      patch.rawClipsText = nextClips
-        .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
-        .join('\n\n');
+      const actuallyChangedClips =
+        !activeDoc.clips ||
+        nextClips.some(
+          (nc, idx) =>
+            nc.imagePrompt !== activeDoc.clips[idx]?.imagePrompt ||
+            nc.videoPrompt !== activeDoc.clips[idx]?.videoPrompt
+        );
+      if (actuallyChangedClips) {
+        patch.clips = nextClips;
+        patch.rawClipsText = nextClips
+          .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+          .join('\n\n');
+      }
     }
 
     if (needsRefShield) {
@@ -3256,7 +3265,9 @@ export default function App() {
       });
     }
 
-    updateActiveDoc(patch);
+    if (Object.keys(patch).length > 0) {
+      updateActiveDoc(patch);
+    }
   }, [activeDoc?.id, activeDoc?.clips?.length, activeDoc?.references?.length, activeDoc?.productionFormat]);
 
   // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed

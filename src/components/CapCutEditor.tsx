@@ -1007,13 +1007,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .map((c) => `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}`)
     .join('|');
 
+  const capturedClipVideosSignature = Object.entries(capturedClipVideosMap)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([k, v]) => `${k}:${v ? v.slice(-32) : ''}`)
+    .join('|');
+
   useEffect(() => {
     syncTracksFromDocumentary();
   }, [
     activeDoc?.id,
     reviewedClipsSignature,
     showOnlyReviewedClips,
-    Object.keys(capturedClipVideosMap).length,
+    capturedClipVideosSignature,
     Object.keys(capturedSunoAudioMap).length,
     folderVoiceoverUrl,
   ]);
