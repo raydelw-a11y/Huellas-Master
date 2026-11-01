@@ -553,7 +553,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                     src={vUrl}
                     controls
                     playsInline
-                    className="w-full aspect-video min-h-[240px] rounded-xl border-2 border-purple-500/40 bg-black object-contain shadow-xl"
+                    className="w-full aspect-video rounded-xl border-2 border-purple-500/40 bg-black object-cover shadow-xl"
                   />
                 ))}
                 {lastMirroredFlowImages.slice(0, 6).map((iUrl, idx) => (
@@ -561,7 +561,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                     key={`i-${idx}`}
                     src={iUrl}
                     alt={`Flow Media ${idx + 1}`}
-                    className="w-full aspect-video min-h-[220px] rounded-xl border border-amber-500/40 bg-black object-contain shadow-lg"
+                    className="w-full aspect-video rounded-xl border border-amber-500/40 bg-black object-cover shadow-lg"
                   />
                 ))}
               </div>

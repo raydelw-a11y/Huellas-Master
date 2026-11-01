@@ -1957,17 +1957,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           </div>
 
-          {/* Stage-8 Style Video Container + Native-Style Bottom Scrubber & Play/Pause Controls */}
-          <div className="w-full rounded-xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col">
+          {/* Aspect-Ratio Locked Video Container (Zero Side Black Bars) + Bottom Scrubber & Play/Pause Controls */}
+          <div
+            className={`${
+              aspectRatio === '16:9' ? 'w-full' : 'w-full max-w-[380px] mx-auto'
+            } rounded-xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col`}
+          >
             <div
               onClick={() => {
                 setSelectedCanvasObject(null);
                 handleTogglePlay();
               }}
-              className={`relative bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none mx-auto ${
-                aspectRatio === '16:9'
-                  ? 'w-full h-[46vh] max-h-[420px] min-h-[290px]'
-                  : 'h-[430px] aspect-[9/16]'
+              className={`relative w-full bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
+                aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16]'
               }`}
               title="Haz clic en el video para Reproducir / Pausar, o haz clic sobre el Logo, el Texto en Pantalla o los Captions para seleccionarlos y editarlos"
             >
@@ -1977,7 +1979,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   key={activeClipAtPlayhead.videoUrl}
                   ref={previewVideoRef}
                   src={activeClipAtPlayhead.videoUrl}
-                  className="w-full h-full object-contain bg-black"
+                  className="w-full h-full object-cover block bg-black"
                   playsInline
                   preload="auto"
                   onLoadedMetadata={(e) => {
@@ -2001,7 +2003,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <img
                     src={activeClipAtPlayhead.posterUrl}
                     alt={activeClipAtPlayhead.fileName}
-                    className="w-full h-full object-contain transition-transform duration-150 ease-linear"
+                    className="w-full h-full object-cover block transition-transform duration-150 ease-linear"
                     style={{
                       transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
                     }}
