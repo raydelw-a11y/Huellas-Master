@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Wand2,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Sliders,
   Globe,
@@ -115,7 +116,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:40 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:49 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -5837,9 +5838,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0b0a09] text-slate-100 flex flex-col">
-      {/* Global Deployment Verification Timestamp Badge */}
-      <div className="fixed bottom-2 right-3 text-[11px] text-amber-300/90 font-mono bg-slate-900/95 px-2.5 py-0.5 rounded border border-amber-500/30 z-50 pointer-events-none">
-        Actualizado: {LAST_UPDATED_TEXT}
+      {/* Floating Scroll-to-Top Button + Global Deployment Verification Timestamp Badge */}
+      <div className="fixed bottom-2 right-3 z-50 flex flex-col items-end gap-1.5 pointer-events-none">
+        <button
+          type="button"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.documentElement?.scrollTo?.({ top: 0, behavior: 'smooth' });
+            document.body?.scrollTo?.({ top: 0, behavior: 'smooth' });
+          }}
+          title="Subir al inicio de la página"
+          aria-label="Subir al inicio de la página"
+          className="pointer-events-auto w-9 h-9 rounded-full bg-slate-900/95 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 shadow-lg shadow-black/60 flex items-center justify-center transition cursor-pointer"
+        >
+          <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+        </button>
+        <div className="text-[11px] text-amber-300/90 font-mono bg-slate-900/95 px-2.5 py-0.5 rounded border border-amber-500/30">
+          Actualizado: {LAST_UPDATED_TEXT}
+        </div>
       </div>
 
       {/* TOP NAVIGATION BAR */}
