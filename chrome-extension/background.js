@@ -359,7 +359,6 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
           /^omni\s*1\.1\s*flash$/i,
           /omni\s*1\.1\s*flash/i,
           /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
-          /veo\s*3\.1\s*-\s*lite/i,
         ]
       : [
           /nano\s*banana\s*2\.1/i,
@@ -1503,11 +1502,10 @@ async function generateSingleClipViaFlowSdk(
         let videoMode = 'FLOW_SDK';
 
         if (typeof sdk.generate?.video === 'function') {
-          // Prioridad estricta de Video: 1) Omni 1.1 Flash -> 2) Veo 3.1 - Lite [Lower Priority] (solo esos dos, siempre x1 item)
+          // Prioridad estricta de Video: 1) Omni 1.1 Flash -> 2) Veo 3.1 - Lite [Lower Priority] (exactamente esos dos nombres literales, siempre x1 item)
           const vidModels = [
             'Omni 1.1 Flash',
             'Veo 3.1 - Lite [Lower Priority]',
-            'Veo 3.1 - Lite',
           ];
           for (const modelDisplayName of vidModels) {
             try {
