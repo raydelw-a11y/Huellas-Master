@@ -185,6 +185,116 @@ export function hexToRgba(hex: string, opacityPct: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a.toFixed(2)})`;
 }
 
+export type ElementAnimationType =
+  | 'none'
+  | 'fade'
+  | 'slide_up'
+  | 'slide_down'
+  | 'slide_left'
+  | 'slide_right'
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'pop'
+  | 'blur_fade';
+
+export const ELEMENT_ANIMATION_OPTIONS: { value: ElementAnimationType; label: string }[] = [
+  { value: 'none', label: 'Sin Animación (Directo)' },
+  { value: 'fade', label: 'Fade (Fundido Suave)' },
+  { value: 'slide_up', label: 'Deslizar hacia Arriba (Slide Up)' },
+  { value: 'slide_down', label: 'Deslizar hacia Abajo (Slide Down)' },
+  { value: 'slide_left', label: 'Deslizar desde Derecha (Slide Left)' },
+  { value: 'slide_right', label: 'Deslizar desde Izquierda (Slide Right)' },
+  { value: 'zoom_in', label: 'Zoom In Cinematográfico' },
+  { value: 'zoom_out', label: 'Zoom Out Suave' },
+  { value: 'pop', label: 'Pop / Rebote Dinámico' },
+  { value: 'blur_fade', label: 'Desenfoque Suave (Blur Fade)' },
+];
+
+export interface ComputedAnimationState {
+  visible: boolean;
+  opacity: number;
+  translateX: number; // px
+  translateY: number; // px
+  scale: number;
+  blurPx: number;
+}
+
+export function computeElementAnimationState(
+  timeSec: number,
+  startSec: number,
+  endSec: number,
+  animIn: ElementAnimationType,
+  animInDur: number,
+  animOut: ElementAnimationType,
+  animOutDur: number
+): ComputedAnimationState {
+  if (timeSec < startSec || timeSec > endSec) {
+    return {
+      visible: false,
+      opacity: 0,
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      blurPx: 0,
+    };
+  }
+
+  let opacity = 1;
+  let translateX = 0;
+  let translateY = 0;
+  let scale = 1;
+  let blurPx = 0;
+
+  // Entrance phase: [startSec, startSec + animInDur]
+  const safeInDur = Math.max(0.05, animInDur);
+  if (animIn !== 'none' && timeSec < startSec + safeInDur) {
+    const rawP = Math.min(1, Math.max(0, (timeSec - startSec) / safeInDur));
+    // Smooth ease-out cubic
+    const p = 1 - Math.pow(1 - rawP, 3);
+    const inv = 1 - p;
+    opacity *= rawP;
+    if (animIn === 'slide_up') translateY += 28 * inv;
+    else if (animIn === 'slide_down') translateY -= 28 * inv;
+    else if (animIn === 'slide_left') translateX += 38 * inv;
+    else if (animIn === 'slide_right') translateX -= 38 * inv;
+    else if (animIn === 'zoom_in') scale *= 0.78 + 0.22 * p;
+    else if (animIn === 'zoom_out') scale *= 1.24 - 0.24 * p;
+    else if (animIn === 'pop') {
+      const overshoot = rawP < 0.75 ? (rawP / 0.75) * 1.1 : 1.1 - ((rawP - 0.75) / 0.25) * 0.1;
+      scale *= Math.max(0.2, overshoot);
+    } else if (animIn === 'blur_fade') {
+      blurPx += 10 * inv;
+    }
+  }
+
+  // Exit phase: [endSec - animOutDur, endSec]
+  const safeOutDur = Math.max(0.05, animOutDur);
+  if (animOut !== 'none' && timeSec > endSec - safeOutDur) {
+    const rawRem = Math.min(1, Math.max(0, (endSec - timeSec) / safeOutDur));
+    // Smooth ease-in-out
+    const p = 1 - Math.pow(1 - rawRem, 2);
+    const outProgress = 1 - p; // 0 -> 1 as it exits
+    opacity *= rawRem;
+    if (animOut === 'slide_up') translateY -= 26 * outProgress;
+    else if (animOut === 'slide_down') translateY += 26 * outProgress;
+    else if (animOut === 'slide_left') translateX -= 36 * outProgress;
+    else if (animOut === 'slide_right') translateX += 36 * outProgress;
+    else if (animOut === 'zoom_in') scale *= 1 + 0.2 * outProgress;
+    else if (animOut === 'zoom_out') scale *= 1 - 0.22 * outProgress;
+    else if (animOut === 'pop') scale *= 1 - 0.35 * outProgress;
+    else if (animOut === 'blur_fade') blurPx += 10 * outProgress;
+  }
+
+  return {
+    visible: opacity > 0.005,
+    opacity: Math.min(1, Math.max(0, opacity)),
+    translateX,
+    translateY,
+    scale,
+    blurPx,
+  };
+}
+
 export function buildClipSixWordFileName(
   clip: DocumentaryClip,
   doc?: DocumentaryProject | null,
@@ -346,8 +456,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [logoOpacity, setLogoOpacity] = useState<number>(95);
   const [logoPosX, setLogoPosX] = useState<number>(3);
   const [logoPosY, setLogoPosY] = useState<number>(3);
+  // Default Logo animations for ALL documentaries: Fade Out 1s at the end of the documentary
+  const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>('none');
+  const [logoAnimInDur, setLogoAnimInDur] = useState<number>(1);
+  const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>('fade');
+  const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(1);
 
-  // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background & Position
+  // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background, Position & Animations
   const [clip1Line1, setClip1Line1] = useState<string>(
     normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '')
   );
@@ -356,6 +471,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
     return clip1Sec || 8;
   });
+  // Default Hook Text animations for ALL documentaries:
+  // Line 1: starts at 0s, Fade In 1s (0s->1s), Fade Out 1s toward 8s (7s->8s)
+  // Line 2: appears at 2s, Fade In 1s (2s->3s), Fade Out 1s toward 8s (7s->8s)
+  const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(0);
+  const [hookLine1AnimIn, setHookLine1AnimIn] = useState<ElementAnimationType>('fade');
+  const [hookLine1AnimInDur, setHookLine1AnimInDur] = useState<number>(1);
+  const [hookLine1AnimOut, setHookLine1AnimOut] = useState<ElementAnimationType>('fade');
+  const [hookLine1AnimOutDur, setHookLine1AnimOutDur] = useState<number>(1);
+
+  const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(2);
+  const [hookLine2AnimIn, setHookLine2AnimIn] = useState<ElementAnimationType>('fade');
+  const [hookLine2AnimInDur, setHookLine2AnimInDur] = useState<number>(1);
+  const [hookLine2AnimOut, setHookLine2AnimOut] = useState<ElementAnimationType>('fade');
+  const [hookLine2AnimOutDur, setHookLine2AnimOutDur] = useState<number>(1);
+
+  // Animations for Captions & Video Clips / Images
+  const [captionAnimIn, setCaptionAnimIn] = useState<ElementAnimationType>('fade');
+  const [captionAnimOut, setCaptionAnimOut] = useState<ElementAnimationType>('fade');
+  const [captionAnimDur, setCaptionAnimDur] = useState<number>(0.25);
+
+  const [clipAnimIn, setClipAnimIn] = useState<ElementAnimationType>('none');
+  const [clipAnimOut, setClipAnimOut] = useState<ElementAnimationType>('none');
+  const [clipAnimDur, setClipAnimDur] = useState<number>(0.6);
+
   const [hookFontFamily, setHookFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[0].value);
   const [hookLine1FontSize, setHookLine1FontSize] = useState<number>(15);
   const [hookLine2FontSize, setHookLine2FontSize] = useState<number>(24);
@@ -1556,7 +1695,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ctx.fillStyle = '#080705';
         ctx.fillRect(0, 0, width, height);
 
-        // 2. Active Clip Poster / Frame
+        // 2. Active Clip Poster / Frame (with Clip Entrance/Exit Animation)
         const clip =
           clipsWithTimelineBounds.find((c) => simTime >= c.start && simTime < c.end) ||
           clipsWithTimelineBounds[0];
@@ -1570,28 +1709,72 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             im.src = clip.posterUrl!;
           });
           if (frameImg) {
-            ctx.drawImage(frameImg, 0, 0, width, height);
+            const cAnim = computeElementAnimationState(
+              simTime,
+              clip.start,
+              clip.end,
+              clipAnimIn,
+              clipAnimDur,
+              clipAnimOut,
+              clipAnimDur
+            );
+            ctx.save();
+            ctx.globalAlpha = cAnim.opacity;
+            if (cAnim.blurPx > 0.1) ctx.filter = `blur(${cAnim.blurPx.toFixed(1)}px)`;
+            ctx.translate(width / 2 + cAnim.translateX, height / 2 + cAnim.translateY);
+            ctx.scale(cAnim.scale, cAnim.scale);
+            ctx.drawImage(frameImg, -width / 2, -height / 2, width, height);
+            ctx.restore();
           }
         }
 
-        // 3. Official Logo Top-Left
+        // 3. Official Logo Top-Left (with Entrance & End-of-Documentary Fade-Out Animation)
         if (logoImg) {
-          const logoW = Math.round(width * (logoScalePct / 100));
-          const logoH = Math.round((logoImg.height / Math.max(1, logoImg.width)) * logoW);
-          ctx.save();
-          ctx.globalAlpha = logoOpacity / 100;
-          ctx.drawImage(
-            logoImg,
-            Math.round(width * (logoPosX / 100)),
-            Math.round(height * (logoPosY / 100)),
-            logoW,
-            logoH
+          const lAnim = computeElementAnimationState(
+            simTime,
+            0,
+            totalDurationSec,
+            logoAnimIn,
+            logoAnimInDur,
+            logoAnimOut,
+            logoAnimOutDur
           );
-          ctx.restore();
+          if (lAnim.visible) {
+            const logoW = Math.round(width * (logoScalePct / 100));
+            const logoH = Math.round((logoImg.height / Math.max(1, logoImg.width)) * logoW);
+            const lx = Math.round(width * (logoPosX / 100));
+            const ly = Math.round(height * (logoPosY / 100));
+            ctx.save();
+            ctx.globalAlpha = (logoOpacity / 100) * lAnim.opacity;
+            if (lAnim.blurPx > 0.1) ctx.filter = `blur(${lAnim.blurPx.toFixed(1)}px)`;
+            ctx.translate(lx + logoW / 2 + lAnim.translateX, ly + logoH / 2 + lAnim.translateY);
+            ctx.scale(lAnim.scale, lAnim.scale);
+            ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH);
+            ctx.restore();
+          }
         }
 
-        // 4. Clip 1 Hook Text (First 8s) with Custom Font, Size, Color, Shadow & Background
+        // 4. Clip 1 Hook Text (First 8s) with Independent Line 1 (0s-8s) & Line 2 (2s-8s) Animations
         if (simTime <= clip1OverlayEndSec && (clip1Line1 || clip1Line2)) {
+          const l1Anim = computeElementAnimationState(
+            simTime,
+            hookLine1StartSec,
+            clip1OverlayEndSec,
+            hookLine1AnimIn,
+            hookLine1AnimInDur,
+            hookLine1AnimOut,
+            hookLine1AnimOutDur
+          );
+          const l2Anim = computeElementAnimationState(
+            simTime,
+            hookLine2StartSec,
+            clip1OverlayEndSec,
+            hookLine2AnimIn,
+            hookLine2AnimInDur,
+            hookLine2AnimOut,
+            hookLine2AnimOutDur
+          );
+
           ctx.save();
           ctx.textAlign = 'center';
           const scaleRatio = height / 520;
@@ -1605,7 +1788,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const totalH1 = clip1Line1 ? line1Rows.length * Math.round(f1 * 1.25) : 0;
           const totalH2 = clip1Line2 ? line2Rows.length * Math.round(f2 * 1.25) : 0;
 
-          if (hookBgStyle === 'semi' || hookBgStyle === 'solid') {
+          if ((hookBgStyle === 'semi' || hookBgStyle === 'solid') && (l1Anim.visible || l2Anim.visible)) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(l1Anim.opacity, l2Anim.opacity);
             ctx.fillStyle = hexToRgba(
               hookBgColor,
               hookBgStyle === 'solid' ? 95 : hookBgOpacity
@@ -1618,55 +1803,79 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               boxW,
               boxH
             );
+            ctx.restore();
           }
 
           let cursorY = Math.round(yCenter - (totalH1 + totalH2) / 2 + f1 * 0.65);
           if (clip1Line1) {
-            ctx.font = `700 ${f1}px ${hookFontFamily}`;
-            for (const rowText of line1Rows) {
-              if (hookBgStyle === 'word_shadow' && rowText.trim()) {
-                ctx.save();
-                const m1 = ctx.measureText(rowText);
-                const padX1 = Math.round(f1 * 0.45);
-                const padY1 = Math.round(f1 * 0.22);
-                const w1 = Math.min(width * 0.94, m1.width + padX1 * 2);
-                const h1 = f1 + padY1 * 2;
-                ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
-                ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
-                ctx.shadowBlur = Math.round(f1 * 0.55);
-                ctx.beginPath();
-                ctx.roundRect(
-                  Math.round(xCenter - w1 / 2),
-                  Math.round(cursorY - f1 * 0.88 - padY1),
-                  Math.round(w1),
-                  Math.round(h1),
-                  Math.round(f1 * 0.25)
-                );
-                ctx.fill();
-                ctx.restore();
+            if (l1Anim.visible) {
+              ctx.save();
+              ctx.globalAlpha = l1Anim.opacity;
+              if (l1Anim.blurPx > 0.1) ctx.filter = `blur(${l1Anim.blurPx.toFixed(1)}px)`;
+              ctx.translate(
+                xCenter + l1Anim.translateX * scaleRatio,
+                cursorY + l1Anim.translateY * scaleRatio
+              );
+              ctx.scale(l1Anim.scale, l1Anim.scale);
+              ctx.translate(-xCenter, -cursorY);
+              ctx.font = `700 ${f1}px ${hookFontFamily}`;
+              let rowY1 = cursorY;
+              for (const rowText of line1Rows) {
+                if (hookBgStyle === 'word_shadow' && rowText.trim()) {
+                  ctx.save();
+                  const m1 = ctx.measureText(rowText);
+                  const padX1 = Math.round(f1 * 0.45);
+                  const padY1 = Math.round(f1 * 0.22);
+                  const w1 = Math.min(width * 0.94, m1.width + padX1 * 2);
+                  const h1 = f1 + padY1 * 2;
+                  ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
+                  ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
+                  ctx.shadowBlur = Math.round(f1 * 0.55);
+                  ctx.beginPath();
+                  ctx.roundRect(
+                    Math.round(xCenter - w1 / 2),
+                    Math.round(rowY1 - f1 * 0.88 - padY1),
+                    Math.round(w1),
+                    Math.round(h1),
+                    Math.round(f1 * 0.25)
+                  );
+                  ctx.fill();
+                  ctx.restore();
+                }
+                if (hookShadowStyle !== 'none') {
+                  ctx.shadowColor =
+                    hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+                  ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
+                  ctx.shadowOffsetY = 4;
+                }
+                if (hookShadowStyle === 'outline') {
+                  ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
+                  ctx.strokeStyle = '#000000';
+                  ctx.strokeText(rowText, xCenter, rowY1);
+                }
+                ctx.fillStyle = hookLine1Color;
+                ctx.fillText(rowText, xCenter, rowY1);
+                rowY1 += Math.round(f1 * 1.25);
               }
-              if (hookShadowStyle !== 'none') {
-                ctx.shadowColor =
-                  hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-                ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
-                ctx.shadowOffsetY = 4;
-              }
-              if (hookShadowStyle === 'outline') {
-                ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
-                ctx.strokeStyle = '#000000';
-                ctx.strokeText(rowText, xCenter, cursorY);
-              }
-              ctx.fillStyle = hookLine1Color;
-              ctx.fillText(rowText, xCenter, cursorY);
-              cursorY += Math.round(f1 * 1.25);
+              ctx.restore();
             }
+            cursorY += line1Rows.length * Math.round(f1 * 1.25);
           }
-          if (clip1Line2) {
+          if (clip1Line2 && l2Anim.visible) {
             if (!clip1Line1) {
               cursorY = Math.round(yCenter - totalH2 / 2 + f2 * 0.75);
             } else {
               cursorY += Math.round(f2 * 0.25);
             }
+            ctx.save();
+            ctx.globalAlpha = l2Anim.opacity;
+            if (l2Anim.blurPx > 0.1) ctx.filter = `blur(${l2Anim.blurPx.toFixed(1)}px)`;
+            ctx.translate(
+              xCenter + l2Anim.translateX * scaleRatio,
+              cursorY + l2Anim.translateY * scaleRatio
+            );
+            ctx.scale(l2Anim.scale, l2Anim.scale);
+            ctx.translate(-xCenter, -cursorY);
             ctx.font = `900 ${f2}px ${hookFontFamily}`;
             for (const rowText of line2Rows) {
               if (hookBgStyle === 'word_shadow' && rowText.trim()) {
@@ -1705,57 +1914,77 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ctx.fillText(rowText, xCenter, cursorY);
               cursorY += Math.round(f2 * 1.25);
             }
+            ctx.restore();
           }
           ctx.restore();
         }
 
-        // 5. Active Caption (.SRT) with Custom Font, Size, Color, Shadow & Background
+        // 5. Active Caption (.SRT) with Custom Font, Size, Color, Shadow, Background & Animation
         const cap = captions.find((c) => simTime >= c.start && simTime <= c.end);
         if (cap) {
-          ctx.save();
-          const scaleRatio = height / 520;
-          const capFontPx = Math.round(captionFontSize * scaleRatio);
-          ctx.font = `800 ${capFontPx}px ${captionFontFamily}`;
-          ctx.textAlign = 'center';
-          const yPos = Math.round(height * (1 - captionBottomPct / 100));
-
-          if (captionBgStyle !== 'none') {
-            const textMetrics = ctx.measureText(cap.text);
-            const padX = Math.round(capFontPx * 0.8);
-            const padY = Math.round(capFontPx * 0.45);
-            const boxW = Math.min(width * 0.9, textMetrics.width + padX * 2);
-            const boxH = capFontPx + padY * 2;
-            ctx.fillStyle = hexToRgba(
-              captionBgColor,
-              captionBgStyle === 'solid' ? 95 : captionBgOpacity
+          const capAnim = computeElementAnimationState(
+            simTime,
+            cap.start,
+            cap.end,
+            captionAnimIn,
+            captionAnimDur,
+            captionAnimOut,
+            captionAnimDur
+          );
+          if (capAnim.visible) {
+            ctx.save();
+            const scaleRatio = height / 520;
+            const capFontPx = Math.round(captionFontSize * scaleRatio);
+            ctx.font = `800 ${capFontPx}px ${captionFontFamily}`;
+            ctx.textAlign = 'center';
+            const yPos = Math.round(height * (1 - captionBottomPct / 100));
+            ctx.globalAlpha = capAnim.opacity;
+            if (capAnim.blurPx > 0.1) ctx.filter = `blur(${capAnim.blurPx.toFixed(1)}px)`;
+            ctx.translate(
+              width / 2 + capAnim.translateX * scaleRatio,
+              yPos + capAnim.translateY * scaleRatio
             );
-            ctx.fillRect(
-              Math.round((width - boxW) / 2),
-              Math.round(yPos - capFontPx - padY * 0.5),
-              Math.round(boxW),
-              Math.round(boxH)
-            );
-          }
+            ctx.scale(capAnim.scale, capAnim.scale);
+            ctx.translate(-width / 2, -yPos);
 
-          if (captionShadowStyle === 'outline') {
-            ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
-            ctx.strokeStyle = '#000000';
-            ctx.strokeText(cap.text, width / 2, yPos);
-          } else if (captionShadowStyle !== 'none') {
-            ctx.shadowColor =
-              captionShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-            ctx.shadowBlur = captionShadowStyle === 'soft' ? 6 : 14;
-            ctx.shadowOffsetY = 3;
-          }
+            if (captionBgStyle !== 'none') {
+              const textMetrics = ctx.measureText(cap.text);
+              const padX = Math.round(capFontPx * 0.8);
+              const padY = Math.round(capFontPx * 0.45);
+              const boxW = Math.min(width * 0.9, textMetrics.width + padX * 2);
+              const boxH = capFontPx + padY * 2;
+              ctx.fillStyle = hexToRgba(
+                captionBgColor,
+                captionBgStyle === 'solid' ? 95 : captionBgOpacity
+              );
+              ctx.fillRect(
+                Math.round((width - boxW) / 2),
+                Math.round(yPos - capFontPx - padY * 0.5),
+                Math.round(boxW),
+                Math.round(boxH)
+              );
+            }
 
-          ctx.fillStyle =
-            captionColor === 'amber'
-              ? '#fde047'
-              : captionColor === 'custom'
-              ? captionCustomColor
-              : '#ffffff';
-          ctx.fillText(cap.text, width / 2, yPos);
-          ctx.restore();
+            if (captionShadowStyle === 'outline') {
+              ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
+              ctx.strokeStyle = '#000000';
+              ctx.strokeText(cap.text, width / 2, yPos);
+            } else if (captionShadowStyle !== 'none') {
+              ctx.shadowColor =
+                captionShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+              ctx.shadowBlur = captionShadowStyle === 'soft' ? 6 : 14;
+              ctx.shadowOffsetY = 3;
+            }
+
+            ctx.fillStyle =
+              captionColor === 'amber'
+                ? '#fde047'
+                : captionColor === 'custom'
+                ? captionCustomColor
+                : '#ffffff';
+            ctx.fillText(cap.text, width / 2, yPos);
+            ctx.restore();
+          }
         }
 
         await new Promise((r) => setTimeout(r, 35));
@@ -1802,6 +2031,61 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     clipProgressRatio *
     2.4
   ).toFixed(2);
+
+  // Real-time viewer animation states for Clip/Image, Official Logo, Hook Line 1, Hook Line 2 & Captions
+  const liveClipAnim = activeClipAtPlayhead
+    ? computeElementAnimationState(
+        currentTime,
+        activeClipAtPlayhead.start,
+        activeClipAtPlayhead.end,
+        clipAnimIn,
+        clipAnimDur,
+        clipAnimOut,
+        clipAnimDur
+      )
+    : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
+
+  const liveLogoAnim = computeElementAnimationState(
+    currentTime,
+    0,
+    totalDurationSec,
+    logoAnimIn,
+    logoAnimInDur,
+    logoAnimOut,
+    logoAnimOutDur
+  );
+
+  const liveHookLine1Anim = computeElementAnimationState(
+    currentTime,
+    hookLine1StartSec,
+    clip1OverlayEndSec,
+    hookLine1AnimIn,
+    hookLine1AnimInDur,
+    hookLine1AnimOut,
+    hookLine1AnimOutDur
+  );
+
+  const liveHookLine2Anim = computeElementAnimationState(
+    currentTime,
+    hookLine2StartSec,
+    clip1OverlayEndSec,
+    hookLine2AnimIn,
+    hookLine2AnimInDur,
+    hookLine2AnimOut,
+    hookLine2AnimOutDur
+  );
+
+  const liveCaptionAnim = activeCaptionAtPlayhead
+    ? computeElementAnimationState(
+        currentTime,
+        activeCaptionAtPlayhead.start,
+        activeCaptionAtPlayhead.end,
+        captionAnimIn,
+        captionAnimDur,
+        captionAnimOut,
+        captionAnimDur
+      )
+    : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
   return (
     <div className="flex-1 flex flex-col bg-[#0c0a08] text-slate-100 min-h-0">
@@ -2133,14 +2417,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           >
             <div
               ref={viewerCanvasRef}
+              onMouseDown={() => {
+                if (selectedCanvasObject !== null) {
+                  if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                }
+              }}
               onClick={() => {
-                setSelectedCanvasObject(null);
+                if (selectedCanvasObject !== null) {
+                  setSelectedCanvasObject(null);
+                  return;
+                }
                 handleTogglePlay();
               }}
               className={`relative w-full bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
                 aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16]'
               }`}
-              title="Haz clic en el video para Reproducir / Pausar, o haz clic sobre el Logo, el Texto en Pantalla o los Captions para seleccionarlos y editarlos"
+              title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
               {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
               {activeClipAtPlayhead?.videoUrl ? (
@@ -2241,6 +2535,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
               {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer) */}
               <div
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedCanvasObject('logo');
@@ -2518,19 +2813,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {/* Layer 4: Dynamic Captions (.SRT) — Selectable & Editable directly inside the Video Viewer! */}
               {(activeCaptionAtPlayhead || selectedCanvasObject === 'captions') && (
                 <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedCanvasObject('captions');
-                    setActiveInspectorTab('captions');
-                  }}
-                  className="absolute inset-x-4 z-20 text-center cursor-pointer"
+                  className="absolute inset-x-4 z-20 text-center pointer-events-none"
                   style={{ bottom: `${captionBottomPct}%` }}
-                  title="Haz clic para seleccionar y editar los Captions directamente aquí"
                 >
                   {selectedCanvasObject === 'captions' && activeCaptionAtPlayhead ? (
                     <div
+                      onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex flex-col items-center gap-1 bg-black/85 border-2 border-sky-400 rounded-xl p-2 shadow-2xl min-w-[280px] max-w-[90%]"
+                      className="pointer-events-auto inline-flex flex-col items-center gap-1 bg-black/85 border-2 border-sky-400 rounded-xl p-2 shadow-2xl min-w-[280px] max-w-[90%]"
                     >
                       <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-950 font-sans font-black text-[9px]">
                         💬 Editando Caption #{activeCaptionAtPlayhead.index} ({formatTimeMMSS(activeCaptionAtPlayhead.start)} - {formatTimeMMSS(activeCaptionAtPlayhead.end)})
@@ -2563,7 +2853,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   ) : (
                     <span
-                      className={`${
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCanvasObject('captions');
+                        setActiveInspectorTab('captions');
+                      }}
+                      title="Haz clic para seleccionar y editar los Captions directamente aquí"
+                      className={`pointer-events-auto cursor-pointer ${
                         captionBgStyle === 'word_shadow' ? 'inline px-2.5 py-0.5 rounded-md' : 'inline-block px-3.5 py-1 rounded-lg'
                       } font-extrabold transition whitespace-pre-line ${
                         selectedCanvasObject === 'captions'
