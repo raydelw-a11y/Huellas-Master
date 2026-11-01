@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:30 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:37 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1944,6 +1944,10 @@ export default function App() {
     explicitSubFolder?: string
   ): Promise<boolean> => {
     const cleanFileName = fileName.replace(/^.*[\\/]/, '');
+    // Never create legacy Suno_0X.mp3 files (we use FlowMusic_0X...mp3 exclusively)
+    if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(cleanFileName)) {
+      return true;
+    }
     const resolvedSubFolder = resolveSubfolderForDocumentaryAsset(cleanFileName, explicitSubFolder);
 
     // Restore handle from IndexedDB if needed
@@ -2726,7 +2730,7 @@ export default function App() {
       .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s.*?(?:bokeh\)?\.|morphing\.)\s*/gi, '')
       .replace(/Strictly\s*zero\s*people\s*or\s*human\s*figures\s*appearing\s*anywhere\s*in\s*the\s*frame\s*from\s*0s\s*to\s*\d+s\.\s*/gi, '')
       .replace(/(?<!f\/1\.)(?:8\s*bokeh\)?\.?\s*)+/gi, '')
-      .replace(/All\s*tables,\s*documents,[^.]*gravity-locked[^.]*\.\s*/gi, '')
+      .replace(/All\s*(?:tables,\s*documents,|furniture,\s*tables,)[^.]*(?:gravity-locked|physically\s*solid)[^.]*\.\s*/gi, '')
       .replace(/Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
       .replace(/SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE[^.]*\.\s*/gi, '')
@@ -2840,7 +2844,7 @@ export default function App() {
 
     if (isAll || hadObjects || hadVisualLogic) {
       directiveParts.push(
-        `All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to ${clipSec}s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects.`
+        `All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to ${clipSec}s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects.`
       );
     }
 

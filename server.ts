@@ -2618,6 +2618,10 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
       return;
     }
     const safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._@-]/g, '_'));
+    if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(safeName)) {
+      res.json({ ok: true, skippedLegacySuno: true, fileName: safeName });
+      return;
+    }
     const rootDir = String(folderPath).trim();
     ensureDocumentarySubfolders(rootDir);
     const resolvedSub = resolveSubfolderForDocumentaryAsset(safeName, subFolder);
@@ -3132,7 +3136,19 @@ function resolveLocalDocumentaryFolder(folderPathQuery?: string, folderNameQuery
   const rawName = String(folderNameQuery || '').trim();
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   if (rawName && homeDir) {
+    const icloudVideosDir = path.join(
+      homeDir,
+      'Library',
+      'Mobile Documents',
+      'com~apple~CloudDocs',
+      '0YouTube',
+      'Huellas de la Humanidad',
+      'Videos'
+    );
     const candidates = [
+      path.join(icloudVideosDir, rawName),
+      path.join(icloudVideosDir, rawName.normalize('NFD')),
+      path.join(icloudVideosDir, rawName.normalize('NFC')),
       path.join(homeDir, 'Desktop', rawName),
       path.join(homeDir, 'Downloads', rawName),
       path.join(homeDir, 'Documents', rawName),
@@ -3141,6 +3157,15 @@ function resolveLocalDocumentaryFolder(folderPathQuery?: string, folderNameQuery
     for (const c of candidates) {
       if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
         return c;
+      }
+    }
+    if (fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+      const targetNorm = rawName.normalize('NFC').toLowerCase();
+      for (const entry of fs.readdirSync(icloudVideosDir)) {
+        if (entry.normalize('NFC').toLowerCase() === targetNorm) {
+          const full = path.join(icloudVideosDir, entry);
+          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+        }
       }
     }
   }
