@@ -28,6 +28,7 @@ import {
   stripPauseTags,
   normalizeQuantitiesToMil,
   getStage1ClipDurations,
+  normalizeClip1Line1Format,
 } from '../utils/smartParsers';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
@@ -347,7 +348,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [logoPosY, setLogoPosY] = useState<number>(3);
 
   // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background & Position
-  const [clip1Line1, setClip1Line1] = useState<string>(activeDoc?.clip1Line1LocationTime || '');
+  const [clip1Line1, setClip1Line1] = useState<string>(
+    normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '')
+  );
   const [clip1Line2, setClip1Line2] = useState<string>(activeDoc?.clip1Line2Hook || '');
   const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
@@ -622,8 +625,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const entrySec = c1BaseDur || 8;
 
     setClip1Line1(
-      activeDoc.clip1Line1LocationTime ||
-        [activeDoc.historicalLocation, activeDoc.historicalTime].filter(Boolean).join(' • ')
+      normalizeClip1Line1Format(
+        activeDoc.clip1Line1LocationTime ||
+          [activeDoc.historicalLocation, activeDoc.historicalTime].filter(Boolean).join(', ')
+      )
     );
     setClip1Line2(activeDoc.clip1Line2Hook || activeDoc.title || '');
     setClip1OverlayEndSec(entrySec);

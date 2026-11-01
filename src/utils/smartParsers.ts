@@ -1027,6 +1027,45 @@ export function normalizeQuantitiesToMil(text: string): string {
   return result;
 }
 
+/**
+ * Formats Stage 7 Line 1 (Location + Time) so that:
+ * - "Siglo" is always capitalized ("Siglo XIX", "Siglo XIII")
+ * - "Año" (capitalized) is always placed before a year in digits ("Santander, España, Año 1885")
+ */
+export function normalizeClip1Line1Format(rawLine1: string): string {
+  if (!rawLine1 || typeof rawLine1 !== 'string') return '';
+  let s = rawLine1.trim();
+  if (!s) return '';
+
+  // 1. Capitalize "Siglo" and ensure Roman numeral is uppercase
+  s = s.replace(/\bsiglo\s+([ivxlcdm]+)\b/gi, (_, roman) => `Siglo ${String(roman).toUpperCase()}`);
+  s = s.replace(/\bsiglo\b/gi, 'Siglo');
+
+  // 2. Capitalize "Año" if already present
+  s = s.replace(/\baño\s+(\d{1,4})\b/gi, 'Año $1');
+
+  // 3. If neither "Año" nor "Siglo" is present, prepend "Año " before the year
+  if (!/\b(?:Año|Siglo)\b/i.test(s)) {
+    if (
+      /(^|[,•\-–—\s])(\d{3,4}(?:\s*[-–]\s*\d{2,4})?(?:\s*(?:a\.\s*C\.|d\.\s*C\.))?)(?=$|[,•\-–—\s])/i.test(
+        s
+      )
+    ) {
+      s = s.replace(
+        /(^|[,•\-–—\s])(\d{3,4}(?:\s*[-–]\s*\d{2,4})?(?:\s*(?:a\.\s*C\.|d\.\s*C\.))?)(?=$|[,•\-–—\s])/i,
+        '$1Año $2'
+      );
+    } else if (/(^|[,•\-–—\s])(\d{1,3}\s*(?:a\.\s*C\.|d\.\s*C\.))(?=$|[,•\-–—\s])/i.test(s)) {
+      s = s.replace(
+        /(^|[,•\-–—\s])(\d{1,3}\s*(?:a\.\s*C\.|d\.\s*C\.))(?=$|[,•\-–—\s])/i,
+        '$1Año $2'
+      );
+    }
+  }
+
+  return s.replace(/\s{2,}/g, ' ').trim();
+}
+
 function normalizeToken(str: string): string {
   if (!str) return '';
   return str

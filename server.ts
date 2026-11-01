@@ -1825,9 +1825,9 @@ Título del video: ${doc.title || ''}
 Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Guion: ${(doc.voiceoverScript || '').slice(0, 600)}
 Propón 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video):
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [Título Gancho intrigante y cinematográfico]
-REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura.`;
+Línea 1: [Ciudad, País, Año XXXX (con la palabra "Año" delante del año en dígitos) o Siglo XX (con "Siglo" con S mayúscula y números romanos)] (ej. "Santander, España, Año 1885" o "París, Francia, Siglo XIII")
+Línea 2: [Título Gancho sugerente de lo que va a tratar el documental: intrigante a la vez que revelador del tema central. PROHIBIDO usar una frase suelta o abstracta que no sugiera directamente el tema del documental]
+REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura, pero que sí revele e intrigue directamente sobre el tema central del documental.`;
     } else if (stageNumber === 8) {
       const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.

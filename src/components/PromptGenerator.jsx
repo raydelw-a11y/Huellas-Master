@@ -520,11 +520,11 @@ La IA DEBE PREGUNTAR OBLIGATORIAMENTE AL USUARIO:
 "¿Qué texto ponemos en la apertura del video para el Clip 1?"
 La IA debe explicar al usuario que este texto corresponde al letrero o rótulo de gancho visual en pantalla durante los primeros [DURACION_CLIP_1_RALENTIZADO] segundos del video (la ventana del Hook sin voz en off de 00:00 a 00:[DURACION_CLIP_1_RALENTIZADO_PAD], correspondiente a Clip 1 de [DURACION_CLIP_1]s [00:00 - 00:[DURACION_CLIP_1_PAD]] más los primeros 2 segundos de Clip 2 [00:[DURACION_CLIP_1_PAD] - 00:[DURACION_CLIP_1_RALENTIZADO_PAD]], con exclusivo diseño sonoro Foley ambiental, entrando la voz en el segundo [DURACION_CLIP_1_RALENTIZADO] que es el segundo 2 del Clip 2).
 Diseño para Reproducción en Silencio: Como alrededor del 70% de los usuarios ven los primeros segundos sin audio, este apoyo visual claro y los subtítulos dinámicos posteriores en CapCut son obligatorios para retener al espectador. Para facilitarle la selección y decisión al usuario, la IA debe proponerle obligatoriamente de 2 a 3 opciones atractivas, intrigantes y de alto impacto adaptadas al tema del video, estructuradas obligatoriamente en el siguiente formato de dos líneas:
-- Primera línea: Ciudad, País, Tiempo (con años en dígitos numéricos y siglos obligatoriamente en números romanos; ej. "Londres, Inglaterra, 1888" o "París, Francia, siglo XIX").
-- Segunda línea (justo debajo): El Gancho (frase corta y contundente, enigma intrigante o revelación perturbadora que detenga el scroll al instante, cumpliendo la regla inquebrantable de NO repetir lo mismo entre este texto en pantalla de los primeros [DURACION_CLIP_1_RALENTIZADO] segundos, el título del video y el texto de la miniatura).
+- Primera línea: Ciudad, País, Tiempo (escribiendo SIEMPRE la palabra "Año" delante del año en dígitos numéricos, o "Siglo" con S mayúscula seguido de números romanos; ej. "Santander, España, Año 1885" o "París, Francia, Siglo XIII").
+- Segunda línea (justo debajo): El Gancho Sugerente (frase corta, intrigante a la vez que reveladora que sugiera directamente de lo que va a tratar el documental; PROHIBIDO usar una frase suelta o abstracta que no conecte directamente con el tema central del documental, y cumpliendo la regla inquebrantable de NO repetir lo mismo entre este texto en pantalla de los primeros [DURACION_CLIP_1_RALENTIZADO] segundos, el título del video y el texto de la miniatura).
 Ejemplo visual del formato a entregar:
-[Ciudad], [País], [Tiempo]
-[Frase de gancho intrigante o perturbadora]
+[Ciudad], [País], Año [XXXX] (o Siglo [Romano])
+[Frase de gancho intrigante y reveladora sobre el tema del documental]
 
 Y darle al usuario la opción de elegir una de las opciones sugeridas, editarla o indicar su propio texto.
 Se debe aclarar al usuario que dicho texto es para ser insertado manualmente durante la edición posterior en CapCut (los prompts de Nano Banana 2.1 y Omni Flash se mantienen estrictamente con la directriz 'no text').
@@ -534,11 +534,11 @@ Se debe aclarar al usuario que dicho texto es para ser insertado manualmente dur
 La IA DEBE PRESENTAR OBLIGATORIAMENTE AL USUARIO LA SELECCIÓN DEL TEXTO EN PANTALLA QUE SE INTEGRARÁ EN EL PROMPT DEL CLIP 1:
 La IA presentará al usuario de 2 a 3 opciones atractivas, intrigantes y cinematográficas adaptadas al tema del video para que el usuario seleccione la que irá integrada en el prompt de video del Clip 1 de [DURACION_CLIP_1] segundos (tipo comienzo de un documental cinematográfico con tipografía cinematográfica integrada).
 Dichas opciones deben estructuramente obligatoriamente en el formato de dos líneas:
-- Primera línea: Ciudad, País, Tiempo (con años en números/dígitos y siglos obligatoriamente en números romanos; ej. "Londres, Inglaterra, 1888" o "París, Francia, siglo XIX").
-- Segunda línea (justo debajo): El Gancho (frase corta e intrigante con tipografía cinematográfica integrada, cumpliendo la regla inquebrantable de NO repetir lo mismo entre este texto en pantalla de los primeros [DURACION_CLIP_1_RALENTIZADO] segundos, el título del video y el texto de la miniatura).
+- Primera línea: Ciudad, País, Tiempo (escribiendo SIEMPRE la palabra "Año" delante del año en dígitos numéricos, o "Siglo" con S mayúscula seguido de números romanos; ej. "Santander, España, Año 1885" o "París, Francia, Siglo XIII").
+- Segunda línea (justo debajo): El Gancho Sugerente (frase corta, intrigante a la vez que reveladora que sugiera directamente de lo que va a tratar el documental con tipografía cinematográfica integrada; PROHIBIDO usar una frase suelta o abstracta que no sugiera directamente el tema del documental, y cumpliendo la regla inquebrantable de NO repetir lo mismo entre este texto en pantalla de los primeros [DURACION_CLIP_1_RALENTIZADO] segundos, el título del video y el texto de la miniatura).
 Ejemplo visual del formato a entregar:
-[Ciudad], [País], [Tiempo]
-[Frase de gancho intrigante o perturbadora]
+[Ciudad], [País], Año [XXXX] (o Siglo [Romano])
+[Frase de gancho intrigante y reveladora sobre el tema del documental]
 
 Y darle al usuario la opción de elegir una de las opciones sugeridas, editarla o indicar su propio texto.
 La IA recordará que este texto seleccionado se integrará única y exclusivamente en el prompt del Clip 1 de video (la Imagen 1 se mantendrá estrictamente con 'no text'), y recordará la instrucción operativa para el montaje: "En edición, baja la velocidad de este Clip 1 de [DURACION_CLIP_1] segundos para llevarlo a [DURACION_CLIP_1_RALENTIZADO] segundos de duración".

@@ -78,6 +78,7 @@ import {
   ensureOperationalHeaderInRawClips,
   buildRawClipsTextWithHeader,
   applyAutomaticFlowPolicyShield,
+  normalizeClip1Line1Format,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -116,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:59 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:08 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -139,10 +140,12 @@ function parseClip1OptionsFromRawText(
       /^(?:\*\*?)?L[íi]nea\s*2(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
     );
     if (l1Match) {
-      pendingLine1 = l1Match[1]
-        .replace(/^\[|\]$/g, '')
-        .replace(/^["'«»“”*]+|["'«»“”*]+$/g, '')
-        .trim();
+      pendingLine1 = normalizeClip1Line1Format(
+        l1Match[1]
+          .replace(/^\[|\]$/g, '')
+          .replace(/^["'«»“”*]+|["'«»“”*]+$/g, '')
+          .trim()
+      );
     } else if (l2Match && pendingLine1) {
       const line2Val = l2Match[1]
         .replace(/^\[|\]$/g, '')
@@ -8730,7 +8733,7 @@ export default function App() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Línea 1: Ciudad, País, Tiempo (Año en dígitos o Siglo en romanos)
+                      Línea 1: Ciudad, País, Tiempo (&quot;Año&quot; delante del año en dígitos o &quot;Siglo&quot; con mayúscula en romanos)
                     </label>
                     <input
                       type="text"
@@ -8738,20 +8741,26 @@ export default function App() {
                       onChange={(e) =>
                         updateActiveDoc({ clip1Line1LocationTime: e.target.value })
                       }
-                      placeholder="Ej. Londres, Inglaterra, 1888"
+                      onBlur={(e) => {
+                        const formatted = normalizeClip1Line1Format(e.target.value);
+                        if (formatted && formatted !== activeDoc.clip1Line1LocationTime) {
+                          updateActiveDoc({ clip1Line1LocationTime: formatted });
+                        }
+                      }}
+                      placeholder="Ej. Santander, España, Año 1885 | París, Francia, Siglo XIII"
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-amber-200 font-semibold"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Línea 2: Título Gancho Intrigante
+                      Línea 2: Título Gancho Intrigante y Revelador (Sugerente del Tema del Documental)
                     </label>
                     <input
                       type="text"
                       value={activeDoc.clip1Line2Hook}
                       onChange={(e) => updateActiveDoc({ clip1Line2Hook: e.target.value })}
-                      placeholder="Ej. LA SOMBRA QUE DESAFIÓ A SCOTLAND YARD"
+                      placeholder="Ej. EL ÉXODO DE 3 MILLONES DE ESPAÑOLES QUE TRANSFORMÓ AMÉRICA"
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white font-bold"
                     />
                   </div>
@@ -8821,7 +8830,8 @@ export default function App() {
                   </h3>
                   <div className="aspect-video bg-gradient-to-b from-slate-900 via-black to-slate-950 rounded-xl border border-amber-500/40 flex flex-col items-center justify-center p-8 text-center shadow-2xl relative overflow-hidden">
                     <div className="text-xs uppercase tracking-[0.25em] text-amber-300/90 font-semibold mb-2">
-                      {activeDoc.clip1Line1LocationTime || 'CIUDAD, PAÍS, AÑO'}
+                      {normalizeClip1Line1Format(activeDoc.clip1Line1LocationTime) ||
+                        'CIUDAD, PAÍS, AÑO 1885'}
                     </div>
                     <div className="text-xl md:text-2xl font-bold text-white tracking-wide max-w-md leading-snug drop-shadow">
                       {activeDoc.clip1Line2Hook || 'TÍTULO GANCHO DEL DOCUMENTAL'}

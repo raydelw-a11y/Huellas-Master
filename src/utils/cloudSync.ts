@@ -7,6 +7,7 @@ import {
   ensureOperationalHeaderInRawClips,
   getStage1ClipDurations,
   stripPauseTags,
+  normalizeClip1Line1Format,
 } from './smartParsers';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
@@ -343,11 +344,49 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     }
   }
 
+  let nextClip1Line1 = normalizeClip1Line1Format(doc.clip1Line1LocationTime || '');
+  let nextClip1Line2 = doc.clip1Line2Hook || '';
+  let nextClip1OptionsRaw = doc.clip1OptionsRaw || '';
+
+  if (isVideo76Exodo) {
+    const defaultV76Options = `Opción 1:
+Línea 1: Santander, España, Año 1885
+Línea 2: EL ÉXODO DE 3 MILLONES DE ESPAÑOLES QUE TRANSFORMÓ AMÉRICA
+
+Opción 2:
+Línea 1: La Habana y Veracruz, Siglo XIX
+Línea 2: LA CRUDA VERDAD DETRÁS DEL SUEÑO ESPAÑOL DE HACER LA AMÉRICA
+
+Opción 3:
+Línea 1: Puertos del Atlántico, Año 1885
+Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
+
+    const hasRevealingThemeInHook =
+      /éxodo|exodo|españoles|espanoles|hacer la américa|hacer la america|emigrantes|3 millones/i.test(
+        nextClip1Line2
+      );
+    if (!nextClip1Line1 || !/\b(?:Año|Siglo)\b/.test(nextClip1Line1)) {
+      nextClip1Line1 = 'Santander, España, Año 1885';
+    }
+    if (!nextClip1Line2 || !hasRevealingThemeInHook) {
+      nextClip1Line2 = 'EL ÉXODO DE 3 MILLONES DE ESPAÑOLES QUE TRANSFORMÓ AMÉRICA';
+    }
+    if (
+      !nextClip1OptionsRaw ||
+      !/Santander,\s*España,\s*Año\s*1885/i.test(nextClip1OptionsRaw)
+    ) {
+      nextClip1OptionsRaw = defaultV76Options;
+    }
+  }
+
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
     audioTracks !== doc.audioTracks ||
     nextClips !== doc.clips ||
-    nextRawClipsText !== doc.rawClipsText
+    nextRawClipsText !== doc.rawClipsText ||
+    nextClip1Line1 !== (doc.clip1Line1LocationTime || '') ||
+    nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
+    nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '')
   ) {
     return {
       ...doc,
@@ -355,6 +394,9 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       audioTracks,
       clips: nextClips,
       rawClipsText: nextRawClipsText,
+      clip1Line1LocationTime: nextClip1Line1,
+      clip1Line2Hook: nextClip1Line2,
+      clip1OptionsRaw: nextClip1OptionsRaw,
     };
   }
   return doc;
@@ -944,18 +986,21 @@ Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || 'Ninguno'}
 ${clip1VisualContext ? `Escena visual del Clip 1: ${clip1VisualContext}\n` : ''}Guion de referencia: "${scriptContext}"
 Propón EXACTAMENTE 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video, sin voz narrativa):
 Opción 1:
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+Línea 1: [Ciudad, País, Año XXXX (anteponiendo SIEMPRE la palabra "Año" con mayúscula inicial delante del año en dígitos, ej. "Santander, España, Año 1885") o Siglo XX (escribiendo SIEMPRE "Siglo" con S mayúscula y número romano, ej. "París, Francia, Siglo XIII")]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
 
 Opción 2:
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+Línea 1: [Ciudad, País, Año XXXX o Siglo XX]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
 
 Opción 3:
-Línea 1: [Ciudad, País, Año en dígitos o Siglo en romanos]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y CINEMATOGRÁFICO EN MAYÚSCULAS]
+Línea 1: [Ciudad, País, Año XXXX o Siglo XX]
+Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
 
-REGLA INQUEBRANTABLE DE NO REPETICIÓN: No repitas lo mismo que el Título del video ni el Texto de la Miniatura.`;
+REGLAS INQUEBRANTABLES DE LA ETAPA 7:
+1. FORMATO DE LA LÍNEA 1 ("Año" / "Siglo"): Si lleva un año específico, DEBE llevar obligatoriamente la palabra "Año" delante del número (ej. "Santander, España, Año 1885", "Londres, Inglaterra, Año 1888"). Si lleva un siglo, DEBE escribirse "Siglo" con S mayúscula seguido del número romano en mayúsculas (ej. "París, Francia, Siglo XIII").
+2. LÍNEA 2 INTRIGANTE PERO REVELADORA DEL TEMA: Queda terminantemente prohibido usar frases sueltas, poéticas, ambiguas o genéricas que no sugieran directamente de qué va a tratar el documental. La Línea 2 DEBE sugerir directamente el tema central del documental combinando intriga y revelación histórica concreta para que el espectador entienda al instante qué historia va a descubrir y se quede a verla.
+3. NO REPETICIÓN LITERAL: No repitas palabra por palabra el Título del video ni el Texto de la Miniatura.`;
   } else if (stageNumber === 8) {
     const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
     const refsListText =
