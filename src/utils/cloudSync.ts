@@ -219,14 +219,27 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const newClip23 =
       "Clip 23 (03:36 - 03:46): Create a video showing a slow over-the-shoulder push-in behind the single Spanish soldier standing still at the ship's iron railing in Cádiz harbor, Spain, 1895, as sea breeze gently moves his hat brim and ocean waves ripple below. Ambient Foley: deep steamship horn echoing across the bay, ocean waves lapping against the hull, sea wind, single continuous shot, strictly no shot changes, no music, no speech, no text. y Gibraltar. Incluso el aparato militar operó como un puente sin retorno: de los 345 mil soldados enviados a Cuba a finales del siglo XIX, cerca. fix the name";
 
+    const newImg27 =
+      'Image 27: Create an image of two mature 45-year-old Spanish emigrants in wool berets and heavy corduroy coats standing beside rope-tied wooden trunks on the wet cobblestone pier of La Coruña, Spain, 1905, examining a paper steamship ticket while a massive black-hulled steamship rests moored in soft f/1.8 background bokeh, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people). STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
+    const newClip27 =
+      'Clip 27 (04:16 - 04:26): Create a video showing a slow dolly push-in on the two mature 45-year-old Spanish emigrants in wool berets standing beside their stationary wooden trunks on the wet stone pier in La Coruña, Spain, 1905, looking up from their ticket toward the moored steamship as harbor mist drifts past. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Fixed subject count from 0s to 10s with stationary wooden trunks on the stone ground. Ambient Foley: Atlantic harbor breeze, gentle water lapping stone pier, distant steamship horn, single continuous shot, strictly no shot changes, no music, no speech, no text. de La Coruña, de donde partieron cerca de 500 mil pasajeros, así como en Vigo, Santander, el puerto de El Musel en Gijón, Tenerife. fix the name';
+
     const newImg35 =
       'Image 35: Create an image of the dark iron boiler room of a Spanish transatlantic steamship in 1907, soot-covered stokers resting their shovels as the glowing coal furnaces dim and white steam settles around brass pressure gauges, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
     const newClip35 =
       'Clip 35 (05:36 - 05:46): Create a video showing a slow push-in toward the dimming iron coal furnaces and brass pressure gauges in the quiet steamship boiler room in 1907 as thin white steam gently dissipates in the air. Ambient Foley: dying furnace embers crackling softly, final steam valve hiss fading into silence, cooling iron ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. de Alfonso XIII, todos compartían la misma incertidumbre al divisar la costa americana. ¿Qué ocurría realmente cuando las calderas se apagaban y aquellos viajeros exhaustos se. fix the name';
     const newImg42 =
-      "Image 42: Create an image of stacked emigrants' wooden trunks with tied cardboard quarantine tags in the reception hall of Triscornia camp, Havana, Cuba, 1905, beside a wooden table holding amber glass bottles of disinfectant and a brass medical seal, 16:9 horizontal, warm window light, cinematic lighting, historical accuracy, no text.";
+      "Image 42: Create an image of stacked emigrants' wooden trunks with tied cardboard quarantine tags in the empty sunlit reception hall of Triscornia camp, Havana, Cuba, 1905, beside a wooden table holding amber glass bottles of disinfectant and a brass medical seal, strictly an empty architectural interior with zero people and no human figures anywhere in the frame, 16:9 horizontal, warm window light, cinematic lighting, historical accuracy, no text.";
     const newClip42 =
-      'Clip 42 (06:46 - 06:56): Create a video showing a slow lateral camera dolly across the stacked wooden trunks with quarantine tags and the amber glass disinfectant bottles in the sunlit reception hall of Triscornia, Havana, Cuba, 1905, as dust motes float in the air. Ambient Foley: paper quarantine tags fluttering softly in the draft, wooden floorboards creaking, distant footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. paseo central por jardines con 35 mil rosales. Al mando del campamento se encontraba el doctor Frank Menocal, cirujano de 39 años de edad hacia 1905. fix the name';
+      'Clip 42 (06:46 - 06:56): Create a video showing a slow lateral camera dolly across the stacked wooden trunks with quarantine tags and the amber glass disinfectant bottles on the wooden table in the empty sunlit reception hall of Triscornia, Havana, Cuba, 1905, as dust motes float in the warm window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: paper quarantine tags fluttering softly in the draft, wooden floorboards creaking, distant harbor breeze, single continuous shot, strictly no shot changes, no music, no speech, no text. paseo central por jardines con 35 mil rosales. Al mando del campamento se encontraba el doctor Frank Menocal, cirujano de 39 años de edad hacia 1905. fix the name';
+    const newImg45 =
+      "Image 45: Create an image of the interior of a wooden dormitory pavilion in Triscornia camp, Havana, Cuba, 1905, showing neat rows of empty folding canvas cots with folded wool blankets and emigrants' wooden trunks resting at the foot of each cot, warm beams of tropical sunlight streaming through screened wooden windows, strictly an empty architectural interior with zero people and no human figures anywhere in the frame, 16:9 horizontal, cinematic lighting, historical accuracy, no text.";
+    const newClip45 =
+      'Clip 45 (07:16 - 07:26): Create a video showing a slow, smooth forward dolly shot down the center aisle between the rows of empty canvas cots and wooden trunks inside the sunlit wooden pavilion in Havana, Cuba, 1905, as dust motes float gently in the beams of window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: wooden floorboards creaking softly, warm tropical breeze rustling window screens, distant harbor ambience, single continuous shot, strictly no shot changes, no music, no speech, no text. varilla de vidrio buscando granulaciones de tracoma, una infección ocular que significaba la deportación inmediata. Entre julio y octubre de 1905 arribaron más de. fix the name';
+    const newImg55 =
+      "Image 55: Create an image of a stern older Spanish store owner in a dark vest standing with both hands resting empty on a polished mahogany counter in a traditional grocery store in Mexico City, Mexico, 1910, speaking seriously to an adult newly arrived Spanish clerk in a white linen apron standing across the counter with empty hands (strictly no brooms or tools in anyone's hands), 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.";
+    const newClip55 =
+      'Clip 55 (08:56 - 09:06): Create a video showing a steady medium shot as the stern Spanish store owner stands behind the mahogany counter in Mexico City, Mexico, 1910, speaking and giving instructions with a calm authoritative gesture of his empty hand (without handing over any broom or object), while the clerk in the white apron nods respectfully, turns away from the counter, and walks out of the scene to go work. Ambient Foley: hands resting on polished mahogany wood, linen apron rustling, leather boots walking away on wooden floorboards, pocket watch ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. tiendas y panaderías para alcanzar la prometida prosperidad? Lejos del mito romántico del indiano que amasaba fortuna al instante, los almacenes de abarrotes como El. fix the name';
     const newImg76 =
       'Image 76: Create an image of @Pedro_Garfias_Zurita wearing thick tortoise-shell glasses, a black beret, and a worn shepherd jacket standing thoughtfully at the iron railing on the Sinaia steamship deck in Veracruz harbor, Mexico, 1939, surrounded only by adult passengers aged 35 to 60 in the background, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip76 =
@@ -278,6 +291,19 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         }
         if (
           c &&
+          c.clipNumber === 27 &&
+          (/crowded harbor pier in Vigo|hundreds of emigrants/i.test(c.imagePrompt || '') ||
+            /emigrants lifting their wooden trunks|crowded stone pier in Vigo/i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg27,
+            videoPrompt: newClip27,
+          };
+        }
+        if (
+          c &&
           c.clipNumber === 35 &&
           (/heavy iron anchor|anchor chain plunges/i.test(c.imagePrompt || '') ||
             /heavy iron anchor|anchor chain plunges/i.test(c.videoPrompt || ''))
@@ -293,13 +319,45 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           c &&
           c.clipNumber === 42 &&
           (/Disinfection Brigade|steam autoclave/i.test(c.imagePrompt || '') ||
-            /steam autoclave|iron door of the steam autoclave/i.test(c.videoPrompt || ''))
+            /steam autoclave|iron door of the steam autoclave/i.test(c.videoPrompt || '') ||
+            !/strictly an empty architectural interior with zero people/i.test(c.imagePrompt || '') ||
+            !/strictly an empty architectural interior with zero people/i.test(c.videoPrompt || ''))
         ) {
           clipsChanged = true;
           return {
             ...c,
             imagePrompt: newImg42,
             videoPrompt: newClip42,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 45 &&
+          (/overcrowded wooden dormitory|hundreds of Spanish immigrants|packed aisle of canvas cots/i.test(
+            c.imagePrompt || ''
+          ) ||
+            /packed aisle of canvas cots|muffled coughing/i.test(c.videoPrompt || '') ||
+            !/empty folding canvas cots/i.test(c.imagePrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg45,
+            videoPrompt: newClip45,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 55 &&
+          (/hands a broom|wooden broom handle/i.test(c.videoPrompt || '') ||
+            !/without handing over any broom or object/i.test(c.videoPrompt || '') ||
+            !/strictly no brooms or tools in anyone's hands/i.test(c.imagePrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg55,
+            videoPrompt: newClip55,
           };
         }
         if (
@@ -349,6 +407,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           .replace(/Clip 23\s*\([^)]*\):[^\n]*rayadillo[^\n]*/i, newClip23);
       }
       if (
+        /Image 27:[^\n]*crowded harbor pier in Vigo/i.test(rawText) ||
+        /Clip 27\s*\([^)]*\):[^\n]*crowded stone pier in Vigo/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 27:[^\n]*/i, newImg27)
+          .replace(/Clip 27\s*\([^)]*\):[^\n]*/i, newClip27);
+      }
+      if (
         /Image 35:[^\n]*heavy iron anchor/i.test(rawText) ||
         /Clip 35\s*\([^)]*\):[^\n]*anchor chain plunges/i.test(rawText)
       ) {
@@ -357,12 +423,29 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           .replace(/Clip 35\s*\([^)]*\):[^\n]*anchor chain plunges[^\n]*/i, newClip35);
       }
       if (
-        /Image 42:[^\n]*Disinfection Brigade/i.test(rawText) ||
-        /Clip 42\s*\([^)]*\):[^\n]*steam autoclave/i.test(rawText)
+        /Image 42:[^\n]*/i.test(rawText) &&
+        (!/Image 42:[^\n]*strictly an empty architectural interior with zero people/i.test(rawText) ||
+          /Clip 42\s*\([^)]*\):[^\n]*steam autoclave/i.test(rawText))
       ) {
         rawText = rawText
-          .replace(/Image 42:[^\n]*Disinfection Brigade[^\n]*/i, newImg42)
-          .replace(/Clip 42\s*\([^)]*\):[^\n]*steam autoclave[^\n]*/i, newClip42);
+          .replace(/Image 42:[^\n]*/i, newImg42)
+          .replace(/Clip 42\s*\([^)]*\):[^\n]*/i, newClip42);
+      }
+      if (
+        /Image 45:[^\n]*/i.test(rawText) &&
+        !/Image 45:[^\n]*empty folding canvas cots/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 45:[^\n]*/i, newImg45)
+          .replace(/Clip 45\s*\([^)]*\):[^\n]*/i, newClip45);
+      }
+      if (
+        /Image 55:[^\n]*Spanish store owner/i.test(rawText) ||
+        /Clip 55\s*\([^)]*\):[^\n]*hands a broom/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 55:[^\n]*/i, newImg55)
+          .replace(/Clip 55\s*\([^)]*\):[^\n]*/i, newClip55);
       }
       if (
         /Image 76:[^\n]*(?:period historical artifact|Sinaia deck)/i.test(rawText) ||
