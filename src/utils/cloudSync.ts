@@ -244,6 +244,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       'Image 60: Create an image of an exhausted adult Spanish store clerk sitting quietly on an already unrolled straw petate mat and folded canvas blanket atop a long mahogany and zinc store counter at night in Mexico City, Mexico, 1910, beside a stationary brass scale and a dim oil lantern, 16:9 horizontal, cinematic low-key night lighting, historical accuracy, no text.';
     const newClip60 =
       'Clip 60 (09:46 - 09:56): Create a video showing a slow dolly push-in on the exhausted Spanish clerk sitting still on the straw mat atop the mahogany counter in the dark store in Mexico City, Mexico, 1910, resting his head on his hand beside the brass scale as the oil lantern flame flickers softly. Ambient Foley: quiet night room tone, faint oil lamp hum, tired sigh, wooden counter creaking slightly, single continuous shot, strictly no shot changes, no music, no speech, no text. de la noche. Para ahorrar alquileres y vigilar la mercancía frente a robos o incendios, los dependientes tenían prohibido vivir fuera de la tienda. fix the name';
+    const newImg72 =
+      'Image 72: Create an image of an elderly mother in black wool shawl standing by a stone mailbox on a rainy mountain road in Galicia, Spain, 1931, with the muddy country lane stretching away into the misty distance behind her, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
+    const newClip72 =
+      'Clip 72 (11:46 - 11:56): Create a video showing a steady shot as the elderly mother in black wool shawl turns her back to the camera and walks slowly and steadily away from the camera down the rainy mountain road into the misty distance in Galicia, Spain, 1931, receding farther down the path without ever turning back. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 10s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: cold rain falling on stone, slow footsteps receding on wet muddy gravel, lonely wind across valley, single continuous shot, strictly no shot changes, no music, no speech, no text. Triscornia o repatriados por caridad. Muchos, consumidos por la tuberculosis en las trastiendas húmedas y avergonzados de haber fracasado, dejaron de escribir a sus madres, prefiriendo. fix the name';
     const newImg76 =
       'Image 76: Create an image of @Pedro_Garfias_Zurita wearing thick tortoise-shell glasses, a black beret, and a worn shepherd jacket standing thoughtfully at the iron railing on the Sinaia steamship deck in Veracruz harbor, Mexico, 1939, surrounded only by adult passengers aged 35 to 60 in the background, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip76 =
@@ -379,6 +383,22 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         }
         if (
           c &&
+          c.clipNumber === 72 &&
+          (/turns away empty-handed from the stone mailbox|looking down the empty path/i.test(
+            c.imagePrompt || ''
+          ) ||
+            /turns away empty-handed from the stone mailbox/i.test(c.videoPrompt || '') ||
+            !/walks slowly and steadily away from the camera/i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg72,
+            videoPrompt: newClip72,
+          };
+        }
+        if (
+          c &&
           c.clipNumber === 76 &&
           (/period historical artifact|Pedro Garfias Zurita/i.test(c.imagePrompt || '') ||
             /period historical artifact|Pedro Garfias Zurita/i.test(c.videoPrompt || '') ||
@@ -471,6 +491,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 60:[^\n]*/i, newImg60)
           .replace(/Clip 60\s*\([^)]*\):[^\n]*/i, newClip60);
+      }
+      if (
+        /Image 72:[^\n]*/i.test(rawText) &&
+        !/Clip 72\s*\([^)]*\):[^\n]*walks slowly and steadily away from the camera/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 72:[^\n]*/i, newImg72)
+          .replace(/Clip 72\s*\([^)]*\):[^\n]*/i, newClip72);
       }
       if (
         /Image 76:[^\n]*(?:period historical artifact|Sinaia deck)/i.test(rawText) ||
