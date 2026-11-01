@@ -2065,6 +2065,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let targetTab =
         serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
+      const shouldFocusTargetTab =
+        targetService === 'GEMINI' || targetService === 'FLOW'
+          ? false
+          : payload.focusTab === true;
+
       if (!targetTab) {
         broadcastToHuellasTabsInSameWindow(senderWindowId, {
           type: 'BRIDGE_STATUS',
@@ -2076,12 +2081,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               : targetService === 'SUNO'
               ? 'Suno AI'
               : 'Gemini Web'
-          } en esta misma ventana...`,
+          } en segundo plano...`,
         });
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
           url: defaultUrl,
-          active: payload.focusTab === true,
+          active: shouldFocusTargetTab,
         });
         await sleep(4500);
         targetTab = {
@@ -2093,7 +2098,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (targetTab && targetTab.id) {
-        if (payload.focusTab === true) {
+        if (shouldFocusTargetTab) {
           await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
         }
         await ensureScriptInjected(targetTab.id, contentScriptFile);

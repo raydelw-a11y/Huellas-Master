@@ -391,6 +391,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                     stageNumber: activeStage,
                     taskType: 'CUSTOM_PROMPT',
                     autoSubmit: true,
+                    focusTab: false,
                     tabId: activeGeminiTab?.id,
                   });
                   setQuickGeminiPrompt('');

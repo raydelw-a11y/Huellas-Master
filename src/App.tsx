@@ -116,7 +116,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:56 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:59 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -589,7 +589,7 @@ export default function App() {
     return () => {
       window.removeEventListener('scroll', handleScrollCheck, { capture: true } as any);
     };
-  }, [mainView, activeDocId]);
+  }, [mainView, activeDocId, activeStage]);
 
   useEffect(() => {
     localStorage.setItem('huellas_master_view', mainView);
@@ -4799,7 +4799,7 @@ export default function App() {
       stageNumber: stageNum,
       taskType: 'STAGE_GENERATION',
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
       tabId: preferredTabId || selectedGeminiTabId,
     });
   };
