@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:12 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:18 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -729,9 +729,10 @@ export default function App() {
   const [auditSummary, setAuditSummary] = useState<string>('');
   const [showOpHeaderInProd, setShowOpHeaderInProd] = useState<boolean>(false);
 
-  // Web Studio (Embedded Gemini Web & Google Flow Free Quotas)
+  // Web Studio (Embedded Gemini Web & Google Flow Free Quotas) — OFF by default across the entire page
   const [showWebStudio, setShowWebStudio] = useState<boolean>(() => {
-    return localStorage.getItem('huellas_show_web_studio') === 'true';
+    localStorage.setItem('huellas_show_web_studio', 'false');
+    return false;
   });
   const [extensionInstalled, setExtensionInstalled] = useState<boolean>(() =>
     isHuellasExtensionDetected()
@@ -879,10 +880,6 @@ export default function App() {
   useEffect(() => {
     flowAutoDownloadEnabledRef.current = flowAutoDownloadEnabled;
   }, [flowAutoDownloadEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('huellas_show_web_studio', String(showWebStudio));
-  }, [showWebStudio]);
 
   useEffect(() => {
     localStorage.setItem('huellas_ai_engine_mode', aiEngineMode);
@@ -4776,10 +4773,6 @@ export default function App() {
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
-
-    if (!showWebStudio) {
-      setShowWebStudio(true);
-    }
 
     if (!extensionInstalled && !isHuellasExtensionDetected()) {
       setBridgeStatusType('WORKING');
