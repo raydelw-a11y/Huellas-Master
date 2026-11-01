@@ -2721,13 +2721,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           )}
                         </div>
                         <textarea
-                          rows={Math.max(1, (clip1Line1 || '').split('\n').length)}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = 'auto';
+                              el.style.height = `${el.scrollHeight + 4}px`;
+                            }
+                          }}
+                          rows={Math.max(
+                            1,
+                            (clip1Line1 || '')
+                              .split('\n')
+                              .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 34)), 0)
+                          )}
                           value={clip1Line1}
-                          onChange={(e) => setClip1Line1(e.target.value)}
+                          onChange={(e) => {
+                            setClip1Line1(e.target.value);
+                            e.currentTarget.style.height = 'auto';
+                            e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
+                          }}
                           onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                           placeholder="Línea 1: Lugar y Año... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300 resize-none leading-snug cursor-text"
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300 resize-none overflow-hidden leading-snug cursor-text"
                           style={{
                             fontFamily: hookFontFamily,
                             fontSize: `${hookLine1FontSize}px`,
@@ -2736,13 +2751,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           }}
                         />
                         <textarea
-                          rows={Math.max(1, (clip1Line2 || '').split('\n').length)}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = 'auto';
+                              el.style.height = `${el.scrollHeight + 4}px`;
+                            }
+                          }}
+                          rows={Math.max(
+                            1,
+                            (clip1Line2 || '')
+                              .split('\n')
+                              .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 26)), 0)
+                          )}
                           value={clip1Line2}
-                          onChange={(e) => setClip1Line2(e.target.value)}
+                          onChange={(e) => {
+                            setClip1Line2(e.target.value);
+                            e.currentTarget.style.height = 'auto';
+                            e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
+                          }}
                           onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                           placeholder="Línea 2: Título Gancho en Pantalla... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300 resize-none leading-snug cursor-text"
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300 resize-none overflow-hidden leading-snug cursor-text"
                           style={{
                             fontFamily: hookFontFamily,
                             fontSize: `${hookLine2FontSize}px`,
@@ -2826,10 +2856,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         💬 Editando Caption #{activeCaptionAtPlayhead.index} ({formatTimeMMSS(activeCaptionAtPlayhead.start)} - {formatTimeMMSS(activeCaptionAtPlayhead.end)})
                       </span>
                       <textarea
-                        rows={Math.max(1, (activeCaptionAtPlayhead.text || '').split('\n').length)}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = 'auto';
+                            el.style.height = `${el.scrollHeight + 4}px`;
+                          }
+                        }}
+                        rows={Math.max(
+                          1,
+                          (activeCaptionAtPlayhead.text || '')
+                            .split('\n')
+                            .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 32)), 0)
+                        )}
                         value={activeCaptionAtPlayhead.text}
                         onChange={(e) => {
                           const newText = e.target.value;
+                          e.currentTarget.style.height = 'auto';
+                          e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
                           setCaptions((prev) =>
                             prev.map((c) =>
                               c.id === activeCaptionAtPlayhead.id ? { ...c, text: newText } : c
@@ -2837,7 +2880,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           );
                         }}
                         onKeyDown={(e) => e.stopPropagation()}
-                        className="w-full text-center bg-slate-950/90 border border-sky-400/50 rounded-lg px-3 py-1 font-extrabold outline-none resize-none leading-snug"
+                        className="w-full text-center bg-slate-950/90 border border-sky-400/50 rounded-lg px-3 py-1 font-extrabold outline-none resize-none overflow-hidden leading-snug"
                         style={{
                           fontFamily: captionFontFamily,
                           fontSize: `${Math.max(13, captionFontSize * 0.78)}px`,
