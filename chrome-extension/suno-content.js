@@ -14,6 +14,55 @@
     return h.includes('flowmusic.app') || h.includes('producer.ai');
   };
 
+  // Prevent Flow Music from auto-playing songs when generation finishes
+  let lastManualPlayClickAt = 0;
+  if (isFlowMusicSite()) {
+    const recordManualPlayIfTrusted = (e) => {
+      try {
+        if (!e || !e.isTrusted) return;
+        if (document.documentElement.getAttribute('data-huellas-synthetic-click') === '1') return;
+        const btn = e.target?.closest?.('button');
+        if (!btn) return;
+        const label = (
+          (btn.getAttribute('aria-label') || '') +
+          ' ' +
+          (btn.innerText || '')
+        ).toLowerCase();
+        if (label.includes('play') || label.includes('reproducir')) {
+          lastManualPlayClickAt = Date.now();
+          document.documentElement.setAttribute(
+            'data-huellas-last-manual-play',
+            String(lastManualPlayClickAt)
+          );
+        }
+      } catch {}
+    };
+
+    window.addEventListener('pointerdown', recordManualPlayIfTrusted, true);
+    window.addEventListener('click', recordManualPlayIfTrusted, true);
+
+    const stopUnexpectedAutoplay = (e) => {
+      try {
+        const media = e?.target;
+        if (!media || typeof media.pause !== 'function') return;
+        const isSynthetic =
+          document.documentElement.getAttribute('data-huellas-synthetic-click') === '1';
+        const isManual = !isSynthetic && Date.now() - lastManualPlayClickAt < 1800;
+        if (!isManual) {
+          media.muted = true;
+          media.volume = 0;
+          media.pause();
+        } else {
+          media.muted = false;
+          if (media.volume === 0) media.volume = 1;
+        }
+      } catch {}
+    };
+
+    window.addEventListener('play', stopUnexpectedAutoplay, true);
+    window.addEventListener('playing', stopUnexpectedAutoplay, true);
+  }
+
   function reportStatus(status, message, extra = {}) {
     try {
       chrome.runtime
@@ -238,8 +287,8 @@
           newCandidates[0];
       }
 
-      // On flowmusic.app, if a new Play button appeared in the chat thread, click it once so <audio src> mounts
-      if (!newUrl && isFlowMusicSite() && elapsedSec >= 8) {
+      // On flowmusic.app, only probe a new Play button silently if 18s+ passed and URL wasn't in network/Fiber yet
+      if (!newUrl && isFlowMusicSite() && elapsedSec >= 18) {
         const currentPlayBtns = Array.from(
           document.querySelectorAll('main button[aria-label="Play"]')
         );
@@ -247,15 +296,36 @@
           if (!baselinePlayBtns.has(pb) && !clickedNewPlayBtns.has(pb)) {
             clickedNewPlayBtns.add(pb);
             try {
+              // Mark synthetic click so anti-autoplay guard keeps audio 100% muted and paused
+              document.documentElement.setAttribute('data-huellas-synthetic-click', '1');
+              for (const aud of Array.from(document.querySelectorAll('audio'))) {
+                try {
+                  aud.muted = true;
+                  aud.volume = 0;
+                } catch {}
+              }
               pb.click();
               setTimeout(() => {
-                for (const aud of Array.from(document.querySelectorAll('audio'))) {
-                  try {
+                try {
+                  for (const aud of Array.from(document.querySelectorAll('audio'))) {
+                    aud.muted = true;
+                    aud.volume = 0;
                     aud.pause();
-                  } catch {}
-                }
-              }, 600);
-            } catch {}
+                  }
+                  const pauseBtns = Array.from(
+                    document.querySelectorAll('main button[aria-label="Pause"], button[aria-label="Pause"]')
+                  );
+                  for (const pauseBtn of pauseBtns) {
+                    pauseBtn.click();
+                  }
+                } catch {}
+                setTimeout(() => {
+                  document.documentElement.removeAttribute('data-huellas-synthetic-click');
+                }, 200);
+              }, 80);
+            } catch {
+              document.documentElement.removeAttribute('data-huellas-synthetic-click');
+            }
             break;
           }
         }

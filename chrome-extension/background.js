@@ -113,12 +113,100 @@ async function getConnectedAiTabsInWindow(windowId) {
   }
 }
 
+async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        try {
+          if (window.__HUELLAS_FLOWMUSIC_ANTI_AUTOPLAY__) return;
+          window.__HUELLAS_FLOWMUSIC_ANTI_AUTOPLAY__ = true;
+          window.__HUELLAS_FLOWMUSIC_URLS__ = window.__HUELLAS_FLOWMUSIC_URLS__ || new Set();
+
+          const publishUrls = () => {
+            try {
+              document.documentElement.setAttribute(
+                'data-huellas-flowmusic-urls',
+                JSON.stringify(Array.from(window.__HUELLAS_FLOWMUSIC_URLS__))
+              );
+            } catch {}
+          };
+
+          const extractClipUrlsFromText = (txt) => {
+            if (!txt || typeof txt !== 'string') return;
+            const rx =
+              /https:\/\/storage\.googleapis\.com\/producer-app-public\/clips\/[a-zA-Z0-9_-]+\.(?:m4a|mp3|wav)/g;
+            let m;
+            let added = false;
+            while ((m = rx.exec(txt)) !== null) {
+              if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                added = true;
+              }
+            }
+            if (added) publishUrls();
+          };
+
+          const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
+          if (mediaProto) {
+            const srcDesc = Object.getOwnPropertyDescriptor(mediaProto, 'src');
+            if (srcDesc && typeof srcDesc.set === 'function') {
+              Object.defineProperty(mediaProto, 'src', {
+                configurable: true,
+                enumerable: true,
+                get: srcDesc.get,
+                set(val) {
+                  try {
+                    if (typeof val === 'string') extractClipUrlsFromText(val);
+                  } catch {}
+                  return srcDesc.set.call(this, val);
+                },
+              });
+            }
+
+            const origPlay = mediaProto.play;
+            if (typeof origPlay === 'function') {
+              mediaProto.play = function (...playArgs) {
+                try {
+                  const currentUrl = this.currentSrc || this.src || '';
+                  if (currentUrl) extractClipUrlsFromText(currentUrl);
+                  const isSynthetic =
+                    document.documentElement.getAttribute('data-huellas-synthetic-click') === '1';
+                  const lastManual = Number(
+                    document.documentElement.getAttribute('data-huellas-last-manual-play') || '0'
+                  );
+                  const isManualPlay = !isSynthetic && Date.now() - lastManual < 1800;
+                  if (!isManualPlay) {
+                    this.muted = true;
+                    this.volume = 0;
+                    try {
+                      this.pause();
+                    } catch {}
+                    return Promise.resolve();
+                  }
+                  this.muted = false;
+                  if (this.volume === 0) this.volume = 1;
+                } catch {}
+                return origPlay.apply(this, playArgs);
+              };
+            }
+          }
+        } catch {}
+      },
+    });
+  } catch {}
+}
+
 async function ensureScriptInjected(tabId, scriptFile) {
   try {
     await chrome.scripting.executeScript({
       target: scriptFile === 'flow-content.js' ? { tabId, allFrames: true } : { tabId },
       files: [scriptFile],
     });
+    if (scriptFile === 'suno-content.js') {
+      await ensureFlowMusicAntiAutoplayInMainWorld(tabId);
+    }
   } catch {}
 }
 
@@ -171,6 +259,14 @@ async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
 
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (!tab || typeof tab.windowId !== 'number') return;
+  if (
+    tab.id &&
+    tab.url &&
+    (tab.url.includes('flowmusic.app') || tab.url.includes('producer.ai')) &&
+    (changeInfo.status === 'loading' || changeInfo.status === 'complete')
+  ) {
+    ensureFlowMusicAntiAutoplayInMainWorld(tab.id);
+  }
   if (changeInfo.status === 'complete' || changeInfo.title) {
     const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(tab.windowId);
     broadcastToHuellasTabsInSameWindow(tab.windowId, {
@@ -2856,6 +2952,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       } catch {}
                       return res;
                     };
+
+                    // Intercept HTMLMediaElement.src & .play() in MAIN world to capture URLs and block automatic playback
+                    try {
+                      const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
+                      if (mediaProto) {
+                        const srcDesc = Object.getOwnPropertyDescriptor(mediaProto, 'src');
+                        if (srcDesc && typeof srcDesc.set === 'function') {
+                          Object.defineProperty(mediaProto, 'src', {
+                            configurable: true,
+                            enumerable: true,
+                            get: srcDesc.get,
+                            set(val) {
+                              try {
+                                if (typeof val === 'string') extractClipUrlsFromText(val);
+                              } catch {}
+                              return srcDesc.set.call(this, val);
+                            },
+                          });
+                        }
+
+                        const origPlay = mediaProto.play;
+                        if (typeof origPlay === 'function') {
+                          mediaProto.play = function (...playArgs) {
+                            try {
+                              const currentUrl = this.currentSrc || this.src || '';
+                              if (currentUrl) extractClipUrlsFromText(currentUrl);
+                              const isSynthetic =
+                                document.documentElement.getAttribute('data-huellas-synthetic-click') ===
+                                '1';
+                              const lastManual = Number(
+                                document.documentElement.getAttribute('data-huellas-last-manual-play') ||
+                                  '0'
+                              );
+                              const isManualPlay =
+                                !isSynthetic && Date.now() - lastManual < 1800;
+                              if (!isManualPlay) {
+                                this.muted = true;
+                                this.volume = 0;
+                                try {
+                                  this.pause();
+                                } catch {}
+                                return Promise.resolve();
+                              }
+                              this.muted = false;
+                              if (this.volume === 0) this.volume = 1;
+                            } catch {}
+                            return origPlay.apply(this, playArgs);
+                          };
+                        }
+                      }
+                    } catch {}
 
                     // Periodic React Fiber & DOM attribute scan in MAIN world
                     setInterval(() => {
