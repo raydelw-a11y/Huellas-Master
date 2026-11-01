@@ -663,6 +663,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const ambientGainRef = useRef<GainNode | null>(null);
   const lastSpokenClipIdRef = useRef<string>('');
   const extractedVideoUrlByClipRef = useRef<Record<number, string>>({});
+  const playWallStartMsRef = useRef<number>(0);
+  const playTimelineStartSecRef = useRef<number>(0);
+  const currentTimeRef = useRef<number>(0);
+  const lastSeekVersionRef = useRef<number>(0);
+  const appliedVideoSeekVersionRef = useRef<number>(-1);
+  const appliedVoiceSeekVersionRef = useRef<number>(-1);
+  const appliedMusicSeekVersionRef = useRef<number>(-1);
+  const activePlayingClipIdRef = useRef<string | null>(null);
+  const clipEndedHoldRef = useRef<boolean>(false);
 
   // Reset extracted first frames when switching documentaries
   useEffect(() => {
@@ -670,12 +679,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     extractedVideoUrlByClipRef.current = {};
   }, [activeDoc?.id]);
 
-  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video
+  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video when paused and no posterUrl exists
   useEffect(() => {
+    if (isPlaying) return;
     let cancelled = false;
     const clipsToExtract = timelineClips.filter(
       (c) =>
         c.videoUrl &&
+        !c.posterUrl &&
+        !firstFrameByClip[c.clipNumber] &&
         extractedVideoUrlByClipRef.current[c.clipNumber] !== c.videoUrl
     );
     if (clipsToExtract.length === 0) return;
@@ -686,7 +698,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         vid.crossOrigin = 'anonymous';
         vid.muted = true;
         vid.playsInline = true;
-        vid.preload = 'auto';
+        vid.preload = 'metadata';
 
         let resolved = false;
         const finish = (dataUrl: string) => {
@@ -700,19 +712,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           resolve(dataUrl);
         };
 
-        const timer = setTimeout(() => finish(''), 4500);
+        const timer = setTimeout(() => finish(''), 3500);
 
         const captureFrame = () => {
           try {
-            const w = vid.videoWidth || 640;
-            const h = vid.videoHeight || 360;
+            const w = 320;
+            const h = 180;
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d');
             if (ctx) {
               ctx.drawImage(vid, 0, 0, w, h);
-              const out = canvas.toDataURL('image/jpeg', 0.84);
+              const out = canvas.toDataURL('image/jpeg', 0.78);
               clearTimeout(timer);
               finish(out && out.length > 200 ? out : '');
               return;
@@ -754,7 +766,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [timelineClips]);
+  }, [timelineClips, isPlaying]);
 
   // Resolve Voiceover URL across masterAudioUrl, audioTracks, folderVoiceoverUrl, or pre-bundled TTS files
   const effectiveVoiceoverUrl = useMemo(() => {
@@ -1664,6 +1676,52 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } catch {}
   };
 
+  // Explicit manual seek helper so user scrubbing immediately updates wall-clock anchor & media players without backward drift
+  const seekToTime = (targetSec: number) => {
+    const clamped = Math.max(0, Math.min(totalDurationSec, targetSec));
+    currentTimeRef.current = clamped;
+    playTimelineStartSecRef.current = clamped;
+    playWallStartMsRef.current = performance.now();
+    lastSeekVersionRef.current += 1;
+    clipEndedHoldRef.current = false;
+    setCurrentTime(clamped);
+  };
+
+  // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips fit their slot smoothly and never hit vid.ended -> restart at 00:00
+  const computeClipVideoSyncParams = (
+    vid: HTMLVideoElement,
+    clip: { start: number; duration: number; speed: number; trimStart: number },
+    timelineSec: number
+  ) => {
+    const trimStart = clip.trimStart || 0;
+    const slotDur = Math.max(0.5, clip.duration || 8);
+    const hasKnownVidDur =
+      typeof vid.duration === 'number' && Number.isFinite(vid.duration) && vid.duration > 0.25;
+    const playableMediaDur = hasKnownVidDur ? Math.max(0.2, vid.duration - trimStart) : slotDur;
+
+    // If user kept default speed (1x) and the MP4 file is slightly shorter than the timeline slot (e.g. 6s in 8s slot, or 7.2s-9.8s in 10s slot),
+    // automatically adjust playbackRate so the video plays smoothly across the entire timeline slot without ending early or restarting
+    const effectiveRate =
+      clip.speed && clip.speed !== 1
+        ? clip.speed
+        : hasKnownVidDur && playableMediaDur < slotDur - 0.12
+        ? Math.max(0.35, Math.min(1.0, Number((playableMediaDur / slotDur).toFixed(3))))
+        : 1;
+
+    const rawOffset = Math.max(0, timelineSec - clip.start) * effectiveRate + trimStart;
+    const maxSafeOffset = hasKnownVidDur
+      ? Math.max(0, vid.duration - 0.08)
+      : Math.max(0, rawOffset);
+    const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
+    const reachedClipMediaEnd = Boolean(hasKnownVidDur && rawOffset >= vid.duration - 0.08);
+
+    return {
+      effectiveRate,
+      clampedOffset,
+      reachedClipMediaEnd,
+    };
+  };
+
   // Synchronous Play/Pause handler to unlock all browser audio/video elements on user click gesture
   const handleTogglePlay = () => {
     const nextPlaying = !isPlaying;
@@ -1678,6 +1736,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     // If playhead is at the end, restart from 0
     const startSec = currentTime >= totalDurationSec - 0.3 ? 0 : currentTime;
+    currentTimeRef.current = startSec;
+    playTimelineStartSecRef.current = startSec;
+    playWallStartMsRef.current = performance.now();
+    lastSeekVersionRef.current += 1;
+    clipEndedHoldRef.current = false;
     if (startSec !== currentTime) {
       setCurrentTime(startSec);
     }
@@ -1685,14 +1748,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // 1. Unlock & play preview <video> if active clip has videoUrl
     const vid = previewVideoRef.current;
     if (vid && activeClipAtPlayhead?.videoUrl) {
-      const offsetInClip =
-        (startSec - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
-        activeClipAtPlayhead.trimStart;
       try {
-        vid.currentTime = Math.max(0, offsetInClip);
+        const { effectiveRate, clampedOffset, reachedClipMediaEnd } = computeClipVideoSyncParams(
+          vid,
+          activeClipAtPlayhead,
+          startSec
+        );
+        activePlayingClipIdRef.current = activeClipAtPlayhead.id;
+        appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
+        clipEndedHoldRef.current = reachedClipMediaEnd;
+        vid.playbackRate = effectiveRate;
+        vid.currentTime = clampedOffset;
         vid.muted = false;
         vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-        vid.play().catch(() => {});
+        if (!reachedClipMediaEnd) {
+          vid.play().catch(() => {});
+        }
       } catch {}
     }
 
@@ -1700,6 +1771,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const vo = voiceAudioRef.current;
     if (vo && effectiveVoiceoverUrl) {
       try {
+        appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
         vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
         if (startSec >= voiceStartOffsetSec) {
           vo.muted = false;
@@ -1723,6 +1795,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const mus = musicAudioRef.current;
     if (mus && activeMusicAtPlayhead?.audioUrl) {
       try {
+        appliedMusicSeekVersionRef.current = lastSeekVersionRef.current;
         mus.src = activeMusicAtPlayhead.audioUrl;
         mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
         mus.volume = Math.min(1, Math.max(0, effectiveMusicVolumeAtPlayhead / 100));
@@ -1739,7 +1812,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setIsPlaying(true);
   };
 
-  // Playback Loop
+  // True Wall-Clock Playback Loop (performance.now() anchored so currentTime never lags behind hardware <video>)
   useEffect(() => {
     if (!isPlaying) {
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
@@ -1765,16 +1838,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    const stepMs = 100;
+    playTimelineStartSecRef.current = currentTimeRef.current;
+    playWallStartMsRef.current = performance.now();
+
+    const stepMs = 80;
     playIntervalRef.current = setInterval(() => {
-      setCurrentTime((prev) => {
-        const next = prev + stepMs / 1000;
-        if (next >= totalDurationSec) {
-          setIsPlaying(false);
-          return 0;
-        }
-        return next;
-      });
+      const elapsedSec = (performance.now() - playWallStartMsRef.current) / 1000;
+      const next = playTimelineStartSecRef.current + elapsedSec;
+      if (next >= totalDurationSec) {
+        currentTimeRef.current = 0;
+        playTimelineStartSecRef.current = 0;
+        playWallStartMsRef.current = performance.now();
+        setIsPlaying(false);
+        setCurrentTime(0);
+        return;
+      }
+      currentTimeRef.current = next;
+      setCurrentTime(next);
     }, stepMs);
 
     return () => {
@@ -1782,26 +1862,61 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [isPlaying, totalDurationSec]);
 
-  // Sync preview <video>, voice <audio>, Suno music <audio>, and Web Speech / Ambience fallback when currentTime changes
+  // Sync preview <video>, voice <audio>, Suno music <audio>, and Ambience fallback WITHOUT seeking backwards during continuous playback
   useEffect(() => {
+    currentTimeRef.current = currentTime;
     const vid = previewVideoRef.current;
     if (vid && activeClipAtPlayhead?.videoUrl) {
-      const offsetInClip =
-        (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
-        activeClipAtPlayhead.trimStart;
-      if (Math.abs(vid.currentTime - offsetInClip) > 0.55) {
+      const { effectiveRate, clampedOffset, reachedClipMediaEnd } = computeClipVideoSyncParams(
+        vid,
+        activeClipAtPlayhead,
+        currentTime
+      );
+      const isClipSwitch = activeClipAtPlayhead.id !== activePlayingClipIdRef.current;
+      const isManualSeek = appliedVideoSeekVersionRef.current !== lastSeekVersionRef.current;
+
+      if (Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.02) {
         try {
-          vid.currentTime = Math.max(0, offsetInClip);
+          vid.playbackRate = effectiveRate;
         } catch {}
       }
-      vid.playbackRate = activeClipAtPlayhead.speed || 1;
       vid.muted = false;
       vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-      if (isPlaying && vid.paused) {
-        vid.play().catch(() => {});
+
+      if (isClipSwitch || isManualSeek || !isPlaying) {
+        activePlayingClipIdRef.current = activeClipAtPlayhead.id;
+        appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
+        clipEndedHoldRef.current = reachedClipMediaEnd;
+        if (Math.abs(vid.currentTime - clampedOffset) > 0.08) {
+          try {
+            vid.currentTime = clampedOffset;
+          } catch {}
+        }
+        if (isPlaying && !reachedClipMediaEnd && vid.paused) {
+          vid.play().catch(() => {});
+        }
+      } else {
+        // Continuous playback inside the same clip: NEVER force-seek vid.currentTime (prevents keyframe rewind jumps!)
+        const vidDur = vid.duration;
+        const isAtEndOfMedia =
+          vid.ended ||
+          reachedClipMediaEnd ||
+          (typeof vidDur === 'number' && Number.isFinite(vidDur) && vidDur > 0.25 && vid.currentTime >= vidDur - 0.08);
+
+        if (isAtEndOfMedia) {
+          clipEndedHoldRef.current = true;
+          if (!vid.paused) {
+            try {
+              vid.pause();
+            } catch {}
+          }
+        } else if (!clipEndedHoldRef.current && vid.paused && vid.readyState >= 2) {
+          vid.play().catch(() => {});
+        }
       }
       setCinemaAmbienceActive(false);
     } else if (isPlaying) {
+      activePlayingClipIdRef.current = activeClipAtPlayhead?.id || null;
       setCinemaAmbienceActive(true, effectiveFoleyVolumeAtPlayhead);
     }
 
@@ -1809,15 +1924,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const hasWorkingVoiceFile = Boolean(vo && effectiveVoiceoverUrl && !voiceAudioError);
     if (hasWorkingVoiceFile && vo) {
       if (currentTime >= voiceStartOffsetSec) {
-        const voTime = currentTime - voiceStartOffsetSec;
-        if (Math.abs(vo.currentTime - voTime) > 0.55) {
+        const voTime = Math.max(0, currentTime - voiceStartOffsetSec);
+        const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
+        if (isManualVoSeek || !isPlaying || (vo.paused && Math.abs(vo.currentTime - voTime) > 0.35) || Math.abs(vo.currentTime - voTime) > 1.8) {
+          appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
           try {
-            vo.currentTime = Math.max(0, voTime);
+            vo.currentTime = voTime;
           } catch {}
         }
         vo.muted = false;
         vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
-        if (isPlaying && vo.paused) {
+        if (isPlaying && vo.paused && !vo.ended) {
           vo.play().catch(() => {});
         }
       } else {
@@ -1828,11 +1945,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const mus = musicAudioRef.current;
     if (mus) {
       if (activeMusicAtPlayhead?.audioUrl) {
-        if (!mus.src.endsWith(activeMusicAtPlayhead.audioUrl) && mus.src !== activeMusicAtPlayhead.audioUrl) {
+        const trackChanged =
+          !mus.src.endsWith(activeMusicAtPlayhead.audioUrl) &&
+          mus.src !== activeMusicAtPlayhead.audioUrl;
+        if (trackChanged) {
           mus.src = activeMusicAtPlayhead.audioUrl;
         }
         const musTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
-        if (Math.abs(mus.currentTime - musTime) > 0.65) {
+        const isManualMusSeek = appliedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
+        if (trackChanged || isManualMusSeek || !isPlaying || (mus.paused && Math.abs(mus.currentTime - musTime) > 0.4) || Math.abs(mus.currentTime - musTime) > 1.8) {
+          appliedMusicSeekVersionRef.current = lastSeekVersionRef.current;
           try {
             mus.currentTime = musTime;
           } catch {}
@@ -1841,7 +1963,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           1,
           Math.max(0, effectiveMusicVolumeAtPlayhead / 100)
         );
-        if (isPlaying && mus.paused) {
+        if (isPlaying && mus.paused && !mus.ended) {
           mus.play().catch(() => {});
         }
       } else if (!mus.paused) {
@@ -2842,7 +2964,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
               {activeClipAtPlayhead?.videoUrl ? (
                 <video
-                  key={activeClipAtPlayhead.videoUrl}
                   ref={previewVideoRef}
                   src={activeClipAtPlayhead.videoUrl}
                   className="w-full h-full object-cover block bg-black"
@@ -2855,17 +2976,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   preload="auto"
                   onLoadedMetadata={(e) => {
                     const vid = e.currentTarget;
-                    const offsetInClip =
-                      (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
-                      activeClipAtPlayhead.trimStart;
                     try {
-                      vid.currentTime = Math.max(0, offsetInClip);
-                      vid.playbackRate = activeClipAtPlayhead.speed || 1;
+                      const { effectiveRate, clampedOffset, reachedClipMediaEnd } =
+                        computeClipVideoSyncParams(
+                          vid,
+                          activeClipAtPlayhead,
+                          currentTimeRef.current
+                        );
+                      activePlayingClipIdRef.current = activeClipAtPlayhead.id;
+                      appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
+                      clipEndedHoldRef.current = reachedClipMediaEnd;
+                      vid.playbackRate = effectiveRate;
+                      vid.currentTime = clampedOffset;
                       vid.muted = false;
                       vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-                      if (isPlaying) {
+                      if (isPlaying && !reachedClipMediaEnd) {
                         vid.play().catch(() => {});
                       }
+                    } catch {}
+                  }}
+                  onEnded={(e) => {
+                    clipEndedHoldRef.current = true;
+                    try {
+                      e.currentTarget.pause();
                     } catch {}
                   }}
                 />
@@ -3412,7 +3545,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div className="w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setCurrentTime(0)}
+                onClick={() => seekToTime(0)}
                 className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
                 title="Ir al inicio (00:00)"
               >
@@ -3429,7 +3562,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentTime(voiceStartOffsetSec)}
+                onClick={() => seekToTime(voiceStartOffsetSec)}
                 className="px-2 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer shrink-0"
                 title={`Ir al segundo ${voiceStartOffsetSec}s donde entra la Voz Narrativa`}
               >
@@ -3444,7 +3577,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   max={totalDurationSec}
                   step={0.05}
                   value={currentTime}
-                  onChange={(e) => setCurrentTime(Number(e.target.value))}
+                  onChange={(e) => seekToTime(Number(e.target.value))}
                   className="w-full h-2 accent-amber-500 cursor-pointer"
                 />
               </div>
@@ -3455,7 +3588,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
               <button
                 type="button"
-                onClick={() => setCurrentTime(Math.max(0, totalDurationSec - 1))}
+                onClick={() => seekToTime(Math.max(0, totalDurationSec - 1))}
                 className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
                 title="Ir al final"
               >
@@ -5076,7 +5209,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       key={cap.id}
                       type="button"
                       onClick={() => {
-                        setCurrentTime(cap.start);
+                        seekToTime(cap.start);
                         setSelectedCanvasObject('captions');
                       }}
                       style={
@@ -5138,7 +5271,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }}
                     onClick={() => {
                       setSelectedClipId(clip.id);
-                      setCurrentTime(clip.start);
+                      seekToTime(clip.start);
                     }}
                     title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
                       clip.clipNumber
@@ -5171,19 +5304,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             alt={clip.fileName}
                             className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
                           />
-                        ) : clip.videoUrl ? (
-                          <video
-                            src={clip.videoUrl}
-                            muted
-                            playsInline
-                            preload="metadata"
-                            onLoadedMetadata={(e) => {
-                              try {
-                                e.currentTarget.currentTime = 0.08;
-                              } catch {}
-                            }}
-                            className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition pointer-events-none"
-                          />
                         ) : null}
                         <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
                           <span className="px-1 py-0.5 rounded bg-black/80 text-amber-300 font-black text-[9px] leading-none truncate max-w-full">
@@ -5214,24 +5334,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
                               alt={clip.fileName}
                               className="w-full h-full object-cover"
-                            />
-                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
-                              Fotograma 1
-                            </span>
-                          </div>
-                        ) : clip.videoUrl ? (
-                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800 relative">
-                            <video
-                              src={clip.videoUrl}
-                              muted
-                              playsInline
-                              preload="metadata"
-                              onLoadedMetadata={(e) => {
-                                try {
-                                  e.currentTarget.currentTime = 0.08;
-                                } catch {}
-                              }}
-                              className="w-full h-full object-cover pointer-events-none"
                             />
                             <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
                               Fotograma 1

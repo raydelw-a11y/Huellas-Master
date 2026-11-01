@@ -3326,7 +3326,8 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       res.status(404).send('Archivo no encontrado');
       return;
     }
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    // Allow browser to cache MP4 range chunks in memory (URLs already include ?v=mtimeMs cache-buster)
+    res.setHeader('Cache-Control', 'private, max-age=3600');
     res.sendFile(path.resolve(filePath));
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
