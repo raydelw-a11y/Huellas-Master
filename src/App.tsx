@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:31 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:40 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -6580,7 +6580,7 @@ export default function App() {
             {/* Row 2: 12 Stages Horizontal Navigation Bar (Desktop & Tablet — Full Title & Full Description When Page Is At Top) */}
             <nav
               data-stages-full-nav="true"
-              className="hidden md:grid md:grid-cols-6 xl:grid-cols-12 gap-1.5"
+              className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-2"
             >
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
@@ -6597,20 +6597,28 @@ export default function App() {
                         ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga del Documental en la Etapa 1`
                         : `${st.title} — ${st.subtitle}`
                     }
-                    className={`px-2 py-1.5 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
+                    className={`px-3 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
                       isLocked
                         ? 'bg-slate-950/50 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
                         : isCurrent
                         ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/15 cursor-pointer'
                         : done
-                        ? 'bg-slate-900/90 hover:bg-slate-800/90 text-slate-200 border-emerald-500/30 cursor-pointer'
-                        : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border-slate-800/80 cursor-pointer'
+                        ? 'bg-slate-900/90 hover:bg-slate-800/90 text-slate-100 border-emerald-500/35 cursor-pointer'
+                        : 'bg-slate-900/75 hover:bg-slate-800/90 text-slate-100 border-slate-800 cursor-pointer'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-1 w-full min-w-0">
-                      <div className="flex items-start gap-1 min-w-0">
-                        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                          <span className="text-[11px] font-black leading-none">{st.num}.</span>
+                    <div className="flex items-center justify-between gap-1.5 w-full min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-black leading-none shrink-0 ${
+                            isCurrent
+                              ? 'bg-slate-950/15 text-slate-950'
+                              : done
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : 'bg-amber-500/15 text-amber-300'
+                          }`}
+                        >
+                          <span>{st.num}</span>
                           <IconComp
                             className={`w-3.5 h-3.5 shrink-0 ${
                               isLocked
@@ -6619,33 +6627,33 @@ export default function App() {
                                 ? 'text-slate-950'
                                 : done
                                 ? 'text-emerald-400'
-                                : 'text-amber-400/80'
+                                : 'text-amber-400'
                             }`}
                           />
-                        </div>
-                        <div className="text-[11px] leading-tight whitespace-normal break-words">
+                        </span>
+                        <span className="text-xs font-bold leading-snug">
                           {cleanTitle}
-                        </div>
+                        </span>
                       </div>
                       {isLocked ? (
-                        <Lock className="w-3 h-3 shrink-0 text-amber-500/70 mt-0.5" />
+                        <Lock className="w-3.5 h-3.5 shrink-0 text-amber-500/70" />
                       ) : done ? (
                         <CheckCircle2
-                          className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                          className={`w-3.5 h-3.5 shrink-0 ${
                             isCurrent ? 'text-slate-950' : 'text-emerald-400'
                           }`}
                         />
                       ) : (
                         <Circle
-                          className={`w-3 h-3 shrink-0 mt-0.5 ${
+                          className={`w-3 h-3 shrink-0 ${
                             isCurrent ? 'text-slate-900/50' : 'text-slate-700'
                           }`}
                         />
                       )}
                     </div>
                     <div
-                      className={`text-[9.5px] leading-snug whitespace-normal break-words w-full ${
-                        isCurrent ? 'text-slate-900/85 font-medium' : 'text-slate-400'
+                      className={`text-[10.5px] leading-snug w-full ${
+                        isCurrent ? 'text-slate-900 font-semibold' : 'text-slate-300/90'
                       }`}
                     >
                       {st.subtitle}
