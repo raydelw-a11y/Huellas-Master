@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:08 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:48 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -700,6 +700,7 @@ export default function App() {
   const [ttsCustomLabel, setTtsCustomLabel] = useState('');
   const [timelineExtracting, setTimelineExtracting] = useState(false);
   const [clipBatchFilter, setClipBatchFilter] = useState<number>(0); // 0 = All, 1 = 1-10, 2 = 11-20...
+  const [clipStatusFilter, setClipStatusFilter] = useState<string>('ALL');
   const [srtStatsMsg, setSrtStatsMsg] = useState<string>('');
   const [srtMaxChars, setSrtMaxChars] = useState<number>(32);
   const [srtLineMode, setSrtLineMode] = useState<'subdivide' | 'wrap' | 'original'>('subdivide');
@@ -2426,6 +2427,7 @@ export default function App() {
             videoPrompt: shieldedVid || c.videoPrompt,
             videoAuditStatus: 'generating' as const,
             videoAttempts: nextAttempt,
+            recreated: true,
             videoAuditReason: reasonMsg,
           }
         : c
@@ -2820,6 +2822,7 @@ export default function App() {
               videoPrompt: promptToSend,
               videoAuditStatus: 'generating' as const,
               videoAttempts: attemptNum,
+              recreated: attemptNum > 1 || Boolean(c.recreated || c.videoReady),
               videoAuditReason:
                 attemptNum > 1
                   ? `🔄 Re-intentando automáticamente en Google Flow (Intento #${attemptNum})...`
@@ -2903,6 +2906,7 @@ export default function App() {
             videoPrompt: safeVidPrompt || c.videoPrompt,
             videoAuditStatus: 'generating' as const,
             videoAttempts: retryAttempt,
+            recreated: true,
             videoAuditReason: reasonMsg,
           }
         : c
@@ -8864,95 +8868,359 @@ export default function App() {
                     );
                   })()}
 
-                {/* VISUAL VIDEO TIMELINE STRIP OF ALL CLIPS */}
-                {(activeDoc.clips?.length || 0) > 0 && (
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5" /> Línea de Tiempo Visual del Video ({activeDoc.clips.length}{' '}
-                          Clips en total)
-                        </h4>
-                        <p className="text-[11px] text-slate-400">
-                          Haz clic en cualquier bloque del timeline para saltar directamente a ese clip. Los colores
-                          indican si el clip hace sentido con la voz narrativa.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Coherente
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Revisar / Pausa
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Sugerencia de cambio
-                        </span>
-                      </div>
-                    </div>
+                {/* VISUAL VIDEO TIMELINE STRIP OF ALL CLIPS + PRODUCTION STATUS FILTER */}
+                {(activeDoc.clips?.length || 0) > 0 &&
+                  (() => {
+                    const allClipsList = activeDoc.clips || [];
+                    const isClipRecreated = (c: DocumentaryClip) =>
+                      Boolean(c.recreated || (c.videoAttempts && c.videoAttempts > 1));
+                    const isClipVideoReady = (c: DocumentaryClip) =>
+                      Boolean(
+                        c.videoReady ||
+                          capturedClipVideosMap[c.clipNumber] ||
+                          c.videoSavedFileName
+                      );
+                    const isClipGenerating = (c: DocumentaryClip) =>
+                      c.videoAuditStatus === 'generating' || c.videoAuditStatus === 'auditing';
+                    const isClipApproved = (c: DocumentaryClip) =>
+                      c.videoAuditStatus === 'approved' || c.auditStatus === 'ok';
+                    const isClipIssue = (c: DocumentaryClip) =>
+                      c.videoAuditStatus === 'warning' ||
+                      c.videoAuditStatus === 'rejected' ||
+                      c.auditStatus === 'warning' ||
+                      c.auditStatus === 'mismatch' ||
+                      Boolean(c.suggestedImagePrompt || c.suggestedVideoPrompt);
+                    const isClipPending = (c: DocumentaryClip) =>
+                      !c.imageReady &&
+                      !isClipVideoReady(c) &&
+                      !isClipRecreated(c) &&
+                      !c.reviewedForEditor &&
+                      !isClipGenerating(c);
 
-                    {/* Horizontal Scrollable / Grid Timeline Track */}
-                    <div className="flex items-stretch gap-2 overflow-x-auto pb-2 pt-1">
-                      {activeDoc.clips.map((clip) => {
-                        const padded = String(clip.clipNumber).padStart(2, '0');
-                        const statusColor =
-                          clip.auditStatus === 'mismatch'
-                            ? 'border-rose-500/70 bg-rose-950/30 hover:bg-rose-950/50'
-                            : clip.auditStatus === 'warning'
-                            ? 'border-amber-500/60 bg-amber-950/25 hover:bg-amber-950/40'
-                            : clip.auditStatus === 'ok'
-                            ? 'border-emerald-500/50 bg-emerald-950/20 hover:bg-emerald-950/35'
-                            : 'border-slate-800 bg-slate-950 hover:bg-slate-900';
+                    const matchesClipStatusFilter = (
+                      c: DocumentaryClip,
+                      filterKey: string
+                    ): boolean => {
+                      switch (filterKey) {
+                        case 'PENDIENTE':
+                          return isClipPending(c);
+                        case 'IMAGEN_LISTA':
+                          return Boolean(c.imageReady);
+                        case 'GENERANDO':
+                          return isClipGenerating(c);
+                        case 'VIDEO_LISTO':
+                          return isClipVideoReady(c);
+                        case 'APROBADO_IA':
+                          return isClipApproved(c);
+                        case 'OBSERVACION_ERROR':
+                          return isClipIssue(c);
+                        case 'RECREADO':
+                          return isClipRecreated(c);
+                        case 'REVISADO':
+                          return Boolean(c.reviewedForEditor);
+                        case 'SIN_REVISAR':
+                          return !c.reviewedForEditor;
+                        default:
+                          return true;
+                      }
+                    };
 
-                        const dotColor =
-                          clip.auditStatus === 'mismatch'
-                            ? 'bg-rose-500'
-                            : clip.auditStatus === 'warning'
-                            ? 'bg-amber-400'
-                            : clip.auditStatus === 'ok'
-                            ? 'bg-emerald-400'
-                            : 'bg-slate-600';
+                    const statusFilterOptions = [
+                      {
+                        key: 'ALL',
+                        label: '📋 Todos',
+                        count: allClipsList.length,
+                        activeClass: 'bg-amber-500 text-slate-950 border-amber-300 shadow',
+                        idleClass: 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800',
+                      },
+                      {
+                        key: 'PENDIENTE',
+                        label: '⏳ Pendiente',
+                        count: allClipsList.filter(isClipPending).length,
+                        activeClass: 'bg-slate-200 text-slate-950 border-white shadow',
+                        idleClass: 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800',
+                      },
+                      {
+                        key: 'IMAGEN_LISTA',
+                        label: '🖼️ Imagen Lista',
+                        count: allClipsList.filter((c) => c.imageReady).length,
+                        activeClass: 'bg-amber-400 text-slate-950 border-amber-200 shadow',
+                        idleClass:
+                          'bg-amber-950/30 text-amber-300 border-amber-500/30 hover:bg-amber-950/50',
+                      },
+                      {
+                        key: 'GENERANDO',
+                        label: '🎬 Generando / Auditando',
+                        count: allClipsList.filter(isClipGenerating).length,
+                        activeClass: 'bg-sky-400 text-slate-950 border-sky-200 shadow',
+                        idleClass: 'bg-sky-950/30 text-sky-300 border-sky-500/30 hover:bg-sky-950/50',
+                      },
+                      {
+                        key: 'VIDEO_LISTO',
+                        label: '🎥 Video Listo',
+                        count: allClipsList.filter(isClipVideoReady).length,
+                        activeClass: 'bg-teal-400 text-slate-950 border-teal-200 shadow',
+                        idleClass:
+                          'bg-teal-950/30 text-teal-300 border-teal-500/30 hover:bg-teal-950/50',
+                      },
+                      {
+                        key: 'APROBADO_IA',
+                        label: '✅ Aprobado / Coherente',
+                        count: allClipsList.filter(isClipApproved).length,
+                        activeClass: 'bg-emerald-400 text-slate-950 border-emerald-200 shadow',
+                        idleClass:
+                          'bg-emerald-950/30 text-emerald-300 border-emerald-500/30 hover:bg-emerald-950/50',
+                      },
+                      {
+                        key: 'OBSERVACION_ERROR',
+                        label: '⚠️ Observación / Rechazado',
+                        count: allClipsList.filter(isClipIssue).length,
+                        activeClass: 'bg-rose-500 text-white border-rose-300 shadow',
+                        idleClass:
+                          'bg-rose-950/30 text-rose-300 border-rose-500/30 hover:bg-rose-950/50',
+                      },
+                      {
+                        key: 'RECREADO',
+                        label: '🔄 Recreado',
+                        count: allClipsList.filter(isClipRecreated).length,
+                        activeClass: 'bg-purple-400 text-slate-950 border-purple-200 shadow',
+                        idleClass:
+                          'bg-purple-950/40 text-purple-200 border-purple-500/40 hover:bg-purple-950/60',
+                      },
+                      {
+                        key: 'REVISADO',
+                        label: '☑️ Revisado',
+                        count: allClipsList.filter((c) => c.reviewedForEditor).length,
+                        activeClass: 'bg-emerald-500 text-slate-950 border-emerald-300 shadow',
+                        idleClass:
+                          'bg-emerald-950/40 text-emerald-200 border-emerald-500/40 hover:bg-emerald-950/60',
+                      },
+                      {
+                        key: 'SIN_REVISAR',
+                        label: '○ Sin Revisar',
+                        count: allClipsList.filter((c) => !c.reviewedForEditor).length,
+                        activeClass: 'bg-amber-500 text-slate-950 border-amber-300 shadow',
+                        idleClass: 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800',
+                      },
+                    ];
 
-                        return (
-                          <button
-                            key={`tl-${clip.id}`}
-                            onClick={() => {
-                              setClipBatchFilter(0);
-                              setTimeout(() => {
-                                const el = document.getElementById(`prod-clip-card-${clip.clipNumber}`);
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 50);
-                            }}
-                            className={`min-w-[225px] max-w-[260px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${statusColor}`}
-                          >
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                                <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
-                                CLIP {padded}
-                              </span>
-                              <span className="text-[11px] font-mono text-slate-200 bg-slate-900/90 px-2 py-0.5 rounded">
-                                {clip.timeRange || 'S/T'}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed">
-                              {clip.clipNumber === 1
-                                ? '🔇 [0s Voz — Solo Foley y Texto Clip 1]'
-                                : clip.narrationSegment || '⚠️ Sin fragmento de voz asignado'}
+                    const filteredTimelineClips = allClipsList.filter((c) =>
+                      matchesClipStatusFilter(c, clipStatusFilter)
+                    );
+
+                    return (
+                      <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div>
+                            <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                              <Clock className="w-3.5 h-3.5" /> Línea de Tiempo Visual de Todos los Clips (
+                              {filteredTimelineClips.length} de {allClipsList.length} Clips mostrados)
+                            </h4>
+                            <p className="text-[11px] text-slate-400">
+                              Filtra por estado de producción (incluyendo <strong>Recreado</strong> y{' '}
+                              <strong>Revisado</strong>) o haz clic en cualquier bloque para saltar directamente a ese
+                              clip.
                             </p>
-                            <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-800/80">
-                              <span className="text-[11px] text-slate-400 truncate">
-                                {clip.pauseNotes ? `⏸ ${clip.pauseNotes}` : '🎙️ Fluido'}
-                              </span>
-                              {(clip.suggestedImagePrompt || clip.suggestedVideoPrompt) && (
-                                <span className="text-[11px] font-bold text-amber-300 shrink-0">✨ Sugerencia</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Revisado / OK
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block" /> Recreado
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Revisar / Pausa
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Rechazado / Cambio
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Production Status Filter Bar */}
+                        <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-xl p-2">
+                          <span className="text-[11px] font-bold text-amber-300 mr-1">
+                            Filtrar por Estado de Producción:
+                          </span>
+                          {statusFilterOptions.map((opt) => {
+                            const isActive = clipStatusFilter === opt.key;
+                            return (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => setClipStatusFilter(opt.key)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                                  isActive ? opt.activeClass : opt.idleClass
+                                }`}
+                              >
+                                {opt.label} ({opt.count})
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Horizontal Scrollable / Grid Timeline Track */}
+                        {filteredTimelineClips.length === 0 ? (
+                          <div className="text-center py-6 bg-slate-950/60 border border-slate-800/80 rounded-xl text-xs text-slate-400">
+                            No hay clips con el estado seleccionado.{' '}
+                            <button
+                              type="button"
+                              onClick={() => setClipStatusFilter('ALL')}
+                              className="text-amber-300 underline font-bold ml-1 cursor-pointer"
+                            >
+                              Ver todos los clips ({allClipsList.length})
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-stretch gap-2 overflow-x-auto pb-2 pt-1">
+                            {filteredTimelineClips.map((clip) => {
+                              const padded = String(clip.clipNumber).padStart(2, '0');
+                              const isRecreated = isClipRecreated(clip);
+                              const isVidReady = isClipVideoReady(clip);
+                              const statusColor =
+                                clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected'
+                                  ? 'border-rose-500/70 bg-rose-950/30 hover:bg-rose-950/50'
+                                  : clip.reviewedForEditor
+                                  ? 'border-emerald-500/70 bg-emerald-950/30 hover:bg-emerald-950/45'
+                                  : isRecreated
+                                  ? 'border-purple-500/70 bg-purple-950/30 hover:bg-purple-950/45'
+                                  : clip.auditStatus === 'warning' || clip.videoAuditStatus === 'warning'
+                                  ? 'border-amber-500/60 bg-amber-950/25 hover:bg-amber-950/40'
+                                  : clip.auditStatus === 'ok' || isVidReady
+                                  ? 'border-emerald-500/50 bg-emerald-950/20 hover:bg-emerald-950/35'
+                                  : 'border-slate-800 bg-slate-950 hover:bg-slate-900';
+
+                              const dotColor =
+                                clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected'
+                                  ? 'bg-rose-500'
+                                  : clip.reviewedForEditor
+                                  ? 'bg-emerald-400'
+                                  : isRecreated
+                                  ? 'bg-purple-400'
+                                  : clip.auditStatus === 'warning' || clip.videoAuditStatus === 'warning'
+                                  ? 'bg-amber-400'
+                                  : clip.auditStatus === 'ok' || isVidReady
+                                  ? 'bg-emerald-400'
+                                  : 'bg-slate-600';
+
+                              return (
+                                <div
+                                  key={`tl-${clip.id}`}
+                                  onClick={() => {
+                                    setClipBatchFilter(0);
+                                    setTimeout(() => {
+                                      const el = document.getElementById(
+                                        `prod-clip-card-${clip.clipNumber}`
+                                      );
+                                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 50);
+                                  }}
+                                  className={`min-w-[235px] max-w-[270px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${statusColor}`}
+                                >
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                                      <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+                                      CLIP {padded}
+                                    </span>
+                                    <span className="text-[11px] font-mono text-slate-200 bg-slate-900/90 px-2 py-0.5 rounded">
+                                      {clip.timeRange || 'S/T'}
+                                    </span>
+                                  </div>
+
+                                  {/* Production Status Badges inside Timeline Card */}
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {clip.reviewedForEditor && (
+                                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50 text-[10px] font-black text-emerald-200">
+                                        ☑️ Revisado
+                                      </span>
+                                    )}
+                                    {isRecreated && (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-500/25 border border-purple-400/50 text-[10px] font-black text-purple-200">
+                                        🔄 Recreado
+                                        {clip.videoAttempts && clip.videoAttempts > 1
+                                          ? ` (#${clip.videoAttempts})`
+                                          : ''}
+                                      </span>
+                                    )}
+                                    {isVidReady && (
+                                      <span className="px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-400/40 text-[10px] font-bold text-teal-200">
+                                        🎥 Video
+                                      </span>
+                                    )}
+                                    {clip.imageReady && (
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-[10px] font-bold text-amber-200">
+                                        🖼️ Img
+                                      </span>
+                                    )}
+                                    {!clip.imageReady && !isVidReady && !isRecreated && !clip.reviewedForEditor && (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400">
+                                        ⏳ Pendiente
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed">
+                                    {clip.clipNumber === 1 && !(clip.narrationSegment || '').trim()
+                                      ? '🔇 [Solo Foley y Texto Clip 1]'
+                                      : clip.narrationSegment || '⚠️ Sin fragmento de voz asignado'}
+                                  </p>
+
+                                  {/* Quick 1-Click Toggles for Recreado & Revisado directly on the Timeline Card */}
+                                  <div
+                                    className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-800/80"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = allClipsList.map((c) =>
+                                          c.id === clip.id ? { ...c, recreated: !isRecreated } : c
+                                        );
+                                        updateActiveDoc({ clips: next });
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition ${
+                                        isRecreated
+                                          ? 'bg-purple-500 text-slate-950 border-purple-300'
+                                          : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-500/30'
+                                      }`}
+                                      title="Marcar o desmarcar este clip como Recreado"
+                                    >
+                                      {isRecreated ? '🔄 Recreado ✓' : '🔄 Recreado'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextRev = !clip.reviewedForEditor;
+                                        const next = allClipsList.map((c) =>
+                                          c.id === clip.id
+                                            ? {
+                                                ...c,
+                                                reviewedForEditor: nextRev,
+                                                videoReady: nextRev ? true : c.videoReady,
+                                              }
+                                            : c
+                                        );
+                                        updateActiveDoc({ clips: next });
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition ${
+                                        clip.reviewedForEditor
+                                          ? 'bg-emerald-500 text-slate-950 border-emerald-300'
+                                          : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30'
+                                      }`}
+                                      title="Marcar o desmarcar este clip como Revisado"
+                                    >
+                                      {clip.reviewedForEditor ? '☑️ Revisado ✓' : '☑️ Revisar'}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                 {/* Batch Filter Tabs (Batches of 10) */}
                 {(activeDoc.clips?.length || 0) > 0 && (
@@ -9050,19 +9318,70 @@ export default function App() {
                 {/* Individual Clip Cards with Voiceover Alignment, Audit Status & 1-Click Suggestions */}
                 <div className="space-y-4">
                   {(activeDoc.clips || [])
-                    .filter((_, idx) =>
-                      clipBatchFilter === 0
-                        ? true
-                        : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10
-                    )
+                    .filter((clip, idx) => {
+                      const batchOk =
+                        clipBatchFilter === 0
+                          ? true
+                          : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10;
+                      if (!batchOk) return false;
+                      const isRec = Boolean(
+                        clip.recreated || (clip.videoAttempts && clip.videoAttempts > 1)
+                      );
+                      const isVid = Boolean(
+                        clip.videoReady ||
+                          capturedClipVideosMap[clip.clipNumber] ||
+                          clip.videoSavedFileName
+                      );
+                      const isGen =
+                        clip.videoAuditStatus === 'generating' || clip.videoAuditStatus === 'auditing';
+                      const isApp = clip.videoAuditStatus === 'approved' || clip.auditStatus === 'ok';
+                      const isIss =
+                        clip.videoAuditStatus === 'warning' ||
+                        clip.videoAuditStatus === 'rejected' ||
+                        clip.auditStatus === 'warning' ||
+                        clip.auditStatus === 'mismatch' ||
+                        Boolean(clip.suggestedImagePrompt || clip.suggestedVideoPrompt);
+                      const isPend =
+                        !clip.imageReady && !isVid && !isRec && !clip.reviewedForEditor && !isGen;
+
+                      switch (clipStatusFilter) {
+                        case 'PENDIENTE':
+                          return isPend;
+                        case 'IMAGEN_LISTA':
+                          return Boolean(clip.imageReady);
+                        case 'GENERANDO':
+                          return isGen;
+                        case 'VIDEO_LISTO':
+                          return isVid;
+                        case 'APROBADO_IA':
+                          return isApp;
+                        case 'OBSERVACION_ERROR':
+                          return isIss;
+                        case 'RECREADO':
+                          return isRec;
+                        case 'REVISADO':
+                          return Boolean(clip.reviewedForEditor);
+                        case 'SIN_REVISAR':
+                          return !clip.reviewedForEditor;
+                        default:
+                          return true;
+                      }
+                    })
                     .map((clip) => {
                       const realIdx = activeDoc.clips.findIndex((c) => c.id === clip.id);
                       const paddedNum = String(clip.clipNumber).padStart(2, '0');
                       const hasSuggestion = !!(clip.suggestedImagePrompt || clip.suggestedVideoPrompt);
+                      const isRecreatedClip = Boolean(
+                        clip.recreated || (clip.videoAttempts && clip.videoAttempts > 1)
+                      );
 
                       const borderClass =
                         clip.auditStatus === 'mismatch'
                           ? 'border-rose-500/60 bg-rose-950/10'
+                          : clip.reviewedForEditor
+                          ? 'border-emerald-500/60 bg-emerald-950/10'
+                          : isRecreatedClip
+                          ? 'border-purple-500/50 bg-purple-950/10'
                           : clip.auditStatus === 'warning'
                           ? 'border-amber-500/50 bg-amber-950/10'
                           : clip.imageReady && clip.videoReady
@@ -9092,6 +9411,14 @@ export default function App() {
                                 placeholder="00:06 - 00:16"
                                 className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 w-32"
                               />
+                              {isRecreatedClip && (
+                                <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-200 text-xs font-black">
+                                  🔄 Recreado
+                                  {clip.videoAttempts && clip.videoAttempts > 1
+                                    ? ` (Intento #${clip.videoAttempts})`
+                                    : ''}
+                                </span>
+                              )}
                               {clip.auditStatus === 'ok' && (
                                 <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
                                   ✅ Hace sentido con la voz
@@ -9145,6 +9472,35 @@ export default function App() {
                             </div>
 
                             <div className="flex items-center gap-3 flex-wrap">
+                              {/* Selectable Checkbox: Mark Clip Recreated */}
+                              <label
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition select-none ${
+                                  isRecreatedClip
+                                    ? 'bg-purple-500 text-slate-950 border-purple-300 shadow-lg shadow-purple-500/20'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-500/40'
+                                }`}
+                                title="Marca este clip como Recreado (también se activa automáticamente al re-hacer un clip en Flow)"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isRecreatedClip}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = [...activeDoc.clips];
+                                    next[realIdx] = {
+                                      ...clip,
+                                      recreated: checked,
+                                      videoAttempts: checked
+                                        ? Math.max(2, clip.videoAttempts || 2)
+                                        : 1,
+                                    };
+                                    updateActiveDoc({ clips: next });
+                                  }}
+                                  className="w-4 h-4 accent-purple-600 cursor-pointer"
+                                />
+                                {isRecreatedClip ? '🔄 Recreado' : '🔄 Marcar Recreado'}
+                              </label>
+
                               {/* Selectable Checkbox: Mark Clip Reviewed & Send to Editor de Video */}
                               <label
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition select-none ${

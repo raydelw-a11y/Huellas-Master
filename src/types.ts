@@ -172,6 +172,7 @@ export interface DocumentaryClip {
   pauseNotes?: string;
   imageReady: boolean;
   videoReady: boolean;
+  recreated?: boolean;
   reviewedForEditor?: boolean;
   imagePreviewUrl?: string;
   auditStatus?: 'ok' | 'warning' | 'mismatch';
