@@ -236,6 +236,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       "Image 45: Create an image of the interior of a wooden dormitory pavilion in Triscornia camp, Havana, Cuba, 1905, showing neat rows of empty folding canvas cots with folded wool blankets and emigrants' wooden trunks resting at the foot of each cot, warm beams of tropical sunlight streaming through screened wooden windows, strictly an empty architectural interior with zero people and no human figures anywhere in the frame, 16:9 horizontal, cinematic lighting, historical accuracy, no text.";
     const newClip45 =
       'Clip 45 (07:16 - 07:26): Create a video showing a slow, smooth forward dolly shot down the center aisle between the rows of empty canvas cots and wooden trunks inside the sunlit wooden pavilion in Havana, Cuba, 1905, as dust motes float gently in the beams of window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: wooden floorboards creaking softly, warm tropical breeze rustling window screens, distant harbor ambience, single continuous shot, strictly no shot changes, no music, no speech, no text. varilla de vidrio buscando granulaciones de tracoma, una infección ocular que significaba la deportación inmediata. Entre julio y octubre de 1905 arribaron más de. fix the name';
+    const newImg52 =
+      'Image 52: Create an image of two adult Spanish immigrant women in wool berets and dark shawls walking forward down a cobblestone street in Mexico City, Mexico, 1910, carrying rope-tied wooden trunks, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people). STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
+    const newClip52 =
+      'Clip 52 (08:26 - 08:36): Create a video showing a smooth backward tracking dolly shot moving continuously ahead of the two Spanish immigrant women in wool berets as they keep walking steadily forward down the cobblestone street in Mexico City, Mexico, 1910, carrying their wooden trunks while the camera follows their uninterrupted walk from start to finish without stopping. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 10s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: steady leather boots walking on cobblestones, wooden trunk handles creaking softly, distant carriage wheels, single continuous shot, strictly no shot changes, no music, no speech, no text. pana por el dril blanco y las alpargatas de cáñamo, escribió el 13 de diciembre de 1920 una carta a su madre, Bernarda Ruiz Balbín, tranquilizándola sobre. fix the name';
     const newImg55 =
       "Image 55: Create an image of a stern older Spanish store owner in a dark vest standing with both hands resting empty on a polished mahogany counter in a traditional grocery store in Mexico City, Mexico, 1910, speaking seriously to an adult newly arrived Spanish clerk in a white linen apron standing across the counter with empty hands (strictly no brooms or tools in anyone's hands), 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.";
     const newClip55 =
@@ -356,6 +360,23 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             ...c,
             imagePrompt: newImg45,
             videoPrompt: newClip45,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 52 &&
+          (/stopping before heavy wooden store doors|tracking shot behind/i.test(
+            c.videoPrompt || ''
+          ) ||
+            !/smooth backward tracking dolly shot moving continuously ahead/i.test(
+              c.videoPrompt || ''
+            ))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg52,
+            videoPrompt: newClip52,
           };
         }
         if (
@@ -511,6 +532,16 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 45:[^\n]*/i, newImg45)
           .replace(/Clip 45\s*\([^)]*\):[^\n]*/i, newClip45);
+      }
+      if (
+        /Image 52:[^\n]*/i.test(rawText) &&
+        !/Clip 52\s*\([^)]*\):[^\n]*smooth backward tracking dolly shot moving continuously ahead/i.test(
+          rawText
+        )
+      ) {
+        rawText = rawText
+          .replace(/Image 52:[^\n]*/i, newImg52)
+          .replace(/Clip 52\s*\([^)]*\):[^\n]*/i, newClip52);
       }
       if (
         /Image 55:[^\n]*/i.test(rawText) &&
