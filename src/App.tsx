@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:56 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:01 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2313,6 +2313,7 @@ export default function App() {
       | 'ADULTS_ONLY'
       | 'SINGLE_SHOT'
       | 'VISUAL_LOGIC'
+      | 'CLEAN_FOLEY_AUDIO'
       | 'ALL' = 'ALL',
     isImagePrompt: boolean = false,
     explicitClipSec?: number
@@ -2334,6 +2335,8 @@ export default function App() {
       mode === 'SINGLE_SHOT' || /SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE/i.test(rawPrompt);
     const hadVisualLogic =
       mode === 'VISUAL_LOGIC' || /STRICT\s*LITERAL\s*VISUAL\s*LOGIC/i.test(rawPrompt);
+    const hadCleanFoleyAudio =
+      mode === 'CLEAN_FOLEY_AUDIO' || /STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY/i.test(rawPrompt);
 
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
@@ -2379,6 +2382,19 @@ export default function App() {
         );
     }
 
+    // If CLEAN_FOLEY_AUDIO mode is requested or was previously applied, strip any music, singing, dialogue, or voice cues
+    if (hadCleanFoleyAudio) {
+      p = p
+        .replace(
+          /\b(background\s+music|orchestral\s+music|dramatic\s+music|cinematic\s+score|musical\s+score|soundtrack|choir|chanting|singing|gregorian\s+chant|violin|cello|drums|horns|música|coro|canto)\b/gi,
+          'subtle natural room tone and environmental foley'
+        )
+        .replace(
+          /\b(speaking\s+aloud|talking\s+aloud|speaking|talking|whispering\s+words|murmuring\s+voices|distant\s+voices|crowd\s+voices|dialogue|monologue|narration|voiceover|shouting|screaming|hablando|susurrando|voces|diálogo|narración)\b/gi,
+          'silent composed facial expression with natural ambient foley'
+        );
+    }
+
     // Remove any previously injected anti-mutation or duplicate safety clause so it never duplicates
     p = p
       .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
@@ -2396,6 +2412,7 @@ export default function App() {
       .replace(/STRICT\s*ADULTS-ONLY\s*CAST[^.]*\.\s*/gi, '')
       .replace(/SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*LITERAL\s*VISUAL\s*LOGIC[^.]*\.\s*/gi, '')
+      .replace(/STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY[^.]*\.\s*/gi, '')
       .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
       .trim();
 
@@ -2409,6 +2426,10 @@ export default function App() {
 
     const visualLogicClause = hadVisualLogic
       ? `STRICT LITERAL VISUAL LOGIC & PROMPT FIDELITY: Execute the exact literal physical staging, subject action, eye-line direction, and cause-and-effect spatial logic described in the prompt from 0s to ${clipSec}s with 100% narrative coherence; strictly zero random, contradictory, or unrelated actions, zero surreal or nonsensical behavior, and natural grounded human physics matching the exact visual idea.`
+      : '';
+
+    const cleanFoleyAudioClause = hadCleanFoleyAudio
+      ? 'STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices.'
       : '';
 
     if (isImagePrompt) {
@@ -2453,6 +2474,8 @@ export default function App() {
       shieldDirective = `${singleShotClause} Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second single continuous shot. ${safetyDisclaimer}`;
     } else if (mode === 'VISUAL_LOGIC') {
       shieldDirective = `${visualLogicClause} Sustained, coherent physical action from 0s to ${clipSec}s with fixed subject count, gravity-locked props, and rigid 3D spatial geometry. ${safetyDisclaimer}`;
+    } else if (mode === 'CLEAN_FOLEY_AUDIO') {
+      shieldDirective = `${cleanFoleyAudioClause} Sustained, unhurried continuous action across the full ${clipSec} seconds. ${safetyDisclaimer}`;
     } else {
       // 'ALL'
       shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, weapons, furniture, and props remain 100% gravity-locked, physically solid, and stationary with zero self-moving, morphing, or mutating objects. ${safetyDisclaimer}`;
@@ -2467,9 +2490,15 @@ export default function App() {
     if (mode !== 'VISUAL_LOGIC' && visualLogicClause) {
       shieldDirective = `${visualLogicClause} ${shieldDirective}`;
     }
+    if (mode !== 'CLEAN_FOLEY_AUDIO' && cleanFoleyAudioClause) {
+      shieldDirective = `${cleanFoleyAudioClause} ${shieldDirective}`;
+    }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
       p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
+      if (hadCleanFoleyAudio) {
+        p = `${p.replace(/\.?\s*$/, '')} (100% pure ambient foley only, strictly no background music, no singing, and no human voices or speech).`;
+      }
     } else {
       p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
     }
@@ -2477,7 +2506,7 @@ export default function App() {
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   };
 
-  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'ALL') + Immediate Re-send to Google Flow
+  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'CLEAN_FOLEY_AUDIO' | 'ALL') + Immediate Re-send to Google Flow
   const handleFixMutationAndResendClip = (
     clip: DocumentaryClip,
     mode:
@@ -2487,6 +2516,7 @@ export default function App() {
       | 'ADULTS_ONLY'
       | 'SINGLE_SHOT'
       | 'VISUAL_LOGIC'
+      | 'CLEAN_FOLEY_AUDIO'
       | 'ALL' = 'ALL',
     isAutoMutationRetry: boolean = false
   ) => {
@@ -2500,7 +2530,14 @@ export default function App() {
     const shieldedVid = applyAntiMutationShieldToPrompt(clip.videoPrompt || '', mode, false, clipSec);
 
     const modeLabels: Record<
-      'PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'ALL',
+      | 'PEOPLE'
+      | 'OBJECTS'
+      | 'WALLS'
+      | 'ADULTS_ONLY'
+      | 'SINGLE_SHOT'
+      | 'VISUAL_LOGIC'
+      | 'CLEAN_FOLEY_AUDIO'
+      | 'ALL',
       string
     > = {
       PEOPLE: `🚷 Anti-Aparición/Mutación de Personas (conteo fijo 0s–${clipSec}s + fondo bokeh estático)`,
@@ -2509,6 +2546,7 @@ export default function App() {
       ADULTS_ONLY: '🔞 Solo Adultos (100% personajes adultos de 35–60 años, cero niños o menores en escena)',
       SINGLE_SHOT: `🎬 Un Solo Shot Continuo (toma única ininterrumpida de 0s a ${clipSec}s sin cortes ni saltos de cámara)`,
       VISUAL_LOGIC: `🧠 Fidelidad y Lógica Visual Estricta (ejecución literal de la idea visual y acción física del prompt de 0s a ${clipSec}s sin incoherencias)`,
+      CLEAN_FOLEY_AUDIO: '🔇 Audio Puro Foley Sin Música ni Voz (elimina toda música de fondo, canto, diálogo o voces humanas dejando solo ambiente natural)',
       ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
@@ -9908,6 +9946,14 @@ export default function App() {
                               </button>
                               <button
                                 type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
+                                className="px-2.5 py-1 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition"
+                                title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
+                              >
+                                🔇 Eliminar música / voz del audio
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition"
                                 title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
@@ -9931,7 +9977,55 @@ export default function App() {
                             )}
 
                             {/* LARGE CINEMA .MP4 VIDEO VIEWER + 3 LARGE KEYFRAME PREVIEWS */}
-                            <div className="space-y-4 pt-1">
+                            <div className="space-y-2.5 pt-1">
+                              {/* Prominent "Marcar Revisado" Bar Directly Above the Clip Viewer */}
+                              <div className="w-full max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2 bg-slate-900/95 border border-emerald-500/40 rounded-xl px-3.5 py-2 shadow-md">
+                                <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                  🎬 Visor del Clip {paddedNum} ({clip.timeRange || 'S/T'})
+                                  {clip.videoSavedFileName && (
+                                    <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded">
+                                      💾 {clip.videoSavedFileName}
+                                    </span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextChecked = !clip.reviewedForEditor;
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = {
+                                        ...clip,
+                                        reviewedForEditor: nextChecked,
+                                        videoReady: nextChecked ? true : clip.videoReady,
+                                      };
+                                      updateActiveDoc({ clips: next });
+                                      if (nextChecked && !capturedClipVideosMap[clip.clipNumber]) {
+                                        handleLoadClipVideoFromFolder(clip, true);
+                                      }
+                                    }}
+                                    className={`px-4 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition flex items-center gap-2 shadow-lg ${
+                                      clip.reviewedForEditor
+                                        ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-emerald-500/25'
+                                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
+                                    }`}
+                                  >
+                                    {clip.reviewedForEditor
+                                      ? `✅ Clip ${paddedNum} Revisado (En Editor de Video)`
+                                      : `☑️ Marcar Revisado Clip ${paddedNum} y Enviar al Editor`}
+                                  </button>
+                                  {clip.reviewedForEditor && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setMainView('capcut_editor')}
+                                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer"
+                                    >
+                                      🎬 Ver en Editor
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
                               {/* Main Large Interactive .MP4 Player */}
                               <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video min-h-[280px] sm:min-h-[380px] lg:min-h-[460px] shadow-2xl flex items-center justify-center">
                                 {capturedClipVideosMap[clip.clipNumber] ? (
