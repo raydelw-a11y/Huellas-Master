@@ -374,6 +374,24 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         }
         if (
           c &&
+          c.clipNumber === 59 &&
+          (/sliding a heavy iron bolt|slides the heavy iron bolt|iron bolt on the wooden shutters/i.test(
+            c.imagePrompt || ''
+          ) ||
+            /sliding a heavy iron bolt|slides the heavy iron bolt|wooden shutters at 10 PM/i.test(
+              c.videoPrompt || ''
+            ) ||
+            !/steaming porcelain cup of dark coffee/i.test(c.imagePrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg59,
+            videoPrompt: newClip59,
+          };
+        }
+        if (
+          c &&
           c.clipNumber === 60 &&
           (/unrolling a straw petate mat/i.test(c.imagePrompt || '') ||
             /unrolls his straw mat|lies down beside the brass scale/i.test(c.videoPrompt || ''))
@@ -415,6 +433,17 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             videoPrompt: newClip76,
           };
         }
+        if (
+          c &&
+          (/8\s*bokeh\)\./i.test(c.imagePrompt || '') || /8\s*bokeh\)\./i.test(c.videoPrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: (c.imagePrompt || '').replace(/(?:\s*8\s*bokeh\)\.)+/gi, ''),
+            videoPrompt: (c.videoPrompt || '').replace(/(?:\s*8\s*bokeh\)\.)+/gi, ''),
+          };
+        }
         return c;
       });
       if (clipsChanged) {
@@ -423,6 +452,9 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     }
     if (typeof doc.rawClipsText === 'string') {
       let rawText = doc.rawClipsText;
+      if (/8\s*bokeh\)\./i.test(rawText)) {
+        rawText = rawText.replace(/(?:\s*8\s*bokeh\)\.)+/gi, '');
+      }
       if (/Image 19:[^\n]*shipping agent's counter/i.test(rawText)) {
         rawText = rawText
           .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
@@ -488,6 +520,15 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 55:[^\n]*/i, newImg55)
           .replace(/Clip 55\s*\([^)]*\):[^\n]*/i, newClip55);
+      }
+      if (
+        /Image 59:[^\n]*/i.test(rawText) &&
+        (!/Image 59:[^\n]*steaming porcelain cup of dark coffee/i.test(rawText) ||
+          /Clip 59\s*\([^)]*\):[^\n]*slides the heavy iron bolt/i.test(rawText))
+      ) {
+        rawText = rawText
+          .replace(/Image 59:[^\n]*/i, newImg59)
+          .replace(/Clip 59\s*\([^)]*\):[^\n]*/i, newClip59);
       }
       if (
         /Image 60:[^\n]*unrolling a straw petate mat/i.test(rawText) ||
