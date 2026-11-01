@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:01 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:03 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2314,6 +2314,7 @@ export default function App() {
       | 'SINGLE_SHOT'
       | 'VISUAL_LOGIC'
       | 'CLEAN_FOLEY_AUDIO'
+      | 'ERRATIC_ACTING'
       | 'ALL' = 'ALL',
     isImagePrompt: boolean = false,
     explicitClipSec?: number
@@ -2337,6 +2338,8 @@ export default function App() {
       mode === 'VISUAL_LOGIC' || /STRICT\s*LITERAL\s*VISUAL\s*LOGIC/i.test(rawPrompt);
     const hadCleanFoleyAudio =
       mode === 'CLEAN_FOLEY_AUDIO' || /STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY/i.test(rawPrompt);
+    const hadErraticActing =
+      mode === 'ERRATIC_ACTING' || /STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING/i.test(rawPrompt);
 
     // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
     let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
@@ -2395,6 +2398,19 @@ export default function App() {
         );
     }
 
+    // If ERRATIC_ACTING mode is requested or was previously applied, soften frantic/abrupt action verbs into slow, composed, dignified movements
+    if (hadErraticActing) {
+      p = p
+        .replace(
+          /\b(frantically|wildly|violently|furiously|erratically|hysterically|manically|abruptly|spastically|aggressively)\b/gi,
+          'calmly and deliberately with solemn composure'
+        )
+        .replace(
+          /\b(suddenly\s+lunges|jerks\s+back|twitches|thrashes|flails|gesticulates\s+wildly|paces\s+frantically|runs\s+frantically|spins\s+around)\b/gi,
+          'moves slowly with measured, dignified poise'
+        );
+    }
+
     // Remove any previously injected anti-mutation or duplicate safety clause so it never duplicates
     p = p
       .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
@@ -2413,6 +2429,7 @@ export default function App() {
       .replace(/SINGLE\s*CONTINUOUS\s*UNBROKEN\s*TAKE[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*LITERAL\s*VISUAL\s*LOGIC[^.]*\.\s*/gi, '')
       .replace(/STRICT\s*PURE\s*AMBIENT\s*FOLEY\s*ONLY[^.]*\.\s*/gi, '')
+      .replace(/STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING[^.]*\.\s*/gi, '')
       .replace(/Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi, '')
       .trim();
 
@@ -2432,6 +2449,10 @@ export default function App() {
       ? 'STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices.'
       : '';
 
+    const erraticActingClause = hadErraticActing
+      ? `STRICT CALM COMPOSED NATURAL HUMAN ACTING (ZERO ERRATIC MOVEMENTS): All characters perform slow, deliberate, dignified, and anatomically natural micro-movements from 0s to ${clipSec}s (subtle breathing, calm steady eye-line, composed posture, and smooth natural hand gestures); strictly zero erratic, jerky, spastic, frantic, twitchy, or unnatural body movements, zero sudden head snaps, and zero exaggerated facial contortions.`
+      : '';
+
     if (isImagePrompt) {
       const imgClause =
         'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people)';
@@ -2449,6 +2470,9 @@ export default function App() {
       }
       if (visualLogicClause) {
         p = `${p.replace(/\.?\s*$/, '')}. ${visualLogicClause}`;
+      }
+      if (erraticActingClause) {
+        p = `${p.replace(/\.?\s*$/, '')}. ${erraticActingClause}`;
       }
       return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
     }
@@ -2476,6 +2500,8 @@ export default function App() {
       shieldDirective = `${visualLogicClause} Sustained, coherent physical action from 0s to ${clipSec}s with fixed subject count, gravity-locked props, and rigid 3D spatial geometry. ${safetyDisclaimer}`;
     } else if (mode === 'CLEAN_FOLEY_AUDIO') {
       shieldDirective = `${cleanFoleyAudioClause} Sustained, unhurried continuous action across the full ${clipSec} seconds. ${safetyDisclaimer}`;
+    } else if (mode === 'ERRATIC_ACTING') {
+      shieldDirective = `${erraticActingClause} Fixed subject count from 0s to ${clipSec}s with locked human anatomy and background figures stationary in soft f/1.8 bokeh. ${safetyDisclaimer}`;
     } else {
       // 'ALL'
       shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, weapons, furniture, and props remain 100% gravity-locked, physically solid, and stationary with zero self-moving, morphing, or mutating objects. ${safetyDisclaimer}`;
@@ -2493,6 +2519,9 @@ export default function App() {
     if (mode !== 'CLEAN_FOLEY_AUDIO' && cleanFoleyAudioClause) {
       shieldDirective = `${cleanFoleyAudioClause} ${shieldDirective}`;
     }
+    if (mode !== 'ERRATIC_ACTING' && erraticActingClause) {
+      shieldDirective = `${erraticActingClause} ${shieldDirective}`;
+    }
 
     if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
       p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -2506,7 +2535,7 @@ export default function App() {
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   };
 
-  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'CLEAN_FOLEY_AUDIO' | 'ALL') + Immediate Re-send to Google Flow
+  // Option 2: Surgical 1-Click Fix for Specific Visual Error ('PEOPLE' | 'OBJECTS' | 'WALLS' | 'ADULTS_ONLY' | 'SINGLE_SHOT' | 'VISUAL_LOGIC' | 'CLEAN_FOLEY_AUDIO' | 'ERRATIC_ACTING' | 'ALL') + Immediate Re-send to Google Flow
   const handleFixMutationAndResendClip = (
     clip: DocumentaryClip,
     mode:
@@ -2517,6 +2546,7 @@ export default function App() {
       | 'SINGLE_SHOT'
       | 'VISUAL_LOGIC'
       | 'CLEAN_FOLEY_AUDIO'
+      | 'ERRATIC_ACTING'
       | 'ALL' = 'ALL',
     isAutoMutationRetry: boolean = false
   ) => {
@@ -2537,6 +2567,7 @@ export default function App() {
       | 'SINGLE_SHOT'
       | 'VISUAL_LOGIC'
       | 'CLEAN_FOLEY_AUDIO'
+      | 'ERRATIC_ACTING'
       | 'ALL',
       string
     > = {
@@ -2547,6 +2578,7 @@ export default function App() {
       SINGLE_SHOT: `🎬 Un Solo Shot Continuo (toma única ininterrumpida de 0s a ${clipSec}s sin cortes ni saltos de cámara)`,
       VISUAL_LOGIC: `🧠 Fidelidad y Lógica Visual Estricta (ejecución literal de la idea visual y acción física del prompt de 0s a ${clipSec}s sin incoherencias)`,
       CLEAN_FOLEY_AUDIO: '🔇 Audio Puro Foley Sin Música ni Voz (elimina toda música de fondo, canto, diálogo o voces humanas dejando solo ambiente natural)',
+      ERRATIC_ACTING: `🧍‍♂️ Actuación Natural y Pausada (movimientos humanos lentos, dignos y controlados de 0s a ${clipSec}s, cero gestos erráticos o espasmódicos)`,
       ALL: `🔧 Blindaje Completo Anti-Mutación ${clipSec}s (Personas + Objetos + Paredes + Acción Sostenida 0s–${clipSec}s)`,
     };
 
@@ -9951,6 +9983,14 @@ export default function App() {
                                 title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
                               >
                                 🔇 Eliminar música / voz del audio
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
+                                className="px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition"
+                                title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
+                              >
+                                🧍‍♂️ Personas actúan erráticamente
                               </button>
                               <button
                                 type="button"
