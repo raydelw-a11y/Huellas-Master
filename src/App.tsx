@@ -9852,8 +9852,9 @@ export default function App() {
                           </div>
 
                           {/* SURGICAL ANTI-MUTATION QUICK FIX BAR + LARGE CINEMA .MP4 PLAYER & 3-KEYFRAME VIEWER */}
+                          {/* ZERO-SCROLL SIDE-BY-SIDE COCKPIT: .MP4 CLIP VIEWER (LEFT) + REVISADO BUTTON & CORRECTION LIST (RIGHT) */}
                           <div
-                            className={`rounded-2xl border p-4 space-y-4 ${
+                            className={`rounded-2xl border p-3 ${
                               clip.videoAuditStatus === 'rejected'
                                 ? 'bg-rose-950/25 border-rose-500/40'
                                 : clip.videoAuditStatus === 'warning'
@@ -9863,289 +9864,244 @@ export default function App() {
                                 : 'bg-slate-950/90 border-slate-800'
                             }`}
                           >
-                            {/* Header + Review Checkbox + 4 Surgical Error Fix Buttons */}
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                              <span className="text-sm font-black text-amber-300 flex items-center gap-2">
-                                🎞️ Visor Grande .MP4 del Clip {paddedNum} y Auditoría Anti-Mutación (Inicio 1.2s • Mitad 5.0s • Final 8.8s)
-                                {clip.videoAttempts && clip.videoAttempts > 1
-                                  ? ` • Intento #${clip.videoAttempts}`
-                                  : ''}
-                              </span>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {clip.videoSavedFileName && (
-                                  <span className="text-xs font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">
-                                    ✓ En 05_Clips_Video: {clip.videoSavedFileName}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                              {/* LEFT COLUMN (7/12): .MP4 VIDEO VIEWER + COMPACT 3 KEYFRAMES */}
+                              <div className="lg:col-span-7 space-y-2">
+                                <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video max-h-[320px] shadow-xl flex items-center justify-center">
+                                  {capturedClipVideosMap[clip.clipNumber] ? (
+                                    <video
+                                      data-stage8-clip-video="true"
+                                      src={capturedClipVideosMap[clip.clipNumber]}
+                                      controls
+                                      playsInline
+                                      loop
+                                      preload="metadata"
+                                      onPlay={(e) => {
+                                        const currentVid = e.currentTarget;
+                                        document
+                                          .querySelectorAll<HTMLVideoElement>(
+                                            'video[data-stage8-clip-video="true"]'
+                                          )
+                                          .forEach((v) => {
+                                            if (v !== currentVid && !v.paused) {
+                                              v.pause();
+                                            }
+                                          });
+                                      }}
+                                      className="w-full h-full object-contain bg-black"
+                                    />
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+                                      <Film className="w-8 h-8 text-amber-400/70" />
+                                      <p className="text-xs text-slate-300 max-w-sm">
+                                        El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí al generarse en Google Flow o desde tu carpeta.
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleLoadClipVideoFromFolder(clip, false)}
+                                        className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
+                                      >
+                                        ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
+                                      </button>
+                                    </div>
+                                  )}
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-[11px] font-mono font-bold text-emerald-300 pointer-events-none shadow">
+                                    🎬 Clip {paddedNum} ({clip.timeRange || 'S/T'})
+                                    {clip.videoAttempts && clip.videoAttempts > 1
+                                      ? ` • Intento #${clip.videoAttempts}`
+                                      : ''}
                                   </span>
-                                )}
-                                <label
-                                  className={`flex items-center gap-2 px-3 py-1 rounded-xl border text-xs font-black cursor-pointer transition select-none ${
-                                    clip.reviewedForEditor
-                                      ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
-                                      : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/40'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(clip.reviewedForEditor)}
-                                    onChange={(e) => {
-                                      const checked = e.target.checked;
-                                      const next = [...activeDoc.clips];
-                                      next[realIdx] = {
-                                        ...clip,
-                                        reviewedForEditor: checked,
-                                        videoReady: checked ? true : clip.videoReady,
-                                      };
-                                      updateActiveDoc({ clips: next });
-                                      if (checked && !capturedClipVideosMap[clip.clipNumber]) {
-                                        handleLoadClipVideoFromFolder(clip, true);
-                                      }
-                                    }}
-                                    className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
-                                  />
-                                  {clip.reviewedForEditor
-                                    ? '✅ Revisado en Editor de Video'
-                                    : '☑️ Marcar Revisado y Enviar al Editor de Video'}
-                                </label>
-                                {clip.reviewedForEditor && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setMainView('capcut_editor')}
-                                    className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
-                                  >
-                                    🎬 Ver en Editor de Video
-                                  </button>
+                                </div>
+
+                                {/* Compact 3 Keyframe Strip (Inicio 1.2s, Mitad 5.0s, Final 8.8s) */}
+                                {(clip.videoFrames || []).length > 0 && (
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
+                                      <div
+                                        key={fIdx}
+                                        className="relative rounded-lg overflow-hidden border border-slate-700 bg-black h-20 shadow"
+                                      >
+                                        <img
+                                          src={frameSrc}
+                                          alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/85 border border-amber-500/40 text-[10px] font-mono font-bold text-amber-300">
+                                          {fIdx === 0
+                                            ? 'Inicio • 1.2s'
+                                            : fIdx === 1
+                                            ? 'Mitad • 5.0s'
+                                            : 'Final • 8.8s'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 )}
                               </div>
-                            </div>
 
-                            {/* 6 Quick Surgical Anti-Mutation / Error Fix Buttons (1-Click Re-adjust + Re-send to Google Flow) */}
-                            <div className="flex items-center gap-1.5 flex-wrap bg-slate-950/80 border border-slate-800/90 rounded-lg p-2.5">
-                              <span className="text-[11px] font-bold text-slate-400 mr-1">
-                                Corregir error visual y re-enviar a Flow:
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
-                                className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition"
-                                title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
-                              >
-                                🔞 Solo Adultos
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
-                                className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition"
-                                title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
-                              >
-                                🚷 Aparece / Muta Gente
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
-                                className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition"
-                                title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
-                              >
-                                🪑 Objeto se mueve solo / Muta
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
-                                className="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition"
-                                title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
-                              >
-                                🧱 Pared / Fondo muta
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
-                                className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition"
-                                title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
-                              >
-                                🎬 Salto de shot innecesario
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
-                                className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition"
-                                title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
-                              >
-                                🧠 Sin lógica con la idea visual
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
-                                className="px-2.5 py-1 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition"
-                                title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
-                              >
-                                🔇 Eliminar música / voz del audio
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
-                                className="px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition"
-                                title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
-                              >
-                                🧍‍♂️ Personas actúan erráticamente
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition"
-                                title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
-                              >
-                                🔧 Todo Anti-Mutación
-                              </button>
-                            </div>
+                              {/* RIGHT COLUMN (5/12): REVISADO BUTTON + COMPACT CORRECTION LIST (NO SCROLL NEEDED) */}
+                              <div className="lg:col-span-5 flex flex-col justify-between gap-2.5 bg-slate-950/90 border border-slate-800/90 rounded-xl p-3">
+                                {/* 1. Prominent "Revisado" Button at the Top */}
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextChecked = !clip.reviewedForEditor;
+                                        const next = [...activeDoc.clips];
+                                        next[realIdx] = {
+                                          ...clip,
+                                          reviewedForEditor: nextChecked,
+                                          videoReady: nextChecked ? true : clip.videoReady,
+                                        };
+                                        updateActiveDoc({ clips: next });
+                                        if (nextChecked && !capturedClipVideosMap[clip.clipNumber]) {
+                                          handleLoadClipVideoFromFolder(clip, true);
+                                        }
+                                      }}
+                                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-black cursor-pointer transition flex items-center justify-center gap-2 shadow-lg ${
+                                        clip.reviewedForEditor
+                                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-emerald-500/25'
+                                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
+                                      }`}
+                                    >
+                                      {clip.reviewedForEditor
+                                        ? `✅ Clip ${paddedNum} Revisado (En Editor)`
+                                        : `☑️ Marcar Revisado Clip ${paddedNum}`}
+                                    </button>
+                                    {clip.reviewedForEditor && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setMainView('capcut_editor')}
+                                        className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer shrink-0"
+                                      >
+                                        🎬 Editor
+                                      </button>
+                                    )}
+                                  </div>
 
-                            {clip.videoAuditReason && (
-                              <p className="text-xs text-slate-200 leading-relaxed">
-                                {clip.videoAuditReason}
-                              </p>
-                            )}
+                                  {clip.videoSavedFileName && (
+                                    <div className="text-[11px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-lg truncate">
+                                      💾 05_Clips_Video/{clip.videoSavedFileName}
+                                    </div>
+                                  )}
+                                </div>
 
-                            {clip.videoAuditIssues &&
-                              clip.videoAuditIssues.filter(
-                                (iss) =>
-                                  iss &&
-                                  !(clip.videoAuditReason || '')
-                                    .toLowerCase()
-                                    .includes(iss.trim().toLowerCase())
-                              ).length > 0 && (
-                                <ul className="list-disc list-inside text-xs text-amber-300 space-y-0.5">
-                                  {Array.from(
-                                    new Set(
+                                {/* 2. Compact 2-Column Correction List Directly Below Revisado */}
+                                <div className="space-y-1.5">
+                                  <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                    🔧 Lista de Corrección Rápida (Re-enviar a Flow):
+                                  </span>
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'ADULTS_ONLY', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente y re-enviando a Google Flow"
+                                    >
+                                      🔞 Solo Adultos
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'PEOPLE', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas en la mitad/final"
+                                    >
+                                      🚷 Aparece / Muta Gente
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'OBJECTS', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
+                                    >
+                                      🪑 Objeto se mueve solo
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'WALLS', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/40 text-[11px] text-sky-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Mantiene tu movimiento de cámara de forma suave y controlada y clava la geometría 3D para que las paredes y fondos nunca muten"
+                                    >
+                                      🧱 Pared / Fondo muta
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'SINGLE_SHOT', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/40 text-[11px] text-indigo-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes de cámara o saltos de plano"
+                                    >
+                                      🎬 Salto de shot
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'VISUAL_LOGIC', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/40 text-[11px] text-cyan-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt, eliminando acciones sin sentido o desconectadas de la escena"
+                                    >
+                                      🧠 Sin lógica visual
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'CLEAN_FOLEY_AUDIO', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-teal-500/15 hover:bg-teal-500/30 border border-teal-500/40 text-[11px] text-teal-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley puros y bocas cerradas sin hablar"
+                                    >
+                                      🔇 Eliminar música/voz
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'ERRATIC_ACTING', false)}
+                                      className="px-2 py-1.5 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-[11px] text-orange-200 font-bold cursor-pointer transition text-left truncate"
+                                      title="Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos, espasmódicos, frenéticos o antinaturales"
+                                    >
+                                      🧍‍♂️ Actuación errática
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFixMutationAndResendClip(clip, 'ALL', false)}
+                                      className="col-span-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-[11px] text-emerald-200 font-black cursor-pointer transition text-center"
+                                      title="Aplica todos los blindajes juntos (Personas + Objetos + Paredes + Acción Continua de 0s a 10s) y re-envía a Google Flow"
+                                    >
+                                      🔧 Aplicar Todo Anti-Mutación y Re-enviar a Flow
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {(clip.videoAuditReason || (clip.videoAuditIssues && clip.videoAuditIssues.length > 0)) && (
+                                  <div className="pt-1 border-t border-slate-800/80 space-y-1">
+                                    {clip.videoAuditReason && (
+                                      <p className="text-[11px] text-slate-300 leading-snug">
+                                        {clip.videoAuditReason}
+                                      </p>
+                                    )}
+                                    {clip.videoAuditIssues &&
                                       clip.videoAuditIssues.filter(
                                         (iss) =>
                                           iss &&
                                           !(clip.videoAuditReason || '')
                                             .toLowerCase()
                                             .includes(iss.trim().toLowerCase())
-                                      )
-                                    )
-                                  ).map((iss, iIdx) => (
-                                    <li key={iIdx}>{iss}</li>
-                                  ))}
-                                </ul>
-                              )}
-
-                            {/* LARGE CINEMA .MP4 VIDEO VIEWER + 3 LARGE KEYFRAME PREVIEWS */}
-                            <div className="space-y-2.5 pt-1">
-                              {/* Prominent "Marcar Revisado" Bar Directly Above the Clip Viewer */}
-                              <div className="w-full max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2 bg-slate-900/95 border border-emerald-500/40 rounded-xl px-3.5 py-2 shadow-md">
-                                <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                                  🎬 Visor del Clip {paddedNum} ({clip.timeRange || 'S/T'})
-                                  {clip.videoSavedFileName && (
-                                    <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded">
-                                      💾 {clip.videoSavedFileName}
-                                    </span>
-                                  )}
-                                </span>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const nextChecked = !clip.reviewedForEditor;
-                                      const next = [...activeDoc.clips];
-                                      next[realIdx] = {
-                                        ...clip,
-                                        reviewedForEditor: nextChecked,
-                                        videoReady: nextChecked ? true : clip.videoReady,
-                                      };
-                                      updateActiveDoc({ clips: next });
-                                      if (nextChecked && !capturedClipVideosMap[clip.clipNumber]) {
-                                        handleLoadClipVideoFromFolder(clip, true);
-                                      }
-                                    }}
-                                    className={`px-4 py-1.5 rounded-xl border text-xs font-black cursor-pointer transition flex items-center gap-2 shadow-lg ${
-                                      clip.reviewedForEditor
-                                        ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-emerald-500/25'
-                                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
-                                    }`}
-                                  >
-                                    {clip.reviewedForEditor
-                                      ? `✅ Clip ${paddedNum} Revisado (En Editor de Video)`
-                                      : `☑️ Marcar Revisado Clip ${paddedNum} y Enviar al Editor`}
-                                  </button>
-                                  {clip.reviewedForEditor && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setMainView('capcut_editor')}
-                                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer"
-                                    >
-                                      🎬 Ver en Editor
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Main Large Interactive .MP4 Player */}
-                              <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/50 bg-black aspect-video min-h-[280px] sm:min-h-[380px] lg:min-h-[460px] shadow-2xl flex items-center justify-center">
-                                {capturedClipVideosMap[clip.clipNumber] ? (
-                                  <video
-                                    data-stage8-clip-video="true"
-                                    src={capturedClipVideosMap[clip.clipNumber]}
-                                    controls
-                                    playsInline
-                                    loop
-                                    preload="metadata"
-                                    onPlay={(e) => {
-                                      const currentVid = e.currentTarget;
-                                      document
-                                        .querySelectorAll<HTMLVideoElement>(
-                                          'video[data-stage8-clip-video="true"]'
-                                        )
-                                        .forEach((v) => {
-                                          if (v !== currentVid && !v.paused) {
-                                            v.pause();
-                                          }
-                                        });
-                                    }}
-                                    className="w-full h-full object-contain bg-black"
-                                  />
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-                                    <Film className="w-10 h-10 text-amber-400/70" />
-                                    <p className="text-xs text-slate-300 max-w-md">
-                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproducirá aquí en tamaño grande apenas se genere en Google Flow o al cargarlo desde tu carpeta.
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleLoadClipVideoFromFolder(clip, false)}
-                                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
-                                    >
-                                      ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
-                                    </button>
+                                      ).length > 0 && (
+                                        <ul className="list-disc list-inside text-[11px] text-amber-300 space-y-0.5">
+                                          {Array.from(
+                                            new Set(
+                                              clip.videoAuditIssues.filter(
+                                                (iss) =>
+                                                  iss &&
+                                                  !(clip.videoAuditReason || '')
+                                                    .toLowerCase()
+                                                    .includes(iss.trim().toLowerCase())
+                                              )
+                                            )
+                                          ).map((iss, iIdx) => (
+                                            <li key={iIdx}>{iss}</li>
+                                          ))}
+                                        </ul>
+                                      )}
                                   </div>
                                 )}
-                                <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
-                                  🎬 Visor MP4 • Clip {paddedNum} ({clip.timeRange || 'S/T'})
-                                </span>
                               </div>
-
-                              {/* 3 Large Keyframe Captures (Inicio 1.2s, Mitad 5.0s, Final 8.8s) */}
-                              {(clip.videoFrames || []).length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  {(clip.videoFrames || []).slice(0, 3).map((frameSrc, fIdx) => (
-                                    <div
-                                      key={fIdx}
-                                      className="relative rounded-xl overflow-hidden border border-slate-700 bg-black aspect-video min-h-[190px] shadow-lg"
-                                    >
-                                      <img
-                                        src={frameSrc}
-                                        alt={`Clip ${paddedNum} Frame ${fIdx + 1}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                      <span className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/85 border border-amber-500/40 text-xs font-mono font-bold text-amber-300">
-                                        {fIdx === 0
-                                          ? 'Inicio • 1.2s'
-                                          : fIdx === 1
-                                          ? 'Mitad • 5.0s'
-                                          : 'Final • 8.8s'}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           </div>
 
