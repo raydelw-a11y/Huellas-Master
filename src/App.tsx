@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:56 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:07 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -10136,7 +10136,7 @@ export default function App() {
                                   className="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
                                   title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
                                 >
-                                  🪑 Objeto se mueve solo
+                                  🪑 Objeto muta / se mueve solo
                                 </button>
                                 <button
                                   type="button"
