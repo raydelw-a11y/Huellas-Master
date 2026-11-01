@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && mkdir -p docs/data && cp dist/index.html docs/index.html && cp data/documentaries.json docs/data/documentaries.json && touch docs/.nojekyll && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build && mkdir -p docs/data docs/tts-files && cp dist/index.html docs/index.html && cp data/documentaries.json docs/data/documentaries.json && (cp -f data/tts-files/*.mp3 docs/tts-files/ 2>/dev/null || true) && touch docs/.nojekyll && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "NODE_ENV=production node dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

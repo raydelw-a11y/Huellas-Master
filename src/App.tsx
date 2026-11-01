@@ -102,6 +102,8 @@ import {
   generateThumbnailImageClientSide,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
+  normalizeDocumentaryVoiceoverAudio,
+  normalizeVoiceoverUrlString,
   PUBLIC_GITHUB_PAGES_URL,
 } from './utils/cloudSync';
 import {
@@ -113,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:23 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:27 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -941,13 +943,17 @@ export default function App() {
         setIsCloudMode(false);
         const list: DocumentaryProject[] = await docsRes.json();
         const normalizedList = list.map((d) => {
-          if (d.rawClipsText && d.rawClipsText.trim()) {
+          const withAudio = normalizeDocumentaryVoiceoverAudio(d);
+          if (withAudio.rawClipsText && withAudio.rawClipsText.trim()) {
             return {
-              ...d,
-              rawClipsText: ensureOperationalHeaderInRawClips(d.rawClipsText, d.operationalHeader),
+              ...withAudio,
+              rawClipsText: ensureOperationalHeaderInRawClips(
+                withAudio.rawClipsText,
+                withAudio.operationalHeader
+              ),
             };
           }
-          return d;
+          return withAudio;
         });
         const mergedInitial = mergeDocumentariesLists(
           cached,
@@ -1746,14 +1752,17 @@ export default function App() {
       }
     }
 
-    // If caller passed an http(s): or blob: URL string instead of a data: URL, try fetching it as a Blob first
+    // If caller passed an http(s):, blob:, or relative URL string instead of a data: URL, try fetching it as a Blob first
     let resolvedPayload: Blob | string = blobOrDataUrl;
     if (
       typeof resolvedPayload === 'string' &&
       !resolvedPayload.startsWith('data:') &&
       (resolvedPayload.startsWith('http://') ||
         resolvedPayload.startsWith('https://') ||
-        resolvedPayload.startsWith('blob:'))
+        resolvedPayload.startsWith('blob:') ||
+        resolvedPayload.startsWith('/') ||
+        resolvedPayload.startsWith('tts-files/') ||
+        /\.(mp3|wav|m4a|mp4|png|jpg|jpeg)$/i.test(resolvedPayload))
     ) {
       try {
         const resp = await fetch(resolvedPayload);
@@ -5170,6 +5179,21 @@ export default function App() {
       }
 
       const updatedTracks = [data, ...(activeDoc.audioTracks || [])];
+
+      // Auto-save generated VoxFlow audio directly into 02_Audio inside the user's chosen documentary folder
+      try {
+        const ext = (data.filename || data.audioUrl || '').toLowerCase().endsWith('.mp3')
+          ? 'mp3'
+          : 'wav';
+        const cleanVoiceFileName = `Voz_Narrativa_Master_${(activeDoc.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
+        const payloadToSave = (data as any).audioBlob || data.audioUrl;
+        if (payloadToSave) {
+          setFolderVoiceoverUrl(data.audioUrl);
+          await handleSaveAnyFileToChosenFolder(cleanVoiceFileName, payloadToSave, '02_Audio');
+        }
+      } catch (saveErr) {
+        console.warn('Auto-save VoxFlow audio to 02_Audio warning:', saveErr);
+      }
 
       // AUTOMATICALLY extract timeline right when VoxFlow audio is created!
       const measuredDur = data.audioUrl ? await measureAudioDurationInBrowser(data.audioUrl) : 0;
@@ -8629,12 +8653,102 @@ export default function App() {
                         </span>
                       </div>
                       <textarea
-                        rows={14}
+                        rows={11}
                         value={activeDoc.voiceoverScript}
                         onChange={(e) => updateActiveDoc({ voiceoverScript: e.target.value })}
                         placeholder="Pega aquí la voz narrativa raw con sus [pausa: 2s], [pausa: 3s]..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 leading-relaxed font-sans"
                       />
+
+                      {/* Reproductor y Descarga Directa del Audio Maestro de Voz Narrativa en Etapa 8 */}
+                      {(() => {
+                        const normalizedDoc = normalizeDocumentaryVoiceoverAudio(activeDoc);
+                        const stage8VoiceUrl =
+                          folderVoiceoverUrl ||
+                          normalizedDoc.masterAudioUrl ||
+                          normalizedDoc.audioTracks?.find((t) => t.audioUrl)?.audioUrl ||
+                          '';
+                        const cleanTitleSlug = (activeDoc.title || 'Documental').replace(
+                          /[^a-zA-Z0-9_-]/g,
+                          '_'
+                        );
+                        return (
+                          <div className="bg-slate-950/90 border border-emerald-500/35 rounded-xl p-2.5 space-y-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                                🎙️ Audio de Voz Narrativa (VoxFlow)
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {stage8VoiceUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const ext = stage8VoiceUrl.toLowerCase().endsWith('.wav')
+                                        ? 'wav'
+                                        : 'mp3';
+                                      const fName = `Voz_Narrativa_Master_${cleanTitleSlug}.${ext}`;
+                                      await handleSaveAnyFileToChosenFolder(
+                                        fName,
+                                        stage8VoiceUrl,
+                                        '02_Audio'
+                                      );
+                                      setFlowStatusLog(
+                                        `✅ Audio de Voz Narrativa guardado en 02_Audio/${fName}`
+                                      );
+                                    }}
+                                    className="px-2 py-0.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] cursor-pointer"
+                                    title="Guardar el archivo de Voz Narrativa directamente en la subcarpeta 02_Audio de tu documental"
+                                  >
+                                    ⬇️ Guardar en 02_Audio (.MP3)
+                                  </button>
+                                )}
+                                <label className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-[10px] cursor-pointer">
+                                  📤 Subir Audio Voz
+                                  <input
+                                    type="file"
+                                    accept="audio/*,.mp3,.wav,.m4a"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const f = e.target.files?.[0];
+                                      if (!f) return;
+                                      const url = URL.createObjectURL(f);
+                                      setFolderVoiceoverUrl(url);
+                                      updateActiveDoc({ masterAudioUrl: url });
+                                      await handleSaveAnyFileToChosenFolder(
+                                        f.name,
+                                        f,
+                                        '02_Audio'
+                                      );
+                                      setFlowStatusLog(
+                                        `✅ Audio de Voz "${f.name}" cargado y guardado en 02_Audio.`
+                                      );
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveStage(4)}
+                                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold cursor-pointer"
+                                >
+                                  Ir a Etapa 4
+                                </button>
+                              </div>
+                            </div>
+                            {stage8VoiceUrl ? (
+                              <audio
+                                controls
+                                src={stage8VoiceUrl}
+                                className="w-full h-8 rounded"
+                              />
+                            ) : (
+                              <p className="text-[11px] text-amber-300/90">
+                                ⚠️ Aún no hay archivo de audio de voz conectado. Súbelo con &quot;📤 Subir Audio Voz&quot; o genéralo en la Etapa 4 (VoxFlow).
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1">
                       <button
@@ -9922,7 +10036,7 @@ export default function App() {
                                     className="px-2.5 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-bold cursor-pointer transition text-left truncate"
                                     title="Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute de forma"
                                   >
-                                    🪑 Objeto se mueve solo
+                                    🪑 Objeto muta / se mueve solo
                                   </button>
                                   <button
                                     type="button"
