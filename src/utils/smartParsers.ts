@@ -621,6 +621,7 @@ export function syncAndAuditProductionClips(
       }
 
       finalClips.push({
+        ...existing,
         id: existing?.id || `clip-1-${Date.now()}`,
         clipNumber: 1,
         timeRange: c1Range,
@@ -637,6 +638,15 @@ export function syncAndAuditProductionClips(
         pauseNotes: `Sin locución en los primeros ${voiceEntrySec} segundos del video`,
         imageReady: existing?.imageReady || false,
         videoReady: existing?.videoReady || false,
+        reviewedForEditor: Boolean(existing?.reviewedForEditor),
+        recreated: Boolean(existing?.recreated),
+        videoFrames: existing?.videoFrames,
+        videoAuditStatus: existing?.videoAuditStatus,
+        videoAuditScore: existing?.videoAuditScore,
+        videoAuditReason: existing?.videoAuditReason,
+        videoAuditIssues: existing?.videoAuditIssues,
+        videoAttempts: existing?.videoAttempts,
+        videoSavedFileName: existing?.videoSavedFileName,
         auditStatus,
         auditReason,
         suggestedImagePrompt: existing?.suggestedImagePrompt,
@@ -737,6 +747,7 @@ export function syncAndAuditProductionClips(
     }
 
     finalClips.push({
+      ...existing,
       id: existing?.id || `clip-${num}-${Date.now()}-${num}`,
       clipNumber: num,
       timeRange: computedRange,
@@ -748,6 +759,15 @@ export function syncAndAuditProductionClips(
       pauseNotes,
       imageReady: existing?.imageReady || false,
       videoReady: existing?.videoReady || false,
+      reviewedForEditor: Boolean(existing?.reviewedForEditor),
+      recreated: Boolean(existing?.recreated),
+      videoFrames: existing?.videoFrames,
+      videoAuditStatus: existing?.videoAuditStatus,
+      videoAuditScore: existing?.videoAuditScore,
+      videoAuditReason: existing?.videoAuditReason,
+      videoAuditIssues: existing?.videoAuditIssues,
+      videoAttempts: existing?.videoAttempts,
+      videoSavedFileName: existing?.videoSavedFileName,
       auditStatus,
       auditReason,
       suggestedImagePrompt: existing?.suggestedImagePrompt,

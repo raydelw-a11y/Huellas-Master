@@ -16,6 +16,192 @@ export const PUBLIC_GITHUB_PAGES_URL = `https://${GITHUB_OWNER}.github.io/${GITH
 
 const LOCAL_DOCS_CACHE_KEY = 'huellas_master_docs_cache_v1';
 const LOCAL_DELETED_IDS_KEY = 'huellas_master_deleted_ids_v1';
+const LOCAL_CLIP_REVIEW_STATE_KEY = 'huellas_master_clip_review_state_v1';
+
+interface StoredClipStatusEntry {
+  reviewedForEditor: boolean;
+  recreated?: boolean;
+  videoReady?: boolean;
+  imageReady?: boolean;
+  videoSavedFileName?: string;
+  updatedAt: number;
+}
+
+type StoredClipStatusMap = Record<string, Record<number, StoredClipStatusEntry>>;
+
+export function loadStoredClipReviewStateMap(): StoredClipStatusMap {
+  try {
+    const raw = localStorage.getItem(LOCAL_CLIP_REVIEW_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveClipReviewStateForDoc(
+  docId: string,
+  clips: DocumentaryProject['clips'],
+  explicitTimestampMs?: number
+) {
+  if (!docId || !Array.isArray(clips) || clips.length === 0) return;
+  try {
+    const map = loadStoredClipReviewStateMap();
+    const docMap: Record<number, StoredClipStatusEntry> = { ...(map[docId] || {}) };
+    const now = explicitTimestampMs || Date.now();
+    for (const c of clips) {
+      if (!c || typeof c.clipNumber !== 'number') continue;
+      const prev = docMap[c.clipNumber];
+      const nextRev = Boolean(c.reviewedForEditor);
+      const nextRec = Boolean(c.recreated);
+      const nextVid = Boolean(c.videoReady);
+      const nextImg = Boolean(c.imageReady);
+      const nextFile = c.videoSavedFileName || prev?.videoSavedFileName;
+      if (
+        !prev ||
+        prev.reviewedForEditor !== nextRev ||
+        Boolean(prev.recreated) !== nextRec ||
+        Boolean(prev.videoReady) !== nextVid ||
+        Boolean(prev.imageReady) !== nextImg ||
+        prev.videoSavedFileName !== nextFile
+      ) {
+        docMap[c.clipNumber] = {
+          reviewedForEditor: nextRev,
+          recreated: nextRec,
+          videoReady: nextVid,
+          imageReady: nextImg,
+          ...(nextFile ? { videoSavedFileName: nextFile } : {}),
+          updatedAt: now,
+        };
+      }
+    }
+    map[docId] = docMap;
+    localStorage.setItem(LOCAL_CLIP_REVIEW_STATE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+export function applyStoredClipReviewStateToDocs(
+  list: DocumentaryProject[]
+): DocumentaryProject[] {
+  if (!Array.isArray(list) || list.length === 0) return list;
+  const map = loadStoredClipReviewStateMap();
+  if (!map || Object.keys(map).length === 0) return list;
+
+  return list.map((doc) => {
+    if (!doc || !doc.id || !Array.isArray(doc.clips) || doc.clips.length === 0) return doc;
+    const docMap = map[doc.id];
+    if (!docMap) return doc;
+    let changed = false;
+    const nextClips = doc.clips.map((c) => {
+      const saved = docMap[c.clipNumber];
+      if (!saved) return c;
+      const mergedRev = Boolean(saved.reviewedForEditor);
+      const mergedRec = Boolean(c.recreated || saved.recreated);
+      const mergedVid = Boolean(c.videoReady || saved.videoReady);
+      const mergedImg = Boolean(c.imageReady || saved.imageReady);
+      const mergedFile = c.videoSavedFileName || saved.videoSavedFileName;
+      if (
+        Boolean(c.reviewedForEditor) !== mergedRev ||
+        Boolean(c.recreated) !== mergedRec ||
+        Boolean(c.videoReady) !== mergedVid ||
+        Boolean(c.imageReady) !== mergedImg ||
+        c.videoSavedFileName !== mergedFile
+      ) {
+        changed = true;
+        return {
+          ...c,
+          reviewedForEditor: mergedRev,
+          recreated: mergedRec,
+          videoReady: mergedVid,
+          imageReady: mergedImg,
+          ...(mergedFile ? { videoSavedFileName: mergedFile } : {}),
+        };
+      }
+      return c;
+    });
+    const updatedDoc = changed ? { ...doc, clips: nextClips } : doc;
+    return normalizeDocumentaryVoiceoverAudio(updatedDoc);
+  });
+}
+
+export function normalizeVoiceoverUrlString(url?: string): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (/^\/?tts-files\/(.+)\.wav$/i.test(trimmed)) {
+    return trimmed.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
+  }
+  if (trimmed.startsWith('/tts-files/')) {
+    return trimmed.slice(1);
+  }
+  return trimmed;
+}
+
+export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): DocumentaryProject {
+  if (!doc) return doc;
+  let masterAudioUrl = normalizeVoiceoverUrlString(doc.masterAudioUrl);
+  let audioTracks = Array.isArray(doc.audioTracks)
+    ? doc.audioTracks.map((t) => ({
+        ...t,
+        audioUrl: normalizeVoiceoverUrlString(t.audioUrl),
+      }))
+    : [];
+
+  const combinedText = `${doc.title || ''} ${doc.topic || ''} ${doc.downloadFolderName || ''} ${(doc.voiceoverScript || '').slice(0, 400)}`.toLowerCase();
+  const isVideo76Exodo =
+    combinedText.includes('76') ||
+    combinedText.includes('éxodo español') ||
+    combinedText.includes('exodo espanol') ||
+    combinedText.includes('maliaño, santander');
+  const isVideo74Princesas =
+    combinedText.includes('74') ||
+    combinedText.includes('princesas de la edad media') ||
+    combinedText.includes('cortes reales de europa');
+
+  const isDeadOrEmptyUrl = (u?: string) => !u || u.startsWith('blob:');
+
+  if (isVideo76Exodo && isDeadOrEmptyUrl(masterAudioUrl)) {
+    masterAudioUrl = 'tts-files/tts-video-76-exodo-espanol.mp3';
+    if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
+      audioTracks = [
+        {
+          id: 'tts-video-76-exodo-espanol',
+          label: 'Voz Narrativa Master — Video 76 Éxodo Español Transatlántico',
+          text: doc.voiceoverScript || '',
+          voice: doc.selectedVoice || 'Charon',
+          style: doc.selectedStyle || 'dramatic',
+          speed: doc.selectedSpeed || 'medium',
+          language: doc.selectedLanguage || 'es-la',
+          consistencyMode: true,
+          filename: 'Voz_Narrativa_Master_Video_76_Exodo_Espanol_Transatlantico.mp3',
+          audioUrl: 'tts-files/tts-video-76-exodo-espanol.mp3',
+          createdAt: doc.updatedAt || new Date().toISOString(),
+          storageMode: 'local',
+          wordCount: 1980,
+          duration: 785,
+          providerUsed: 'Gemini 3.8 Flash TTS (Charon)',
+        },
+      ];
+    } else {
+      audioTracks = audioTracks.map((t, i) =>
+        i === 0 && isDeadOrEmptyUrl(t.audioUrl)
+          ? { ...t, audioUrl: 'tts-files/tts-video-76-exodo-espanol.mp3' }
+          : t
+      );
+    }
+  } else if (isVideo74Princesas && isDeadOrEmptyUrl(masterAudioUrl)) {
+    masterAudioUrl = 'tts-files/tts-1793103539750-763.mp3';
+  }
+
+  if (masterAudioUrl !== doc.masterAudioUrl || audioTracks !== doc.audioTracks) {
+    return {
+      ...doc,
+      masterAudioUrl,
+      audioTracks,
+    };
+  }
+  return doc;
+}
 
 export function checkUrlHashSetup(): boolean {
   try {
@@ -103,17 +289,82 @@ export function loadLocalCachedDocumentaries(): DocumentaryProject[] {
     const raw = localStorage.getItem(LOCAL_DOCS_CACHE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? applyStoredClipReviewStateToDocs(parsed) : [];
   } catch {
     return [];
   }
 }
 
+export function stripHeavyMediaForStorage(
+  list: DocumentaryProject[],
+  stripReferenceImages = false
+): DocumentaryProject[] {
+  return (list || []).map((doc) => ({
+    ...doc,
+    ...(stripReferenceImages &&
+    typeof doc.thumbnailImageUrl === 'string' &&
+    doc.thumbnailImageUrl.startsWith('data:') &&
+    doc.thumbnailImageUrl.length > 60000
+      ? { thumbnailImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
+    typeof doc.masterAudioUrl === 'string' &&
+    doc.masterAudioUrl.startsWith('data:') &&
+    doc.masterAudioUrl.length > 60000
+      ? { masterAudioUrl: '' }
+      : {}),
+    ...(stripReferenceImages && Array.isArray(doc.audioTracks)
+      ? {
+          audioTracks: doc.audioTracks.map((t) =>
+            typeof t.audioUrl === 'string' && t.audioUrl.startsWith('data:') && t.audioUrl.length > 60000
+              ? { ...t, audioUrl: '' }
+              : t
+          ),
+        }
+      : {}),
+    ...(stripReferenceImages && Array.isArray(doc.references)
+      ? {
+          references: doc.references.map((r) =>
+            typeof r.imageUrl === 'string' && r.imageUrl.startsWith('data:') && r.imageUrl.length > 60000
+              ? { ...r, imageUrl: '' }
+              : r
+          ),
+        }
+      : {}),
+    clips: Array.isArray(doc.clips)
+      ? doc.clips.map((c) => {
+          if (!c.videoFrames || c.videoFrames.length === 0) return c;
+          const { videoFrames, ...rest } = c;
+          return rest;
+        })
+      : [],
+  }));
+}
+
 export function saveLocalCachedDocumentaries(list: DocumentaryProject[]) {
+  if (!Array.isArray(list)) return;
+  // Always persist clip review flags in dedicated lightweight storage first (< 15KB, never fails quota)
+  for (const doc of list) {
+    if (doc && doc.id && Array.isArray(doc.clips) && doc.clips.length > 0) {
+      saveClipReviewStateForDoc(doc.id, doc.clips);
+    }
+  }
   try {
     localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(list));
-  } catch (e) {
-    console.warn('Could not cache documentaries in localStorage:', e);
+  } catch {
+    try {
+      // Fallback 1: Strip transient base64 videoFrames from clips so localStorage fits within 5MB quota
+      const lightList = stripHeavyMediaForStorage(list, false);
+      localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(lightList));
+    } catch {
+      try {
+        // Fallback 2: Also strip heavy base64 reference/audio data URLs so documentary structure & flags always persist
+        const ultraLightList = stripHeavyMediaForStorage(list, true);
+        localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(ultraLightList));
+      } catch (e) {
+        console.warn('Could not cache documentaries in localStorage:', e);
+      }
+    }
   }
 }
 
@@ -134,6 +385,62 @@ export function markLocalDeletedDocId(id: string) {
     existing.add(id);
     localStorage.setItem(LOCAL_DELETED_IDS_KEY, JSON.stringify(Array.from(existing)));
   } catch {}
+}
+
+function mergeTwoDocumentaryObjects(
+  winner: DocumentaryProject,
+  other: DocumentaryProject
+): DocumentaryProject {
+  const wNorm = normalizeDocumentaryVoiceoverAudio(winner);
+  const oNorm = normalizeDocumentaryVoiceoverAudio(other);
+  const mergedMasterAudio =
+    wNorm.masterAudioUrl && !wNorm.masterAudioUrl.startsWith('blob:')
+      ? wNorm.masterAudioUrl
+      : oNorm.masterAudioUrl || wNorm.masterAudioUrl || '';
+  const mergedAudioTracks =
+    Array.isArray(wNorm.audioTracks) &&
+    wNorm.audioTracks.length > 0 &&
+    wNorm.audioTracks.some((t) => t.audioUrl && !t.audioUrl.startsWith('blob:'))
+      ? wNorm.audioTracks
+      : Array.isArray(oNorm.audioTracks) && oNorm.audioTracks.length > 0
+      ? oNorm.audioTracks
+      : wNorm.audioTracks || [];
+
+  const baseWinner: DocumentaryProject = {
+    ...wNorm,
+    masterAudioUrl: mergedMasterAudio,
+    audioTracks: mergedAudioTracks,
+  };
+
+  if (!Array.isArray(baseWinner.clips) || !Array.isArray(oNorm.clips) || oNorm.clips.length === 0) {
+    return baseWinner;
+  }
+  const otherClipByNum = new Map<number, DocumentaryProject['clips'][number]>();
+  for (const c of oNorm.clips) {
+    if (c && typeof c.clipNumber === 'number') {
+      otherClipByNum.set(c.clipNumber, c);
+    }
+  }
+  const mergedClips = baseWinner.clips.map((c) => {
+    const o = otherClipByNum.get(c.clipNumber);
+    if (!o) return c;
+    return {
+      ...c,
+      reviewedForEditor:
+        c.reviewedForEditor !== undefined
+          ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
+          : Boolean(o.reviewedForEditor),
+      recreated: Boolean(c.recreated || o.recreated),
+      videoReady: Boolean(c.videoReady || o.videoReady),
+      imageReady: Boolean(c.imageReady || o.imageReady),
+      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+      videoFrames:
+        Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+          ? c.videoFrames
+          : o.videoFrames,
+    };
+  });
+  return { ...baseWinner, clips: mergedClips };
 }
 
 export function mergeDocumentariesLists(
@@ -166,16 +473,20 @@ export function mergeDocumentariesLists(
       const lTime = Date.parse(normalized.updatedAt || normalized.createdAt || '') || 0;
       const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
       if (lTime >= rTime) {
-        byId.set(l.id, normalized);
+        byId.set(l.id, mergeTwoDocumentaryObjects(normalized, existing));
+      } else {
+        byId.set(l.id, mergeTwoDocumentaryObjects(existing, normalized));
       }
     }
   }
 
-  return Array.from(byId.values()).sort((a, b) => {
+  const sorted = Array.from(byId.values()).sort((a, b) => {
     const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
     const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
     return tB - tA;
   });
+
+  return applyStoredClipReviewStateToDocs(sorted);
 }
 
 async function getGitHubFileSha(filePath: string, token: string): Promise<string | null> {
@@ -249,7 +560,13 @@ export async function pushDocumentariesToGitHub(
   }
 
   try {
-    const jsonStr = JSON.stringify(docsList, null, 2);
+    let jsonStr = JSON.stringify(docsList, null, 2);
+    if (jsonStr.length > 900000) {
+      jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, false), null, 2);
+      if (jsonStr.length > 900000) {
+        jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, true), null, 2);
+      }
+    }
     const encodedContent = btoa(unescape(encodeURIComponent(jsonStr)));
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -802,9 +1119,11 @@ Devuelve EXCLUSIVAMENTE un JSON válido: {"replies": [{"author": "@usuario", "co
   return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
 }
 
-function pcmBase64ToWavBlobUrl(base64Pcm: string, sampleRate = 24000): { url: string; duration: number } {
-  const binary = atob(base64Pcm.replace(/\s/g, ''));
-  const pcmLen = binary.length;
+function pcmChunksToWavBlobUrl(
+  pcmChunks: Uint8Array[],
+  sampleRate = 24000
+): { url: string; blob: Blob; duration: number } {
+  const pcmLen = pcmChunks.reduce((acc, c) => acc + c.byteLength, 0);
   const buffer = new ArrayBuffer(44 + pcmLen);
   const view = new DataView(buffer);
 
@@ -827,13 +1146,15 @@ function pcmBase64ToWavBlobUrl(base64Pcm: string, sampleRate = 24000): { url: st
   view.setUint32(40, pcmLen, true);
 
   const bytes = new Uint8Array(buffer, 44);
-  for (let i = 0; i < pcmLen; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  let offset = 0;
+  for (const chunk of pcmChunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
 
   const blob = new Blob([buffer], { type: 'audio/wav' });
-  const duration = Math.max(1, Math.round(pcmLen / (sampleRate * 2)));
-  return { url: URL.createObjectURL(blob), duration };
+  const duration = Math.max(1, parseFloat((pcmLen / (sampleRate * 2)).toFixed(2)));
+  return { url: URL.createObjectURL(blob), blob, duration };
 }
 
 export async function synthesizeTtsClientSide(params: {
@@ -843,12 +1164,13 @@ export async function synthesizeTtsClientSide(params: {
   speed: string;
   language: string;
   label: string;
-}): Promise<TTSRecord> {
+}): Promise<TTSRecord & { audioBlob?: Blob }> {
   const apiKey = getBrowserGeminiKey();
   if (!apiKey) {
-    throw new Error('Configura primero tu Gemini API Key para generar audio TTS desde el teléfono.');
+    throw new Error('Configura primero tu Gemini API Key para generar audio TTS.');
   }
-  const cleanText = stripPauseTags(params.text).trim();
+  const rawInput = (params.text || '').trim();
+  const cleanText = stripPauseTags(rawInput).trim();
   if (!cleanText) {
     throw new Error('El texto del guion está vacío.');
   }
@@ -863,7 +1185,26 @@ export async function synthesizeTtsClientSide(params: {
   };
   const physicalVoice = physicalVoices[params.voice] || 'Charon';
 
-  const fullPrompt = `[DIRECTOR_INSTRUCTION]
+  const pauseRegex =
+    /[\[{]\s*(?:(?:pausa|pause|silencio)\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos|ms|milisegundos)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*[\]}]/gi;
+  const segments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pauseRegex.exec(rawInput)) !== null) {
+    const before = rawInput.slice(lastIdx, match.index).trim();
+    if (before) segments.push({ type: 'text', text: before });
+    const dur = match[1] ? parseFloat(match[1].replace(',', '.')) : 1.5;
+    segments.push({ type: 'pause', duration: Math.max(0.2, Math.min(15, dur)) });
+    lastIdx = match.index + match[0].length;
+  }
+  const tail = rawInput.slice(lastIdx).trim();
+  if (tail) segments.push({ type: 'text', text: tail });
+  if (segments.length === 0) {
+    segments.push({ type: 'text', text: cleanText });
+  }
+
+  const synthOneSegment = async (segText: string): Promise<Uint8Array> => {
+    const fullPrompt = `[DIRECTOR_INSTRUCTION]
 Vocal Character Profile: "${params.voice}" (Physical base "${physicalVoice}")
 Mood, Emotion & Delivery: Speak with deep cinematic documentary gravitas, emotional resonance, and deliberate pacing. Maintain strict vocal consistency and uniform documentary pitch.
 Accent & Language Vibe: Speak in Spanish with a neutral, solemn, warm Latin American documentary accent (Español Neutro). Do NOT use European Spanish ceceo.
@@ -871,37 +1212,73 @@ Accent & Language Vibe: Speak in Spanish with a neutral, solemn, warm Latin Amer
 ACTOR INSTRUCTION: Deliver the exact text inside [TEXT] once from beginning to end. Never repeat sentences, never read markup tags or brackets.
 
 [TEXT]
-${cleanText}`;
+${segText}`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent?key=${encodeURIComponent(
-    apiKey
-  )}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: physicalVoice },
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent?key=${encodeURIComponent(
+      apiKey
+    )}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: physicalVoice },
+            },
           },
         },
-      },
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.error?.message || `Error TTS HTTP ${res.status}`);
-  }
-  const b64Audio = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!b64Audio) {
-    throw new Error('El modelo gemini-3.8-flash-tts no devolvió audio.');
-  }
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error?.message || `Error TTS HTTP ${res.status}`);
+    }
+    const b64Audio = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!b64Audio) {
+      throw new Error('El modelo gemini-3.8-flash-tts no devolvió audio.');
+    }
+    const binary = atob(b64Audio.replace(/\s/g, ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    // Strip WAV header if present
+    if (
+      bytes.byteLength > 44 &&
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46
+    ) {
+      return bytes.subarray(44);
+    }
+    return bytes;
+  };
 
-  const { url: wavUrl, duration } = pcmBase64ToWavBlobUrl(b64Audio, 24000);
+  const pcmResults: Uint8Array[] = new Array(segments.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < segments.length) {
+      const idx = cursor++;
+      const seg = segments[idx];
+      if (seg.type === 'pause' && seg.duration) {
+        pcmResults[idx] = new Uint8Array(Math.round(24000 * seg.duration) * 2);
+      } else if (seg.type === 'text' && seg.text) {
+        pcmResults[idx] = await synthOneSegment(seg.text);
+      } else {
+        pcmResults[idx] = new Uint8Array(0);
+      }
+    }
+  };
+
+  await Promise.all([worker(), worker(), worker(), worker()]);
+
+  const { url: wavUrl, blob: wavBlob, duration } = pcmChunksToWavBlobUrl(pcmResults, 24000);
   const words = cleanText.split(/\s+/).filter(Boolean).length;
+  const pauseCount = segments.filter((s) => s.type === 'pause').length;
   return {
     id: `tts-mobile-${Date.now()}`,
     text: params.text,
@@ -912,11 +1289,15 @@ ${cleanText}`;
     consistencyMode: true,
     filename: `${(params.label || 'Voz_Narrativa').replace(/[^a-zA-Z0-9_-]/g, '_')}.wav`,
     audioUrl: wavUrl,
+    audioBlob: wavBlob,
     createdAt: new Date().toISOString(),
     storageMode: 'local',
     wordCount: words,
     duration,
-    providerUsed: 'Gemini 3.8 Flash TTS (Móvil)',
+    providerUsed:
+      pauseCount > 0
+        ? `Gemini 3.8 Flash TTS (${pauseCount} Pausas)`
+        : 'Gemini 3.8 Flash TTS',
     label: params.label,
   };
 }

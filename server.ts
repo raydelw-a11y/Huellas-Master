@@ -48,8 +48,8 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4200;
 
 app.use(cors({ origin: '*', optionsSuccessStatus: 200 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // Initialize Local Database Directories inside Huellas Master/data
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -80,8 +80,22 @@ try {
   console.warn('[Init] Could not seed initial config from VoxFlow:', e);
 }
 
-// Serve static local audio & asset files
-app.use('/tts-files', express.static(TTS_DIR));
+// Serve static local audio & asset files (with automatic .wav -> .mp3 fallback)
+app.use(
+  '/tts-files',
+  (req, res, next) => {
+    if (req.path.toLowerCase().endsWith('.wav')) {
+      const wavPath = path.join(TTS_DIR, req.path);
+      const mp3Path = wavPath.replace(/\.wav$/i, '.mp3');
+      if (!fs.existsSync(wavPath) && fs.existsSync(mp3Path)) {
+        res.sendFile(mp3Path);
+        return;
+      }
+    }
+    next();
+  },
+  express.static(TTS_DIR)
+);
 app.use('/assets', express.static(ASSETS_DIR));
 
 // Probe FFmpeg & FFprobe
@@ -337,18 +351,92 @@ async function getServerGitHubFileSha(filePath: string, token: string): Promise<
   return null;
 }
 
+function mergeServerDocObjects(winner: any, other: any) {
+  if (!winner || !other) return winner || other;
+  if (!Array.isArray(winner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
+    return winner;
+  }
+  const otherClipByNum = new Map<number, any>();
+  for (const c of other.clips) {
+    if (c && typeof c.clipNumber === 'number') {
+      otherClipByNum.set(c.clipNumber, c);
+    }
+  }
+  const mergedClips = winner.clips.map((c: any) => {
+    const o = otherClipByNum.get(c.clipNumber);
+    if (!o) return c;
+    return {
+      ...c,
+      reviewedForEditor:
+        c.reviewedForEditor !== undefined
+          ? Boolean(c.reviewedForEditor)
+          : Boolean(o.reviewedForEditor),
+      recreated: Boolean(c.recreated || o.recreated),
+      videoReady: Boolean(c.videoReady || o.videoReady),
+      imageReady: Boolean(c.imageReady || o.imageReady),
+      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+      videoFrames:
+        Array.isArray(c.videoFrames) && c.videoFrames.length > 0 ? c.videoFrames : o.videoFrames,
+    };
+  });
+  return { ...winner, clips: mergedClips };
+}
+
+function stripHeavyMediaForGitHubServer(list: any[], stripReferenceImages = false): any[] {
+  return (list || []).map((doc: any) => ({
+    ...doc,
+    ...(stripReferenceImages &&
+    typeof doc.thumbnailImageUrl === 'string' &&
+    doc.thumbnailImageUrl.startsWith('data:') &&
+    doc.thumbnailImageUrl.length > 60000
+      ? { thumbnailImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
+    typeof doc.masterAudioUrl === 'string' &&
+    doc.masterAudioUrl.startsWith('data:') &&
+    doc.masterAudioUrl.length > 60000
+      ? { masterAudioUrl: '' }
+      : {}),
+    ...(stripReferenceImages && Array.isArray(doc.audioTracks)
+      ? {
+          audioTracks: doc.audioTracks.map((t: any) =>
+            typeof t?.audioUrl === 'string' && t.audioUrl.startsWith('data:') && t.audioUrl.length > 60000
+              ? { ...t, audioUrl: '' }
+              : t
+          ),
+        }
+      : {}),
+    ...(stripReferenceImages && Array.isArray(doc.references)
+      ? {
+          references: doc.references.map((r: any) =>
+            typeof r?.imageUrl === 'string' && r.imageUrl.startsWith('data:') && r.imageUrl.length > 60000
+              ? { ...r, imageUrl: '' }
+              : r
+          ),
+        }
+      : {}),
+    clips: Array.isArray(doc.clips)
+      ? doc.clips.map((c: any) => {
+          if (!c?.videoFrames || c.videoFrames.length === 0) return c;
+          const { videoFrames, ...rest } = c;
+          return rest;
+        })
+      : [],
+  }));
+}
+
 async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
   synced: boolean;
   total: number;
   error?: string;
 }> {
   const token = getLocalGitHubToken();
-  const localList = readDocumentaries();
+  const initialLocalList = readDocumentaries();
   if (!token) {
-    return { synced: false, total: localList.length, error: 'No GitHub token found' };
+    return { synced: false, total: initialLocalList.length, error: 'No GitHub token found' };
   }
 
-  let mergedList = localList;
+  let mergedList = initialLocalList;
   if (pullFirst) {
     try {
       const sha = await getServerGitHubFileSha('data/documentaries.json', token);
@@ -366,11 +454,13 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
         if (blobRes.ok) {
           const remoteList: any = await blobRes.json();
           if (Array.isArray(remoteList)) {
+            // Re-read localList AFTER network await so concurrent PUT /api/documentaries/:id writes are never overwritten!
+            const latestLocalList = readDocumentaries();
             const byId = new Map<string, any>();
             for (const r of remoteList) {
               if (r && r.id) byId.set(r.id, r);
             }
-            for (const l of localList) {
+            for (const l of latestLocalList) {
               if (!l || !l.id) continue;
               const existing = byId.get(l.id);
               if (!existing) {
@@ -378,7 +468,11 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
               } else {
                 const lTime = Date.parse(l.updatedAt || l.createdAt || '') || 0;
                 const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
-                if (lTime >= rTime) byId.set(l.id, l);
+                if (lTime >= rTime) {
+                  byId.set(l.id, mergeServerDocObjects(l, existing));
+                } else {
+                  byId.set(l.id, mergeServerDocObjects(existing, l));
+                }
               }
             }
             mergedList = Array.from(byId.values()).sort((a, b) => {
@@ -386,7 +480,7 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
               const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
               return tB - tA;
             });
-            if (JSON.stringify(mergedList) !== JSON.stringify(localList)) {
+            if (JSON.stringify(mergedList) !== JSON.stringify(latestLocalList)) {
               writeDocumentaries(mergedList, true);
             }
           }
@@ -395,14 +489,20 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
     } catch (e) {
       console.warn('[CloudSync] Pull warning:', e);
     }
-    // When polling (pullFirst === true), only push if local had newer items not on remote
     return { synced: true, total: mergedList.length };
   }
 
   try {
-    const jsonStr = JSON.stringify(mergedList, null, 2);
+    const freshLocalList = readDocumentaries();
+    let jsonStr = JSON.stringify(freshLocalList, null, 2);
+    if (jsonStr.length > 900000) {
+      jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, false), null, 2);
+      if (jsonStr.length > 900000) {
+        jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, true), null, 2);
+      }
+    }
     if (jsonStr === lastPushedGitHubJson) {
-      return { synced: true, total: mergedList.length };
+      return { synced: true, total: freshLocalList.length };
     }
     lastPushedGitHubJson = jsonStr;
     const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
@@ -416,7 +516,7 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
     for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
       const existingSha = await getServerGitHubFileSha(targetPath, token);
       const bodyObj: Record<string, any> = {
-        message: `Sync ${targetPath} (${mergedList.length} documentales)`,
+        message: `Sync ${targetPath} (${freshLocalList.length} documentales)`,
         content: encodedContent,
         branch: GITHUB_BRANCH,
       };
@@ -428,7 +528,7 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
         body: JSON.stringify(bodyObj),
       });
     }
-    return { synced: true, total: mergedList.length };
+    return { synced: true, total: freshLocalList.length };
   } catch (e: any) {
     return { synced: false, total: mergedList.length, error: e?.message || 'Error pushing to GitHub' };
   }
@@ -572,7 +672,17 @@ app.put('/api/documentaries/:id', (req, res) => {
   const list = readDocumentaries();
   const idx = list.findIndex((d) => d.id === req.params.id);
   if (idx === -1) {
-    res.status(404).json({ error: 'Documental no encontrado.' });
+    // Upsert documentary if it existed in browser cache or another device but wasn't in local data/documentaries.json yet
+    const now = new Date().toISOString();
+    const upserted = {
+      ...req.body,
+      id: req.params.id,
+      createdAt: req.body?.createdAt || now,
+      updatedAt: now,
+    };
+    list.unshift(upserted);
+    writeDocumentaries(list);
+    res.json(upserted);
     return;
   }
   const updated = {
@@ -1107,7 +1217,7 @@ app.post('/api/tts', async (req, res) => {
       language,
       consistencyMode,
       filename,
-      audioUrl: `/tts-files/${filename}`,
+      audioUrl: `tts-files/${filename}`,
       createdAt: new Date().toISOString(),
       storageMode: 'local',
       wordCount,
@@ -1173,7 +1283,7 @@ app.post('/api/tts/merge', async (req, res) => {
       speed: speed || 'medium',
       language: language || 'es-la',
       filename,
-      audioUrl: `/tts-files/${filename}`,
+      audioUrl: `tts-files/${filename}`,
       createdAt: new Date().toISOString(),
       storageMode: 'local',
       wordCount: (text || '').split(/\s+/).filter(Boolean).length,
