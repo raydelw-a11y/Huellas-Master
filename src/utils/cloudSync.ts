@@ -277,6 +277,20 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             videoPrompt: newClip42,
           };
         }
+        if (
+          c &&
+          c.clipNumber === 76 &&
+          (/period historical artifact|Pedro Garfias Zurita/i.test(c.imagePrompt || '') ||
+            /period historical artifact|Pedro Garfias Zurita/i.test(c.videoPrompt || '') ||
+            !/STRICT ADULTS-ONLY CAST/i.test(c.imagePrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg76,
+            videoPrompt: newClip76,
+          };
+        }
         return c;
       });
       if (clipsChanged) {
@@ -316,6 +330,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 42:[^\n]*Disinfection Brigade[^\n]*/i, newImg42)
           .replace(/Clip 42\s*\([^)]*\):[^\n]*steam autoclave[^\n]*/i, newClip42);
+      }
+      if (
+        /Image 76:[^\n]*(?:period historical artifact|Sinaia deck)/i.test(rawText) ||
+        /Clip 76\s*\([^)]*\):[^\n]*Pedro Garfias Zurita/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 76:[^\n]*/i, newImg76)
+          .replace(/Clip 76\s*\([^)]*\):[^\n]*/i, newClip76);
       }
       nextRawClipsText = rawText;
     }

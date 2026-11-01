@@ -116,7 +116,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:51 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:52 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -10447,9 +10447,16 @@ export default function App() {
                               })()}
                             </div>
 
-                            {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (ENLARGED USING VERTICAL SPACE SAVED FROM INLINE STAGE MENU) */}
+                            {/* 2. ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (ZERO BLACK BARS ON SIDES) */}
                             <div className="w-full">
-                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[68vh] max-h-[720px] shadow-2xl flex items-center justify-center">
+                              <div
+                                className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
+                                  activeDoc.productionType === 'REEL_9X16' ||
+                                  activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
+                                    ? 'w-full max-w-[440px] mx-auto aspect-[9/16]'
+                                    : 'w-full aspect-video'
+                                }`}
+                              >
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
                                     data-stage8-clip-video="true"
@@ -10470,7 +10477,7 @@ export default function App() {
                                           }
                                         });
                                     }}
-                                    className="w-full h-full object-contain bg-black"
+                                    className="w-full h-full object-cover block bg-black"
                                   />
                                 ) : (
                                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
