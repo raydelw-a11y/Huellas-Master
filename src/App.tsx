@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:11 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:16 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -6373,7 +6373,11 @@ export default function App() {
       {mainView === 'studio' && activeDoc && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
-          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-4 py-2.5 flex flex-col gap-2.5 shrink-0">
+          <div
+            className={`w-full bg-[#12100d] border-b border-amber-500/20 px-4 ${
+              activeStage === 8 ? 'py-1.5 gap-1.5' : 'py-2.5 gap-2.5'
+            } flex flex-col shrink-0`}
+          >
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2">
               <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
@@ -6492,7 +6496,9 @@ export default function App() {
                         ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga del Documental en la Etapa 1`
                         : `${st.title} — ${st.subtitle}`
                     }
-                    className={`px-2.5 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
+                    className={`px-2 ${
+                      activeStage === 8 ? 'py-1.5' : 'py-1.5'
+                    } rounded-xl flex flex-col justify-center gap-0.5 text-left transition border ${
                       isLocked
                         ? 'bg-slate-950/50 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
                         : isCurrent
@@ -6502,18 +6508,21 @@ export default function App() {
                         : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border-slate-800/80 cursor-pointer'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1 w-full">
-                      <IconComp
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          isLocked
-                            ? 'text-slate-600'
-                            : isCurrent
-                            ? 'text-slate-950'
-                            : done
-                            ? 'text-emerald-400'
-                            : 'text-amber-400/80'
-                        }`}
-                      />
+                    <div className="flex items-center justify-between gap-1 w-full min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <IconComp
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            isLocked
+                              ? 'text-slate-600'
+                              : isCurrent
+                              ? 'text-slate-950'
+                              : done
+                              ? 'text-emerald-400'
+                              : 'text-amber-400/80'
+                          }`}
+                        />
+                        <div className="text-[11px] leading-tight truncate">{st.title}</div>
+                      </div>
                       {isLocked ? (
                         <Lock className="w-3 h-3 shrink-0 text-amber-500/70" />
                       ) : done ? (
@@ -6530,16 +6539,15 @@ export default function App() {
                         />
                       )}
                     </div>
-                    <div className="min-w-0 w-full">
-                      <div className="text-[11px] leading-tight truncate">{st.title}</div>
+                    {activeStage !== 8 && (
                       <div
-                        className={`text-[9px] leading-tight truncate ${
+                        className={`text-[9px] leading-tight truncate w-full ${
                           isCurrent ? 'text-slate-900/80' : 'text-slate-500'
                         }`}
                       >
                         {st.subtitle}
                       </div>
-                    </div>
+                    )}
                   </button>
                 );
               })}
@@ -10191,7 +10199,7 @@ export default function App() {
 
                             {/* 2. FULL-WIDTH HORIZONTAL .MP4 VIDEO VIEWER (100% HORIZONTAL WIDTH + FITS 100% ZOOM SCREEN WITH TOP BAR) */}
                             <div className="w-full">
-                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[48vh] max-h-[430px] shadow-2xl flex items-center justify-center">
+                              <div className="relative w-full rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black h-[56vh] max-h-[520px] shadow-2xl flex items-center justify-center">
                                 {capturedClipVideosMap[clip.clipNumber] ? (
                                   <video
                                     data-stage8-clip-video="true"

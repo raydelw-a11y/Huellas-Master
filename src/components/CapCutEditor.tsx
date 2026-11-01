@@ -1470,55 +1470,122 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         }
 
-        // 3. Official Logo Top-Left (5% scale)
+        // 3. Official Logo Top-Left
         if (logoImg) {
           const logoW = Math.round(width * (logoScalePct / 100));
           const logoH = Math.round((logoImg.height / Math.max(1, logoImg.width)) * logoW);
           ctx.save();
           ctx.globalAlpha = logoOpacity / 100;
-          ctx.drawImage(logoImg, Math.round(width * 0.03), Math.round(height * 0.03), logoW, logoH);
+          ctx.drawImage(
+            logoImg,
+            Math.round(width * (logoPosX / 100)),
+            Math.round(height * (logoPosY / 100)),
+            logoW,
+            logoH
+          );
           ctx.restore();
         }
 
-        // 4. Top-Right 5% Metallic Gold Badge ("8K" for 16:9, "HD" for 9:16)
-        if (showRightQualityBadge) {
-          const badgeText = aspectRatio === '16:9' ? '8K' : 'HD';
-          const fontSize = Math.round(height * 0.028);
-          ctx.save();
-          ctx.font = `900 ${fontSize}px sans-serif`;
-          ctx.fillStyle = '#f59e0b';
-          ctx.textAlign = 'right';
-          ctx.fillText(badgeText, Math.round(width * 0.97), Math.round(height * 0.055));
-          ctx.restore();
-        }
-
-        // 5. Clip 1 Hook Text (First 6s-8s)
+        // 4. Clip 1 Hook Text (First 8s) with Custom Font, Size, Color, Shadow & Background
         if (simTime <= clip1OverlayEndSec && (clip1Line1 || clip1Line2)) {
           ctx.save();
           ctx.textAlign = 'center';
-          const f1 = Math.round(height * 0.028);
-          const f2 = Math.round(height * 0.048);
-          ctx.fillStyle = '#fcd34d';
-          ctx.font = `700 ${f1}px serif`;
-          ctx.fillText(clip1Line1, width / 2, Math.round(height * 0.45));
-          ctx.fillStyle = '#ffffff';
-          ctx.font = `900 ${f2}px serif`;
-          ctx.fillText(clip1Line2, width / 2, Math.round(height * 0.52));
+          const scaleRatio = height / 520;
+          const f1 = Math.round(hookLine1FontSize * scaleRatio);
+          const f2 = Math.round(hookLine2FontSize * scaleRatio);
+          const yCenter = Math.round(height * (hookTopPct / 100));
+
+          if (hookBgStyle !== 'none') {
+            ctx.fillStyle = hexToRgba(
+              hookBgColor,
+              hookBgStyle === 'solid' ? 95 : hookBgOpacity
+            );
+            const boxW = Math.round(width * 0.76);
+            const boxH = Math.round((f1 + f2) * 1.9);
+            ctx.fillRect(
+              Math.round((width - boxW) / 2),
+              Math.round(yCenter - f1 * 1.3),
+              boxW,
+              boxH
+            );
+          }
+
+          if (hookShadowStyle !== 'none') {
+            ctx.shadowColor =
+              hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+            ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
+            ctx.shadowOffsetY = 4;
+          }
+
+          if (clip1Line1) {
+            ctx.font = `700 ${f1}px ${hookFontFamily}`;
+            if (hookShadowStyle === 'outline') {
+              ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
+              ctx.strokeStyle = '#000000';
+              ctx.strokeText(clip1Line1, width / 2, yCenter);
+            }
+            ctx.fillStyle = hookLine1Color;
+            ctx.fillText(clip1Line1, width / 2, yCenter);
+          }
+          if (clip1Line2) {
+            const y2 = yCenter + Math.round(f2 * 1.25);
+            ctx.font = `900 ${f2}px ${hookFontFamily}`;
+            if (hookShadowStyle === 'outline') {
+              ctx.lineWidth = Math.max(4, Math.round(f2 * 0.16));
+              ctx.strokeStyle = '#000000';
+              ctx.strokeText(clip1Line2, width / 2, y2);
+            }
+            ctx.fillStyle = hookLine2Color;
+            ctx.fillText(clip1Line2, width / 2, y2);
+          }
           ctx.restore();
         }
 
-        // 6. Active Caption (.SRT)
+        // 5. Active Caption (.SRT) with Custom Font, Size, Color, Shadow & Background
         const cap = captions.find((c) => simTime >= c.start && simTime <= c.end);
         if (cap) {
           ctx.save();
-          const capFontPx = Math.round(height * 0.036);
-          ctx.font = `800 ${capFontPx}px sans-serif`;
+          const scaleRatio = height / 520;
+          const capFontPx = Math.round(captionFontSize * scaleRatio);
+          ctx.font = `800 ${capFontPx}px ${captionFontFamily}`;
           ctx.textAlign = 'center';
           const yPos = Math.round(height * (1 - captionBottomPct / 100));
-          ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
-          ctx.strokeStyle = '#000000';
-          ctx.strokeText(cap.text, width / 2, yPos);
-          ctx.fillStyle = captionColor === 'amber' ? '#fde047' : '#ffffff';
+
+          if (captionBgStyle !== 'none') {
+            const textMetrics = ctx.measureText(cap.text);
+            const padX = Math.round(capFontPx * 0.8);
+            const padY = Math.round(capFontPx * 0.45);
+            const boxW = Math.min(width * 0.9, textMetrics.width + padX * 2);
+            const boxH = capFontPx + padY * 2;
+            ctx.fillStyle = hexToRgba(
+              captionBgColor,
+              captionBgStyle === 'solid' ? 95 : captionBgOpacity
+            );
+            ctx.fillRect(
+              Math.round((width - boxW) / 2),
+              Math.round(yPos - capFontPx - padY * 0.5),
+              Math.round(boxW),
+              Math.round(boxH)
+            );
+          }
+
+          if (captionShadowStyle === 'outline') {
+            ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
+            ctx.strokeStyle = '#000000';
+            ctx.strokeText(cap.text, width / 2, yPos);
+          } else if (captionShadowStyle !== 'none') {
+            ctx.shadowColor =
+              captionShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+            ctx.shadowBlur = captionShadowStyle === 'soft' ? 6 : 14;
+            ctx.shadowOffsetY = 3;
+          }
+
+          ctx.fillStyle =
+            captionColor === 'amber'
+              ? '#fde047'
+              : captionColor === 'custom'
+              ? captionCustomColor
+              : '#ffffff';
           ctx.fillText(cap.text, width / 2, yPos);
           ctx.restore();
         }
@@ -1577,7 +1644,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           src={effectiveVoiceoverUrl}
           preload="auto"
           onError={() => setVoiceAudioError(true)}
-          onLoadedMetadata={() => setVoiceAudioError(false)}
+          onLoadedMetadata={(e) => {
+            setVoiceAudioError(false);
+            const dur = e.currentTarget.duration;
+            if (dur && Number.isFinite(dur) && dur > 1) {
+              setVoiceDurationSec(dur);
+            }
+          }}
+          onDurationChange={(e) => {
+            const dur = e.currentTarget.duration;
+            if (dur && Number.isFinite(dur) && dur > 1) {
+              setVoiceDurationSec(dur);
+            }
+          }}
         />
       )}
       <audio ref={musicAudioRef} preload="auto" />
@@ -1802,19 +1881,67 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )}
 
       {/* =====================================================================
-          UPPER WORKSPACE: REAL-TIME PREVIEW MONITOR (LEFT/CENTER) + INSPECTOR (RIGHT)
+          UPPER WORKSPACE: STAGE-8 STYLE VIDEO VIEWER (LEFT/CENTER) + INSPECTOR (RIGHT)
       ===================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 bg-[#100d0a] border-b border-slate-800/90">
-        {/* PREVIEW MONITOR (8 COLS — LARGER CINEMA VIEWER) */}
-        <div className="lg:col-span-8 flex flex-col items-center justify-between bg-[#080705] border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 bg-[#100d0a] border-b border-slate-800/90">
+        {/* PREVIEW MONITOR (8 COLS — STAGE-8 STYLE FULL-WIDTH HORIZONTAL VIEWER) */}
+        <div className="lg:col-span-8 flex flex-col justify-between bg-[#080705] border border-slate-800 rounded-2xl p-3 space-y-2.5">
+          {/* Top Viewer Bar + Quick Object Selection Pills */}
           <div className="w-full flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
-            <span className="font-mono text-amber-300 font-bold">
-              Monitor en Tiempo Real • {aspectRatio} • Salida:{' '}
-              {aspectRatio === '16:9'
-                ? `${activePreset.width16x9}×${activePreset.height16x9}`
-                : `${activePreset.width9x16}×${activePreset.height9x16}`}{' '}
-              ({activePreset.badge})
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-amber-300 font-bold">
+                Visor • {aspectRatio} •{' '}
+                {aspectRatio === '16:9'
+                  ? `${activePreset.width16x9}×${activePreset.height16x9}`
+                  : `${activePreset.width9x16}×${activePreset.height9x16}`}
+              </span>
+              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+                <span className="text-[10px] text-slate-400 px-1.5">Seleccionar en pantalla:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCanvasObject((prev) => (prev === 'logo' ? null : 'logo'));
+                    setActiveInspectorTab('branding');
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                    selectedCanvasObject === 'logo'
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  🏷️ Logo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCanvasObject((prev) => (prev === 'hook_text' ? null : 'hook_text'));
+                    setActiveInspectorTab('branding');
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                    selectedCanvasObject === 'hook_text'
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  🔤 Texto en Pantalla
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCanvasObject((prev) => (prev === 'captions' ? null : 'captions'));
+                    setActiveInspectorTab('captions');
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                    selectedCanvasObject === 'captions'
+                      ? 'bg-sky-400 text-slate-950'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  💬 Captions
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1824,258 +1951,659 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }`}
               >
                 {effectiveVoiceoverUrl && !voiceAudioError
-                  ? `🎙️ Locución Master Lista (entra en ${formatTimeMMSS(voiceStartOffsetSec)})`
-                  : '🔇 Sin Audio de Voz Cargado (Sube o Sincroniza en Pista 4)'}
-              </span>
-              <span className="font-mono text-emerald-300 font-bold">
-                {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
+                  ? `🎙️ Voz + Captions sincronizados desde 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} (${formatTimeMMSS(totalDurationSec)})`
+                  : '🔇 Sin Audio de Voz'}
               </span>
             </div>
           </div>
 
-          {/* Aspect-Ratio Locked Screen (Enlarged Cinema Size) */}
-          <div
-            onClick={handleTogglePlay}
-            className={`relative bg-black rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-2xl flex items-center justify-center cursor-pointer group ${
-              aspectRatio === '16:9'
-                ? 'w-full max-w-[1060px] min-h-[340px] sm:min-h-[440px] lg:min-h-[520px] aspect-video'
-                : 'h-[540px] aspect-[9/16]'
-            }`}
-            title="Haz clic en la pantalla para Reproducir / Pausar"
-          >
-            {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
-            {activeClipAtPlayhead?.videoUrl ? (
-              <video
-                key={activeClipAtPlayhead.videoUrl}
-                ref={previewVideoRef}
-                src={activeClipAtPlayhead.videoUrl}
-                className="w-full h-full object-cover"
-                playsInline
-                preload="auto"
-                onLoadedMetadata={(e) => {
-                  const vid = e.currentTarget;
-                  const offsetInClip =
-                    (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
-                    activeClipAtPlayhead.trimStart;
-                  try {
-                    vid.currentTime = Math.max(0, offsetInClip);
-                    vid.playbackRate = activeClipAtPlayhead.speed || 1;
-                    vid.muted = false;
-                    vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-                    if (isPlaying) {
-                      vid.play().catch(() => {});
-                    }
-                  } catch {}
-                }}
-              />
-            ) : activeClipAtPlayhead?.posterUrl ? (
-              <div className="w-full h-full overflow-hidden relative bg-black">
-                <img
-                  src={activeClipAtPlayhead.posterUrl}
-                  alt={activeClipAtPlayhead.fileName}
-                  className="w-full h-full object-cover transition-transform duration-150 ease-linear"
-                  style={{
-                    transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+          {/* Stage-8 Style Video Container + Native-Style Bottom Scrubber & Play/Pause Controls */}
+          <div className="w-full rounded-xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col">
+            <div
+              onClick={() => {
+                setSelectedCanvasObject(null);
+                handleTogglePlay();
+              }}
+              className={`relative bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none mx-auto ${
+                aspectRatio === '16:9'
+                  ? 'w-full h-[46vh] max-h-[420px] min-h-[290px]'
+                  : 'h-[430px] aspect-[9/16]'
+              }`}
+              title="Haz clic en el video para Reproducir / Pausar, o haz clic sobre el Logo, el Texto en Pantalla o los Captions para seleccionarlos y editarlos"
+            >
+              {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
+              {activeClipAtPlayhead?.videoUrl ? (
+                <video
+                  key={activeClipAtPlayhead.videoUrl}
+                  ref={previewVideoRef}
+                  src={activeClipAtPlayhead.videoUrl}
+                  className="w-full h-full object-contain bg-black"
+                  playsInline
+                  preload="auto"
+                  onLoadedMetadata={(e) => {
+                    const vid = e.currentTarget;
+                    const offsetInClip =
+                      (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
+                      activeClipAtPlayhead.trimStart;
+                    try {
+                      vid.currentTime = Math.max(0, offsetInClip);
+                      vid.playbackRate = activeClipAtPlayhead.speed || 1;
+                      vid.muted = false;
+                      vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+                      if (isPlaying) {
+                        vid.play().catch(() => {});
+                      }
+                    } catch {}
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/35 pointer-events-none" />
-              </div>
-            ) : (
-              /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
-              <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-8 text-center">
-                {/* Animated Ken Burns Ambient Backdrop */}
-                <div
-                  className="absolute inset-0 opacity-35 pointer-events-none transition-transform duration-150 ease-linear"
-                  style={{
-                    transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
-                    backgroundImage:
-                      'radial-gradient(circle at 30% 35%, rgba(245, 158, 11, 0.35), transparent 55%), radial-gradient(circle at 75% 65%, rgba(14, 165, 233, 0.22), transparent 55%)',
-                  }}
-                />
-                <div className="relative z-10 max-w-2xl space-y-3">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black tracking-wide">
-                    <span>
-                      🎬 ESCENA {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} DE{' '}
-                      {timelineClips.length || 1}
-                    </span>
-                    <span>•</span>
-                    <span className="font-mono">
-                      {activeClipAtPlayhead
-                        ? `${Math.max(0, currentTime - activeClipAtPlayhead.start).toFixed(1)}s / ${activeClipAtPlayhead.duration}s`
-                        : '0.0s'}
-                    </span>
-                  </div>
-
-                  <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
-                    {stripPauseTags(
-                      activeClipAtPlayhead?.narrationSegment ||
-                        activeCaptionAtPlayhead?.text ||
-                        clip1Line2 ||
-                        activeDoc?.title ||
-                        'Documental Histórico — Huellas de la Humanidad'
-                    )}
-                  </p>
-
-                  {(activeClipAtPlayhead?.videoPrompt || activeClipAtPlayhead?.imagePrompt) && (
-                    <p className="text-[11px] text-slate-300/85 line-clamp-3 font-mono bg-black/55 border border-white/10 rounded-xl px-3.5 py-2">
-                      🎥 Dirección Visual:{' '}
-                      {(activeClipAtPlayhead.videoPrompt || activeClipAtPlayhead.imagePrompt || '')
-                        .replace(/^Create (?:a video|an image)[^,]*,\s*/i, '')
-                        .slice(0, 220)}
-                      ...
-                    </p>
-                  )}
-
-                  {/* Clip Progress Bar inside Storyboard */}
-                  <div className="w-64 mx-auto h-1.5 bg-slate-800/90 rounded-full overflow-hidden border border-slate-700">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-100"
-                      style={{ width: `${Math.round(clipProgressRatio * 100)}%` }}
-                    />
-                  </div>
-
+              ) : activeClipAtPlayhead?.posterUrl ? (
+                <div className="w-full h-full overflow-hidden relative bg-black">
+                  <img
+                    src={activeClipAtPlayhead.posterUrl}
+                    alt={activeClipAtPlayhead.fileName}
+                    className="w-full h-full object-contain transition-transform duration-150 ease-linear"
+                    style={{
+                      transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/35 pointer-events-none" />
+                </div>
+              ) : (
+                /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
+                <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-6 text-center">
                   <div
-                    className="pt-1 flex items-center justify-center gap-2 flex-wrap"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                    className="absolute inset-0 opacity-35 pointer-events-none transition-transform duration-150 ease-linear"
+                    style={{
+                      transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+                      backgroundImage:
+                        'radial-gradient(circle at 30% 35%, rgba(245, 158, 11, 0.35), transparent 55%), radial-gradient(circle at 75% 65%, rgba(14, 165, 233, 0.22), transparent 55%)',
+                    }}
+                  />
+                  <div className="relative z-10 max-w-2xl space-y-2.5">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black tracking-wide">
+                      <span>
+                        🎬 ESCENA {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} DE{' '}
+                        {timelineClips.length || 1}
+                      </span>
+                      <span>•</span>
+                      <span className="font-mono">
+                        {activeClipAtPlayhead
+                          ? `${Math.max(0, currentTime - activeClipAtPlayhead.start).toFixed(1)}s / ${activeClipAtPlayhead.duration}s`
+                          : '0.0s'}
+                      </span>
+                    </div>
+
+                    <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
+                      {stripPauseTags(
+                        activeClipAtPlayhead?.narrationSegment ||
+                          activeCaptionAtPlayhead?.text ||
+                          clip1Line2 ||
+                          activeDoc?.title ||
+                          'Documental Histórico — Huellas de la Humanidad'
+                      )}
+                    </p>
+
                     {onReloadFolderMedia && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const loaded = await onReloadFolderMedia();
-                          setStatusMessage(
-                            loaded > 0
-                              ? `✅ ¡${loaded} video(s) .MP4 cargados desde 05_Clips_Video!`
-                              : '📂 Selecciona tu carpeta con la subcarpeta 05_Clips_Video o importa tus .MP4.'
+                      <div
+                        className="pt-1 flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const loaded = await onReloadFolderMedia();
+                            setStatusMessage(
+                              loaded > 0
+                                ? `✅ ¡${loaded} video(s) .MP4 cargados desde 05_Clips_Video!`
+                                : '📂 Selecciona tu carpeta con la subcarpeta 05_Clips_Video o importa tus .MP4.'
+                            );
+                          }}
+                          className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-bold cursor-pointer"
+                        >
+                          📂 Conectar Clips .MP4 de 05_Clips_Video
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer) */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedCanvasObject('logo');
+                  setActiveInspectorTab('branding');
+                }}
+                className={`absolute z-20 flex flex-col items-start cursor-pointer transition rounded-lg p-1 ${
+                  selectedCanvasObject === 'logo'
+                    ? 'ring-2 ring-amber-400 bg-amber-500/15 shadow-lg'
+                    : 'hover:ring-1 hover:ring-amber-400/60'
+                }`}
+                style={{
+                  top: `${logoPosY}%`,
+                  left: `${logoPosX}%`,
+                  width: `${logoScalePct}%`,
+                  minWidth: '46px',
+                  opacity: logoOpacity / 100,
+                }}
+                title="Haz clic para seleccionar y ajustar el Logo Oficial"
+              >
+                {officialLogoUrl ? (
+                  <img
+                    src={officialLogoUrl}
+                    alt="Huellas de la Humanidad"
+                    className="w-full h-auto object-contain drop-shadow-lg"
+                  />
+                ) : (
+                  <div className="px-1.5 py-0.5 rounded bg-black/70 border border-amber-500/40 text-[8px] font-bold text-amber-300 text-center leading-tight">
+                    Huellas de la Humanidad
+                  </div>
+                )}
+                {selectedCanvasObject === 'logo' && (
+                  <span className="mt-0.5 px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[9px] whitespace-nowrap shadow">
+                    🏷️ Logo ({logoScalePct}%)
+                  </span>
+                )}
+              </div>
+
+              {/* Layer 3: Clip 1 Hook Text Overlay (Selectable & Editable directly inside the Video Viewer!) */}
+              {(currentTime <= clip1OverlayEndSec || selectedCanvasObject === 'hook_text') &&
+                (clip1Line1 || clip1Line2 || selectedCanvasObject === 'hook_text') && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCanvasObject('hook_text');
+                      setActiveInspectorTab('branding');
+                    }}
+                    className={`absolute inset-x-6 z-20 text-center cursor-pointer transition rounded-xl p-2 mx-auto max-w-[88%] ${
+                      selectedCanvasObject === 'hook_text'
+                        ? 'ring-2 ring-amber-400 shadow-2xl'
+                        : 'hover:ring-1 hover:ring-amber-300/60'
+                    }`}
+                    style={{
+                      top: `${hookTopPct}%`,
+                      fontFamily: hookFontFamily,
+                      textShadow: getTextShadowCss(hookShadowStyle),
+                      backgroundColor:
+                        hookBgStyle === 'none'
+                          ? 'transparent'
+                          : hexToRgba(hookBgColor, hookBgStyle === 'solid' ? 95 : hookBgOpacity),
+                    }}
+                    title="Haz clic para seleccionar y editar el Texto en Pantalla directamente aquí"
+                  >
+                    {selectedCanvasObject === 'hook_text' ? (
+                      <div
+                        className="space-y-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1">
+                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950">
+                            🔤 Editando Texto en Pantalla (00:00 - 00:0{clip1OverlayEndSec})
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={clip1Line1}
+                          onChange={(e) => setClip1Line1(e.target.value)}
+                          placeholder="Línea 1: Lugar y Año..."
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300"
+                          style={{
+                            fontFamily: hookFontFamily,
+                            fontSize: `${hookLine1FontSize}px`,
+                            color: hookLine1Color,
+                            textShadow: getTextShadowCss(hookShadowStyle),
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={clip1Line2}
+                          onChange={(e) => setClip1Line2(e.target.value)}
+                          placeholder="Línea 2: Título Gancho en Pantalla..."
+                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300"
+                          style={{
+                            fontFamily: hookFontFamily,
+                            fontSize: `${hookLine2FontSize}px`,
+                            color: hookLine2Color,
+                            textShadow: getTextShadowCss(hookShadowStyle),
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {clip1Line1 && (
+                          <div
+                            className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded inline-block"
+                            style={{
+                              fontFamily: hookFontFamily,
+                              fontSize: `${hookLine1FontSize}px`,
+                              color: hookLine1Color,
+                              textShadow: getTextShadowCss(hookShadowStyle),
+                            }}
+                          >
+                            {clip1Line1}
+                          </div>
+                        )}
+                        {clip1Line2 && (
+                          <div
+                            className="font-black uppercase tracking-wide"
+                            style={{
+                              fontFamily: hookFontFamily,
+                              fontSize: `${hookLine2FontSize}px`,
+                              color: hookLine2Color,
+                              textShadow: getTextShadowCss(hookShadowStyle),
+                            }}
+                          >
+                            {clip1Line2}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Layer 4: Dynamic Captions (.SRT) — Selectable & Editable directly inside the Video Viewer! */}
+              {(activeCaptionAtPlayhead || selectedCanvasObject === 'captions') && (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCanvasObject('captions');
+                    setActiveInspectorTab('captions');
+                  }}
+                  className="absolute inset-x-4 z-20 text-center cursor-pointer"
+                  style={{ bottom: `${captionBottomPct}%` }}
+                  title="Haz clic para seleccionar y editar los Captions directamente aquí"
+                >
+                  {selectedCanvasObject === 'captions' && activeCaptionAtPlayhead ? (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex flex-col items-center gap-1 bg-black/85 border-2 border-sky-400 rounded-xl p-2 shadow-2xl min-w-[280px] max-w-[90%]"
+                    >
+                      <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-950 font-sans font-black text-[9px]">
+                        💬 Editando Caption #{activeCaptionAtPlayhead.index} ({formatTimeMMSS(activeCaptionAtPlayhead.start)} - {formatTimeMMSS(activeCaptionAtPlayhead.end)})
+                      </span>
+                      <input
+                        type="text"
+                        value={activeCaptionAtPlayhead.text}
+                        onChange={(e) => {
+                          const newText = e.target.value;
+                          setCaptions((prev) =>
+                            prev.map((c) =>
+                              c.id === activeCaptionAtPlayhead.id ? { ...c, text: newText } : c
+                            )
                           );
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-bold cursor-pointer"
-                      >
-                        📂 Conectar Clips .MP4 de 05_Clips_Video
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Layer 2: Permanent Official Logo (Top-Left at 5% scale) */}
-            <div
-              className="absolute top-3 left-3 pointer-events-none flex flex-col items-start"
-              style={{
-                width: `${logoScalePct}%`,
-                minWidth: '42px',
-                opacity: logoOpacity / 100,
-              }}
-            >
-              {officialLogoUrl ? (
-                <img
-                  src={officialLogoUrl}
-                  alt="Huellas de la Humanidad"
-                  className="w-full h-auto object-contain drop-shadow-lg"
-                />
-              ) : (
-                <div className="px-1.5 py-0.5 rounded bg-black/70 border border-amber-500/40 text-[8px] font-bold text-amber-300 text-center leading-tight">
-                  Huellas de la Humanidad
+                        className="w-full text-center bg-slate-950/90 border border-sky-400/50 rounded-lg px-3 py-1 font-extrabold outline-none"
+                        style={{
+                          fontFamily: captionFontFamily,
+                          fontSize: `${Math.max(13, captionFontSize * 0.78)}px`,
+                          color:
+                            captionColor === 'amber'
+                              ? '#fde047'
+                              : captionColor === 'custom'
+                              ? captionCustomColor
+                              : '#ffffff',
+                          textShadow: getTextShadowCss(captionShadowStyle),
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <span
+                      className={`inline-block px-3.5 py-1 rounded-lg font-extrabold transition ${
+                        selectedCanvasObject === 'captions'
+                          ? 'ring-2 ring-sky-400'
+                          : 'hover:ring-1 hover:ring-sky-400/60'
+                      }`}
+                      style={{
+                        fontFamily: captionFontFamily,
+                        fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
+                        color:
+                          captionColor === 'amber'
+                            ? '#fde047'
+                            : captionColor === 'custom'
+                            ? captionCustomColor
+                            : '#ffffff',
+                        textShadow: getTextShadowCss(captionShadowStyle),
+                        backgroundColor:
+                          captionBgStyle === 'none'
+                            ? 'transparent'
+                            : hexToRgba(
+                                captionBgColor,
+                                captionBgStyle === 'solid' ? 95 : captionBgOpacity
+                              ),
+                      }}
+                    >
+                      {activeCaptionAtPlayhead?.text ||
+                        (currentTime < voiceStartOffsetSec
+                          ? `🎙️ Subtítulos inician en 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}`
+                          : '💬 Subtítulos activos')}
+                    </span>
+                  )}
                 </div>
               )}
-            </div>
 
-            {/* Layer 3: Metallic Gold 8K (16:9) or HD (9:16) Top-Right Badge */}
-            {showRightQualityBadge && (
-              <div className="absolute top-3 right-3 pointer-events-none">
-                <span className="px-2 py-0.5 rounded bg-black/75 border border-amber-400/60 text-[10px] font-black tracking-wider text-amber-300 shadow">
-                  {aspectRatio === '16:9' ? '8K' : 'HD'}
+              {/* Bottom-Left Live Audio Ducking Indicator */}
+              <div className="absolute bottom-2 left-2.5 flex items-center gap-1.5 pointer-events-none">
+                <span className="px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-slate-300">
+                  Foley: {effectiveFoleyVolumeAtPlayhead}%{' '}
+                  {isNarratorSpeakingAtPlayhead ? '(Auto-Ducking Voz 🎙️)' : '(Ambiente Alto 🔊)'}
                 </span>
               </div>
-            )}
+            </div>
 
-            {/* Layer 4: Clip 1 Hook Text Overlay (First 6s-8s) */}
-            {currentTime <= clip1OverlayEndSec && (clip1Line1 || clip1Line2) && (
-              <div className="absolute inset-x-6 top-1/3 text-center pointer-events-none space-y-1 drop-shadow-[0_4px_12px_rgba(0,0,0,0.95)]">
-                {clip1Line1 && (
-                  <div className="text-xs sm:text-sm font-bold uppercase tracking-widest text-amber-300 bg-black/50 inline-block px-3 py-0.5 rounded">
-                    {clip1Line1}
-                  </div>
-                )}
-                {clip1Line2 && (
-                  <div className="text-base sm:text-xl font-black text-white uppercase tracking-wide">
-                    {clip1Line2}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Layer 5: Dynamic Captions (.SRT) */}
-            {activeCaptionAtPlayhead && (
-              <div
-                className="absolute inset-x-4 text-center pointer-events-none"
-                style={{ bottom: `${captionBottomPct}%` }}
+            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
+            <div className="w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCurrentTime(0)}
+                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
+                title="Ir al inicio (00:00)"
               >
-                <span
-                  className={`inline-block px-3 py-1 rounded-lg bg-black/80 font-extrabold shadow-xl border border-white/10 ${
-                    captionColor === 'amber' ? 'text-amber-300' : 'text-white'
-                  }`}
-                  style={{ fontSize: `${Math.max(13, captionFontSize * 0.72)}px` }}
-                >
-                  {activeCaptionAtPlayhead.text}
-                </span>
-              </div>
-            )}
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleTogglePlay}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow shrink-0"
+                title={isPlaying ? 'Pausar reproducción' : 'Reproducir video y voz narrativa'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                <span>{isPlaying ? 'Pausa' : 'Play'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentTime(voiceStartOffsetSec)}
+                className="px-2 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer shrink-0"
+                title={`Ir al segundo ${voiceStartOffsetSec}s donde entra la Voz Narrativa`}
+              >
+                🎙️ 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}
+              </button>
 
-            {/* Bottom-Left Live Audio Ducking & Transition Indicator */}
-            <div className="absolute bottom-2 left-2.5 flex items-center gap-1.5 pointer-events-none">
-              <span className="px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-slate-300">
-                Foley: {effectiveFoleyVolumeAtPlayhead}%{' '}
-                {isNarratorSpeakingAtPlayhead ? '(Auto-Ducking Voz 🎙️)' : '(Ambiente Alto 🔊)'}
+              {/* Full-Width Stage-8 Style Timeline Scrubber */}
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <input
+                  type="range"
+                  min={0}
+                  max={totalDurationSec}
+                  step={0.05}
+                  value={currentTime}
+                  onChange={(e) => setCurrentTime(Number(e.target.value))}
+                  className="w-full h-2 accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <span className="font-mono text-xs text-emerald-300 font-bold shrink-0">
+                {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
               </span>
-              {activeClipAtPlayhead && (
-                <span className="px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-amber-300">
-                  Transición:{' '}
-                  {TRANSITION_OPTIONS.find((t) => t.value === activeClipAtPlayhead.transition)?.label.split(
-                    ' ('
-                  )[0] || 'Corte Directo'}
-                </span>
-              )}
+
+              <button
+                type="button"
+                onClick={() => setCurrentTime(Math.max(0, totalDurationSec - 1))}
+                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
+                title="Ir al final"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Playback Transport Controls */}
-          <div className="w-full flex items-center justify-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => setCurrentTime(0)}
-              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer"
-              title="Ir al inicio (00:00)"
-            >
-              <SkipBack className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleTogglePlay}
-              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-            >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {isPlaying ? 'Pausar' : 'Reproducir Timeline'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentTime(Math.max(0, totalDurationSec - 1))}
-              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer"
-              title="Ir al final"
-            >
-              <SkipForward className="w-4 h-4" />
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={totalDurationSec}
-              step={0.1}
-              value={currentTime}
-              onChange={(e) => setCurrentTime(Number(e.target.value))}
-              className="w-48 sm:w-64 accent-amber-500 cursor-pointer"
-            />
-          </div>
+          {/* Contextual Quick-Edit Toolbar when an Overlay Object (Logo, Hook Text, or Captions) is Selected */}
+          {selectedCanvasObject === 'hook_text' && (
+            <div className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs">
+              <span className="font-black text-amber-300 text-[11px]">
+                🔤 Estilo Texto en Pantalla:
+              </span>
+              <select
+                value={hookFontFamily}
+                onChange={(e) => setHookFontFamily(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-200 cursor-pointer"
+                title="Fuente tipográfica"
+              >
+                {EDITOR_FONT_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                L1:
+                <input
+                  type="number"
+                  min={10}
+                  max={42}
+                  value={hookLine1FontSize}
+                  onChange={(e) => setHookLine1FontSize(Number(e.target.value))}
+                  className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-white"
+                />
+                <input
+                  type="color"
+                  value={hookLine1Color}
+                  onChange={(e) => setHookLine1Color(e.target.value)}
+                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                  title="Color Línea 1"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                L2:
+                <input
+                  type="number"
+                  min={14}
+                  max={56}
+                  value={hookLine2FontSize}
+                  onChange={(e) => setHookLine2FontSize(Number(e.target.value))}
+                  className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-white"
+                />
+                <input
+                  type="color"
+                  value={hookLine2Color}
+                  onChange={(e) => setHookLine2Color(e.target.value)}
+                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                  title="Color Línea 2"
+                />
+              </label>
+              <select
+                value={hookShadowStyle}
+                onChange={(e) => setHookShadowStyle(e.target.value as OverlayShadowStyle)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
+                title="Sombra del texto"
+              >
+                {EDITOR_SHADOW_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={hookBgStyle}
+                onChange={(e) => setHookBgStyle(e.target.value as OverlayBgStyle)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
+                title="Fondo del texto"
+              >
+                <option value="none">Fondo: Transparente</option>
+                <option value="semi">Fondo: Semitransparente</option>
+                <option value="solid">Fondo: Caja Sólida</option>
+              </select>
+              {hookBgStyle !== 'none' && (
+                <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                  <input
+                    type="color"
+                    value={hookBgColor}
+                    onChange={(e) => setHookBgColor(e.target.value)}
+                    className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                    title="Color de fondo"
+                  />
+                  <span>{hookBgOpacity}%</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    value={hookBgOpacity}
+                    onChange={(e) => setHookBgOpacity(Number(e.target.value))}
+                    className="w-16 accent-amber-500"
+                  />
+                </label>
+              )}
+              <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                Posición Y:
+                <input
+                  type="range"
+                  min={8}
+                  max={82}
+                  value={hookTopPct}
+                  onChange={(e) => setHookTopPct(Number(e.target.value))}
+                  className="w-16 accent-amber-500"
+                />
+              </label>
+            </div>
+          )}
+
+          {selectedCanvasObject === 'captions' && (
+            <div className="w-full bg-slate-950/95 border border-sky-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs">
+              <span className="font-black text-sky-300 text-[11px]">
+                💬 Estilo Captions:
+              </span>
+              <select
+                value={captionFontFamily}
+                onChange={(e) => setCaptionFontFamily(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-sky-200 cursor-pointer"
+              >
+                {EDITOR_FONT_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                Tamaño ({captionFontSize}px):
+                <input
+                  type="range"
+                  min={14}
+                  max={40}
+                  value={captionFontSize}
+                  onChange={(e) => setCaptionFontSize(Number(e.target.value))}
+                  className="w-16 accent-sky-400"
+                />
+              </label>
+              <select
+                value={captionColor}
+                onChange={(e) => setCaptionColor(e.target.value as 'white' | 'amber' | 'custom')}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white cursor-pointer"
+              >
+                <option value="white">Texto Blanco</option>
+                <option value="amber">Texto Ámbar</option>
+                <option value="custom">Color Personalizado</option>
+              </select>
+              {captionColor === 'custom' && (
+                <input
+                  type="color"
+                  value={captionCustomColor}
+                  onChange={(e) => setCaptionCustomColor(e.target.value)}
+                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                />
+              )}
+              <select
+                value={captionShadowStyle}
+                onChange={(e) => setCaptionShadowStyle(e.target.value as OverlayShadowStyle)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
+              >
+                {EDITOR_SHADOW_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={captionBgStyle}
+                onChange={(e) => setCaptionBgStyle(e.target.value as OverlayBgStyle)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
+              >
+                <option value="none">Fondo: Transparente</option>
+                <option value="semi">Fondo: Caja Semitransparente</option>
+                <option value="solid">Fondo: Caja Sólida</option>
+              </select>
+              {captionBgStyle !== 'none' && (
+                <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                  <input
+                    type="color"
+                    value={captionBgColor}
+                    onChange={(e) => setCaptionBgColor(e.target.value)}
+                    className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    value={captionBgOpacity}
+                    onChange={(e) => setCaptionBgOpacity(Number(e.target.value))}
+                    className="w-14 accent-sky-400"
+                  />
+                </label>
+              )}
+              <label className="flex items-center gap-1 text-[11px] text-slate-300">
+                Altura ({captionBottomPct}%):
+                <input
+                  type="range"
+                  min={4}
+                  max={50}
+                  value={captionBottomPct}
+                  onChange={(e) => setCaptionBottomPct(Number(e.target.value))}
+                  className="w-16 accent-sky-400"
+                />
+              </label>
+            </div>
+          )}
+
+          {selectedCanvasObject === 'logo' && (
+            <div className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-3 text-xs">
+              <span className="font-black text-amber-300 text-[11px]">
+                🏷️ Ajuste Rápido del Logo:
+              </span>
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                Tamaño ({logoScalePct}%):
+                <input
+                  type="range"
+                  min={3}
+                  max={18}
+                  value={logoScalePct}
+                  onChange={(e) => setLogoScalePct(Number(e.target.value))}
+                  className="w-20 accent-amber-500"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                Opacidad ({logoOpacity}%):
+                <input
+                  type="range"
+                  min={20}
+                  max={100}
+                  value={logoOpacity}
+                  onChange={(e) => setLogoOpacity(Number(e.target.value))}
+                  className="w-20 accent-amber-500"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                X ({logoPosX}%):
+                <input
+                  type="range"
+                  min={1}
+                  max={85}
+                  value={logoPosX}
+                  onChange={(e) => setLogoPosX(Number(e.target.value))}
+                  className="w-16 accent-amber-500"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                Y ({logoPosY}%):
+                <input
+                  type="range"
+                  min={1}
+                  max={85}
+                  value={logoPosY}
+                  onChange={(e) => setLogoPosY(Number(e.target.value))}
+                  className="w-16 accent-amber-500"
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         {/* INSPECTOR & CONTROLS PANEL (4 COLS) */}
@@ -2475,7 +3003,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           )}
 
-          {/* TAB 3: PERMANENT OFFICIAL LOGO, 8K/HD BADGE & CLIP 1 HOOK TEXT */}
+          {/* TAB 3: PERMANENT OFFICIAL LOGO & CLIP 1 ON-SCREEN TEXT (FONT, SIZE, SHADOW, BACKGROUND) */}
           {activeInspectorTab === 'branding' && (
             <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
               <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3 space-y-2.5">
@@ -2485,7 +3013,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       🖼️ Logo Oficial "Huellas de la Humanidad" (Subir 1 Sola Vez)
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Queda guardado permanentemente para todos tus documentales en la esquina superior izquierda.
+                      Esquina superior izquierda (también seleccionable en el visor de video).
                     </div>
                   </div>
                   <label className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shrink-0">
@@ -2505,37 +3033,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] text-slate-400">
-                      Tamaño del Logo: {logoScalePct}% (Estándar: 5%)
+                      Tamaño del Logo: {logoScalePct}%
                     </label>
                     <input
                       type="range"
                       min={3}
-                      max={15}
+                      max={18}
                       value={logoScalePct}
                       onChange={(e) => setLogoScalePct(Number(e.target.value))}
                       className="w-full accent-amber-500"
                     />
                   </div>
-                  <div className="flex items-center pt-3">
-                    <label className="flex items-center gap-2 text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showRightQualityBadge}
-                        onChange={(e) => setShowRightQualityBadge(e.target.checked)}
-                        className="accent-amber-500"
-                      />
-                      <span>
-                        Mostrar Sello Dorado <strong>{aspectRatio === '16:9' ? '8K' : 'HD'}</strong>{' '}
-                        (Arriba Derecha)
-                      </span>
+                  <div>
+                    <label className="block text-[11px] text-slate-400">
+                      Opacidad del Logo: {logoOpacity}%
                     </label>
+                    <input
+                      type="range"
+                      min={20}
+                      max={100}
+                      value={logoOpacity}
+                      onChange={(e) => setLogoOpacity(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
-                <div className="font-bold text-slate-200">
-                  Texto Gancho en Pantalla (Primeros {clip1OverlayEndSec}s sobre el Clip 1)
+              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-bold text-amber-300">
+                    🔤 Texto Gancho en Pantalla (00:00 - 00:0{clip1OverlayEndSec})
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCanvasObject('hook_text')}
+                    className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer"
+                  >
+                    ✏️ Editar en Visor
+                  </button>
                 </div>
                 <input
                   type="text"
@@ -2551,38 +3087,175 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   placeholder="Línea 2: Título Gancho intrigante..."
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
                 />
+
+                {/* Typography, Size, Color, Shadow & Background Controls */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Fuente (Font):</label>
+                    <select
+                      value={hookFontFamily}
+                      onChange={(e) => setHookFontFamily(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-200"
+                    >
+                      {EDITOR_FONT_OPTIONS.map((f) => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">
+                      Tamaño Línea 1 ({hookLine1FontSize}px) + Color
+                    </label>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <input
+                        type="range"
+                        min={10}
+                        max={38}
+                        value={hookLine1FontSize}
+                        onChange={(e) => setHookLine1FontSize(Number(e.target.value))}
+                        className="flex-1 accent-amber-500"
+                      />
+                      <input
+                        type="color"
+                        value={hookLine1Color}
+                        onChange={(e) => setHookLine1Color(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">
+                      Tamaño Línea 2 ({hookLine2FontSize}px) + Color
+                    </label>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <input
+                        type="range"
+                        min={14}
+                        max={52}
+                        value={hookLine2FontSize}
+                        onChange={(e) => setHookLine2FontSize(Number(e.target.value))}
+                        className="flex-1 accent-amber-500"
+                      />
+                      <input
+                        type="color"
+                        value={hookLine2Color}
+                        onChange={(e) => setHookLine2Color(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">Sombra (Shadow):</label>
+                    <select
+                      value={hookShadowStyle}
+                      onChange={(e) => setHookShadowStyle(e.target.value as OverlayShadowStyle)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 mt-0.5"
+                    >
+                      {EDITOR_SHADOW_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">Fondo (Background):</label>
+                    <select
+                      value={hookBgStyle}
+                      onChange={(e) => setHookBgStyle(e.target.value as OverlayBgStyle)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 mt-0.5"
+                    >
+                      <option value="none">Sin Fondo (Transparente)</option>
+                      <option value="semi">Caja Semitransparente</option>
+                      <option value="solid">Caja Sólida</option>
+                    </select>
+                  </div>
+                  {hookBgStyle !== 'none' && (
+                    <div className="col-span-2 flex items-center gap-2 pt-0.5">
+                      <label className="text-[10px] text-slate-400">Color / Opacidad Fondo ({hookBgOpacity}%):</label>
+                      <input
+                        type="color"
+                        value={hookBgColor}
+                        onChange={(e) => setHookBgColor(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                      />
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        value={hookBgOpacity}
+                        onChange={(e) => setHookBgOpacity(Number(e.target.value))}
+                        className="flex-1 accent-amber-500"
+                      />
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-400">
+                      Posición Vertical en Pantalla ({hookTopPct}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={82}
+                      value={hookTopPct}
+                      onChange={(e) => setHookTopPct(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB 4: AUTO-CAPTIONS (.SRT) WITHOUT EXTERNAL CAPCUT */}
+          {/* TAB 4: AUTO-CAPTIONS (.SRT) + FONT, SIZE, SHADOW & BACKGROUND */}
           {activeInspectorTab === 'captions' && (
             <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
               <div className="flex items-center justify-between gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div>
                   <div className="font-bold text-emerald-300">
-                    💬 Subtítulos Sincronizados ({captions.length} bloques)
+                    💬 Subtítulos Sincronizados ({captions.length} bloques desde 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')})
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    Genera los captions directo desde tu Voz Narrativa sin tener que ir a CapCut externo.
+                    Sincronizados con la duración completa de la Voz Narrativa ({formatTimeMMSS(effectiveVoiceDurationSec)}).
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleGenerateAutoCaptionsFromVoice()}
+                  onClick={() => {
+                    handleGenerateAutoCaptionsFromVoice(voiceStartOffsetSec, effectiveVoiceDurationSec);
+                    setStatusMessage(
+                      `💬 Subtítulos resincronizados desde 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} hasta ${formatTimeMMSS(totalDurationSec)}.`
+                    );
+                  }}
                   className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shrink-0"
                 >
-                  ✨ Auto-Generar Captions
+                  ✨ Resincronizar Captions
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-2.5">
+              <div className="grid grid-cols-2 gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3">
+                <div className="col-span-2">
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Fuente de Subtítulos:</label>
+                  <select
+                    value={captionFontFamily}
+                    onChange={(e) => setCaptionFontFamily(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-sky-200"
+                  >
+                    {EDITOR_FONT_OPTIONS.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-[10px] text-slate-400">Tamaño ({captionFontSize}px)</label>
                   <input
                     type="range"
-                    min={16}
-                    max={36}
+                    min={14}
+                    max={40}
                     value={captionFontSize}
                     onChange={(e) => setCaptionFontSize(Number(e.target.value))}
                     className="w-full accent-amber-500"
@@ -2600,16 +3273,76 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400">Color</label>
+                  <label className="block text-[10px] text-slate-400">Color de Texto</label>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <select
+                      value={captionColor}
+                      onChange={(e) => setCaptionColor(e.target.value as 'white' | 'amber' | 'custom')}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                    >
+                      <option value="white">Blanco Clásico</option>
+                      <option value="amber">Ámbar Documental</option>
+                      <option value="custom">Personalizado</option>
+                    </select>
+                    {captionColor === 'custom' && (
+                      <input
+                        type="color"
+                        value={captionCustomColor}
+                        onChange={(e) => setCaptionCustomColor(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                      />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400">Sombra / Contorno</label>
                   <select
-                    value={captionColor}
-                    onChange={(e) => setCaptionColor(e.target.value as 'white' | 'amber')}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                    value={captionShadowStyle}
+                    onChange={(e) => setCaptionShadowStyle(e.target.value as OverlayShadowStyle)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-0.5"
                   >
-                    <option value="white">Blanco Clásico</option>
-                    <option value="amber">Ámbar Documental</option>
+                    {EDITOR_SHADOW_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400">Fondo de Subtítulos</label>
+                  <select
+                    value={captionBgStyle}
+                    onChange={(e) => setCaptionBgStyle(e.target.value as OverlayBgStyle)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-0.5"
+                  >
+                    <option value="none">Transparente</option>
+                    <option value="semi">Caja Semitransparente</option>
+                    <option value="solid">Caja Sólida</option>
+                  </select>
+                </div>
+                {captionBgStyle !== 'none' && (
+                  <div>
+                    <label className="block text-[10px] text-slate-400">
+                      Opacidad Fondo ({captionBgOpacity}%)
+                    </label>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <input
+                        type="color"
+                        value={captionBgColor}
+                        onChange={(e) => setCaptionBgColor(e.target.value)}
+                        className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                      />
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        value={captionBgOpacity}
+                        onChange={(e) => setCaptionBgOpacity(Number(e.target.value))}
+                        className="flex-1 accent-sky-400"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2692,7 +3425,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 isFitEntireProject ? 'flex-1 min-w-0' : ''
               }`}
             >
-              <div
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCanvasObject('hook_text');
+                  setActiveInspectorTab('branding');
+                }}
                 style={
                   isFitEntireProject
                     ? {
@@ -2701,11 +3439,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       }
                     : undefined
                 }
-                className="px-3 py-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate"
+                className="px-3 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer"
               >
-                Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
-              </div>
-              <div
+                🔤 Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCanvasObject('logo');
+                  setActiveInspectorTab('branding');
+                }}
                 style={
                   isFitEntireProject
                     ? {
@@ -2714,10 +3457,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       }
                     : undefined
                 }
-                className="px-4 py-1.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold truncate"
+                className="px-4 py-1.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer"
               >
-                🖼️ Logo Oficial "Huellas de la Humanidad" (5%) + Sello {aspectRatio === '16:9' ? '8K' : 'HD'} (Todo el Video: 00:00 - {formatTimeMMSS(totalDurationSec)})
-              </div>
+                🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 - {formatTimeMMSS(totalDurationSec)})
+              </button>
             </div>
           </div>
 
@@ -2733,35 +3476,56 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             >
               {captions.length === 0 ? (
                 <span className="text-[11px] text-slate-500 px-3 py-1">
-                  Haz clic en "✨ Auto-Generar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
+                  Haz clic en "✨ Resincronizar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
                 </span>
               ) : (
-                (isFitEntireProject ? captions : captions.slice(0, 40)).map((cap) => (
-                  <button
-                    key={cap.id}
-                    type="button"
-                    onClick={() => setCurrentTime(cap.start)}
-                    style={
-                      isFitEntireProject
-                        ? {
-                            flex: `${Math.max(1, cap.end - cap.start)} 1 0%`,
-                            minWidth: 0,
-                          }
-                        : undefined
-                    }
-                    className={`rounded bg-sky-950/60 hover:bg-sky-900/70 border border-sky-500/30 text-sky-200 truncate cursor-pointer ${
-                      isFitEntireProject
-                        ? 'px-1 py-1 text-[9px]'
-                        : 'px-2.5 py-1 text-[10px] max-w-[160px]'
-                    }`}
-                    title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
-                  >
-                    {!isFitEntireProject && (
-                      <span className="font-mono text-sky-400 mr-1">{formatTimeMMSS(cap.start)}</span>
-                    )}
-                    {cap.text}
-                  </button>
-                ))
+                <>
+                  {/* Initial 8s Hook silence before captions start */}
+                  {voiceStartOffsetSec > 0 && (
+                    <div
+                      style={
+                        isFitEntireProject
+                          ? {
+                              flex: `${Math.max(1, voiceStartOffsetSec)} 0 0%`,
+                              minWidth: '48px',
+                            }
+                          : { width: `${Math.max(64, voiceStartOffsetSec * timelineZoom)}px` }
+                      }
+                      className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[9px] text-slate-400 text-center truncate shrink-0"
+                    >
+                      00:00-00:0{voiceStartOffsetSec} (Hook)
+                    </div>
+                  )}
+                  {(isFitEntireProject ? captions : captions.slice(0, 80)).map((cap) => (
+                    <button
+                      key={cap.id}
+                      type="button"
+                      onClick={() => {
+                        setCurrentTime(cap.start);
+                        setSelectedCanvasObject('captions');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              flex: `${Math.max(1, cap.end - cap.start)} 1 0%`,
+                              minWidth: 0,
+                            }
+                          : undefined
+                      }
+                      className={`rounded bg-sky-950/60 hover:bg-sky-900/70 border border-sky-500/30 text-sky-200 truncate cursor-pointer ${
+                        isFitEntireProject
+                          ? 'px-1 py-1 text-[9px]'
+                          : 'px-2.5 py-1 text-[10px] max-w-[160px]'
+                      }`}
+                      title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
+                    >
+                      {!isFitEntireProject && (
+                        <span className="font-mono text-sky-400 mr-1">{formatTimeMMSS(cap.start)}</span>
+                      )}
+                      {cap.text}
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </div>
@@ -2927,7 +3691,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           </div>
 
-          {/* TRACK 4: VOICEOVER NARRATION (VOXFLOW) */}
+          {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
           <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
             <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-emerald-300">
               4. 🎙️ Voz Narrativa
@@ -2937,7 +3701,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 isFitEntireProject ? 'flex-1 min-w-0' : ''
               }`}
             >
-              {/* Initial Silence Block for Clip 1 Hook */}
+              {/* Initial Silence Block for Clip 1 Hook (8s) */}
               <div
                 style={
                   isFitEntireProject
@@ -2947,11 +3711,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       }
                     : { width: `${Math.max(70, voiceStartOffsetSec * timelineZoom)}px` }
                 }
-                className="px-2 py-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate"
+                className="px-2 py-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate shrink-0"
               >
                 🔇 {voiceStartOffsetSec}s Hook Sin Voz
               </div>
-              {/* Main Voiceover Bar */}
+              {/* Main Voiceover Bar — Always spans the full voiceover duration */}
               <div
                 style={
                   isFitEntireProject
@@ -2959,13 +3723,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         flex: `${Math.max(1, totalDurationSec - voiceStartOffsetSec)} 1 0%`,
                         minWidth: 0,
                       }
-                    : undefined
+                    : {
+                        width: `${Math.max(
+                          320,
+                          Math.round(
+                            Math.max(
+                              effectiveVoiceDurationSec,
+                              totalDurationSec - voiceStartOffsetSec
+                            ) * timelineZoom
+                          )
+                        )}px`,
+                      }
                 }
                 className="px-4 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center justify-between gap-3 truncate"
               >
                 <span className="truncate">
-                  🎙️ Pista Maestra de Voz Narrativa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
-                  {formatTimeMMSS(totalDurationSec)}) • Vol: {voiceVolume}%
+                  🎙️ Voz Narrativa Completa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
+                  {formatTimeMMSS(
+                    voiceStartOffsetSec +
+                      Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
+                  )}{' '}
+                  • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}%
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {effectiveVoiceoverUrl && (
