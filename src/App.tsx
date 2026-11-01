@@ -111,7 +111,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:59 PM - 10/31/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:05 PM - 10/31/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -554,6 +554,37 @@ export default function App() {
     const saved = parseInt(localStorage.getItem('huellas_master_active_stage') || '1', 10);
     return saved >= 1 && saved <= 12 ? saved : 1;
   });
+  const [isStagesBarCompact, setIsStagesBarCompact] = useState<boolean>(false);
+
+  // Transform the horizontal stages bar into compact squares (stage number + icon) when scrolling down
+  useEffect(() => {
+    if (mainView !== 'studio') {
+      setIsStagesBarCompact(false);
+      return;
+    }
+
+    const handleScrollCheck = (e?: Event) => {
+      const fullNav = document.querySelector<HTMLElement>('[data-stages-full-nav="true"]');
+      if (fullNav && fullNav.offsetParent !== null) {
+        const rect = fullNav.getBoundingClientRect();
+        setIsStagesBarCompact(rect.bottom < 68);
+        return;
+      }
+      const targetEl = e?.target instanceof HTMLElement ? e.target : null;
+      const scrollTop = Math.max(
+        window.scrollY || 0,
+        document.documentElement.scrollTop || 0,
+        targetEl ? targetEl.scrollTop || 0 : 0
+      );
+      setIsStagesBarCompact(scrollTop > 110);
+    };
+
+    handleScrollCheck();
+    window.addEventListener('scroll', handleScrollCheck, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('scroll', handleScrollCheck, { capture: true } as any);
+    };
+  }, [mainView, activeDocId]);
 
   useEffect(() => {
     localStorage.setItem('huellas_master_view', mainView);
@@ -806,11 +837,20 @@ export default function App() {
   const [commentImageMime, setCommentImageMime] = useState<string>('image/png');
   const [commentCustomFocus, setCommentCustomFocus] = useState<string>('');
   const [commentReplying, setCommentReplying] = useState<boolean>(false);
+  const [folderVoiceoverUrl, setFolderVoiceoverUrl] = useState<string>('');
 
-  const activeDoc = useMemo(
-    () => documentaries.find((d) => d.id === activeDocId) || null,
-    [documentaries, activeDocId]
-  );
+  const activeDoc = useMemo(() => {
+    const found = documentaries.find((d) => d.id === activeDocId);
+    if (found) return found;
+    if (mainView === 'capcut_editor' && documentaries.length > 0) {
+      return (
+        documentaries.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
+        documentaries[0] ||
+        null
+      );
+    }
+    return null;
+  }, [documentaries, activeDocId, mainView]);
 
   useEffect(() => {
     activeDocRef.current = activeDoc;
@@ -2504,6 +2544,153 @@ export default function App() {
     } catch {}
     return '';
   };
+
+  // Automatically scan 05_Clips_Video & 02_Audio from chosen folder (Browser Handle OR Local Server Folder)
+  const handleAutoLoadAllFolderMedia = async (silent: boolean = true): Promise<number> => {
+    let loadedCount = 0;
+    try {
+      const currentDoc = activeDocRef.current || activeDoc;
+      if (!flowDownloadDirHandleRef.current) {
+        const restored = await loadDirHandleFromIndexedDB(currentDoc?.id);
+        if (restored) {
+          flowDownloadDirHandleRef.current = restored;
+        }
+      }
+      if (!flowDownloadDirHandleRef.current && !silent) {
+        await ensureSingleDownloadFolderReadyOnGesture();
+      }
+
+      const activeHandle = flowDownloadDirHandleRef.current;
+      if (activeHandle) {
+        let perm = 'granted';
+        if (typeof activeHandle.queryPermission === 'function') {
+          perm = await activeHandle.queryPermission({ mode: 'read' });
+          if (perm !== 'granted' && !silent && typeof activeHandle.requestPermission === 'function') {
+            perm = await activeHandle.requestPermission({ mode: 'read' });
+          }
+        }
+
+        if (perm === 'granted') {
+          const newClipUrls: Record<number, string> = {};
+          const subCandidates = ['05_Clips_Video', 'Clips_Aprobados', ''];
+          for (const sub of subCandidates) {
+            try {
+              const targetDir = sub
+                ? await activeHandle.getDirectoryHandle(sub, { create: false })
+                : activeHandle;
+              for await (const [entryName, entryHandle] of (targetDir as any).entries()) {
+                if (entryHandle.kind !== 'file') continue;
+                const m = String(entryName).match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
+                if (m) {
+                  const num = parseInt(m[1], 10);
+                  if (num > 0 && !newClipUrls[num]) {
+                    const file = await entryHandle.getFile();
+                    newClipUrls[num] = URL.createObjectURL(file);
+                    loadedCount++;
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          if (Object.keys(newClipUrls).length > 0) {
+            setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
+          }
+
+          // Scan 02_Audio / Audio for Voiceover and Suno tracks
+          const audioSubCandidates = ['02_Audio', 'Audio', ''];
+          const newSunoUrls: Record<number, string> = {};
+          for (const sub of audioSubCandidates) {
+            try {
+              const audioDir = sub
+                ? await activeHandle.getDirectoryHandle(sub, { create: false })
+                : activeHandle;
+              for await (const [entryName, entryHandle] of (audioDir as any).entries()) {
+                if (entryHandle.kind !== 'file') continue;
+                if (!/\.(mp3|wav|m4a|ogg)$/i.test(entryName)) continue;
+                const sunoMatch = String(entryName).match(/suno[_\-\s]*0*(\d+)/i);
+                if (sunoMatch) {
+                  const tNum = parseInt(sunoMatch[1], 10) || 1;
+                  if (!newSunoUrls[tNum]) {
+                    const file = await entryHandle.getFile();
+                    newSunoUrls[tNum] = URL.createObjectURL(file);
+                  }
+                } else {
+                  const file = await entryHandle.getFile();
+                  const voObjUrl = URL.createObjectURL(file);
+                  setFolderVoiceoverUrl((prev) => prev || voObjUrl);
+                }
+              }
+            } catch {}
+          }
+          if (Object.keys(newSunoUrls).length > 0) {
+            setCapturedSunoAudioMap((prev) => ({ ...prev, ...newSunoUrls }));
+          }
+        }
+      }
+
+      // Also query local server folder media & local /tts-files fallback
+      if (!isCloudMode) {
+        const folderPath = (
+          flowServerFolderPath ||
+          currentDoc?.downloadFolderPath ||
+          localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+          ''
+        ).trim();
+        const folderName = (
+          flowDownloadFolderName ||
+          currentDoc?.downloadFolderName ||
+          localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) ||
+          ''
+        ).trim();
+        const res = await fetch(
+          `/api/flow/list-folder-media?folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+            setCapturedClipVideosMap((prev) => {
+              const next = { ...prev };
+              for (const item of data.clipVideos) {
+                if (item.clipNumber > 0 && item.url && !next[item.clipNumber]) {
+                  next[item.clipNumber] = item.url;
+                  loadedCount++;
+                }
+              }
+              return next;
+            });
+          }
+          if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
+            setCapturedSunoAudioMap((prev) => {
+              const next = { ...prev };
+              for (const s of data.sunoFiles) {
+                if (s.trackNumber > 0 && s.url && !next[s.trackNumber]) {
+                  next[s.trackNumber] = s.url;
+                }
+              }
+              return next;
+            });
+          }
+          if (Array.isArray(data.voiceoverFiles) && data.voiceoverFiles.length > 0) {
+            setFolderVoiceoverUrl((prev) => prev || data.voiceoverFiles[0].url);
+          } else if (
+            !currentDoc?.masterAudioUrl &&
+            Array.isArray(data.localTtsFiles) &&
+            data.localTtsFiles.length > 0
+          ) {
+            setFolderVoiceoverUrl((prev) => prev || data.localTtsFiles[0].url);
+          }
+        }
+      }
+    } catch {}
+    return loadedCount;
+  };
+
+  useEffect(() => {
+    if (mainView === 'capcut_editor' || activeStage === 8) {
+      handleAutoLoadAllFolderMedia(true);
+    }
+  }, [activeDoc?.id, mainView, activeStage]);
 
   // Automatically ensure all clips and references in activeDoc have ALL shields (Anti-Filtro Flow + 10s Anti-Mutation Physics + Anti-Violencia) from construction
   useEffect(() => {
@@ -5251,7 +5438,21 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setMainView('capcut_editor')}
+            onClick={() => {
+              if (
+                (!activeDoc || ((activeDoc.clips?.length || 0) === 0 && !activeDoc.masterAudioUrl)) &&
+                documentaries.length > 0
+              ) {
+                const bestDoc =
+                  documentaries.find(
+                    (d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)
+                  ) || documentaries[0];
+                if (bestDoc && bestDoc.id !== activeDocId) {
+                  setActiveDocId(bestDoc.id);
+                }
+              }
+              setMainView('capcut_editor');
+            }}
             className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${
               mainView === 'capcut_editor'
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
@@ -5303,6 +5504,52 @@ export default function App() {
             <span>{serverStatus?.hasGeminiKey ? 'IA / Móvil' : 'Configurar IA'}</span>
           </button>
         </div>
+
+        {/* COMPACT STICKY STAGES SQUARES BAR (Appears when scrolling down in Studio) */}
+        {mainView === 'studio' && activeDoc && isStagesBarCompact && (
+          <div className="w-full pt-2 mt-1 border-t border-amber-500/20 flex items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
+            {STAGES_LIST.map((st) => {
+              const IconComp = st.icon;
+              const done = isStageDone(activeDoc, st.num);
+              const isCurrent = activeStage === st.num;
+              const isLocked = st.num > 1 && !hasSelectedDocFolder;
+              return (
+                <button
+                  key={`compact-st-${st.num}`}
+                  type="button"
+                  onClick={() => handleTrySelectStage(st.num)}
+                  title={
+                    isLocked
+                      ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga en la Etapa 1`
+                      : `${st.title} — ${st.subtitle}`
+                  }
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition shrink-0 ${
+                    isLocked
+                      ? 'bg-slate-950/60 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
+                      : isCurrent
+                      ? 'bg-amber-500 text-slate-950 border-amber-300 font-black shadow-md shadow-amber-500/25 cursor-pointer'
+                      : done
+                      ? 'bg-slate-900/95 hover:bg-slate-800 text-emerald-300 border-emerald-500/40 cursor-pointer'
+                      : 'bg-slate-900/80 hover:bg-slate-800 text-amber-300/90 border-slate-700/80 cursor-pointer'
+                  }`}
+                >
+                  <span className="text-[10px] leading-none font-black">{st.num}</span>
+                  <IconComp
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isLocked
+                        ? 'text-slate-600'
+                        : isCurrent
+                        ? 'text-slate-950'
+                        : done
+                        ? 'text-emerald-400'
+                        : 'text-amber-400/90'
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {cloudStatusMsg && (
@@ -5700,9 +5947,13 @@ export default function App() {
       {mainView === 'capcut_editor' && (
         <CapCutEditor
           activeDoc={activeDoc}
+          documentaries={documentaries}
+          onSelectDoc={(docId) => setActiveDocId(docId)}
           updateActiveDoc={updateActiveDoc}
           capturedClipVideosMap={capturedClipVideosMap}
           capturedSunoAudioMap={capturedSunoAudioMap}
+          folderVoiceoverUrl={folderVoiceoverUrl}
+          onReloadFolderMedia={() => handleAutoLoadAllFolderMedia(false)}
           onPickDownloadFolder={handlePickFlowDownloadFolder}
           downloadFolderName={effectiveDocFolderName}
           downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
@@ -5822,7 +6073,10 @@ export default function App() {
             </div>
 
             {/* Row 2: 12 Stages Horizontal Navigation Bar (Desktop & Tablet) */}
-            <nav className="hidden md:grid md:grid-cols-6 xl:grid-cols-12 gap-1.5">
+            <nav
+              data-stages-full-nav="true"
+              className="hidden md:grid md:grid-cols-6 xl:grid-cols-12 gap-1.5"
+            >
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
                 const done = isStageDone(activeDoc, st.num);

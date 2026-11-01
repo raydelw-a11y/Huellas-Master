@@ -24,7 +24,11 @@ import {
   Layers,
 } from 'lucide-react';
 import { DocumentaryProject, DocumentaryClip } from '../types';
-import { stripPauseTags, normalizeQuantitiesToMil } from '../utils/smartParsers';
+import {
+  stripPauseTags,
+  normalizeQuantitiesToMil,
+  getStage1ClipDurations,
+} from '../utils/smartParsers';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
 export type EditorAspectRatio = '16:9' | '9:16';
@@ -41,6 +45,8 @@ export interface TimelineClipItem {
   clipNumber: number;
   fileName: string;
   narrationSegment: string;
+  imagePrompt?: string;
+  videoPrompt?: string;
   duration: number; // effective duration on timeline in seconds
   sourceDuration: number;
   speed: number; // e.g., 0.75x for slowed Clip 1, 1.0x default
@@ -216,9 +222,13 @@ function parseSrtToCaptionItems(srtText: string): TimelineCaptionItem[] {
 
 interface CapCutEditorProps {
   activeDoc: DocumentaryProject | null;
+  documentaries?: DocumentaryProject[];
+  onSelectDoc?: (docId: string) => void;
   updateActiveDoc: (patch: Partial<DocumentaryProject>) => void;
   capturedClipVideosMap: Record<number, string>; // clipNumber -> blob/data URL of MP4
   capturedSunoAudioMap?: Record<number, string>; // trackNumber -> data URL of MP3
+  folderVoiceoverUrl?: string;
+  onReloadFolderMedia?: () => Promise<number>;
   onPickDownloadFolder: () => Promise<boolean>;
   downloadFolderName: string;
   downloadFolderPath?: string;
@@ -232,9 +242,13 @@ export const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
 
 export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   activeDoc,
+  documentaries = [],
+  onSelectDoc,
   updateActiveDoc,
   capturedClipVideosMap,
   capturedSunoAudioMap = {},
+  folderVoiceoverUrl = '',
+  onReloadFolderMedia,
   onPickDownloadFolder,
   downloadFolderName,
   downloadFolderPath = '',
@@ -306,10 +320,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [isRenderingVideo, setIsRenderingVideo] = useState<boolean>(false);
   const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const playIntervalRef = useRef<any>(null);
+  const webAudioCtxRef = useRef<AudioContext | null>(null);
+  const ambientGainRef = useRef<GainNode | null>(null);
+  const lastSpokenClipIdRef = useRef<string>('');
+
+  // Resolve Voiceover URL across masterAudioUrl, audioTracks, folderVoiceoverUrl, or any doc with TTS
+  const effectiveVoiceoverUrl = useMemo(() => {
+    if (activeDoc?.masterAudioUrl) return activeDoc.masterAudioUrl;
+    const firstTrackUrl = activeDoc?.audioTracks?.find((t) => t.audioUrl)?.audioUrl;
+    if (firstTrackUrl) return firstTrackUrl;
+    if (folderVoiceoverUrl) return folderVoiceoverUrl;
+    return '';
+  }, [activeDoc?.masterAudioUrl, activeDoc?.audioTracks, folderVoiceoverUrl]);
+
+  useEffect(() => {
+    setVoiceAudioError(false);
+  }, [effectiveVoiceoverUrl]);
 
   // Load permanent official logo from server on mount if not already in localStorage
   useEffect(() => {
@@ -352,13 +384,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const syncTracksFromDocumentary = () => {
     if (!activeDoc) return;
 
-    const standardDur = activeDoc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
-    const c1BaseDur = activeDoc.clip1DurationSeconds || 6;
-    const entrySec = activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? c1BaseDur + 2 : c1BaseDur;
+    const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
+    const hasClip1Video = Boolean(capturedClipVideosMap[1]);
+    // If Clip 1 .MP4 video is loaded, voiceover enters after Clip 1; if Clip 1 .MP4 is not loaded yet, start voiceover from 0s so pressing Play immediately plays audio!
+    const entrySec = hasClip1Video
+      ? activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+        ? c1BaseDur + 2
+        : c1BaseDur
+      : 0;
 
-    setClip1Line1(activeDoc.clip1Line1LocationTime || `${activeDoc.historicalLocation || ''} • ${activeDoc.historicalTime || ''}`);
+    setClip1Line1(
+      activeDoc.clip1Line1LocationTime ||
+        [activeDoc.historicalLocation, activeDoc.historicalTime].filter(Boolean).join(' • ')
+    );
     setClip1Line2(activeDoc.clip1Line2Hook || activeDoc.title || '');
-    setClip1OverlayEndSec(entrySec);
+    setClip1OverlayEndSec(c1BaseDur);
     setVoiceStartOffsetSec(entrySec);
 
     // 1. Build Clips Track (Track 3)
@@ -366,16 +406,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const reviewedClips = allDocClips.filter((c) => c.reviewedForEditor);
     const docClips =
       showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
+    const docRefs = activeDoc.references || [];
+
     const builtClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = c.clipNumber === 1 || idx === 0;
-      const srcDur = isClip1 ? c1BaseDur : standardDur;
+      const srcDur =
+        Number(c.durationSeconds) > 0 ? Number(c.durationSeconds) : isClip1 ? c1BaseDur : standardDur;
       const existingItem = timelineClips.find((tc) => tc.clipNumber === c.clipNumber);
       const videoUrl =
         capturedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
+
+      // Find any matching @Reference image if clip doesn't have its own frame/preview yet
+      const combinedPrompt = `${c.imagePrompt || ''} ${c.videoPrompt || ''}`;
+      const matchedRefImg = docRefs.find((r) => {
+        const cleanTag = (r.tag || '').replace(/^@/, '').trim();
+        return cleanTag && r.imageUrl && combinedPrompt.toLowerCase().includes(cleanTag.toLowerCase());
+      })?.imageUrl;
+
       const posterUrl =
         (c.videoFrames && c.videoFrames[0]) ||
         c.imagePreviewUrl ||
         existingItem?.posterUrl ||
+        matchedRefImg ||
+        activeDoc.thumbnailImageUrl ||
         '';
 
       return {
@@ -383,6 +436,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         clipNumber: c.clipNumber,
         fileName: buildClipSixWordFileName(c, activeDoc),
         narrationSegment: c.narrationSegment || '',
+        imagePrompt: c.imagePrompt || '',
+        videoPrompt: c.videoPrompt || '',
         duration: existingItem ? existingItem.duration : srcDur,
         sourceDuration: srcDur,
         speed: existingItem ? existingItem.speed : 1,
@@ -394,6 +449,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reviewedForEditor: Boolean(c.reviewedForEditor),
       };
     });
+
+    // If activeDoc.clips is empty but capturedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files!
+    if (builtClips.length === 0 && Object.keys(capturedClipVideosMap).length > 0) {
+      const sortedNums = Object.keys(capturedClipVideosMap)
+        .map((n) => parseInt(n, 10))
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+      sortedNums.forEach((num, idx) => {
+        const isClip1 = num === 1 || idx === 0;
+        const srcDur = isClip1 ? c1BaseDur : standardDur;
+        builtClips.push({
+          id: `folder-clip-${num}`,
+          clipNumber: num,
+          fileName: `${String(num).padStart(2, '0')}_Clip_Documental.mp4`,
+          narrationSegment: '',
+          duration: srcDur,
+          sourceDuration: srcDur,
+          speed: 1,
+          trimStart: 0,
+          foleyVolume: isClip1 ? 80 : 35,
+          transition: defaultTransition,
+          videoUrl: capturedClipVideosMap[num],
+          posterUrl: activeDoc.thumbnailImageUrl || '',
+          reviewedForEditor: true,
+        });
+      });
+    }
+
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
       setSelectedClipId(builtClips[0].id);
@@ -457,6 +540,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     showOnlyReviewedClips,
     Object.keys(capturedClipVideosMap).length,
     Object.keys(capturedSunoAudioMap).length,
+    folderVoiceoverUrl,
   ]);
 
   // Auto-Generate Captions directly from Voiceover + Timeline Sentences (No external CapCut needed!)
@@ -466,6 +550,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       typeof customEntryOffset === 'number' ? customEntryOffset : voiceStartOffsetSec;
     const maxCharsPerCaption = 32;
     const generated: TimelineCaptionItem[] = [];
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
 
     const splitIntoShortChunks = (text: string): string[] => {
       const clean = normalizeQuantitiesToMil(stripPauseTags(text)).trim();
@@ -491,11 +576,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       let runningSec = 0;
       activeDoc.clips.forEach((clip, idx) => {
         const clipDur =
-          idx === 0
-            ? activeDoc.clip1DurationSeconds || 6
-            : activeDoc.clipDurationMode === '8_SEGUNDOS'
-            ? 8
-            : 10;
+          Number(clip.durationSeconds) > 0
+            ? Number(clip.durationSeconds)
+            : idx === 0
+            ? clip1Sec
+            : standardClipSec;
         if (idx > 0 && clip.narrationSegment && clip.narrationSegment.trim()) {
           const chunks = splitIntoShortChunks(clip.narrationSegment);
           const subDur = clipDur / Math.max(1, chunks.length);
@@ -573,11 +658,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [captions, currentTime]);
 
+  const activeMusicAtPlayhead = useMemo(() => {
+    return (
+      musicTracks.find(
+        (m) => m.audioUrl && currentTime >= m.start && currentTime < m.start + m.duration
+      ) || null
+    );
+  }, [musicTracks, currentTime]);
+
   const isNarratorSpeakingAtPlayhead = useMemo(() => {
     if (currentTime < voiceStartOffsetSec) return false;
-    if (activeClipAtPlayhead && activeClipAtPlayhead.clipNumber === 1) return false;
-    return Boolean(activeClipAtPlayhead?.narrationSegment?.trim());
-  }, [currentTime, voiceStartOffsetSec, activeClipAtPlayhead]);
+    if (activeClipAtPlayhead && activeClipAtPlayhead.clipNumber === 1 && voiceStartOffsetSec > 0)
+      return false;
+    return Boolean(
+      activeClipAtPlayhead?.narrationSegment?.trim() || activeCaptionAtPlayhead?.text?.trim()
+    );
+  }, [currentTime, voiceStartOffsetSec, activeClipAtPlayhead, activeCaptionAtPlayhead]);
 
   const effectiveFoleyVolumeAtPlayhead = useMemo(() => {
     if (!activeClipAtPlayhead) return 0;
@@ -590,6 +686,131 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     foleyDuckedVolume,
     foleyHighVolume,
   ]);
+
+  // Subtle Web Audio API Cinematic Ambience & Foley Synthesizer when a clip has no .MP4 audio yet
+  const setCinemaAmbienceActive = (shouldPlay: boolean, volumePct: number = 25) => {
+    try {
+      if (!shouldPlay) {
+        if (ambientGainRef.current && webAudioCtxRef.current) {
+          ambientGainRef.current.gain.setTargetAtTime(0, webAudioCtxRef.current.currentTime, 0.15);
+        }
+        return;
+      }
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!webAudioCtxRef.current) {
+        const ctx = new AudioCtx();
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+
+        osc1.type = 'sine';
+        osc1.frequency.value = 65.41; // C2 deep cinema cello drone
+        osc2.type = 'triangle';
+        osc2.frequency.value = 98.0; // G2 fifth harmony
+        filter.type = 'lowpass';
+        filter.frequency.value = 180;
+        gain.gain.value = 0.001;
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start();
+        osc2.start();
+        webAudioCtxRef.current = ctx;
+        ambientGainRef.current = gain;
+      }
+      if (webAudioCtxRef.current.state === 'suspended') {
+        webAudioCtxRef.current.resume().catch(() => {});
+      }
+      if (ambientGainRef.current && webAudioCtxRef.current) {
+        const targetGain = Math.min(0.08, Math.max(0.01, (volumePct / 100) * 0.06));
+        ambientGainRef.current.gain.setTargetAtTime(
+          targetGain,
+          webAudioCtxRef.current.currentTime,
+          0.2
+        );
+      }
+    } catch {}
+  };
+
+  // Synchronous Play/Pause handler to unlock all browser audio/video elements on user click gesture
+  const handleTogglePlay = () => {
+    const nextPlaying = !isPlaying;
+    if (!nextPlaying) {
+      setIsPlaying(false);
+      setCinemaAmbienceActive(false);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      return;
+    }
+
+    // If playhead is at the end, restart from 0
+    const startSec = currentTime >= totalDurationSec - 0.3 ? 0 : currentTime;
+    if (startSec !== currentTime) {
+      setCurrentTime(startSec);
+    }
+
+    // 1. Unlock & play preview <video> if active clip has videoUrl
+    const vid = previewVideoRef.current;
+    if (vid && activeClipAtPlayhead?.videoUrl) {
+      const offsetInClip =
+        (startSec - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
+        activeClipAtPlayhead.trimStart;
+      try {
+        vid.currentTime = Math.max(0, offsetInClip);
+        vid.muted = false;
+        vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+        vid.play().catch(() => {});
+      } catch {}
+    }
+
+    // 2. Unlock & play Voiceover <audio> on the synchronous user click
+    const vo = voiceAudioRef.current;
+    if (vo && effectiveVoiceoverUrl && !voiceAudioError) {
+      try {
+        vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
+        if (startSec >= voiceStartOffsetSec) {
+          vo.muted = false;
+          vo.currentTime = Math.max(0, startSec - voiceStartOffsetSec);
+          vo.play().catch(() => setVoiceAudioError(true));
+        } else {
+          // Unlock autoplay permission now so deferred play at voiceStartOffsetSec never gets blocked
+          vo.muted = true;
+          vo.play()
+            .then(() => {
+              vo.pause();
+              vo.muted = false;
+              vo.currentTime = 0;
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+
+    // 3. Unlock & play Track 5 Suno Music <audio> if present
+    const mus = musicAudioRef.current;
+    if (mus && activeMusicAtPlayhead?.audioUrl) {
+      try {
+        mus.src = activeMusicAtPlayhead.audioUrl;
+        mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
+        mus.volume = Math.min(1, Math.max(0, (activeMusicAtPlayhead.volume || masterMusicVolume) / 100));
+        mus.play().catch(() => {});
+      } catch {}
+    }
+
+    // 4. Start subtle Web Audio cinema drone if active clip has no .MP4 video loaded yet
+    if (!activeClipAtPlayhead?.videoUrl) {
+      setCinemaAmbienceActive(true, effectiveFoleyVolumeAtPlayhead);
+    }
+
+    lastSpokenClipIdRef.current = '';
+    setIsPlaying(true);
+  };
 
   // Playback Loop
   useEffect(() => {
@@ -604,6 +825,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         try {
           voiceAudioRef.current.pause();
         } catch {}
+      }
+      if (musicAudioRef.current) {
+        try {
+          musicAudioRef.current.pause();
+        } catch {}
+      }
+      setCinemaAmbienceActive(false);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
       }
       return;
     }
@@ -625,49 +855,112 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [isPlaying, totalDurationSec]);
 
-  // Sync preview <video> and voice <audio> when currentTime changes
+  // Sync preview <video>, voice <audio>, Suno music <audio>, and Web Speech / Ambience fallback when currentTime changes
   useEffect(() => {
     const vid = previewVideoRef.current;
     if (vid && activeClipAtPlayhead?.videoUrl) {
       const offsetInClip =
         (currentTime - activeClipAtPlayhead.start) * activeClipAtPlayhead.speed +
         activeClipAtPlayhead.trimStart;
-      if (Math.abs(vid.currentTime - offsetInClip) > 0.45) {
+      if (Math.abs(vid.currentTime - offsetInClip) > 0.55) {
         try {
           vid.currentTime = Math.max(0, offsetInClip);
         } catch {}
       }
       vid.playbackRate = activeClipAtPlayhead.speed || 1;
+      vid.muted = false;
       vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
       if (isPlaying && vid.paused) {
         vid.play().catch(() => {});
       }
+      setCinemaAmbienceActive(false);
+    } else if (isPlaying) {
+      setCinemaAmbienceActive(true, effectiveFoleyVolumeAtPlayhead);
     }
 
     const vo = voiceAudioRef.current;
-    if (vo && activeDoc?.masterAudioUrl) {
+    const hasWorkingVoiceFile = Boolean(vo && effectiveVoiceoverUrl && !voiceAudioError);
+    if (hasWorkingVoiceFile && vo) {
       if (currentTime >= voiceStartOffsetSec) {
         const voTime = currentTime - voiceStartOffsetSec;
-        if (Math.abs(vo.currentTime - voTime) > 0.45) {
+        if (Math.abs(vo.currentTime - voTime) > 0.55) {
           try {
             vo.currentTime = Math.max(0, voTime);
           } catch {}
         }
+        vo.muted = false;
         vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
         if (isPlaying && vo.paused) {
-          vo.play().catch(() => {});
+          vo.play().catch(() => setVoiceAudioError(true));
         }
       } else {
         vo.pause();
+      }
+    } else if (
+      isPlaying &&
+      typeof window !== 'undefined' &&
+      'speechSynthesis' in window &&
+      activeClipAtPlayhead &&
+      lastSpokenClipIdRef.current !== activeClipAtPlayhead.id
+    ) {
+      // Fallback live Spanish narration if no voiceover MP3/WAV exists yet (or failed to load)
+      const textToSpeak = stripPauseTags(
+        activeClipAtPlayhead.narrationSegment ||
+          activeCaptionAtPlayhead?.text ||
+          (activeClipAtPlayhead.clipNumber === 1
+            ? `${clip1Line1}. ${clip1Line2}`
+            : '')
+      ).trim();
+      if (textToSpeak) {
+        lastSpokenClipIdRef.current = activeClipAtPlayhead.id;
+        try {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(textToSpeak);
+          utter.lang = 'es-ES';
+          utter.rate = 0.96;
+          utter.pitch = 0.9;
+          utter.volume = Math.min(1, Math.max(0, voiceVolume / 100));
+          window.speechSynthesis.speak(utter);
+        } catch {}
+      }
+    }
+
+    const mus = musicAudioRef.current;
+    if (mus) {
+      if (activeMusicAtPlayhead?.audioUrl) {
+        if (!mus.src.endsWith(activeMusicAtPlayhead.audioUrl) && mus.src !== activeMusicAtPlayhead.audioUrl) {
+          mus.src = activeMusicAtPlayhead.audioUrl;
+        }
+        const musTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
+        if (Math.abs(mus.currentTime - musTime) > 0.65) {
+          try {
+            mus.currentTime = musTime;
+          } catch {}
+        }
+        mus.volume = Math.min(
+          1,
+          Math.max(0, (activeMusicAtPlayhead.volume || masterMusicVolume) / 100)
+        );
+        if (isPlaying && mus.paused) {
+          mus.play().catch(() => {});
+        }
+      } else if (!mus.paused) {
+        mus.pause();
       }
     }
   }, [
     currentTime,
     activeClipAtPlayhead?.id,
+    activeClipAtPlayhead?.videoUrl,
+    activeMusicAtPlayhead?.id,
+    activeMusicAtPlayhead?.audioUrl,
     isPlaying,
     effectiveFoleyVolumeAtPlayhead,
     voiceStartOffsetSec,
     voiceVolume,
+    effectiveVoiceoverUrl,
+    voiceAudioError,
+    masterMusicVolume,
   ]);
 
   // Drag & Drop Reordering of Clips on Track 3

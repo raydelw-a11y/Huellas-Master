@@ -2823,6 +2823,164 @@ app.post('/api/assets/official-logo', (req, res) => {
 });
 
 // ============================================================================
+// AUTO-DISCOVER & STREAM MEDIA FROM CHOSEN DOCUMENTARY FOLDER FOR VIDEO EDITOR
+// ============================================================================
+function resolveLocalDocumentaryFolder(folderPathQuery?: string, folderNameQuery?: string): string {
+  const rawPath = String(folderPathQuery || '').trim();
+  if (rawPath && fs.existsSync(rawPath) && fs.statSync(rawPath).isDirectory()) {
+    return rawPath;
+  }
+  const rawName = String(folderNameQuery || '').trim();
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  if (rawName && homeDir) {
+    const candidates = [
+      path.join(homeDir, 'Desktop', rawName),
+      path.join(homeDir, 'Downloads', rawName),
+      path.join(homeDir, 'Documents', rawName),
+      path.join(homeDir, rawName),
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
+        return c;
+      }
+    }
+  }
+  return '';
+}
+
+app.get('/api/flow/list-folder-media', (req, res) => {
+  try {
+    const folderPath = String(req.query.folderPath || '');
+    const folderName = String(req.query.folderName || '');
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName);
+
+    const clipVideos: Array<{ clipNumber: number; fileName: string; url: string }> = [];
+    const clipFrames: Array<{ clipNumber: number; fileName: string; url: string }> = [];
+    const voiceoverFiles: Array<{ fileName: string; url: string }> = [];
+    const sunoFiles: Array<{ trackNumber: number; fileName: string; url: string }> = [];
+
+    if (resolvedRoot) {
+      const videoSubfolders = ['05_Clips_Video', 'Clips_Aprobados', ''];
+      const seenVideoClips = new Set<number>();
+      for (const sub of videoSubfolders) {
+        const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
+        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+        const entries = fs.readdirSync(dir);
+        for (const entry of entries) {
+          const full = path.join(dir, entry);
+          if (!fs.statSync(full).isFile()) continue;
+          const mVid = entry.match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
+          if (mVid) {
+            const num = parseInt(mVid[1], 10);
+            if (num > 0 && !seenVideoClips.has(num)) {
+              seenVideoClips.add(num);
+              clipVideos.push({
+                clipNumber: num,
+                fileName: entry,
+                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+              });
+            }
+          }
+          const mImg = entry.match(/^0*(\d+)[_\-\s.].*\.(png|jpg|jpeg|webp)$/i);
+          if (mImg) {
+            const num = parseInt(mImg[1], 10);
+            if (num > 0) {
+              clipFrames.push({
+                clipNumber: num,
+                fileName: entry,
+                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+              });
+            }
+          }
+        }
+      }
+
+      const audioSubfolders = ['02_Audio', 'Audio', ''];
+      for (const sub of audioSubfolders) {
+        const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
+        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+        const entries = fs.readdirSync(dir);
+        for (const entry of entries) {
+          const full = path.join(dir, entry);
+          if (!fs.statSync(full).isFile()) continue;
+          if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
+          const sunoMatch = entry.match(/suno[_\-\s]*0*(\d+)/i);
+          if (sunoMatch) {
+            sunoFiles.push({
+              trackNumber: parseInt(sunoMatch[1], 10) || 1,
+              fileName: entry,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+            });
+          } else {
+            voiceoverFiles.push({
+              fileName: entry,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}`,
+            });
+          }
+        }
+      }
+    }
+
+    // Also include available local TTS files as fallback voiceover options
+    const localTtsFiles: Array<{ fileName: string; url: string }> = [];
+    if (fs.existsSync(TTS_DIR)) {
+      const ttsEntries = fs
+        .readdirSync(TTS_DIR)
+        .filter((f) => /\.(mp3|wav)$/i.test(f))
+        .sort((a, b) => {
+          try {
+            return (
+              fs.statSync(path.join(TTS_DIR, b)).mtimeMs -
+              fs.statSync(path.join(TTS_DIR, a)).mtimeMs
+            );
+          } catch {
+            return 0;
+          }
+        });
+      for (const f of ttsEntries) {
+        localTtsFiles.push({
+          fileName: f,
+          url: `/tts-files/${f}`,
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      resolvedRoot,
+      clipVideos: clipVideos.sort((a, b) => a.clipNumber - b.clipNumber),
+      clipFrames: clipFrames.sort((a, b) => a.clipNumber - b.clipNumber),
+      voiceoverFiles,
+      sunoFiles: sunoFiles.sort((a, b) => a.trackNumber - b.trackNumber),
+      localTtsFiles,
+    });
+  } catch (err: any) {
+    res.json({
+      ok: false,
+      error: err.message || 'Error listando archivos de carpeta.',
+      clipVideos: [],
+      clipFrames: [],
+      voiceoverFiles: [],
+      sunoFiles: [],
+      localTtsFiles: [],
+    });
+  }
+});
+
+app.get('/api/flow/serve-folder-file', (req, res) => {
+  try {
+    const filePath = String(req.query.filePath || '').trim();
+    if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      res.status(404).send('Archivo no encontrado');
+      return;
+    }
+    res.sendFile(path.resolve(filePath));
+  } catch (err: any) {
+    res.status(500).send(err.message || 'Error sirviendo archivo');
+  }
+});
+
+// ============================================================================
 // ETAPA 12: POST-PRODUCTION AUDIENCE COMMENT REPLIES (SCREENSHOTS OR TEXT)
 // ============================================================================
 app.post('/api/ai/reply-comments', async (req, res) => {
