@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:22 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:25 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -9999,135 +9999,11 @@ export default function App() {
                         <div
                           id={`prod-clip-card-${clip.clipNumber}`}
                           key={clip.id}
-                          className={`bg-[#14120f] border rounded-2xl p-3 space-y-2 transition scroll-mt-3 ${borderClass}`}
+                          className={`bg-[#14120f] border rounded-2xl p-2 sm:p-2.5 space-y-1.5 transition scroll-mt-14 ${borderClass}`}
                         >
-                          {/* Compact Single-Line Header + Voiceover Segment */}
-                          <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-950/90 border border-slate-800/90 rounded-xl px-3 py-1.5">
-                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[260px]">
-                              <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-xs shrink-0">
-                                CLIP {paddedNum}
-                              </span>
-                              <input
-                                type="text"
-                                value={clip.timeRange}
-                                onChange={(e) => {
-                                  const next = [...activeDoc.clips];
-                                  next[realIdx] = { ...clip, timeRange: e.target.value };
-                                  updateActiveDoc({ clips: next });
-                                }}
-                                placeholder="00:06 - 00:16"
-                                className="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-xs font-mono text-amber-300 w-28 shrink-0"
-                              />
-                              <span className="text-[11px] font-bold text-slate-400 shrink-0">🎙️ Voz:</span>
-                              <input
-                                type="text"
-                                value={clip.narrationSegment}
-                                onChange={(e) => {
-                                  const next = [...activeDoc.clips];
-                                  next[realIdx] = { ...clip, narrationSegment: e.target.value };
-                                  updateActiveDoc({ clips: next });
-                                }}
-                                placeholder="Fragmento de voz en off de este clip..."
-                                className="flex-1 min-w-[180px] bg-transparent text-xs text-emerald-300 font-medium focus:outline-none truncate"
-                              />
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {isRecreatedClip && (
-                                <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-200 text-[11px] font-black">
-                                  🔄 Recreado
-                                  {clip.videoAttempts && clip.videoAttempts > 1
-                                    ? ` (#${clip.videoAttempts})`
-                                    : ''}
-                                </span>
-                              )}
-                              {clip.videoAuditStatus === 'approved' && (
-                                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
-                                  🎥 ✅ Aprobado
-                                </span>
-                              )}
-                              {clip.videoAuditStatus === 'warning' && (
-                                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold">
-                                  🎥 ⚠️ Observación
-                                </span>
-                              )}
-                              {clip.videoAuditStatus === 'rejected' && (
-                                <span className="px-2 py-0.5 rounded bg-rose-500/25 border border-rose-500/50 text-rose-300 text-[11px] font-bold">
-                                  🎥 🚨 Rechazado
-                                </span>
-                              )}
-
-                              {/* Selectable Checkbox: Mark Clip Recreated */}
-                              <label
-                                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[11px] font-black cursor-pointer transition select-none ${
-                                  isRecreatedClip
-                                    ? 'bg-purple-500 text-slate-950 border-purple-300'
-                                    : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-500/40'
-                                }`}
-                                title="Marca este clip como Recreado"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isRecreatedClip}
-                                  onChange={(e) => {
-                                    const checked = e.target.checked;
-                                    const next = [...activeDoc.clips];
-                                    next[realIdx] = {
-                                      ...clip,
-                                      recreated: checked,
-                                      videoAttempts: checked
-                                        ? Math.max(2, clip.videoAttempts || 2)
-                                        : 1,
-                                    };
-                                    updateActiveDoc({ clips: next });
-                                  }}
-                                  className="w-3.5 h-3.5 accent-purple-600 cursor-pointer"
-                                />
-                                Recreado
-                              </label>
-
-                              <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={clip.imageReady}
-                                  onChange={(e) => {
-                                    const next = [...activeDoc.clips];
-                                    next[realIdx] = { ...clip, imageReady: e.target.checked };
-                                    updateActiveDoc({ clips: next });
-                                  }}
-                                  className="accent-emerald-500"
-                                />
-                                Img
-                              </label>
-                              <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={clip.videoReady}
-                                  onChange={(e) => {
-                                    const next = [...activeDoc.clips];
-                                    next[realIdx] = { ...clip, videoReady: e.target.checked };
-                                    updateActiveDoc({ clips: next });
-                                  }}
-                                  className="accent-emerald-500"
-                                />
-                                Video
-                              </label>
-                              <button
-                                onClick={() =>
-                                  updateActiveDoc({
-                                    clips: activeDoc.clips.filter((c) => c.id !== clip.id),
-                                  })
-                                }
-                                className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* TOP PANEL: STICKY SINGLE "MARCAR REVISADO" BUTTON + COMPACT CORRECTION LIST ABOVE FULL-WIDTH VIDEO VIEWER */}
+                          {/* UNIFIED ZERO-SCROLL COCKPIT: STICKY HEADER + MARCAR REVISADO + REHACER OPTIONS + VIEWPORT-FIT FULL .MP4 VIEWER */}
                           <div
-                            className={`rounded-2xl border p-2.5 space-y-2 ${
+                            className={`rounded-xl border p-2 space-y-1.5 ${
                               clip.videoAuditStatus === 'rejected'
                                 ? 'bg-rose-950/25 border-rose-500/40'
                                 : clip.videoAuditStatus === 'warning'
@@ -10137,10 +10013,25 @@ export default function App() {
                                 : 'bg-slate-950/90 border-slate-800'
                             }`}
                           >
-                            {/* 1. STICKY TOP CONTROL BAR: Single "Marcar Revisado" Button + Quick Flow Actions + Correction List */}
-                            <div className="sticky top-1 z-20 bg-slate-950/95 backdrop-blur-md border border-amber-500/30 rounded-xl p-1.5 space-y-1 shadow-lg">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
+                            {/* 1. COMPACT TOP CONTROL BAR: Clip Header + Single "Marcar Revisado" Button + Quick Flow Actions + Multi-Criteria Rehacer List */}
+                            <div className="bg-slate-950/95 border border-amber-500/30 rounded-xl p-1.5 space-y-1 shadow-md">
+                              {/* Row 1: Clip Badge + Time + Voice + Marcar Revisado + Quick Actions */}
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-[240px]">
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[11px] shrink-0">
+                                    CLIP {paddedNum}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={clip.timeRange}
+                                    onChange={(e) => {
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = { ...clip, timeRange: e.target.value };
+                                      updateActiveDoc({ clips: next });
+                                    }}
+                                    placeholder="00:06 - 00:16"
+                                    className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[11px] font-mono text-amber-300 w-24 shrink-0"
+                                  />
                                   {/* ÚNICO Botón de Marcar Revisado */}
                                   <button
                                     type="button"
@@ -10157,14 +10048,14 @@ export default function App() {
                                         handleLoadClipVideoFromFolder(clip, true);
                                       }
                                     }}
-                                    className={`py-1.5 px-3.5 rounded-xl border text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow ${
+                                    className={`py-1 px-3 rounded-lg border text-xs font-black cursor-pointer transition flex items-center gap-1 shadow shrink-0 ${
                                       clip.reviewedForEditor
                                         ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-emerald-500/25'
                                         : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
                                     }`}
                                   >
                                     {clip.reviewedForEditor
-                                      ? `✅ Clip ${paddedNum} Revisado (En Editor)`
+                                      ? `✅ Clip ${paddedNum} Revisado`
                                       : `☑️ Marcar Revisado Clip ${paddedNum}`}
                                   </button>
 
@@ -10172,32 +10063,75 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => setMainView('capcut_editor')}
-                                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-xs cursor-pointer"
+                                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-[11px] cursor-pointer shrink-0"
                                     >
-                                      🎬 Ver en Editor
+                                      🎬 Editor
                                     </button>
                                   )}
 
-                                  {clip.videoSavedFileName && (
-                                    <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-1 rounded-lg truncate max-w-[240px]">
-                                      💾 {clip.videoSavedFileName}
-                                    </span>
-                                  )}
+                                  <span className="text-[10px] font-bold text-slate-400 shrink-0">🎙️</span>
+                                  <input
+                                    type="text"
+                                    value={clip.narrationSegment}
+                                    onChange={(e) => {
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = { ...clip, narrationSegment: e.target.value };
+                                      updateActiveDoc({ clips: next });
+                                    }}
+                                    placeholder="Fragmento de voz en off de este clip..."
+                                    className="flex-1 min-w-[140px] bg-transparent text-[11px] text-emerald-300 font-medium focus:outline-none truncate"
+                                  />
                                 </div>
 
-                                {/* Quick Direct Flow Actions */}
-                                <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* Right side badges + Flow buttons */}
+                                <div className="flex items-center gap-1 flex-wrap">
                                   {clip.videoAuditStatus === 'generating' && (
-                                    <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[11px] font-bold animate-pulse">
-                                      🎬 Generando en Flow...
+                                    <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[10px] font-bold animate-pulse">
+                                      🎬 Generando...
                                     </span>
                                   )}
+                                  {isRecreatedClip && (
+                                    <span className="px-1.5 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-200 text-[10px] font-black">
+                                      🔄 Recreado
+                                      {clip.videoAttempts && clip.videoAttempts > 1
+                                        ? ` (#${clip.videoAttempts})`
+                                        : ''}
+                                    </span>
+                                  )}
+                                  <label
+                                    className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black cursor-pointer transition select-none ${
+                                      isRecreatedClip
+                                        ? 'bg-purple-500 text-slate-950 border-purple-300'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-500/40'
+                                    }`}
+                                    title="Marca este clip como Recreado"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isRecreatedClip}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const next = [...activeDoc.clips];
+                                        next[realIdx] = {
+                                          ...clip,
+                                          recreated: checked,
+                                          videoAttempts: checked
+                                            ? Math.max(2, clip.videoAttempts || 2)
+                                            : 1,
+                                        };
+                                        updateActiveDoc({ clips: next });
+                                      }}
+                                      className="w-3 h-3 accent-purple-600 cursor-pointer"
+                                    />
+                                    Recreado
+                                  </label>
+
                                   <button
                                     type="button"
                                     onClick={() =>
                                       handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
                                     }
-                                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold cursor-pointer"
+                                    className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold cursor-pointer"
                                     title="Enviar prompt de video a Google Flow en segundo plano"
                                   >
                                     🎬 Flow Video
@@ -10207,7 +10141,7 @@ export default function App() {
                                     onClick={() =>
                                       handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
                                     }
-                                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-bold cursor-pointer"
+                                    className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[10px] text-amber-200 font-bold cursor-pointer"
                                     title="Enviar prompt de imagen inicial a Google Flow en segundo plano"
                                   >
                                     🚀 Flow Imagen
@@ -10221,15 +10155,53 @@ export default function App() {
                                         'Reajuste manual Anti-Filtro Prominent People'
                                       )
                                     }
-                                    className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[11px] text-rose-200 font-bold cursor-pointer"
+                                    className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[10px] text-rose-200 font-bold cursor-pointer"
                                     title="Evadir filtro Prominent People y re-enviar a Google Flow"
                                   >
                                     🛡️ Evadir Filtro
                                   </button>
+
+                                  <label className="flex items-center gap-0.5 text-[10px] text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={clip.imageReady}
+                                      onChange={(e) => {
+                                        const next = [...activeDoc.clips];
+                                        next[realIdx] = { ...clip, imageReady: e.target.checked };
+                                        updateActiveDoc({ clips: next });
+                                      }}
+                                      className="w-3 h-3 accent-emerald-500"
+                                    />
+                                    Img
+                                  </label>
+                                  <label className="flex items-center gap-0.5 text-[10px] text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={clip.videoReady}
+                                      onChange={(e) => {
+                                        const next = [...activeDoc.clips];
+                                        next[realIdx] = { ...clip, videoReady: e.target.checked };
+                                        updateActiveDoc({ clips: next });
+                                      }}
+                                      className="w-3 h-3 accent-emerald-500"
+                                    />
+                                    Vid
+                                  </label>
+                                  <button
+                                    onClick={() =>
+                                      updateActiveDoc({
+                                        clips: activeDoc.clips.filter((c) => c.id !== clip.id),
+                                      })
+                                    }
+                                    className="p-0.5 text-slate-500 hover:text-rose-400 cursor-pointer"
+                                    title="Eliminar clip"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
                                 </div>
                               </div>
 
-                              {/* Lista de Corrección / Recreación Rápida Multi-Criterio (Arriba del Visor, Ultra Compacta) */}
+                              {/* Row 2: Lista de Opciones de Rehacer Multi-Criterio (Ultra Compacta) */}
                               {(() => {
                                 const selectedModesForClip =
                                   selectedRecreationModesByClip[clip.id] || [];
@@ -10269,7 +10241,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'ADULTS_ONLY')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('ADULTS_ONLY')
                                           ? 'bg-rose-500/40 border-rose-300 text-white ring-1 ring-rose-400/70 shadow'
                                           : 'bg-rose-500/15 hover:bg-rose-500/30 border-rose-500/40 text-rose-200'
@@ -10281,7 +10253,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'PEOPLE')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('PEOPLE')
                                           ? 'bg-amber-500/40 border-amber-300 text-white ring-1 ring-amber-400/70 shadow'
                                           : 'bg-amber-500/15 hover:bg-amber-500/30 border-amber-500/40 text-amber-200'
@@ -10293,19 +10265,19 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'OBJECTS')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('OBJECTS')
                                           ? 'bg-purple-500/40 border-purple-300 text-white ring-1 ring-purple-400/70 shadow'
                                           : 'bg-purple-500/15 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
                                       }`}
                                       title="Marca/desmarca: Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute"
                                     >
-                                      {isSel('OBJECTS') ? '☑️' : '⬜'} 🪑 Objeto muta / se mueve
+                                      {isSel('OBJECTS') ? '☑️' : '⬜'} 🪑 Objeto muta / se mueve solo
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'WALLS')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('WALLS')
                                           ? 'bg-sky-500/40 border-sky-300 text-white ring-1 ring-sky-400/70 shadow'
                                           : 'bg-sky-500/15 hover:bg-sky-500/30 border-sky-500/40 text-sky-200'
@@ -10317,7 +10289,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'SINGLE_SHOT')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('SINGLE_SHOT')
                                           ? 'bg-indigo-500/40 border-indigo-300 text-white ring-1 ring-indigo-400/70 shadow'
                                           : 'bg-indigo-500/15 hover:bg-indigo-500/30 border-indigo-500/40 text-indigo-200'
@@ -10329,7 +10301,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => toggleClipRecreationMode(clip.id, 'VISUAL_LOGIC')}
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('VISUAL_LOGIC')
                                           ? 'bg-cyan-500/40 border-cyan-300 text-white ring-1 ring-cyan-400/70 shadow'
                                           : 'bg-cyan-500/15 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-200'
@@ -10343,7 +10315,7 @@ export default function App() {
                                       onClick={() =>
                                         toggleClipRecreationMode(clip.id, 'CLEAN_FOLEY_AUDIO')
                                       }
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('CLEAN_FOLEY_AUDIO')
                                           ? 'bg-teal-500/40 border-teal-300 text-white ring-1 ring-teal-400/70 shadow'
                                           : 'bg-teal-500/15 hover:bg-teal-500/30 border-teal-500/40 text-teal-200'
@@ -10357,7 +10329,7 @@ export default function App() {
                                       onClick={() =>
                                         toggleClipRecreationMode(clip.id, 'ERRATIC_ACTING')
                                       }
-                                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition text-left truncate ${
+                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
                                         isSel('ERRATIC_ACTING')
                                           ? 'bg-orange-500/40 border-orange-300 text-white ring-1 ring-orange-400/70 shadow'
                                           : 'bg-orange-500/15 hover:bg-orange-500/30 border-orange-500/40 text-orange-200'
@@ -10378,7 +10350,7 @@ export default function App() {
                                             false
                                           )
                                         }
-                                        className={`flex-1 px-2 py-1 rounded-lg border text-[11px] font-black cursor-pointer transition text-center truncate ${
+                                        className={`flex-1 px-2 py-0.5 rounded-md border text-[11px] font-black cursor-pointer transition text-center truncate ${
                                           selectedModesForClip.length > 0
                                             ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-md shadow-emerald-500/20'
                                             : 'bg-emerald-500/20 hover:bg-emerald-500/35 border-emerald-500/50 text-emerald-200'
@@ -10406,7 +10378,7 @@ export default function App() {
                                               [clip.id]: [],
                                             }))
                                           }
-                                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-bold cursor-pointer shrink-0"
+                                          className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-bold cursor-pointer shrink-0"
                                           title="Limpiar criterios seleccionados para este clip"
                                         >
                                           ✖
@@ -10420,7 +10392,7 @@ export default function App() {
                                               [clip.id]: allEightModes,
                                             }))
                                           }
-                                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-emerald-300 font-bold cursor-pointer shrink-0"
+                                          className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-emerald-300 font-bold cursor-pointer shrink-0"
                                           title="Marcar los 8 criterios a la vez"
                                         >
                                           ☑️ 8
@@ -10432,14 +10404,14 @@ export default function App() {
                               })()}
                             </div>
 
-                            {/* 2. ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (ZERO BLACK BARS ON SIDES) */}
-                            <div className="w-full">
+                            {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (FITS 100% ON SCREEN WITH REVISADO & REHACER OPTIONS) */}
+                            <div className="w-full flex justify-center">
                               <div
                                 className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
                                   activeDoc.productionType === 'REEL_9X16' ||
                                   activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
-                                    ? 'w-full max-w-[440px] mx-auto aspect-[9/16]'
-                                    : 'w-full aspect-video'
+                                    ? 'w-full max-w-[calc((100vh-195px)*0.5625)] max-h-[calc(100vh-195px)] mx-auto aspect-[9/16]'
+                                    : 'w-full max-w-[calc((100vh-195px)*1.7778)] max-h-[calc(100vh-195px)] mx-auto aspect-video'
                                 }`}
                               >
                                 {capturedClipVideosMap[clip.clipNumber] ? (
@@ -10462,13 +10434,13 @@ export default function App() {
                                           }
                                         });
                                     }}
-                                    className="w-full h-full object-cover block bg-black"
+                                    className="w-full h-full object-contain block bg-black"
                                   />
                                 ) : (
                                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                                     <Film className="w-9 h-9 text-amber-400/70" />
                                     <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí a todo el ancho horizontal al generarse en Google Flow o desde tu carpeta.
+                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí completo en pantalla junto al botón Revisado y las opciones de rehacer.
                                     </p>
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
                                       <button
