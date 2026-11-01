@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:08 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:20 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -10480,8 +10480,8 @@ export default function App() {
                                 className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
                                   activeDoc.productionType === 'REEL_9X16' ||
                                   activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
-                                    ? 'w-full max-w-[calc((100vh-195px)*0.5625)] max-h-[calc(100vh-195px)] mx-auto aspect-[9/16]'
-                                    : 'w-full max-w-[calc((100vh-195px)*1.7778)] max-h-[calc(100vh-195px)] mx-auto aspect-video'
+                                    ? 'w-full max-w-[calc((100vh-245px)*0.5625)] max-h-[calc(100vh-245px)] mx-auto aspect-[9/16]'
+                                    : 'w-full max-w-[calc((100vh-245px)*1.7778)] max-h-[calc(100vh-245px)] mx-auto aspect-video'
                                 }`}
                               >
                                 {capturedClipVideosMap[clip.clipNumber] ? (
