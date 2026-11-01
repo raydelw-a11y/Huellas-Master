@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:51 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:59 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -804,6 +804,9 @@ export default function App() {
     });
   };
   const [capturedSunoAudioMap, setCapturedSunoAudioMap] = useState<Record<number, string>>({});
+  const [sunoAutoPilotActive, setSunoAutoPilotActive] = useState<boolean>(false);
+  const sunoAutoPilotActiveRef = React.useRef<boolean>(false);
+  const [sunoCurrentTrackNum, setSunoCurrentTrackNum] = useState<number | null>(null);
   const [capturedThumbnailsMap, setCapturedThumbnailsMap] = useState<Record<string, string>>({});
   const [thumbnailPsychAudits, setThumbnailPsychAudits] = useState<
     Record<string, ThumbnailPsychologyAuditResult>
@@ -1627,10 +1630,35 @@ export default function App() {
         syncedClips.length > 0
           ? buildRawClipsTextWithHeader(syncedClips, activeDoc.operationalHeader)
           : textWithHeader;
+
+      // Auto-calculate total documentary duration from the last clip's end timestamp or voiceover duration
+      let autoFinalDuration = activeDoc.confirmedFinalDuration || '02:00';
+      if (syncedClips.length > 0) {
+        const lastClip = syncedClips[syncedClips.length - 1];
+        const endMatch = String(lastClip.timeRange || '')
+          .split('-')[1]
+          ?.trim()
+          .match(/(\d{1,3}:\d{2})/);
+        if (endMatch && endMatch[1]) {
+          autoFinalDuration = endMatch[1];
+        }
+      }
       updateActiveDoc({
         rawClipsText: rebuiltRaw,
         clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
+        confirmedFinalDuration: autoFinalDuration,
       });
+
+      // Automatically chain Stage 10 (Flow Music Multi-Scene Soundtrack) once Voiceover & Clip Prompts exist
+      if (
+        syncedClips.length > 0 &&
+        (activeDoc.voiceoverScript || '').trim() &&
+        (!activeDoc.sunoTracks || activeDoc.sunoTracks.length === 0)
+      ) {
+        setTimeout(() => {
+          handleGenerateWithGemini(10);
+        }, 1400);
+      }
     } else if (stageNum === 9) {
       const cleanSrt = text
         .replace(/^```(?:srt|txt|plaintext)?\s*\n?/i, '')
@@ -1645,6 +1673,11 @@ export default function App() {
         rawSunoText: text,
         sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
       });
+      if (parsedTracks.length > 0) {
+        setTimeout(() => {
+          handleStartFlowMusicAutoPilot(parsedTracks);
+        }, 900);
+      }
     } else if (stageNum === 11 || stageNum === 111) {
       updateActiveDoc({ rawYoutubeMetadata: text, rawMetadataText: text });
     } else if (stageNum === 112) {
@@ -3098,7 +3131,9 @@ export default function App() {
               for await (const [entryName, entryHandle] of (audioDir as any).entries()) {
                 if (entryHandle.kind !== 'file') continue;
                 if (!/\.(mp3|wav|m4a|ogg)$/i.test(entryName)) continue;
-                const sunoMatch = String(entryName).match(/suno[_\-\s]*0*(\d+)/i);
+                const sunoMatch = String(entryName).match(
+                  /(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i
+                );
                 if (sunoMatch) {
                   const tNum = parseInt(sunoMatch[1], 10) || 1;
                   if (!newSunoUrls[tNum]) {
@@ -4299,25 +4334,83 @@ export default function App() {
     });
   };
 
-  // ITEM 2: Send Stage 7 Suno Track to Suno.com & Auto-Download MP3 into 02_Audio Subfolder & CapCut Track 5
-  const handleSendSunoTrackAndCapture = async (trackNumber: number, promptText: string, title?: string) => {
-    if (!promptText.trim()) return;
+  // ITEM 2: Send Stage 10 Track to Flow Music (https://www.flowmusic.app/) & Auto-Download into 02_Audio Subfolder & Editor Track 5
+  const handleSendSunoTrackAndCapture = async (
+    trackNumber: number,
+    promptText: string,
+    title?: string,
+    duration?: string
+  ) => {
+    const cleanPrompt = (promptText || '').trim();
+    if (!cleanPrompt) return;
     await ensureSingleDownloadFolderReadyOnGesture();
-    navigator.clipboard.writeText(promptText).catch(() => {});
+
+    // Ensure every prompt sent to Flow Music includes Fade-In, Fade-Out, 100% Instrumental, and Low-Mid Voice-Priority Underscore
+    const durationClause = duration ? `, target duration ${duration}` : '';
+    const enrichedPrompt = /fade-in/i.test(cleanPrompt)
+      ? `${cleanPrompt}${durationClause}`
+      : `${cleanPrompt}${durationClause}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words`;
+
+    navigator.clipboard.writeText(enrichedPrompt).catch(() => {});
+    setSunoCurrentTrackNum(trackNumber);
+    const padded = String(trackNumber).padStart(2, '0');
+    const folderLabel =
+      flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
+    const statusText = `🎵 Flow Music (Pista #${padded} • ${
+      title || 'Instrumental'
+    }): Enviando prompt instrumental con Fade-In/Out y Ducking a flowmusic.app y vigilando para guardar FlowMusic_${padded}.mp3 en "${folderLabel}/02_Audio" y Pista 5...`;
+    setFlowStatusLog(statusText);
     setBridgeStatusType('WORKING');
-    setBridgeStatusMsg(
-      `🎵 Enviando Pista #${trackNumber} (${title || 'Instrumental'}) a Suno.com y vigilando para auto-descargar Suno_0${trackNumber}.mp3 en "${
-        flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz'
-      }/02_Audio" e inyectarla en la Pista 5 del Editor CapCut...`
-    );
+    setBridgeStatusMsg(statusText);
     sendCommandToWebBridge('SUNO', {
       action: 'SEND_PROMPT',
-      prompt: promptText,
+      prompt: enrichedPrompt,
       trackNumber,
-      trackTitle: title || `Suno_${String(trackNumber).padStart(2, '0')}`,
+      trackTitle: title || `FlowMusic_${padded}`,
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
     });
+  };
+
+  // Start 100% Automatic Sequential Flow Music Queue (Track 1 -> Track 2 -> ... -> Track N)
+  const handleStartFlowMusicAutoPilot = async (explicitTracks?: SunoTrack[]) => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    const tracks =
+      explicitTracks && explicitTracks.length > 0
+        ? explicitTracks
+        : currentDoc?.sunoTracks || [];
+    if (tracks.length === 0) {
+      alert('Primero genera o separa las canciones en la Etapa 10.');
+      return;
+    }
+
+    await ensureSingleDownloadFolderReadyOnGesture();
+
+    const firstPendingIdx = tracks.findIndex(
+      (t, idx) =>
+        !t.isGenerated &&
+        !capturedSunoAudioMap[idx + 1] &&
+        Boolean((t.stylePrompt || t.lyricsPrompt || '').trim())
+    );
+    const targetIdx = firstPendingIdx >= 0 ? firstPendingIdx : 0;
+    const firstTrack = tracks[targetIdx];
+    if (!firstTrack) return;
+
+    setSunoAutoPilotActive(true);
+    sunoAutoPilotActiveRef.current = true;
+    handleSendSunoTrackAndCapture(
+      targetIdx + 1,
+      firstTrack.stylePrompt || firstTrack.lyricsPrompt,
+      firstTrack.title,
+      firstTrack.duration
+    );
+  };
+
+  const handleStopFlowMusicAutoPilot = () => {
+    setSunoAutoPilotActive(false);
+    sunoAutoPilotActiveRef.current = false;
+    setSunoCurrentTrackNum(null);
+    setFlowStatusLog('⏹️ Piloto Automático de Flow Music detenido.');
   };
 
   // ITEM 6: Export All Project Files into Organized Subfolders Inside the Single Root Folder
@@ -4777,27 +4870,71 @@ export default function App() {
           setBridgeStatusMsg(logText);
         }
       } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
-        // ITEM 2: Auto-save captured Suno MP3 into 02_Audio inside Root Folder and inject into CapCut Editor Track 5
+        // ITEM 2: Auto-save captured Flow Music / Suno track into 02_Audio inside Root Folder and inject into CapCut Editor Track 5
         setExtensionInstalled(true);
         const trackNum = Number(msg.trackNumber) || 1;
+        const padded = String(trackNum).padStart(2, '0');
         const dataUrl = msg.audioDataUrl || msg.audioUrl || '';
         if (dataUrl) {
           setCapturedSunoAudioMap((prev) => ({ ...prev, [trackNum]: dataUrl }));
           const currentDoc = activeDocRef.current;
+          let updatedTracks: SunoTrack[] = [];
           if (currentDoc && Array.isArray(currentDoc.sunoTracks)) {
-            const nextTracks = currentDoc.sunoTracks.map((st, idx) =>
-              idx + 1 === trackNum ? { ...st, audioUrl: dataUrl, ready: true } : st
+            updatedTracks = currentDoc.sunoTracks.map((st, idx) =>
+              idx + 1 === trackNum
+                ? { ...st, audioUrl: dataUrl, isGenerated: true, ready: true }
+                : st
             );
-            updateActiveDoc({ sunoTracks: nextTracks });
+            updateActiveDoc({ sunoTracks: updatedTracks });
           }
-          const sunoFileName = `Suno_${String(trackNum).padStart(2, '0')}.mp3`;
-          await handleSaveAnyFileToChosenFolder(sunoFileName, dataUrl, '02_Audio');
+          const trackTitleObj = updatedTracks[trackNum - 1];
+          const safeSlug = String(trackTitleObj?.title || msg.trackTitle || `Pista_${padded}`)
+            .replace(/[^a-zA-Z0-9_-]/g, '_')
+            .replace(/_+/g, '_')
+            .slice(0, 36);
+          const flowMusicFileName = `FlowMusic_${padded}_${safeSlug}.mp3`;
+          const legacySunoFileName = `Suno_${padded}.mp3`;
+          await handleSaveAnyFileToChosenFolder(flowMusicFileName, dataUrl, '02_Audio');
+          await handleSaveAnyFileToChosenFolder(legacySunoFileName, dataUrl, '02_Audio');
           const folderLabel =
             flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
-          setBridgeStatusMsg(
-            `🎵 ¡Pista #${trackNum} capturada de Suno, guardada en "${folderLabel}/02_Audio/${sunoFileName}" e inyectada en la Pista 5 del Editor CapCut!`
-          );
+          const doneMsg = `🎵 ¡Pista #${padded} (${
+            trackTitleObj?.title || 'Instrumental'
+          }) creada en Flow Music, guardada en "${folderLabel}/02_Audio/${flowMusicFileName}" e inyectada en la Pista 5 del Editor (con Fade-In 2.5s, Fade-Out 3s y Ducking bajo la Voz)!`;
+          setBridgeStatusMsg(doneMsg);
+          setFlowStatusLog(doneMsg);
+
+          // If Flow Music Autopilot Queue is active, advance automatically to the next track!
+          if (sunoAutoPilotActiveRef.current && updatedTracks.length > 0) {
+            const nextIdx = updatedTracks.findIndex(
+              (st, idx) =>
+                idx + 1 > trackNum &&
+                !st.isGenerated &&
+                Boolean((st.stylePrompt || st.lyricsPrompt || '').trim())
+            );
+            if (nextIdx >= 0) {
+              const nextTrack = updatedTracks[nextIdx];
+              setTimeout(() => {
+                if (!sunoAutoPilotActiveRef.current) return;
+                handleSendSunoTrackAndCapture(
+                  nextIdx + 1,
+                  nextTrack.stylePrompt || nextTrack.lyricsPrompt,
+                  nextTrack.title,
+                  nextTrack.duration
+                );
+              }, 2400);
+            } else {
+              setSunoAutoPilotActive(false);
+              sunoAutoPilotActiveRef.current = false;
+              setSunoCurrentTrackNum(null);
+              const allDoneMsg = `🎉 ¡Piloto Automático de Flow Music completado! Las ${updatedTracks.length} canciones de la banda sonora multiescena fueron generadas, guardadas en 02_Audio y colocadas en la Pista 5 del Editor con Fade-In, Fade-Out y volumen por debajo de la Voz Narrativa.`;
+              setFlowStatusLog(allDoneMsg);
+              setBridgeStatusMsg(allDoneMsg);
+            }
+          } else {
+            setSunoCurrentTrackNum(null);
+          }
         }
       }
     };
@@ -10997,15 +11134,15 @@ export default function App() {
             )}
 
             {/* ===============================================================
-                ETAPA 10: BANDA SONORA (SUNO - 6 CAMPOS OBLIGATORIOS)
+                ETAPA 10: BANDA SONORA MULTIESCENA AUTOMÁTICA (FLOW MUSIC - flowmusic.app)
             =============================================================== */}
             {activeStage === 10 && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <label className="text-xs font-bold text-amber-300">
-                        Duración Exacta Final del Video en CapCut:
+                        Duración Total del Documental (Auto-Calculada de Voz + Clips):
                       </label>
                       <input
                         type="text"
@@ -11013,19 +11150,43 @@ export default function App() {
                         onChange={(e) =>
                           updateActiveDoc({ confirmedFinalDuration: e.target.value })
                         }
-                        placeholder="Ej. 02:00 o 14:30"
+                        placeholder="Ej. 13:26"
                         className="bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs font-mono text-white w-28"
                       />
+                      <span className="text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg font-semibold">
+                        🎵 {(activeDoc.sunoTracks || []).length} Canciones Multiescena • Fade-In 2.5s / Fade-Out 3.0s • Ducking bajo Voz Narrativa
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         disabled={aiGenerating}
                         onClick={() => handleGenerateWithGemini(10)}
                         className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        title="Diseña automáticamente todas las canciones según las escenas visuales y la duración real del documental, y lanza la cola en Flow Music"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
-                        {aiGenerating ? 'Componiendo Prompts Suno...' : '✨ Generar Prompts Suno con Gemini'}
+                        {aiGenerating
+                          ? 'Componiendo Banda Sonora Multiescena...'
+                          : '✨ Diseñar Banda Sonora Multiescena (Gemini + Flow Music)'}
                       </button>
+                      {!sunoAutoPilotActive ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStartFlowMusicAutoPilot()}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                          title="Envía automáticamente todas las canciones una por una a https://www.flowmusic.app/, descarga los audios en 02_Audio y los coloca en la Pista 5 del Editor con Fade-In, Fade-Out y Ducking"
+                        >
+                          🚀 Piloto Automático Flow Music (Crear Todas las Canciones)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStopFlowMusicAutoPilot}
+                          className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow animate-pulse"
+                        >
+                          ⏹️ Detener Cola Flow Music (Pista #{sunoCurrentTrackNum || 1})
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -11034,9 +11195,9 @@ export default function App() {
                           })
                         }
                         className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
-                        title="Captura automáticamente las pistas MP3 generadas en la pestaña abierta de Suno.com, las guarda en /Audio y las inyecta en la Pista 5 del Editor CapCut"
+                        title="Captura automáticamente las pistas de audio generadas en la pestaña abierta de Flow Music (flowmusic.app), las guarda en 02_Audio y las inyecta en la Pista 5 del Editor"
                       >
-                        🔍 Auto-Capturar MP3s de Suno
+                        🔍 Auto-Capturar Pistas de Flow Music
                       </button>
                       <button
                         onClick={() => {
@@ -11054,12 +11215,12 @@ export default function App() {
                             id: `suno-${Date.now()}`,
                             trackNumber: nextNum,
                             title: `Pista ${nextNum}: "Ecos del Tiempo"`,
-                            duration: '1:30 min',
+                            duration: '01:30',
                             videoTimeRange: '00:00 - 01:30',
                             lyricsPrompt:
-                              '[Instrumental]\n[Dark Contemplative Historical Intro]\n[Period Strings and Bone Flute]\n[Fading Outro]',
+                              '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Narrator Voice]\n[Gentle 3s Fade-Out Outro]',
                             stylePrompt:
-                              'Ambient cinematic documentary soundtrack, historical period instrumental, slow tempo 62 bpm, strictly instrumental only, no vocals, no singing, no speech, no lyrics',
+                              'Ambient cinematic documentary soundtrack, historical period instrumental, slow tempo 62 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore sitting softly below narrator voice, strictly 100% instrumental only, no vocals, no singing, no speech, no lyrics',
                             explanation: '',
                             isGenerated: false,
                           };
@@ -11069,15 +11230,17 @@ export default function App() {
                         }}
                         className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
                       >
-                        + Añadir Pista Suno (1:30)
+                        + Añadir Pista Flow Music
                       </button>
                     </div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <strong className="text-amber-300">🎵 Reglas Activas de Banda Sonora (Suno):</strong>{' '}
-                      1) <span className="underline decoration-amber-400/60">Silencios obligatorios entre cada canción</span> (10s–20s de solo voz y Foley entre pista y pista) • 2) <span className="underline decoration-amber-400/60">La última canción es obligatoriamente de solo <strong>1:30</strong></span>.
+                      <strong className="text-amber-300">
+                        🎵 Reglas Activas de Banda Sonora Automática (Google Flow Music — flowmusic.app):
+                      </strong>{' '}
+                      1) <span className="underline decoration-amber-400/60">Multiescena Dinámica (&gt;3 canciones)</span> adaptada a las escenas visuales y trama • 2) <span className="underline decoration-amber-400/60">Silencios dramáticos obligatorios (10s–20s)</span> de solo voz y Foley entre cada canción • 3) <span className="underline decoration-amber-400/60">Última canción obligatoria de <strong>1:30</strong></span> • 4) <span className="underline decoration-emerald-400/70 text-emerald-200">Fade-In (2.5s), Fade-Out (3.0s) y Ducking Automático siempre por debajo de la Voz Narrativa (~14% con voz / ~24% en pausas)</span>.
                     </div>
                   </div>
 
@@ -11085,19 +11248,26 @@ export default function App() {
                     rows={4}
                     value={activeDoc.rawSunoText}
                     onChange={(e) => updateActiveDoc({ rawSunoText: e.target.value })}
-                    placeholder="Pega aquí la entrega de la Etapa 10 (con sus 6 campos por pista) para separarla en tarjetas..."
+                    placeholder="Pega o genera aquí la entrega de la Etapa 10 (con sus 6 campos por canción para Flow Music) para separarla en tarjetas..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300"
                   />
                 </div>
 
-                {/* Suno Track Cards */}
+                {/* Flow Music Track Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   {(activeDoc.sunoTracks || []).map((track, idx) => (
                     <div
                       key={track.id}
-                      className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-3"
+                      className={`bg-[#14120f] border rounded-2xl p-5 space-y-3 ${
+                        sunoCurrentTrackNum === idx + 1
+                          ? 'border-emerald-400 shadow-lg shadow-emerald-500/10'
+                          : 'border-slate-800'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2">
+                        <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-black">
+                          #{idx + 1}
+                        </span>
                         <input
                           type="text"
                           value={track.title}
@@ -11108,7 +11278,7 @@ export default function App() {
                           }}
                           className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-300 flex-1"
                         />
-                        <span className="text-xs font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded">
+                        <span className="text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
                           {track.videoTimeRange} ({track.duration})
                         </span>
                       </div>
@@ -11116,13 +11286,13 @@ export default function App() {
                       <div className="space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-semibold text-slate-300">
-                            4. Prompt de Lyrics (Metatags Instrumentales):
+                            4. Prompt de Lyrics (Mapa Instrumental con Fade-In / Fade-Out):
                           </span>
                           <button
                             onClick={() => copyText(track.lyricsPrompt, `suno-lyr-${track.id}`)}
                             className="text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded cursor-pointer"
                           >
-                            {copiedId === `suno-lyr-${track.id}` ? '✓ Copiado' : '📋 Copiar Lyrics'}
+                            {copiedId === `suno-lyr-${track.id}` ? '✓ Copiado' : '📋 Copiar Mapa'}
                           </button>
                         </div>
                         <textarea
@@ -11140,13 +11310,13 @@ export default function App() {
                       <div className="space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-semibold text-slate-300">
-                            5. Prompt de Style (100% Inglés para Suno):
+                            5. Prompt de Style (100% Inglés para Flow Music — flowmusic.app):
                           </span>
                           <button
                             onClick={() => copyText(track.stylePrompt, `suno-sty-${track.id}`)}
                             className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded cursor-pointer"
                           >
-                            {copiedId === `suno-sty-${track.id}` ? '✓ Copiado' : '📋 Copiar Style'}
+                            {copiedId === `suno-sty-${track.id}` ? '✓ Copiado' : '📋 Copiar Prompt Flow Music'}
                           </button>
                         </div>
                         <textarea
@@ -11161,7 +11331,14 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Auto-Create in Suno or Attach MP3 */}
+                      {track.explanation && (
+                        <div className="text-[11px] text-slate-400 bg-slate-950/70 border border-slate-800/80 rounded-lg p-2.5">
+                          <strong className="text-amber-300/90">🎬 Escena y Silencio Dramático:</strong>{' '}
+                          {track.explanation}
+                        </div>
+                      )}
+
+                      {/* Auto-Create in Flow Music or Attach Audio */}
                       <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
@@ -11170,16 +11347,17 @@ export default function App() {
                               handleSendSunoTrackAndCapture(
                                 idx + 1,
                                 track.stylePrompt || track.lyricsPrompt,
-                                track.title
+                                track.title,
+                                track.duration
                               )
                             }
                             className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow"
-                            title="Envía la pista a Suno.com, vigila cuando termina, descarga Suno_0X.mp3 en /Audio y la coloca en la Pista 5 del Editor CapCut"
+                            title="Envía la pista a Flow Music (flowmusic.app), vigila cuando termina, descarga FlowMusic_0X.mp3 en 02_Audio y la coloca en la Pista 5 del Editor con Fade-In 2.5s, Fade-Out 3s y Ducking"
                           >
-                            🎵 Auto-Crear & Descargar en Suno (Pista 5)
+                            🎵 Auto-Crear & Descargar en Flow Music (Pista 5)
                           </button>
                           <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
-                            <Upload className="w-3.5 h-3.5" /> Adjuntar MP3 Manual
+                            <Upload className="w-3.5 h-3.5" /> Adjuntar Audio Manual
                             <input
                               type="file"
                               accept="audio/*"

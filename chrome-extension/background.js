@@ -347,6 +347,80 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     return { injected: false, error: 'No se encontró la caja de prompt en Google Flow.' };
   }
 
+  // Asegurar siempre en la interfaz de Google Flow:
+  // 1) Cantidad de salidas = x1 (1 solo item por envío para no gastar créditos extra)
+  // 2) Motor de Video = 'Omni 1.1 Flash' -> respaldo 'Veo 3.1 - Lite [Lower Priority]'
+  // 3) Motor de Imagen = 'Nano Banana 2.1' -> respaldo 'Nano Banana Pro'
+  try {
+    const isVideoMode =
+      mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+    const preferredModels = isVideoMode
+      ? [
+          /^omni\s*1\.1\s*flash$/i,
+          /omni\s*1\.1\s*flash/i,
+          /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
+          /veo\s*3\.1\s*-\s*lite/i,
+        ]
+      : [
+          /nano\s*banana\s*2\.1/i,
+          /nano\s*banana\s*pro/i,
+        ];
+
+    const selectMenuOptionMatching = async (patterns) => {
+      await sleepMain(120);
+      const options = collectNodesDeep(
+        document,
+        '[role="menuitem"], [role="option"], mat-option, button, li'
+      ).filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 20 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
+      });
+      for (const pat of patterns) {
+        const found = options.find((el) => pat.test((el.innerText || el.textContent || '').trim()));
+        if (found) {
+          found.click();
+          await sleepMain(120);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // A) Si hay un selector de cantidad en x2 / x3 / x4 visible cerca del editor, cambiarlo a x1
+    const allUiButtons = collectNodesDeep(document, 'button, [role="button"], [role="combobox"]');
+    const multiCountBtn = allUiButtons.find((b) => {
+      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+      const aria = (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
+      return (
+        /^(x[234]|[234]\s*outputs?|[234]\s*videos?|[234]\s*images?)$/i.test(txt) ||
+        (/outputs?\s*per\s*prompt/i.test(aria) && /\b[234]\b/.test(txt))
+      );
+    });
+    if (multiCountBtn) {
+      multiCountBtn.click();
+      await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i, /\bx1\b/i]);
+    }
+
+    // B) Verificar el selector de modelo activo en la barra inferior y ajustarlo si no coincide
+    const modelTriggerBtn = allUiButtons.find((b) => {
+      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+      return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
+    });
+    if (modelTriggerBtn) {
+      const currentModelTxt = (modelTriggerBtn.innerText || modelTriggerBtn.textContent || '').trim();
+      const alreadyPrimary = preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt);
+      if (!alreadyPrimary) {
+        modelTriggerBtn.click();
+        const picked = await selectMenuOptionMatching(preferredModels);
+        if (!picked) {
+          // Cerrar menú si no se encontró opción para no bloquear el editor
+          document.body.click();
+          await sleepMain(80);
+        }
+      }
+    }
+  } catch {}
+
   // Adjuntar logo oficial sólo cuando se están creando Miniaturas
   if (mediaType === 'THUMBNAILS' && logoDataUrl && logoDataUrl.startsWith('data:')) {
     try {
@@ -1149,13 +1223,23 @@ async function generateSingleImageViaFlowSdk(
           .trim()
           .slice(0, 3950);
 
-        const modelsToTry = ['🍌 Nano Banana 2', '🍌 Nano Banana Pro', '🍌 Nano Banana 2.1'];
+        // Prioridad estricta de Imagen: 1) Nano Banana 2.1 -> 2) Nano Banana Pro (siempre x1 item)
+        const modelsToTry = [
+          '🍌 Nano Banana 2.1',
+          'Nano Banana 2.1',
+          '🍌 Nano Banana Pro',
+          'Nano Banana Pro',
+        ];
         let lastError = '';
         for (const modelDisplayName of modelsToTry) {
           try {
             const imgRes = await sdk.generate.image({
               prompt: cleanPrompt,
               aspectRatio: ratio || '16:9',
+              count: 1,
+              sampleCount: 1,
+              numOutputs: 1,
+              outputsPerPrompt: 1,
               referenceImageMediaIds,
               modelDisplayName,
             });
@@ -1327,8 +1411,13 @@ async function generateSingleClipViaFlowSdk(
           .trim()
           .slice(0, 3950);
 
-        // 2. Generar primero el Cuadro Inicial (Image N) con Flow.generate.image (🍌 Nano Banana 2)
-        const imgModels = ['🍌 Nano Banana 2', '🍌 Nano Banana Pro', '🍌 Nano Banana 2.1'];
+        // 2. Generar primero el Cuadro Inicial (Image N) con Flow.generate.image (1º Nano Banana 2.1, si falla Nano Banana Pro, siempre x1)
+        const imgModels = [
+          '🍌 Nano Banana 2.1',
+          'Nano Banana 2.1',
+          '🍌 Nano Banana Pro',
+          'Nano Banana Pro',
+        ];
         let startImageMediaId = undefined;
         let startImageDataUrl = '';
         let lastError = '';
@@ -1338,6 +1427,10 @@ async function generateSingleClipViaFlowSdk(
             const imgRes = await sdk.generate.image({
               prompt: fullImgPrompt,
               aspectRatio: ratio || '16:9',
+              count: 1,
+              sampleCount: 1,
+              numOutputs: 1,
+              outputsPerPrompt: 1,
               referenceImageMediaIds:
                 referenceImageMediaIds.length > 0 ? referenceImageMediaIds : undefined,
               modelDisplayName,
@@ -1356,6 +1449,10 @@ async function generateSingleClipViaFlowSdk(
                 const retryRes = await sdk.generate.image({
                   prompt: fullImgPrompt,
                   aspectRatio: ratio || '16:9',
+                  count: 1,
+                  sampleCount: 1,
+                  numOutputs: 1,
+                  outputsPerPrompt: 1,
                   modelDisplayName,
                 });
                 if (retryRes && retryRes.base64) {
@@ -1406,17 +1503,26 @@ async function generateSingleClipViaFlowSdk(
         let videoMode = 'FLOW_SDK';
 
         if (typeof sdk.generate?.video === 'function') {
-          const vidModels = ['Omni 1.1 Flash', 'Veo 3.1 - Fast', 'Veo 2', undefined];
+          // Prioridad estricta de Video: 1) Omni 1.1 Flash -> 2) Veo 3.1 - Lite [Lower Priority] (solo esos dos, siempre x1 item)
+          const vidModels = [
+            'Omni 1.1 Flash',
+            'Veo 3.1 - Lite [Lower Priority]',
+            'Veo 3.1 - Lite',
+          ];
           for (const modelDisplayName of vidModels) {
             try {
               const vidOpts = {
                 prompt: cleanVidPrompt,
                 aspectRatio: ratio || '16:9',
                 resolution: '720p',
+                count: 1,
+                sampleCount: 1,
+                numOutputs: 1,
+                outputsPerPrompt: 1,
                 durationSeconds: targetDurationSec,
                 duration: targetDurationSec,
                 ...(startImageMediaId ? { firstFrameImageMediaId: startImageMediaId } : {}),
-                ...(modelDisplayName ? { modelDisplayName } : {}),
+                modelDisplayName,
               };
               const vidRes = await sdk.generate.video(vidOpts);
               if (vidRes && vidRes.base64) {
