@@ -138,7 +138,7 @@ export const TRANSITION_OPTIONS: { value: ClipTransitionType; label: string }[] 
 ];
 
 export type OverlayShadowStyle = 'none' | 'soft' | 'cinema' | 'outline' | 'gold_glow';
-export type OverlayBgStyle = 'none' | 'semi' | 'solid' | 'pill';
+export type OverlayBgStyle = 'none' | 'word_shadow' | 'semi' | 'solid' | 'pill';
 
 export const EDITOR_FONT_OPTIONS: { value: string; label: string }[] = [
   { value: "'Cinzel', Georgia, 'Times New Roman', serif", label: 'Cinzel / Romano Clásico' },
@@ -362,7 +362,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [hookLine1Color, setHookLine1Color] = useState<string>('#fcd34d');
   const [hookLine2Color, setHookLine2Color] = useState<string>('#ffffff');
   const [hookShadowStyle, setHookShadowStyle] = useState<OverlayShadowStyle>('cinema');
-  const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>('semi');
+  const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>('word_shadow');
   const [hookBgColor, setHookBgColor] = useState<string>('#000000');
   const [hookBgOpacity, setHookBgOpacity] = useState<number>(55);
   const [hookTopPct, setHookTopPct] = useState<number>(35);
@@ -1500,7 +1500,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const f2 = Math.round(hookLine2FontSize * scaleRatio);
           const yCenter = Math.round(height * (hookTopPct / 100));
 
-          if (hookBgStyle !== 'none') {
+          if (hookBgStyle === 'semi' || hookBgStyle === 'solid') {
             ctx.fillStyle = hexToRgba(
               hookBgColor,
               hookBgStyle === 'solid' ? 95 : hookBgOpacity
@@ -1515,15 +1515,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             );
           }
 
-          if (hookShadowStyle !== 'none') {
-            ctx.shadowColor =
-              hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-            ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
-            ctx.shadowOffsetY = 4;
-          }
-
           if (clip1Line1) {
             ctx.font = `700 ${f1}px ${hookFontFamily}`;
+            if (hookBgStyle === 'word_shadow') {
+              ctx.save();
+              const m1 = ctx.measureText(clip1Line1);
+              const padX1 = Math.round(f1 * 0.45);
+              const padY1 = Math.round(f1 * 0.22);
+              const w1 = Math.min(width * 0.9, m1.width + padX1 * 2);
+              const h1 = f1 + padY1 * 2;
+              ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
+              ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
+              ctx.shadowBlur = Math.round(f1 * 0.55);
+              ctx.beginPath();
+              ctx.roundRect(
+                Math.round((width - w1) / 2),
+                Math.round(yCenter - f1 * 0.88 - padY1),
+                Math.round(w1),
+                Math.round(h1),
+                Math.round(f1 * 0.25)
+              );
+              ctx.fill();
+              ctx.restore();
+            }
+            if (hookShadowStyle !== 'none') {
+              ctx.shadowColor =
+                hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+              ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
+              ctx.shadowOffsetY = 4;
+            }
             if (hookShadowStyle === 'outline') {
               ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
               ctx.strokeStyle = '#000000';
@@ -1535,6 +1555,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (clip1Line2) {
             const y2 = yCenter + Math.round(f2 * 1.25);
             ctx.font = `900 ${f2}px ${hookFontFamily}`;
+            if (hookBgStyle === 'word_shadow') {
+              ctx.save();
+              const m2 = ctx.measureText(clip1Line2);
+              const padX2 = Math.round(f2 * 0.45);
+              const padY2 = Math.round(f2 * 0.22);
+              const w2 = Math.min(width * 0.92, m2.width + padX2 * 2);
+              const h2 = f2 + padY2 * 2;
+              ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
+              ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
+              ctx.shadowBlur = Math.round(f2 * 0.55);
+              ctx.beginPath();
+              ctx.roundRect(
+                Math.round((width - w2) / 2),
+                Math.round(y2 - f2 * 0.88 - padY2),
+                Math.round(w2),
+                Math.round(h2),
+                Math.round(f2 * 0.25)
+              );
+              ctx.fill();
+              ctx.restore();
+            }
+            if (hookShadowStyle !== 'none') {
+              ctx.shadowColor =
+                hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+              ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
+              ctx.shadowOffsetY = 4;
+            }
             if (hookShadowStyle === 'outline') {
               ctx.lineWidth = Math.max(4, Math.round(f2 * 0.16));
               ctx.strokeStyle = '#000000';
@@ -2133,7 +2180,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       fontFamily: hookFontFamily,
                       textShadow: getTextShadowCss(hookShadowStyle),
                       backgroundColor:
-                        hookBgStyle === 'none'
+                        hookBgStyle === 'none' || hookBgStyle === 'word_shadow'
                           ? 'transparent'
                           : hexToRgba(hookBgColor, hookBgStyle === 'solid' ? 95 : hookBgOpacity),
                     }}
@@ -2177,31 +2224,57 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="space-y-1.5 flex flex-col items-center">
                         {clip1Line1 && (
-                          <div
-                            className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded inline-block"
-                            style={{
-                              fontFamily: hookFontFamily,
-                              fontSize: `${hookLine1FontSize}px`,
-                              color: hookLine1Color,
-                              textShadow: getTextShadowCss(hookShadowStyle),
-                            }}
-                          >
-                            {clip1Line1}
+                          <div className="leading-snug">
+                            <span
+                              className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-md inline"
+                              style={{
+                                fontFamily: hookFontFamily,
+                                fontSize: `${hookLine1FontSize}px`,
+                                color: hookLine1Color,
+                                textShadow: getTextShadowCss(hookShadowStyle),
+                                boxDecorationBreak: 'clone',
+                                WebkitBoxDecorationBreak: 'clone',
+                                ...(hookBgStyle === 'word_shadow'
+                                  ? {
+                                      backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
+                                      boxShadow: `0 0 12px 4px ${hexToRgba(
+                                        hookBgColor,
+                                        Math.round(hookBgOpacity * 0.85)
+                                      )}`,
+                                    }
+                                  : {}),
+                              }}
+                            >
+                              {clip1Line1}
+                            </span>
                           </div>
                         )}
                         {clip1Line2 && (
-                          <div
-                            className="font-black uppercase tracking-wide"
-                            style={{
-                              fontFamily: hookFontFamily,
-                              fontSize: `${hookLine2FontSize}px`,
-                              color: hookLine2Color,
-                              textShadow: getTextShadowCss(hookShadowStyle),
-                            }}
-                          >
-                            {clip1Line2}
+                          <div className="leading-snug">
+                            <span
+                              className="font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md inline"
+                              style={{
+                                fontFamily: hookFontFamily,
+                                fontSize: `${hookLine2FontSize}px`,
+                                color: hookLine2Color,
+                                textShadow: getTextShadowCss(hookShadowStyle),
+                                boxDecorationBreak: 'clone',
+                                WebkitBoxDecorationBreak: 'clone',
+                                ...(hookBgStyle === 'word_shadow'
+                                  ? {
+                                      backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
+                                      boxShadow: `0 0 14px 5px ${hexToRgba(
+                                        hookBgColor,
+                                        Math.round(hookBgOpacity * 0.85)
+                                      )}`,
+                                    }
+                                  : {}),
+                              }}
+                            >
+                              {clip1Line2}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -2256,7 +2329,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   ) : (
                     <span
-                      className={`inline-block px-3.5 py-1 rounded-lg font-extrabold transition ${
+                      className={`${
+                        captionBgStyle === 'word_shadow' ? 'inline px-2.5 py-0.5 rounded-md' : 'inline-block px-3.5 py-1 rounded-lg'
+                      } font-extrabold transition ${
                         selectedCanvasObject === 'captions'
                           ? 'ring-2 ring-sky-400'
                           : 'hover:ring-1 hover:ring-sky-400/60'
@@ -2271,6 +2346,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             ? captionCustomColor
                             : '#ffffff',
                         textShadow: getTextShadowCss(captionShadowStyle),
+                        boxDecorationBreak: 'clone',
+                        WebkitBoxDecorationBreak: 'clone',
                         backgroundColor:
                           captionBgStyle === 'none'
                             ? 'transparent'
@@ -2278,6 +2355,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 captionBgColor,
                                 captionBgStyle === 'solid' ? 95 : captionBgOpacity
                               ),
+                        ...(captionBgStyle === 'word_shadow'
+                          ? {
+                              boxShadow: `0 0 12px 4px ${hexToRgba(
+                                captionBgColor,
+                                Math.round(captionBgOpacity * 0.85)
+                              )}`,
+                            }
+                          : {}),
                       }}
                     >
                       {activeCaptionAtPlayhead?.text ||
@@ -2427,7 +2512,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 title="Fondo del texto"
               >
                 <option value="none">Fondo: Transparente</option>
-                <option value="semi">Fondo: Semitransparente</option>
+                <option value="word_shadow">Fondo: Sombra Ceñida a las Palabras</option>
+                <option value="semi">Fondo: Caja Semitransparente</option>
                 <option value="solid">Fondo: Caja Sólida</option>
               </select>
               {hookBgStyle !== 'none' && (
@@ -2525,6 +2611,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
               >
                 <option value="none">Fondo: Transparente</option>
+                <option value="word_shadow">Fondo: Sombra Ceñida a las Palabras</option>
                 <option value="semi">Fondo: Caja Semitransparente</option>
                 <option value="solid">Fondo: Caja Sólida</option>
               </select>
@@ -3080,19 +3167,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ✏️ Editar en Visor
                   </button>
                 </div>
-                <input
-                  type="text"
+                <textarea
+                  rows={Math.max(1, (clip1Line1 || '').split('\n').length)}
                   value={clip1Line1}
                   onChange={(e) => setClip1Line1(e.target.value)}
-                  placeholder="Línea 1: Ciudad, País, Año o Siglo en romanos..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-200"
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Línea 1: Ciudad, País, Año o Siglo en romanos... (Enter para saltar de línea)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 resize-y leading-tight"
                 />
-                <input
-                  type="text"
+                <textarea
+                  rows={Math.max(1, (clip1Line2 || '').split('\n').length)}
                   value={clip1Line2}
                   onChange={(e) => setClip1Line2(e.target.value)}
-                  placeholder="Línea 2: Título Gancho intrigante..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Línea 2: Título Gancho intrigante... (Enter para saltar de línea)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold resize-y leading-tight"
                 />
 
                 {/* Typography, Size, Color, Shadow & Background Controls */}
@@ -3175,6 +3264,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 mt-0.5"
                     >
                       <option value="none">Sin Fondo (Transparente)</option>
+                      <option value="word_shadow">Sombra Ceñida a las Palabras</option>
                       <option value="semi">Caja Semitransparente</option>
                       <option value="solid">Caja Sólida</option>
                     </select>
@@ -3322,7 +3412,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     onChange={(e) => setCaptionBgStyle(e.target.value as OverlayBgStyle)}
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-0.5"
                   >
-                    <option value="none">Transparente</option>
+                    <option value="none">Sin Fondo (Transparente)</option>
+                    <option value="word_shadow">Sombra Ceñida a las Palabras</option>
                     <option value="semi">Caja Semitransparente</option>
                     <option value="solid">Caja Sólida</option>
                   </select>
