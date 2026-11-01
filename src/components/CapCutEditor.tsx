@@ -2443,6 +2443,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ref={previewVideoRef}
                   src={activeClipAtPlayhead.videoUrl}
                   className="w-full h-full object-cover block bg-black"
+                  style={{
+                    opacity: liveClipAnim.opacity,
+                    transform: `translate3d(${liveClipAnim.translateX}px, ${liveClipAnim.translateY}px, 0) scale(${liveClipAnim.scale})`,
+                    filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
+                  }}
                   playsInline
                   preload="auto"
                   onLoadedMetadata={(e) => {
@@ -2462,7 +2467,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }}
                 />
               ) : activeClipAtPlayhead?.posterUrl ? (
-                <div className="w-full h-full overflow-hidden relative bg-black">
+                <div
+                  className="w-full h-full overflow-hidden relative bg-black"
+                  style={{
+                    opacity: liveClipAnim.opacity,
+                    transform: `translate3d(${liveClipAnim.translateX}px, ${liveClipAnim.translateY}px, 0) scale(${liveClipAnim.scale})`,
+                    filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
+                  }}
+                >
                   <img
                     src={activeClipAtPlayhead.posterUrl}
                     alt={activeClipAtPlayhead.fileName}
@@ -2533,7 +2545,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer) */}
+              {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer, with End Fade-Out) */}
               <div
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -2551,9 +2563,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   left: `${logoPosX}%`,
                   width: `${logoScalePct}%`,
                   minWidth: '46px',
-                  opacity: logoOpacity / 100,
+                  opacity:
+                    selectedCanvasObject === 'logo' && !isPlaying
+                      ? logoOpacity / 100
+                      : (logoOpacity / 100) * liveLogoAnim.opacity,
+                  transform: `translate3d(${liveLogoAnim.translateX}px, ${liveLogoAnim.translateY}px, 0) scale(${liveLogoAnim.scale})`,
+                  filter: liveLogoAnim.blurPx > 0.1 ? `blur(${liveLogoAnim.blurPx.toFixed(1)}px)` : undefined,
                 }}
-                title="Haz clic para seleccionar y ajustar el Logo Oficial"
+                title="Haz clic para seleccionar y ajustar el Logo Oficial (Por defecto: Fade Out 1s al final del documental)"
               >
                 {officialLogoUrl ? (
                   <img
@@ -2692,17 +2709,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </>
                     )}
 
-                    {selectedCanvasObject === 'hook_text' ? (
+                    {selectedCanvasObject === 'hook_text' && !isPlaying ? (
                       <div
                         className="space-y-1.5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div
                           onMouseDown={handleStartHookBoxDrag}
-                          className="flex items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1 cursor-move select-none"
+                          className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1 cursor-move select-none"
                         >
                           <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow">
-                            ✥ Arrastra aquí para mover • Jala esquinas para alargar/achicar • Enter salta línea
+                            ✥ Arrastra • Jala esquinas • L1 ({hookLine1StartSec}s→{clip1OverlayEndSec}s) • L2 ({hookLine2StartSec}s→{clip1OverlayEndSec}s)
                           </span>
                           {(hookLeftPct !== 50 || hookTopPct !== 50) && (
                             <button
@@ -2783,8 +2800,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-1.5 flex flex-col items-center">
-                        {clip1Line1 && (
-                          <div className="leading-snug">
+                        {clip1Line1 && liveHookLine1Anim.visible && (
+                          <div
+                            className="leading-snug"
+                            style={{
+                              opacity: liveHookLine1Anim.opacity,
+                              transform: `translate3d(${liveHookLine1Anim.translateX}px, ${liveHookLine1Anim.translateY}px, 0) scale(${liveHookLine1Anim.scale})`,
+                              filter:
+                                liveHookLine1Anim.blurPx > 0.1
+                                  ? `blur(${liveHookLine1Anim.blurPx.toFixed(1)}px)`
+                                  : undefined,
+                            }}
+                          >
                             <span
                               className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
                               style={{
@@ -2809,8 +2836,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             </span>
                           </div>
                         )}
-                        {clip1Line2 && (
-                          <div className="leading-snug">
+                        {clip1Line2 && liveHookLine2Anim.visible && (
+                          <div
+                            className="leading-snug"
+                            style={{
+                              opacity: liveHookLine2Anim.opacity,
+                              transform: `translate3d(${liveHookLine2Anim.translateX}px, ${liveHookLine2Anim.translateY}px, 0) scale(${liveHookLine2Anim.scale})`,
+                              filter:
+                                liveHookLine2Anim.blurPx > 0.1
+                                  ? `blur(${liveHookLine2Anim.blurPx.toFixed(1)}px)`
+                                  : undefined,
+                            }}
+                          >
                             <span
                               className="font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
                               style={{
@@ -2844,7 +2881,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {(activeCaptionAtPlayhead || selectedCanvasObject === 'captions') && (
                 <div
                   className="absolute inset-x-4 z-20 text-center pointer-events-none"
-                  style={{ bottom: `${captionBottomPct}%` }}
+                  style={{
+                    bottom: `${captionBottomPct}%`,
+                    opacity:
+                      selectedCanvasObject === 'captions' && !isPlaying ? 1 : liveCaptionAnim.opacity,
+                    transform: `translate3d(${liveCaptionAnim.translateX}px, ${liveCaptionAnim.translateY}px, 0) scale(${liveCaptionAnim.scale})`,
+                    filter:
+                      liveCaptionAnim.blurPx > 0.1
+                        ? `blur(${liveCaptionAnim.blurPx.toFixed(1)}px)`
+                        : undefined,
+                  }}
                 >
                   {selectedCanvasObject === 'captions' && activeCaptionAtPlayhead ? (
                     <div
@@ -3121,6 +3167,55 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   className="w-16 accent-amber-500"
                 />
               </label>
+              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
+                ✨ Animación L1 ({hookLine1StartSec}s):
+                <select
+                  value={hookLine1AnimIn}
+                  onChange={(e) => setHookLine1AnimIn(e.target.value as ElementAnimationType)}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
+                  title="Animación de entrada Línea 1 (Por defecto: Fade 1s en 0s)"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      In: {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
+                ✨ Animación L2 ({hookLine2StartSec}s):
+                <select
+                  value={hookLine2AnimIn}
+                  onChange={(e) => setHookLine2AnimIn(e.target.value as ElementAnimationType)}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
+                  title="Animación de entrada Línea 2 (Por defecto: aparece en 2s con Fade 1s)"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      In: {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
+                Salida (→{clip1OverlayEndSec}s):
+                <select
+                  value={hookLine1AnimOut}
+                  onChange={(e) => {
+                    const val = e.target.value as ElementAnimationType;
+                    setHookLine1AnimOut(val);
+                    setHookLine2AnimOut(val);
+                  }}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
+                  title="Animación de salida de ambas líneas hacia el segundo 8 (Por defecto: Fade Out 1s)"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      Out: {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
 
@@ -3218,6 +3313,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   className="w-16 accent-sky-400"
                 />
               </label>
+              <label className="flex items-center gap-1 text-[11px] text-sky-200 font-semibold">
+                ✨ Animación:
+                <select
+                  value={captionAnimIn}
+                  onChange={(e) => {
+                    const val = e.target.value as ElementAnimationType;
+                    setCaptionAnimIn(val);
+                    setCaptionAnimOut(val);
+                  }}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-sky-200"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
 
@@ -3269,6 +3382,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   onChange={(e) => setLogoPosY(Number(e.target.value))}
                   className="w-16 accent-amber-500"
                 />
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
+                ✨ Entrada:
+                <select
+                  value={logoAnimIn}
+                  onChange={(e) => setLogoAnimIn(e.target.value as ElementAnimationType)}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
+                ✨ Salida Final ({logoAnimOutDur}s):
+                <select
+                  value={logoAnimOut}
+                  onChange={(e) => setLogoAnimOut(e.target.value as ElementAnimationType)}
+                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
+                  title="Por defecto: Fade Out 1 segundo al final del documental"
+                >
+                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
           )}
@@ -3350,8 +3492,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </label>
               </div>
 
-              {/* Global Transition Selector */}
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
+              {/* Global Transition Selector & Clip/Image Animations */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <label className="block font-bold text-slate-200">
                   Transición entre Clips (Por defecto: Corte Directo):
                 </label>
@@ -3377,6 +3519,58 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   >
                     🐢 Ralentizar Clip 1 (8s)
                   </button>
+                </div>
+
+                {/* Animations for Video Clips & Images */}
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 text-[11px]">
+                      ✨ Animaciones para Clips de Video e Imágenes:
+                    </span>
+                    <span className="text-[10px] text-slate-400">Duración: {clipAnimDur}s</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-400">Entrada (In):</label>
+                      <select
+                        value={clipAnimIn}
+                        onChange={(e) => setClipAnimIn(e.target.value as ElementAnimationType)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-amber-200 mt-0.5"
+                      >
+                        {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                          <option key={a.value} value={a.value}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400">Salida (Out):</label>
+                      <select
+                        value={clipAnimOut}
+                        onChange={(e) => setClipAnimOut(e.target.value as ElementAnimationType)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-amber-200 mt-0.5"
+                      >
+                        {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                          <option key={a.value} value={a.value}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400">Segundos:</label>
+                      <input
+                        type="number"
+                        step={0.1}
+                        min={0.1}
+                        max={3}
+                        value={clipAnimDur}
+                        onChange={(e) => setClipAnimDur(Math.max(0.1, Number(e.target.value)))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-white mt-0.5"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -3726,6 +3920,73 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Logo Animations (Default: Fade Out 1s at the end of the documentary) */}
+                <div className="pt-2 border-t border-amber-500/20 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 text-[11px]">
+                      ✨ Animación del Logo (Por defecto: Fade Out 1s al final)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-400">
+                        Entrada ({logoAnimInDur}s):
+                      </label>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <select
+                          value={logoAnimIn}
+                          onChange={(e) => setLogoAnimIn(e.target.value as ElementAnimationType)}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
+                        >
+                          {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                            <option key={a.value} value={a.value}>
+                              {a.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={0.2}
+                          max={5}
+                          value={logoAnimInDur}
+                          onChange={(e) => setLogoAnimInDur(Math.max(0.2, Number(e.target.value)))}
+                          className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white"
+                          title="Segundos de animación de entrada"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400">
+                        Salida Final ({logoAnimOutDur}s):
+                      </label>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <select
+                          value={logoAnimOut}
+                          onChange={(e) => setLogoAnimOut(e.target.value as ElementAnimationType)}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
+                        >
+                          {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                            <option key={a.value} value={a.value}>
+                              {a.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={0.2}
+                          max={5}
+                          value={logoAnimOutDur}
+                          onChange={(e) => setLogoAnimOutDur(Math.max(0.2, Number(e.target.value)))}
+                          className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white"
+                          title="Segundos de animación de salida al final del documental"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
@@ -3876,6 +4137,189 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Independent Animations for Hook Line 1 (0s->8s) & Hook Line 2 (2s->8s) */}
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-amber-300 text-[11px]">
+                      ✨ Animaciones del Texto Inicial (Por defecto: L1 en 0s, L2 en 2s, Fade 1s)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHookLine1StartSec(0);
+                        setHookLine1AnimIn('fade');
+                        setHookLine1AnimInDur(1);
+                        setHookLine1AnimOut('fade');
+                        setHookLine1AnimOutDur(1);
+                        setHookLine2StartSec(2);
+                        setHookLine2AnimIn('fade');
+                        setHookLine2AnimInDur(1);
+                        setHookLine2AnimOut('fade');
+                        setHookLine2AnimOutDur(1);
+                        setClip1OverlayEndSec(8);
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer shrink-0"
+                      title="Restaurar configuración por defecto: Fade In 1s (L1 en 0s, L2 en 2s) y Fade Out 1s hacia el segundo 8"
+                    >
+                      🔄 Por Defecto
+                    </button>
+                  </div>
+
+                  {/* Line 1 Animation Row */}
+                  <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-amber-200">
+                        Línea 1 (Aparece en seg {hookLine1StartSec}s → sale en {clip1OverlayEndSec}s):
+                      </span>
+                      <label className="flex items-center gap-1 text-slate-400">
+                        Inicio (s):
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={0}
+                          max={6}
+                          value={hookLine1StartSec}
+                          onChange={(e) => setHookLine1StartSec(Math.max(0, Number(e.target.value)))}
+                          className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="block text-[9px] text-slate-400">
+                          Entrada L1 ({hookLine1AnimInDur}s):
+                        </label>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <select
+                            value={hookLine1AnimIn}
+                            onChange={(e) => setHookLine1AnimIn(e.target.value as ElementAnimationType)}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                          >
+                            {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                              <option key={a.value} value={a.value}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step={0.25}
+                            min={0.2}
+                            max={4}
+                            value={hookLine1AnimInDur}
+                            onChange={(e) => setHookLine1AnimInDur(Math.max(0.2, Number(e.target.value)))}
+                            className="w-11 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-slate-400">
+                          Salida L1 ({hookLine1AnimOutDur}s → seg {clip1OverlayEndSec}):
+                        </label>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <select
+                            value={hookLine1AnimOut}
+                            onChange={(e) => setHookLine1AnimOut(e.target.value as ElementAnimationType)}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                          >
+                            {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                              <option key={a.value} value={a.value}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step={0.25}
+                            min={0.2}
+                            max={4}
+                            value={hookLine1AnimOutDur}
+                            onChange={(e) => setHookLine1AnimOutDur(Math.max(0.2, Number(e.target.value)))}
+                            className="w-11 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Line 2 Animation Row */}
+                  <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-white">
+                        Línea 2 (Aparece en seg {hookLine2StartSec}s → sale en {clip1OverlayEndSec}s):
+                      </span>
+                      <label className="flex items-center gap-1 text-slate-400">
+                        Inicio (s):
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={0}
+                          max={6}
+                          value={hookLine2StartSec}
+                          onChange={(e) => setHookLine2StartSec(Math.max(0, Number(e.target.value)))}
+                          className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="block text-[9px] text-slate-400">
+                          Entrada L2 ({hookLine2AnimInDur}s):
+                        </label>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <select
+                            value={hookLine2AnimIn}
+                            onChange={(e) => setHookLine2AnimIn(e.target.value as ElementAnimationType)}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                          >
+                            {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                              <option key={a.value} value={a.value}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step={0.25}
+                            min={0.2}
+                            max={4}
+                            value={hookLine2AnimInDur}
+                            onChange={(e) => setHookLine2AnimInDur(Math.max(0.2, Number(e.target.value)))}
+                            className="w-11 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-slate-400">
+                          Salida L2 ({hookLine2AnimOutDur}s → seg {clip1OverlayEndSec}):
+                        </label>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <select
+                            value={hookLine2AnimOut}
+                            onChange={(e) => setHookLine2AnimOut(e.target.value as ElementAnimationType)}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                          >
+                            {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                              <option key={a.value} value={a.value}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step={0.25}
+                            min={0.2}
+                            max={4}
+                            value={hookLine2AnimOutDur}
+                            onChange={(e) => setHookLine2AnimOutDur(Math.max(0.2, Number(e.target.value)))}
+                            className="w-11 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -4015,6 +4459,48 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   </div>
                 )}
+                <div className="col-span-2 pt-1.5 border-t border-slate-800 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400">✨ Animación Entrada:</label>
+                    <select
+                      value={captionAnimIn}
+                      onChange={(e) => setCaptionAnimIn(e.target.value as ElementAnimationType)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-sky-200 mt-0.5"
+                    >
+                      {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                        <option key={a.value} value={a.value}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">✨ Animación Salida:</label>
+                    <select
+                      value={captionAnimOut}
+                      onChange={(e) => setCaptionAnimOut(e.target.value as ElementAnimationType)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-sky-200 mt-0.5"
+                    >
+                      {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                        <option key={a.value} value={a.value}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">Duración (s):</label>
+                    <input
+                      type="number"
+                      step={0.05}
+                      min={0.05}
+                      max={1.5}
+                      value={captionAnimDur}
+                      onChange={(e) => setCaptionAnimDur(Math.max(0.05, Number(e.target.value)))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white mt-0.5"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
