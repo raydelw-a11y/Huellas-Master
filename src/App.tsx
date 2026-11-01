@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:45 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:51 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3074,7 +3074,10 @@ export default function App() {
   };
 
   // Automatically scan 05_Clips_Video & 02_Audio from chosen folder (Browser Handle OR Local Server Folder)
-  const handleAutoLoadAllFolderMedia = async (silent: boolean = true): Promise<number> => {
+  const handleAutoLoadAllFolderMedia = async (
+    silent: boolean = true,
+    requestReadOnExistingHandle: boolean = false
+  ): Promise<number> => {
     let loadedCount = 0;
     try {
       const currentDoc = activeDocRef.current || activeDoc;
@@ -3093,8 +3096,14 @@ export default function App() {
         let perm = 'granted';
         if (typeof activeHandle.queryPermission === 'function') {
           perm = await activeHandle.queryPermission({ mode: 'read' });
-          if (perm !== 'granted' && !silent && typeof activeHandle.requestPermission === 'function') {
-            perm = await activeHandle.requestPermission({ mode: 'read' });
+          if (
+            perm !== 'granted' &&
+            (!silent || requestReadOnExistingHandle) &&
+            typeof activeHandle.requestPermission === 'function'
+          ) {
+            try {
+              perm = await activeHandle.requestPermission({ mode: 'read' });
+            } catch {}
           }
         }
 
@@ -3175,36 +3184,52 @@ export default function App() {
         }
       }
 
-      // Also query local server folder media & local /tts-files fallback
-      if (!isCloudMode) {
-        const folderPath = (
-          flowServerFolderPath ||
-          currentDoc?.downloadFolderPath ||
-          localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
-          ''
-        ).trim();
-        const folderName = (
-          flowDownloadFolderName ||
-          currentDoc?.downloadFolderName ||
-          localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) ||
-          ''
-        ).trim();
-        const res = await fetch(
-          `/api/flow/list-folder-media?folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}`
-        );
-        if (res.ok) {
+      // Also query local server folder media & local /tts-files fallback (supports both localhost and local bridge from cloud URL)
+      const folderPath = (
+        flowServerFolderPath ||
+        currentDoc?.downloadFolderPath ||
+        localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+        ''
+      ).trim();
+      const folderName = (
+        flowDownloadDirHandleRef.current?.name ||
+        flowDownloadFolderName ||
+        currentDoc?.downloadFolderName ||
+        localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) ||
+        ''
+      ).trim();
+      const docTitle = (currentDoc?.title || '').trim();
+      const queryParams = `folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
+
+      const isLocalhostOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const apiBases = isLocalhostOrigin
+        ? ['']
+        : isCloudMode
+        ? ['http://localhost:4200']
+        : ['', 'http://localhost:4200'];
+
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/list-folder-media?${queryParams}`);
+          if (!res.ok) continue;
           const data = await res.json();
+          const prefixUrl = (u: string) =>
+            u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
             setCapturedClipVideosMap((prev) => {
               const next = { ...prev };
               for (const item of data.clipVideos) {
+                const fullUrl = prefixUrl(item.url);
                 if (
                   item.clipNumber > 0 &&
-                  item.url &&
+                  fullUrl &&
                   (!next[item.clipNumber] ||
-                    next[item.clipNumber].startsWith('/api/flow/serve-folder-file'))
+                    next[item.clipNumber].includes('/api/flow/serve-folder-file'))
                 ) {
-                  next[item.clipNumber] = item.url;
+                  next[item.clipNumber] = fullUrl;
                   loadedCount++;
                 }
               }
@@ -3215,23 +3240,27 @@ export default function App() {
             setCapturedSunoAudioMap((prev) => {
               const next = { ...prev };
               for (const s of data.sunoFiles) {
-                if (s.trackNumber > 0 && s.url && !next[s.trackNumber]) {
-                  next[s.trackNumber] = s.url;
+                const fullUrl = prefixUrl(s.url);
+                if (s.trackNumber > 0 && fullUrl && !next[s.trackNumber]) {
+                  next[s.trackNumber] = fullUrl;
                 }
               }
               return next;
             });
           }
           if (Array.isArray(data.voiceoverFiles) && data.voiceoverFiles.length > 0) {
-            setFolderVoiceoverUrl((prev) => prev || data.voiceoverFiles[0].url);
+            setFolderVoiceoverUrl((prev) => prev || prefixUrl(data.voiceoverFiles[0].url));
           } else if (
             !currentDoc?.masterAudioUrl &&
             Array.isArray(data.localTtsFiles) &&
             data.localTtsFiles.length > 0
           ) {
-            setFolderVoiceoverUrl((prev) => prev || data.localTtsFiles[0].url);
+            setFolderVoiceoverUrl((prev) => prev || prefixUrl(data.localTtsFiles[0].url));
           }
-        }
+          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+            break;
+          }
+        } catch {}
       }
     } catch {}
     return loadedCount;
@@ -3241,7 +3270,15 @@ export default function App() {
     if (mainView === 'capcut_editor' || activeStage === 8) {
       handleAutoLoadAllFolderMedia(true);
     }
-  }, [activeDoc?.id, mainView, activeStage]);
+  }, [
+    activeDoc?.id,
+    activeDoc?.title,
+    activeDoc?.downloadFolderName,
+    flowDownloadFolderName,
+    flowServerFolderPath,
+    mainView,
+    activeStage,
+  ]);
 
   // Automatically ensure all clips and references in activeDoc have ALL shields (Anti-Filtro Flow + 10s Anti-Mutation Physics + Anti-Violencia) from construction
   useEffect(() => {
@@ -6186,6 +6223,7 @@ export default function App() {
                   setActiveDocId(bestDoc.id);
                 }
               }
+              handleAutoLoadAllFolderMedia(true, true);
               setMainView('capcut_editor');
             }}
             className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${

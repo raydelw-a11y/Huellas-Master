@@ -3128,23 +3128,31 @@ app.post('/api/assets/official-logo', (req, res) => {
 // ============================================================================
 // AUTO-DISCOVER & STREAM MEDIA FROM CHOSEN DOCUMENTARY FOLDER FOR VIDEO EDITOR
 // ============================================================================
-function resolveLocalDocumentaryFolder(folderPathQuery?: string, folderNameQuery?: string): string {
+function resolveLocalDocumentaryFolder(
+  folderPathQuery?: string,
+  folderNameQuery?: string,
+  docTitleQuery?: string
+): string {
   const rawPath = String(folderPathQuery || '').trim();
   if (rawPath && fs.existsSync(rawPath) && fs.statSync(rawPath).isDirectory()) {
     return rawPath;
   }
   const rawName = String(folderNameQuery || '').trim();
+  const rawTitle = String(docTitleQuery || '').trim();
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-  if (rawName && homeDir) {
-    const icloudVideosDir = path.join(
-      homeDir,
-      'Library',
-      'Mobile Documents',
-      'com~apple~CloudDocs',
-      '0YouTube',
-      'Huellas de la Humanidad',
-      'Videos'
-    );
+  if (!homeDir) return '';
+
+  const icloudVideosDir = path.join(
+    homeDir,
+    'Library',
+    'Mobile Documents',
+    'com~apple~CloudDocs',
+    '0YouTube',
+    'Huellas de la Humanidad',
+    'Videos'
+  );
+
+  if (rawName) {
     const candidates = [
       path.join(icloudVideosDir, rawName),
       path.join(icloudVideosDir, rawName.normalize('NFD')),
@@ -3169,6 +3177,42 @@ function resolveLocalDocumentaryFolder(folderPathQuery?: string, folderNameQuery
       }
     }
   }
+
+  // Match by Video number (e.g. "Video 76") from folderName, docTitle, or folderPath
+  if (fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+    const combinedHint = `${rawName} ${rawTitle} ${rawPath}`;
+    const vidNumMatch = combinedHint.match(/\bvideo\s*0*(\d+)\b/i);
+    if (vidNumMatch) {
+      const vidNum = vidNumMatch[1];
+      const prefixRegex = new RegExp(`^video\\s*0*${vidNum}\\b`, 'i');
+      for (const entry of fs.readdirSync(icloudVideosDir)) {
+        if (prefixRegex.test(entry.normalize('NFC'))) {
+          const full = path.join(icloudVideosDir, entry);
+          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+        }
+      }
+    }
+
+    // Fallback: pick the most recently modified Video folder that contains 05_Clips_Video
+    let newestFolder = '';
+    let newestMtime = 0;
+    for (const entry of fs.readdirSync(icloudVideosDir)) {
+      if (!/^video\s*\d+/i.test(entry.normalize('NFC'))) continue;
+      const full = path.join(icloudVideosDir, entry);
+      const clipsSub = path.join(full, '05_Clips_Video');
+      try {
+        if (fs.existsSync(clipsSub) && fs.statSync(clipsSub).isDirectory()) {
+          const st = fs.statSync(clipsSub);
+          if (st.mtimeMs >= newestMtime) {
+            newestMtime = st.mtimeMs;
+            newestFolder = full;
+          }
+        }
+      } catch {}
+    }
+    if (newestFolder) return newestFolder;
+  }
+
   return '';
 }
 
@@ -3176,7 +3220,8 @@ app.get('/api/flow/list-folder-media', (req, res) => {
   try {
     const folderPath = String(req.query.folderPath || '');
     const folderName = String(req.query.folderName || '');
-    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName);
+    const docTitle = String(req.query.docTitle || '');
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
 
     const clipVideos: Array<{ clipNumber: number; fileName: string; url: string }> = [];
     const clipFrames: Array<{ clipNumber: number; fileName: string; url: string }> = [];

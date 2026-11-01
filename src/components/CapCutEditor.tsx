@@ -654,6 +654,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
+  const [localServerClipVideosMap, setLocalServerClipVideosMap] = useState<Record<number, string>>({});
+  const [localServerSunoMap, setLocalServerSunoMap] = useState<Record<number, string>>({});
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -673,11 +675,58 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const activePlayingClipIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
 
-  // Reset extracted first frames when switching documentaries
+  // Reset extracted first frames and auto-query local server 05_Clips_Video when switching documentaries
   useEffect(() => {
     setFirstFrameByClip({});
+    setLocalServerClipVideosMap({});
+    setLocalServerSunoMap({});
     extractedVideoUrlByClipRef.current = {};
-  }, [activeDoc?.id]);
+
+    let cancelled = false;
+    (async () => {
+      const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+      const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+      const dTitle = (activeDoc?.title || '').trim();
+      const qs = `folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}`;
+      const isLocal =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+      for (const base of bases) {
+        if (cancelled) return;
+        try {
+          const res = await fetch(`${base}/api/flow/list-folder-media?${qs}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (cancelled) return;
+          const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+            const nextVids: Record<number, string> = {};
+            for (const item of data.clipVideos) {
+              if (item.clipNumber > 0 && item.url) {
+                nextVids[item.clipNumber] = prefix(item.url);
+              }
+            }
+            setLocalServerClipVideosMap(nextVids);
+            if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
+              const nextSuno: Record<number, string> = {};
+              for (const s of data.sunoFiles) {
+                if (s.trackNumber > 0 && s.url && !nextSuno[s.trackNumber]) {
+                  nextSuno[s.trackNumber] = prefix(s.url);
+                }
+              }
+              setLocalServerSunoMap(nextSuno);
+            }
+            break;
+          }
+        } catch {}
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath]);
 
   // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video when paused and no posterUrl exists
   useEffect(() => {
@@ -897,13 +946,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const docClips =
       showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
 
+    const combinedClipVideosMap: Record<number, string> = {
+      ...localServerClipVideosMap,
+      ...capturedClipVideosMap,
+    };
+    const combinedSunoAudioMap: Record<number, string> = {
+      ...localServerSunoMap,
+      ...capturedSunoAudioMap,
+    };
+
     const builtClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = c.clipNumber === 1 || idx === 0;
       const srcDur =
         Number(c.durationSeconds) > 0 ? Number(c.durationSeconds) : isClip1 ? c1BaseDur : standardDur;
       const existingItem = timelineClips.find((tc) => tc.clipNumber === c.clipNumber);
       const videoUrl =
-        capturedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
+        combinedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
 
       // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
       const posterUrl =
@@ -931,9 +989,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       };
     });
 
-    // If activeDoc.clips is empty but capturedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files!
-    if (builtClips.length === 0 && Object.keys(capturedClipVideosMap).length > 0) {
-      const sortedNums = Object.keys(capturedClipVideosMap)
+    // If activeDoc.clips is empty but combinedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files!
+    if (builtClips.length === 0 && Object.keys(combinedClipVideosMap).length > 0) {
+      const sortedNums = Object.keys(combinedClipVideosMap)
         .map((n) => parseInt(n, 10))
         .filter((n) => n > 0)
         .sort((a, b) => a - b);
@@ -951,7 +1009,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           trimStart: 0,
           foleyVolume: isClip1 ? 80 : 35,
           transition: defaultTransition,
-          videoUrl: capturedClipVideosMap[num],
+          videoUrl: combinedClipVideosMap[num],
           posterUrl: firstFrameByClip[num] || '',
           reviewedForEditor: true,
         });
@@ -1028,7 +1086,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           start: startSec,
           duration: durSec,
           volume: masterMusicVolume,
-          audioUrl: capturedSunoAudioMap[idx + 1] || st.audioUrl,
+          audioUrl: combinedSunoAudioMap[idx + 1] || st.audioUrl,
           isLast90Sec: isLast,
           fadeInSec: 2.5,
           fadeOutSec: 3.0,
@@ -1043,7 +1101,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .map((c) => `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}`)
     .join('|');
 
-  const capturedClipVideosSignature = Object.entries(capturedClipVideosMap)
+  const capturedClipVideosSignature = Object.entries({
+    ...localServerClipVideosMap,
+    ...capturedClipVideosMap,
+  })
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([k, v]) => `${k}:${v ? v.slice(-32) : ''}`)
     .join('|');
@@ -1052,7 +1113,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .map((t, i) => `${i + 1}:${t.title || ''}:${t.videoTimeRange || ''}:${t.duration || ''}:${(t.audioUrl || '').slice(-24)}`)
     .join('|');
 
-  const capturedSunoSignature = Object.entries(capturedSunoAudioMap)
+  const capturedSunoSignature = Object.entries({
+    ...localServerSunoMap,
+    ...capturedSunoAudioMap,
+  })
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([k, v]) => `${k}:${v ? v.slice(-24) : ''}`)
     .join('|');
@@ -3000,6 +3064,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     try {
                       e.currentTarget.pause();
                     } catch {}
+                  }}
+                  onError={() => {
+                    const clipNum = activeClipAtPlayhead?.clipNumber;
+                    const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                    if (
+                      clipNum &&
+                      fallbackUrl &&
+                      activeClipAtPlayhead?.videoUrl !== fallbackUrl
+                    ) {
+                      setTimelineClips((prev) =>
+                        prev.map((tc) =>
+                          tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
+                        )
+                      );
+                    }
                   }}
                 />
               ) : activeClipAtPlayhead?.posterUrl ? (
