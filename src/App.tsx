@@ -115,7 +115,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:27 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:36 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -703,8 +703,21 @@ export default function App() {
   const [ttsCustomSegmentText, setTtsCustomSegmentText] = useState('');
   const [ttsCustomLabel, setTtsCustomLabel] = useState('');
   const [timelineExtracting, setTimelineExtracting] = useState(false);
-  const [clipBatchFilter, setClipBatchFilter] = useState<number>(0); // 0 = All, 1 = 1-10, 2 = 11-20...
-  const [clipStatusFilter, setClipStatusFilter] = useState<string>('ALL');
+  const [clipBatchFilter, setClipBatchFilter] = useState<number>(() => {
+    const saved = parseInt(localStorage.getItem('huellas_master_clip_batch_filter') || '0', 10);
+    return Number.isFinite(saved) && saved >= 0 ? saved : 0;
+  }); // 0 = All, 1 = 1-10, 2 = 11-20...
+  const [clipStatusFilter, setClipStatusFilter] = useState<string>(() => {
+    return localStorage.getItem('huellas_master_clip_status_filter') || 'ALL';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('huellas_master_clip_batch_filter', String(clipBatchFilter));
+  }, [clipBatchFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('huellas_master_clip_status_filter', clipStatusFilter);
+  }, [clipStatusFilter]);
   const [srtStatsMsg, setSrtStatsMsg] = useState<string>('');
   const [srtMaxChars, setSrtMaxChars] = useState<number>(32);
   const [srtLineMode, setSrtLineMode] = useState<'subdivide' | 'wrap' | 'original'>('subdivide');
@@ -860,6 +873,119 @@ export default function App() {
   useEffect(() => {
     activeDocRef.current = activeDoc;
   }, [activeDoc]);
+
+  // ============================================================================
+  // PERSISTENT PER-SECTION SCROLL MEMORY (STAYS WHERE USER LEFT OFF ACROSS STAGES, VIEWS & REFRESH)
+  // ============================================================================
+  const SECTION_SCROLL_STORAGE_KEY = 'huellas_master_section_scroll_v1';
+  const sectionScrollMapRef = React.useRef<Record<string, { winY: number; secY: number }>>({});
+  const isRestoringScrollRef = React.useRef<boolean>(false);
+  const activeSectionKeyRef = React.useRef<string>('');
+
+  // Load saved scroll positions once on mount & disable browser auto-reset
+  useEffect(() => {
+    try {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+      const raw = localStorage.getItem(SECTION_SCROLL_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          sectionScrollMapRef.current = parsed;
+        }
+      }
+    } catch {}
+  }, []);
+
+  const saveCurrentSectionScrollPosition = () => {
+    if (isRestoringScrollRef.current) return;
+    if (mainView === 'studio' && !activeDocRef.current) return;
+    const key = activeSectionKeyRef.current;
+    if (!key) return;
+    const winY = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
+    const secEl = document.querySelector<HTMLElement>('[data-stage-scroll-container="true"]');
+    const secY = secEl ? Math.round(secEl.scrollTop || 0) : 0;
+    sectionScrollMapRef.current[key] = { winY, secY };
+    try {
+      localStorage.setItem(
+        SECTION_SCROLL_STORAGE_KEY,
+        JSON.stringify(sectionScrollMapRef.current)
+      );
+    } catch {}
+  };
+
+  // Continuously record scroll position for the active section/stage
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const onScroll = () => {
+      saveCurrentSectionScrollPosition();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll, { capture: true } as any);
+    };
+  }, [isAuthenticated, mainView]);
+
+  // Restore saved scroll position whenever section/stage/view changes or after page refresh
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (mainView === 'studio' && !activeDoc) return;
+
+    const docKey = activeDoc?.id || activeDocId || 'default';
+    const sectionKey =
+      mainView === 'studio'
+        ? `studio:${docKey}:stage:${activeStage}`
+        : `view:${mainView}`;
+
+    activeSectionKeyRef.current = sectionKey;
+    const saved = sectionScrollMapRef.current[sectionKey];
+    const targetWinY = saved?.winY ?? 0;
+    const targetSecY = saved?.secY ?? 0;
+
+    isRestoringScrollRef.current = true;
+
+    const applyScroll = () => {
+      if (!isRestoringScrollRef.current) return;
+      window.scrollTo({ top: targetWinY, behavior: 'instant' as ScrollBehavior });
+      const secEl = document.querySelector<HTMLElement>('[data-stage-scroll-container="true"]');
+      if (secEl) {
+        secEl.scrollTop = targetSecY;
+      }
+    };
+
+    applyScroll();
+    const rafId = window.requestAnimationFrame(applyScroll);
+    const t1 = window.setTimeout(applyScroll, 60);
+    const t2 = window.setTimeout(applyScroll, 180);
+    const t3 = window.setTimeout(applyScroll, 360);
+    const t4 = window.setTimeout(() => {
+      applyScroll();
+      isRestoringScrollRef.current = false;
+    }, 580);
+
+    const stopOnUserScroll = () => {
+      isRestoringScrollRef.current = false;
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+    };
+
+    window.addEventListener('wheel', stopOnUserScroll, { passive: true, once: true });
+    window.addEventListener('touchmove', stopOnUserScroll, { passive: true, once: true });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+      window.removeEventListener('wheel', stopOnUserScroll);
+      window.removeEventListener('touchmove', stopOnUserScroll);
+      isRestoringScrollRef.current = false;
+    };
+  }, [isAuthenticated, mainView, activeStage, activeDoc?.id]);
 
   const handleLogin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1577,7 +1703,13 @@ export default function App() {
 
       if (!unifiedName && !unifiedPath) {
         flowDownloadDirHandleRef.current = null;
-        setActiveStage(1);
+        const hasAnyDocContent =
+          (Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0) ||
+          Boolean((activeDoc.voiceoverScript || '').trim()) ||
+          Boolean((activeDoc.sectionsStructure || '').trim());
+        if (!hasAnyDocContent) {
+          setActiveStage(1);
+        }
       }
     })();
     return () => {
@@ -1594,6 +1726,7 @@ export default function App() {
       setActiveStage(1);
       return false;
     }
+    saveCurrentSectionScrollPosition();
     setActiveStage(targetStage);
     return true;
   };
@@ -5656,7 +5789,10 @@ export default function App() {
         {/* Navigation Pills */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
-            onClick={() => setMainView('dashboard')}
+            onClick={() => {
+              saveCurrentSectionScrollPosition();
+              setMainView('dashboard');
+            }}
             className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'dashboard'
                 ? 'bg-amber-500 text-slate-950 shadow'
@@ -5669,7 +5805,10 @@ export default function App() {
 
           {activeDoc && (
             <button
-              onClick={() => setMainView('studio')}
+              onClick={() => {
+                saveCurrentSectionScrollPosition();
+                setMainView('studio');
+              }}
               className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
                 mainView === 'studio'
                   ? 'bg-amber-500 text-slate-950 shadow'
@@ -5684,7 +5823,10 @@ export default function App() {
           )}
 
           <button
-            onClick={() => setMainView('standalone_prompt')}
+            onClick={() => {
+              saveCurrentSectionScrollPosition();
+              setMainView('standalone_prompt');
+            }}
             className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'standalone_prompt'
                 ? 'bg-amber-500 text-slate-950 shadow'
@@ -5697,6 +5839,7 @@ export default function App() {
 
           <button
             onClick={() => {
+              saveCurrentSectionScrollPosition();
               if (
                 (!activeDoc || ((activeDoc.clips?.length || 0) === 0 && !activeDoc.masterAudioUrl)) &&
                 documentaries.length > 0
@@ -6404,7 +6547,10 @@ export default function App() {
           </div>
 
           {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
-          <section className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5">
+          <section
+            data-stage-scroll-container="true"
+            className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5"
+          >
             {/* Stage Header Banner */}
             <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-4">
               <div>
@@ -6418,7 +6564,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 {activeStage > 1 && (
                   <button
-                    onClick={() => setActiveStage((s) => s - 1)}
+                    onClick={() => handleTrySelectStage(activeStage - 1)}
                     className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 cursor-pointer"
                   >
                     ← Etapa Anterior
