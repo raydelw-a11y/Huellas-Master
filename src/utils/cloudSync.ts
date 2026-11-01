@@ -244,6 +244,10 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       "Image 55: Create an image of a stern older Spanish store owner in a dark vest standing with both hands resting empty on a polished mahogany counter in a traditional grocery store in Mexico City, Mexico, 1910, speaking seriously to an adult newly arrived Spanish clerk in a white linen apron standing across the counter with empty hands (strictly no brooms or tools in anyone's hands), 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.";
     const newClip55 =
       'Clip 55 (08:56 - 09:06): Create a video showing a steady medium shot as the stern Spanish store owner stands behind the mahogany counter in Mexico City, Mexico, 1910, speaking and giving instructions with a calm authoritative gesture of his empty hand (without handing over any broom or object), while the clerk in the white apron nods respectfully, turns away from the counter, and walks out of the scene to go work. Ambient Foley: hands resting on polished mahogany wood, linen apron rustling, leather boots walking away on wooden floorboards, pocket watch ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. tiendas y panaderías para alcanzar la prometida prosperidad? Lejos del mito romántico del indiano que amasaba fortuna al instante, los almacenes de abarrotes como El. fix the name';
+    const newImg58 =
+      'Image 58: Create an image captured from behind of a single mature 40-year-old Spanish store clerk in rolled-up white shirt sleeves and a linen apron standing inside the dim empty grocery store in Mexico City, Mexico, 1910, pushing open the tall wooden window shutters at 5 AM as the first blue-gold light of dawn spills across the swept wooden floor and stacked burlap flour sacks, strictly one single adult in frame, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
+    const newClip58 =
+      'Clip 58 (09:26 - 09:36): Create a video showing a slow push-in from behind the single mature 40-year-old Spanish clerk standing by the tall open wooden shutters at 5 AM dawn inside the quiet grocery store in Mexico City, Mexico, 1910, as early morning light floods across the swept wooden floorboards and stationary burlap sacks. STRICT ADULTS-ONLY CAST (AGES 35–60): Strictly one single mature adult in frame with zero minors. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: heavy wooden shutter hinges creaking open, quiet dawn breeze, distant rooster and morning bell, single continuous shot, strictly no shot changes, no music, no speech, no text. que borraba toda frontera entre el trabajo y la vida privada. La jornada arrancaba a las 5 de la mañana barriendo el local, encendiendo la leña de. fix the name';
     const newImg59 =
       "Image 59: Create an image of an authentic 1910 Spanish bodega counter in Havana, Cuba at 10 PM at night with zero people, featuring a steaming porcelain cup of dark coffee and a glass of clear aguardiente beside a heavy glass bottle on a worn zinc-topped wooden counter, illuminated by a glowing brass carbide gas lamp hanging above, an antique round wall clock in the dim background showing ten o'clock, 16:9 horizontal, moody chiaroscuro lighting, 35mm film grain, photorealistic historical still life, no text, clean uncluttered composition with rigid architectural perspective and stationary period props (strictly zero people or human figures in frame).";
     const newClip59 =
@@ -391,6 +395,24 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             ...c,
             imagePrompt: newImg55,
             videoPrompt: newClip55,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 58 &&
+          (/scooping rice and chickpeas|two-pan brass scale in a busy store/i.test(
+            c.imagePrompt || ''
+          ) ||
+            /drops bronze weights onto the brass scale|pours grain from a tin scoop/i.test(
+              c.videoPrompt || ''
+            ) ||
+            !/pushing open the tall wooden window shutters at 5 AM/i.test(c.imagePrompt || ''))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg58,
+            videoPrompt: newClip58,
           };
         }
         if (
@@ -551,6 +573,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 55:[^\n]*/i, newImg55)
           .replace(/Clip 55\s*\([^)]*\):[^\n]*/i, newClip55);
+      }
+      if (
+        /Image 58:[^\n]*/i.test(rawText) &&
+        !/Image 58:[^\n]*pushing open the tall wooden window shutters at 5 AM/i.test(rawText)
+      ) {
+        rawText = rawText
+          .replace(/Image 58:[^\n]*/i, newImg58)
+          .replace(/Clip 58\s*\([^)]*\):[^\n]*/i, newClip58);
       }
       if (
         /Image 59:[^\n]*/i.test(rawText) &&
