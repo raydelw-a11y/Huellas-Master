@@ -30,6 +30,7 @@ import {
   Sliders,
   Globe,
   Lock,
+  Play,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
@@ -117,7 +118,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:31 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:44 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -803,7 +804,7 @@ export default function App() {
 
   // Automatically mount <video> players for Stage 8 clip cards as they enter the viewport
   useEffect(() => {
-    if (mainView !== 'workflow') return;
+    if (mainView !== 'studio' || activeStage !== 8) return;
     const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-stage8-clip-slot]'));
     if (slots.length === 0 || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
@@ -10414,6 +10415,7 @@ export default function App() {
                                   key={`tl-${clip.id}`}
                                   onClick={() => {
                                     setClipBatchFilter(0);
+                                    activateStage8ClipInPool(clip.clipNumber, false);
                                     setTimeout(() => {
                                       const el = document.getElementById(
                                         `prod-clip-card-${clip.clipNumber}`
