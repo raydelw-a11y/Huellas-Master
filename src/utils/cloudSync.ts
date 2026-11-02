@@ -1290,8 +1290,15 @@ export function buildStagePromptText(
   const voiceEntrySec = c1Dur + 2;
   const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
   const youtubeViralLink = (doc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+  const youtubeCommentsResearchBlock = (
+    doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
+  ).trim();
   const viralContextBlock = youtubeViralLink
-    ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n`
+    ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n${
+        youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
+      }`
+    : youtubeCommentsResearchBlock
+    ? `\n${youtubeCommentsResearchBlock}\n`
     : '';
 
   let stagePrompt = '';
@@ -1306,7 +1313,11 @@ Duración aproximada objetivo: ~${doc.targetDurationSeconds || 120} segundos.
 Genera la ETAPA 3 completa:
 1. Recuento estructural de secciones cronológicas del documental.
 2. Datos insólitos, curiosidades verificadas y contradicciones históricas centrales.
-3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM).`;
+3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM)${
+      youtubeCommentsResearchBlock
+        ? ' — INCLUYENDO OBLIGATORIAMENTE DENTRO DE ESTE PROMPT DE INVESTIGACIÓN todas las preguntas, dudas, debates y sugerencias detectadas en los comentarios del video de referencia y del canal @huellas_de_la_humanidad para que la investigación profunda las responda exhaustivamente'
+        : ''
+    }.`;
   } else if (stageNumber === 4) {
     const targetChars = Math.round(((doc.targetDurationSeconds || 120) - voiceEntrySec) * 13.5);
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".

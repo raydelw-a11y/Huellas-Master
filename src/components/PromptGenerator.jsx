@@ -29,6 +29,8 @@ Tu análisis profundo, minucioso, detallado, incisivo e intenso debe diseccionar
 8. MAPA MAESTRO DE RECREACIÓN ESTRUCTURAL PARA NUESTRO VIDEO:
    - Plan exacto y detallado de cómo vamos a RECREAR LA MISMA ESTRUCTURA VIRAL (los mismos tiempos proporcionales por sección, la misma cadencia de micro-ganchos, la misma progresión de tensión, el mismo impacto de apertura y clímax) en nuestro episodio de "Huellas de la Humanidad", adaptándola rigurosamente a nuestras leyes editoriales y técnicas (apertura de voz en el segundo [DURACION_CLIP_1_RALENTIZADO] con Tiempo y Lugar cerrando con punto, Slogan Completo en párrafo aparte antes del segundo 30 con escena de mesa de historiador antiguo, motores Nano Banana 2.1 y Omni Flash, años en dígitos y siglos/nombres con número en números romanos).
 
+[YOUTUBE_COMMENTS_RESEARCH_BLOCK]
+
 -> REGLA DE EJECUCIÓN DEL ANÁLISIS VIRAL:
 En tu primera respuesta (al iniciar la Etapa 1), entrega primero este análisis profundo, minucioso, detallado, incisivo e intenso del video [YOUTUBE_VIRAL_LINK] detalle por detalle sin obviar nada, explicando cómo se hizo viral en la plataforma y presentando el Mapa Estructural clonado junto con las opciones de Tema y Tipología para que el usuario confirme (con ALTO INQUEBRANTABLE). Posteriormente, en todas las etapas siguientes (Duración, Escaleta de la Etapa 3, Guion de Voz en Off de la Etapa 4, Clips de la Etapa 7, Miniatura y Metadata), DEBES APLICAR Y RECREAR ESTRICTAMENTE ESTA MISMA ESTRUCTURA VIRAL.
 [/YOUTUBE_VIRAL_ANALYSIS]
@@ -425,6 +427,7 @@ Una vez confirmados el tema y la duración aproximada del video por parte del us
    - Datos insólitos verificados, estadísticas, micro-detalles cotidianos, mitos populares desmentidos y secretos poco conocidos que eleven la retención del documental.
    - Reconstrucción sensorial, material, arquitectónica y geográfica del entorno (texturas, iluminación de época, clima, objetos, armas, vestimenta y atmósfera acústica Foley) para nutrir con precisión histórica los prompts de Nano Banana 2.1 y Omni Flash.
    - Contradicciones históricas centrales, paradojas morales y puntos de giro dramático para sostener los micro-ganchos narrativos cada 90 segundos a lo largo de todo el metraje.
+[#YOUTUBE_VIRAL_ANALYSIS]   - Investigación exhaustiva de todas las PREGUNTAS, DUDAS E INQUIETUDES y SUGERENCIAS reales detectadas en los comentarios del video de referencia ([YOUTUBE_VIRAL_LINK]) y en los comentarios de todos los videos del canal oficial https://youtube.com/@huellas_de_la_humanidad (incluyendo obligatoriamente dichas preguntas y sugerencias DENTRO de este Prompt Maestro para Desarrollar la Investigación Profunda por Fuera, y NUNCA insertándolas directamente como resultado final fuera del prompt de investigación).[/YOUTUBE_VIRAL_ANALYSIS]
    Al final de este bloque 6, la IA incluirá el siguiente mensaje para el usuario:
    "Copia y ejecuta este Prompt de Investigación Profunda por fuera y pégame aquí toda la información resultante (o confírmame cuando la tengas lista) para usar toda esa información en la redacción del guion de la voz en off (Etapa 4), en el modelado de personajes, en las escenas visuales del video y en la metadata."
 [/?SUB_OPCION_REELS]
@@ -1564,6 +1567,7 @@ const PromptGenerator = ({
       DURACION_CLIPS_SEGUNDOS: '10',
       VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
       YOUTUBE_VIRAL_LINK: '',
+      YOUTUBE_COMMENTS_RESEARCH_BLOCK: '',
       ...(initialFormData || {}),
     };
     if (!base.DURACION_CLIPS_SEGUNDOS) {
@@ -1571,6 +1575,63 @@ const PromptGenerator = ({
     }
     return base;
   });
+
+  const [commentsAnalyzing, setCommentsAnalyzing] = useState(false);
+  const [commentsMeta, setCommentsMeta] = useState(null);
+  const [commentsError, setCommentsError] = useState('');
+  const lastAnalyzedYoutubeLinkRef = React.useRef('');
+
+  const runYoutubeCommentsAnalysis = async (rawLink, forceRefreshChannel = false) => {
+    const cleanLink = String(rawLink || '').trim();
+    if (!cleanLink) return;
+    setCommentsAnalyzing(true);
+    setCommentsError('');
+    try {
+      const resp = await fetch('/api/youtube/analyze-comments-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrl: cleanLink, forceRefreshChannel }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'No se pudieron analizar los comentarios.');
+      }
+      setCommentsMeta(data);
+      setFormData(prev => ({
+        ...prev,
+        YOUTUBE_COMMENTS_RESEARCH_BLOCK: data.researchPromptBlock || '',
+      }));
+    } catch (err) {
+      setCommentsError(err?.message || 'Error al analizar comentarios de YouTube.');
+    } finally {
+      setCommentsAnalyzing(false);
+    }
+  };
+
+  useEffect(() => {
+    const cleanLink = String(formData.YOUTUBE_VIRAL_LINK || '').trim();
+    if (!cleanLink) {
+      lastAnalyzedYoutubeLinkRef.current = '';
+      setCommentsMeta(null);
+      setCommentsError('');
+      if (formData.YOUTUBE_COMMENTS_RESEARCH_BLOCK) {
+        setFormData(prev => ({ ...prev, YOUTUBE_COMMENTS_RESEARCH_BLOCK: '' }));
+      }
+      return;
+    }
+    const isYoutubeVideoUrl =
+      /(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(
+        cleanLink
+      ) || /^[a-zA-Z0-9_-]{11}$/.test(cleanLink);
+    if (!isYoutubeVideoUrl) return;
+    if (lastAnalyzedYoutubeLinkRef.current === cleanLink) return;
+
+    const timer = setTimeout(() => {
+      lastAnalyzedYoutubeLinkRef.current = cleanLink;
+      runYoutubeCommentsAnalysis(cleanLink, false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [formData.YOUTUBE_VIRAL_LINK]);
 
   useEffect(() => {
     if (initialVoiceover !== undefined) {
@@ -1590,7 +1651,7 @@ const PromptGenerator = ({
 
   // Cargar plantilla desde LocalStorage al iniciar
   useEffect(() => {
-    const key = 'huellas_master_template_v181';
+    const key = 'huellas_master_template_v182';
     const savedTemplate = localStorage.getItem(key);
     const initialText = savedTemplate ? savedTemplate : DEFAULT_TEMPLATE.trim();
     setTemplateText(initialText);
@@ -1600,7 +1661,7 @@ const PromptGenerator = ({
 
   // Guardar plantilla en LocalStorage MANUALMENTE
   const saveTemplate = () => {
-    const key = 'huellas_master_template_v181';
+    const key = 'huellas_master_template_v182';
     localStorage.setItem(key, templateText);
     alert('✅ Plantilla Base guardada con éxito.');
   };
@@ -1837,6 +1898,7 @@ const PromptGenerator = ({
       if (
         match[1].trim() !== '' && 
         match[1] !== 'YOUTUBE_VIRAL_LINK' &&
+        match[1] !== 'YOUTUBE_COMMENTS_RESEARCH_BLOCK' &&
         match[1] !== 'DURACION_CLIP_1' && 
         match[1] !== 'DURACION_CLIP_1_PAD' &&
         match[1] !== 'DURACION_CLIP_1_RALENTIZADO' &&
@@ -1867,12 +1929,14 @@ const PromptGenerator = ({
 
     // Procesar bloque opcional de análisis viral de YouTube según si el text box tiene enlace o está vacío
     const youtubeViralLink = (formData.YOUTUBE_VIRAL_LINK || '').trim();
+    const youtubeCommentsBlock = (formData.YOUTUBE_COMMENTS_RESEARCH_BLOCK || '').trim();
     if (youtubeViralLink) {
       if (compiled.includes('[#YOUTUBE_VIRAL_ANALYSIS]')) {
         compiled = compiled.replace(/\[#YOUTUBE_VIRAL_ANALYSIS\]([\s\S]*?)\[\/YOUTUBE_VIRAL_ANALYSIS\]/g, '$1');
         compiled = compiled.replace(/\[YOUTUBE_VIRAL_LINK\]/g, youtubeViralLink);
+        compiled = compiled.replace(/\[YOUTUBE_COMMENTS_RESEARCH_BLOCK\]/g, youtubeCommentsBlock);
       } else {
-        const viralFallbackBlock = `\n\n================================================================================\n🔥 DIRECTRIZ PRIORITARIA DE INGENIERÍA INVERSA Y ANÁLISIS VIRAL DE YOUTUBE 🔥\nENLACE DEL VIDEO DE YOUTUBE A ANALIZAR: ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA E INQUEBRANTABLE PARA LA IA (EJECUTAR SIN OBVIAR NADA):\nSe ha integrado a este Prompt Inicial el enlace de un video de YouTube (${youtubeViralLink}). Tienes la OBLIGACIÓN INQUEBRANTABLE de analizar e investigar este video de YouTube de forma PROFUNDA, MINUCIOSA, DETALLADA, INCISIVA E INTENSA, DETALLE POR DETALLE, SIN OBVIAR ABSOLUTAMENTE NADA, para entender con precisión quirúrgica cómo y por qué se hizo viral en la plataforma y RECREAR EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este episodio (Hook de primeros segundos, escaleta minuto a minuto, micro-ganchos de retención, gatillos psicológicos de viralidad, ritmo del guion, dirección visual/sonora y empaque).\n`;
+        const viralFallbackBlock = `\n\n================================================================================\n🔥 DIRECTRIZ PRIORITARIA DE INGENIERÍA INVERSA Y ANÁLISIS VIRAL DE YOUTUBE 🔥\nENLACE DEL VIDEO DE YOUTUBE A ANALIZAR: ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA E INQUEBRANTABLE PARA LA IA (EJECUTAR SIN OBVIAR NADA):\nSe ha integrado a este Prompt Inicial el enlace de un video de YouTube (${youtubeViralLink}). Tienes la OBLIGACIÓN INQUEBRANTABLE de analizar e investigar este video de YouTube de forma PROFUNDA, MINUCIOSA, DETALLADA, INCISIVA E INTENSA, DETALLE POR DETALLE, SIN OBVIAR ABSOLUTAMENTE NADA, para entender con precisión quirúrgica cómo y por qué se hizo viral en la plataforma y RECREAR EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este episodio (Hook de primeros segundos, escaleta minuto a minuto, micro-ganchos de retención, gatillos psicológicos de viralidad, ritmo del guion, dirección visual/sonora y empaque).\n${youtubeCommentsBlock ? `\n${youtubeCommentsBlock}\n` : ''}`;
         const firstNewlineIdx = compiled.indexOf('\n');
         if (firstNewlineIdx !== -1) {
           compiled = compiled.slice(0, firstNewlineIdx) + viralFallbackBlock + compiled.slice(firstNewlineIdx);
@@ -1883,6 +1947,7 @@ const PromptGenerator = ({
     } else {
       compiled = compiled.replace(/\[#YOUTUBE_VIRAL_ANALYSIS\]([\s\S]*?)\[\/YOUTUBE_VIRAL_ANALYSIS\]/g, '');
       compiled = compiled.replace(/\[YOUTUBE_VIRAL_LINK\]/g, '');
+      compiled = compiled.replace(/\[YOUTUBE_COMMENTS_RESEARCH_BLOCK\]/g, '');
     }
 
     // Procesar bloques mutuamente excluyentes [?GRUPO=VALOR]...[/?GRUPO]
@@ -3038,6 +3103,77 @@ const PromptGenerator = ({
                   ? '✅ Paso activo: El prompt de investigación viral profunda (detalle por detalle, sin obviar nada) y el link del video están integrados al Prompt Inicial.'
                   : '⚪ Campo vacío: Este paso se obvia y no se incluye en el Prompt Inicial.'}
               </div>
+
+              {(formData.YOUTUBE_VIRAL_LINK || '').trim() && (
+                <div
+                  style={{
+                    marginTop: '0.75rem',
+                    padding: '0.75rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    fontSize: '0.8rem',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                    <span style={{ fontWeight: 700, color: '#10b981' }}>
+                      💬 Minería Automática de Comentarios (Video Analizado + @huellas_de_la_humanidad)
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={commentsAnalyzing}
+                      style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem' }}
+                      onClick={() => runYoutubeCommentsAnalysis(formData.YOUTUBE_VIRAL_LINK, true)}
+                    >
+                      {commentsAnalyzing ? '⏳ Analizando...' : '🔄 Actualizar Comentarios'}
+                    </button>
+                  </div>
+
+                  {commentsAnalyzing && (
+                    <div style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>
+                      ⏳ Extrayendo comentarios públicos del video pegado + de todos tus videos en @huellas_de_la_humanidad (lectura de datos sin reproducir videos ni afectar vistas/retención)...
+                    </div>
+                  )}
+
+                  {commentsError && !commentsAnalyzing && (
+                    <div style={{ color: '#f87171' }}>⚠️ {commentsError}</div>
+                  )}
+
+                  {commentsMeta && !commentsAnalyzing && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: 'var(--text-primary)' }}>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                        📌 <strong>Video analizado:</strong> {commentsMeta.targetCommentsCount} comentarios leídos •{' '}
+                        <strong>Tu canal (@huellas_de_la_humanidad):</strong> {commentsMeta.channelCommentsCount} comentarios de suscriptores en {commentsMeta.channelVideosScanned} videos.
+                      </div>
+                      {Array.isArray(commentsMeta.questionsDetected) && commentsMeta.questionsDetected.length > 0 && (
+                        <div>
+                          <strong style={{ color: '#fbbf24' }}>❓ Preguntas y dudas detectadas ({commentsMeta.questionsDetected.length}):</strong>
+                          <ul style={{ margin: '0.2rem 0 0 1.1rem', padding: 0 }}>
+                            {commentsMeta.questionsDetected.slice(0, 4).map((q, idx) => (
+                              <li key={idx} style={{ fontSize: '0.75rem' }}>{q}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {Array.isArray(commentsMeta.suggestionsDetected) && commentsMeta.suggestionsDetected.length > 0 && (
+                        <div>
+                          <strong style={{ color: '#34d399' }}>💡 Sugerencias y debates detectados ({commentsMeta.suggestionsDetected.length}):</strong>
+                          <ul style={{ margin: '0.2rem 0 0 1.1rem', padding: 0 }}>
+                            {commentsMeta.suggestionsDetected.slice(0, 4).map((s, idx) => (
+                              <li key={idx} style={{ fontSize: '0.75rem' }}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.73rem', color: '#10b981', fontWeight: 600, marginTop: '0.15rem' }}>
+                        ✓ Inyectadas automáticamente dentro del Prompt para realizar la Investigación Profunda (Etapa 1 y Etapa 3 — sin tocar el cuadro de resultado directo).
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             {visibleVariables.length === 0 && conditionals.length === 0 && Object.keys(radioGroups).length === 0 && (

@@ -1726,8 +1726,15 @@ app.post('/api/ai/generate-stage', async (req, res) => {
     const voiceEntrySec = c1Dur + 2;
     const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
     const youtubeViralLink = (doc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+    const youtubeCommentsResearchBlock = (
+      doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
+    ).trim();
     const viralContextBlock = youtubeViralLink
-      ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n`
+      ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n${
+          youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
+        }`
+      : youtubeCommentsResearchBlock
+      ? `\n${youtubeCommentsResearchBlock}\n`
       : '';
 
     let stagePrompt = '';
@@ -1742,7 +1749,11 @@ Duración aproximada objetivo: ~${doc.targetDurationSeconds || 120} segundos (la
 Genera la ETAPA 3 completa:
 1. Recuento estructural de secciones cronológicas del documental.
 2. Datos insólitos, curiosidades verificadas y contradicciones históricas centrales.
-3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM).`;
+3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM)${
+        youtubeCommentsResearchBlock
+          ? ' — INCLUYENDO OBLIGATORIAMENTE DENTRO DE ESTE PROMPT DE INVESTIGACIÓN todas las preguntas, dudas, debates y sugerencias detectadas en los comentarios del video de referencia y del canal @huellas_de_la_humanidad para que la investigación profunda las responda exhaustivamente'
+          : ''
+      }.`;
     } else if (stageNumber === 4) {
       const targetChars = Math.round(((doc.targetDurationSeconds || 120) - voiceEntrySec) * 13.5);
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
@@ -4108,6 +4119,442 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura:
   } catch (err: any) {
     console.error('Error en /api/ai/reply-comments:', err);
     res.status(500).json({ error: err.message || 'Error al procesar los comentarios de la audiencia.' });
+  }
+});
+
+// ============================================================================
+// ETAPA 1 & 3: YOUTUBE COMMENTS MINER (TARGET VIDEO + @huellas_de_la_humanidad)
+// Data-only Innertube JSON requests (/youtubei/v1/next) — ZERO video playback,
+// ZERO views counted, ZERO retention impact, 100% public read-only.
+// ============================================================================
+const HUELLAS_OFFICIAL_CHANNEL_HANDLE = '@huellas_de_la_humanidad';
+const HUELLAS_OFFICIAL_CHANNEL_URL = 'https://www.youtube.com/@huellas_de_la_humanidad';
+const HUELLAS_CHANNEL_COMMENTS_CACHE_FILE = path.join(
+  DATA_DIR,
+  'huellas_channel_comments_cache.json'
+);
+const HUELLAS_CHANNEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+interface YoutubeExtractedComment {
+  author: string;
+  text: string;
+  likes: string;
+  videoTitle?: string;
+  videoId?: string;
+}
+
+function extractYoutubeVideoId(rawUrl: string): string | null {
+  const clean = String(rawUrl || '').trim();
+  if (!clean) return null;
+  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const rx of patterns) {
+    const m = clean.match(rx);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+async function fetchYoutubeVideoCommentsDataOnly(
+  videoId: string,
+  maxPages: number = 2
+): Promise<{ videoId: string; title: string; comments: YoutubeExtractedComment[] }> {
+  const innertubeUrl = 'https://www.youtube.com/youtubei/v1/next?prettyPrint=false';
+  const clientContext = {
+    client: {
+      clientName: 'WEB',
+      clientVersion: '2.20240501.00.00',
+      hl: 'es',
+      gl: 'ES',
+    },
+  };
+
+  try {
+    const res1 = await fetch(innertubeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+      body: JSON.stringify({ context: clientContext, videoId }),
+    });
+    if (!res1.ok) return { videoId, title: videoId, comments: [] };
+    const j1: any = await res1.json();
+    const s1 = JSON.stringify(j1);
+    const titleMatch = s1.match(/"title":\{"runs":\[\{"text":"([^"]+)"\}\]/);
+    const title = titleMatch ? titleMatch[1] : videoId;
+
+    const findContinuationTokens = (obj: any): string[] => {
+      const tokens: string[] = [];
+      const walk = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        if (
+          (node.itemSectionRenderer &&
+            node.itemSectionRenderer.sectionIdentifier === 'comment-item-section') ||
+          (node.engagementPanelSectionListRenderer &&
+            node.engagementPanelSectionListRenderer.panelIdentifier ===
+              'engagement-panel-comments-section')
+        ) {
+          const str = JSON.stringify(node);
+          for (const m of str.matchAll(/"token":"([^"]+)"/g)) {
+            if (m[1] && !tokens.includes(m[1])) tokens.push(m[1]);
+          }
+        }
+        for (const k of Object.keys(node)) walk(node[k]);
+      };
+      walk(obj);
+      return tokens;
+    };
+
+    const initialTokens = findContinuationTokens(j1);
+    if (initialTokens.length === 0) {
+      return { videoId, title, comments: [] };
+    }
+
+    const collected: YoutubeExtractedComment[] = [];
+    const seenTexts = new Set<string>();
+    let nextToken: string | undefined = initialTokens[0];
+
+    for (let page = 0; page < maxPages && nextToken; page++) {
+      const resPage = await fetch(innertubeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify({ context: clientContext, continuation: nextToken }),
+      });
+      if (!resPage.ok) break;
+      const jPage: any = await resPage.json();
+
+      let nextContinuation: string | undefined;
+      const extractFromPage = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        if (node.commentEntityPayload?.properties?.content?.content) {
+          const text = String(node.commentEntityPayload.properties.content.content || '').trim();
+          const author = String(node.commentEntityPayload.author?.displayName || '').trim();
+          const likes = String(node.commentEntityPayload.toolbar?.likeCountNotliked || '0').trim();
+          const key = `${author}::${text}`;
+          if (text && !seenTexts.has(key)) {
+            seenTexts.add(key);
+            collected.push({ author, text, likes, videoTitle: title, videoId });
+          }
+        } else if (node.commentRenderer?.contentText?.runs) {
+          const text = (node.commentRenderer.contentText.runs || [])
+            .map((r: any) => r.text || '')
+            .join('')
+            .trim();
+          const author = String(node.commentRenderer.authorText?.simpleText || '').trim();
+          const likes = String(node.commentRenderer.voteCount?.simpleText || '0').trim();
+          const key = `${author}::${text}`;
+          if (text && !seenTexts.has(key)) {
+            seenTexts.add(key);
+            collected.push({ author, text, likes, videoTitle: title, videoId });
+          }
+        }
+        if (
+          node.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token &&
+          !nextContinuation
+        ) {
+          nextContinuation =
+            node.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
+        }
+        for (const k of Object.keys(node)) extractFromPage(node[k]);
+      };
+      extractFromPage(jPage);
+      nextToken = nextContinuation;
+    }
+
+    return { videoId, title, comments: collected };
+  } catch {
+    return { videoId, title: videoId, comments: [] };
+  }
+}
+
+async function fetchHuellasChannelCommentsCached(forceRefresh: boolean = false): Promise<{
+  videoCount: number;
+  comments: YoutubeExtractedComment[];
+  updatedAt: string;
+}> {
+  if (!forceRefresh && fs.existsSync(HUELLAS_CHANNEL_COMMENTS_CACHE_FILE)) {
+    try {
+      const cached = JSON.parse(fs.readFileSync(HUELLAS_CHANNEL_COMMENTS_CACHE_FILE, 'utf8'));
+      const ageMs = Date.now() - new Date(cached.updatedAt || 0).getTime();
+      if (ageMs < HUELLAS_CHANNEL_CACHE_TTL_MS && Array.isArray(cached.comments)) {
+        return cached;
+      }
+    } catch {}
+  }
+
+  const videoIdsSet = new Set<string>();
+  const tabs = ['videos', 'shorts'];
+  for (const tab of tabs) {
+    try {
+      const res = await fetch(`${HUELLAS_OFFICIAL_CHANNEL_URL}/${tab}`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'es-ES,es;q=0.9',
+        },
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const match = html.match(/var ytInitialData = (\{.*?\});<\/script>/s);
+        const searchSource = match ? match[1] : html;
+        for (const m of searchSource.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)) {
+          if (m[1]) videoIdsSet.add(m[1]);
+        }
+      }
+    } catch {}
+  }
+
+  const allVideoIds = Array.from(videoIdsSet).slice(0, 35);
+  const allAudienceComments: YoutubeExtractedComment[] = [];
+  const batchSize = 5;
+
+  for (let i = 0; i < allVideoIds.length; i += batchSize) {
+    const batch = allVideoIds.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map((vid) => fetchYoutubeVideoCommentsDataOnly(vid, 1))
+    );
+    for (const r of results) {
+      for (const c of r.comments) {
+        // Exclude comments written by our own channel (@huellas_de_la_humanidad) so only viewer comments remain
+        if (
+          c.author &&
+          c.author.toLowerCase().includes('huellas_de_la_humanidad')
+        ) {
+          continue;
+        }
+        allAudienceComments.push(c);
+      }
+    }
+  }
+
+  const payload = {
+    videoCount: allVideoIds.length,
+    comments: allAudienceComments,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    fs.writeFileSync(
+      HUELLAS_CHANNEL_COMMENTS_CACHE_FILE,
+      JSON.stringify(payload, null, 2),
+      'utf8'
+    );
+  } catch {}
+
+  return payload;
+}
+
+function classifyQuestionsAndSuggestionsHeuristic(comments: YoutubeExtractedComment[]): {
+  questions: string[];
+  suggestions: string[];
+  notableComments: string[];
+} {
+  const questions: string[] = [];
+  const suggestions: string[] = [];
+  const notableComments: string[] = [];
+
+  const questionRx =
+    /\?|¿|\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] pas[oó]|es verdad|ser[aá] cierto|alguien sabe|duda|pregunta)\b/i;
+  const suggestionRx =
+    /\b(deber[ií]as|deber[ií]an|podr[ií]as|podr[ií]an|haz un video|hagan un video|habla sobre|hablen sobre|falta hablar|falt[oó] mencionar|sugiero|recomiendo|ser[ií]a bueno|me gustar[ií]a ver|para cu[aá]ndo un video|siguiente video)\b/i;
+
+  for (const c of comments) {
+    const clean = c.text.replace(/\s+/g, ' ').trim();
+    if (clean.length < 6) continue;
+    const prefix = c.videoTitle ? `[${c.author || 'Espectador'}]: ` : `[${c.author || 'Espectador'}]: `;
+    const formatted = `${prefix}"${clean}"`;
+
+    if (questionRx.test(clean) && questions.length < 15) {
+      questions.push(formatted);
+    } else if (suggestionRx.test(clean) && suggestions.length < 15) {
+      suggestions.push(formatted);
+    } else if (notableComments.length < 12) {
+      notableComments.push(formatted);
+    }
+  }
+
+  return { questions, suggestions, notableComments };
+}
+
+app.post('/api/youtube/analyze-comments-research', async (req, res) => {
+  try {
+    const { videoUrl = '', forceRefreshChannel = false } = req.body || {};
+    const targetVideoId = extractYoutubeVideoId(videoUrl);
+
+    const [targetData, channelData] = await Promise.all([
+      targetVideoId
+        ? fetchYoutubeVideoCommentsDataOnly(targetVideoId, 2)
+        : Promise.resolve({ videoId: '', title: '', comments: [] as YoutubeExtractedComment[] }),
+      fetchHuellasChannelCommentsCached(Boolean(forceRefreshChannel)),
+    ]);
+
+    // Filter out channel owner comments on target video if target video happens to be on our own channel
+    const targetViewerComments = targetData.comments.filter(
+      (c) => !c.author.toLowerCase().includes('huellas_de_la_humanidad')
+    );
+
+    const targetClassified = classifyQuestionsAndSuggestionsHeuristic(targetViewerComments);
+    const channelClassified = classifyQuestionsAndSuggestionsHeuristic(channelData.comments);
+
+    let aiSynthesizedQuestions: string[] = [];
+    let aiSynthesizedSuggestions: string[] = [];
+    let aiResearchDirectives: string[] = [];
+
+    const ai = getGeminiClient();
+    if (ai && (targetViewerComments.length > 0 || channelData.comments.length > 0)) {
+      try {
+        const sampleTarget = targetViewerComments
+          .slice(0, 45)
+          .map((c) => `- (${c.author}): ${c.text.replace(/\s+/g, ' ').slice(0, 280)}`)
+          .join('\n');
+        const sampleChannel = channelData.comments
+          .slice(0, 55)
+          .map(
+            (c) =>
+              `- [${(c.videoTitle || '').slice(0, 55)}] (${c.author}): ${c.text
+                .replace(/\s+/g, ' ')
+                .slice(0, 260)}`
+          )
+          .join('\n');
+
+        const promptText = `Actúa como Investigador Jefe y Estratega de Contenido de "Huellas de la Humanidad" (${HUELLAS_OFFICIAL_CHANNEL_URL}).
+Hemos extraído los comentarios reales de dos fuentes:
+1) VIDEO DE YOUTUBE A ANALIZAR (${videoUrl || 'No especificado'} — Título: "${targetData.title || ''}"):
+${sampleTarget || '(Sin comentarios públicos detectados en este video)'}
+
+2) COMENTARIOS DE TODOS LOS VIDEOS DE MI CANAL OFICIAL (${HUELLAS_OFFICIAL_CHANNEL_HANDLE} — ${channelData.videoCount} videos escaneados):
+${sampleChannel || '(Sin comentarios adicionales)'}
+
+TU TAREA:
+Analiza todos estos comentarios buscando específicamente:
+- Preguntas, dudas históricas, vacíos de información o inquietudes que las personas dejaron en los comentarios.
+- Sugerencias de temas, enfoques, personajes, épocas o ángulos que las personas piden o debaten.
+- Qué puntos específicos DEBE incluir el PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA (Etapa 3) para que la investigación responda con rigor histórico a esas preguntas y aproveche esas sugerencias de la audiencia.
+
+Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
+{
+  "questionsDetected": [
+    "Pregunta o duda real detectada en los comentarios (indicando si viene del video analizado o de la comunidad de @huellas_de_la_humanidad)"
+  ],
+  "suggestionsDetected": [
+    "Sugerencia, petición o debate real detectado en los comentarios"
+  ],
+  "researchPromptDirectives": [
+    "Directriz concreta de investigación para incluir dentro del Prompt de Investigación Profunda de la Etapa 3 para responder a estas preguntas/sugerencias"
+  ]
+}`;
+
+        const models = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
+        for (const m of models) {
+          try {
+            const resp = await ai.models.generateContent({
+              model: m,
+              contents: [{ role: 'user', parts: [{ text: promptText }] }],
+              config: { responseMimeType: 'application/json' },
+            });
+            if (resp.text) {
+              const parsed = JSON.parse(resp.text.trim());
+              if (Array.isArray(parsed.questionsDetected)) {
+                aiSynthesizedQuestions = parsed.questionsDetected.map(String).filter(Boolean);
+              }
+              if (Array.isArray(parsed.suggestionsDetected)) {
+                aiSynthesizedSuggestions = parsed.suggestionsDetected.map(String).filter(Boolean);
+              }
+              if (Array.isArray(parsed.researchPromptDirectives)) {
+                aiResearchDirectives = parsed.researchPromptDirectives.map(String).filter(Boolean);
+              }
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
+    const finalQuestions =
+      aiSynthesizedQuestions.length > 0
+        ? aiSynthesizedQuestions
+        : [
+            ...targetClassified.questions.map((q) => `(Video analizado) ${q}`),
+            ...channelClassified.questions.map((q) => `(@huellas_de_la_humanidad) ${q}`),
+          ].slice(0, 12);
+
+    const finalSuggestions =
+      aiSynthesizedSuggestions.length > 0
+        ? aiSynthesizedSuggestions
+        : [
+            ...targetClassified.suggestions.map((s) => `(Video analizado) ${s}`),
+            ...channelClassified.suggestions.map((s) => `(@huellas_de_la_humanidad) ${s}`),
+            ...targetClassified.notableComments.slice(0, 4).map((n) => `(Reacción en video analizado) ${n}`),
+            ...channelClassified.notableComments
+              .slice(0, 4)
+              .map((n) => `(Reacción en @huellas_de_la_humanidad) ${n}`),
+          ].slice(0, 12);
+
+    const lines: string[] = [
+      `================================================================================`,
+      `💬 MINERÍA REAL DE COMENTARIOS DE LA AUDIENCIA (VIDEO ANALIZADO + CANAL ${HUELLAS_OFFICIAL_CHANNEL_HANDLE})`,
+      `================================================================================`,
+      `- Video de referencia analizado: ${targetData.title || videoUrl} (${targetViewerComments.length} comentarios leídos)`,
+      `- Canal propio escaneado (${HUELLAS_OFFICIAL_CHANNEL_URL}): ${channelData.videoCount} videos revisados (${channelData.comments.length} comentarios de suscriptores leídos)`,
+      ``,
+      `❓ PREGUNTAS, DUDAS E INQUIETUDES DE LAS PERSONAS EN LOS COMENTARIOS:`,
+      ...(finalQuestions.length > 0
+        ? finalQuestions.map((q, i) => `   ${i + 1}. ${q}`)
+        : [
+            `   - No se detectaron preguntas literales con signo de interrogación; analiza las reacciones de la audiencia para anticipar sus dudas históricas sobre "${targetData.title || 'este tema'}".`,
+          ]),
+      ``,
+      `💡 SUGERENCIAS, PETICIONES Y DEBATES DE LA AUDIENCIA EN LOS COMENTARIOS:`,
+      ...(finalSuggestions.length > 0
+        ? finalSuggestions.map((s, i) => `   ${i + 1}. ${s}`)
+        : [
+            `   - Profundizar en los detalles humanos, cotidianos y psicológicos que más despiertan conversación en la comunidad de ${HUELLAS_OFFICIAL_CHANNEL_HANDLE}.`,
+          ]),
+      ...(aiResearchDirectives.length > 0
+        ? [
+            ``,
+            `🎯 ÁNGULOS OBLIGATORIOS A INCLUIR EN EL PROMPT PARA REALIZAR LA INVESTIGACIÓN (ETAPA 3):`,
+            ...aiResearchDirectives.map((d, i) => `   ${i + 1}. ${d}`),
+          ]
+        : []),
+      ``,
+      `-> REGLA INQUEBRANTABLE SOBRE ESTOS COMENTARIOS (SOLO EN EL PROMPT DE INVESTIGACIÓN):`,
+      `   NO insertes estas preguntas ni sugerencias directamente como texto suelto en el resultado final, SINO INCLÚYELAS OBLIGATORIAMENTE DENTRO DEL PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA (Etapa 3, bloque del Prompt Maestro de Investigación) para que al ejecutar dicho prompt de investigación se investiguen y respondan a fondo todas las dudas, preguntas y sugerencias reales de la audiencia.`,
+      `================================================================================`,
+    ];
+
+    const researchPromptBlock = lines.join('\n');
+
+    res.json({
+      ok: true,
+      targetVideoId,
+      targetVideoTitle: targetData.title || videoUrl,
+      targetCommentsCount: targetViewerComments.length,
+      channelVideosScanned: channelData.videoCount,
+      channelCommentsCount: channelData.comments.length,
+      channelUpdatedAt: channelData.updatedAt,
+      questionsDetected: finalQuestions,
+      suggestionsDetected: finalSuggestions,
+      researchDirectives: aiResearchDirectives,
+      researchPromptBlock,
+    });
+  } catch (err: any) {
+    console.error('Error en /api/youtube/analyze-comments-research:', err);
+    res.status(500).json({
+      error: err?.message || 'Error al analizar comentarios de YouTube.',
+    });
   }
 });
 
