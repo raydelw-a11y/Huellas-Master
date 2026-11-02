@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:13 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:18 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3217,17 +3217,18 @@ export default function App() {
         clip.videoSavedFileName || buildClipSixWordFileName(clip, currentDoc || null);
 
       let matchedFile: File | null = null;
-      // Scan directory for all files starting with `${padded}_` and ending in `.mp4`, picking the newest lastModified
+      // Scan directory for all files matching clip number (both `06_...mp4` and `Clip_06_...mp4`), picking the newest lastModified
       try {
         for await (const [entryName, entryHandle] of (clipsDir as any).entries()) {
-          if (
-            entryHandle.kind === 'file' &&
-            entryName.startsWith(`${padded}_`) &&
-            entryName.toLowerCase().endsWith('.mp4')
-          ) {
-            const candidate = await entryHandle.getFile();
-            if (!matchedFile || candidate.lastModified >= matchedFile.lastModified) {
-              matchedFile = candidate;
+          if (entryHandle.kind === 'file') {
+            const mEntry = String(entryName).match(
+              /^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+            );
+            if (mEntry && parseInt(mEntry[1], 10) === clip.clipNumber) {
+              const candidate = await entryHandle.getFile();
+              if (!matchedFile || candidate.lastModified >= matchedFile.lastModified) {
+                matchedFile = candidate;
+              }
             }
           }
         }
@@ -3306,7 +3307,9 @@ export default function App() {
                 : activeHandle;
               for await (const [entryName, entryHandle] of (targetDir as any).entries()) {
                 if (entryHandle.kind !== 'file') continue;
-                const m = String(entryName).match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
+                const m = String(entryName).match(
+                  /^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+                );
                 if (m) {
                   const num = parseInt(m[1], 10);
                   if (num > 0) {
@@ -3416,7 +3419,6 @@ export default function App() {
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
 
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
-            const isDoc76 = extractDocVideoNumber(docTitle) === '76';
             const nextFileNames: Record<number, string> = {};
             setCapturedClipVideosMap((prev) => {
               const next = { ...prev };
@@ -3425,14 +3427,7 @@ export default function App() {
                 if (item.clipNumber > 0 && item.fileName) {
                   nextFileNames[item.clipNumber] = item.fileName;
                 }
-                if (
-                  item.clipNumber > 0 &&
-                  fullUrl &&
-                  (!next[item.clipNumber] ||
-                    next[item.clipNumber].includes('/api/flow/serve-folder-file') ||
-                    /[_\-]4k\.(mp4|webm|mov)$/i.test(item.fileName || '') ||
-                    (isDoc76 && item.clipNumber === 2))
-                ) {
+                if (item.clipNumber > 0 && fullUrl) {
                   next[item.clipNumber] = fullUrl;
                   loadedCount++;
                 }
@@ -3441,6 +3436,35 @@ export default function App() {
             });
             if (Object.keys(nextFileNames).length > 0) {
               setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextFileNames }));
+            }
+          }
+          if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0 && currentDoc?.clips?.length) {
+            const frameUrlByClip: Record<number, string> = {};
+            for (const fItem of data.clipFrames) {
+              if (fItem.clipNumber > 0 && fItem.url && !frameUrlByClip[fItem.clipNumber]) {
+                frameUrlByClip[fItem.clipNumber] = prefixUrl(fItem.url);
+              }
+            }
+            if (Object.keys(frameUrlByClip).length > 0) {
+              let clipsChanged = false;
+              const updatedClips = currentDoc.clips.map((c) => {
+                const freshImgUrl = frameUrlByClip[c.clipNumber];
+                if (freshImgUrl && c.imagePreviewUrl !== freshImgUrl) {
+                  clipsChanged = true;
+                  return {
+                    ...c,
+                    imagePreviewUrl: freshImgUrl,
+                    videoFrames: [freshImgUrl, freshImgUrl, freshImgUrl],
+                    imageReady: true,
+                    videoReady: true,
+                    reviewedForEditor: true,
+                  };
+                }
+                return c;
+              });
+              if (clipsChanged) {
+                updateActiveDoc({ clips: updatedClips });
+              }
             }
           }
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {

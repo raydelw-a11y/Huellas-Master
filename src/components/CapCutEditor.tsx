@@ -805,12 +805,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   }, [isEditorActive, isPlaying]);
 
-  // Reset extracted first frames and auto-query local server 05_Clips_Video when switching documentaries
+  const prevDocIdForMediaScanRef = useRef<string | undefined>(activeDoc?.id);
+
+  // Reset extracted first frames when switching documentaries, and re-query local server 05_Clips_Video whenever editor becomes active
   useEffect(() => {
-    setFirstFrameByClip({});
-    setLocalServerClipVideosMap({});
-    setLocalServerSunoMap({});
-    extractedVideoUrlByClipRef.current = {};
+    if (prevDocIdForMediaScanRef.current !== activeDoc?.id) {
+      prevDocIdForMediaScanRef.current = activeDoc?.id;
+      setFirstFrameByClip({});
+      setLocalServerClipVideosMap({});
+      setLocalServerSunoMap({});
+      extractedVideoUrlByClipRef.current = {};
+    }
 
     let cancelled = false;
     (async () => {
@@ -856,17 +861,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath]);
+  }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath, isEditorActive]);
 
-  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video when paused and no posterUrl exists
+  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video when paused or when a clip's videoUrl updates
   useEffect(() => {
     if (isPlaying) return;
     let cancelled = false;
     const clipsToExtract = timelineClips.filter(
       (c) =>
         c.videoUrl &&
-        !c.posterUrl &&
-        !firstFrameByClip[c.clipNumber] &&
         extractedVideoUrlByClipRef.current[c.clipNumber] !== c.videoUrl
     );
     if (clipsToExtract.length === 0) return;
@@ -1191,8 +1194,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
 
     const combinedClipVideosMap: Record<number, string> = {
-      ...localServerClipVideosMap,
       ...capturedClipVideosMap,
+      ...localServerClipVideosMap,
     };
     const combinedSunoAudioMap: Record<number, string> = {
       ...localServerSunoMap,

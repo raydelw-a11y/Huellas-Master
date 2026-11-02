@@ -3379,6 +3379,41 @@ app.get('/api/flow/list-folder-media', (req, res) => {
       for (const sub of videoSubfolders) {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+        const rawEntries = fs.readdirSync(dir);
+        // Auto-consolidate any newly regenerated Clip_XX_...mp4 into the canonical XX_six_words.mp4 file in the same folder
+        const canonicalSixWordByClip = new Map<number, string>();
+        for (const e of rawEntries) {
+          if (/^0*(\d+)_[a-zA-Z0-9].*\.(mp4|webm|mov)$/i.test(e) && !/^(?:clip|video)[_\-\s.]/i.test(e)) {
+            const mCan = e.match(/^0*(\d+)_/);
+            if (mCan) {
+              const n = parseInt(mCan[1], 10);
+              if (n > 0 && !canonicalSixWordByClip.has(n)) {
+                canonicalSixWordByClip.set(n, e);
+              }
+            }
+          }
+        }
+        for (const e of rawEntries) {
+          if (/^(?:clip|video)[_\-\s.]*0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i.test(e)) {
+            const mRegen = e.match(/^(?:clip|video)[_\-\s.]*0*(\d+)/i);
+            const n = mRegen ? parseInt(mRegen[1], 10) : 0;
+            const canName = n > 0 ? canonicalSixWordByClip.get(n) : undefined;
+            if (canName && canName !== e) {
+              const regenFull = path.join(dir, e);
+              const canFull = path.join(dir, canName);
+              try {
+                const stRegen = fs.statSync(regenFull);
+                const stCan = fs.statSync(canFull);
+                if (stRegen.isFile() && stRegen.size > 10000 && stRegen.mtimeMs >= stCan.mtimeMs) {
+                  fs.renameSync(regenFull, canFull);
+                  const now = new Date();
+                  fs.utimesSync(canFull, now, now);
+                }
+              } catch {}
+            }
+          }
+        }
+
         const entries = fs.readdirSync(dir).sort((a, b) => {
           try {
             return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
