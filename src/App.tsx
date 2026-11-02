@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:04 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:06 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -11102,6 +11102,25 @@ export default function App() {
                                 </span>
                               </div>
                             </div>
+                          </div>
+
+                          {/* Botón para copiar ambos prompts (Imagen + Clip) juntos, justo arriba de los prompts ocultos */}
+                          <div className="flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copyText(
+                                  `${(clip.imagePrompt || '').trim()}\n${(clip.videoPrompt || '').trim()}`,
+                                  `both-prompts-${clip.id}`
+                                )
+                              }
+                              className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-xs font-black text-amber-200 flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
+                              title={`Copiar juntos el Prompt de Imagen + el Prompt de Video del Clip ${paddedNum}`}
+                            >
+                              {copiedId === `both-prompts-${clip.id}`
+                                ? `✅ Prompts Imagen + Clip ${paddedNum} Copiados`
+                                : `📋 Copiar Prompts Imagen + Clip ${paddedNum} Juntos`}
+                            </button>
                           </div>
 
                           {/* Collapsible Prompts Section (Hidden by default so Video Viewer + Recreación + Revisado stay clean) */}
