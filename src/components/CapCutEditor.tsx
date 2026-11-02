@@ -3622,8 +3622,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 )}
               </div>
 
-              {/* Center Alignment Guide Lines (Horizontal + Vertical Crosshair in Center of Video Viewer) */}
-              {(selectedCanvasObject === 'hook_text' || isDraggingOrResizingHook) && (
+              {/* Center Alignment Guide Lines (Horizontal + Vertical Crosshair only while actively dragging/resizing) */}
+              {isDraggingOrResizingHook && (
                 <div className="absolute inset-0 pointer-events-none z-10">
                   {/* Vertical Center Guide Line (X = 50%) */}
                   <div
@@ -3652,7 +3652,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 3: Clip 1 Hook Text Overlay (Selectable, Draggable & Corner-Resizable directly inside the Video Viewer!) */}
+              {/* Layer 3: Clip 1 Hook Text Overlay (100% Real-Time WYSIWYG — never changes appearance when selected!) */}
               {(currentTime <= clip1OverlayEndSec || selectedCanvasObject === 'hook_text') &&
                 (clip1Line1 || clip1Line2 || selectedCanvasObject === 'hook_text') && (
                   <div
@@ -3662,11 +3662,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       setSelectedCanvasObject('hook_text');
                       setActiveInspectorTab('branding');
                     }}
-                    className={`absolute z-20 text-center cursor-move transition-shadow rounded-xl p-2.5 ${
-                      selectedCanvasObject === 'hook_text'
-                        ? 'ring-2 ring-amber-400 shadow-2xl bg-black/20'
-                        : 'hover:ring-1 hover:ring-amber-300/60'
-                    }`}
+                    className="group absolute z-20 text-center cursor-move rounded-xl p-2.5"
                     style={{
                       left: `${hookLeftPct}%`,
                       top: `${hookTopPct}%`,
@@ -3681,14 +3677,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }}
                     title="Mantén presionado y arrastra para mover por todo el video, o jala de las esquinas para alargar/achicar la caja de texto"
                   >
-                    {/* 4 Corner Handles + 2 Side Handles when Selected */}
+                    {/* Subtle Corner & Side Resize Handles (only visible when hovering directly over the text box) */}
                     {selectedCanvasObject === 'hook_text' && (
-                      <>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         {/* Top-Left Corner (NW) */}
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'nw')}
                           className="
-                            absolute -top-2 -left-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            absolute -top-2 -left-2 w-3.5 h-3.5 rounded-full bg-amber-400 border border-slate-950
                             cursor-nwse-resize shadow-md hover:scale-125 transition z-30
                           "
                           title="Jalar esquina para alargar/achicar caja y tamaño de texto"
@@ -3697,7 +3693,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'ne')}
                           className="
-                            absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            absolute -top-2 -right-2 w-3.5 h-3.5 rounded-full bg-amber-400 border border-slate-950
                             cursor-nesw-resize shadow-md hover:scale-125 transition z-30
                           "
                           title="Jalar esquina para alargar/achicar caja y tamaño de texto"
@@ -3706,7 +3702,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'sw')}
                           className="
-                            absolute -bottom-2 -left-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            absolute -bottom-2 -left-2 w-3.5 h-3.5 rounded-full bg-amber-400 border border-slate-950
                             cursor-nesw-resize shadow-md hover:scale-125 transition z-30
                           "
                           title="Jalar esquina para alargar/achicar caja y tamaño de texto"
@@ -3715,7 +3711,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'se')}
                           className="
-                            absolute -bottom-2 -right-2 w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-950
+                            absolute -bottom-2 -right-2 w-3.5 h-3.5 rounded-full bg-amber-400 border border-slate-950
                             cursor-nwse-resize shadow-md hover:scale-125 transition z-30
                           "
                           title="Jalar esquina para alargar/achicar caja y tamaño de texto"
@@ -3724,7 +3720,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'w')}
                           className="
-                            absolute top-1/2 -left-2 -translate-y-1/2 w-2.5 h-6 rounded-full bg-amber-300 border border-slate-950
+                            absolute top-1/2 -left-2 -translate-y-1/2 w-2 h-5 rounded-full bg-amber-300 border border-slate-950
                             cursor-ew-resize shadow hover:scale-110 transition z-30
                           "
                           title="Jalar lado izquierdo para alargar o achicar el ancho de la caja"
@@ -3733,185 +3729,102 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'e')}
                           className="
-                            absolute top-1/2 -right-2 -translate-y-1/2 w-2.5 h-6 rounded-full bg-amber-300 border border-slate-950
+                            absolute top-1/2 -right-2 -translate-y-1/2 w-2 h-5 rounded-full bg-amber-300 border border-slate-950
                             cursor-ew-resize shadow hover:scale-110 transition z-30
                           "
                           title="Jalar lado derecho para alargar o achicar el ancho de la caja"
                         />
-                      </>
+                      </div>
                     )}
 
-                    {selectedCanvasObject === 'hook_text' && !isPlaying ? (
-                      <div
-                        className="space-y-1.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      {clip1Line1 && (
                         <div
-                          onMouseDown={handleStartHookBoxDrag}
-                          className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-sans font-black text-amber-300 mb-1 cursor-move select-none"
+                          className="leading-snug"
+                          style={
+                            !isPlaying && (selectedCanvasObject === 'hook_text' || currentTime === 0)
+                              ? { opacity: 1, visibility: 'visible' }
+                              : {
+                                  opacity: liveHookLine1Anim.visible ? liveHookLine1Anim.opacity : 0,
+                                  visibility: liveHookLine1Anim.visible ? 'visible' : 'hidden',
+                                  transform: `translate3d(${liveHookLine1Anim.translateX}px, ${liveHookLine1Anim.translateY}px, 0) scale(${liveHookLine1Anim.scale})`,
+                                  filter:
+                                    liveHookLine1Anim.blurPx > 0.1
+                                      ? `blur(${liveHookLine1Anim.blurPx.toFixed(1)}px)`
+                                      : undefined,
+                                }
+                          }
                         >
-                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow">
-                            ✥ Arrastra • Jala esquinas • L1 ({hookLine1StartSec}s→{clip1OverlayEndSec}s) • L2 ({hookLine2StartSec}s→{clip1OverlayEndSec}s)
+                          <span
+                            className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
+                            style={{
+                              fontFamily: hookFontFamily,
+                              fontSize: `${hookLine1FontSize}px`,
+                              color: hookLine1Color,
+                              textShadow: getTextShadowCss(hookShadowStyle),
+                              boxDecorationBreak: 'clone',
+                              WebkitBoxDecorationBreak: 'clone',
+                              ...(hookBgStyle === 'word_shadow'
+                                ? {
+                                    backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
+                                    boxShadow: `0 0 12px 4px ${hexToRgba(
+                                      hookBgColor,
+                                      Math.round(hookBgOpacity * 0.85)
+                                    )}`,
+                                  }
+                                : {}),
+                            }}
+                          >
+                            {clip1Line1}
                           </span>
-                          {(hookLeftPct !== 50 || hookTopPct !== 50) && (
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHookLeftPct(50);
-                                setHookTopPct(50);
-                              }}
-                              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400/60 cursor-pointer"
-                              title="Centrar exactamente en la cruz central (50% X, 50% Y)"
-                            >
-                              🎯 Centrar
-                            </button>
-                          )}
                         </div>
-                        <textarea
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = 'auto';
-                              el.style.height = `${el.scrollHeight + 4}px`;
-                            }
-                          }}
-                          rows={Math.max(
-                            1,
-                            (clip1Line1 || '')
-                              .split('\n')
-                              .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 34)), 0)
-                          )}
-                          value={clip1Line1}
-                          onChange={(e) => {
-                            setClip1Line1(e.target.value);
-                            e.currentTarget.style.height = 'auto';
-                            e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          placeholder="Línea 1: Lugar y Año... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-bold uppercase tracking-widest outline-none focus:border-amber-300 resize-none overflow-hidden leading-snug cursor-text"
-                          style={{
-                            fontFamily: hookFontFamily,
-                            fontSize: `${hookLine1FontSize}px`,
-                            color: hookLine1Color,
-                            textShadow: getTextShadowCss(hookShadowStyle),
-                          }}
-                        />
-                        <textarea
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = 'auto';
-                              el.style.height = `${el.scrollHeight + 4}px`;
-                            }
-                          }}
-                          rows={Math.max(
-                            1,
-                            (clip1Line2 || '')
-                              .split('\n')
-                              .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 26)), 0)
-                          )}
-                          value={clip1Line2}
-                          onChange={(e) => {
-                            setClip1Line2(e.target.value);
-                            e.currentTarget.style.height = 'auto';
-                            e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          placeholder="Línea 2: Título Gancho en Pantalla... (Enter para saltar de línea)"
-                          className="w-full text-center bg-black/65 border border-amber-400/60 rounded-lg px-2.5 py-1 font-black uppercase tracking-wide outline-none focus:border-amber-300 resize-none overflow-hidden leading-snug cursor-text"
-                          style={{
-                            fontFamily: hookFontFamily,
-                            fontSize: `${hookLine2FontSize}px`,
-                            color: hookLine2Color,
-                            textShadow: getTextShadowCss(hookShadowStyle),
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 flex flex-col items-center">
-                        {clip1Line1 && (
-                          <div
-                            className="leading-snug"
+                      )}
+                      {clip1Line2 && (
+                        <div
+                          className="leading-snug"
+                          style={
+                            !isPlaying && (selectedCanvasObject === 'hook_text' || currentTime === 0)
+                              ? { opacity: 1, visibility: 'visible' }
+                              : {
+                                  opacity: liveHookLine2Anim.visible ? liveHookLine2Anim.opacity : 0,
+                                  visibility: liveHookLine2Anim.visible ? 'visible' : 'hidden',
+                                  transform: `translate3d(${liveHookLine2Anim.translateX}px, ${liveHookLine2Anim.translateY}px, 0) scale(${liveHookLine2Anim.scale})`,
+                                  filter:
+                                    liveHookLine2Anim.blurPx > 0.1
+                                      ? `blur(${liveHookLine2Anim.blurPx.toFixed(1)}px)`
+                                      : undefined,
+                                }
+                          }
+                        >
+                          <span
+                            className="font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
                             style={{
-                              opacity: liveHookLine1Anim.visible ? liveHookLine1Anim.opacity : 0,
-                              visibility: liveHookLine1Anim.visible ? 'visible' : 'hidden',
-                              transform: `translate3d(${liveHookLine1Anim.translateX}px, ${liveHookLine1Anim.translateY}px, 0) scale(${liveHookLine1Anim.scale})`,
-                              filter:
-                                liveHookLine1Anim.blurPx > 0.1
-                                  ? `blur(${liveHookLine1Anim.blurPx.toFixed(1)}px)`
-                                  : undefined,
+                              fontFamily: hookFontFamily,
+                              fontSize: `${hookLine2FontSize}px`,
+                              color: hookLine2Color,
+                              textShadow: getTextShadowCss(hookShadowStyle),
+                              boxDecorationBreak: 'clone',
+                              WebkitBoxDecorationBreak: 'clone',
+                              ...(hookBgStyle === 'word_shadow'
+                                ? {
+                                    backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
+                                    boxShadow: `0 0 14px 5px ${hexToRgba(
+                                      hookBgColor,
+                                      Math.round(hookBgOpacity * 0.85)
+                                    )}`,
+                                  }
+                                : {}),
                             }}
                           >
-                            <span
-                              className="font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
-                              style={{
-                                fontFamily: hookFontFamily,
-                                fontSize: `${hookLine1FontSize}px`,
-                                color: hookLine1Color,
-                                textShadow: getTextShadowCss(hookShadowStyle),
-                                boxDecorationBreak: 'clone',
-                                WebkitBoxDecorationBreak: 'clone',
-                                ...(hookBgStyle === 'word_shadow'
-                                  ? {
-                                      backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
-                                      boxShadow: `0 0 12px 4px ${hexToRgba(
-                                        hookBgColor,
-                                        Math.round(hookBgOpacity * 0.85)
-                                      )}`,
-                                    }
-                                  : {}),
-                              }}
-                            >
-                              {clip1Line1}
-                            </span>
-                          </div>
-                        )}
-                        {clip1Line2 && (
-                          <div
-                            className="leading-snug"
-                            style={{
-                              opacity: liveHookLine2Anim.visible ? liveHookLine2Anim.opacity : 0,
-                              visibility: liveHookLine2Anim.visible ? 'visible' : 'hidden',
-                              transform: `translate3d(${liveHookLine2Anim.translateX}px, ${liveHookLine2Anim.translateY}px, 0) scale(${liveHookLine2Anim.scale})`,
-                              filter:
-                                liveHookLine2Anim.blurPx > 0.1
-                                  ? `blur(${liveHookLine2Anim.blurPx.toFixed(1)}px)`
-                                  : undefined,
-                            }}
-                          >
-                            <span
-                              className="font-black uppercase tracking-wide px-2.5 py-0.5 rounded-md inline whitespace-pre-line"
-                              style={{
-                                fontFamily: hookFontFamily,
-                                fontSize: `${hookLine2FontSize}px`,
-                                color: hookLine2Color,
-                                textShadow: getTextShadowCss(hookShadowStyle),
-                                boxDecorationBreak: 'clone',
-                                WebkitBoxDecorationBreak: 'clone',
-                                ...(hookBgStyle === 'word_shadow'
-                                  ? {
-                                      backgroundColor: hexToRgba(hookBgColor, hookBgOpacity),
-                                      boxShadow: `0 0 14px 5px ${hexToRgba(
-                                        hookBgColor,
-                                        Math.round(hookBgOpacity * 0.85)
-                                      )}`,
-                                    }
-                                  : {}),
-                              }}
-                            >
-                              {clip1Line2}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                            {clip1Line2}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-              {/* Layer 4: Dynamic Captions (.SRT) — Selectable & Editable directly inside the Video Viewer! */}
+              {/* Layer 4: Dynamic Captions (.SRT) — 100% Real-Time WYSIWYG (never changes appearance when selected!) */}
               {(activeCaptionAtPlayhead || selectedCanvasObject === 'captions') && (
                 <div
                   className="absolute inset-x-4 z-20 text-center pointer-events-none"
@@ -3919,112 +3832,66 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     bottom: `${captionBottomPct}%`,
                     opacity:
                       selectedCanvasObject === 'captions' && !isPlaying ? 1 : liveCaptionAnim.opacity,
-                    transform: `translate3d(${liveCaptionAnim.translateX}px, ${liveCaptionAnim.translateY}px, 0) scale(${liveCaptionAnim.scale})`,
+                    transform:
+                      selectedCanvasObject === 'captions' && !isPlaying
+                        ? undefined
+                        : `translate3d(${liveCaptionAnim.translateX}px, ${liveCaptionAnim.translateY}px, 0) scale(${liveCaptionAnim.scale})`,
                     filter:
-                      liveCaptionAnim.blurPx > 0.1
+                      selectedCanvasObject === 'captions' && !isPlaying
+                        ? undefined
+                        : liveCaptionAnim.blurPx > 0.1
                         ? `blur(${liveCaptionAnim.blurPx.toFixed(1)}px)`
                         : undefined,
                   }}
                 >
-                  {selectedCanvasObject === 'captions' && activeCaptionAtPlayhead ? (
-                    <div
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      className="pointer-events-auto inline-flex flex-col items-center gap-1 bg-black/85 border-2 border-sky-400 rounded-xl p-2 shadow-2xl min-w-[280px] max-w-[90%]"
-                    >
-                      <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-950 font-sans font-black text-[9px]">
-                        💬 Editando Caption #{activeCaptionAtPlayhead.index} ({formatTimeMMSS(activeCaptionAtPlayhead.start)} - {formatTimeMMSS(activeCaptionAtPlayhead.end)})
-                      </span>
-                      <textarea
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = 'auto';
-                            el.style.height = `${el.scrollHeight + 4}px`;
+                  <span
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCanvasObject('captions');
+                      setActiveInspectorTab('captions');
+                    }}
+                    title="Haz clic para seleccionar los Captions y ver tus cambios de estilo en tiempo real"
+                    className={`pointer-events-auto cursor-pointer ${
+                      captionBgStyle === 'word_shadow'
+                        ? 'inline px-2.5 py-0.5 rounded-md'
+                        : 'inline-block px-3.5 py-1 rounded-lg'
+                    } font-extrabold transition whitespace-pre-line`}
+                    style={{
+                      fontFamily: captionFontFamily,
+                      fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
+                      color:
+                        captionColor === 'amber'
+                          ? '#fde047'
+                          : captionColor === 'custom'
+                          ? captionCustomColor
+                          : '#ffffff',
+                      textShadow: getTextShadowCss(captionShadowStyle),
+                      boxDecorationBreak: 'clone',
+                      WebkitBoxDecorationBreak: 'clone',
+                      backgroundColor:
+                        captionBgStyle === 'none'
+                          ? 'transparent'
+                          : hexToRgba(
+                              captionBgColor,
+                              captionBgStyle === 'solid' ? 95 : captionBgOpacity
+                            ),
+                      ...(captionBgStyle === 'word_shadow'
+                        ? {
+                            boxShadow: `0 0 12px 4px ${hexToRgba(
+                              captionBgColor,
+                              Math.round(captionBgOpacity * 0.85)
+                            )}`,
                           }
-                        }}
-                        rows={Math.max(
-                          1,
-                          (activeCaptionAtPlayhead.text || '')
-                            .split('\n')
-                            .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / 32)), 0)
-                        )}
-                        value={activeCaptionAtPlayhead.text}
-                        onChange={(e) => {
-                          const newText = e.target.value;
-                          e.currentTarget.style.height = 'auto';
-                          e.currentTarget.style.height = `${e.currentTarget.scrollHeight + 4}px`;
-                          setCaptions((prev) =>
-                            prev.map((c) =>
-                              c.id === activeCaptionAtPlayhead.id ? { ...c, text: newText } : c
-                            )
-                          );
-                        }}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className="w-full text-center bg-slate-950/90 border border-sky-400/50 rounded-lg px-3 py-1 font-extrabold outline-none resize-none overflow-hidden leading-snug"
-                        style={{
-                          fontFamily: captionFontFamily,
-                          fontSize: `${Math.max(13, captionFontSize * 0.78)}px`,
-                          color:
-                            captionColor === 'amber'
-                              ? '#fde047'
-                              : captionColor === 'custom'
-                              ? captionCustomColor
-                              : '#ffffff',
-                          textShadow: getTextShadowCss(captionShadowStyle),
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <span
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCanvasObject('captions');
-                        setActiveInspectorTab('captions');
-                      }}
-                      title="Haz clic para seleccionar y editar los Captions directamente aquí"
-                      className={`pointer-events-auto cursor-pointer ${
-                        captionBgStyle === 'word_shadow' ? 'inline px-2.5 py-0.5 rounded-md' : 'inline-block px-3.5 py-1 rounded-lg'
-                      } font-extrabold transition whitespace-pre-line ${
-                        selectedCanvasObject === 'captions'
-                          ? 'ring-2 ring-sky-400'
-                          : 'hover:ring-1 hover:ring-sky-400/60'
-                      }`}
-                      style={{
-                        fontFamily: captionFontFamily,
-                        fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
-                        color:
-                          captionColor === 'amber'
-                            ? '#fde047'
-                            : captionColor === 'custom'
-                            ? captionCustomColor
-                            : '#ffffff',
-                        textShadow: getTextShadowCss(captionShadowStyle),
-                        boxDecorationBreak: 'clone',
-                        WebkitBoxDecorationBreak: 'clone',
-                        backgroundColor:
-                          captionBgStyle === 'none'
-                            ? 'transparent'
-                            : hexToRgba(
-                                captionBgColor,
-                                captionBgStyle === 'solid' ? 95 : captionBgOpacity
-                              ),
-                        ...(captionBgStyle === 'word_shadow'
-                          ? {
-                              boxShadow: `0 0 12px 4px ${hexToRgba(
-                                captionBgColor,
-                                Math.round(captionBgOpacity * 0.85)
-                              )}`,
-                            }
-                          : {}),
-                      }}
-                    >
-                      {activeCaptionAtPlayhead?.text ||
-                        (currentTime < voiceStartOffsetSec
-                          ? `🎙️ Subtítulos inician en 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}`
-                          : '💬 Subtítulos activos')}
-                    </span>
-                  )}
+                        : {}),
+                    }}
+                  >
+                    {activeCaptionAtPlayhead?.text ||
+                      captions[0]?.text ||
+                      (currentTime < voiceStartOffsetSec
+                        ? `🎙️ Subtítulos inician en 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}`
+                        : '💬 Subtítulos activos')}
+                  </span>
                 </div>
               )}
 
@@ -4099,6 +3966,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <span className="font-black text-amber-300 text-[11px]">
                 🔤 Estilo Texto en Pantalla:
               </span>
+              <input
+                type="text"
+                value={clip1Line1}
+                onChange={(e) => setClip1Line1(e.target.value)}
+                placeholder="Línea 1: Lugar y Año..."
+                className="w-44 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-200 outline-none focus:border-amber-400"
+                title="Texto Línea 1 (en vivo en el visor)"
+              />
+              <input
+                type="text"
+                value={clip1Line2}
+                onChange={(e) => setClip1Line2(e.target.value)}
+                placeholder="Línea 2: Título Gancho..."
+                className="w-48 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-amber-400"
+                title="Texto Línea 2 (en vivo en el visor)"
+              />
+              {(hookLeftPct !== 50 || hookTopPct !== 50) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHookLeftPct(50);
+                    setHookTopPct(50);
+                  }}
+                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400/60 text-[11px] font-bold cursor-pointer"
+                  title="Centrar exactamente en la cruz central (50% X, 50% Y)"
+                >
+                  🎯 Centrar
+                </button>
+              )}
               <select
                 value={hookFontFamily}
                 onChange={(e) => setHookFontFamily(e.target.value)}
@@ -4258,6 +4154,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <span className="font-black text-sky-300 text-[11px]">
                 💬 Estilo Captions:
               </span>
+              {(activeCaptionAtPlayhead || captions[0]) && (
+                <input
+                  type="text"
+                  value={(activeCaptionAtPlayhead || captions[0]).text}
+                  onChange={(e) => {
+                    const targetCap = activeCaptionAtPlayhead || captions[0];
+                    if (!targetCap) return;
+                    const newText = e.target.value;
+                    setCaptions((prev) =>
+                      prev.map((c) => (c.id === targetCap.id ? { ...c, text: newText } : c))
+                    );
+                  }}
+                  placeholder="Texto del caption actual..."
+                  className="w-56 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-sky-400"
+                  title="Editar texto del caption actual (en vivo en el visor)"
+                />
+              )}
               <select
                 value={captionFontFamily}
                 onChange={(e) => setCaptionFontFamily(e.target.value)}
