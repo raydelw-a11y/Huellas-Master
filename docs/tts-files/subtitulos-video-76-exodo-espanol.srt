@@ -43,11 +43,11 @@ Atlántico hacia un destino incierto.
 3 millones de personas nacidas
 
 12
-00:00:33,134 --> 00:00:35,079
+00:00:33,134 --> 00:00:34,860
 en aldeas sin luz eléctrica
 
 13
-00:00:35,079 --> 00:00:36,940
+00:00:35,430 --> 00:00:36,940
 transformar para siempre
 
 14
@@ -695,11 +695,11 @@ de piedra quemado,
 grasa de máquinas recalentada
 
 175
-00:05:52,960 --> 00:05:54,712
+00:05:52,960 --> 00:05:54,650
 y desinfectante de creolina
 
 176
-00:05:54,712 --> 00:05:56,830
+00:05:54,910 --> 00:05:56,830
 se mezclaba con el mareo colectivo
 
 177
@@ -927,7 +927,7 @@ de dril blanco almidonado
 y lentes de montura fina.
 
 233
-00:07:49,860 --> 00:07:51,938
+00:07:50,170 --> 00:07:51,938
 Mientras la Brigada de Desinfección
 
 234
@@ -1067,11 +1067,11 @@ como José Linares Moré
 a atentar contra su propia vida
 
 268
-00:08:56,000 --> 00:08:58,083
+00:08:56,000 --> 00:08:57,960
 y a otros como Indalecio Rodríguez
 
 269
-00:08:58,083 --> 00:08:59,950
+00:08:58,270 --> 00:08:59,950
 a fugarse entre las alambradas.
 
 270
@@ -1099,7 +1099,7 @@ de 18 años procedente
 de la aldea asturiana de Lué,
 
 276
-00:09:12,090 --> 00:09:13,764
+00:09:12,330 --> 00:09:13,764
 quien desembarcó en el otoño
 
 277
@@ -1379,11 +1379,11 @@ respirando el olor
 a salazón de bacalao,
 
 346
-00:11:22,290 --> 00:11:23,232
+00:11:22,290 --> 00:11:23,180
 aceite de oliva
 
 347
-00:11:23,232 --> 00:11:24,610
+00:11:23,460 --> 00:11:24,610
 y levadura fermentada.
 
 348
@@ -1475,11 +1475,11 @@ convirtiéndose en socio
 industrial en comandita
 
 370
-00:12:03,490 --> 00:12:05,174
+00:12:03,490 --> 00:12:04,960
 mientras el viejo propietario
 
 371
-00:12:05,174 --> 00:12:06,210
+00:12:05,240 --> 00:12:06,210
 regresaba a España.
 
 372
@@ -1711,19 +1711,19 @@ con su traje gastado,
 boina negra,
 
 429
-00:13:49,510 --> 00:13:51,318
+00:13:49,510 --> 00:13:51,110
 chamarra de pastor zamorano
 
 430
-00:13:51,318 --> 00:13:52,900
+00:13:51,410 --> 00:13:52,900
 y gruesas gafas de concha
 
 431
-00:13:53,310 --> 00:13:55,357
+00:13:53,310 --> 00:13:55,170
 el poeta de 38 años
 
 432
-00:13:55,357 --> 00:13:56,830
+00:13:55,470 --> 00:13:56,830
 Pedro Garfias Zurita,
 
 433

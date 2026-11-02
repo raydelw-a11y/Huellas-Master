@@ -938,14 +938,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const isVideo76Doc = useMemo(() => {
+    const combined = `${effectiveVoiceoverUrl || ''} ${activeDoc?.title || ''} ${activeDoc?.topic || ''} ${activeDoc?.downloadFolderName || ''} ${(activeDoc?.voiceoverScript || '').slice(0, 400)}`.toLowerCase();
+    return (
+      combined.includes('tts-video-76-exodo-espanol') ||
+      combined.includes('video_76') ||
+      combined.includes('video 76') ||
+      combined.includes('éxodo español') ||
+      combined.includes('exodo espanol') ||
+      combined.includes('maliaño, santander')
+    );
+  }, [
+    effectiveVoiceoverUrl,
+    activeDoc?.title,
+    activeDoc?.topic,
+    activeDoc?.downloadFolderName,
+    activeDoc?.voiceoverScript,
+  ]);
+
   const effectiveVoiceDurationSec = useMemo(() => {
     if (voiceDurationSec > 1) return voiceDurationSec;
-    if (effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol')) return 890.83;
+    if (isVideo76Doc) return 890.83;
     if (effectiveVoiceoverUrl.includes('tts-1793103539750-763')) return 739.76;
     const trackDur = Number(activeDoc?.audioTracks?.[0]?.duration || 0);
     if (trackDur > 1) return trackDur;
     return 0;
-  }, [voiceDurationSec, activeDoc?.audioTracks, effectiveVoiceoverUrl]);
+  }, [voiceDurationSec, activeDoc?.audioTracks, effectiveVoiceoverUrl, isVideo76Doc]);
 
   // Detected acoustic silences from the real Voiceover MP3/WAV waveform
   const detectedAudioSilencesRef = useRef<Array<{ start: number; end: number; dur: number }>>([]);
@@ -1179,7 +1197,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : effectiveVoiceDurationSec;
     const maxCharsPerCaption = 34;
 
-    const isVideo76 = effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol');
+    const isVideo76 = isVideo76Doc;
     if (isVideo76 && prealignedVideo76SrtRef.current) {
       const parsed76 = parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset);
       if (parsed76.length > 0) {
@@ -1465,26 +1483,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
     });
 
-    // Level 1: Snap pause segment boundaries to matching long silences (>= 0.90s)
+    // Level 1: Align text paragraphs to explicit [pausa] silences (>= 1.45s) via DP so sentence pauses (< 1.45s) never shift paragraph bounds
     if (!isVideo76 && silences.length > 0) {
-      const longSilences = silences.filter((s) => s.dur >= 0.9);
-      for (let i = 0; i < segBounds.length; i++) {
-        const sb = segBounds[i];
-        if (sb.type === 'pause') {
-          const match = longSilences.find((ls) => Math.abs(ls.start - sb.start) < 4.5);
-          if (match) {
-            const oldEnd = sb.end;
-            sb.start = match.start;
-            sb.end = match.end;
-            if (i > 0) segBounds[i - 1].end = match.start;
-            if (i + 1 < segBounds.length) {
-              const delta = match.end - oldEnd;
-              for (let j = i + 1; j < segBounds.length; j++) {
-                segBounds[j].start += delta;
-                segBounds[j].end += delta;
+      const textSegIndices: number[] = [];
+      const textSegStrings: string[] = [];
+      segBounds.forEach((sb, idx) => {
+        if (sb.type === 'text' && sb.text) {
+          textSegIndices.push(idx);
+          textSegStrings.push(sb.text);
+        }
+      });
+      if (textSegStrings.length > 1) {
+        const firstSpeechStart =
+          silences[0] && silences[0].start < 0.05 ? silences[0].end : 0;
+        const lastSpeechEnd =
+          targetVoiceDur > 5 ? targetVoiceDur : segBounds[segBounds.length - 1].end;
+        const alignedParas = alignUnitsToSilences(
+          textSegStrings,
+          firstSpeechStart,
+          lastSpeechEnd,
+          silences,
+          1.45
+        );
+        if (alignedParas.length === textSegIndices.length) {
+          alignedParas.forEach((ap, pIdx) => {
+            const sbIdx = textSegIndices[pIdx];
+            segBounds[sbIdx].start = ap.start;
+            segBounds[sbIdx].end = ap.end;
+            if (pIdx > 0) {
+              const prevSbIdx = textSegIndices[pIdx - 1];
+              for (let k = prevSbIdx + 1; k < sbIdx; k++) {
+                segBounds[k].start = alignedParas[pIdx - 1].end;
+                segBounds[k].end = ap.start;
               }
             }
-          }
+          });
         }
       }
     }
@@ -1660,7 +1693,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Pre-load verified 3-Level Acoustically Locked SRT for Video 76 so playback captions match 100% immediately
   useEffect(() => {
-    if (!effectiveVoiceoverUrl.includes('tts-video-76-exodo-espanol')) return;
+    if (!isVideo76Doc) return;
     if (prealignedVideo76SrtRef.current) {
       setCaptions(parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec));
       return;
@@ -1677,7 +1710,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [effectiveVoiceoverUrl, voiceStartOffsetSec]);
+  }, [isVideo76Doc, voiceStartOffsetSec]);
 
   // Decode actual Voiceover MP3/WAV waveform via Web Audio API to extract exact acoustic silences & speech islands
   useEffect(() => {
@@ -1711,7 +1744,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const chData = audioBuf.getChannelData(0);
         const winSamples = Math.max(1, Math.floor(sr * 0.01)); // 10ms window for high-precision pause & breath detection
         const threshRms = 0.0115; // approx -38.8 dB
-        const silences: Array<{ start: number; end: number; dur: number }> = [];
+        const rawSilences: Array<{ start: number; end: number; dur: number }> = [];
         let silStart: number | null = null;
 
         for (let i = 0; i < chData.length; i += winSamples) {
@@ -1727,8 +1760,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             if (silStart === null) silStart = tSec;
           } else if (silStart !== null) {
             const dur = tSec - silStart;
-            if (dur >= 0.14) {
-              silences.push({ start: silStart, end: tSec, dur });
+            if (dur >= 0.12) {
+              rawSilences.push({ start: silStart, end: tSec, dur });
             }
             silStart = null;
           }
@@ -1736,8 +1769,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (silStart !== null) {
           const endT = chData.length / sr;
           const dur = endT - silStart;
-          if (dur >= 0.14) {
-            silences.push({ start: silStart, end: endT, dur });
+          if (dur >= 0.12) {
+            rawSilences.push({ start: silStart, end: endT, dur });
+          }
+        }
+
+        // Merge silences separated by tiny <0.05s noise blips so pauses are never fragmented
+        const silences: Array<{ start: number; end: number; dur: number }> = [];
+        for (const s of rawSilences) {
+          if (silences.length > 0 && s.start - silences[silences.length - 1].end < 0.05) {
+            silences[silences.length - 1].end = s.end;
+            silences[silences.length - 1].dur =
+              silences[silences.length - 1].end - silences[silences.length - 1].start;
+          } else if (s.dur >= 0.14) {
+            silences.push({ ...s });
           }
         }
 
