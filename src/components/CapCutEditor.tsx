@@ -652,13 +652,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
   const [captions, setCaptions] = useState<TimelineCaptionItem[]>([]);
-  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[2].value);
+  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[7].value);
   const [captionFontSize, setCaptionFontSize] = useState<number>(22);
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(11);
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>('white');
   const [captionCustomColor, setCaptionCustomColor] = useState<string>('#ffffff');
-  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>('outline');
-  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>('semi');
+  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>('cinema');
+  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>('word_shadow');
   const [captionBgColor, setCaptionBgColor] = useState<string>('#000000');
   const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(25);
 
