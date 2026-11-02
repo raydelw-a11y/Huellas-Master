@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Flow Music)",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow (incluyendo Story Studio flow-sdk) y Flow Music (flowmusic.app) abiertas en la misma ventana.",
   "permissions": [
     "debugger",
@@ -31,6 +31,7 @@
     "https://*.google.com/*",
     "http://localhost:4200/*",
     "http://127.0.0.1:4200/*",
+    "https://*.onrender.com/*",
     "https://raydelw-a11y.github.io/*",
     "https://huellasdelahumanidad.com/*",
     "https://*.huellasdelahumanidad.com/*"
@@ -43,6 +44,7 @@
       "matches": [
         "http://localhost:4200/*",
         "http://127.0.0.1:4200/*",
+        "https://*.onrender.com/*",
         "https://raydelw-a11y.github.io/*",
         "https://huellasdelahumanidad.com/*",
         "https://*.huellasdelahumanidad.com/*"

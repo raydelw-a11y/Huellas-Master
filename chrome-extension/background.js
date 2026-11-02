@@ -24,8 +24,7 @@ async function getConnectedAiTabsInWindow(windowId) {
       const lower = url.toLowerCase();
       return (
         lower.includes('flow.google.com') ||
-        (lower.includes('labs.google') && lower.includes('flow')) ||
-        lower.includes('usercontent.goog')
+        (lower.includes('labs.google') && lower.includes('flow'))
       );
     };
 
@@ -53,6 +52,9 @@ async function getConnectedAiTabsInWindow(windowId) {
         const aAbout = /\/about(\/|$|\?)/i.test(a.url || '') ? 1 : 0;
         const bAbout = /\/about(\/|$|\?)/i.test(b.url || '') ? 1 : 0;
         if (aAbout !== bAbout) return aAbout - bAbout;
+        const aProj = /\/project\//i.test(a.url || '') ? 0 : 1;
+        const bProj = /\/project\//i.test(b.url || '') ? 0 : 1;
+        if (aProj !== bProj) return aProj - bProj;
         if (Boolean(a.active) !== Boolean(b.active)) return a.active ? -1 : 1;
         return (b.id || 0) - (a.id || 0);
       });
@@ -213,8 +215,9 @@ async function ensureScriptInjected(tabId, scriptFile) {
 function isHuellasUrl(url) {
   if (!url) return false;
   return (
-    url.startsWith('http://localhost:4200') ||
-    url.startsWith('http://127.0.0.1:4200') ||
+    url.startsWith('http://localhost:') ||
+    url.startsWith('http://127.0.0.1:') ||
+    url.includes('.onrender.com') ||
     url.startsWith('https://raydelw-a11y.github.io') ||
     url.includes('huellasdelahumanidad.com')
   );
@@ -352,6 +355,13 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     return list;
   };
 
+  if (isVidPrompt) {
+    try {
+      const ssModal = document.getElementById('story-studio-modal-root');
+      if (ssModal) ssModal.remove();
+    } catch {}
+  }
+
   function findBottomPromptEditor() {
     const rawList = [
       ...collectNodesDeep(document, 'div.ProseMirror[contenteditable="true"]'),
@@ -374,7 +384,9 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         r.height > 12 &&
         r.bottom > 0 &&
         getComputedStyle(el).visibility !== 'hidden' &&
-        !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+        !el.closest(
+          '#story-studio-modal-root, .agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer'
+        )
       );
     });
 
@@ -716,6 +728,27 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     await sleepMain(300);
   }
 
+  // Re-localizar el editor inferior por si cambiar el modelo/modo o cerrar el popover reemplazó el nodo DOM
+  editorEl = findBottomPromptEditor() || editorEl;
+  if (!editorEl) {
+    return { injected: false, error: 'No se encontró la caja de prompt en Google Flow tras configurar el modelo.' };
+  }
+
+  const findProseMirrorView = (rootEl) => {
+    if (!rootEl) return null;
+    if (rootEl.pmViewDesc?.view) return rootEl.pmViewDesc.view;
+    try {
+      for (const ch of Array.from(rootEl.querySelectorAll('*'))) {
+        if (ch.pmViewDesc?.view) return ch.pmViewDesc.view;
+      }
+      let p = rootEl.parentElement;
+      for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
+        if (p.pmViewDesc?.view) return p.pmViewDesc.view;
+      }
+    } catch {}
+    return null;
+  };
+
   editorEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   editorEl.focus();
   editorEl.click();
@@ -739,10 +772,10 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       document.execCommand('insertText', false, safePrompt);
     } catch {}
 
-    // Si execCommand no insertó el texto, usar la vista interna de ProseMirror
-    const afterExec = (editorEl.innerText || editorEl.textContent || '').trim();
+    // Si execCommand no insertó el texto (p.ej. pestaña en segundo plano), usar la vista interna de ProseMirror
+    let afterExec = (editorEl.innerText || editorEl.textContent || '').trim();
     if (afterExec.length < 3) {
-      const pmView = editorEl.pmViewDesc?.view;
+      const pmView = findProseMirrorView(editorEl);
       if (pmView && pmView.state) {
         try {
           const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
@@ -750,10 +783,27 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         } catch {}
       }
     }
+
+    // Si aún sigue vacío en pestaña en segundo plano, disparar evento ClipboardEvent('paste')
+    afterExec = (editorEl.innerText || editorEl.textContent || '').trim();
+    if (afterExec.length < 3) {
+      try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', safePrompt);
+        editorEl.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clipboardData: dt,
+          })
+        );
+      } catch {}
+    }
   }
 
   // Sincronizar también pmViewDesc.view si existe y quedó vacío
-  const pmView = editorEl.pmViewDesc?.view;
+  const pmView = findProseMirrorView(editorEl);
   if (pmView && pmView.state && (pmView.state.doc.textContent || '').trim().length < 3) {
     try {
       const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
@@ -813,7 +863,10 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     }
   } catch {}
 
-  // Intentar primer click directo sobre button.generate-icon-button en MAIN world SÓLO si el modelo ya está en Veo 3.1 - Lite [Lower Priority]
+  const beforeClickLen = (editorEl.innerText || editorEl.textContent || editorEl.value || '').trim()
+    .length;
+
+  // Intentar primer click directo sobre button.generate-icon-button en MAIN world SÓLO si el texto ya está insertado y el modelo es Veo 3.1 - Lite [Lower Priority]
   const genBtn = Array.from(
     document.querySelectorAll(
       'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
@@ -829,17 +882,21 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     );
   });
 
-  if (genBtn && modelVerifiedOnTarget) {
+  let clickedGenBtnInMain = false;
+  if (genBtn && modelVerifiedOnTarget && beforeClickLen >= 3) {
     try {
       genBtn.click();
+      clickedGenBtnInMain = true;
     } catch {}
   }
 
   const finalLen = (editorEl.innerText || editorEl.textContent || editorEl.value || '').trim()
     .length;
   return {
-    injected: finalLen > 0 || Boolean(genBtn),
+    injected: true,
+    beforeClickLen,
     remainingLength: finalLen,
+    clickedGenBtnInMain,
     needsHardwareModelSwitch: !modelVerifiedOnTarget,
   };
 }
@@ -892,7 +949,9 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
       r.height > 14 &&
       r.bottom > 0 &&
       getComputedStyle(el).visibility !== 'hidden' &&
-      !el.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+      !el.closest(
+        '#story-studio-modal-root, .agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer'
+      )
     );
   });
 
@@ -909,6 +968,21 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
   const editorEl = allCandidates[0];
   let currentText = (editorEl.innerText || editorEl.textContent || editorEl.value || '').trim();
 
+  const findProseMirrorView = (rootEl) => {
+    if (!rootEl) return null;
+    if (rootEl.pmViewDesc?.view) return rootEl.pmViewDesc.view;
+    try {
+      for (const ch of Array.from(rootEl.querySelectorAll('*'))) {
+        if (ch.pmViewDesc?.view) return ch.pmViewDesc.view;
+      }
+      let p = rootEl.parentElement;
+      for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
+        if (p.pmViewDesc?.view) return p.pmViewDesc.view;
+      }
+    } catch {}
+    return null;
+  };
+
   // Si el editor está vacío, inyectar el texto ahora mismo y colocar el cursor al final
   if (currentText.length < 3 && promptText.length > 0) {
     editorEl.focus();
@@ -917,16 +991,30 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
       const range = document.createRange();
       range.selectNodeContents(editorEl);
       sel.removeAllRanges();
-      selection?.removeAllRanges?.();
       sel.addRange(range);
       document.execCommand('insertText', false, safePrompt);
     } catch {}
 
-    const pmView = editorEl.pmViewDesc?.view;
+    const pmView = findProseMirrorView(editorEl);
     if (pmView && pmView.state && (pmView.state.doc.textContent || '').trim().length < 3) {
       try {
         const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
         pmView.dispatch(tr);
+      } catch {}
+    }
+
+    if ((editorEl.innerText || editorEl.textContent || '').trim().length < 3) {
+      try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', safePrompt);
+        editorEl.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clipboardData: dt,
+          })
+        );
       } catch {}
     }
 
@@ -1036,7 +1124,14 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
   }
 
   let btnInfo = null;
+  let buttonWasDisabled = false;
   if (chosenBtn) {
+    buttonWasDisabled = Boolean(
+      chosenBtn.disabled ||
+        chosenBtn.hasAttribute('disabled') ||
+        chosenBtn.getAttribute('aria-disabled') === 'true' ||
+        chosenBtn.classList.contains('disabled')
+    );
     if (chosenBtn.hasAttribute('disabled') || chosenBtn.classList.contains('disabled')) {
       chosenBtn.removeAttribute('disabled');
       chosenBtn.removeAttribute('aria-disabled');
@@ -1054,7 +1149,9 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
 
   return {
     foundEditor: true,
+    safePrompt,
     textLength: currentText.length,
+    buttonWasDisabled,
     editorX: Math.round(editorRect.left + Math.min(60, editorRect.width * 0.3)),
     editorY: Math.round(editorRect.top + Math.min(24, editorRect.height / 2)),
     button: btnInfo,
@@ -2269,16 +2366,22 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
     return { success: true, submitted: false, method: 'INJECT_ONLY' };
   }
 
-  // Esperar 280ms por si el click en MAIN world ya envió el prompt
-  await sleep(280);
-  const [checkInitial] = await chrome.scripting.executeScript({
-    target: frameTarget,
-    world: 'MAIN',
-    func: checkBottomEditorSubmitted,
-  });
+  // Esperar 280ms por si el click en MAIN world ya envió el prompt (sólo si realmente se insertó texto y se pulsó genBtn con el modelo correcto)
+  if (
+    mainAttempt?.result?.clickedGenBtnInMain &&
+    !mainAttempt?.result?.needsHardwareModelSwitch &&
+    (mainAttempt?.result?.beforeClickLen || 0) >= 3
+  ) {
+    await sleep(280);
+    const [checkInitial] = await chrome.scripting.executeScript({
+      target: frameTarget,
+      world: 'MAIN',
+      func: checkBottomEditorSubmitted,
+    });
 
-  if (checkInitial?.result?.submitted) {
-    return { success: true, submitted: true, method: 'MAIN_WORLD_DIRECT' };
+    if (checkInitial?.result?.submitted) {
+      return { success: true, submitted: true, method: 'MAIN_WORLD_DIRECT' };
+    }
   }
 
   // 3. El texto ya está en la caja pero requiere evento físico (isTrusted: true) -> Adjuntar chrome.debugger
@@ -2488,7 +2591,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
     } catch {}
 
     // 4. Asegurar que el texto sigue en el editor inferior y obtener las coordenadas exactas de button.generate-icon-button
-    const [prep] = await chrome.scripting.executeScript({
+    let [prep] = await chrome.scripting.executeScript({
       target: frameTarget,
       world: 'MAIN',
       args: [rawPromptText, mediaType],
@@ -2497,6 +2600,88 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
 
     if (!prep?.result?.foundEditor) {
       throw new Error('No se encontró el editor inferior durante la fase CDP.');
+    }
+
+    // 4B. Siempre dar foco físico al editor y teclear el prompt a nivel nativo C++ con Input.insertText
+    //     para garantizar 100% que ProseMirror y Google Flow registren el texto incluso en segundo plano
+    await dispatchHardwareClick(target, prep.result.editorX, prep.result.editorY);
+    await sleep(90);
+
+    // Limpiar cualquier texto previo en el editor antes de Input.insertText para nunca duplicar
+    await chrome.scripting
+      .executeScript({
+        target: frameTarget,
+        world: 'MAIN',
+        func: () => {
+          try {
+            const cands = [
+              ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
+              ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
+              ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
+            ].filter((el) => {
+              const r = el.getBoundingClientRect();
+              return (
+                r.width > 60 &&
+                r.height > 14 &&
+                r.bottom > 0 &&
+                getComputedStyle(el).visibility !== 'hidden' &&
+                !el.closest(
+                  '#story-studio-modal-root, .agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer'
+                )
+              );
+            });
+            if (cands.length === 0) return;
+            cands.sort((a, b) => {
+              const ra = a.getBoundingClientRect();
+              const rb = b.getBoundingClientRect();
+              return rb.bottom * 2 + rb.width - (ra.bottom * 2 + ra.width);
+            });
+            const ed = cands[0];
+            ed.focus();
+            if (ed.tagName === 'TEXTAREA' || ed.tagName === 'INPUT') {
+              ed.value = '';
+            } else {
+              let pm = ed.pmViewDesc?.view;
+              if (!pm) {
+                for (const ch of Array.from(ed.querySelectorAll('*'))) {
+                  if (ch.pmViewDesc?.view) {
+                    pm = ch.pmViewDesc.view;
+                    break;
+                  }
+                }
+              }
+              if (pm && pm.state && pm.state.doc.content.size > 0) {
+                try {
+                  pm.dispatch(pm.state.tr.delete(0, pm.state.doc.content.size));
+                } catch {}
+              }
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(ed);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('delete', false, null);
+            }
+          } catch {}
+        },
+      })
+      .catch(() => {});
+
+    await sleep(50);
+    await chrome.debugger.sendCommand(target, 'Input.insertText', {
+      text: prep.result.safePrompt || String(rawPromptText || '').trim() + ' ',
+    });
+    await sleep(260);
+
+    // Re-medir el editor y el botón de enviar ahora que Google Flow habilitó genuinamente button.generate-icon-button
+    const [refreshedPrep] = await chrome.scripting.executeScript({
+      target: frameTarget,
+      world: 'MAIN',
+      args: [rawPromptText, mediaType],
+      func: ensurePromptAndGetSubmitCoords,
+    });
+    if (refreshedPrep?.result?.foundEditor) {
+      prep = refreshedPrep;
     }
 
     const { editorX, editorY, button } = prep.result;
@@ -2528,7 +2713,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
     await sleep(80);
     // Colapsar selección al final por si el clic seleccionó algo
     await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameTarget,
       world: 'MAIN',
       func: () => {
         const sel = window.getSelection();
@@ -2543,7 +2728,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
 
     // 7. Si después de Enter aún sigue el botón habilitado, volver a medir button.generate-icon-button y hacer clic físico una vez más
     const [afterEnterCheck] = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameTarget,
       world: 'MAIN',
       func: checkBottomEditorSubmitted,
     });

@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:41 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:45 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3468,7 +3468,6 @@ export default function App() {
       id: r.id,
       tag: r.tag,
       name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
-      imageUrl: r.imageUrl,
     }));
 
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
@@ -3480,7 +3479,6 @@ export default function App() {
       imagePrompt: imagePromptToSend || clip.imagePrompt || '',
       aspectRatio: flowAspectRatio,
       referenceAssetsForClips: refAssets,
-      storyStudioProjectJson: currentDoc ? buildStoryStudioProjectJson(currentDoc, true) : undefined,
       clipNumber: clip.clipNumber,
       clipId: clip.id,
       timeRange: clip.timeRange || '',
@@ -3878,7 +3876,6 @@ export default function App() {
       id: r.id,
       tag: r.tag,
       name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
-      imageUrl: r.imageUrl,
     }));
 
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
@@ -3895,12 +3892,11 @@ export default function App() {
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
         timeRange: c.timeRange || '',
-        durationSeconds: c.clipNumber === 1 ? clip1Sec : standardClipSec,
+        durationSeconds: Math.min(c.clipNumber === 1 ? clip1Sec : standardClipSec, 8),
       })),
-      storyStudioProjectJson: buildStoryStudioProjectJson(doc, true),
       clipNumber: batchClips[0].clipNumber,
       clipId: batchClips[0].id,
-      durationSeconds: batchClips[0].clipNumber === 1 ? clip1Sec : standardClipSec,
+      durationSeconds: Math.min(batchClips[0].clipNumber === 1 ? clip1Sec : standardClipSec, 8),
       batchStartClip: batchClips[0].clipNumber,
       batchEndClip: batchClips[batchClips.length - 1].clipNumber,
       expectedCount: batchClips.length,
@@ -4237,7 +4233,6 @@ export default function App() {
       mediaType: 'REFERENCES',
       referenceTags: referenceItems.map((r) => r.tag),
       referenceItems,
-      storyStudioProjectJson: storyStudioJson,
       storyStudioTargetTab: 'assets',
       autoCreateImages: true,
       expectedCount: Math.max(1, referenceItems.length),
@@ -5107,12 +5102,11 @@ export default function App() {
         id: r.id,
         tag: r.tag,
         name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
-        imageUrl: r.imageUrl,
       })),
       clipNumber: matchedClip ? matchedClip.clipNumber : clipIdentifier,
       clipId: matchedClip ? matchedClip.id : undefined,
       timeRange: matchedClip ? matchedClip.timeRange : undefined,
-      durationSeconds: mediaType === 'VIDEO' ? (resolvedClipNum === 1 ? clip1Sec : standardClipSec) : undefined,
+      durationSeconds: mediaType === 'VIDEO' ? Math.min(resolvedClipNum === 1 ? clip1Sec : standardClipSec, 8) : undefined,
       referenceId: matchedRef
         ? matchedRef.id
         : !matchedClip && mediaType === 'IMAGE' && clipIdentifier

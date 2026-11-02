@@ -3,7 +3,16 @@
 // ============================================================================
 
 (function () {
-  if (window.__HUELLAS_BRIDGE_LOADED__) return;
+  if (window.__HUELLAS_BRIDGE_WINDOW_LISTENER__) {
+    try {
+      window.removeEventListener('message', window.__HUELLAS_BRIDGE_WINDOW_LISTENER__);
+    } catch {}
+  }
+  if (window.__HUELLAS_BRIDGE_RUNTIME_LISTENER__) {
+    try {
+      chrome.runtime.onMessage.removeListener(window.__HUELLAS_BRIDGE_RUNTIME_LISTENER__);
+    } catch {}
+  }
   window.__HUELLAS_BRIDGE_LOADED__ = true;
 
   try {
@@ -14,17 +23,18 @@
 
   function requestAndNotifyExtensionReady() {
     const now = Date.now();
-    if (now - lastPingAt < 1500) return;
+    if (now - lastPingAt < 800) return;
     lastPingAt = now;
 
     try {
+      if (!chrome?.runtime?.id) return;
       chrome.runtime.sendMessage({ type: 'HUELLAS_PING_V2' }, (response) => {
         if (chrome.runtime.lastError) return;
         window.postMessage(
           {
             source: 'HUELLAS_EXTENSION',
             type: 'EXTENSION_READY',
-            version: response?.version || '1.2.0',
+            version: response?.version || '2.6.2',
             geminiTabs: response?.geminiTabs || [],
             flowTabs: response?.flowTabs || [],
           },
@@ -36,8 +46,16 @@
 
   requestAndNotifyExtensionReady();
 
-  window.addEventListener('message', (event) => {
+  window.__HUELLAS_BRIDGE_WINDOW_LISTENER__ = (event) => {
     if (event.source !== window || !event.data || event.data.source !== 'HUELLAS_APP') {
+      return;
+    }
+
+    // Si este content script pertenece a un contexto invalidado tras recargar la extensión, desregistrarlo
+    if (!chrome?.runtime?.id) {
+      try {
+        window.removeEventListener('message', window.__HUELLAS_BRIDGE_WINDOW_LISTENER__);
+      } catch {}
       return;
     }
 
@@ -50,14 +68,40 @@
 
     if (data.type === 'HUELLAS_COMMAND') {
       try {
+        const cleanPayload = { ...(data.payload || {}) };
+        if (cleanPayload.action === 'SEND_PROMPT') {
+          delete cleanPayload.storyStudioProjectJson;
+          if (Array.isArray(cleanPayload.referenceAssetsForClips)) {
+            cleanPayload.referenceAssetsForClips = cleanPayload.referenceAssetsForClips.map(
+              (r) => ({
+                id: r?.id,
+                tag: r?.tag,
+                name: r?.name,
+              })
+            );
+          }
+        }
+
         chrome.runtime.sendMessage(
           {
             type: 'HUELLAS_COMMAND',
             targetService: data.targetService,
-            payload: data.payload,
+            payload: cleanPayload,
           },
           (response) => {
-            if (chrome.runtime.lastError) return;
+            if (chrome.runtime.lastError) {
+              window.postMessage(
+                {
+                  source: 'HUELLAS_EXTENSION',
+                  type: 'BRIDGE_STATUS',
+                  service: data.targetService || 'FLOW',
+                  status: 'ERROR',
+                  message: `⚠️ Error de comunicación con la extensión: ${chrome.runtime.lastError.message}`,
+                },
+                '*'
+              );
+              return;
+            }
             window.postMessage(
               {
                 source: 'HUELLAS_EXTENSION',
@@ -69,11 +113,24 @@
             );
           }
         );
-      } catch {}
+      } catch (err) {
+        window.postMessage(
+          {
+            source: 'HUELLAS_EXTENSION',
+            type: 'BRIDGE_STATUS',
+            service: data.targetService || 'FLOW',
+            status: 'ERROR',
+            message: `⚠️ Recarga la página de Huellas Master tras actualizar la extensión (${String(err?.message || err)}).`,
+          },
+          '*'
+        );
+      }
     }
-  });
+  };
 
-  chrome.runtime.onMessage.addListener((message) => {
+  window.addEventListener('message', window.__HUELLAS_BRIDGE_WINDOW_LISTENER__);
+
+  window.__HUELLAS_BRIDGE_RUNTIME_LISTENER__ = (message) => {
     if (!message || typeof message !== 'object') return false;
     if (
       message.type === 'BRIDGE_STATUS' ||
@@ -95,5 +152,7 @@
       );
     }
     return false;
-  });
+  };
+
+  chrome.runtime.onMessage.addListener(window.__HUELLAS_BRIDGE_RUNTIME_LISTENER__);
 })();
