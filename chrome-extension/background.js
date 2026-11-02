@@ -1336,18 +1336,26 @@ async function checkFlowSdkAvailableInTab(tabId) {
           } catch {}
         }
 
-        const isStoryStudio = Boolean(
-          document.getElementById('story-studio-modal-root') ||
-            (Array.from(document.querySelectorAll('button')).some((b) =>
-              /1\.\s*Script/i.test(b.textContent || '')
-            ) &&
-              Array.from(document.querySelectorAll('button')).some((b) =>
-                /2\.\s*Assets/i.test(b.textContent || '')
-              )) ||
-            Array.from(document.querySelectorAll('button')).some((b) =>
-              /^get started$/i.test((b.textContent || '').trim())
-            )
+        const isHuellasBridgeTool = Boolean(
+          document.getElementById('huellas-flow-bridge-root') ||
+            window.__HUELLAS_FLOW_BRIDGE__ ||
+            typeof window.__HUELLAS_GENERATE_VIDEO__ === 'function'
         );
+
+        const isStoryStudio =
+          !isHuellasBridgeTool &&
+          Boolean(
+            document.getElementById('story-studio-modal-root') ||
+              (Array.from(document.querySelectorAll('button')).some((b) =>
+                /1\.\s*Script/i.test(b.textContent || '')
+              ) &&
+                Array.from(document.querySelectorAll('button')).some((b) =>
+                  /2\.\s*Assets/i.test(b.textContent || '')
+                )) ||
+              Array.from(document.querySelectorAll('button')).some((b) =>
+                /^get started$/i.test((b.textContent || '').trim())
+              )
+          );
 
         if (isStoryStudio && (!sdk || typeof sdk.generate?.image !== 'function')) {
           const getStartedBtn = Array.from(document.querySelectorAll('button')).find((b) =>
@@ -1363,7 +1371,13 @@ async function checkFlowSdkAvailableInTab(tabId) {
         }
 
         return {
-          hasSdk: Boolean(sdk && typeof sdk.generate?.image === 'function'),
+          hasSdk: Boolean(
+            isHuellasBridgeTool ||
+              (sdk &&
+                (typeof sdk.generate?.image === 'function' ||
+                  typeof sdk.generate?.video === 'function'))
+          ),
+          isHuellasBridgeTool,
           isStoryStudio,
         };
       },
@@ -1372,7 +1386,11 @@ async function checkFlowSdkAvailableInTab(tabId) {
     );
 
     if (probeRes && probeRes.hasSdk) {
-      return { hasSdk: true, isStoryStudio: true };
+      return {
+        hasSdk: true,
+        isHuellasBridgeTool: Boolean(probeRes.isHuellasBridgeTool),
+        isStoryStudio: Boolean(probeRes.isStoryStudio),
+      };
     }
 
     // Segunda pasada por si no tiene hasSdk pero sí tiene Story Studio abierto
@@ -1380,8 +1398,12 @@ async function checkFlowSdkAvailableInTab(tabId) {
       tabId,
       () => ({
         hasSdk: Boolean(
-          window.__HUELLAS_FLOW_SDK__ &&
-            typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function'
+          document.getElementById('huellas-flow-bridge-root') ||
+            window.__HUELLAS_FLOW_BRIDGE__ ||
+            typeof window.__HUELLAS_GENERATE_VIDEO__ === 'function' ||
+            (window.__HUELLAS_FLOW_SDK__ &&
+              (typeof window.__HUELLAS_FLOW_SDK__.generate?.image === 'function' ||
+                typeof window.__HUELLAS_FLOW_SDK__.generate?.video === 'function'))
         ),
         isStoryStudio: Boolean(
           document.getElementById('story-studio-modal-root') ||
@@ -1396,7 +1418,7 @@ async function checkFlowSdkAvailableInTab(tabId) {
 
     return {
       hasSdk: Boolean(ssRes?.hasSdk),
-      isStoryStudio: Boolean(ssRes?.isStoryStudio || ssRes?.hasSdk),
+      isStoryStudio: Boolean(ssRes?.isStoryStudio),
     };
   } catch {
     return { hasSdk: false, isStoryStudio: false };
@@ -1462,7 +1484,12 @@ async function generateSingleImageViaFlowSdk(
             }
           } catch {}
         }
-        if (!sdk || typeof sdk.generate?.image !== 'function') {
+        if (
+          typeof window.__HUELLAS_GENERATE_VIDEO__ !== 'function' &&
+          (!sdk ||
+            (typeof sdk.generate?.video !== 'function' &&
+              typeof sdk.generate?.image !== 'function'))
+        ) {
           return { hasSdk: false };
         }
 
@@ -1602,7 +1629,12 @@ async function generateSingleClipViaFlowSdk(
             }
           } catch {}
         }
-        if (!sdk || typeof sdk.generate?.image !== 'function') {
+        if (
+          typeof window.__HUELLAS_GENERATE_VIDEO__ !== 'function' &&
+          (!sdk ||
+            (typeof sdk.generate?.video !== 'function' &&
+              typeof sdk.generate?.image !== 'function'))
+        ) {
           return { hasSdk: false };
         }
 
@@ -1752,26 +1784,40 @@ async function generateSingleClipViaFlowSdk(
           }
         }
 
-        // 3B. Usar Flow.generate.video con 'Veo 3.1 - Lite [Lower Priority]' (probando variantes de clave de modelo del SDK)
-        if (!videoDataUrl && typeof sdk.generate?.video === 'function') {
-          const vidModelCandidates = [
+        // 3B. Usar Flow.generate.video con 'Veo 3.1 - Lite [Lower Priority]' (probando primero la firma limpia exacta del SDK)
+        if (!videoDataUrl && typeof sdk?.generate?.video === 'function') {
+          const cleanMinimalOpts = {
+            prompt: cleanVidPrompt,
+            aspectRatio: ratio || '16:9',
+            ...(referenceImageMediaIds.length > 0 ? { referenceImageMediaIds } : {}),
+          };
+          const vidAttempts = [
             {
+              ...cleanMinimalOpts,
+              modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]',
+            },
+            {
+              ...cleanMinimalOpts,
+              resolution: '720p',
+              durationSeconds: targetDurationSec,
+              modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]',
+            },
+            {
+              ...baseVidOpts,
               modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]',
               model: 'Veo 3.1 - Lite [Lower Priority]',
             },
-            { modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
-            { model: 'veo-3.1-lite-lower-priority', modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
-            { model: 'veo-3.1-lite', modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
+            {
+              ...cleanMinimalOpts,
+            },
           ];
-          for (const modelParams of vidModelCandidates) {
+          for (const attemptOpts of vidAttempts) {
             try {
-              const vidRes = await sdk.generate.video({
-                ...baseVidOpts,
-                ...modelParams,
-              });
-              if (vidRes && vidRes.base64) {
+              const vidRes = await sdk.generate.video(attemptOpts);
+              if (vidRes && (vidRes.base64 || vidRes.videoDataUrl)) {
                 const vMime = vidRes.mimeType || 'video/mp4';
-                videoDataUrl = `data:${vMime};base64,${vidRes.base64}`;
+                videoDataUrl =
+                  vidRes.videoDataUrl || `data:${vMime};base64,${vidRes.base64}`;
                 videoMediaId = vidRes.mediaId;
                 videoMode = 'NATIVE_VIDEO_Veo 3.1 - Lite [Lower Priority]';
                 break;
@@ -2769,58 +2815,140 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
 
             // 1D. Etapa 8 (Video de Clip individual / Lotes de 10):
-            // Si el Tool dentro de Google Flow expone flow-sdk (`window.__HUELLAS_GENERATE_VIDEO__` o `Flow.generate.video`),
+            // Si el Tool propio "Huellas Master Bridge" dentro de Google Flow está abierto (`window.__HUELLAS_GENERATE_VIDEO__` o `Flow.generate.video`),
             // ejecutar primero vía SDK directo con 'Veo 3.1 - Lite [Lower Priority]' (x1, 0 créditos).
             // Si no devuelve MP4 nativo (o el Tool no está abierto), caer automáticamente a la barra inferior de Google Flow.
             if (payload.mediaType === 'VIDEO' && sdkStatus.hasSdk) {
-              const clipNum = Number(payload.clipNumber) || 1;
-              const ratio = payload.aspectRatio || '16:9';
-              const refAssets = Array.isArray(payload.referenceItems)
-                ? payload.referenceItems
-                : [];
-              broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                type: 'BRIDGE_STATUS',
-                service: 'FLOW',
-                status: 'GENERATING',
-                message: `🎬 Generando Video Clip #${clipNum} en el Tool de Google Flow (Veo 3.1 - Lite [Lower Priority] • x1 • 0 créditos)...`,
-                mediaType: 'VIDEO',
-                clipNumber: clipNum,
-              });
-              const clipRes = await generateSingleClipViaFlowSdk(
-                targetTab.id,
-                {
-                  clipNumber: clipNum,
-                  prompt: text,
-                  title: `Clip #${clipNum}`,
-                },
-                ratio,
-                refAssets
-              );
-              if (clipRes && clipRes.isNativeVideo && clipRes.videoDataUrl) {
-                broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                  type: 'FLOW_VIDEO_CAPTURED',
-                  videoUrl: clipRes.videoDataUrl,
-                  frames: Array.isArray(clipRes.frames) ? clipRes.frames : [],
-                  clipNumber: clipNum,
-                  aspectRatio: ratio,
-                  timestamp: Date.now(),
-                });
-                broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                  type: 'BRIDGE_STATUS',
-                  service: 'FLOW',
-                  status: 'READY',
-                  message: `✅ Video Clip #${clipNum} generado con Veo 3.1 - Lite [Lower Priority] (0 créditos) y enviado a Huellas Master.`,
-                  mediaType: 'VIDEO',
-                  clipNumber: clipNum,
-                });
-                sendResponse({
-                  ok: true,
-                  tabId: targetTab.id,
-                  tabTitle: targetTab.title,
-                  method: 'FLOW_SDK_NATIVE_VIDEO',
-                  clipNumber: clipNum,
-                });
-                return;
+              try {
+                const ratio = payload.aspectRatio === '9:16' ? '9:16' : '16:9';
+                const refAssets = Array.isArray(payload.referenceAssetsForClips)
+                  ? payload.referenceAssetsForClips
+                  : Array.isArray(payload.referenceItems)
+                  ? payload.referenceItems
+                  : [];
+
+                if (Array.isArray(payload.batchClipsData) && payload.batchClipsData.length > 1) {
+                  const bClips = payload.batchClipsData;
+                  const firstClip = bClips[0];
+                  const firstRes = await generateSingleClipViaFlowSdk(
+                    targetTab.id,
+                    firstClip,
+                    ratio,
+                    refAssets
+                  );
+                  if (firstRes && firstRes.isNativeVideo && firstRes.videoDataUrl) {
+                    sendResponse({
+                      ok: true,
+                      tabId: targetTab.id,
+                      tabTitle: targetTab.title,
+                      method: 'FLOW_SDK_NATIVE_VIDEO_BATCH',
+                      total: bClips.length,
+                    });
+                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                      type: 'FLOW_VIDEO_CAPTURED',
+                      videoUrl: firstRes.videoDataUrl,
+                      videoDataUrl: firstRes.videoDataUrl,
+                      frames: Array.isArray(firstRes.frames) ? firstRes.frames : [],
+                      clipNumber: Number(firstClip.clipNumber) || 1,
+                      clipId: firstClip.id,
+                      aspectRatio: ratio,
+                      timestamp: Date.now(),
+                    });
+                    (async () => {
+                      for (let i = 1; i < bClips.length; i++) {
+                        if (stopFlowAutoPilotRequested) break;
+                        const cItem = bClips[i];
+                        const cNum = Number(cItem.clipNumber) || i + 1;
+                        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                          type: 'BRIDGE_STATUS',
+                          service: 'FLOW',
+                          status: 'GENERATING',
+                          message: `🎬 Tool Huellas Flow (${i + 1}/${bClips.length}): Generando Clip #${cNum} con Veo 3.1 - Lite [Lower Priority] (0 créditos)...`,
+                          mediaType: 'VIDEO',
+                          clipNumber: cNum,
+                          clipId: cItem.id,
+                        });
+                        const cRes = await generateSingleClipViaFlowSdk(
+                          targetTab.id,
+                          cItem,
+                          ratio,
+                          refAssets
+                        );
+                        if (cRes && cRes.isNativeVideo && cRes.videoDataUrl) {
+                          broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                            type: 'FLOW_VIDEO_CAPTURED',
+                            videoUrl: cRes.videoDataUrl,
+                            videoDataUrl: cRes.videoDataUrl,
+                            frames: Array.isArray(cRes.frames) ? cRes.frames : [],
+                            clipNumber: cNum,
+                            clipId: cItem.id,
+                            aspectRatio: ratio,
+                            timestamp: Date.now(),
+                          });
+                        }
+                      }
+                    })();
+                    return;
+                  }
+                } else {
+                  const clipNum = Number(payload.clipNumber) || 1;
+                  const clipPromptText = String(
+                    payload.prompt || payload.videoPrompt || payload.imagePrompt || ''
+                  ).slice(0, 3950);
+                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                    type: 'BRIDGE_STATUS',
+                    service: 'FLOW',
+                    status: 'GENERATING',
+                    message: `🎬 Generando Video Clip #${clipNum} en el Tool Huellas Flow (Veo 3.1 - Lite [Lower Priority] • x1 • 0 créditos)...`,
+                    mediaType: 'VIDEO',
+                    clipNumber: clipNum,
+                    clipId: payload.clipId,
+                  });
+                  const clipRes = await generateSingleClipViaFlowSdk(
+                    targetTab.id,
+                    {
+                      id: payload.clipId,
+                      clipNumber: clipNum,
+                      prompt: clipPromptText,
+                      videoPrompt: clipPromptText,
+                      imagePrompt: payload.imagePrompt || clipPromptText,
+                      title: `Clip #${clipNum}`,
+                    },
+                    ratio,
+                    refAssets
+                  );
+                  if (clipRes && clipRes.isNativeVideo && clipRes.videoDataUrl) {
+                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                      type: 'FLOW_VIDEO_CAPTURED',
+                      videoUrl: clipRes.videoDataUrl,
+                      videoDataUrl: clipRes.videoDataUrl,
+                      frames: Array.isArray(clipRes.frames) ? clipRes.frames : [],
+                      clipNumber: clipNum,
+                      clipId: payload.clipId,
+                      aspectRatio: ratio,
+                      timestamp: Date.now(),
+                    });
+                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                      type: 'BRIDGE_STATUS',
+                      service: 'FLOW',
+                      status: 'READY',
+                      message: `✅ Video Clip #${clipNum} generado con Veo 3.1 - Lite [Lower Priority] (0 créditos) y enviado a Huellas Master.`,
+                      mediaType: 'VIDEO',
+                      clipNumber: clipNum,
+                      clipId: payload.clipId,
+                    });
+                    sendResponse({
+                      ok: true,
+                      tabId: targetTab.id,
+                      tabTitle: targetTab.title,
+                      method: 'FLOW_SDK_NATIVE_VIDEO',
+                      clipNumber: clipNum,
+                    });
+                    return;
+                  }
+                }
+              } catch (sdkVidErr) {
+                console.warn('[Huellas Flow SDK Video] Fallback to bottom bar:', sdkVidErr);
               }
             }
 
