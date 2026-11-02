@@ -118,7 +118,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:44 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:55 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -789,6 +789,9 @@ export default function App() {
   // Keep at most 6 active <video> WebMediaPlayer instances mounted simultaneously in Stage 8 so Chrome never hits its 75-player limit or 6-socket HTTP/1.1 deadlock
   const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const autoPlayStage8ClipRef = useRef<number | null>(null);
+  const [loadingSingleClipMap, setLoadingSingleClipMap] = useState<
+    Record<number, 'loading' | 'done'>
+  >({});
 
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
@@ -3312,6 +3315,157 @@ export default function App() {
       }
     } catch {}
     return '';
+  };
+
+  // Single Clip Button ("Cargar Clip"): Finds latest generated version of the clip in 05_Clips_Video / Downloads, upscales it to 4K (_4K.mp4), and updates the documentary & Video Editor
+  const handleLoadAndUpscaleSingleClip = async (clip: DocumentaryClip) => {
+    const clipNum = clip.clipNumber;
+    const padded = String(clipNum).padStart(2, '0');
+    setLoadingSingleClipMap((prev) => ({ ...prev, [clipNum]: 'loading' }));
+    setFlowStatusLog(
+      `⏳ Buscando la última versión generada del Clip ${padded}, mejorando a 4K UHD y actualizando en el documental...`
+    );
+
+    try {
+      const currentDoc = activeDocRef.current || activeDoc;
+      const rawFolderPath = (
+        flowServerFolderPath ||
+        currentDoc?.downloadFolderPath ||
+        localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+        ''
+      ).trim();
+      const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
+      const folderName = (
+        (flowDownloadDirHandleRef.current?.name &&
+        doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+          ? flowDownloadDirHandleRef.current.name
+          : '') ||
+        (doesFolderMatchDoc(flowDownloadFolderName, currentDoc) ? flowDownloadFolderName : '') ||
+        (doesFolderMatchDoc(currentDoc?.downloadFolderName, currentDoc)
+          ? currentDoc?.downloadFolderName
+          : '') ||
+        getCanonicalFolderNameForDoc(currentDoc) ||
+        ''
+      ).trim();
+      const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
+      const isVertical =
+        currentDoc?.productionType === 'REEL_9X16' ||
+        currentDoc?.promptConfig?.SUB_OPCION_REELS === '9X16';
+      const aspectRatio = isVertical ? '9:16' : '16:9';
+      const expectedFileName = buildClipSixWordFileName(clip, currentDoc || null);
+
+      const isLocalhostOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const apiBases = isLocalhostOrigin
+        ? ['']
+        : isCloudMode
+        ? ['http://localhost:4200']
+        : ['', 'http://localhost:4200'];
+
+      let loadedFromServer = false;
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/load-and-upscale-single-clip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderPath,
+              folderName,
+              docTitle,
+              aspectRatio,
+              clip: {
+                clipNumber: clipNum,
+                expectedFileName,
+                narrationSegment: clip.narrationSegment || '',
+                videoPrompt: clip.videoPrompt || '',
+              },
+            }),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data?.ok && data.url) {
+            const prefixUrl = (u: string) =>
+              u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+            const fullVideoUrl = `${prefixUrl(data.url)}&r=${Date.now()}`;
+            const fullFrameUrl = data.frameUrl ? `${prefixUrl(data.frameUrl)}&r=${Date.now()}` : '';
+
+            setCapturedClipVideosMap((prev) => ({
+              ...prev,
+              [clipNum]: fullVideoUrl,
+            }));
+            if (data.fileName) {
+              setFolderClipFileNamesMap((prev) => ({
+                ...prev,
+                [clipNum]: data.fileName,
+              }));
+            }
+            activateStage8ClipInPool(clipNum, false);
+
+            const latestDoc = activeDocRef.current || activeDoc;
+            if (latestDoc && Array.isArray(latestDoc.clips)) {
+              const nextClips = latestDoc.clips.map((c) =>
+                c.clipNumber === clipNum
+                  ? {
+                      ...c,
+                      videoSavedFileName: data.fileName || c.videoSavedFileName,
+                      videoReady: true,
+                      imageReady: true,
+                      imagePreviewUrl: fullFrameUrl || c.imagePreviewUrl,
+                      videoFrames: fullFrameUrl
+                        ? [fullFrameUrl, fullFrameUrl, fullFrameUrl]
+                        : c.videoFrames,
+                    }
+                  : c
+              );
+              updateActiveDoc({ clips: nextClips });
+            }
+
+            const okMsg = `✅ Clip ${padded} cargado (${data.fileName}), mejorado a 4K UHD y actualizado en el documental y Editor de Video.`;
+            setFlowStatusLog(okMsg);
+            setBridgeStatusType('SUCCESS');
+            setBridgeStatusMsg(okMsg);
+            loadedFromServer = true;
+            break;
+          }
+        } catch {}
+      }
+
+      if (!loadedFromServer) {
+        const fallbackUrl = await handleLoadClipVideoFromFolder(clip, false);
+        if (fallbackUrl) {
+          activateStage8ClipInPool(clipNum, false);
+          const latestDoc = activeDocRef.current || activeDoc;
+          if (latestDoc && Array.isArray(latestDoc.clips)) {
+            const nextClips = latestDoc.clips.map((c) =>
+              c.clipNumber === clipNum ? { ...c, videoReady: true, imageReady: true } : c
+            );
+            updateActiveDoc({ clips: nextClips });
+          }
+          setFlowStatusLog(`✅ Clip ${padded} cargado y actualizado en el documental.`);
+        } else {
+          setFlowStatusLog(
+            `⚠️ No se encontró archivo de video para el Clip ${padded} en 05_Clips_Video ni en Descargas.`
+          );
+        }
+      }
+
+      setLoadingSingleClipMap((prev) => ({ ...prev, [clipNum]: 'done' }));
+      setTimeout(() => {
+        setLoadingSingleClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+      }, 3000);
+    } catch (err: any) {
+      setLoadingSingleClipMap((prev) => {
+        const copy = { ...prev };
+        delete copy[clipNum];
+        return copy;
+      });
+      setFlowStatusLog(`❌ Error al cargar el Clip ${padded}: ${err?.message || 'Error'}`);
+    }
   };
 
   // Automatically scan 05_Clips_Video & 02_Audio from chosen folder (Browser Handle OR Local Server Folder)
@@ -10713,9 +10867,9 @@ export default function App() {
                                 : 'bg-slate-950/90 border-slate-800'
                             }`}
                           >
-                            {/* 1. COMPACT TOP CONTROL BAR: Clip Header + Single "Marcar Revisado" Button + Quick Flow Actions + Multi-Criteria Rehacer List */}
+                            {/* 1. COMPACT TOP CONTROL BAR: Clip Header + Single "Marcar Revisado" Button + "Cargar Clip" (Latest + 4K Upscale) + Quick Flow Actions */}
                             <div className="bg-slate-950/95 border border-amber-500/30 rounded-xl p-1.5 space-y-1 shadow-md">
-                              {/* Row 1: Clip Badge + Time + Voice + Marcar Revisado + Quick Actions */}
+                              {/* Row 1: Clip Badge + Time + Marcar Revisado + Cargar Clip (4K) + Voice + Quick Actions */}
                               <div className="flex flex-wrap items-center justify-between gap-1.5">
                                 <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-[240px]">
                                   <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[11px] shrink-0">
@@ -10757,6 +10911,34 @@ export default function App() {
                                     {clip.reviewedForEditor
                                       ? `✅ Clip ${paddedNum} Revisado`
                                       : `☑️ Marcar Revisado Clip ${paddedNum}`}
+                                  </button>
+
+                                  {/* Botón Cargar Clip: Busca la última versión generada en la carpeta de clips, la mejora a 4K y la actualiza en el documental */}
+                                  <button
+                                    type="button"
+                                    disabled={loadingSingleClipMap[clip.clipNumber] === 'loading'}
+                                    onClick={() => handleLoadAndUpscaleSingleClip(clip)}
+                                    className={`py-1 px-3 rounded-lg border text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow shrink-0 ${
+                                      loadingSingleClipMap[clip.clipNumber] === 'loading'
+                                        ? 'bg-sky-500/30 border-sky-400 text-sky-200 animate-pulse cursor-wait'
+                                        : loadingSingleClipMap[clip.clipNumber] === 'done'
+                                        ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-emerald-500/25'
+                                        : 'bg-sky-500 hover:bg-sky-400 text-slate-950 border-sky-300 shadow-sky-500/20'
+                                    }`}
+                                    title={`Buscar en la carpeta de clips la última versión generada del Clip ${paddedNum}, mejorarla a 4K UHD y actualizarla en el documental`}
+                                  >
+                                    <RefreshCw
+                                      className={`w-3.5 h-3.5 ${
+                                        loadingSingleClipMap[clip.clipNumber] === 'loading'
+                                          ? 'animate-spin'
+                                          : ''
+                                      }`}
+                                    />
+                                    {loadingSingleClipMap[clip.clipNumber] === 'loading'
+                                      ? `Mejorando Clip ${paddedNum} a 4K...`
+                                      : loadingSingleClipMap[clip.clipNumber] === 'done'
+                                      ? `✨ Clip ${paddedNum} 4K Actualizado`
+                                      : '📥 Cargar Clip'}
                                   </button>
 
                                   {clip.reviewedForEditor && (
@@ -10901,210 +11083,6 @@ export default function App() {
                                   </button>
                                 </div>
                               </div>
-
-                              {/* Row 2: Lista de Opciones de Rehacer Multi-Criterio (Ultra Compacta) */}
-                              {(() => {
-                                const selectedModesForClip =
-                                  selectedRecreationModesByClip[clip.id] || [];
-                                const isSel = (
-                                  m:
-                                    | 'ADULTS_ONLY'
-                                    | 'PEOPLE'
-                                    | 'OBJECTS'
-                                    | 'WALLS'
-                                    | 'SINGLE_SHOT'
-                                    | 'VISUAL_LOGIC'
-                                    | 'CLEAN_FOLEY_AUDIO'
-                                    | 'ERRATIC_ACTING'
-                                ) => selectedModesForClip.includes(m);
-                                const allEightModes: Array<
-                                  | 'ADULTS_ONLY'
-                                  | 'PEOPLE'
-                                  | 'OBJECTS'
-                                  | 'WALLS'
-                                  | 'SINGLE_SHOT'
-                                  | 'VISUAL_LOGIC'
-                                  | 'CLEAN_FOLEY_AUDIO'
-                                  | 'ERRATIC_ACTING'
-                                > = [
-                                  'ADULTS_ONLY',
-                                  'PEOPLE',
-                                  'OBJECTS',
-                                  'WALLS',
-                                  'SINGLE_SHOT',
-                                  'VISUAL_LOGIC',
-                                  'CLEAN_FOLEY_AUDIO',
-                                  'ERRATIC_ACTING',
-                                ];
-
-                                return (
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 pt-1 border-t border-slate-800/80">
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'ADULTS_ONLY')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('ADULTS_ONLY')
-                                          ? 'bg-rose-500/40 border-rose-300 text-white ring-1 ring-rose-400/70 shadow'
-                                          : 'bg-rose-500/15 hover:bg-rose-500/30 border-rose-500/40 text-rose-200'
-                                      }`}
-                                      title="Marca/desmarca: Fuerza que el 100% de las personas en escena sean adultos maduros (35–60 años), eliminando cualquier niño, menor o adolescente"
-                                    >
-                                      {isSel('ADULTS_ONLY') ? '☑️' : '⬜'} 🔞 Solo Adultos
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'PEOPLE')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('PEOPLE')
-                                          ? 'bg-amber-500/40 border-amber-300 text-white ring-1 ring-amber-400/70 shadow'
-                                          : 'bg-amber-500/15 hover:bg-amber-500/30 border-amber-500/40 text-amber-200'
-                                      }`}
-                                      title="Marca/desmarca: Congela el conteo de personas de 0s a 10s, desenfoca extras del fondo y evita que aparezcan, desaparezcan o se transformen personas"
-                                    >
-                                      {isSel('PEOPLE') ? '☑️' : '⬜'} 🚷 Aparece / Muta Gente
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'OBJECTS')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('OBJECTS')
-                                          ? 'bg-purple-500/40 border-purple-300 text-white ring-1 ring-purple-400/70 shadow'
-                                          : 'bg-purple-500/15 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
-                                      }`}
-                                      title="Marca/desmarca: Ancla todos los muebles, papeles y objetos a la gravedad (100% sólidos y estacionarios) para que ningún objeto se mueva solo ni mute"
-                                    >
-                                      {isSel('OBJECTS') ? '☑️' : '⬜'} 🪑 Objeto muta / se mueve solo
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'WALLS')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('WALLS')
-                                          ? 'bg-sky-500/40 border-sky-300 text-white ring-1 ring-sky-400/70 shadow'
-                                          : 'bg-sky-500/15 hover:bg-sky-500/30 border-sky-500/40 text-sky-200'
-                                      }`}
-                                      title="Marca/desmarca: Mantiene el movimiento de cámara suave y controlado y clava la geometría 3D para que las paredes y fondos nunca muten"
-                                    >
-                                      {isSel('WALLS') ? '☑️' : '⬜'} 🧱 Pared / Fondo muta
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'SINGLE_SHOT')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('SINGLE_SHOT')
-                                          ? 'bg-indigo-500/40 border-indigo-300 text-white ring-1 ring-indigo-400/70 shadow'
-                                          : 'bg-indigo-500/15 hover:bg-indigo-500/30 border-indigo-500/40 text-indigo-200'
-                                      }`}
-                                      title="Marca/desmarca: Fuerza una única toma continua ininterrumpida (Single Continuous Shot) durante todo el clip, prohibiendo cortes o saltos de plano"
-                                    >
-                                      {isSel('SINGLE_SHOT') ? '☑️' : '⬜'} 🎬 Salto de shot
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleClipRecreationMode(clip.id, 'VISUAL_LOGIC')}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('VISUAL_LOGIC')
-                                          ? 'bg-cyan-500/40 border-cyan-300 text-white ring-1 ring-cyan-400/70 shadow'
-                                          : 'bg-cyan-500/15 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-200'
-                                      }`}
-                                      title="Marca/desmarca: Fuerza la ejecución física literal, coherente y con causa-efecto exacta de la idea visual del prompt"
-                                    >
-                                      {isSel('VISUAL_LOGIC') ? '☑️' : '⬜'} 🧠 Sin lógica visual
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        toggleClipRecreationMode(clip.id, 'CLEAN_FOLEY_AUDIO')
-                                      }
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('CLEAN_FOLEY_AUDIO')
-                                          ? 'bg-teal-500/40 border-teal-300 text-white ring-1 ring-teal-400/70 shadow'
-                                          : 'bg-teal-500/15 hover:bg-teal-500/30 border-teal-500/40 text-teal-200'
-                                      }`}
-                                      title="Marca/desmarca: Elimina toda música de fondo, instrumentos, canto, diálogo o voces humanas del audio del clip, dejando 100% efectos ambientales Foley"
-                                    >
-                                      {isSel('CLEAN_FOLEY_AUDIO') ? '☑️' : '⬜'} 🔇 Eliminar música/voz
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        toggleClipRecreationMode(clip.id, 'ERRATIC_ACTING')
-                                      }
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold cursor-pointer transition text-left truncate ${
-                                        isSel('ERRATIC_ACTING')
-                                          ? 'bg-orange-500/40 border-orange-300 text-white ring-1 ring-orange-400/70 shadow'
-                                          : 'bg-orange-500/15 hover:bg-orange-500/30 border-orange-500/40 text-orange-200'
-                                      }`}
-                                      title="Marca/desmarca: Fuerza movimientos humanos lentos, dignos, pausados y anatómicamente naturales, eliminando gestos erráticos o espasmódicos"
-                                    >
-                                      {isSel('ERRATIC_ACTING') ? '☑️' : '⬜'} 🧍‍♂️ Actuación errática
-                                    </button>
-                                    <div className="sm:col-span-2 flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleFixMutationAndResendClip(
-                                            clip,
-                                            selectedModesForClip.length > 0
-                                              ? selectedModesForClip
-                                              : 'ALL',
-                                            false
-                                          )
-                                        }
-                                        className={`flex-1 px-2 py-0.5 rounded-md border text-[11px] font-black cursor-pointer transition text-center truncate ${
-                                          selectedModesForClip.length > 0
-                                            ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-300 shadow-md shadow-emerald-500/20'
-                                            : 'bg-emerald-500/20 hover:bg-emerald-500/35 border-emerald-500/50 text-emerald-200'
-                                        }`}
-                                        title={
-                                          selectedModesForClip.length > 0
-                                            ? `Aplicar los ${selectedModesForClip.length} criterios seleccionados y copiar el prompt corregido al portapapeles`
-                                            : 'Selecciona 1 o más criterios arriba o haz clic aquí para aplicar todos los blindajes y copiar el prompt corregido'
-                                        }
-                                      >
-                                        {copiedId === `rehacer-${clip.id}`
-                                          ? '✅ ¡Prompt Corregido Copiado!'
-                                          : selectedModesForClip.length > 0
-                                          ? `🔄 Rehacer y Copiar (${selectedModesForClip.length} ${
-                                              selectedModesForClip.length === 1
-                                                ? 'criterio'
-                                                : 'criterios'
-                                            })`
-                                          : '🔧 Rehacer y Copiar Prompt'}
-                                      </button>
-                                      {selectedModesForClip.length > 0 ? (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setSelectedRecreationModesByClip((prev) => ({
-                                              ...prev,
-                                              [clip.id]: [],
-                                            }))
-                                          }
-                                          className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-bold cursor-pointer shrink-0"
-                                          title="Limpiar criterios seleccionados para este clip"
-                                        >
-                                          ✖
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setSelectedRecreationModesByClip((prev) => ({
-                                              ...prev,
-                                              [clip.id]: allEightModes,
-                                            }))
-                                          }
-                                          className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-emerald-300 font-bold cursor-pointer shrink-0"
-                                          title="Marcar los 8 criterios a la vez"
-                                        >
-                                          ☑️ 8
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
                             </div>
 
                             {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (FITS 100% ON SCREEN WITH REVISADO & REHACER OPTIONS) */}

@@ -488,13 +488,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [logoOpacity, setLogoOpacity] = useState<number>(95);
   const [logoPosX, setLogoPosX] = useState<number>(3);
   const [logoPosY, setLogoPosY] = useState<number>(3);
-  // Default Logo animations for ALL documentaries: Fade Out 1s at the end of the documentary
+  // Default Logo animations for ALL documentaries: Fade Out 2.5s at the end of the documentary (matching Outro Fade Out)
   const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>('none');
   const [logoAnimInDur, setLogoAnimInDur] = useState<number>(1);
   const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>('fade');
-  const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(1);
+  const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(2.5);
 
-  // 2B. Permanent Official Intro Stinger Video (4s — Uploaded ONCE, stored forever across all documentaries)
+  // 2B. Permanent Official Intro Stinger Video (8s — Fixed across all documentaries)
   const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
   const [officialIntroFileName, setOfficialIntroFileName] = useState<string>('');
   const [introPlacementMode, setIntroPlacementMode] = useState<'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00'>(() => {
@@ -503,25 +503,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : 'INTRO_POST_SLOGAN';
   });
 
-  // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background, Position & Animations
+  // 3. Clip 1 Hook Overlay Text (00:08 - 00:16, right after the 8s Intro) + Typography, Size, Shadow, Background, Position & Animations
   const [clip1Line1, setClip1Line1] = useState<string>(
     normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '')
   );
   const [clip1Line2, setClip1Line2] = useState<string>(activeDoc?.clip1Line2Hook || '');
   const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    return !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    return 8 + clip1HookDur;
   });
-  // Default Hook Text animations for ALL documentaries:
-  // Line 1: starts at 0s, Fade In 1s (0s->1s), Fade Out 1s toward 8s (7s->8s)
-  // Line 2: appears at 2s, Fade In 1s (2s->3s), Fade Out 1s toward 8s (7s->8s)
-  const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(0);
+  // Default Hook Text animations for ALL documentaries (after 8s Intro at 00:00 - 00:08):
+  // Line 1: starts at 8s (Clip 1), Fade In 1s (8s->9s), Fade Out 1s toward 16s (15s->16s)
+  // Line 2: appears at 10s (2s into Clip 1), Fade In 1s (10s->11s), Fade Out 1s toward 16s (15s->16s)
+  const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(8);
   const [hookLine1AnimIn, setHookLine1AnimIn] = useState<ElementAnimationType>('fade');
   const [hookLine1AnimInDur, setHookLine1AnimInDur] = useState<number>(1);
   const [hookLine1AnimOut, setHookLine1AnimOut] = useState<ElementAnimationType>('fade');
   const [hookLine1AnimOutDur, setHookLine1AnimOutDur] = useState<number>(1);
 
-  const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(2);
+  const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(10);
   const [hookLine2AnimIn, setHookLine2AnimIn] = useState<ElementAnimationType>('fade');
   const [hookLine2AnimInDur, setHookLine2AnimInDur] = useState<number>(1);
   const [hookLine2AnimOut, setHookLine2AnimOut] = useState<ElementAnimationType>('fade');
@@ -690,10 +691,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
 
-  // Voiceover Track (Track 4) — Always starts at 8s (when Hook Text fades out at 00:08)
+  // Voiceover Track (Track 4) — Always starts at 16s (after 8s Intro at 00:00-00:08 + 8s Clip 1 Hook Text at 00:08-00:16)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    return !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    return 8 + clip1HookDur;
   });
   const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
   const [voiceVolume, setVoiceVolume] = useState<number>(100);
@@ -1188,9 +1190,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const syncTracksFromDocumentary = () => {
     if (!activeDoc) return;
 
+    const FIXED_INTRO_SEC = 8;
+    const FIXED_OUTRO_SEC = 8;
     const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
-    // Voiceover and Captions ALWAYS start at 8s (when Hook Text fades out at 00:08), or c1BaseDur if > 6s
-    const entrySec = !c1BaseDur || c1BaseDur <= 6 ? 8 : c1BaseDur;
+    const clip1HookDur = !c1BaseDur || c1BaseDur <= 6 ? 8 : c1BaseDur;
+    // Fixed 8s Intro (00:00 - 00:08) -> Clip 1 with Hook Text (00:08 - 00:16) -> Voiceover & Captions start at 16s (00:16)
+    const entrySec = FIXED_INTRO_SEC + clip1HookDur;
 
     setClip1Line1(
       normalizeClip1Line1Format(
@@ -1199,8 +1204,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )
     );
     setClip1Line2(activeDoc.clip1Line2Hook || activeDoc.title || '');
+    setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
+    setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
     setClip1OverlayEndSec(entrySec);
     setVoiceStartOffsetSec(entrySec);
+
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const introOutroBasePath =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
+    const introVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Intro.mp4`
+    )}&v=8k`;
+    const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Intro_Poster.jpg`
+    )}&v=8k`;
+    const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Outro.mp4`
+    )}&v=8k`;
+    const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Outro_Poster.jpg`
+    )}&v=8k`;
 
     // 1. Build Clips Track (Track 3)
     const allDocClips = activeDoc.clips || [];
@@ -1217,11 +1243,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ...capturedSunoAudioMap,
     };
 
-    const builtClips: TimelineClipItem[] = docClips.map((c, idx) => {
+    const bodyClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = c.clipNumber === 1 || idx === 0;
       const srcDur =
-        Number(c.durationSeconds) > 0 ? Number(c.durationSeconds) : isClip1 ? c1BaseDur : standardDur;
-      const existingItem = timelineClips.find((tc) => tc.clipNumber === c.clipNumber);
+        Number(c.durationSeconds) > 0
+          ? Number(c.durationSeconds)
+          : isClip1
+          ? clip1HookDur
+          : standardDur;
+      const existingItem = timelineClips.find(
+        (tc) =>
+          tc.clipNumber === c.clipNumber &&
+          tc.id !== 'fixed-doc-intro' &&
+          tc.id !== 'fixed-doc-outro'
+      );
       const videoUrl =
         combinedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
 
@@ -1239,7 +1274,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         narrationSegment: c.narrationSegment || '',
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
-        duration: existingItem ? existingItem.duration : srcDur,
+        duration: isClip1 ? clip1HookDur : existingItem ? existingItem.duration : srcDur,
         sourceDuration: srcDur,
         speed: existingItem ? existingItem.speed : 1,
         trimStart: existingItem ? existingItem.trimStart : 0,
@@ -1252,15 +1287,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
 
     // If activeDoc.clips is empty but combinedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files!
-    if (builtClips.length === 0 && Object.keys(combinedClipVideosMap).length > 0) {
+    if (bodyClips.length === 0 && Object.keys(combinedClipVideosMap).length > 0) {
       const sortedNums = Object.keys(combinedClipVideosMap)
         .map((n) => parseInt(n, 10))
         .filter((n) => n > 0)
         .sort((a, b) => a - b);
       sortedNums.forEach((num, idx) => {
         const isClip1 = num === 1 || idx === 0;
-        const srcDur = isClip1 ? c1BaseDur : standardDur;
-        builtClips.push({
+        const srcDur = isClip1 ? clip1HookDur : standardDur;
+        bodyClips.push({
           id: `folder-clip-${num}`,
           clipNumber: num,
           fileName: `${String(num).padStart(2, '0')}_Clip_Documental.mp4`,
@@ -1278,12 +1313,67 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
     }
 
+    // Align narrated clips (Clip 2..N) so their total duration matches effectiveVoiceDurationSec, ensuring the final narrated clip (e.g. Clip 82) ends right when the Voiceover ends before the 8s Outro enters
+    if (effectiveVoiceDurationSec > 10 && bodyClips.length > 1) {
+      const narratedClips = bodyClips.slice(1);
+      const rawNarratedSum = narratedClips.reduce((acc, item) => acc + item.duration, 0);
+      if (rawNarratedSum > 0 && Math.abs(effectiveVoiceDurationSec - rawNarratedSum) > 1.5) {
+        let runningSec = 0;
+        narratedClips.forEach((nc, idx) => {
+          if (idx === narratedClips.length - 1) {
+            nc.duration = Number(Math.max(2, effectiveVoiceDurationSec - runningSec).toFixed(2));
+          } else {
+            const scaled = Number(
+              ((nc.duration / rawNarratedSum) * effectiveVoiceDurationSec).toFixed(2)
+            );
+            nc.duration = Math.max(2, scaled);
+            runningSec += nc.duration;
+          }
+        });
+      }
+    }
+
+    const fixedIntroClip: TimelineClipItem = {
+      id: 'fixed-doc-intro',
+      clipNumber: 0,
+      fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
+      narrationSegment: '🎬 INTRO OFICIAL (00:00 - 00:08) — Huellas de la Humanidad (8K)',
+      duration: FIXED_INTRO_SEC,
+      sourceDuration: FIXED_INTRO_SEC,
+      speed: 1,
+      trimStart: 0,
+      foleyVolume: 100,
+      transition: 'crossfade',
+      videoUrl: introVideoUrl,
+      posterUrl: introPosterUrl,
+      reviewedForEditor: true,
+    };
+
+    const fixedOutroClip: TimelineClipItem = {
+      id: 'fixed-doc-outro',
+      clipNumber: 999,
+      fileName: 'Outro_Huellas_de_la_Humanidad_8K_FadeOut.mp4',
+      narrationSegment:
+        '🎬 OUTRO OFICIAL (8s • Crossfade + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
+      duration: FIXED_OUTRO_SEC,
+      sourceDuration: FIXED_OUTRO_SEC,
+      speed: 1,
+      trimStart: 0,
+      foleyVolume: 100,
+      transition: 'crossfade',
+      videoUrl: outroVideoUrl,
+      posterUrl: outroPosterUrl,
+      reviewedForEditor: true,
+    };
+
+    const builtClips: TimelineClipItem[] = [fixedIntroClip, ...bodyClips, fixedOutroClip];
+
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
       setSelectedClipId(builtClips[0].id);
     }
 
-    // 2. Build Captions Track (Track 2) aligned to entrySec (8s) and real Voiceover audio
+    // 2. Build Captions Track (Track 2) aligned to entrySec (16s) and real Voiceover audio
     if (
       activeDoc.voiceoverScript &&
       activeDoc.voiceoverScript.trim() &&
@@ -1296,17 +1386,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
     }
 
-    // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) with exact scene timestamps, 10-20s dramatic silences, 1:30 final track, Fade-In (2.5s) & Fade-Out (3.0s)
+    // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) — OFF during 8s Intro (00:00-00:08) and OFF during 8s Outro at the end
     const fullVoiceSpanSec =
       effectiveVoiceDurationSec > 0 ? entrySec + effectiveVoiceDurationSec : 0;
-    const totalTimelineSec = Math.max(
-      builtClips.reduce((acc, item) => acc + item.duration, 0),
+    const bodySpanEndSec = Math.max(
+      FIXED_INTRO_SEC + bodyClips.reduce((acc, item) => acc + item.duration, 0),
       fullVoiceSpanSec,
       activeDoc.targetDurationSeconds || 120
     );
     const sunoList = activeDoc.sunoTracks || [];
     if (sunoList.length > 0) {
-      let cursorSec = 0;
+      let cursorSec = FIXED_INTRO_SEC; // Music starts at 00:08 (after 8s Intro)
       const silenceGapSec = 15; // Mandatory 10-20s silence between songs
       const builtMusic: TimelineMusicItem[] = sunoList.map((st, idx) => {
         const isLast = idx === sunoList.length - 1;
@@ -1328,7 +1418,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const parsedEnd =
             parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
           if (parsedEnd > parsedStart) {
-            startSec = parsedStart;
+            startSec = Math.max(FIXED_INTRO_SEC, parsedStart + FIXED_INTRO_SEC);
             durSec = isLast ? 90 : parsedEnd - parsedStart;
           }
         } else {
@@ -1336,8 +1426,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             durSec = 90; // Mandatory 1:30 for last song
           }
           startSec = isLast
-            ? Math.max(cursorSec, totalTimelineSec - 90)
+            ? Math.max(cursorSec, bodySpanEndSec - 90)
             : cursorSec;
+        }
+
+        // Ensure background music stops cleanly when Clip 82 ends and the 8s Outro begins
+        if (startSec + durSec > bodySpanEndSec) {
+          durSec = Math.max(10, bodySpanEndSec - startSec);
         }
 
         cursorSec = startSec + durSec + silenceGapSec;
@@ -1393,6 +1488,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     sunoTracksSignature,
     capturedSunoSignature,
     folderVoiceoverUrl,
+    effectiveVoiceDurationSec,
   ]);
 
   const prealignedVideo76SrtRef = useRef<string>('');
@@ -2055,20 +2151,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   }, [timelineClips]);
 
-  // Total timeline duration ALWAYS spans the entire Voiceover Narration (00:08 -> 15:17) as well as all clips
+  // Total timeline duration ALWAYS spans 8s Intro + 8s Clip 1 + Voiceover Narration + 8s Outro
   const totalDurationSec = useMemo(() => {
     const clipsEnd =
       clipsWithTimelineBounds.length > 0
         ? clipsWithTimelineBounds[clipsWithTimelineBounds.length - 1].end
         : 60;
-    const voiceEnd =
-      effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec : 0;
+    const voicePlusOutroEnd =
+      effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec + 8 : 0;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
     const allScriptClipsEnd =
       activeDoc?.clips && activeDoc.clips.length > 0
-        ? clip1Sec + Math.max(0, activeDoc.clips.length - 1) * standardClipSec
+        ? 8 + clip1Sec + Math.max(0, activeDoc.clips.length - 1) * standardClipSec + 8
         : 0;
-    return Math.max(10, clipsEnd, Math.ceil(voiceEnd), allScriptClipsEnd);
+    return Math.max(10, clipsEnd, Math.ceil(voicePlusOutroEnd), allScriptClipsEnd);
   }, [
     clipsWithTimelineBounds,
     effectiveVoiceDurationSec,
@@ -2114,17 +2210,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   }, [activeCaptionAtPlayhead, captions, currentTime]);
 
   const activeMusicAtPlayhead = useMemo(() => {
+    if (
+      activeClipAtPlayhead?.id === 'fixed-doc-intro' ||
+      activeClipAtPlayhead?.id === 'fixed-doc-outro' ||
+      activeClipAtPlayhead?.clipNumber === 0 ||
+      activeClipAtPlayhead?.clipNumber === 999
+    ) {
+      return null;
+    }
     return (
       musicTracks.find(
         (m) => m.audioUrl && currentTime >= m.start && currentTime < m.start + m.duration
       ) || null
     );
-  }, [musicTracks, currentTime]);
+  }, [musicTracks, currentTime, activeClipAtPlayhead?.id, activeClipAtPlayhead?.clipNumber]);
 
   const isNarratorSpeakingAtPlayhead = useMemo(() => {
     if (currentTime < voiceStartOffsetSec) return false;
-    if (activeClipAtPlayhead && activeClipAtPlayhead.clipNumber === 1 && voiceStartOffsetSec > 0)
+    if (
+      activeClipAtPlayhead &&
+      (activeClipAtPlayhead.clipNumber <= 1 ||
+        activeClipAtPlayhead.clipNumber === 999 ||
+        activeClipAtPlayhead.id === 'fixed-doc-intro' ||
+        activeClipAtPlayhead.id === 'fixed-doc-outro') &&
+      voiceStartOffsetSec > 0
+    ) {
       return false;
+    }
     return Boolean(
       activeClipAtPlayhead?.narrationSegment?.trim() || activeCaptionAtPlayhead?.text?.trim()
     );
@@ -2132,6 +2244,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const effectiveFoleyVolumeAtPlayhead = useMemo(() => {
     if (!activeClipAtPlayhead) return 0;
+    if (
+      activeClipAtPlayhead.id === 'fixed-doc-intro' ||
+      activeClipAtPlayhead.clipNumber === 0
+    ) {
+      return 100;
+    }
+    if (
+      activeClipAtPlayhead.id === 'fixed-doc-outro' ||
+      activeClipAtPlayhead.clipNumber === 999
+    ) {
+      const remaining = Math.max(0, activeClipAtPlayhead.end - currentTime);
+      const fadeOutFactor = remaining < 2.5 ? Math.max(0, remaining / 2.5) : 1;
+      return Math.round(100 * fadeOutFactor);
+    }
     if (!autoDuckingEnabled) return activeClipAtPlayhead.foleyVolume;
     return isNarratorSpeakingAtPlayhead ? foleyDuckedVolume : foleyHighVolume;
   }, [
@@ -2140,11 +2266,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     isNarratorSpeakingAtPlayhead,
     foleyDuckedVolume,
     foleyHighVolume,
+    currentTime,
   ]);
 
-  // Automatic Fade-In (2.5s), Fade-Out (3.0s) & Voice-Priority Ducking (Music NEVER louder than Narrator Voice)
+  // Automatic Fade-In (2.5s), Fade-Out (3.0s) & Voice-Priority Ducking (Music NEVER louder than Narrator Voice, and OFF during Intro & Outro)
   const effectiveMusicVolumeAtPlayhead = useMemo(() => {
-    if (!activeMusicAtPlayhead) return 0;
+    if (
+      !activeMusicAtPlayhead ||
+      activeClipAtPlayhead?.id === 'fixed-doc-intro' ||
+      activeClipAtPlayhead?.id === 'fixed-doc-outro' ||
+      activeClipAtPlayhead?.clipNumber === 0 ||
+      activeClipAtPlayhead?.clipNumber === 999
+    ) {
+      return 0;
+    }
     const rawBasePct = activeMusicAtPlayhead.volume || masterMusicVolume || 24;
     // Strict ceiling: music can never exceed 42% of narrator's voiceVolume
     const maxAllowedByVoice = Math.max(12, Math.min(45, Math.round(voiceVolume * 0.42)));
@@ -2171,6 +2306,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return Number(Math.min(maxAllowedByVoice, targetBasePct * fadeEnvelope).toFixed(2));
   }, [
     activeMusicAtPlayhead,
+    activeClipAtPlayhead?.id,
+    activeClipAtPlayhead?.clipNumber,
     masterMusicVolume,
     voiceVolume,
     autoDuckingEnabled,
@@ -2746,7 +2883,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const vo = voiceAudioRef.current;
     const hasWorkingVoiceFile = Boolean(vo && effectiveVoiceoverUrl && !voiceAudioError);
     if (hasWorkingVoiceFile && vo) {
-      if (currentTime >= voiceStartOffsetSec) {
+      const voiceEndSec =
+        effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec : Infinity;
+      const isIntroOrOutro =
+        activeClipAtPlayhead?.id === 'fixed-doc-intro' ||
+        activeClipAtPlayhead?.id === 'fixed-doc-outro' ||
+        activeClipAtPlayhead?.clipNumber === 0 ||
+        activeClipAtPlayhead?.clipNumber === 999;
+      if (!isIntroOrOutro && currentTime >= voiceStartOffsetSec && currentTime < voiceEndSec - 0.05) {
         const voTime = Math.max(0, currentTime - voiceStartOffsetSec);
         const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
         if (isManualVoSeek || !isPlaying || (vo.paused && Math.abs(vo.currentTime - voTime) > 0.35) || Math.abs(vo.currentTime - voTime) > 1.8) {
@@ -3391,15 +3535,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   ).toFixed(2);
 
   // Real-time viewer animation states for Clip/Image, Official Logo, Hook Line 1, Hook Line 2 & Captions
+  const isIntroClipActive =
+    activeClipAtPlayhead?.id === 'fixed-doc-intro' || activeClipAtPlayhead?.clipNumber === 0;
+  const isOutroClipActive =
+    activeClipAtPlayhead?.id === 'fixed-doc-outro' || activeClipAtPlayhead?.clipNumber === 999;
+  const isLastBodyClipBeforeOutro =
+    Boolean(activeClipAtPlayhead) &&
+    clipsWithTimelineBounds.length >= 3 &&
+    activeClipAtPlayhead?.index === clipsWithTimelineBounds.length - 2;
+
   const liveClipAnim = activeClipAtPlayhead
     ? computeElementAnimationState(
         currentTime,
         activeClipAtPlayhead.start,
         activeClipAtPlayhead.end,
-        clipAnimIn,
-        clipAnimDur,
-        clipAnimOut,
-        clipAnimDur
+        isOutroClipActive ? 'fade' : isIntroClipActive ? 'fade' : clipAnimIn,
+        isOutroClipActive ? 1.2 : isIntroClipActive ? 0.5 : clipAnimDur,
+        isOutroClipActive
+          ? 'fade'
+          : isIntroClipActive || isLastBodyClipBeforeOutro
+          ? 'fade'
+          : clipAnimOut,
+        isOutroClipActive
+          ? 2.5
+          : isIntroClipActive
+          ? 0.8
+          : isLastBodyClipBeforeOutro
+          ? 1.0
+          : clipAnimDur
       )
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
@@ -4019,8 +4182,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 3: Clip 1 Hook Text Overlay (100% Real-Time WYSIWYG — never changes appearance when selected!) */}
-              {(currentTime <= clip1OverlayEndSec || selectedCanvasObject === 'hook_text') &&
+              {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16, after the 8s Intro — 100% Real-Time WYSIWYG) */}
+              {((currentTime >= 8 && currentTime <= clip1OverlayEndSec) ||
+                selectedCanvasObject === 'hook_text') &&
                 (clip1Line1 || clip1Line2 || selectedCanvasObject === 'hook_text') && (
                   <div
                     onMouseDown={handleStartHookBoxDrag}
@@ -4113,7 +4277,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           className="leading-snug"
                           style={
-                            !isPlaying && (selectedCanvasObject === 'hook_text' || currentTime === 0)
+                            !isPlaying &&
+                            (selectedCanvasObject === 'hook_text' || currentTime === 8)
                               ? { opacity: 1, visibility: 'visible' }
                               : {
                                   opacity: liveHookLine1Anim.visible ? liveHookLine1Anim.opacity : 0,
@@ -4154,7 +4319,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div
                           className="leading-snug"
                           style={
-                            !isPlaying && (selectedCanvasObject === 'hook_text' || currentTime === 0)
+                            !isPlaying &&
+                            (selectedCanvasObject === 'hook_text' || currentTime === 8)
                               ? { opacity: 1, visibility: 'visible' }
                               : {
                                   opacity: liveHookLine2Anim.visible ? liveHookLine2Anim.opacity : 0,
@@ -4270,24 +4436,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   {isNarratorSpeakingAtPlayhead ? '(Auto-Ducking Voz 🎙️)' : '(Ambiente Alto 🔊)'}
                 </span>
               </div>
-
-              {/* Bottom-Right Little Fullscreen Toggle Button inside the Visor */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleViewerFullscreen();
-                }}
-                className="absolute bottom-2 right-2.5 z-30 p-1.5 rounded-lg bg-black/75 hover:bg-amber-500 border border-slate-700/80 hover:border-amber-400 text-slate-200 hover:text-slate-950 transition cursor-pointer shadow-lg"
-                title={isViewerFullscreen ? 'Salir de pantalla completa (Esc)' : 'Ver visor en pantalla completa'}
-              >
-                {isViewerFullscreen ? (
-                  <Minimize2 className="w-3.5 h-3.5" />
-                ) : (
-                  <Maximize2 className="w-3.5 h-3.5" />
-                )}
-              </button>
             </div>
 
             {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
@@ -6222,19 +6370,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    seekToTime(0);
+                    setSelectedClipId('fixed-doc-intro');
+                  }}
+                  style={
+                    isFitEntireProject
+                      ? {
+                          width: `${(8 / Math.max(1, totalDurationSec)) * 100}%`,
+                        }
+                      : { width: `${8 * timelineZoom}px` }
+                  }
+                  className="px-2 py-1.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
+                  title="Ir al Intro Oficial de Huellas de la Humanidad (00:00 - 00:08)"
+                >
+                  🎬 Intro 8K (00:00 - 00:08)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    seekToTime(8);
                     setSelectedCanvasObject('hook_text');
                     setActiveInspectorTab('branding');
                   }}
                   style={
                     isFitEntireProject
                       ? {
-                          width: `${(clip1OverlayEndSec / Math.max(1, totalDurationSec)) * 100}%`,
+                          width: `${(Math.max(1, clip1OverlayEndSec - 8) / Math.max(1, totalDurationSec)) * 100}%`,
                         }
-                      : { width: `${clip1OverlayEndSec * timelineZoom}px` }
+                      : { width: `${Math.max(1, clip1OverlayEndSec - 8) * timelineZoom}px` }
                   }
-                  className="px-2 py-1.5 rounded-l bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                  className="px-2 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
                 >
-                  🔤 Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
+                  🔤 Texto Gancho Clip 1 (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
                 </button>
                 <button
                   type="button"
@@ -6437,7 +6604,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     : 'bg-black/80 text-amber-300'
                                 }`}
                               >
-                                {String(clip.clipNumber).padStart(2, '0')}
+                                {clip.clipNumber === 0
+                                  ? 'INTRO'
+                                  : clip.clipNumber === 999
+                                  ? 'OUTRO'
+                                  : String(clip.clipNumber).padStart(2, '0')}
                               </span>
                               <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
                                 {formatTimeMMSS(clip.start)}
@@ -6454,8 +6625,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     : 'bg-amber-500 text-slate-950'
                                 }`}
                               >
-                                {isCurrent ? '▶ ' : ''}#{String(idx + 1).padStart(2, '0')} (C
-                                {String(clip.clipNumber).padStart(2, '0')})
+                                {isCurrent ? '▶ ' : ''}
+                                {clip.clipNumber === 0
+                                  ? '🎬 INTRO 8K'
+                                  : clip.clipNumber === 999
+                                  ? '🎬 OUTRO 8K (Fade Out)'
+                                  : `#${String(idx + 1).padStart(2, '0')} (C${String(clip.clipNumber).padStart(2, '0')})`}
                                 {clip.reviewedForEditor && (
                                   <span title="Revisado y enviado desde Etapa 8">✅</span>
                                 )}
