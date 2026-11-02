@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:00 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:04 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -7097,27 +7097,31 @@ export default function App() {
 
       {/* =====================================================================
           VIEW 2B: CAPCUT MULTI-TRACK EDITOR (CLIPS, VOICE, LOGO, SUNO, CAPTIONS)
+          Kept mounted while activeDoc exists so leaving to another stage and returning keeps the video & timeline right where it was
       ===================================================================== */}
-      {mainView === 'capcut_editor' && (
-        <CapCutEditor
-          activeDoc={activeDoc}
-          documentaries={documentaries}
-          onSelectDoc={(docId) => setActiveDocId(docId)}
-          updateActiveDoc={updateActiveDoc}
-          capturedClipVideosMap={capturedClipVideosMap}
-          capturedSunoAudioMap={capturedSunoAudioMap}
-          folderVoiceoverUrl={folderVoiceoverUrl}
-          onReloadFolderMedia={() => handleAutoLoadAllFolderMedia(false)}
-          onPickDownloadFolder={handlePickFlowDownloadFolder}
-          downloadFolderName={effectiveDocFolderName}
-          downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
-          onSaveFileToChosenFolder={(fileName, blob) =>
-            handleSaveAnyFileToChosenFolder(fileName, blob, '06_Video_Final')
-          }
-          onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
-          officialLogoUrl={officialLogoUrl}
-          onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
-        />
+      {(mainView === 'capcut_editor' || activeDoc) && (
+        <div className={mainView === 'capcut_editor' ? 'flex-1 flex flex-col' : 'hidden'}>
+          <CapCutEditor
+            activeDoc={activeDoc}
+            documentaries={documentaries}
+            onSelectDoc={(docId) => setActiveDocId(docId)}
+            updateActiveDoc={updateActiveDoc}
+            capturedClipVideosMap={capturedClipVideosMap}
+            capturedSunoAudioMap={capturedSunoAudioMap}
+            folderVoiceoverUrl={folderVoiceoverUrl}
+            onReloadFolderMedia={() => handleAutoLoadAllFolderMedia(false)}
+            onPickDownloadFolder={handlePickFlowDownloadFolder}
+            downloadFolderName={effectiveDocFolderName}
+            downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
+            onSaveFileToChosenFolder={(fileName, blob) =>
+              handleSaveAnyFileToChosenFolder(fileName, blob, '06_Video_Final')
+            }
+            onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
+            officialLogoUrl={officialLogoUrl}
+            onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
+            isEditorActive={mainView === 'capcut_editor'}
+          />
+        </div>
       )}
 
       {/* =====================================================================

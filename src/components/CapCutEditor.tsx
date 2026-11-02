@@ -439,6 +439,7 @@ interface CapCutEditorProps {
   onExportOrganizedFolder?: () => Promise<void>;
   officialLogoUrl?: string;
   onOfficialLogoChange?: (dataUrl: string) => void;
+  isEditorActive?: boolean;
 }
 
 export const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
@@ -459,6 +460,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onExportOrganizedFolder,
   officialLogoUrl: propOfficialLogoUrl,
   onOfficialLogoChange,
+  isEditorActive = true,
 }) => {
   // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K)
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
@@ -718,7 +720,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Playback & Rendering State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(() => {
+    try {
+      const saved = Number(
+        localStorage.getItem(`huellas_editor_playhead_${activeDoc?.id || 'default'}`) || 0
+      );
+      return Number.isFinite(saved) && saved >= 0 ? saved : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [timelineZoom, setTimelineZoom] = useState<number>(20); // pixels per second
   const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(false);
   const [activeInspectorTab, setActiveInspectorTab] = useState<
@@ -747,8 +758,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const lastSpokenClipIdRef = useRef<string>('');
   const extractedVideoUrlByClipRef = useRef<Record<number, string>>({});
   const playWallStartMsRef = useRef<number>(0);
-  const playTimelineStartSecRef = useRef<number>(0);
-  const currentTimeRef = useRef<number>(0);
+  const playTimelineStartSecRef = useRef<number>(currentTime);
+  const currentTimeRef = useRef<number>(currentTime);
   const lastSeekVersionRef = useRef<number>(0);
   const appliedVideoSeekVersionRef = useRef<number>(-1);
   const appliedVoiceSeekVersionRef = useRef<number>(-1);
@@ -759,6 +770,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
   const isScrubbingRulerRef = useRef<boolean>(false);
+  const prevDocIdForPlayheadRef = useRef<string | undefined>(activeDoc?.id);
+
+  // Persist playhead position per documentary so leaving the editor to another stage and returning keeps the video right where it was
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `huellas_editor_playhead_${activeDoc?.id || 'default'}`,
+        String(Number(currentTime.toFixed(2)))
+      );
+    } catch {}
+  }, [currentTime, activeDoc?.id]);
+
+  // Restore saved playhead position when switching to a different documentary
+  useEffect(() => {
+    if (prevDocIdForPlayheadRef.current === activeDoc?.id) return;
+    prevDocIdForPlayheadRef.current = activeDoc?.id;
+    try {
+      const saved = Number(
+        localStorage.getItem(`huellas_editor_playhead_${activeDoc?.id || 'default'}`) || 0
+      );
+      const nextTime = Number.isFinite(saved) && saved >= 0 ? saved : 0;
+      currentTimeRef.current = nextTime;
+      playTimelineStartSecRef.current = nextTime;
+      lastSeekVersionRef.current += 1;
+      setCurrentTime(nextTime);
+    } catch {}
+  }, [activeDoc?.id]);
+
+  // Pause playback automatically if user navigates away from the Video Editor to another stage, keeping exact playhead position
+  useEffect(() => {
+    if (!isEditorActive && isPlaying) {
+      setIsPlaying(false);
+    }
+  }, [isEditorActive, isPlaying]);
 
   // Reset extracted first frames and auto-query local server 05_Clips_Video when switching documentaries
   useEffect(() => {
