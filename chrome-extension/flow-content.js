@@ -187,32 +187,11 @@
     }
   }
 
-  // Al cargar el content script (y periódicamente si el usuario no está escribiendo), asegurar 'Veo 3.1 - Lite [Lower Priority]' + x1 si está en Omni 1.1 Flash
-  setTimeout(() => {
-    ensureFlowModelSelected('VIDEO').catch(() => {});
-  }, 150);
-
+  // Limpiar cualquier timer previo para que no abra ni cierre el menú mientras background.js inyecta y envía el prompt
   if (window.__HUELLAS_MODEL_ENFORCER_TIMER__) {
     clearInterval(window.__HUELLAS_MODEL_ENFORCER_TIMER__);
+    window.__HUELLAS_MODEL_ENFORCER_TIMER__ = null;
   }
-  window.__HUELLAS_MODEL_ENFORCER_TIMER__ = setInterval(() => {
-    try {
-      const hasOpenOverlay = Boolean(
-        document.querySelector(
-          '.cdk-overlay-container [role="option"], .cdk-overlay-container [role="menuitem"], [data-radix-popper-content-wrapper], [role="listbox"]'
-        )
-      );
-      if (hasOpenOverlay) return;
-      const allBtns = Array.from(document.querySelectorAll('button, [role="button"], [role="combobox"]'));
-      const pill = allBtns.find((b) => {
-        const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-        return /omni\s*1\.1\s*flash/i.test(txt);
-      });
-      if (pill) {
-        ensureFlowModelSelected('VIDEO').catch(() => {});
-      }
-    } catch {}
-  }, 2200);
 
   // Replace previous listener if re-injected
   if (window.__HUELLAS_FLOW_MESSAGE_HANDLER__) {

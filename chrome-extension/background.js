@@ -301,10 +301,37 @@ chrome.tabs.onRemoved.addListener(async (_tabId, removeInfo) => {
  */
 async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUrl) {
   const sleepMain = (ms) => new Promise((r) => setTimeout(r, ms));
-  const promptText =
+  const isVidPrompt =
+    mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+  let promptText =
     mediaType === 'THUMBNAILS'
       ? String(rawPromptText || '').replace(/^Thumbnail\s*:\s*/i, '').trim()
       : String(rawPromptText || '').trim();
+
+  // Veo 3.1 - Lite [Lower Priority] admite un máximo de 8 segundos por clip:
+  // normalizar cualquier referencia de 10 segundos a 8 segundos para que Google Flow nunca rechace el clip.
+  if (isVidPrompt) {
+    promptText = promptText
+      .replace(/\b10-second\b/gi, '8-second')
+      .replace(/\b10\s+seconds\b/gi, '8 seconds')
+      .replace(/\bfrom\s+0s\s+to\s+10s\b/gi, 'from 0s to 8s')
+      .replace(/\b0s[–-]10s\b/gi, '0s–8s')
+      .replace(/\b5s[–-]10s\b/gi, '4s–8s')
+      .replace(
+        /^(\*?\*?Clip\s+\d+)\s*\((\d{1,2}):(\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}):(\d{2})\)\s*(\*?\*?\s*:)/i,
+        (_m, prefix, m1, s1, m2, s2, suffix) => {
+          const start = parseInt(m1, 10) * 60 + parseInt(s1, 10);
+          const end = parseInt(m2, 10) * 60 + parseInt(s2, 10);
+          if (end - start > 8) {
+            const cappedEnd = start + 8;
+            const em = String(Math.floor(cappedEnd / 60)).padStart(2, '0');
+            const es = String(cappedEnd % 60).padStart(2, '0');
+            return `${prefix} (${String(m1).padStart(2, '0')}:${s1} - ${em}:${es})${suffix}`;
+          }
+          return _m;
+        }
+      );
+  }
   const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
 
   const collectNodesDeep = (root, selector, visited = new Set()) => {
@@ -617,8 +644,11 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
           );
         }
 
-        // C2) Asegurar cantidad x1 dentro del popover si aparece el selector x1/x2/x3/x4
+        // C2) Asegurar cantidad x1 y duración <= 8s (para Veo 3.1 - Lite [Lower Priority]) dentro del popover
         await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i], modelTriggerBtn);
+        if (isVideoMode) {
+          await selectMenuOptionMatching([/^8\s*s(ec(ond)?s?)?$/i, /^8s$/i], modelTriggerBtn);
+        }
 
         // C3) Intentar elegir directamente 'Veo 3.1 - Lite [Lower Priority]' (o abrir el sub-dropdown de modelo dentro del popover)
         let picked = await selectMenuOptionMatching(preferredModels, modelTriggerBtn);
@@ -650,10 +680,10 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
               realUiClick(bd);
             } catch {}
           }
-          await sleepMain(100);
+          await sleepMain(180);
         } else {
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
-          await sleepMain(80);
+          await sleepMain(180);
         }
       }
     }
@@ -821,10 +851,34 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
  *    con Lista Negra estricta que prohíbe tocar cualquier botón de Clear (X), Close o Download.
  */
 function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
-  const promptText =
+  const isVidPrompt =
+    mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+  let promptText =
     mediaType === 'THUMBNAILS'
       ? String(rawPromptText || '').replace(/^Thumbnail\s*:\s*/i, '').trim()
       : String(rawPromptText || '').trim();
+  if (isVidPrompt) {
+    promptText = promptText
+      .replace(/\b10-second\b/gi, '8-second')
+      .replace(/\b10\s+seconds\b/gi, '8 seconds')
+      .replace(/\bfrom\s+0s\s+to\s+10s\b/gi, 'from 0s to 8s')
+      .replace(/\b0s[–-]10s\b/gi, '0s–8s')
+      .replace(/\b5s[–-]10s\b/gi, '4s–8s')
+      .replace(
+        /^(\*?\*?Clip\s+\d+)\s*\((\d{1,2}):(\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}):(\d{2})\)\s*(\*?\*?\s*:)/i,
+        (_m, prefix, m1, s1, m2, s2, suffix) => {
+          const start = parseInt(m1, 10) * 60 + parseInt(s1, 10);
+          const end = parseInt(m2, 10) * 60 + parseInt(s2, 10);
+          if (end - start > 8) {
+            const cappedEnd = start + 8;
+            const em = String(Math.floor(cappedEnd / 60)).padStart(2, '0');
+            const es = String(cappedEnd % 60).padStart(2, '0');
+            return `${prefix} (${String(m1).padStart(2, '0')}:${s1} - ${em}:${es})${suffix}`;
+          }
+          return _m;
+        }
+      );
+  }
   const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
 
   const allCandidates = [
@@ -2316,6 +2370,13 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
               return /^x?1$/i.test(t);
             });
 
+            const dur8sBtn = isVid
+              ? allNodes.find((el) => {
+                  const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return /^8\s*s(ec(ond)?s?)?$/i.test(t);
+                })
+              : null;
+
             const innerDropdown = Array.from(
               document.querySelectorAll(
                 '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"]'
@@ -2330,6 +2391,7 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
 
             return {
               x1Coords: getCenter(x1Btn),
+              dur8sCoords: getCenter(dur8sBtn),
               directOptCoords: getCenter(directOpt),
               innerDropdownCoords: getCenter(innerDropdown),
             };
@@ -2341,6 +2403,15 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
             target,
             popoverCheck.result.x1Coords.x,
             popoverCheck.result.x1Coords.y
+          );
+          await sleep(180);
+        }
+
+        if (popoverCheck?.result?.dur8sCoords) {
+          await dispatchHardwareClick(
+            target,
+            popoverCheck.result.dur8sCoords.x,
+            popoverCheck.result.dur8sCoords.y
           );
           await sleep(180);
         }
@@ -2661,21 +2732,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ) {
           stopFlowAutoPilotRequested = false;
           try {
-            // 1. Verificar si window.__HUELLAS_FLOW_SDK__ = Flow o Story Studio está disponible en targetTab (o en otra pestaña abierta de Google Flow)
-            let sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
-            if (!sdkStatus.hasSdk && !sdkStatus.isStoryStudio && serviceTabs.length > 1) {
-              for (const candidateTab of serviceTabs) {
-                if (!candidateTab.id || candidateTab.id === targetTab.id) continue;
-                const candStatus = await checkFlowSdkAvailableInTab(candidateTab.id);
-                if (candStatus.hasSdk || candStatus.isStoryStudio) {
-                  targetTab = candidateTab;
-                  sdkStatus = candStatus;
-                  if (payload.focusTab === true) {
-                    await chrome.tabs.update(targetTab.id, { active: true }).catch(() => {});
-                  }
-                  break;
-                }
-              }
+            // 1. Modo Directo en la Página Principal de Google Flow (igual que Gemini y Flow Music):
+            //    Cuando action === 'SEND_PROMPT', no interceptar con Story Studio ni flow-sdk;
+            //    ir directamente al compositor de la página principal de Google Flow (executeFlowPromptHardware).
+            let sdkStatus = { hasSdk: false, isStoryStudio: false };
+            if (action === 'LOAD_STORY_STUDIO_PROJECT') {
+              sdkStatus = await checkFlowSdkAvailableInTab(targetTab.id);
             }
 
             // 1A. Etapa 6 (Todas las @Referencias o 1 tarjeta individual de @Referencia) vía window.__HUELLAS_FLOW_SDK__

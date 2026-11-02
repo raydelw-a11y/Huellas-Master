@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:19 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:31 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2613,12 +2613,14 @@ export default function App() {
     const currentDoc = activeDocRef.current || activeDoc;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
     const isClip1Prompt = /^(?:Image|Clip|Imagen)\s+0*1\b/i.test(rawPrompt.trim());
-    const clipSec =
+    const rawClipSec =
       explicitClipSec && explicitClipSec > 0
         ? explicitClipSec
         : isClip1Prompt
         ? clip1Sec
         : standardClipSec;
+    // Veo 3.1 - Lite [Lower Priority] admite un máximo de 8 segundos por clip
+    const clipSec = Math.min(rawClipSec, 8);
 
     const modeList = Array.isArray(mode) ? mode : [mode];
     const modeSet = new Set(modeList);
@@ -2860,7 +2862,14 @@ export default function App() {
       p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
     }
 
-    return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+    const finalOut = `${prefix}${p}`
+      .replace(/\b10-second\b/gi, `${clipSec}-second`)
+      .replace(/\b10\s+seconds\b/gi, `${clipSec} seconds`)
+      .replace(/\bfrom\s+0s\s+to\s+10s\b/gi, `from 0s to ${clipSec}s`)
+      .replace(/\b0s[–-]10s\b/gi, `0s–${clipSec}s`)
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    return finalOut;
   };
 
   // Option 2: Surgical Multi-Criteria or Single-Criteria Fix + Immediate Re-send to Google Flow
@@ -3463,7 +3472,7 @@ export default function App() {
     }));
 
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
-    const clipDurationSeconds = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
+    const clipDurationSeconds = Math.min(clip.clipNumber === 1 ? clip1Sec : standardClipSec, 8);
 
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
