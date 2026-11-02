@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:24 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:26 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1693,6 +1693,36 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
+  const extractDocVideoNumber = (text?: string): string => {
+    const t = String(text || '').toLowerCase();
+    const m = t.match(/\b(?:video|documental|ep\.?)\s*0*(\d+)\b/i);
+    if (m) return String(parseInt(m[1], 10));
+    if (t.includes('éxodo español') || t.includes('exodo espanol') || t.includes('maliaño')) return '76';
+    if (t.includes('louvre')) return '75';
+    if (t.includes('princesas de la edad media')) return '74';
+    return '';
+  };
+
+  const getCanonicalFolderNameForDoc = (doc?: DocumentaryProject | null): string => {
+    if (!doc) return '';
+    const num = extractDocVideoNumber(`${doc.title || ''} ${doc.topic || ''}`);
+    if (num === '76') return 'Video 76 Éxodo Español Transatlántico (1880-1940)';
+    if (num === '75') return 'Video 75 Castillo Louvre Parte II';
+    if (num === '74') return 'Video 74 Las Princesas de la Edad Media';
+    return '';
+  };
+
+  const doesFolderMatchDoc = (
+    folderCandidate?: string,
+    doc?: DocumentaryProject | null
+  ): boolean => {
+    if (!folderCandidate || !doc) return true;
+    const docNum = extractDocVideoNumber(`${doc.title || ''} ${doc.topic || ''}`);
+    const folderNum = extractDocVideoNumber(folderCandidate);
+    if (docNum && folderNum && docNum !== folderNum) return false;
+    return true;
+  };
+
   const globalStoredFolderName = (
     localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || ''
   ).trim();
@@ -1701,29 +1731,51 @@ export default function App() {
   ).trim();
 
   const effectiveDocFolderName =
-    flowDownloadDirHandleRef.current?.name ||
-    flowDownloadFolderName.trim() ||
-    (activeDoc?.downloadFolderName || '').trim() ||
-    globalStoredFolderName ||
-    flowServerFolderPath.trim() ||
-    globalStoredFolderPath;
+    (flowDownloadDirHandleRef.current?.name &&
+    doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
+      ? flowDownloadDirHandleRef.current.name
+      : '') ||
+    (doesFolderMatchDoc(flowDownloadFolderName, activeDoc) ? flowDownloadFolderName.trim() : '') ||
+    (doesFolderMatchDoc(activeDoc?.downloadFolderName, activeDoc)
+      ? (activeDoc?.downloadFolderName || '').trim()
+      : '') ||
+    getCanonicalFolderNameForDoc(activeDoc) ||
+    (doesFolderMatchDoc(globalStoredFolderName, activeDoc) ? globalStoredFolderName : '') ||
+    (doesFolderMatchDoc(flowServerFolderPath, activeDoc) ? flowServerFolderPath.trim() : '') ||
+    (doesFolderMatchDoc(globalStoredFolderPath, activeDoc) ? globalStoredFolderPath : '');
   const hasSelectedDocFolder = Boolean(effectiveDocFolderName);
 
-  // Sync the single download folder across all stages and documentaries
+  // Sync the download folder for the active documentary without crossing Video 75 and Video 76
   useEffect(() => {
     if (!activeDoc) return;
     let isCancelled = false;
-    (async () => {
-      const restoredHandle =
-        flowDownloadDirHandleRef.current || (await loadDirHandleFromIndexedDB(activeDoc.id));
-      if (isCancelled) return;
+    // Clear in-memory media maps when switching documentaries so clips from Video 75 and Video 76 never mix
+    setCapturedClipVideosMap({});
+    setCapturedSunoAudioMap({});
+    setFolderVoiceoverUrl('');
+    if (
+      flowDownloadDirHandleRef.current &&
+      !doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
+    ) {
+      flowDownloadDirHandleRef.current = null;
+    }
 
-      if (restoredHandle) {
-        flowDownloadDirHandleRef.current = restoredHandle;
+    (async () => {
+      const idbHandle = await loadDirHandleFromIndexedDB(activeDoc.id);
+      if (isCancelled) return;
+      const validRestoredHandle =
+        idbHandle && doesFolderMatchDoc(idbHandle.name, activeDoc)
+          ? idbHandle
+          : flowDownloadDirHandleRef.current &&
+            doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
+          ? flowDownloadDirHandleRef.current
+          : null;
+
+      if (validRestoredHandle) {
+        flowDownloadDirHandleRef.current = validRestoredHandle;
         const realHandleName = (
-          restoredHandle.name ||
-          activeDoc.downloadFolderName ||
-          globalStoredFolderName ||
+          validRestoredHandle.name ||
+          getCanonicalFolderNameForDoc(activeDoc) ||
           'Carpeta Seleccionada'
         ).trim();
         localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, realHandleName);
@@ -1739,14 +1791,21 @@ export default function App() {
         return;
       }
 
+      flowDownloadDirHandleRef.current = null;
+      const canonicalName = getCanonicalFolderNameForDoc(activeDoc);
       const unifiedName = (
-        activeDoc.downloadFolderName ||
-        globalStoredFolderName ||
+        (doesFolderMatchDoc(activeDoc.downloadFolderName, activeDoc)
+          ? activeDoc.downloadFolderName
+          : '') ||
+        canonicalName ||
+        (doesFolderMatchDoc(globalStoredFolderName, activeDoc) ? globalStoredFolderName : '') ||
         ''
       ).trim();
       const unifiedPath = (
-        activeDoc.downloadFolderPath ||
-        globalStoredFolderPath ||
+        (doesFolderMatchDoc(activeDoc.downloadFolderPath, activeDoc)
+          ? activeDoc.downloadFolderPath
+          : '') ||
+        (doesFolderMatchDoc(globalStoredFolderPath, activeDoc) ? globalStoredFolderPath : '') ||
         ''
       ).trim();
 
@@ -1771,7 +1830,6 @@ export default function App() {
       }
 
       if (!unifiedName && !unifiedPath) {
-        flowDownloadDirHandleRef.current = null;
         const hasAnyDocContent =
           (Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0) ||
           Boolean((activeDoc.voiceoverScript || '').trim()) ||
@@ -3027,9 +3085,15 @@ export default function App() {
   ): Promise<string> => {
     try {
       const currentDoc = activeDocRef.current || activeDoc;
+      if (
+        flowDownloadDirHandleRef.current &&
+        !doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+      ) {
+        flowDownloadDirHandleRef.current = null;
+      }
       if (!flowDownloadDirHandleRef.current && currentDoc?.id) {
         const restored = await loadDirHandleFromIndexedDB(currentDoc.id);
-        if (restored) {
+        if (restored && doesFolderMatchDoc(restored.name, currentDoc)) {
           flowDownloadDirHandleRef.current = restored;
         }
       }
@@ -3090,9 +3154,15 @@ export default function App() {
     let loadedCount = 0;
     try {
       const currentDoc = activeDocRef.current || activeDoc;
+      if (
+        flowDownloadDirHandleRef.current &&
+        !doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+      ) {
+        flowDownloadDirHandleRef.current = null;
+      }
       if (!flowDownloadDirHandleRef.current) {
         const restored = await loadDirHandleFromIndexedDB(currentDoc?.id);
-        if (restored) {
+        if (restored && doesFolderMatchDoc(restored.name, currentDoc)) {
           flowDownloadDirHandleRef.current = restored;
         }
       }
@@ -3100,7 +3170,11 @@ export default function App() {
         await ensureSingleDownloadFolderReadyOnGesture();
       }
 
-      const activeHandle = flowDownloadDirHandleRef.current;
+      const activeHandle =
+        flowDownloadDirHandleRef.current &&
+        doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+          ? flowDownloadDirHandleRef.current
+          : null;
       if (activeHandle) {
         let perm = 'granted';
         if (typeof activeHandle.queryPermission === 'function') {
@@ -3194,20 +3268,29 @@ export default function App() {
       }
 
       // Also query local server folder media & local /tts-files fallback (supports both localhost and local bridge from cloud URL)
-      const folderPath = (
+      const rawFolderPath = (
         flowServerFolderPath ||
         currentDoc?.downloadFolderPath ||
         localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
         ''
       ).trim();
-      const folderName = (
-        flowDownloadDirHandleRef.current?.name ||
-        flowDownloadFolderName ||
-        currentDoc?.downloadFolderName ||
-        localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) ||
-        ''
+      const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
+      const rawFolderName = (
+        (flowDownloadDirHandleRef.current?.name &&
+        doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+          ? flowDownloadDirHandleRef.current.name
+          : '') ||
+        (doesFolderMatchDoc(flowDownloadFolderName, currentDoc) ? flowDownloadFolderName : '') ||
+        (doesFolderMatchDoc(currentDoc?.downloadFolderName, currentDoc)
+          ? currentDoc?.downloadFolderName
+          : '') ||
+        getCanonicalFolderNameForDoc(currentDoc) ||
+        (doesFolderMatchDoc(localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || '', currentDoc)
+          ? localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || ''
+          : '')
       ).trim();
-      const docTitle = (currentDoc?.title || '').trim();
+      const folderName = rawFolderName;
+      const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
       const queryParams = `folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
 
       const isLocalhostOrigin =
@@ -3228,6 +3311,7 @@ export default function App() {
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
 
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+            const isDoc76 = extractDocVideoNumber(docTitle) === '76';
             setCapturedClipVideosMap((prev) => {
               const next = { ...prev };
               for (const item of data.clipVideos) {
@@ -3236,7 +3320,8 @@ export default function App() {
                   item.clipNumber > 0 &&
                   fullUrl &&
                   (!next[item.clipNumber] ||
-                    next[item.clipNumber].includes('/api/flow/serve-folder-file'))
+                    next[item.clipNumber].includes('/api/flow/serve-folder-file') ||
+                    (isDoc76 && item.clipNumber === 2))
                 ) {
                   next[item.clipNumber] = fullUrl;
                   loadedCount++;

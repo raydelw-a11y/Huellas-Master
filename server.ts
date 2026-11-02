@@ -3128,15 +3128,22 @@ app.post('/api/assets/official-logo', (req, res) => {
 // ============================================================================
 // AUTO-DISCOVER & STREAM MEDIA FROM CHOSEN DOCUMENTARY FOLDER FOR VIDEO EDITOR
 // ============================================================================
+function extractVideoNumberFromText(text?: string): string {
+  const t = String(text || '').normalize('NFC').toLowerCase();
+  const m = t.match(/\b(?:video|documental|ep\.?)\s*0*(\d+)\b/i);
+  if (m) return String(parseInt(m[1], 10));
+  if (t.includes('éxodo español') || t.includes('exodo espanol') || t.includes('maliaño')) return '76';
+  if (t.includes('louvre')) return '75';
+  if (t.includes('princesas de la edad media')) return '74';
+  return '';
+}
+
 function resolveLocalDocumentaryFolder(
   folderPathQuery?: string,
   folderNameQuery?: string,
   docTitleQuery?: string
 ): string {
   const rawPath = String(folderPathQuery || '').trim();
-  if (rawPath && fs.existsSync(rawPath) && fs.statSync(rawPath).isDirectory()) {
-    return rawPath;
-  }
   const rawName = String(folderNameQuery || '').trim();
   const rawTitle = String(docTitleQuery || '').trim();
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
@@ -3152,7 +3159,33 @@ function resolveLocalDocumentaryFolder(
     'Videos'
   );
 
-  if (rawName) {
+  const titleVidNum = extractVideoNumberFromText(rawTitle);
+  const pathVidNum = extractVideoNumberFromText(rawPath);
+  const nameVidNum = extractVideoNumberFromText(rawName);
+
+  // 1. Prioridad absoluta al número de Video del documental activo (docTitleQuery) para que nunca se crucen carpetas entre Video 75 y Video 76
+  if (
+    titleVidNum &&
+    fs.existsSync(icloudVideosDir) &&
+    fs.statSync(icloudVideosDir).isDirectory()
+  ) {
+    const prefixRegex = new RegExp(`^video\\s*0*${titleVidNum}\\b`, 'i');
+    for (const entry of fs.readdirSync(icloudVideosDir)) {
+      if (prefixRegex.test(entry.normalize('NFC'))) {
+        const full = path.join(icloudVideosDir, entry);
+        if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+      }
+    }
+  }
+
+  // 2. Usar rawPath o rawName solo si no contradicen el número de Video de docTitleQuery
+  const pathContradictsTitle = Boolean(titleVidNum && pathVidNum && titleVidNum !== pathVidNum);
+  if (!pathContradictsTitle && rawPath && fs.existsSync(rawPath) && fs.statSync(rawPath).isDirectory()) {
+    return rawPath;
+  }
+
+  const nameContradictsTitle = Boolean(titleVidNum && nameVidNum && titleVidNum !== nameVidNum);
+  if (!nameContradictsTitle && rawName) {
     const candidates = [
       path.join(icloudVideosDir, rawName),
       path.join(icloudVideosDir, rawName.normalize('NFD')),
@@ -3178,13 +3211,11 @@ function resolveLocalDocumentaryFolder(
     }
   }
 
-  // Match by Video number (e.g. "Video 76") from folderName, docTitle, or folderPath
-  if (fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
-    const combinedHint = `${rawName} ${rawTitle} ${rawPath}`;
-    const vidNumMatch = combinedHint.match(/\bvideo\s*0*(\d+)\b/i);
-    if (vidNumMatch) {
-      const vidNum = vidNumMatch[1];
-      const prefixRegex = new RegExp(`^video\\s*0*${vidNum}\\b`, 'i');
+  // 3. Match by Video number from combined hint if titleVidNum was empty
+  if (!titleVidNum && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+    const combinedVidNum = nameVidNum || pathVidNum;
+    if (combinedVidNum) {
+      const prefixRegex = new RegExp(`^video\\s*0*${combinedVidNum}\\b`, 'i');
       for (const entry of fs.readdirSync(icloudVideosDir)) {
         if (prefixRegex.test(entry.normalize('NFC'))) {
           const full = path.join(icloudVideosDir, entry);
@@ -3192,25 +3223,6 @@ function resolveLocalDocumentaryFolder(
         }
       }
     }
-
-    // Fallback: pick the most recently modified Video folder that contains 05_Clips_Video
-    let newestFolder = '';
-    let newestMtime = 0;
-    for (const entry of fs.readdirSync(icloudVideosDir)) {
-      if (!/^video\s*\d+/i.test(entry.normalize('NFC'))) continue;
-      const full = path.join(icloudVideosDir, entry);
-      const clipsSub = path.join(full, '05_Clips_Video');
-      try {
-        if (fs.existsSync(clipsSub) && fs.statSync(clipsSub).isDirectory()) {
-          const st = fs.statSync(clipsSub);
-          if (st.mtimeMs >= newestMtime) {
-            newestMtime = st.mtimeMs;
-            newestFolder = full;
-          }
-        }
-      } catch {}
-    }
-    if (newestFolder) return newestFolder;
   }
 
   return '';
