@@ -3907,7 +3907,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       setSelectedCanvasObject('hook_text');
                       setActiveInspectorTab('branding');
                     }}
-                    className="group absolute z-20 text-center cursor-move rounded-xl p-2.5"
+                    className={`group absolute z-20 text-center cursor-move rounded-xl p-2.5 ${
+                      selectedCanvasObject === 'hook_text'
+                        ? 'ring-1 ring-dashed ring-amber-400/80'
+                        : ''
+                    }`}
                     style={{
                       left: `${hookLeftPct}%`,
                       top: `${hookTopPct}%`,
@@ -3922,9 +3926,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }}
                     title="Mantén presionado y arrastra para mover por todo el video, o jala de las esquinas para alargar/achicar la caja de texto"
                   >
-                    {/* Subtle Corner & Side Resize Handles (only visible when hovering directly over the text box) */}
+                    {/* Corner & Side Resize Handles (always visible while hook_text is selected) */}
                     {selectedCanvasObject === 'hook_text' && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="opacity-100 transition-opacity">
                         {/* Top-Left Corner (NW) */}
                         <div
                           onMouseDown={(e) => handleStartHookBoxResize(e, 'nw')}
