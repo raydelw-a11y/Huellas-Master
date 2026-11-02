@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:36 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:40 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -768,6 +768,83 @@ export default function App() {
     useState<ExportResolutionPreset>('8K_4320P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
+  const lastActiveStage8VideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Space bar Play / Pause shortcut for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
+  useEffect(() => {
+    if (mainView === 'capcut_editor') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
+        if (tag === 'INPUT') {
+          const inputType = ((target as HTMLInputElement).type || 'text').toLowerCase();
+          if (inputType !== 'range' && inputType !== 'checkbox' && inputType !== 'button') {
+            return;
+          }
+        }
+      }
+
+      const allVideos = Array.from(
+        document.querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"], video')
+      );
+      if (allVideos.length === 0) return;
+
+      // 1. If any video on the page is currently playing, pause it immediately on Space
+      const playingVid = allVideos.find((v) => !v.paused && !v.ended);
+      if (playingVid) {
+        e.preventDefault();
+        e.stopPropagation();
+        lastActiveStage8VideoRef.current = playingVid;
+        playingVid.pause();
+        return;
+      }
+
+      // 2. Filter videos visible in the current viewport
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
+      const visibleVideos = allVideos.filter((v) => {
+        const r = v.getBoundingClientRect();
+        return r.width > 40 && r.height > 40 && r.bottom > 40 && r.top < viewportH - 40;
+      });
+      if (visibleVideos.length === 0) return;
+
+      // 3. Pick focused video, or last interacted video (if visible), or the video closest to screen center
+      const activeEl = document.activeElement as HTMLVideoElement | null;
+      let chosenVid: HTMLVideoElement | null = null;
+      if (activeEl && visibleVideos.includes(activeEl)) {
+        chosenVid = activeEl;
+      } else if (
+        lastActiveStage8VideoRef.current &&
+        visibleVideos.includes(lastActiveStage8VideoRef.current)
+      ) {
+        chosenVid = lastActiveStage8VideoRef.current;
+      } else {
+        const screenMidY = viewportH / 2;
+        let bestDist = Infinity;
+        for (const v of visibleVideos) {
+          const r = v.getBoundingClientRect();
+          const midY = (r.top + r.bottom) / 2;
+          const dist = Math.abs(midY - screenMidY);
+          if (dist < bestDist) {
+            bestDist = dist;
+            chosenVid = v;
+          }
+        }
+      }
+
+      if (chosenVid) {
+        e.preventDefault();
+        e.stopPropagation();
+        lastActiveStage8VideoRef.current = chosenVid;
+        chosenVid.play().catch(() => {});
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [mainView]);
   const [selectedRecreationModesByClip, setSelectedRecreationModesByClip] = useState<
     Record<
       string,
@@ -10775,8 +10852,12 @@ export default function App() {
                                     playsInline
                                     loop
                                     preload="none"
+                                    onMouseEnter={(e) => {
+                                      lastActiveStage8VideoRef.current = e.currentTarget;
+                                    }}
                                     onPlay={(e) => {
                                       const currentVid = e.currentTarget;
+                                      lastActiveStage8VideoRef.current = currentVid;
                                       document
                                         .querySelectorAll<HTMLVideoElement>(
                                           'video[data-stage8-clip-video="true"]'
@@ -10786,6 +10867,9 @@ export default function App() {
                                             v.pause();
                                           }
                                         });
+                                    }}
+                                    onPause={(e) => {
+                                      lastActiveStage8VideoRef.current = e.currentTarget;
                                     }}
                                     className="w-full h-full object-contain block bg-black"
                                   />

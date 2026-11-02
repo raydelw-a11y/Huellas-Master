@@ -2165,6 +2165,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setIsPlaying(true);
   };
 
+  const handleTogglePlayRef = useRef(handleTogglePlay);
+  handleTogglePlayRef.current = handleTogglePlay;
+
+  // Global Space key shortcut to Play / Pause the Video Editor viewer when not typing in text fields
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
+        if (tag === 'INPUT') {
+          const inputType = ((target as HTMLInputElement).type || 'text').toLowerCase();
+          if (inputType !== 'range' && inputType !== 'checkbox' && inputType !== 'button') {
+            return;
+          }
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      handleTogglePlayRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, []);
+
   // True Wall-Clock Playback Loop (performance.now() anchored so currentTime never lags behind hardware <video>)
   useEffect(() => {
     if (!isPlaying) {
