@@ -11161,15 +11161,25 @@ export default function App() {
                                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                                     <Film className="w-9 h-9 text-amber-400/70" />
                                     <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí completo en pantalla junto al botón Revisado y las opciones de rehacer.
+                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí completo en pantalla junto a los botones Revisado y Cargar Clip.
                                     </p>
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
                                       <button
                                         type="button"
-                                        onClick={() => handleLoadClipVideoFromFolder(clip, false)}
-                                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-amber-500/20"
+                                        disabled={loadingSingleClipMap[clip.clipNumber] === 'loading'}
+                                        onClick={() => handleLoadAndUpscaleSingleClip(clip)}
+                                        className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-sky-500/20 flex items-center gap-1.5"
                                       >
-                                        ▶️ Cargar y Ver Video .MP4 de 05_Clips_Video
+                                        <RefreshCw
+                                          className={`w-3.5 h-3.5 ${
+                                            loadingSingleClipMap[clip.clipNumber] === 'loading'
+                                              ? 'animate-spin'
+                                              : ''
+                                          }`}
+                                        />
+                                        {loadingSingleClipMap[clip.clipNumber] === 'loading'
+                                          ? `Mejorando Clip ${paddedNum} a 4K...`
+                                          : '📥 Cargar Clip (Mejorar a 4K y Actualizar)'}
                                       </button>
                                       <button
                                         type="button"
