@@ -11,15 +11,6 @@
     oldBar.remove();
   }
 
-  // Cerrar únicamente el modal de Story Studio (#story-studio-modal-root) si quedó abierto
-  try {
-    const ssModal = document.getElementById('story-studio-modal-root');
-    if (ssModal) {
-      ssModal.remove();
-    }
-    window.__HUELLAS_FLOW_SDK__ = null;
-  } catch {}
-
   // Desactivar cualquier observer previo que ocultaba el botón del dropdown de modelo cuando decía 'Omni 1.1 Flash'
   try {
     if (window.__HUELLAS_OMNI_HIDE_OBSERVER__) {
@@ -1870,16 +1861,14 @@
 
   chrome.runtime.onMessage.addListener(window.__HUELLAS_FLOW_MESSAGE_HANDLER__);
 
-  // Listen for images captured inside the Story Studio (flow-sdk) iframe and forward to Huellas Master
+  // Listen for images & videos captured inside the Story Studio / Huellas Flow Tool (flow-sdk) iframe and forward to Huellas Master
   if (!window.__HUELLAS_STORY_STUDIO_BRIDGE_LISTENER__) {
     window.__HUELLAS_STORY_STUDIO_BRIDGE_LISTENER__ = true;
     window.addEventListener('message', (event) => {
       const data = event.data;
-      if (
-        data &&
-        data.source === 'HUELLAS_STORY_STUDIO_FRAME' &&
-        data.type === 'FLOW_REFERENCE_CAPTURED'
-      ) {
+      if (!data || data.source !== 'HUELLAS_STORY_STUDIO_FRAME') return;
+
+      if (data.type === 'FLOW_REFERENCE_CAPTURED') {
         chrome.runtime
           .sendMessage({
             type: 'FLOW_REFERENCE_CAPTURED',
@@ -1888,6 +1877,31 @@
             referenceIndex: data.referenceIndex,
             mediaId: data.mediaId,
             imageDataUrl: data.imageDataUrl,
+          })
+          .catch(() => {});
+      } else if (data.type === 'FLOW_CLIP_IMAGE_CAPTURED') {
+        chrome.runtime
+          .sendMessage({
+            type: 'FLOW_CLIP_IMAGE_CAPTURED',
+            clipNumber: data.clipNumber,
+            clipId: data.clipId,
+            mediaId: data.mediaId,
+            imageUrl: data.imageDataUrl || data.imageUrl,
+            imageDataUrl: data.imageDataUrl || data.imageUrl,
+          })
+          .catch(() => {});
+      } else if (data.type === 'FLOW_VIDEO_CAPTURED') {
+        chrome.runtime
+          .sendMessage({
+            type: 'FLOW_VIDEO_CAPTURED',
+            clipNumber: data.clipNumber || 1,
+            clipId: data.clipId,
+            attempt: data.attempt || 1,
+            prompt: data.prompt || '',
+            videoUrl: data.videoDataUrl || data.videoUrl || '',
+            videoDataUrl: data.videoDataUrl || data.videoUrl || '',
+            frames: data.frames || [],
+            duration: data.duration || 10,
           })
           .catch(() => {});
       }

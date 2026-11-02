@@ -1678,62 +1678,7 @@ async function generateSingleClipViaFlowSdk(
           .trim()
           .slice(0, 3950);
 
-        // 2. Generar primero el Cuadro Inicial (Image N) con Flow.generate.image (1º Nano Banana 2.1, si falla Nano Banana Pro, siempre x1)
-        const imgModels = [
-          '🍌 Nano Banana 2.1',
-          'Nano Banana 2.1',
-          '🍌 Nano Banana Pro',
-          'Nano Banana Pro',
-        ];
-        let startImageMediaId = undefined;
-        let startImageDataUrl = '';
-        let lastError = '';
-
-        for (const modelDisplayName of imgModels) {
-          try {
-            const imgRes = await sdk.generate.image({
-              prompt: fullImgPrompt,
-              aspectRatio: ratio || '16:9',
-              count: 1,
-              sampleCount: 1,
-              numOutputs: 1,
-              outputsPerPrompt: 1,
-              referenceImageMediaIds:
-                referenceImageMediaIds.length > 0 ? referenceImageMediaIds : undefined,
-              modelDisplayName,
-            });
-            if (imgRes && imgRes.base64) {
-              const mime = imgRes.mimeType || 'image/jpeg';
-              startImageMediaId = imgRes.mediaId;
-              startImageDataUrl = `data:${mime};base64,${imgRes.base64}`;
-              break;
-            }
-          } catch (imgErr) {
-            lastError = String(imgErr?.message || imgErr || '');
-            // Si falló por mediaId expirado, reintentar sin referenceImageMediaIds
-            if (referenceImageMediaIds.length > 0) {
-              try {
-                const retryRes = await sdk.generate.image({
-                  prompt: fullImgPrompt,
-                  aspectRatio: ratio || '16:9',
-                  count: 1,
-                  sampleCount: 1,
-                  numOutputs: 1,
-                  outputsPerPrompt: 1,
-                  modelDisplayName,
-                });
-                if (retryRes && retryRes.base64) {
-                  const mime = retryRes.mimeType || 'image/jpeg';
-                  startImageMediaId = retryRes.mediaId;
-                  startImageDataUrl = `data:${mime};base64,${retryRes.base64}`;
-                  break;
-                }
-              } catch {}
-            }
-          }
-        }
-
-        // 3. Determinar la duración exacta del clip elegida en la Etapa 1 (Clip 1 vs Clips 2+)
+        // 2. Determinar la duración exacta del clip elegida en la Etapa 1 (Clip 1 vs Clips 2+)
         const resolveClipDurationSeconds = () => {
           const explicit = Number(item.durationSeconds || item.duration);
           if (Number.isFinite(explicit) && explicit >= 1 && explicit <= 60) {
@@ -1764,38 +1709,71 @@ async function generateSingleClipViaFlowSdk(
 
         const targetDurationSec = resolveClipDurationSeconds();
 
-        // Intentar generar Video nativo con Flow.generate.video encadenando firstFrameImageMediaId
+        // 3. Intentar PRIMERO generar Video nativo directo con 'Veo 3.1 - Lite [Lower Priority]' (Gratis / 0 créditos, x1 item)
+        //    sin gastar créditos generando imagen previa.
         let videoDataUrl = '';
         let videoMediaId = undefined;
         let videoMode = 'FLOW_SDK';
+        let startImageMediaId = undefined;
+        let startImageDataUrl = '';
+        let lastError = '';
 
-        if (typeof sdk.generate?.video === 'function') {
-          // Prioridad de Video cuando se agotan créditos de Omni Flash: 1) Veo 3.1 - Lite [Lower Priority] -> 2) Omni 1.1 Flash (siempre x1 item)
-          const vidModels = [
-            'Veo 3.1 - Lite [Lower Priority]',
-            'Omni 1.1 Flash',
+        const baseVidOpts = {
+          prompt: cleanVidPrompt,
+          aspectRatio: ratio || '16:9',
+          resolution: '720p',
+          count: 1,
+          sampleCount: 1,
+          numOutputs: 1,
+          outputsPerPrompt: 1,
+          durationSeconds: targetDurationSec,
+          duration: targetDurationSec,
+          ...(referenceImageMediaIds.length > 0 ? { referenceImageMediaIds } : {}),
+        };
+
+        // 3A. Si el Tool dentro de Google Flow expuso window.__HUELLAS_GENERATE_VIDEO__, usarlo primero
+        if (typeof window.__HUELLAS_GENERATE_VIDEO__ === 'function') {
+          try {
+            const customRes = await window.__HUELLAS_GENERATE_VIDEO__({
+              ...baseVidOpts,
+              clipNumber: item.clipNumber,
+              clipId: item.id,
+              modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]',
+            });
+            if (customRes && (customRes.base64 || customRes.videoDataUrl)) {
+              const vMime = customRes.mimeType || 'video/mp4';
+              videoDataUrl =
+                customRes.videoDataUrl || `data:${vMime};base64,${customRes.base64}`;
+              videoMediaId = customRes.mediaId;
+              videoMode = 'NATIVE_VIDEO_Veo 3.1 - Lite [Lower Priority]';
+            }
+          } catch (cErr) {
+            lastError = String(cErr?.message || cErr || '');
+          }
+        }
+
+        // 3B. Usar Flow.generate.video con 'Veo 3.1 - Lite [Lower Priority]' (probando variantes de clave de modelo del SDK)
+        if (!videoDataUrl && typeof sdk.generate?.video === 'function') {
+          const vidModelCandidates = [
+            {
+              modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]',
+              model: 'Veo 3.1 - Lite [Lower Priority]',
+            },
+            { modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
+            { model: 'veo-3.1-lite-lower-priority', modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
+            { model: 'veo-3.1-lite', modelDisplayName: 'Veo 3.1 - Lite [Lower Priority]' },
           ];
-          for (const modelDisplayName of vidModels) {
+          for (const modelParams of vidModelCandidates) {
             try {
-              const vidOpts = {
-                prompt: cleanVidPrompt,
-                aspectRatio: ratio || '16:9',
-                resolution: '720p',
-                count: 1,
-                sampleCount: 1,
-                numOutputs: 1,
-                outputsPerPrompt: 1,
-                durationSeconds: targetDurationSec,
-                duration: targetDurationSec,
-                ...(startImageMediaId ? { firstFrameImageMediaId: startImageMediaId } : {}),
-                modelDisplayName,
-              };
-              const vidRes = await sdk.generate.video(vidOpts);
+              const vidRes = await sdk.generate.video({
+                ...baseVidOpts,
+                ...modelParams,
+              });
               if (vidRes && vidRes.base64) {
                 const vMime = vidRes.mimeType || 'video/mp4';
                 videoDataUrl = `data:${vMime};base64,${vidRes.base64}`;
                 videoMediaId = vidRes.mediaId;
-                videoMode = `NATIVE_VIDEO_${modelDisplayName || 'DEFAULT'}`;
+                videoMode = 'NATIVE_VIDEO_Veo 3.1 - Lite [Lower Priority]';
                 break;
               }
             } catch (vErr) {
@@ -1804,19 +1782,26 @@ async function generateSingleClipViaFlowSdk(
           }
         }
 
-        // 4. Extraer los 3 Keyframes de auditoría (Inicio, Mitad, Final) y si el sandbox de Story Studio
-        //    sólo tiene habilitado Flow.generate.image, sintetizar el clip de movimiento cinematográfico (Ken Burns 30fps)
-        //    a partir de la imagen real recién generada en Nano Banana 2
+        // 4. Extraer 3 Keyframes reales del video .MP4 generado para la auditoría en Etapa 8
         const frames = [];
-        if (startImageDataUrl) {
+        if (videoDataUrl) {
           try {
-            const img = await new Promise((resolve, reject) => {
-              const im = new Image();
-              im.onload = () => resolve(im);
-              im.onerror = reject;
-              im.src = startImageDataUrl;
+            const vidEl = document.createElement('video');
+            vidEl.muted = true;
+            vidEl.playsInline = true;
+            vidEl.src = videoDataUrl;
+            await new Promise((resolve) => {
+              const t = setTimeout(resolve, 3500);
+              vidEl.onloadeddata = () => {
+                clearTimeout(t);
+                resolve();
+              };
+              vidEl.onerror = () => {
+                clearTimeout(t);
+                resolve();
+              };
             });
-
+            const dur = Number.isFinite(vidEl.duration) && vidEl.duration > 0.5 ? vidEl.duration : 6;
             const isVert = ratio === '9:16';
             const kfW = isVert ? 360 : 640;
             const kfH = isVert ? 640 : 360;
@@ -1824,20 +1809,24 @@ async function generateSingleClipViaFlowSdk(
             kfCanvas.width = kfW;
             kfCanvas.height = kfH;
             const kfCtx = kfCanvas.getContext('2d');
-
             if (kfCtx) {
-              for (const zoom of [1.0, 1.06, 1.12]) {
-                kfCtx.clearRect(0, 0, kfW, kfH);
-                const sw = img.width / zoom;
-                const sh = img.height / zoom;
-                const sx = (img.width - sw) / 2;
-                const sy = (img.height - sh) / 2;
-                kfCtx.drawImage(img, sx, sy, sw, sh, 0, 0, kfW, kfH);
-                frames.push(kfCanvas.toDataURL('image/jpeg', 0.85));
+              for (const frac of [0.12, 0.5, 0.88]) {
+                try {
+                  vidEl.currentTime = Math.max(0.05, dur * frac);
+                  await new Promise((r) => {
+                    const st = setTimeout(r, 450);
+                    vidEl.onseeked = () => {
+                      clearTimeout(st);
+                      r();
+                    };
+                  });
+                  kfCtx.drawImage(vidEl, 0, 0, kfW, kfH);
+                  frames.push(kfCanvas.toDataURL('image/jpeg', 0.85));
+                } catch {}
               }
             }
           } catch (synthErr) {
-            console.warn('[Huellas Flow SDK] Keyframe extraction warning:', synthErr);
+            console.warn('[Huellas Flow SDK] Video keyframe extraction warning:', synthErr);
           }
         }
 
@@ -2780,22 +2769,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
 
             // 1D. Etapa 8 (Video de Clip individual / Lotes de 10):
-            // NUNCA usar el sandbox de Story Studio (flow-sdk / Autocreate images) cuando mediaType === 'VIDEO',
-            // porque Story Studio sólo genera imágenes estáticas (Nano Banana 2.1).
-            // Cerrar cualquier modal de Story Studio y pasar directo al compositor de Video de Google Flow ('Veo 3.1 - Lite [Lower Priority]').
-            if (payload.mediaType === 'VIDEO' && (sdkStatus.hasSdk || sdkStatus.isStoryStudio)) {
-              await chrome.scripting
-                .executeScript({
-                  target: { tabId: targetTab.id, allFrames: true },
-                  world: 'MAIN',
-                  func: () => {
-                    const modal = document.getElementById('story-studio-modal-root');
-                    if (modal) modal.remove();
-                  },
-                })
-                .catch(() => {});
-              await sleep(100);
-              sdkStatus = { hasSdk: false, isStoryStudio: false };
+            // Si el Tool dentro de Google Flow expone flow-sdk (`window.__HUELLAS_GENERATE_VIDEO__` o `Flow.generate.video`),
+            // ejecutar primero vía SDK directo con 'Veo 3.1 - Lite [Lower Priority]' (x1, 0 créditos).
+            // Si no devuelve MP4 nativo (o el Tool no está abierto), caer automáticamente a la barra inferior de Google Flow.
+            if (payload.mediaType === 'VIDEO' && sdkStatus.hasSdk) {
+              const clipNum = Number(payload.clipNumber) || 1;
+              const ratio = payload.aspectRatio || '16:9';
+              const refAssets = Array.isArray(payload.referenceItems)
+                ? payload.referenceItems
+                : [];
+              broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                type: 'BRIDGE_STATUS',
+                service: 'FLOW',
+                status: 'GENERATING',
+                message: `🎬 Generando Video Clip #${clipNum} en el Tool de Google Flow (Veo 3.1 - Lite [Lower Priority] • x1 • 0 créditos)...`,
+                mediaType: 'VIDEO',
+                clipNumber: clipNum,
+              });
+              const clipRes = await generateSingleClipViaFlowSdk(
+                targetTab.id,
+                {
+                  clipNumber: clipNum,
+                  prompt: text,
+                  title: `Clip #${clipNum}`,
+                },
+                ratio,
+                refAssets
+              );
+              if (clipRes && clipRes.isNativeVideo && clipRes.videoDataUrl) {
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'FLOW_VIDEO_CAPTURED',
+                  videoUrl: clipRes.videoDataUrl,
+                  frames: Array.isArray(clipRes.frames) ? clipRes.frames : [],
+                  clipNumber: clipNum,
+                  aspectRatio: ratio,
+                  timestamp: Date.now(),
+                });
+                broadcastToHuellasTabsInSameWindow(senderWindowId, {
+                  type: 'BRIDGE_STATUS',
+                  service: 'FLOW',
+                  status: 'READY',
+                  message: `✅ Video Clip #${clipNum} generado con Veo 3.1 - Lite [Lower Priority] (0 créditos) y enviado a Huellas Master.`,
+                  mediaType: 'VIDEO',
+                  clipNumber: clipNum,
+                });
+                sendResponse({
+                  ok: true,
+                  tabId: targetTab.id,
+                  tabTitle: targetTab.title,
+                  method: 'FLOW_SDK_NATIVE_VIDEO',
+                  clipNumber: clipNum,
+                });
+                return;
+              }
             }
 
             // 1E. Si Story Studio está abierto (sólo para proyectos de imágenes / referencias, NUNCA para VIDEO), inyectar JSON y pulsar Autocreate images
