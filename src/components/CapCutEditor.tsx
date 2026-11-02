@@ -644,7 +644,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Playback & Rendering State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [timelineZoom, setTimelineZoom] = useState<number>(18); // pixels per second
+  const [timelineZoom, setTimelineZoom] = useState<number>(20); // pixels per second
   const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(false);
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'clips' | 'audio' | 'branding' | 'captions'
@@ -674,6 +674,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const appliedMusicSeekVersionRef = useRef<number>(-1);
   const activePlayingClipIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
+  const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
+  const isScrubbingRulerRef = useRef<boolean>(false);
 
   // Reset extracted first frames and auto-query local server 05_Clips_Video when switching documentaries
   useEffect(() => {
@@ -1905,7 +1908,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     playTimelineStartSecRef.current = currentTimeRef.current;
     playWallStartMsRef.current = performance.now();
 
-    const stepMs = 80;
+    const stepMs = 45;
     playIntervalRef.current = setInterval(() => {
       const elapsedSec = (performance.now() - playWallStartMsRef.current) / 1000;
       const next = playTimelineStartSecRef.current + elapsedSec;
@@ -1925,6 +1928,187 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
     };
   }, [isPlaying, totalDurationSec]);
+
+  // Keep the selected clip automatically synchronized with the clip at the real-time playhead
+  useEffect(() => {
+    if (activeClipAtPlayhead?.id && selectedClipId !== activeClipAtPlayhead.id) {
+      setSelectedClipId(activeClipAtPlayhead.id);
+    }
+  }, [activeClipAtPlayhead?.id, selectedClipId]);
+
+  // Auto-scroll the multitrack timeline horizontally as playback advances so the vertical playhead & active clip stay in view
+  useEffect(() => {
+    if (!isPlaying || isFitEntireProject || isScrubbingRulerRef.current) return;
+    const container = timelineScrollContainerRef.current;
+    if (!container) return;
+    const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+    const playheadX = trackHeaderOffsetPx + currentTime * timelineZoom;
+    const viewLeft = container.scrollLeft;
+    const viewWidth = container.clientWidth;
+    if (viewWidth <= 240) return;
+    const rightThreshold = viewLeft + viewWidth * 0.84;
+    const leftThreshold = viewLeft + trackHeaderOffsetPx * 0.5;
+    if (playheadX > rightThreshold || playheadX < leftThreshold) {
+      container.scrollTo({
+        left: Math.max(0, playheadX - viewWidth * 0.28),
+        behavior: 'smooth',
+      });
+    }
+  }, [currentTime, isPlaying, isFitEntireProject, timelineZoom]);
+
+  // Dynamic top time ruler configuration (seconds, minutes, or hours depending on zoom level)
+  const timelineRulerData = useMemo(() => {
+    const safeTotalSec = Math.max(10, totalDurationSec);
+    const effectivePxPerSec = isFitEntireProject
+      ? Math.max(960, (timelineScrollContainerRef.current?.clientWidth || 1200) - 210) / safeTotalSec
+      : timelineZoom;
+
+    let majorStepSec = 5;
+    let minorStepSec = 1;
+    let scaleUnitLabel = 'Segundos';
+
+    if (effectivePxPerSec >= 35) {
+      majorStepSec = 1;
+      minorStepSec = 0.25;
+      scaleUnitLabel = 'Segundos (1s)';
+    } else if (effectivePxPerSec >= 22) {
+      majorStepSec = 2;
+      minorStepSec = 0.5;
+      scaleUnitLabel = 'Segundos (2s)';
+    } else if (effectivePxPerSec >= 10) {
+      majorStepSec = 5;
+      minorStepSec = 1;
+      scaleUnitLabel = 'Segundos (5s)';
+    } else if (effectivePxPerSec >= 5) {
+      majorStepSec = 10;
+      minorStepSec = 2;
+      scaleUnitLabel = 'Seg / Min (10s)';
+    } else if (effectivePxPerSec >= 2.2) {
+      majorStepSec = 30;
+      minorStepSec = 5;
+      scaleUnitLabel = 'Minutos / 30s';
+    } else if (effectivePxPerSec >= 0.75) {
+      majorStepSec = 60;
+      minorStepSec = 10;
+      scaleUnitLabel = 'Minutos (1m)';
+    } else if (effectivePxPerSec >= 0.25) {
+      majorStepSec = 300;
+      minorStepSec = 60;
+      scaleUnitLabel = 'Minutos (5m)';
+    } else if (effectivePxPerSec >= 0.08) {
+      majorStepSec = 900;
+      minorStepSec = 300;
+      scaleUnitLabel = 'Horas / 15m';
+    } else {
+      majorStepSec = 3600;
+      minorStepSec = 600;
+      scaleUnitLabel = 'Horas (1h)';
+    }
+
+    const formatTickLabel = (sec: number): { text: string; isHour: boolean; isMinute: boolean } => {
+      const rounded = Math.round(sec);
+      const hrs = Math.floor(rounded / 3600);
+      const mins = Math.floor((rounded % 3600) / 60);
+      const secs = rounded % 60;
+
+      if (rounded === 0) {
+        return { text: '00:00', isHour: false, isMinute: false };
+      }
+      if (hrs > 0 || safeTotalSec >= 3600 || majorStepSec >= 900) {
+        if (mins === 0 && secs === 0 && hrs > 0) {
+          return {
+            text: `${hrs}:00:00 (${hrs}h)`,
+            isHour: true,
+            isMinute: false,
+          };
+        }
+        return {
+          text: `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+          isHour: mins === 0 && secs === 0,
+          isMinute: secs === 0,
+        };
+      }
+      if (mins > 0 && secs === 0) {
+        return {
+          text: `${String(mins).padStart(2, '0')}:00 (${mins}m)`,
+          isHour: false,
+          isMinute: true,
+        };
+      }
+      if (mins === 0) {
+        return {
+          text:
+            effectivePxPerSec >= 15
+              ? `00:${String(secs).padStart(2, '0')} (${secs}s)`
+              : `00:${String(secs).padStart(2, '0')}s`,
+          isHour: false,
+          isMinute: false,
+        };
+      }
+      return {
+        text: `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+        isHour: false,
+        isMinute: false,
+      };
+    };
+
+    const majorTicks: Array<{
+      sec: number;
+      label: string;
+      isHour: boolean;
+      isMinute: boolean;
+    }> = [];
+    for (let t = 0; t <= safeTotalSec; t += majorStepSec) {
+      const info = formatTickLabel(t);
+      majorTicks.push({
+        sec: t,
+        label: info.text,
+        isHour: info.isHour,
+        isMinute: info.isMinute,
+      });
+    }
+
+    const subdivisionsPerMajor = Math.max(1, Math.min(10, Math.round(majorStepSec / minorStepSec)));
+
+    return {
+      safeTotalSec,
+      majorStepSec,
+      minorStepSec,
+      scaleUnitLabel,
+      majorTicks,
+      subdivisionsPerMajor,
+    };
+  }, [totalDurationSec, timelineZoom, isFitEntireProject]);
+
+  // Click & drag on the Top Time Ruler or Playhead handle to scrub the vertical playhead in real time
+  const handleStartRulerScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rulerEl = timelineRulerLaneRef.current;
+    if (!rulerEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isScrubbingRulerRef.current = true;
+
+    const updateFromClientX = (clientX: number) => {
+      const rect = rulerEl.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      seekToTime(ratio * totalDurationSec);
+    };
+
+    updateFromClientX(e.clientX);
+
+    const onMove = (moveEvt: MouseEvent) => {
+      updateFromClientX(moveEvt.clientX);
+    };
+    const onUp = () => {
+      isScrubbingRulerRef.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // Sync preview <video>, voice <audio>, Suno music <audio>, and Ambience fallback WITHOUT seeking backwards during continuous playback
   useEffect(() => {
@@ -5141,29 +5325,37 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ===================================================================== */}
       <div className="flex-1 bg-[#0b0907] p-4 overflow-y-auto space-y-2.5">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
               <Layers className="w-4 h-4" /> Línea de Tiempo Multipista (Arrastra los Clips para Cambiar el Orden)
             </span>
+            {activeClipAtPlayhead && (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[11px] font-bold text-amber-200 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                Seleccionado en Tiempo Real: #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
+                {String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}) • {formatTimeMMSS(currentTime)}.
+                {Math.floor((currentTime % 1) * 10)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span>Zoom de Pistas:</span>
+            <span>Zoom de Pistas ({timelineRulerData.scaleUnitLabel}):</span>
             <button
               type="button"
               onClick={() => {
                 setIsFitEntireProject(false);
-                setTimelineZoom((z) => Math.max(2, z - 4));
+                setTimelineZoom((z) => Math.max(1, z - 3));
               }}
               className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
-              title="Alejar línea de tiempo"
+              title="Alejar línea de tiempo (ver minutos / horas)"
             >
               −
             </button>
             <input
               type="range"
-              min={2}
-              max={40}
-              value={isFitEntireProject ? 2 : timelineZoom}
+              min={1}
+              max={50}
+              value={isFitEntireProject ? 1 : timelineZoom}
               onChange={(e) => {
                 setIsFitEntireProject(false);
                 setTimelineZoom(Number(e.target.value));
@@ -5174,10 +5366,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               type="button"
               onClick={() => {
                 setIsFitEntireProject(false);
-                setTimelineZoom((z) => Math.min(40, z + 4));
+                setTimelineZoom((z) => Math.min(50, z + 3));
               }}
               className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
-              title="Acercar línea de tiempo"
+              title="Acercar línea de tiempo (ver segundos detallados)"
             >
               +
             </button>
@@ -5198,420 +5390,605 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
         {/* Scrollable Multi-Track Container */}
         <div
-          className={`bg-[#120f0c] border border-slate-800 rounded-2xl p-3 space-y-2 ${
+          ref={timelineScrollContainerRef}
+          className={`bg-[#120f0c] border border-slate-800 rounded-2xl p-3 ${
             isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
           }`}
         >
-          {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
-          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-            <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-amber-300">
-              1. 🏷️ Logo + Texto Clip 1
-            </div>
+          <div className={`relative space-y-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+            {/* =================================================================
+                GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
+            ================================================================= */}
             <div
-              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
-                isFitEntireProject ? 'flex-1 min-w-0' : ''
-              }`}
+              style={{
+                left: isFitEntireProject
+                  ? `calc(11.5rem + (100% - 11.5rem) * ${Math.min(
+                      1,
+                      Math.max(0, currentTime / Math.max(1, totalDurationSec))
+                    ).toFixed(6)})`
+                  : `calc(11.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
+              }}
+              className="pointer-events-none absolute top-0 bottom-0 z-30"
             >
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCanvasObject('hook_text');
-                  setActiveInspectorTab('branding');
-                }}
-                style={
-                  isFitEntireProject
-                    ? {
-                        flex: `${Math.max(1, clip1OverlayEndSec)} 0 0%`,
-                        minWidth: '80px',
-                      }
-                    : undefined
-                }
-                className="px-3 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer"
-              >
-                🔤 Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCanvasObject('logo');
-                  setActiveInspectorTab('branding');
-                }}
-                style={
-                  isFitEntireProject
-                    ? {
-                        flex: `${Math.max(1, totalDurationSec - clip1OverlayEndSec)} 1 0%`,
-                        minWidth: 0,
-                      }
-                    : undefined
-                }
-                className="px-4 py-1.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer"
-              >
-                🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 - {formatTimeMMSS(totalDurationSec)})
-              </button>
-            </div>
-          </div>
-
-          {/* TRACK 2: CAPTIONS (.SRT) */}
-          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-            <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-sky-300">
-              2. 💬 Captions ({captions.length})
-            </div>
-            <div
-              className={`flex items-center gap-1 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
-                isFitEntireProject ? 'flex-1 min-w-0 overflow-hidden' : ' gap-1.5'
-              }`}
-            >
-              {captions.length === 0 ? (
-                <span className="text-[11px] text-slate-500 px-3 py-1">
-                  Haz clic en "✨ Resincronizar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
-                </span>
-              ) : (
-                <>
-                  {/* Initial 8s Hook silence before captions start */}
-                  {voiceStartOffsetSec > 0 && (
-                    <div
-                      style={
-                        isFitEntireProject
-                          ? {
-                              flex: `${Math.max(1, voiceStartOffsetSec)} 0 0%`,
-                              minWidth: '48px',
-                            }
-                          : { width: `${Math.max(64, voiceStartOffsetSec * timelineZoom)}px` }
-                      }
-                      className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[9px] text-slate-400 text-center truncate shrink-0"
-                    >
-                      00:00-00:0{voiceStartOffsetSec} (Hook)
-                    </div>
-                  )}
-                  {(isFitEntireProject ? captions : captions.slice(0, 80)).map((cap) => (
-                    <button
-                      key={cap.id}
-                      type="button"
-                      onClick={() => {
-                        seekToTime(cap.start);
-                        setSelectedCanvasObject('captions');
-                      }}
-                      style={
-                        isFitEntireProject
-                          ? {
-                              flex: `${Math.max(1, cap.end - cap.start)} 1 0%`,
-                              minWidth: 0,
-                            }
-                          : undefined
-                      }
-                      className={`rounded bg-sky-950/60 hover:bg-sky-900/70 border border-sky-500/30 text-sky-200 truncate cursor-pointer ${
-                        isFitEntireProject
-                          ? 'px-1 py-1 text-[9px]'
-                          : 'px-2.5 py-1 text-[10px] max-w-[160px]'
-                      }`}
-                      title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
-                    >
-                      {!isFitEntireProject && (
-                        <span className="font-mono text-sky-400 mr-1">{formatTimeMMSS(cap.start)}</span>
-                      )}
-                      {cap.text}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING) */}
-          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-            <div className="w-44 shrink-0 px-2.5 py-4 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300">
-              3. 🎬 Clips + Foley ({timelineClips.length})
-            </div>
-            <div
-              className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-xl ${
-                isFitEntireProject ? 'flex-1 min-w-0 gap-[2px] p-1.5' : 'gap-2 p-2.5'
-              }`}
-            >
-              {clipsWithTimelineBounds.map((clip, idx) => {
-                const isSelected = selectedClip?.id === clip.id;
-                const isCurrent =
-                  currentTime >= clip.start && currentTime < clip.end;
-                const cardWidth = Math.max(
-                  timelineZoom < 12 ? Math.max(48, timelineZoom * 10) : 195,
-                  Math.round(clip.duration * timelineZoom)
-                );
-
-                return (
-                  <div
-                    key={clip.id}
-                    draggable
-                    onDragStart={() => setDraggedClipIndex(idx)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                      if (draggedClipIndex !== null && draggedClipIndex !== idx) {
-                        handleMoveClipOrder(draggedClipIndex, idx);
-                      }
-                      setDraggedClipIndex(null);
-                    }}
-                    onClick={() => {
-                      setSelectedClipId(clip.id);
-                      seekToTime(clip.start);
-                    }}
-                    title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
-                      clip.clipNumber
-                    ).padStart(2, '0')}) • ${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(
-                      clip.end
-                    )} • ${clip.fileName}`}
-                    style={
-                      isFitEntireProject
-                        ? {
-                            flex: `${Math.max(1, clip.duration)} 1 0%`,
-                            minWidth: 0,
-                          }
-                        : { width: `${cardWidth}px` }
-                    }
-                    className={`group relative rounded-lg border flex flex-col justify-between cursor-grab active:cursor-grabbing transition select-none overflow-hidden ${
-                      isFitEntireProject ? 'p-0.5 min-h-[76px]' : 'rounded-xl p-2.5 gap-2'
-                    } ${
-                      isSelected
-                        ? 'border-amber-400 bg-amber-500/20 shadow-lg shadow-amber-500/10 z-10'
-                        : isCurrent
-                        ? 'border-emerald-400 bg-emerald-950/40 z-10'
-                        : 'border-slate-800 bg-[#16130f] hover:border-amber-500/50'
-                    }`}
-                  >
-                    {isFitEntireProject ? (
-                      <>
-                        {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
-                          <img
-                            src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
-                            alt={clip.fileName}
-                            className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
-                          />
-                        ) : null}
-                        <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
-                          <span className="px-1 py-0.5 rounded bg-black/80 text-amber-300 font-black text-[9px] leading-none truncate max-w-full">
-                            {String(clip.clipNumber).padStart(2, '0')}
-                          </span>
-                          <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
-                            {formatTimeMMSS(clip.start)}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
-                            #{String(idx + 1).padStart(2, '0')} (Clip {String(clip.clipNumber).padStart(2, '0')})
-                            {clip.reviewedForEditor && (
-                              <span title="Revisado y enviado desde Etapa 8">✅</span>
-                            )}
-                          </span>
-                          <span className="text-[11px] font-mono text-slate-300">
-                            {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
-                          </span>
-                        </div>
-
-                        {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
-                          <div className="h-24 w-full rounded-lg overflow-hidden bg-black border border-slate-800 relative">
-                            <img
-                              src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
-                              alt={clip.fileName}
-                              className="w-full h-full object-cover"
-                            />
-                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
-                              Fotograma 1
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-2 text-center">
-                            <span className="text-[10px] font-bold text-amber-300/90">
-                              🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
-                            </span>
-                            <span className="text-[9px] text-slate-400 line-clamp-2 mt-0.5">
-                              {stripPauseTags(clip.narrationSegment || clip.videoPrompt || 'Sin .MP4 aún')}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="text-[11px] font-mono text-emerald-300 truncate" title={clip.fileName}>
-                          {clip.fileName}
-                        </div>
-
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
-                          <span>
-                            {clip.duration}s • {clip.speed}x
-                          </span>
-                          <span>Foley {clip.foleyVolume}%</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
-          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-            <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-emerald-300">
-              4. 🎙️ Voz Narrativa
-            </div>
-            <div
-              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
-                isFitEntireProject ? 'flex-1 min-w-0' : ''
-              }`}
-            >
-              {/* Initial Silence Block for Clip 1 Hook (8s) */}
+              {/* Playhead Top Handle / Time Badge on Ruler */}
               <div
-                style={
-                  isFitEntireProject
-                    ? {
-                        flex: `${Math.max(1, voiceStartOffsetSec)} 0 0%`,
-                        minWidth: '54px',
-                      }
-                    : { width: `${Math.max(70, voiceStartOffsetSec * timelineZoom)}px` }
-                }
-                className="px-2 py-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate shrink-0"
+                onMouseDown={handleStartRulerScrub}
+                title="Arrastra el guion vertical para moverte por la línea de tiempo"
+                className="pointer-events-auto cursor-ew-resize -translate-x-1/2 flex flex-col items-center select-none"
               >
-                🔇 {voiceStartOffsetSec}s Hook Sin Voz
-              </div>
-              {/* Main Voiceover Bar — Always spans the full voiceover duration */}
-              <div
-                style={
-                  isFitEntireProject
-                    ? {
-                        flex: `${Math.max(1, totalDurationSec - voiceStartOffsetSec)} 1 0%`,
-                        minWidth: 0,
-                      }
-                    : {
-                        width: `${Math.max(
-                          320,
-                          Math.round(
-                            Math.max(
-                              effectiveVoiceDurationSec,
-                              totalDurationSec - voiceStartOffsetSec
-                            ) * timelineZoom
-                          )
-                        )}px`,
-                      }
-                }
-                className="px-4 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center justify-between gap-3 truncate"
-              >
-                <span className="truncate">
-                  🎙️ Voz Narrativa Completa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
-                  {formatTimeMMSS(
-                    voiceStartOffsetSec +
-                      Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
-                  )}{' '}
-                  • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}%
-                </span>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {effectiveVoiceoverUrl && (
-                    <a
-                      href={effectiveVoiceoverUrl}
-                      download={`Voz_Narrativa_${(activeDoc?.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.mp3`}
-                      className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-[10px] font-black cursor-pointer"
-                      title="Descargar Audio Maestro de Voz Narrativa (.MP3)"
-                    >
-                      ⬇️ Descargar Voz (.MP3)
-                    </a>
-                  )}
-                  <label
-                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-emerald-300 font-bold cursor-pointer"
-                    title="Subir archivo de Voz Narrativa (.MP3 o .WAV)"
-                  >
-                    📤 Subir Voz
-                    <input
-                      type="file"
-                      accept="audio/*,.mp3,.wav,.m4a"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        const url = URL.createObjectURL(f);
-                        setVoiceAudioError(false);
-                        updateActiveDoc({ masterAudioUrl: url });
-                        setStatusMessage(`✅ Audio de voz narrativa "${f.name}" cargado en Pista 4.`);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceStartOffsetSec((s) => Math.max(0, s - 0.5))}
-                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
-                  >
-                    -0.5s
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceStartOffsetSec((s) => s + 0.5)}
-                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
-                  >
-                    +0.5s
-                  </button>
+                <div className="px-1.5 py-0.5 rounded bg-rose-600 border border-amber-300 text-[9px] font-mono font-black text-white shadow-md whitespace-nowrap leading-none">
+                  {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
                 </div>
+                <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-amber-300" />
+              </div>
+              {/* Continuous Vertical Playhead Line across all tracks */}
+              <div className="w-[2.5px] -translate-x-1/2 h-full bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
+            </div>
+
+            {/* =================================================================
+                TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM)
+            ================================================================= */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-amber-500/30 text-[10px] font-bold text-amber-300 flex items-center justify-between">
+                <span>⏱️ Regla de Tiempo</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-[9px] font-mono text-amber-200">
+                  {timelineRulerData.scaleUnitLabel}
+                </span>
+              </div>
+              <div
+                ref={timelineRulerLaneRef}
+                onMouseDown={handleStartRulerScrub}
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                title="Haz clic o arrastra sobre la regla para mover el guion vertical al segundo exacto"
+                className={`relative h-9 bg-[#090806] border border-slate-800 rounded-lg cursor-ew-resize select-none overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {/* Minor Subdivision Ticks (Seconds / Sub-seconds / Minutes depending on zoom) */}
+                <div
+                  style={{
+                    backgroundImage: isFitEntireProject
+                      ? `repeating-linear-gradient(to right, rgba(148,163,184,0.28) 0px, rgba(148,163,184,0.28) 1px, transparent 1px, transparent ${Math.max(
+                          0.25,
+                          (timelineRulerData.minorStepSec / Math.max(1, totalDurationSec)) * 100
+                        )}%)`
+                      : `repeating-linear-gradient(to right, rgba(148,163,184,0.28) 0px, rgba(148,163,184,0.28) 1px, transparent 1px, transparent ${Math.max(
+                          4,
+                          timelineRulerData.minorStepSec * timelineZoom
+                        )}px)`,
+                  }}
+                  className="absolute inset-x-0 bottom-0 h-2.5 pointer-events-none"
+                />
+
+                {/* Clip Boundary Markers along the bottom edge of the ruler */}
+                {clipsWithTimelineBounds.map((clip) => (
+                  <div
+                    key={`ruler-clip-${clip.id}`}
+                    style={{
+                      left: isFitEntireProject
+                        ? `${(clip.start / Math.max(1, totalDurationSec)) * 100}%`
+                        : `${clip.start * timelineZoom}px`,
+                    }}
+                    className="absolute bottom-0 h-1.5 w-[1px] bg-amber-500/45 pointer-events-none"
+                  />
+                ))}
+
+                {/* Major Labeled Ticks (Seconds, Minutes, or Hours) */}
+                {timelineRulerData.majorTicks.map((tick) => {
+                  const leftPos = isFitEntireProject
+                    ? `${(tick.sec / Math.max(1, totalDurationSec)) * 100}%`
+                    : `${tick.sec * timelineZoom}px`;
+                  return (
+                    <div
+                      key={`tick-${tick.sec}`}
+                      style={{ left: leftPos }}
+                      className="absolute top-0 bottom-0 flex flex-col justify-between pointer-events-none"
+                    >
+                      <span
+                        className={`pl-1 pt-0.5 text-[9px] font-mono whitespace-nowrap leading-none ${
+                          tick.isHour
+                            ? 'text-rose-300 font-black'
+                            : tick.isMinute
+                            ? 'text-amber-300 font-bold'
+                            : 'text-slate-300'
+                        }`}
+                      >
+                        {tick.label}
+                      </span>
+                      <div
+                        className={`w-[1.5px] ${
+                          tick.isHour
+                            ? 'h-4 bg-rose-400'
+                            : tick.isMinute
+                            ? 'h-3.5 bg-amber-400'
+                            : 'h-3 bg-slate-400/80'
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
 
-          {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (WITH FADE-IN/OUT, DUCKING & SILENCE GAPS) */}
-          <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-            <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300">
-              5. 🎵 Flow Music ({musicTracks.length})
+            {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-amber-300">
+                1. 🏷️ Logo + Texto Clip 1
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded-lg py-1 px-0 overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCanvasObject('hook_text');
+                    setActiveInspectorTab('branding');
+                  }}
+                  style={
+                    isFitEntireProject
+                      ? {
+                          width: `${(clip1OverlayEndSec / Math.max(1, totalDurationSec)) * 100}%`,
+                        }
+                      : { width: `${clip1OverlayEndSec * timelineZoom}px` }
+                  }
+                  className="px-2 py-1.5 rounded-l bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                >
+                  🔤 Texto Gancho Clip 1 (00:00 - 00:0{clip1OverlayEndSec})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCanvasObject('logo');
+                    setActiveInspectorTab('branding');
+                  }}
+                  style={
+                    isFitEntireProject
+                      ? {
+                          width: `${
+                            (Math.max(0, totalDurationSec - clip1OverlayEndSec) /
+                              Math.max(1, totalDurationSec)) *
+                            100
+                          }%`,
+                        }
+                      : {
+                          width: `${Math.max(0, totalDurationSec - clip1OverlayEndSec) * timelineZoom}px`,
+                        }
+                  }
+                  className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                >
+                  🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 -{' '}
+                  {formatTimeMMSS(totalDurationSec)})
+                </button>
+              </div>
             </div>
-            <div
-              className={`flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5 ${
-                isFitEntireProject ? 'flex-1 min-w-0' : ''
-              }`}
-            >
-              {musicTracks.length === 0 ? (
-                <span className="text-[11px] text-slate-500 px-3 py-1">
-                  Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí con Fade-In (2.5s), Fade-Out (3.0s), Auto-Ducking bajo la voz, silencios de 10-20s y cierre de 1:30.
-                </span>
-              ) : (
-                musicTracks.map((mt, mIdx) => {
-                  const prevEnd =
-                    mIdx > 0
-                      ? musicTracks[mIdx - 1].start + musicTracks[mIdx - 1].duration
-                      : 0;
-                  const gapSec =
-                    mIdx > 0 ? Math.max(10, Math.round(mt.start - prevEnd)) : 0;
-                  return (
-                    <React.Fragment key={mt.id}>
-                      {mIdx > 0 && (
-                        <div
-                          style={
-                            isFitEntireProject
-                              ? { flex: `${Math.max(10, gapSec)} 0 0%`, minWidth: '36px' }
-                              : undefined
-                          }
-                          className="px-2 py-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center"
-                          title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
-                        >
-                          🔇 Silencio {gapSec}s
-                        </div>
-                      )}
+
+            {/* TRACK 2: CAPTIONS (.SRT) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-sky-300">
+                2. 💬 Captions ({captions.length})
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {captions.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 px-3 leading-9">
+                    Haz clic en "✨ Resincronizar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
+                  </span>
+                ) : (
+                  <>
+                    {/* Initial 8s Hook silence before captions start */}
+                    {voiceStartOffsetSec > 0 && (
                       <div
                         style={
                           isFitEntireProject
-                            ? { flex: `${Math.max(1, mt.duration)} 1 0%`, minWidth: 0 }
-                            : undefined
+                            ? {
+                                left: '0%',
+                                width: `${(voiceStartOffsetSec / Math.max(1, totalDurationSec)) * 100}%`,
+                              }
+                            : {
+                                left: '0px',
+                                width: `${voiceStartOffsetSec * timelineZoom}px`,
+                              }
                         }
-                        className="px-3 py-1.5 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-2 truncate"
-                        title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(
-                          mt.start + mt.duration
-                        )}) • Fade-In ${mt.fadeInSec ?? 2.5}s / Fade-Out ${
-                          mt.fadeOutSec ?? 3.0
-                        }s • Auto-Ducking Bajo Voz`}
+                        className="absolute top-1 bottom-1 px-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[9px] text-slate-400 flex items-center justify-center truncate"
                       >
-                        <Music className="w-3 h-3 text-purple-400 shrink-0" />
-                        <span className="truncate">
-                          #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
-                          {formatTimeMMSS(mt.start + mt.duration)}) • 🎚️ Fade In/Out
-                          {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
-                        </span>
+                        00:00-00:0{voiceStartOffsetSec} (Hook)
                       </div>
-                    </React.Fragment>
+                    )}
+                    {captions.map((cap) => {
+                      const isCapActive = activeCaptionAtPlayhead?.id === cap.id;
+                      const capDur = Math.max(0.4, cap.end - cap.start);
+                      return (
+                        <button
+                          key={cap.id}
+                          type="button"
+                          onClick={() => {
+                            seekToTime(cap.start);
+                            setSelectedCanvasObject('captions');
+                          }}
+                          style={
+                            isFitEntireProject
+                              ? {
+                                  left: `${(cap.start / Math.max(1, totalDurationSec)) * 100}%`,
+                                  width: `${(capDur / Math.max(1, totalDurationSec)) * 100}%`,
+                                }
+                              : {
+                                  left: `${cap.start * timelineZoom}px`,
+                                  width: `${Math.max(18, capDur * timelineZoom)}px`,
+                                }
+                          }
+                          className={`absolute top-1 bottom-1 rounded border truncate cursor-pointer transition ${
+                            isCapActive
+                              ? 'bg-sky-500/35 border-amber-300 text-white font-bold z-10'
+                              : 'bg-sky-950/60 hover:bg-sky-900/70 border-sky-500/30 text-sky-200'
+                          } ${isFitEntireProject ? 'px-0.5 text-[8px]' : 'px-1.5 text-[10px]'}`}
+                          title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
+                        >
+                          {!isFitEntireProject && timelineZoom >= 12 && (
+                            <span className="font-mono text-sky-300 mr-1">{formatTimeMMSS(cap.start)}</span>
+                          )}
+                          {cap.text}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING + REAL-TIME PLAYHEAD SELECTION) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-4 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300">
+                3. 🎬 Clips + Foley ({timelineClips.length})
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-0 overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {clipsWithTimelineBounds.map((clip, idx) => {
+                  const isCurrent = currentTime >= clip.start && currentTime < clip.end;
+                  const isSelected = selectedClip?.id === clip.id || isCurrent;
+                  const slotWidthPx = clip.duration * timelineZoom;
+                  const useCompactCard = isFitEntireProject || slotWidthPx < 135;
+                  const clipPlayProgressPct = isCurrent
+                    ? Math.min(
+                        100,
+                        Math.max(0, ((currentTime - clip.start) / Math.max(0.1, clip.duration)) * 100)
+                      )
+                    : 0;
+
+                  return (
+                    <div
+                      key={clip.id}
+                      draggable
+                      onDragStart={() => setDraggedClipIndex(idx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => {
+                        if (draggedClipIndex !== null && draggedClipIndex !== idx) {
+                          handleMoveClipOrder(draggedClipIndex, idx);
+                        }
+                        setDraggedClipIndex(null);
+                      }}
+                      onClick={() => {
+                        setSelectedClipId(clip.id);
+                        seekToTime(clip.start);
+                      }}
+                      title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
+                        clip.clipNumber
+                      ).padStart(2, '0')}) • ${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(
+                        clip.end
+                      )} • ${clip.fileName}`}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${(clip.duration / Math.max(1, totalDurationSec)) * 100}%`,
+                            }
+                          : { width: `${slotWidthPx}px` }
+                      }
+                      className="shrink-0 px-[1.5px] select-none"
+                    >
+                      <div
+                        className={`group relative h-full rounded-lg border flex flex-col justify-between cursor-grab active:cursor-grabbing transition overflow-hidden ${
+                          useCompactCard ? 'p-1 min-h-[82px]' : 'rounded-xl p-2 gap-1.5'
+                        } ${
+                          isCurrent
+                            ? 'border-2 border-amber-400 bg-amber-500/25 shadow-lg shadow-amber-500/25 ring-2 ring-rose-500/50 z-10'
+                            : isSelected
+                            ? 'border-amber-400 bg-amber-500/20 shadow-lg shadow-amber-500/10 z-10'
+                            : 'border-slate-800 bg-[#16130f] hover:border-amber-500/50'
+                        }`}
+                      >
+                        {/* Real-Time Progress Fill inside the active clip as the playhead sweeps across it */}
+                        {isCurrent && (
+                          <div
+                            style={{ width: `${clipPlayProgressPct}%` }}
+                            className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500/20 via-amber-400/25 to-rose-500/35 border-r-2 border-rose-400 z-20"
+                          />
+                        )}
+
+                        {useCompactCard ? (
+                          <>
+                            {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
+                              <img
+                                src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
+                                alt={clip.fileName}
+                                className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
+                              />
+                            ) : null}
+                            <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
+                              <span
+                                className={`px-1 py-0.5 rounded font-black text-[9px] leading-none truncate max-w-full ${
+                                  isCurrent
+                                    ? 'bg-amber-400 text-slate-950'
+                                    : 'bg-black/80 text-amber-300'
+                                }`}
+                              >
+                                {String(clip.clipNumber).padStart(2, '0')}
+                              </span>
+                              <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
+                                {formatTimeMMSS(clip.start)}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="relative z-10 flex items-center justify-between gap-1">
+                              <span
+                                className={`px-1.5 py-0.5 rounded font-black text-[10px] flex items-center gap-1 truncate ${
+                                  isCurrent
+                                    ? 'bg-rose-500 text-white'
+                                    : 'bg-amber-500 text-slate-950'
+                                }`}
+                              >
+                                {isCurrent ? '▶ ' : ''}#{String(idx + 1).padStart(2, '0')} (C
+                                {String(clip.clipNumber).padStart(2, '0')})
+                                {clip.reviewedForEditor && (
+                                  <span title="Revisado y enviado desde Etapa 8">✅</span>
+                                )}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-200 shrink-0">
+                                {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
+                              </span>
+                            </div>
+
+                            {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
+                              <div className="relative z-10 h-20 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
+                                <img
+                                  src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
+                                  alt={clip.fileName}
+                                  className="w-full h-full object-cover"
+                                />
+                                <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
+                                  {isCurrent ? '▶ En Curso' : 'Fotograma 1'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="relative z-10 h-20 w-full rounded-lg overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-2 text-center">
+                                <span className="text-[10px] font-bold text-amber-300/90">
+                                  🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
+                                </span>
+                                <span className="text-[9px] text-slate-400 line-clamp-2 mt-0.5">
+                                  {stripPauseTags(clip.narrationSegment || clip.videoPrompt || 'Sin .MP4 aún')}
+                                </span>
+                              </div>
+                            )}
+
+                            <div
+                              className="relative z-10 text-[10px] font-mono text-emerald-300 truncate"
+                              title={clip.fileName}
+                            >
+                              {clip.fileName}
+                            </div>
+
+                            <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+                              <span>
+                                {clip.duration}s • {clip.speed}x
+                              </span>
+                              <span>Foley {clip.foleyVolume}%</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   );
-                })
-              )}
+                })}
+              </div>
+            </div>
+
+            {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-emerald-300">
+                4. 🎙️ Voz Narrativa
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded-lg py-1 px-0 overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {/* Initial Silence Block for Clip 1 Hook (8s) */}
+                <div
+                  style={
+                    isFitEntireProject
+                      ? {
+                          width: `${(voiceStartOffsetSec / Math.max(1, totalDurationSec)) * 100}%`,
+                        }
+                      : { width: `${voiceStartOffsetSec * timelineZoom}px` }
+                  }
+                  className="px-1.5 py-1.5 rounded-l bg-slate-900 border-r border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate shrink-0"
+                >
+                  🔇 {voiceStartOffsetSec}s Hook
+                </div>
+                {/* Main Voiceover Bar — Always spans the full voiceover duration */}
+                <div
+                  style={
+                    isFitEntireProject
+                      ? {
+                          width: `${
+                            (Math.max(0, totalDurationSec - voiceStartOffsetSec) /
+                              Math.max(1, totalDurationSec)) *
+                            100
+                          }%`,
+                        }
+                      : {
+                          width: `${Math.max(0, totalDurationSec - voiceStartOffsetSec) * timelineZoom}px`,
+                        }
+                  }
+                  className="px-3 py-1.5 rounded-r bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center justify-between gap-3 truncate shrink-0"
+                >
+                  <span className="truncate">
+                    🎙️ Voz Narrativa Completa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
+                    {formatTimeMMSS(
+                      voiceStartOffsetSec +
+                        Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
+                    )}{' '}
+                    • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}%
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {effectiveVoiceoverUrl && (
+                      <a
+                        href={effectiveVoiceoverUrl}
+                        download={`Voz_Narrativa_${(activeDoc?.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.mp3`}
+                        className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-[10px] font-black cursor-pointer"
+                        title="Descargar Audio Maestro de Voz Narrativa (.MP3)"
+                      >
+                        ⬇️ Descargar Voz (.MP3)
+                      </a>
+                    )}
+                    <label
+                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-emerald-300 font-bold cursor-pointer"
+                      title="Subir archivo de Voz Narrativa (.MP3 o .WAV)"
+                    >
+                      📤 Subir Voz
+                      <input
+                        type="file"
+                        accept="audio/*,.mp3,.wav,.m4a"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          const url = URL.createObjectURL(f);
+                          setVoiceAudioError(false);
+                          updateActiveDoc({ masterAudioUrl: url });
+                          setStatusMessage(`✅ Audio de voz narrativa "${f.name}" cargado en Pista 4.`);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceStartOffsetSec((s) => Math.max(0, s - 0.5))}
+                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
+                    >
+                      -0.5s
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceStartOffsetSec((s) => s + 0.5)}
+                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
+                    >
+                      +0.5s
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (WITH FADE-IN/OUT, DUCKING & SILENCE GAPS) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300">
+                5. 🎵 Flow Music ({musicTracks.length})
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden flex items-center ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {musicTracks.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 px-3 py-1">
+                    Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí con Fade-In (2.5s), Fade-Out (3.0s), Auto-Ducking bajo la voz, silencios de 10-20s y cierre de 1:30.
+                  </span>
+                ) : (
+                  musicTracks.map((mt, mIdx) => {
+                    const prevEnd =
+                      mIdx > 0
+                        ? musicTracks[mIdx - 1].start + musicTracks[mIdx - 1].duration
+                        : 0;
+                    const gapSec =
+                      mIdx > 0 ? Math.max(0, Math.round(mt.start - prevEnd)) : Math.max(0, mt.start);
+                    return (
+                      <React.Fragment key={mt.id}>
+                        {gapSec > 0 && (
+                          <div
+                            style={
+                              isFitEntireProject
+                                ? { width: `${(gapSec / Math.max(1, totalDurationSec)) * 100}%` }
+                                : { width: `${gapSec * timelineZoom}px` }
+                            }
+                            className="px-1.5 py-1 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center shrink-0"
+                            title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
+                          >
+                            🔇 Silencio {gapSec}s
+                          </div>
+                        )}
+                        <div
+                          style={
+                            isFitEntireProject
+                              ? { width: `${(mt.duration / Math.max(1, totalDurationSec)) * 100}%` }
+                              : { width: `${mt.duration * timelineZoom}px` }
+                          }
+                          className="px-2.5 py-1 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-1.5 truncate shrink-0"
+                          title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(
+                            mt.start + mt.duration
+                          )}) • Fade-In ${mt.fadeInSec ?? 2.5}s / Fade-Out ${
+                            mt.fadeOutSec ?? 3.0
+                          }s • Auto-Ducking Bajo Voz`}
+                        >
+                          <Music className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span className="truncate">
+                            #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
+                            {formatTimeMMSS(mt.start + mt.duration)}) • 🎚️ Fade In/Out
+                            {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
+                          </span>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>
