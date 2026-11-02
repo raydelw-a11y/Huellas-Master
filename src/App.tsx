@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:27 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:31 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -835,7 +835,14 @@ export default function App() {
     );
     slots.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [mainView, activeDoc?.id, Object.keys(capturedClipVideosMap).length]);
+  }, [
+    mainView,
+    activeStage,
+    activeDocId,
+    clipBatchFilter,
+    clipStatusFilter,
+    Object.keys(capturedClipVideosMap).length,
+  ]);
 
   // Space bar Play / Pause shortcut for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
   useEffect(() => {
