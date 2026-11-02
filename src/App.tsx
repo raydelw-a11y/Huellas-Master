@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:26 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:34 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3159,8 +3159,8 @@ export default function App() {
                 if (sunoMatch) {
                   const tNum = parseInt(sunoMatch[1], 10) || 1;
                   const isFlowMusicName = /^(?:flowmusic|flow_music)/i.test(String(entryName));
-                  if (!newSunoUrls[tNum] || isFlowMusicName) {
-                    const file = await entryHandle.getFile();
+                  const file = await entryHandle.getFile();
+                  if (file.size >= 1024 && (!newSunoUrls[tNum] || isFlowMusicName)) {
                     newSunoUrls[tNum] = URL.createObjectURL(file);
                   }
                 } else {
@@ -4511,10 +4511,12 @@ export default function App() {
 
       const activeServerPath = (flowServerFolderPath || globalStoredFolderPath || '').trim();
       if (!flowDownloadDirHandleRef.current && activeServerPath && !isCloudMode) {
-        const sunoTracksPayload = Object.entries(capturedSunoAudioMap).map(([num, dataUrl]) => ({
-          fileName: `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
-          audioDataUrl: dataUrl,
-        }));
+        const sunoTracksPayload = Object.entries(capturedSunoAudioMap)
+          .filter(([, dataUrl]) => typeof dataUrl === 'string' && dataUrl.startsWith('data:audio'))
+          .map(([num, dataUrl]) => ({
+            fileName: `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
+            audioDataUrl: dataUrl,
+          }));
         const thumbsPayload = Object.entries(capturedThumbnailsMap).map(([opt, dataUrl]) => ({
           option: opt,
           fileName: `Miniatura_Opcion_${opt}.png`,
@@ -4608,7 +4610,7 @@ export default function App() {
         );
       }
       for (const [num, dataUrl] of Object.entries(capturedSunoAudioMap)) {
-        if (dataUrl) {
+        if (typeof dataUrl === 'string' && dataUrl.startsWith('data:audio')) {
           await handleSaveAnyFileToChosenFolder(
             `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
             String(dataUrl),

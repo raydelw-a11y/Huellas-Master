@@ -3277,9 +3277,22 @@ app.get('/api/flow/list-folder-media', (req, res) => {
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
         const entries = fs.readdirSync(dir);
         const hasFlowMusicByNum = new Set<number>();
+        const hasTitledFlowMusicByNum = new Set<number>();
         for (const entry of entries) {
+          const fullCheck = path.join(dir, entry);
+          let stCheck: fs.Stats | null = null;
+          try {
+            stCheck = fs.statSync(fullCheck);
+          } catch {}
+          if (!stCheck || !stCheck.isFile() || stCheck.size < 1024) continue;
           const fm = entry.match(/^(?:flowmusic|flow_music)[_\-\s]*0*(\d+)/i);
-          if (fm) hasFlowMusicByNum.add(parseInt(fm[1], 10) || 1);
+          if (fm) {
+            const num = parseInt(fm[1], 10) || 1;
+            hasFlowMusicByNum.add(num);
+            if (!/^(?:flowmusic|flow_music)[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(entry)) {
+              hasTitledFlowMusicByNum.add(num);
+            }
+          }
         }
         for (const entry of entries) {
           const full = path.join(dir, entry);
@@ -3291,9 +3304,24 @@ app.get('/api/flow/list-folder-media', (req, res) => {
           }
           if (!st.isFile()) continue;
           if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
+          // Auto-remove 0-byte / corrupted audio files
+          if (st.size < 1024) {
+            try {
+              fs.unlinkSync(full);
+            } catch {}
+            continue;
+          }
           // Auto-clean duplicate legacy Suno_0X.mp3 when FlowMusic_0X...mp3 exists in the same folder
           const legacySunoMatch = entry.match(/^suno[_\-\s]*0*(\d+)\.(mp3|wav|m4a|ogg)$/i);
           if (legacySunoMatch && hasFlowMusicByNum.has(parseInt(legacySunoMatch[1], 10) || 1)) {
+            try {
+              fs.unlinkSync(full);
+              continue;
+            } catch {}
+          }
+          // Auto-clean untitled duplicate FlowMusic_0X.mp3 when titled FlowMusic_0X_Title.mp3 exists
+          const untitledFlowMatch = entry.match(/^(?:flowmusic|flow_music)[_\-\s]*0*(\d+)\.(mp3|wav|m4a|ogg)$/i);
+          if (untitledFlowMatch && hasTitledFlowMusicByNum.has(parseInt(untitledFlowMatch[1], 10) || 1)) {
             try {
               fs.unlinkSync(full);
               continue;

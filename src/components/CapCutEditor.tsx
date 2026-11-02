@@ -664,7 +664,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
-  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(15);
+  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(24);
 
   // Playback & Rendering State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -698,6 +698,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const appliedVoiceSeekVersionRef = useRef<number>(-1);
   const appliedMusicSeekVersionRef = useRef<number>(-1);
   const activePlayingClipIdRef = useRef<string | null>(null);
+  const activePlayingMusicIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
@@ -1864,11 +1865,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Automatic Fade-In (2.5s), Fade-Out (3.0s) & Voice-Priority Ducking (Music NEVER louder than Narrator Voice)
   const effectiveMusicVolumeAtPlayhead = useMemo(() => {
     if (!activeMusicAtPlayhead) return 0;
-    const rawBasePct = activeMusicAtPlayhead.volume || masterMusicVolume || 15;
-    // Strict ceiling: music can never exceed 30% of narrator's voiceVolume
-    const maxAllowedByVoice = Math.max(8, Math.min(35, Math.round(voiceVolume * 0.3)));
-    const duckedPct = Math.min(rawBasePct, 14, Math.round(voiceVolume * 0.16));
-    const pausePct = Math.min(Math.max(rawBasePct, 22), maxAllowedByVoice);
+    const rawBasePct = activeMusicAtPlayhead.volume || masterMusicVolume || 24;
+    // Strict ceiling: music can never exceed 42% of narrator's voiceVolume
+    const maxAllowedByVoice = Math.max(12, Math.min(45, Math.round(voiceVolume * 0.42)));
+    const duckedPct = Math.min(Math.max(rawBasePct, 20), 24, Math.round(voiceVolume * 0.25));
+    const pausePct = Math.min(Math.max(rawBasePct, 30), maxAllowedByVoice);
     const targetBasePct = autoDuckingEnabled
       ? isNarratorSpeakingAtPlayhead
         ? duckedPct
@@ -1882,7 +1883,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       0,
       activeMusicAtPlayhead.start + activeMusicAtPlayhead.duration - currentTime
     );
-    const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInTrack / fadeInSec) : 1;
+    const fadeInFactor =
+      fadeInSec > 0 ? 0.28 + 0.72 * Math.min(1, elapsedInTrack / fadeInSec) : 1;
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInTrack / fadeOutSec) : 1;
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
 
@@ -2063,13 +2065,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     // 3. Unlock & play Track 5 Flow Music <audio> if present (with Fade-In / Fade-Out & Voice-Priority Ducking)
     const mus = musicAudioRef.current;
-    if (mus && activeMusicAtPlayhead?.audioUrl) {
+    if (mus) {
       try {
         appliedMusicSeekVersionRef.current = lastSeekVersionRef.current;
-        mus.src = activeMusicAtPlayhead.audioUrl;
-        mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
-        mus.volume = Math.min(1, Math.max(0, effectiveMusicVolumeAtPlayhead / 100));
-        mus.play().catch(() => {});
+        if (activeMusicAtPlayhead?.audioUrl) {
+          if (activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id) {
+            activePlayingMusicIdRef.current = activeMusicAtPlayhead.id;
+            mus.src = activeMusicAtPlayhead.audioUrl;
+          }
+          mus.muted = false;
+          mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
+          mus.volume = Math.min(1, Math.max(0.05, effectiveMusicVolumeAtPlayhead / 100));
+          mus.play().catch(() => {});
+        } else if (musicTracks[0]?.audioUrl) {
+          // Unlock autoplay permission now so deferred play when the next music track starts is never blocked
+          mus.muted = true;
+          mus.play()
+            .then(() => {
+              mus.pause();
+              mus.muted = false;
+              mus.currentTime = 0;
+            })
+            .catch(() => {});
+        }
       } catch {}
     }
 
@@ -2396,20 +2414,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const mus = musicAudioRef.current;
     if (mus) {
       if (activeMusicAtPlayhead?.audioUrl) {
-        const trackChanged =
-          !mus.src.endsWith(activeMusicAtPlayhead.audioUrl) &&
-          mus.src !== activeMusicAtPlayhead.audioUrl;
-        if (trackChanged) {
+        const isTrackSwitch = activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id;
+        if (isTrackSwitch) {
+          activePlayingMusicIdRef.current = activeMusicAtPlayhead.id;
           mus.src = activeMusicAtPlayhead.audioUrl;
         }
         const musTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
         const isManualMusSeek = appliedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
-        if (trackChanged || isManualMusSeek || !isPlaying || (mus.paused && Math.abs(mus.currentTime - musTime) > 0.4) || Math.abs(mus.currentTime - musTime) > 1.8) {
+        if (
+          isTrackSwitch ||
+          isManualMusSeek ||
+          !isPlaying ||
+          Math.abs(mus.currentTime - musTime) > 1.8
+        ) {
           appliedMusicSeekVersionRef.current = lastSeekVersionRef.current;
           try {
             mus.currentTime = musTime;
           } catch {}
         }
+        mus.muted = false;
         mus.volume = Math.min(
           1,
           Math.max(0, effectiveMusicVolumeAtPlayhead / 100)
@@ -2417,8 +2440,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (isPlaying && mus.paused && !mus.ended) {
           mus.play().catch(() => {});
         }
-      } else if (!mus.paused) {
-        mus.pause();
+      } else {
+        activePlayingMusicIdRef.current = null;
+        if (!mus.paused) {
+          mus.pause();
+        }
       }
     }
   }, [
@@ -3087,7 +3113,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }}
         />
       )}
-      <audio ref={musicAudioRef} preload="auto" />
+      <audio
+        ref={musicAudioRef}
+        src={activeMusicAtPlayhead?.audioUrl || musicTracks[0]?.audioUrl || undefined}
+        preload="auto"
+      />
 
       {/* =====================================================================
           TOP BAR: PROJECT SELECTOR, ASPECT RATIO (16:9 / 9:16), QUALITY (HD/2K/4K/8K) & EXPORT
