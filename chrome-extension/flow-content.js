@@ -11,6 +11,49 @@
     oldBar.remove();
   }
 
+  // Cerrar el modal/iframe de Story Studio (flow-sdk) para que los clips de video SIEMPRE usen el compositor real de Video de Google Flow
+  try {
+    const ssModal = document.getElementById('story-studio-modal-root');
+    if (ssModal) {
+      ssModal.remove();
+    }
+    document
+      .querySelectorAll(
+        'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
+      )
+      .forEach((f) => {
+        try {
+          f.remove();
+        } catch {}
+      });
+    try {
+      window.__HUELLAS_FLOW_SDK__ = null;
+      window.Flow = null;
+    } catch {}
+  } catch {}
+
+  // Ocultar 'Omni 1.1 Flash' en menús desplegables cuando se agotaron sus créditos para forzar 'Veo 3.1 - Lite [Lower Priority]'
+  function hideExhaustedOmniFlashMenuOptions() {
+    try {
+      const menuOptions = document.querySelectorAll(
+        '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="option"], .cdk-overlay-container mat-option, .cdk-overlay-container button, [role="menu"] [role="menuitem"], [role="listbox"] [role="option"]'
+      );
+      for (const opt of menuOptions) {
+        const txt = (opt.innerText || opt.textContent || '').replace(/\s+/g, ' ').trim();
+        if (/^omni\s*1\.1\s*flash\b/i.test(txt)) {
+          opt.style.visibility = 'hidden';
+        }
+      }
+    } catch {}
+  }
+
+  hideExhaustedOmniFlashMenuOptions();
+  if (!window.__HUELLAS_OMNI_HIDE_OBSERVER__ && document.body) {
+    const obs = new MutationObserver(() => hideExhaustedOmniFlashMenuOptions());
+    obs.observe(document.body, { childList: true, subtree: true });
+    window.__HUELLAS_OMNI_HIDE_OBSERVER__ = obs;
+  }
+
   // Replace previous listener if re-injected
   if (window.__HUELLAS_FLOW_MESSAGE_HANDLER__) {
     try {
@@ -824,7 +867,7 @@
    */
   function scanFlowFailureCards(markPreexistingOnly = false) {
     const POLICY_REGEX =
-      /violate our policies|generating prominent people|try a different prompt|refunded for this generation|couldn't generate|unable to generate|generation failed|no se pudo generar|viola nuestras pol/i;
+      /violate our policies|generating prominent people|try a different prompt|refunded for this generation|couldn't generate|unable to generate|generation failed|no se pudo generar|viola nuestras pol|not enough credits|out of credits|insufficient credits|no credits|sin cr[eé]ditos|cr[eé]ditos insuficientes/i;
     const PROMINENT_PEOPLE_REGEX =
       /prominent people|personas prominentes|public figure|figura p[uú]blica|violate our policies/i;
 
@@ -1510,6 +1553,10 @@
     if (window.__HUELLAS_FLOW_REF_WATCHER__) {
       clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
       window.__HUELLAS_FLOW_REF_WATCHER__ = null;
+    }
+    if (payload.mediaType === 'VIDEO') {
+      const ssModal = document.getElementById('story-studio-modal-root');
+      if (ssModal) ssModal.remove();
     }
     if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
       // No iniciar autodescarga en segundo plano para Referencias (evita descargar imágenes antiguas de otros proyectos)

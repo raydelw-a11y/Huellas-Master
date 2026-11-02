@@ -444,45 +444,93 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
   }
 
   // Asegurar siempre en la interfaz de Google Flow:
-  // 1) Cantidad de salidas = x1 (1 solo item por envío para no gastar créditos extra)
-  // 2) Motor de Video = 'Omni 1.1 Flash' -> respaldo 'Veo 3.1 - Lite [Lower Priority]'
-  // 3) Motor de Imagen = 'Nano Banana 2.1' -> respaldo 'Nano Banana Pro'
+  // 1) Cerrar Story Studio si quedó abierto cuando se va a generar VIDEO real en el compositor de Google Flow
+  // 2) Modo correcto: Video (Text to Video / Videos) para clips, o Image (Create images / Images) para referencias/miniaturas
+  // 3) Cantidad de salidas = x1 (1 solo item por envío para no gastar créditos extra)
+  // 4) Motor de Video = 'Veo 3.1 - Lite [Lower Priority]' (respaldo si se agotaron créditos de Omni 1.1 Flash)
+  // 5) Motor de Imagen = 'Nano Banana 2.1' -> respaldo 'Nano Banana Pro'
   try {
     const isVideoMode =
       mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+
+    if (isVideoMode) {
+      const ssModal = document.getElementById('story-studio-modal-root');
+      if (ssModal) {
+        ssModal.remove();
+      }
+      document
+        .querySelectorAll(
+          'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
+        )
+        .forEach((f) => {
+          try {
+            f.remove();
+          } catch {}
+        });
+    }
+
     const preferredModels = isVideoMode
       ? [
+          /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
+          /veo\s*3\.1\s*-\s*lite/i,
           /^omni\s*1\.1\s*flash$/i,
           /omni\s*1\.1\s*flash/i,
-          /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
         ]
       : [
           /nano\s*banana\s*2\.1/i,
           /nano\s*banana\s*pro/i,
+          /nano\s*banana\s*2/i,
+          /nano\s*banana/i,
         ];
 
-    const selectMenuOptionMatching = async (patterns) => {
-      await sleepMain(120);
+    const selectMenuOptionMatching = async (patterns, excludeEl = null) => {
+      await sleepMain(140);
       const options = collectNodesDeep(
         document,
-        '[role="menuitem"], [role="option"], mat-option, button, li'
+        '[role="menuitem"], [role="option"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, button, li'
       ).filter((el) => {
+        if (!el || el === excludeEl) return false;
         const r = el.getBoundingClientRect();
-        return r.width > 20 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
+        return r.width > 18 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
       });
       for (const pat of patterns) {
-        const found = options.find((el) => pat.test((el.innerText || el.textContent || '').trim()));
+        const found = options.find((el) => {
+          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          const aria = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).trim();
+          return pat.test(txt) || (aria && pat.test(aria));
+        });
         if (found) {
           found.click();
-          await sleepMain(120);
+          await sleepMain(160);
           return true;
         }
       }
       return false;
     };
 
-    // A) Si hay un selector de cantidad en x2 / x3 / x4 visible cerca del editor, cambiarlo a x1
-    const allUiButtons = collectNodesDeep(document, 'button, [role="button"], [role="combobox"]');
+    // A) Si hay un selector de modo (Video vs Image) fuera del popover que esté en modo incorrecto, cambiarlo primero
+    const allUiButtons = collectNodesDeep(
+      document,
+      'button, [role="button"], [role="tab"], [role="combobox"], mat-select'
+    ).filter((b) => {
+      const r = b.getBoundingClientRect();
+      return r.width > 18 && r.height > 14 && getComputedStyle(b).visibility !== 'hidden';
+    });
+
+    if (isVideoMode) {
+      const topImageModeBtn = allUiButtons.find((b) => {
+        const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+        return /^(create\s*images?|images?\s*mode|text\s*to\s*image|im[aá]genes)$/i.test(txt);
+      });
+      if (topImageModeBtn) {
+        topImageModeBtn.click();
+        await selectMenuOptionMatching([
+          /^(videos?|text\s*to\s*video|texto\s*a\s*video|create\s*videos?|videocam\s*videos?)$/i,
+        ]);
+      }
+    }
+
+    // B) Si hay un selector de cantidad en x2 / x3 / x4 visible cerca del editor, cambiarlo a x1
     const multiCountBtn = allUiButtons.find((b) => {
       const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
       const aria = (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
@@ -493,22 +541,80 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     });
     if (multiCountBtn) {
       multiCountBtn.click();
-      await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i, /\bx1\b/i]);
+      await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i, /\bx1\b/i], multiCountBtn);
     }
 
-    // B) Verificar el selector de modelo activo en la barra inferior y ajustarlo si no coincide
+    // C) Verificar el selector de modelo/ajustes activo en la barra inferior y asegurar modo Video + 'Veo 3.1 - Lite [Lower Priority]' + x1
     const modelTriggerBtn = allUiButtons.find((b) => {
       const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
       return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
     });
     if (modelTriggerBtn) {
-      const currentModelTxt = (modelTriggerBtn.innerText || modelTriggerBtn.textContent || '').trim();
-      const alreadyPrimary = preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt);
-      if (!alreadyPrimary) {
+      const currentModelTxt = (modelTriggerBtn.innerText || modelTriggerBtn.textContent || '').replace(/\s+/g, ' ').trim();
+      const alreadyPrimary = isVideoMode
+        ? preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt)
+        : preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt);
+      const hasMultiCountInPill = /\bx[234]\b/i.test(currentModelTxt);
+
+      if (!alreadyPrimary || hasMultiCountInPill) {
         modelTriggerBtn.click();
-        const picked = await selectMenuOptionMatching(preferredModels);
+        await sleepMain(200);
+
+        // C1) Si estamos en modo VIDEO pero el popover está en la pestaña Image (Nano Banana), pulsar la pestaña Video/Videos primero
+        if (isVideoMode) {
+          await selectMenuOptionMatching(
+            [
+              /^(videos?|text\s*to\s*video|texto\s*a\s*video|videocam\s*videos?|videocam\s*video)$/i,
+              /\btext\s*to\s*video\b/i,
+            ],
+            modelTriggerBtn
+          );
+        } else {
+          await selectMenuOptionMatching(
+            [
+              /^(images?|create\s*images?|text\s*to\s*image|image\s*to\s*image|im[aá]genes)$/i,
+            ],
+            modelTriggerBtn
+          );
+        }
+
+        // C2) Asegurar cantidad x1 dentro del popover si aparece el selector x1/x2/x3/x4
+        if (hasMultiCountInPill) {
+          await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i], modelTriggerBtn);
+        }
+
+        // C3) Intentar elegir directamente 'Veo 3.1 - Lite [Lower Priority]' (o abrir el sub-dropdown de modelo dentro del popover)
+        let picked = await selectMenuOptionMatching(preferredModels, modelTriggerBtn);
         if (!picked) {
-          // Cerrar menú si no se encontró opción para no bloquear el editor
+          const innerDropdownBtns = collectNodesDeep(
+            document,
+            '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [role="dialog"] button, [role="menu"] button'
+          ).filter((el) => {
+            if (!el || el === modelTriggerBtn) return false;
+            const r = el.getBoundingClientRect();
+            if (r.width < 40 || r.height < 16 || getComputedStyle(el).visibility === 'hidden') return false;
+            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3|model|modelo)/i.test(txt);
+          });
+          if (innerDropdownBtns.length > 0) {
+            innerDropdownBtns[0].click();
+            await sleepMain(180);
+            picked = await selectMenuOptionMatching(preferredModels, innerDropdownBtns[0]);
+          }
+        }
+
+        // C4) Cerrar cualquier popover/backdrop abierto para que no bloquee el editor ni el botón de enviar
+        const backdrops = Array.from(
+          document.querySelectorAll('.cdk-overlay-backdrop, [class*="overlay-backdrop" i]')
+        );
+        if (backdrops.length > 0) {
+          for (const bd of backdrops) {
+            try {
+              bd.click();
+            } catch {}
+          }
+          await sleepMain(100);
+        } else if (!picked) {
           document.body.click();
           await sleepMain(80);
         }
@@ -1598,10 +1704,10 @@ async function generateSingleClipViaFlowSdk(
         let videoMode = 'FLOW_SDK';
 
         if (typeof sdk.generate?.video === 'function') {
-          // Prioridad estricta de Video: 1) Omni 1.1 Flash -> 2) Veo 3.1 - Lite [Lower Priority] (exactamente esos dos nombres literales, siempre x1 item)
+          // Prioridad de Video cuando se agotan créditos de Omni Flash: 1) Veo 3.1 - Lite [Lower Priority] -> 2) Omni 1.1 Flash (siempre x1 item)
           const vidModels = [
-            'Omni 1.1 Flash',
             'Veo 3.1 - Lite [Lower Priority]',
+            'Omni 1.1 Flash',
           ];
           for (const modelDisplayName of vidModels) {
             try {
@@ -2432,151 +2538,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               return;
             }
 
-            // 1D. Etapa 8 (Piloto Automático Secuencial / Video de Clip individual / Lotes de 10) vía window.__HUELLAS_FLOW_SDK__
-            if (sdkStatus.hasSdk && payload.mediaType === 'VIDEO') {
-              const ratio = payload.aspectRatio === '9:16' ? '9:16' : '16:9';
-              const refAssets = Array.isArray(payload.referenceAssetsForClips)
-                ? payload.referenceAssetsForClips
-                : [];
-              const clipsToRun =
-                Array.isArray(payload.batchClipsData) && payload.batchClipsData.length > 0
-                  ? payload.batchClipsData
-                  : [
-                      {
-                        id: payload.clipId,
-                        clipNumber: Number(payload.clipNumber) || 1,
-                        imagePrompt: payload.imagePrompt || payload.prompt || '',
-                        videoPrompt: payload.prompt || '',
-                        timeRange: payload.timeRange || '',
-                        durationSeconds: Number(payload.durationSeconds) || undefined,
-                      },
-                    ];
-
-              sendResponse({
-                ok: true,
-                tabId: targetTab.id,
-                tabTitle: targetTab.title,
-                method: 'DIRECT_FLOW_SDK_VIDEO_PIPELINE',
-                total: clipsToRun.length,
-              });
-
-              (async () => {
-                if (payload.storyStudioProjectJson) {
-                  await syncProjectJsonIntoStoryStudioUI(
-                    targetTab.id,
-                    payload.storyStudioProjectJson,
-                    false,
-                    'STORYBOARD'
-                  ).catch(() => {});
-                }
-
-                for (let i = 0; i < clipsToRun.length; i++) {
-                  if (stopFlowAutoPilotRequested) {
-                    break;
-                  }
-                  const clipItem = clipsToRun[i];
-                  const clipNum = Number(clipItem.clipNumber) || i + 1;
-                  const padded = String(clipNum).padStart(2, '0');
-
-                  broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                    type: 'BRIDGE_STATUS',
-                    service: 'FLOW',
-                    status: 'GENERATING',
-                    message: `🎬 Flow SDK (Clip #${padded}${
-                      clipsToRun.length > 1 ? ` • ${i + 1}/${clipsToRun.length}` : ''
-                    }): Generando cuadro inicial (🍌 Nano Banana 2) y produciendo video en Google Flow...`,
-                    clipNumber: clipNum,
-                    clipId: clipItem.id,
-                    mediaType: 'VIDEO',
-                  });
-
-                  const clipRes = await generateSingleClipViaFlowSdk(
-                    targetTab.id,
-                    clipItem,
-                    ratio,
-                    refAssets
-                  );
-
-                  if (stopFlowAutoPilotRequested) {
-                    break;
-                  }
-
-                  if (clipRes && clipRes.ok) {
-                    if (clipRes.startImageDataUrl) {
-                      broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                        type: 'FLOW_CLIP_IMAGE_CAPTURED',
-                        clipNumber: clipNum,
-                        clipId: clipItem.id,
-                        mediaId: clipRes.startImageMediaId,
-                        imageUrl: clipRes.startImageDataUrl,
-                        imageDataUrl: clipRes.startImageDataUrl,
+            // 1D. Etapa 8 (Video de Clip individual / Lotes de 10):
+            // NUNCA usar el sandbox de Story Studio (flow-sdk / Autocreate images) cuando mediaType === 'VIDEO',
+            // porque Story Studio sólo genera imágenes estáticas (Nano Banana 2.1).
+            // Cerrar cualquier modal de Story Studio y pasar directo al compositor de Video de Google Flow ('Veo 3.1 - Lite [Lower Priority]').
+            if (payload.mediaType === 'VIDEO' && (sdkStatus.hasSdk || sdkStatus.isStoryStudio)) {
+              await chrome.scripting
+                .executeScript({
+                  target: { tabId: targetTab.id, allFrames: true },
+                  world: 'MAIN',
+                  func: () => {
+                    const modal = document.getElementById('story-studio-modal-root');
+                    if (modal) modal.remove();
+                    document
+                      .querySelectorAll(
+                        'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
+                      )
+                      .forEach((f) => {
+                        try {
+                          f.remove();
+                        } catch {}
                       });
-                    }
-
-                    if (clipRes.isNativeVideo && clipRes.videoDataUrl) {
-                      broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                        type: 'FLOW_VIDEO_CAPTURED',
-                        clipNumber: clipNum,
-                        clipId: clipItem.id,
-                        attempt: payload.attempt || 1,
-                        prompt: clipItem.videoPrompt || payload.prompt,
-                        videoUrl: clipRes.videoDataUrl,
-                        videoDataUrl: clipRes.videoDataUrl,
-                        frames: clipRes.frames || [],
-                        duration:
-                          clipRes.duration ||
-                          Number(clipItem.durationSeconds) ||
-                          Number(payload.durationSeconds) ||
-                          (clipNum === 1 ? 6 : 10),
-                      });
-                    } else {
-                      // Flow SDK only generated the initial frame (or video API isn't enabled inside Story Studio sandbox):
-                      // Submit the real video prompt to Google Flow's Veo composer so it renders a real moving video (never a static image with zoom)
-                      const singleClipPrompt = String(
-                        clipItem.videoPrompt || payload.prompt || ''
-                      ).slice(0, 3950);
-                      try {
-                        await executeFlowPromptHardware(targetTab.id, singleClipPrompt, {
-                          ...payload,
-                          clipNumber: clipNum,
-                          clipId: clipItem.id,
-                          mediaType: 'VIDEO',
-                          logoDataUrl: clipRes.startImageDataUrl || payload.logoDataUrl,
-                        });
-                        chrome.tabs
-                          .sendMessage(targetTab.id, {
-                            target: 'FLOW',
-                            ...payload,
-                            clipNumber: clipNum,
-                            clipId: clipItem.id,
-                            action: 'START_FLOW_WATCHER_AFTER_SUBMIT',
-                          })
-                          .catch(() => {});
-                      } catch (hwErr) {
-                        console.warn('[Huellas Flow Video Fallback] Error:', hwErr);
-                      }
-                    }
-                  } else {
-                    broadcastToHuellasTabsInSameWindow(senderWindowId, {
-                      type: 'BRIDGE_STATUS',
-                      service: 'FLOW',
-                      status: 'ERROR',
-                      message: `⚠️ Error en Clip #${padded} vía Flow SDK: ${
-                        clipRes?.error || 'Desconocido'
-                      }`,
-                    });
-                  }
-                }
-              })();
-              return;
+                  },
+                })
+                .catch(() => {});
+              await sleep(150);
+              sdkStatus = { hasSdk: false, isStoryStudio: false };
             }
 
-            // 1E. Si Story Studio está abierto pero aún sin window.__HUELLAS_FLOW_SDK__, inyectar JSON y pulsar Autocreate images
-            if (sdkStatus.isStoryStudio && payload.storyStudioProjectJson) {
+            // 1E. Si Story Studio está abierto (sólo para proyectos de imágenes / referencias, NUNCA para VIDEO), inyectar JSON y pulsar Autocreate images
+            if (
+              sdkStatus.isStoryStudio &&
+              payload.storyStudioProjectJson &&
+              payload.mediaType !== 'VIDEO'
+            ) {
               const targetSection =
-                payload.mediaType === 'VIDEO' || (payload.mediaType === 'IMAGE' && !payload.referenceId)
-                  ? 'STORYBOARD'
-                  : 'ASSETS';
+                payload.mediaType === 'IMAGE' && !payload.referenceId ? 'STORYBOARD' : 'ASSETS';
               const ssRes = await syncProjectJsonIntoStoryStudioUI(
                 targetTab.id,
                 payload.storyStudioProjectJson,
