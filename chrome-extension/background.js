@@ -458,15 +458,6 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       if (ssModal) {
         ssModal.remove();
       }
-      document
-        .querySelectorAll(
-          'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
-        )
-        .forEach((f) => {
-          try {
-            f.remove();
-          } catch {}
-        });
     }
 
     const preferredModels = isVideoMode
@@ -2550,19 +2541,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   func: () => {
                     const modal = document.getElementById('story-studio-modal-root');
                     if (modal) modal.remove();
-                    document
-                      .querySelectorAll(
-                        'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
-                      )
-                      .forEach((f) => {
-                        try {
-                          f.remove();
-                        } catch {}
-                      });
                   },
                 })
                 .catch(() => {});
-              await sleep(150);
+              await sleep(100);
               sdkStatus = { hasSdk: false, isStoryStudio: false };
             }
 

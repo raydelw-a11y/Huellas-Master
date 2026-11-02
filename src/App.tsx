@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:13 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:22 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -10680,10 +10680,11 @@ export default function App() {
                                     key={capturedClipVideosMap[clip.clipNumber]}
                                     data-stage8-clip-video="true"
                                     src={capturedClipVideosMap[clip.clipNumber]}
+                                    poster={clip.videoFrames?.[0] || undefined}
                                     controls
                                     playsInline
                                     loop
-                                    preload="metadata"
+                                    preload="none"
                                     onPlay={(e) => {
                                       const currentVid = e.currentTarget;
                                       document

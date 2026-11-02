@@ -11,25 +11,13 @@
     oldBar.remove();
   }
 
-  // Cerrar el modal/iframe de Story Studio (flow-sdk) para que los clips de video SIEMPRE usen el compositor real de Video de Google Flow
+  // Cerrar únicamente el modal de Story Studio (#story-studio-modal-root) si quedó abierto
   try {
     const ssModal = document.getElementById('story-studio-modal-root');
     if (ssModal) {
       ssModal.remove();
     }
-    document
-      .querySelectorAll(
-        'iframe[src*="usercontent.goog"], iframe[src*="googleusercontent.com"], iframe[src*="scf.usercontent"]'
-      )
-      .forEach((f) => {
-        try {
-          f.remove();
-        } catch {}
-      });
-    try {
-      window.__HUELLAS_FLOW_SDK__ = null;
-      window.Flow = null;
-    } catch {}
+    window.__HUELLAS_FLOW_SDK__ = null;
   } catch {}
 
   // Ocultar 'Omni 1.1 Flash' en menús desplegables cuando se agotaron sus créditos para forzar 'Veo 3.1 - Lite [Lower Priority]'
