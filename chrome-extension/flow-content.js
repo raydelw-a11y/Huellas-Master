@@ -5,25 +5,11 @@
 // ============================================================================
 
 (function () {
-  // Always remove any old floating bar if present from an earlier version
-  const oldBar = document.getElementById('huellas-flow-floating-bar');
-  if (oldBar) {
-    oldBar.remove();
-  }
+  if (window.__HUELLAS_FLOW_SCRIPT_LOADED__ && chrome?.runtime?.id) return;
+  window.__HUELLAS_FLOW_SCRIPT_LOADED__ = true;
 
-  // Desactivar cualquier observer previo que ocultaba el botón del dropdown de modelo cuando decía 'Omni 1.1 Flash'
-  try {
-    if (window.__HUELLAS_OMNI_HIDE_OBSERVER__) {
-      window.__HUELLAS_OMNI_HIDE_OBSERVER__.disconnect();
-      window.__HUELLAS_OMNI_HIDE_OBSERVER__ = null;
-    }
-    document.querySelectorAll('[style*="visibility: hidden"]').forEach((el) => {
-      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-      if (/omni\s*1\.1\s*flash/i.test(txt)) {
-        el.style.visibility = '';
-      }
-    });
-  } catch {}
+  const handledFailedElements = new WeakSet();
+  const preexistingImageElements = new WeakSet();
 
   function realUiClick(el) {
     if (!el) return;
@@ -543,7 +529,6 @@
           data: ' ',
         })
       );
-      document.documentElement.setAttribute('data-huellas-flow-injected-ts', String(Date.now()));
     } catch {}
   }
 
@@ -910,9 +895,6 @@
         tempVideo.playsInline = true;
         tempVideo.crossOrigin = 'anonymous';
         tempVideo.preload = 'auto';
-        tempVideo.style.cssText =
-          'position:fixed;left:-9999px;top:-9999px;width:384px;height:216px;opacity:0.01;pointer-events:none;z-index:-1;';
-        document.body.appendChild(tempVideo);
         tempVideo.src = sourceUrlOrVideoEl;
 
         await new Promise((resolve, reject) => {
@@ -1027,22 +1009,22 @@
 
     if (markPreexistingOnly) {
       for (const el of candidates) {
-        el.setAttribute('data-huellas-failed-handled', 'true');
+        handledFailedElements.add(el);
         const cardParent = el.closest('[class*="card" i], [class*="result" i], [class*="item" i]');
-        if (cardParent) cardParent.setAttribute('data-huellas-failed-handled', 'true');
+        if (cardParent) handledFailedElements.add(cardParent);
       }
       return null;
     }
 
     for (const el of candidates) {
-      if (el.getAttribute('data-huellas-failed-handled') === 'true') continue;
+      if (handledFailedElements.has(el)) continue;
       const cardParent = el.closest('[class*="card" i], [class*="result" i], [class*="item" i]');
-      if (cardParent && cardParent.getAttribute('data-huellas-failed-handled') === 'true') {
+      if (cardParent && handledFailedElements.has(cardParent)) {
         continue;
       }
 
-      el.setAttribute('data-huellas-failed-handled', 'true');
-      if (cardParent) cardParent.setAttribute('data-huellas-failed-handled', 'true');
+      handledFailedElements.add(el);
+      if (cardParent) handledFailedElements.add(cardParent);
 
       const rawText = (
         (cardParent ? cardParent.innerText : el.innerText) ||
@@ -1096,7 +1078,7 @@
   function getAllCurrentImageUrlsSet() {
     const urls = new Set();
     for (const img of Array.from(document.querySelectorAll('img'))) {
-      img.setAttribute('data-huellas-preexisting', 'true');
+      preexistingImageElements.add(img);
       const src = (img.currentSrc || img.src || '').trim();
       if (src) {
         urls.add(src);
@@ -1107,7 +1089,7 @@
 
   /**
    * Filtro estricto para obtener ÚNICAMENTE las imágenes nuevas generadas por el prompt actual
-   * e ignorar todas las imágenes de proyectos anteriores (data-huellas-preexisting o en preExistingUrlsSet).
+   * e ignorar todas las imágenes de proyectos anteriores.
    */
   function getNewlyGeneratedImagesOnly(preExistingUrlsSet, minWidth = 220, minHeight = 150) {
     const allImages = Array.from(document.querySelectorAll('img'));
@@ -1116,8 +1098,8 @@
       const src = (img.currentSrc || img.src || '').trim();
       if (!src || src.includes('avatar')) return false;
 
-      // 1. Ignorar cualquier imagen marcada como preexistente antes/durante los primeros segundos del envío
-      if (img.getAttribute('data-huellas-preexisting') === 'true') {
+      // 1. Ignorar cualquier imagen registrada como preexistente antes/durante los primeros segundos del envío
+      if (preexistingImageElements.has(img)) {
         return false;
       }
 
@@ -1193,7 +1175,7 @@
       // Durante los primeros 6 segundos tras el envío, registrar cualquier imagen existente o lazy-loaded de proyectos antiguos
       if (elapsedMs < 6000) {
         for (const img of Array.from(document.querySelectorAll('img'))) {
-          img.setAttribute('data-huellas-preexisting', 'true');
+          preexistingImageElements.add(img);
           const s = (img.currentSrc || img.src || '').trim();
           if (s) baselineImageUrls.add(s);
         }
@@ -1209,7 +1191,7 @@
 
       let idx = 0;
       for (const imgEl of imgs.slice(0, 2)) {
-        imgEl.setAttribute('data-huellas-preexisting', 'true');
+        preexistingImageElements.add(imgEl);
         const src = (imgEl.currentSrc || imgEl.src || '').trim();
         baselineImageUrls.add(src);
         const imageDataUrl = await fetchVideoBinaryDataUrl(src, imgEl);
@@ -1287,10 +1269,10 @@
         return;
       }
 
-      // Durante los primeros 6 segundos tras enviar el prompt, marcar todas las imágenes ya presentes o lazy-loaded como preexistentes
+      // Durante los primeros 6 segundos tras enviar el prompt, registrar todas las imágenes ya presentes o lazy-loaded como preexistentes
       if (elapsedMs < 6000) {
         for (const img of Array.from(document.querySelectorAll('img'))) {
-          img.setAttribute('data-huellas-preexisting', 'true');
+          preexistingImageElements.add(img);
           const s = (img.currentSrc || img.src || '').trim();
           if (s) baselineImageUrls.add(s);
         }
@@ -1303,7 +1285,7 @@
       capturing = true;
       try {
         for (const imgEl of imgs) {
-          imgEl.setAttribute('data-huellas-preexisting', 'true');
+          preexistingImageElements.add(imgEl);
           const src = (imgEl.currentSrc || imgEl.src || '').trim();
           if (!src || baselineImageUrls.has(src)) continue;
           baselineImageUrls.add(src);
@@ -1692,10 +1674,6 @@
     if (window.__HUELLAS_FLOW_REF_WATCHER__) {
       clearInterval(window.__HUELLAS_FLOW_REF_WATCHER__);
       window.__HUELLAS_FLOW_REF_WATCHER__ = null;
-    }
-    if (payload.mediaType === 'VIDEO') {
-      const ssModal = document.getElementById('story-studio-modal-root');
-      if (ssModal) ssModal.remove();
     }
     if (payload.mediaType === 'REFERENCES' || payload.mediaType === 'IMAGE') {
       // No iniciar autodescarga en segundo plano para Referencias (evita descargar imágenes antiguas de otros proyectos)

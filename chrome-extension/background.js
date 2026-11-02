@@ -203,7 +203,7 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
 async function ensureScriptInjected(tabId, scriptFile) {
   try {
     await chrome.scripting.executeScript({
-      target: scriptFile === 'flow-content.js' ? { tabId, allFrames: true } : { tabId },
+      target: { tabId },
       files: [scriptFile],
     });
     if (scriptFile === 'suno-content.js') {
@@ -302,7 +302,7 @@ chrome.tabs.onRemoved.addListener(async (_tabId, removeInfo) => {
  * e inyecta el texto mediante execCommand('insertText') + ProseMirror + InputEvent.
  * Coloca el cursor al final sin dejar nada seleccionado.
  */
-async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUrl) {
+async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUrl, autoSubmit = true) {
   const sleepMain = (ms) => new Promise((r) => setTimeout(r, ms));
   const isVidPrompt =
     mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
@@ -337,41 +337,13 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
   }
   const safePrompt = promptText.endsWith(' ') ? promptText : `${promptText} `;
 
-  const collectNodesDeep = (root, selector, visited = new Set()) => {
-    if (!root || visited.has(root)) return [];
-    visited.add(root);
-    const list = [];
-    try {
-      list.push(...Array.from(root.querySelectorAll(selector)));
-    } catch {}
-    try {
-      const allEls = root.querySelectorAll('*');
-      for (const el of allEls) {
-        if (el.shadowRoot) {
-          list.push(...collectNodesDeep(el.shadowRoot, selector, visited));
-        }
-      }
-    } catch {}
-    return list;
-  };
-
-  if (isVidPrompt) {
-    try {
-      const ssModal = document.getElementById('story-studio-modal-root');
-      if (ssModal) ssModal.remove();
-    } catch {}
-  }
-
   function findBottomPromptEditor() {
     const rawList = [
-      ...collectNodesDeep(document, 'div.ProseMirror[contenteditable="true"]'),
-      ...collectNodesDeep(document, 'div[contenteditable="true"][role="textbox"]'),
-      ...collectNodesDeep(
-        document,
-        'rich-textarea [contenteditable="true"], .ql-editor[contenteditable="true"]'
-      ),
-      ...collectNodesDeep(document, '[contenteditable="true"]:not([aria-hidden="true"])'),
-      ...collectNodesDeep(document, 'textarea:not(.g-recaptcha-response):not([readonly])'),
+      ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
+      ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
+      ...document.querySelectorAll('rich-textarea [contenteditable="true"], .ql-editor[contenteditable="true"]'),
+      ...document.querySelectorAll('[contenteditable="true"]:not([aria-hidden="true"])'),
+      ...document.querySelectorAll('textarea:not(.g-recaptcha-response):not([readonly])'),
     ];
 
     const seen = new Set();
@@ -403,303 +375,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
 
   let editorEl = findBottomPromptEditor();
   if (!editorEl) {
-    // 1. Si estamos en Story Studio ("Get started" o pestaña Storyboard/Assets sin tarjeta seleccionada)
-    const allBtns = collectNodesDeep(document, 'button, a[role="button"], a[href*="flow"]');
-    const getStartedBtn = allBtns.find((b) =>
-      /^get started$/i.test((b.textContent || '').trim())
-    );
-    if (getStartedBtn) {
-      try {
-        getStartedBtn.click();
-        await sleepMain(500);
-        editorEl = findBottomPromptEditor();
-      } catch {}
-    }
-
-    if (!editorEl) {
-      // Si estamos en Story Studio en "3. Storyboard" o "2. Assets", abrir o seleccionar una tarjeta para que aparezca el <textarea> de edición
-      const storyboardTabBtn = allBtns.find((b) =>
-        /3\.\s*Storyboard/i.test((b.textContent || '').trim())
-      );
-      const scriptTabBtn = allBtns.find((b) =>
-        /1\.\s*Script/i.test((b.textContent || '').trim())
-      );
-      if (storyboardTabBtn || scriptTabBtn) {
-        try {
-          const createFirstBtn = allBtns.find((b) =>
-            /create your first frame|add frame/i.test((b.textContent || '').trim())
-          );
-          if (createFirstBtn) {
-            createFirstBtn.click();
-            await sleepMain(350);
-          } else {
-            // Hacer clic en la primera tarjeta de frame si existe
-            const frameCard = document.querySelector('main [role="button"], main .aspect-video');
-            if (frameCard) {
-              frameCard.click();
-              await sleepMain(350);
-            }
-          }
-          editorEl = findBottomPromptEditor();
-          if (!editorEl && scriptTabBtn) {
-            scriptTabBtn.click();
-            await sleepMain(350);
-            editorEl = findBottomPromptEditor();
-          }
-        } catch {}
-      }
-    }
-
-    if (!editorEl) {
-      // 2. Si estamos en la pantalla de inicio / listado de proyectos de Google Flow ("addNew project" / "Create with Flow" / "+ New")
-      const refreshedBtns = collectNodesDeep(document, 'button, a[role="button"], a[href]');
-      const newProjBtn = refreshedBtns.find((b) =>
-        /(new project|nuevo proyecto|create with flow|create project|start creating|try flow|\+\s*new)/i.test(
-          (b.textContent || '').trim()
-        )
-      );
-      if (newProjBtn) {
-        try {
-          if (
-            newProjBtn.tagName === 'A' &&
-            newProjBtn.href &&
-            newProjBtn.target === '_blank' &&
-            /\/about/i.test(location.href)
-          ) {
-            location.href = newProjBtn.href;
-          } else {
-            newProjBtn.click();
-          }
-          for (let w = 0; w < 4 && !editorEl; w++) {
-            await sleepMain(550);
-            editorEl = findBottomPromptEditor();
-          }
-        } catch {}
-      }
-    }
+    return { injected: false, error: 'No se encontró la caja de prompt en la página principal de Google Flow.' };
   }
-  if (!editorEl) {
-    return { injected: false, error: 'No se encontró la caja de prompt en Google Flow.' };
-  }
-
-  // Asegurar siempre en la interfaz de Google Flow:
-  // 1) Cerrar Story Studio si quedó abierto cuando se va a generar VIDEO real en el compositor de Google Flow
-  // 2) Modo correcto: Video (Text to Video / Videos) para clips, o Image (Create images / Images) para referencias/miniaturas
-  // 3) Cantidad de salidas = x1 (1 solo item por envío para no gastar créditos extra)
-  // 4) Motor de Video = 'Veo 3.1 - Lite [Lower Priority]' (respaldo si se agotaron créditos de Omni 1.1 Flash)
-  // 5) Motor de Imagen = 'Nano Banana 2.1' -> respaldo 'Nano Banana Pro'
-  try {
-    const isVideoMode =
-      mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
-
-    if (isVideoMode) {
-      const ssModal = document.getElementById('story-studio-modal-root');
-      if (ssModal) {
-        ssModal.remove();
-      }
-    }
-
-    // Restaurar visibilidad por si algún observer previo ocultó el botón cerrado del dropdown ('Omni 1.1 Flash')
-    try {
-      if (window.__HUELLAS_OMNI_HIDE_OBSERVER__) {
-        window.__HUELLAS_OMNI_HIDE_OBSERVER__.disconnect();
-        window.__HUELLAS_OMNI_HIDE_OBSERVER__ = null;
-      }
-      document.querySelectorAll('[style*="visibility: hidden"]').forEach((el) => {
-        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        if (/omni\s*1\.1\s*flash/i.test(txt)) {
-          el.style.visibility = '';
-        }
-      });
-    } catch {}
-
-    const realUiClick = (el) => {
-      if (!el) return;
-      try {
-        const r = el.getBoundingClientRect();
-        const cx = Math.round(r.left + r.width / 2);
-        const cy = Math.round(r.top + r.height / 2);
-        const opts = {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          view: window,
-          clientX: cx,
-          clientY: cy,
-          pointerId: 1,
-          isPrimary: true,
-          button: 0,
-          buttons: 1,
-        };
-        el.dispatchEvent(new PointerEvent('pointerover', opts));
-        el.dispatchEvent(new MouseEvent('mouseover', opts));
-        el.dispatchEvent(new PointerEvent('pointerdown', opts));
-        el.dispatchEvent(new MouseEvent('mousedown', opts));
-        if (typeof el.focus === 'function') el.focus();
-        el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
-        el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
-        el.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
-        if (typeof el.click === 'function') el.click();
-      } catch {
-        try {
-          el.click();
-        } catch {}
-      }
-    };
-
-    // En modo VIDEO buscamos exclusivamente 'Veo 3.1 - Lite [Lower Priority]' para no confundir el botón cerrado 'Omni 1.1 Flash' con una opción ya elegida
-    const preferredModels = isVideoMode
-      ? [
-          /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
-          /veo\s*3\.1\s*-\s*lite/i,
-        ]
-      : [
-          /nano\s*banana\s*2\.1/i,
-          /nano\s*banana\s*pro/i,
-          /nano\s*banana\s*2/i,
-          /nano\s*banana/i,
-        ];
-
-    const selectMenuOptionMatching = async (patterns, excludeEl = null) => {
-      await sleepMain(160);
-      const options = collectNodesDeep(
-        document,
-        '[role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, [data-radix-popper-content-wrapper] button, [role="dialog"] button, [role="listbox"] *, button, li'
-      ).filter((el) => {
-        if (!el || el === excludeEl) return false;
-        const r = el.getBoundingClientRect();
-        return r.width > 16 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
-      });
-      for (const pat of patterns) {
-        const found = options.find((el) => {
-          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          const aria = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).trim();
-          return pat.test(txt) || (aria && pat.test(aria));
-        });
-        if (found) {
-          realUiClick(found);
-          await sleepMain(180);
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // A) Si hay un selector de modo (Video vs Image) fuera del popover que esté en modo incorrecto, cambiarlo primero
-    const allUiButtons = collectNodesDeep(
-      document,
-      'button, [role="button"], [role="tab"], [role="combobox"], mat-select'
-    ).filter((b) => {
-      const r = b.getBoundingClientRect();
-      return r.width > 18 && r.height > 14 && getComputedStyle(b).visibility !== 'hidden';
-    });
-
-    if (isVideoMode) {
-      const topImageModeBtn = allUiButtons.find((b) => {
-        const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-        return /^(create\s*images?|images?\s*mode|text\s*to\s*image|im[aá]genes)$/i.test(txt);
-      });
-      if (topImageModeBtn) {
-        realUiClick(topImageModeBtn);
-        await selectMenuOptionMatching([
-          /^(videos?|text\s*to\s*video|texto\s*a\s*video|create\s*videos?|videocam\s*videos?)$/i,
-        ]);
-      }
-    }
-
-    // B) Si hay un selector de cantidad en x2 / x3 / x4 visible cerca del editor, cambiarlo a x1
-    const multiCountBtn = allUiButtons.find((b) => {
-      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-      const aria = (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
-      return (
-        /^(x[234]|[234]\s*outputs?|[234]\s*videos?|[234]\s*images?)$/i.test(txt) ||
-        (/outputs?\s*per\s*prompt/i.test(aria) && /\b[234]\b/.test(txt))
-      );
-    });
-    if (multiCountBtn) {
-      realUiClick(multiCountBtn);
-      await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i, /\bx1\b/i], multiCountBtn);
-    }
-
-    // C) Verificar el selector de modelo/ajustes activo en la barra inferior y asegurar modo Video + 'Veo 3.1 - Lite [Lower Priority]' + x1
-    const modelTriggerBtn = allUiButtons.find((b) => {
-      if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
-        return false;
-      }
-      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-      return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
-    });
-    if (modelTriggerBtn) {
-      const currentModelTxt = (modelTriggerBtn.innerText || modelTriggerBtn.textContent || '').replace(/\s+/g, ' ').trim();
-      const alreadyPrimary = preferredModels.some((pat) => pat.test(currentModelTxt));
-      const hasMultiCountInPill = /\bx[234]\b/i.test(currentModelTxt);
-
-      if (!alreadyPrimary || hasMultiCountInPill) {
-        realUiClick(modelTriggerBtn);
-        await sleepMain(240);
-
-        // C1) Si estamos en modo VIDEO pero el popover está en la pestaña Image (Nano Banana), pulsar la pestaña Video/Videos primero
-        if (isVideoMode) {
-          await selectMenuOptionMatching(
-            [
-              /^(videos?|text\s*to\s*video|texto\s*a\s*video|videocam\s*videos?|videocam\s*video)$/i,
-              /\btext\s*to\s*video\b/i,
-            ],
-            modelTriggerBtn
-          );
-        } else {
-          await selectMenuOptionMatching(
-            [
-              /^(images?|create\s*images?|text\s*to\s*image|image\s*to\s*image|im[aá]genes)$/i,
-            ],
-            modelTriggerBtn
-          );
-        }
-
-        // C2) Asegurar cantidad x1 y duración <= 8s (para Veo 3.1 - Lite [Lower Priority]) dentro del popover
-        await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i], modelTriggerBtn);
-        if (isVideoMode) {
-          await selectMenuOptionMatching([/^8\s*s(ec(ond)?s?)?$/i, /^8s$/i], modelTriggerBtn);
-        }
-
-        // C3) Intentar elegir directamente 'Veo 3.1 - Lite [Lower Priority]' (o abrir el sub-dropdown de modelo dentro del popover)
-        let picked = await selectMenuOptionMatching(preferredModels, modelTriggerBtn);
-        if (!picked) {
-          const innerDropdownBtns = collectNodesDeep(
-            document,
-            '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"], [role="menu"] button'
-          ).filter((el) => {
-            if (!el || el === modelTriggerBtn) return false;
-            const r = el.getBoundingClientRect();
-            if (r.width < 40 || r.height < 16 || getComputedStyle(el).visibility === 'hidden') return false;
-            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3|model|modelo)/i.test(txt);
-          });
-          if (innerDropdownBtns.length > 0) {
-            realUiClick(innerDropdownBtns[0]);
-            await sleepMain(240);
-            picked = await selectMenuOptionMatching(preferredModels, innerDropdownBtns[0]);
-          }
-        }
-
-        // C4) Cerrar cualquier popover/backdrop abierto para que no bloquee el editor ni el botón de enviar
-        const backdrops = Array.from(
-          document.querySelectorAll('.cdk-overlay-backdrop, [class*="overlay-backdrop" i]')
-        );
-        if (backdrops.length > 0) {
-          for (const bd of backdrops) {
-            try {
-              realUiClick(bd);
-            } catch {}
-          }
-          await sleepMain(180);
-        } else {
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
-          await sleepMain(180);
-        }
-      }
-    }
-  } catch {}
 
   // Adjuntar logo oficial sólo cuando se están creando Miniaturas
   if (mediaType === 'THUMBNAILS' && logoDataUrl && logoDataUrl.startsWith('data:')) {
@@ -725,13 +402,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         } catch {}
       }
     } catch {}
-    await sleepMain(300);
-  }
-
-  // Re-localizar el editor inferior por si cambiar el modelo/modo o cerrar el popover reemplazó el nodo DOM
-  editorEl = findBottomPromptEditor() || editorEl;
-  if (!editorEl) {
-    return { injected: false, error: 'No se encontró la caja de prompt en Google Flow tras configurar el modelo.' };
+    await sleepMain(350);
+    editorEl = findBottomPromptEditor() || editorEl;
   }
 
   const findProseMirrorView = (rootEl) => {
@@ -749,11 +421,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     return null;
   };
 
-  editorEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   editorEl.focus();
-  editorEl.click();
 
-  // Seleccionar todo el contenido previo del editor y reemplazarlo atómicamente con execCommand('insertText')
   if (editorEl.tagName === 'TEXTAREA' || editorEl.tagName === 'INPUT') {
     const proto =
       editorEl.tagName === 'TEXTAREA'
@@ -763,52 +432,27 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     if (nativeSetter) nativeSetter.call(editorEl, safePrompt);
     else editorEl.value = safePrompt;
   } else {
-    try {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(editorEl);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('insertText', false, safePrompt);
-    } catch {}
-
-    // Si execCommand no insertó el texto (p.ej. pestaña en segundo plano), usar la vista interna de ProseMirror
-    let afterExec = (editorEl.innerText || editorEl.textContent || '').trim();
-    if (afterExec.length < 3) {
-      const pmView = findProseMirrorView(editorEl);
-      if (pmView && pmView.state) {
-        try {
-          const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
-          pmView.dispatch(tr);
-        } catch {}
-      }
-    }
-
-    // Si aún sigue vacío en pestaña en segundo plano, disparar evento ClipboardEvent('paste')
-    afterExec = (editorEl.innerText || editorEl.textContent || '').trim();
-    if (afterExec.length < 3) {
+    // 1. Insertar directamente a través del EditorView nativo de ProseMirror (funciona incluso con la pestaña en segundo plano sin modificar atributos DOM)
+    const pmView = findProseMirrorView(editorEl);
+    if (pmView && pmView.state) {
       try {
-        const dt = new DataTransfer();
-        dt.setData('text/plain', safePrompt);
-        editorEl.dispatchEvent(
-          new ClipboardEvent('paste', {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            clipboardData: dt,
-          })
-        );
+        const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
+        pmView.dispatch(tr);
       } catch {}
     }
-  }
 
-  // Sincronizar también pmViewDesc.view si existe y quedó vacío
-  const pmView = findProseMirrorView(editorEl);
-  if (pmView && pmView.state && (pmView.state.doc.textContent || '').trim().length < 3) {
-    try {
-      const tr = pmView.state.tr.insertText(safePrompt, 0, pmView.state.doc.content.size);
-      pmView.dispatch(tr);
-    } catch {}
+    // 2. Respaldo con execCommand('insertText') sólo si ProseMirror no actualizó el texto
+    const currentLen = (editorEl.innerText || editorEl.textContent || '').trim().length;
+    if (currentLen < 3) {
+      try {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editorEl);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand('insertText', false, safePrompt);
+      } catch {}
+    }
   }
 
   editorEl.dispatchEvent(
@@ -820,84 +464,42 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       data: safePrompt,
     })
   );
-  editorEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
 
-  // Colapsar el cursor al final del texto para que NADA quede seleccionado
-  if (editorEl.tagName !== 'TEXTAREA' && editorEl.tagName !== 'INPUT') {
-    try {
-      const sel = window.getSelection();
-      if (sel) {
-        sel.selectAllChildren(editorEl);
-        sel.collapseToEnd();
-      }
-    } catch {}
-  }
-
-  await sleepMain(180);
-
-  // Verificar si el botón de modelo en la barra inferior ya quedó en el motor correcto ('Veo 3.1 - Lite [Lower Priority]' para video)
-  let modelVerifiedOnTarget = true;
-  try {
-    const isVideoModeCheck =
-      mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
-    const pillBtn = Array.from(
-      document.querySelectorAll('button, [role="button"], [role="combobox"], mat-select')
-    ).find((b) => {
-      if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
-        return false;
-      }
-      const r = b.getBoundingClientRect();
-      if (r.width < 18 || r.height < 14 || getComputedStyle(b).visibility === 'hidden') return false;
-      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-      return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
-    });
-    if (pillBtn) {
-      const pillTxt = (pillBtn.innerText || pillBtn.textContent || '').replace(/\s+/g, ' ').trim();
-      if (isVideoModeCheck && !/veo\s*3\.1\s*-\s*lite/i.test(pillTxt)) {
-        modelVerifiedOnTarget = false;
-      } else if (!isVideoModeCheck && !/nano\s*banana/i.test(pillTxt)) {
-        modelVerifiedOnTarget = false;
-      } else if (/\bx[234]\b/i.test(pillTxt)) {
-        modelVerifiedOnTarget = false;
-      }
-    }
-  } catch {}
+  // Pausa humana natural para que Google Flow habilite el botón de enviar sin manipular atributos DOM
+  await sleepMain(480);
 
   const beforeClickLen = (editorEl.innerText || editorEl.textContent || editorEl.value || '').trim()
     .length;
 
-  // Intentar primer click directo sobre button.generate-icon-button en MAIN world SÓLO si el texto ya está insertado y el modelo es Veo 3.1 - Lite [Lower Priority]
-  const genBtn = Array.from(
-    document.querySelectorAll(
-      'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
-    )
-  ).find((b) => {
-    const r = b.getBoundingClientRect();
-    return (
-      r.width >= 16 &&
-      r.height >= 16 &&
-      !b.disabled &&
-      b.getAttribute('aria-disabled') !== 'true' &&
-      !b.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
-    );
-  });
-
   let clickedGenBtnInMain = false;
-  if (genBtn && modelVerifiedOnTarget && beforeClickLen >= 3) {
-    try {
-      genBtn.click();
-      clickedGenBtnInMain = true;
-    } catch {}
+  if (autoSubmit !== false && beforeClickLen >= 3) {
+    const genBtn = Array.from(
+      document.querySelectorAll(
+        'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
+      )
+    ).find((b) => {
+      const r = b.getBoundingClientRect();
+      return (
+        r.width >= 16 &&
+        r.height >= 16 &&
+        !b.disabled &&
+        b.getAttribute('aria-disabled') !== 'true' &&
+        !b.closest('.agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer')
+      );
+    });
+
+    if (genBtn) {
+      try {
+        genBtn.click();
+        clickedGenBtnInMain = true;
+      } catch {}
+    }
   }
 
-  const finalLen = (editorEl.innerText || editorEl.textContent || editorEl.value || '').trim()
-    .length;
   return {
-    injected: true,
+    injected: beforeClickLen >= 3,
     beforeClickLen,
-    remainingLength: finalLen,
     clickedGenBtnInMain,
-    needsHardwareModelSwitch: !modelVerifiedOnTarget,
   };
 }
 
@@ -1132,13 +734,8 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
         chosenBtn.getAttribute('aria-disabled') === 'true' ||
         chosenBtn.classList.contains('disabled')
     );
-    if (chosenBtn.hasAttribute('disabled') || chosenBtn.classList.contains('disabled')) {
-      chosenBtn.removeAttribute('disabled');
-      chosenBtn.removeAttribute('aria-disabled');
-    }
     chosenBtn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     const br = chosenBtn.getBoundingClientRect();
-    window.__lastValidatedFlowSubmitBtn = chosenBtn;
     btnInfo = {
       x: Math.round(br.left + br.width / 2),
       y: Math.round(br.top + br.height / 2),
@@ -2314,9 +1911,9 @@ async function runReferencesQueueViaDirectFlowSdk(
  *    sobre button.generate-icon-button y si aún queda texto envía Enter físico.
  */
 async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
-  const target = { tabId };
   const mediaType = String(payload.mediaType || '');
   const logoDataUrl = String(payload.logoDataUrl || '');
+  const shouldAutoSubmit = payload.autoSubmit !== false;
 
   // 1. Activar la pestaña de Google Flow únicamente si focusTab === true
   if (payload.focusTab === true) {
@@ -2327,428 +1924,29 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
     await sleep(150);
   }
 
-  // 2. Inyectar el prompt en MAIN world ANTES de adjuntar chrome.debugger (buscando en todos los frames)
+  // 2. Modo Sigiloso y Mínimo (idéntico a Gemini y Flow Music):
+  //    - Sólo en el top-frame de Google Flow (`target: { tabId }`, NUNCA `allFrames: true` para no tocar iframes de reCAPTCHA Enterprise).
+  //    - Sin adjuntar `chrome.debugger` ni tocar el menú desplegable de modelos.
+  //    - Un único clic limpio (`genBtn.click()`) con pausa natural tras actualizar ProseMirror.
   const mainAttempts = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true },
+    target: { tabId },
     world: 'MAIN',
-    args: [rawPromptText, mediaType, logoDataUrl],
+    args: [rawPromptText, mediaType, logoDataUrl, shouldAutoSubmit],
     func: injectPromptIntoBottomEditor,
   });
 
-  const mainAttempt =
-    (mainAttempts || []).find((r) => r?.result?.injected) || (mainAttempts || [])[0];
-  const matchedFrameId = typeof mainAttempt?.frameId === 'number' ? mainAttempt.frameId : 0;
-  const frameTarget =
-    matchedFrameId > 0 ? { tabId, frameIds: [matchedFrameId] } : { tabId };
-
+  const mainAttempt = (mainAttempts || [])[0];
   if (!mainAttempt?.result?.injected) {
-    // 2B. Buscar también en todos los Out-Of-Process Iframes (OOPIFs / Story Studio) vía CDP
-    const oopifAttempt = await evaluateAcrossAllFlowFramesAndOopifs(
-      tabId,
-      injectPromptIntoBottomEditor,
-      [rawPromptText, mediaType, logoDataUrl],
-      (r) => Boolean(r && r.injected)
-    );
-    if (oopifAttempt && oopifAttempt.injected) {
-      return {
-        success: true,
-        submitted: true,
-        method: 'CDP_OOPIF_DIRECT',
-      };
-    }
-
     throw new Error(
-      mainAttempt?.result?.error || 'No se encontró la caja de prompt en Google Flow.'
+      mainAttempt?.result?.error || 'No se encontró la caja de prompt en la página principal de Google Flow.'
     );
   }
 
-  if (payload.autoSubmit === false) {
-    return { success: true, submitted: false, method: 'INJECT_ONLY' };
-  }
-
-  // Esperar 280ms por si el click en MAIN world ya envió el prompt (sólo si realmente se insertó texto y se pulsó genBtn con el modelo correcto)
-  if (
-    mainAttempt?.result?.clickedGenBtnInMain &&
-    !mainAttempt?.result?.needsHardwareModelSwitch &&
-    (mainAttempt?.result?.beforeClickLen || 0) >= 3
-  ) {
-    await sleep(280);
-    const [checkInitial] = await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      func: checkBottomEditorSubmitted,
-    });
-
-    if (checkInitial?.result?.submitted) {
-      return { success: true, submitted: true, method: 'MAIN_WORLD_DIRECT' };
-    }
-  }
-
-  // 3. El texto ya está en la caja pero requiere evento físico (isTrusted: true) -> Adjuntar chrome.debugger
-  try {
-    await chrome.debugger.attach(target, '1.3');
-  } catch (err) {
-    const msg = String(err?.message || err || '');
-    if (!msg.includes('Another debugger is already attached')) {
-      throw err;
-    }
-  }
-
-  // Esperar 350ms a que la barra amarilla de depuración termine de bajar
-  await sleep(350);
-
-  try {
-    // 3B. Si el selector de modelo aún no está en 'Veo 3.1 - Lite [Lower Priority]' (para video) o 'Nano Banana' (para imagen),
-    //     cambiarlo usando clics físicos de hardware (isTrusted: true vía CDP) antes de enviar el prompt.
-    try {
-      const isVideoModeCdp =
-        mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
-      const [pillCheck] = await chrome.scripting.executeScript({
-        target: frameTarget,
-        world: 'MAIN',
-        args: [isVideoModeCdp],
-        func: (isVid) => {
-          const allBtns = Array.from(
-            document.querySelectorAll('button, [role="button"], [role="combobox"], mat-select')
-          ).filter((b) => {
-            if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]'))
-              return false;
-            const r = b.getBoundingClientRect();
-            return r.width > 18 && r.height > 14 && getComputedStyle(b).visibility !== 'hidden';
-          });
-          const pill = allBtns.find((b) => {
-            const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-            return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
-          });
-          if (!pill) return { needsSwitch: false };
-          const txt = (pill.innerText || pill.textContent || '').replace(/\s+/g, ' ').trim();
-          const okModel = isVid ? /veo\s*3\.1\s*-\s*lite/i.test(txt) : /nano\s*banana/i.test(txt);
-          const okCount = !/\bx[234]\b/i.test(txt);
-          const r = pill.getBoundingClientRect();
-          return {
-            needsSwitch: !okModel || !okCount,
-            x: Math.round(r.left + r.width / 2),
-            y: Math.round(r.top + r.height / 2),
-          };
-        },
-      });
-
-      if (pillCheck?.result?.needsSwitch && pillCheck.result.x && pillCheck.result.y) {
-        // 1) Clic físico en la píldora de modelo inferior para abrir el popover
-        await dispatchHardwareClick(target, pillCheck.result.x, pillCheck.result.y);
-        await sleep(320);
-
-        // 2) Buscar dentro del popover la pestaña Video/Image, botón x1, y la opción 'Veo 3.1 - Lite [Lower Priority]' (o el sub-dropdown de modelo)
-        const [popoverCheck] = await chrome.scripting.executeScript({
-          target: frameTarget,
-          world: 'MAIN',
-          args: [isVideoModeCdp],
-          func: (isVid) => {
-            const getCenter = (el) => {
-              if (!el) return null;
-              const r = el.getBoundingClientRect();
-              if (r.width < 12 || r.height < 12) return null;
-              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-            };
-            const allNodes = Array.from(
-              document.querySelectorAll(
-                '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, .cdk-overlay-container button, [data-radix-popper-content-wrapper] button, [role="dialog"] button, [role="listbox"] *, button, li'
-              )
-            ).filter((el) => {
-              const r = el.getBoundingClientRect();
-              return r.width > 14 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
-            });
-
-            const targetPat = isVid
-              ? /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]|veo\s*3\.1\s*-\s*lite/i
-              : /nano\s*banana\s*2\.1|nano\s*banana\s*pro|nano\s*banana/i;
-
-            const directOpt = allNodes.find((el) => {
-              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-              return targetPat.test(t) && t.length < 60;
-            });
-
-            const x1Btn = allNodes.find((el) => {
-              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-              return /^x?1$/i.test(t);
-            });
-
-            const dur8sBtn = isVid
-              ? allNodes.find((el) => {
-                  const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                  return /^8\s*s(ec(ond)?s?)?$/i.test(t);
-                })
-              : null;
-
-            const innerDropdown = Array.from(
-              document.querySelectorAll(
-                '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"]'
-              )
-            ).find((el) => {
-              const r = el.getBoundingClientRect();
-              if (r.width < 45 || r.height < 16 || getComputedStyle(el).visibility === 'hidden')
-                return false;
-              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-              return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3)/i.test(t);
-            });
-
-            return {
-              x1Coords: getCenter(x1Btn),
-              dur8sCoords: getCenter(dur8sBtn),
-              directOptCoords: getCenter(directOpt),
-              innerDropdownCoords: getCenter(innerDropdown),
-            };
-          },
-        });
-
-        if (popoverCheck?.result?.x1Coords) {
-          await dispatchHardwareClick(
-            target,
-            popoverCheck.result.x1Coords.x,
-            popoverCheck.result.x1Coords.y
-          );
-          await sleep(180);
-        }
-
-        if (popoverCheck?.result?.dur8sCoords) {
-          await dispatchHardwareClick(
-            target,
-            popoverCheck.result.dur8sCoords.x,
-            popoverCheck.result.dur8sCoords.y
-          );
-          await sleep(180);
-        }
-
-        if (popoverCheck?.result?.directOptCoords) {
-          await dispatchHardwareClick(
-            target,
-            popoverCheck.result.directOptCoords.x,
-            popoverCheck.result.directOptCoords.y
-          );
-          await sleep(240);
-        } else if (popoverCheck?.result?.innerDropdownCoords) {
-          // Abrir el sub-dropdown de modelo dentro del popover con clic físico
-          await dispatchHardwareClick(
-            target,
-            popoverCheck.result.innerDropdownCoords.x,
-            popoverCheck.result.innerDropdownCoords.y
-          );
-          await sleep(300);
-
-          const [listCheck] = await chrome.scripting.executeScript({
-            target: frameTarget,
-            world: 'MAIN',
-            args: [isVideoModeCdp],
-            func: (isVid) => {
-              const targetPat = isVid
-                ? /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]|veo\s*3\.1\s*-\s*lite/i
-                : /nano\s*banana\s*2\.1|nano\s*banana\s*pro|nano\s*banana/i;
-              const items = Array.from(
-                document.querySelectorAll(
-                  '[role="option"], [role="menuitem"], [role="menuitemradio"], mat-option, .cdk-overlay-container button, [data-radix-popper-content-wrapper] *, [role="listbox"] *, li, button'
-                )
-              ).filter((el) => {
-                const r = el.getBoundingClientRect();
-                return r.width > 30 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
-              });
-              const hit = items.find((el) => {
-                const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return targetPat.test(t) && t.length < 65;
-              });
-              if (!hit) return null;
-              const r = hit.getBoundingClientRect();
-              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-            },
-          });
-
-          if (listCheck?.result?.x && listCheck?.result?.y) {
-            await dispatchHardwareClick(target, listCheck.result.x, listCheck.result.y);
-            await sleep(240);
-          }
-        }
-
-        // Cerrar cualquier popover residual con Escape antes de medir el botón de enviar
-        await chrome.debugger
-          .sendCommand(target, 'Input.dispatchKeyEvent', {
-            type: 'keyDown',
-            key: 'Escape',
-            code: 'Escape',
-            windowsVirtualKeyCode: 27,
-            nativeVirtualKeyCode: 27,
-          })
-          .catch(() => {});
-        await chrome.debugger
-          .sendCommand(target, 'Input.dispatchKeyEvent', {
-            type: 'keyUp',
-            key: 'Escape',
-            code: 'Escape',
-            windowsVirtualKeyCode: 27,
-            nativeVirtualKeyCode: 27,
-          })
-          .catch(() => {});
-        await sleep(150);
-      }
-    } catch {}
-
-    // 4. Asegurar que el texto sigue en el editor inferior y obtener las coordenadas exactas de button.generate-icon-button
-    let [prep] = await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      args: [rawPromptText, mediaType],
-      func: ensurePromptAndGetSubmitCoords,
-    });
-
-    if (!prep?.result?.foundEditor) {
-      throw new Error('No se encontró el editor inferior durante la fase CDP.');
-    }
-
-    // 4B. Siempre dar foco físico al editor y teclear el prompt a nivel nativo C++ con Input.insertText
-    //     para garantizar 100% que ProseMirror y Google Flow registren el texto incluso en segundo plano
-    await dispatchHardwareClick(target, prep.result.editorX, prep.result.editorY);
-    await sleep(90);
-
-    // Limpiar cualquier texto previo en el editor antes de Input.insertText para nunca duplicar
-    await chrome.scripting
-      .executeScript({
-        target: frameTarget,
-        world: 'MAIN',
-        func: () => {
-          try {
-            const cands = [
-              ...document.querySelectorAll('div.ProseMirror[contenteditable="true"]'),
-              ...document.querySelectorAll('div[contenteditable="true"][role="textbox"]'),
-              ...document.querySelectorAll('textarea:not(.g-recaptcha-response)'),
-            ].filter((el) => {
-              const r = el.getBoundingClientRect();
-              return (
-                r.width > 60 &&
-                r.height > 14 &&
-                r.bottom > 0 &&
-                getComputedStyle(el).visibility !== 'hidden' &&
-                !el.closest(
-                  '#story-studio-modal-root, .agent-panel-animation-container, .sidenav, mat-sidenav, mat-drawer'
-                )
-              );
-            });
-            if (cands.length === 0) return;
-            cands.sort((a, b) => {
-              const ra = a.getBoundingClientRect();
-              const rb = b.getBoundingClientRect();
-              return rb.bottom * 2 + rb.width - (ra.bottom * 2 + ra.width);
-            });
-            const ed = cands[0];
-            ed.focus();
-            if (ed.tagName === 'TEXTAREA' || ed.tagName === 'INPUT') {
-              ed.value = '';
-            } else {
-              let pm = ed.pmViewDesc?.view;
-              if (!pm) {
-                for (const ch of Array.from(ed.querySelectorAll('*'))) {
-                  if (ch.pmViewDesc?.view) {
-                    pm = ch.pmViewDesc.view;
-                    break;
-                  }
-                }
-              }
-              if (pm && pm.state && pm.state.doc.content.size > 0) {
-                try {
-                  pm.dispatch(pm.state.tr.delete(0, pm.state.doc.content.size));
-                } catch {}
-              }
-              const sel = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(ed);
-              sel.removeAllRanges();
-              sel.addRange(range);
-              document.execCommand('delete', false, null);
-            }
-          } catch {}
-        },
-      })
-      .catch(() => {});
-
-    await sleep(50);
-    await chrome.debugger.sendCommand(target, 'Input.insertText', {
-      text: prep.result.safePrompt || String(rawPromptText || '').trim() + ' ',
-    });
-    await sleep(260);
-
-    // Re-medir el editor y el botón de enviar ahora que Google Flow habilitó genuinamente button.generate-icon-button
-    const [refreshedPrep] = await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      args: [rawPromptText, mediaType],
-      func: ensurePromptAndGetSubmitCoords,
-    });
-    if (refreshedPrep?.result?.foundEditor) {
-      prep = refreshedPrep;
-    }
-
-    const { editorX, editorY, button } = prep.result;
-
-    // 5. Hacer clic físico en button.generate-icon-button si está presente
-    if (button && button.x && button.y) {
-      await dispatchHardwareClick(target, button.x, button.y);
-      await sleep(450);
-    }
-
-    // Comprobar si el clic físico sobre button.generate-icon-button ya sometió el prompt
-    const [afterBtnCheck] = await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      func: checkBottomEditorSubmitted,
-    });
-
-    if (afterBtnCheck?.result?.submitted) {
-      return {
-        success: true,
-        submitted: true,
-        method: 'CDP_HARDWARE_GENERATE_BUTTON',
-        buttonClicked: button,
-      };
-    }
-
-    // 6. Si tras el clic en button.generate-icon-button el texto sigue en la caja, dar foco al editor y enviar Enter físico
-    await dispatchHardwareClick(target, editorX, editorY);
-    await sleep(80);
-    // Colapsar selección al final por si el clic seleccionó algo
-    await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      func: () => {
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          sel.collapseToEnd();
-        }
-      },
-    });
-    await sleep(40);
-    await sendHardwareEnterKey(target);
-    await sleep(450);
-
-    // 7. Si después de Enter aún sigue el botón habilitado, volver a medir button.generate-icon-button y hacer clic físico una vez más
-    const [afterEnterCheck] = await chrome.scripting.executeScript({
-      target: frameTarget,
-      world: 'MAIN',
-      func: checkBottomEditorSubmitted,
-    });
-
-    if (!afterEnterCheck?.result?.submitted && button && button.x && button.y) {
-      await dispatchHardwareClick(target, button.x, button.y);
-      await sleep(350);
-    }
-
-    return {
-      success: true,
-      submitted: true,
-      method: 'CDP_HARDWARE_BUTTON_AND_ENTER',
-      buttonClicked: button,
-    };
-  } finally {
-    try {
-      await chrome.debugger.detach(target);
-    } catch {}
-  }
+  return {
+    success: true,
+    submitted: shouldAutoSubmit && Boolean(mainAttempt.result.clickedGenBtnInMain),
+    method: 'STEALTH_MAIN_DIRECT',
+  };
 }
 
 // ============================================================================
@@ -2805,7 +2003,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         sendResponse({
           ok: true,
-          version: '2.6.0',
+          version: '2.6.3',
           windowId: senderWindowId,
           geminiTabs,
           flowTabs,

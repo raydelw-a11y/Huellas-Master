@@ -1,22 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Flow Music)",
-  "version": "2.6.2",
-  "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow (incluyendo Story Studio flow-sdk) y Flow Music (flowmusic.app) abiertas en la misma ventana.",
+  "version": "2.6.3",
+  "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow y Flow Music (flowmusic.app) abiertas en la misma ventana.",
   "permissions": [
-    "debugger",
     "tabs",
     "scripting",
     "activeTab"
   ],
   "host_permissions": [
-    "<all_urls>",
     "https://gemini.google.com/*",
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",
-    "https://*.usercontent.goog/*",
-    "https://*.scf.usercontent.goog/*",
     "https://flowmusic.app/*",
     "https://*.flowmusic.app/*",
     "https://producer.ai/*",
@@ -27,8 +23,6 @@
     "https://*.suno.ai/*",
     "https://*.googleusercontent.com/*",
     "https://*.googleapis.com/*",
-    "https://*.gstatic.com/*",
-    "https://*.google.com/*",
     "http://localhost:4200/*",
     "http://127.0.0.1:4200/*",
     "https://*.onrender.com/*",
@@ -63,16 +57,10 @@
       "matches": [
         "https://flow.google.com/*",
         "https://*.flow.google.com/*",
-        "https://labs.google/*",
-        "https://*.usercontent.goog/*",
-        "https://*.scf.usercontent.goog/*",
-        "https://*.googleusercontent.com/*"
+        "https://labs.google/*"
       ],
       "js": ["flow-content.js"],
-      "run_at": "document_idle",
-      "all_frames": true,
-      "match_about_blank": true,
-      "match_origin_as_fallback": true
+      "run_at": "document_idle"
     },
     {
       "matches": [

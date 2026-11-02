@@ -34,7 +34,7 @@
           {
             source: 'HUELLAS_EXTENSION',
             type: 'EXTENSION_READY',
-            version: response?.version || '2.6.2',
+            version: response?.version || '2.6.3',
             geminiTabs: response?.geminiTabs || [],
             flowTabs: response?.flowTabs || [],
           },
