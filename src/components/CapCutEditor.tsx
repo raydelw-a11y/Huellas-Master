@@ -3586,9 +3586,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       {/* =====================================================================
           UPPER WORKSPACE: STAGE-8 STYLE VIDEO VIEWER (LEFT/CENTER) + INSPECTOR (RIGHT)
       ===================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 bg-[#100d0a] border-b border-slate-800/90">
+      <div className="grid grid-cols-1 lg:grid-cols-12 items-start gap-4 p-3 bg-[#100d0a] border-b border-slate-800/90">
         {/* PREVIEW MONITOR (8 COLS — STAGE-8 STYLE FULL-WIDTH HORIZONTAL VIEWER) */}
-        <div className="lg:col-span-8 flex flex-col justify-between bg-[#080705] border border-slate-800 rounded-2xl p-3 space-y-2.5">
+        <div className="lg:col-span-8 flex flex-col justify-start self-start bg-[#080705] border border-slate-800 rounded-2xl p-3 space-y-2.5">
           {/* Top Viewer Bar + Quick Object Selection Pills */}
           <div className="w-full flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
@@ -4607,7 +4607,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         </div>
 
         {/* INSPECTOR & CONTROLS PANEL (4 COLS) */}
-        <div className="lg:col-span-4 bg-[#14110d] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+        <div className="lg:col-span-4 bg-[#14110d] border border-slate-800 rounded-2xl p-4 flex flex-col justify-start self-start max-h-[640px] overflow-hidden space-y-3">
           {/* Inspector Tabs */}
           <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
             <button
