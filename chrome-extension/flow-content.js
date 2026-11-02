@@ -20,27 +20,208 @@
     window.__HUELLAS_FLOW_SDK__ = null;
   } catch {}
 
-  // Ocultar 'Omni 1.1 Flash' en menús desplegables cuando se agotaron sus créditos para forzar 'Veo 3.1 - Lite [Lower Priority]'
-  function hideExhaustedOmniFlashMenuOptions() {
-    try {
-      const menuOptions = document.querySelectorAll(
-        '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="option"], .cdk-overlay-container mat-option, .cdk-overlay-container button, [role="menu"] [role="menuitem"], [role="listbox"] [role="option"]'
-      );
-      for (const opt of menuOptions) {
-        const txt = (opt.innerText || opt.textContent || '').replace(/\s+/g, ' ').trim();
-        if (/^omni\s*1\.1\s*flash\b/i.test(txt)) {
-          opt.style.visibility = 'hidden';
-        }
+  // Desactivar cualquier observer previo que ocultaba el botón del dropdown de modelo cuando decía 'Omni 1.1 Flash'
+  try {
+    if (window.__HUELLAS_OMNI_HIDE_OBSERVER__) {
+      window.__HUELLAS_OMNI_HIDE_OBSERVER__.disconnect();
+      window.__HUELLAS_OMNI_HIDE_OBSERVER__ = null;
+    }
+    document.querySelectorAll('[style*="visibility: hidden"]').forEach((el) => {
+      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/omni\s*1\.1\s*flash/i.test(txt)) {
+        el.style.visibility = '';
       }
-    } catch {}
+    });
+  } catch {}
+
+  function realUiClick(el) {
+    if (!el) return;
+    try {
+      const r = el.getBoundingClientRect();
+      const cx = Math.round(r.left + r.width / 2);
+      const cy = Math.round(r.top + r.height / 2);
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX: cx,
+        clientY: cy,
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      };
+      el.dispatchEvent(new PointerEvent('pointerover', opts));
+      el.dispatchEvent(new MouseEvent('mouseover', opts));
+      el.dispatchEvent(new PointerEvent('pointerdown', opts));
+      el.dispatchEvent(new MouseEvent('mousedown', opts));
+      if (typeof el.focus === 'function') el.focus();
+      el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
+      el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+      el.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
+      if (typeof el.click === 'function') el.click();
+    } catch {
+      try {
+        el.click();
+      } catch {}
+    }
   }
 
-  hideExhaustedOmniFlashMenuOptions();
-  if (!window.__HUELLAS_OMNI_HIDE_OBSERVER__ && document.body) {
-    const obs = new MutationObserver(() => hideExhaustedOmniFlashMenuOptions());
-    obs.observe(document.body, { childList: true, subtree: true });
-    window.__HUELLAS_OMNI_HIDE_OBSERVER__ = obs;
+  async function ensureFlowModelSelected(targetMode = 'VIDEO') {
+    if (window.__HUELLAS_SWITCHING_MODEL_LOCK__) return;
+    window.__HUELLAS_SWITCHING_MODEL_LOCK__ = true;
+    const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+    try {
+      const isVideo = targetMode !== 'IMAGE' && targetMode !== 'REFERENCES' && targetMode !== 'THUMBNAILS';
+      const targetPatterns = isVideo
+        ? [/veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i, /veo\s*3\.1\s*-\s*lite/i]
+        : [/nano\s*banana\s*2\.1/i, /nano\s*banana\s*pro/i, /nano\s*banana\s*2/i];
+
+      const allButtons = Array.from(
+        document.querySelectorAll('button, [role="button"], [role="combobox"], mat-select')
+      ).filter((b) => {
+        const r = b.getBoundingClientRect();
+        return r.width > 18 && r.height > 14 && getComputedStyle(b).visibility !== 'hidden';
+      });
+
+      const modelPillBtn = allButtons.find((b) => {
+        if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
+          return false;
+        }
+        const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+        return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
+      });
+
+      if (!modelPillBtn) return;
+
+      const pillTxt = (modelPillBtn.innerText || modelPillBtn.textContent || '').replace(/\s+/g, ' ').trim();
+      const alreadyOnTarget = targetPatterns.some((pat) => pat.test(pillTxt));
+      const hasMultiCount = /\bx[234]\b/i.test(pillTxt);
+
+      if (alreadyOnTarget && !hasMultiCount) return;
+
+      // 1. Abrir el popover de ajustes / modelo en la barra inferior
+      realUiClick(modelPillBtn);
+      await sleepMs(240);
+
+      const findVisibleOption = (patterns, excludeSet = new Set()) => {
+        const candidates = Array.from(
+          document.querySelectorAll(
+            '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, .cdk-overlay-container button, [data-radix-popper-content-wrapper] button, [role="dialog"] button, [role="listbox"] *, button, li'
+          )
+        ).filter((el) => {
+          if (!el || excludeSet.has(el) || el === modelPillBtn) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 16 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
+        });
+        for (const pat of patterns) {
+          const hit = candidates.find((el) => {
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            const a = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).trim();
+            return pat.test(t) || (a && pat.test(a));
+          });
+          if (hit) return hit;
+        }
+        return null;
+      };
+
+      // 2. Asegurar pestaña Video vs Image dentro del popover
+      if (isVideo) {
+        const vidTab = findVisibleOption([
+          /^(videos?|text\s*to\s*video|texto\s*a\s*video|videocam\s*videos?|videocam\s*video)$/i,
+        ]);
+        if (vidTab) {
+          realUiClick(vidTab);
+          await sleepMs(180);
+        }
+      } else {
+        const imgTab = findVisibleOption([
+          /^(images?|create\s*images?|text\s*to\s*image|im[aá]genes)$/i,
+        ]);
+        if (imgTab) {
+          realUiClick(imgTab);
+          await sleepMs(180);
+        }
+      }
+
+      // 3. Asegurar cantidad x1 dentro del popover
+      const x1Btn = findVisibleOption([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i]);
+      if (x1Btn) {
+        realUiClick(x1Btn);
+        await sleepMs(140);
+      }
+
+      // 4. Buscar directamente 'Veo 3.1 - Lite [Lower Priority]' (sin incluir 'Omni 1.1 Flash' para no confundir el botón cerrado del dropdown)
+      let targetOpt = findVisibleOption(targetPatterns);
+      if (!targetOpt) {
+        // El sub-dropdown de Modelo dentro del popover está cerrado (mostrando p.ej. 'Omni 1.1 Flash' o 'Veo 3.1 - Fast'): abrirlo primero
+        const innerModelDropdown = Array.from(
+          document.querySelectorAll(
+            '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"]'
+          )
+        ).find((el) => {
+          if (!el || el === modelPillBtn) return false;
+          const r = el.getBoundingClientRect();
+          if (r.width < 45 || r.height < 16 || getComputedStyle(el).visibility === 'hidden') return false;
+          const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3)/i.test(t);
+        });
+
+        if (innerModelDropdown) {
+          realUiClick(innerModelDropdown);
+          await sleepMs(240);
+          targetOpt = findVisibleOption(targetPatterns, new Set([innerModelDropdown]));
+        }
+      }
+
+      if (targetOpt) {
+        realUiClick(targetOpt);
+        await sleepMs(200);
+      }
+
+      // 5. Cerrar el popover/backdrop para dejar libre la caja de prompt
+      const backdrops = Array.from(
+        document.querySelectorAll('.cdk-overlay-backdrop, [class*="overlay-backdrop" i]')
+      );
+      if (backdrops.length > 0) {
+        backdrops.forEach((bd) => realUiClick(bd));
+        await sleepMs(100);
+      } else {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+        await sleepMs(80);
+      }
+    } catch {} finally {
+      window.__HUELLAS_SWITCHING_MODEL_LOCK__ = false;
+    }
   }
+
+  // Al cargar el content script (y periódicamente si el usuario no está escribiendo), asegurar 'Veo 3.1 - Lite [Lower Priority]' + x1 si está en Omni 1.1 Flash
+  setTimeout(() => {
+    ensureFlowModelSelected('VIDEO').catch(() => {});
+  }, 150);
+
+  if (window.__HUELLAS_MODEL_ENFORCER_TIMER__) {
+    clearInterval(window.__HUELLAS_MODEL_ENFORCER_TIMER__);
+  }
+  window.__HUELLAS_MODEL_ENFORCER_TIMER__ = setInterval(() => {
+    try {
+      const hasOpenOverlay = Boolean(
+        document.querySelector(
+          '.cdk-overlay-container [role="option"], .cdk-overlay-container [role="menuitem"], [data-radix-popper-content-wrapper], [role="listbox"]'
+        )
+      );
+      if (hasOpenOverlay) return;
+      const allBtns = Array.from(document.querySelectorAll('button, [role="button"], [role="combobox"]'));
+      const pill = allBtns.find((b) => {
+        const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+        return /omni\s*1\.1\s*flash/i.test(txt);
+      });
+      if (pill) {
+        ensureFlowModelSelected('VIDEO').catch(() => {});
+      }
+    } catch {}
+  }, 2200);
 
   // Replace previous listener if re-injected
   if (window.__HUELLAS_FLOW_MESSAGE_HANDLER__) {

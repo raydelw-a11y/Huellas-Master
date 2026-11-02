@@ -460,12 +460,59 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       }
     }
 
+    // Restaurar visibilidad por si algún observer previo ocultó el botón cerrado del dropdown ('Omni 1.1 Flash')
+    try {
+      if (window.__HUELLAS_OMNI_HIDE_OBSERVER__) {
+        window.__HUELLAS_OMNI_HIDE_OBSERVER__.disconnect();
+        window.__HUELLAS_OMNI_HIDE_OBSERVER__ = null;
+      }
+      document.querySelectorAll('[style*="visibility: hidden"]').forEach((el) => {
+        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (/omni\s*1\.1\s*flash/i.test(txt)) {
+          el.style.visibility = '';
+        }
+      });
+    } catch {}
+
+    const realUiClick = (el) => {
+      if (!el) return;
+      try {
+        const r = el.getBoundingClientRect();
+        const cx = Math.round(r.left + r.width / 2);
+        const cy = Math.round(r.top + r.height / 2);
+        const opts = {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+          clientX: cx,
+          clientY: cy,
+          pointerId: 1,
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+        };
+        el.dispatchEvent(new PointerEvent('pointerover', opts));
+        el.dispatchEvent(new MouseEvent('mouseover', opts));
+        el.dispatchEvent(new PointerEvent('pointerdown', opts));
+        el.dispatchEvent(new MouseEvent('mousedown', opts));
+        if (typeof el.focus === 'function') el.focus();
+        el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
+        el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+        el.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
+        if (typeof el.click === 'function') el.click();
+      } catch {
+        try {
+          el.click();
+        } catch {}
+      }
+    };
+
+    // En modo VIDEO buscamos exclusivamente 'Veo 3.1 - Lite [Lower Priority]' para no confundir el botón cerrado 'Omni 1.1 Flash' con una opción ya elegida
     const preferredModels = isVideoMode
       ? [
           /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]/i,
           /veo\s*3\.1\s*-\s*lite/i,
-          /^omni\s*1\.1\s*flash$/i,
-          /omni\s*1\.1\s*flash/i,
         ]
       : [
           /nano\s*banana\s*2\.1/i,
@@ -475,14 +522,14 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         ];
 
     const selectMenuOptionMatching = async (patterns, excludeEl = null) => {
-      await sleepMain(140);
+      await sleepMain(160);
       const options = collectNodesDeep(
         document,
-        '[role="menuitem"], [role="option"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, button, li'
+        '[role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, [data-radix-popper-content-wrapper] button, [role="dialog"] button, [role="listbox"] *, button, li'
       ).filter((el) => {
         if (!el || el === excludeEl) return false;
         const r = el.getBoundingClientRect();
-        return r.width > 18 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
+        return r.width > 16 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
       });
       for (const pat of patterns) {
         const found = options.find((el) => {
@@ -491,8 +538,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
           return pat.test(txt) || (aria && pat.test(aria));
         });
         if (found) {
-          found.click();
-          await sleepMain(160);
+          realUiClick(found);
+          await sleepMain(180);
           return true;
         }
       }
@@ -514,7 +561,7 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         return /^(create\s*images?|images?\s*mode|text\s*to\s*image|im[aá]genes)$/i.test(txt);
       });
       if (topImageModeBtn) {
-        topImageModeBtn.click();
+        realUiClick(topImageModeBtn);
         await selectMenuOptionMatching([
           /^(videos?|text\s*to\s*video|texto\s*a\s*video|create\s*videos?|videocam\s*videos?)$/i,
         ]);
@@ -531,25 +578,26 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       );
     });
     if (multiCountBtn) {
-      multiCountBtn.click();
+      realUiClick(multiCountBtn);
       await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i, /\bx1\b/i], multiCountBtn);
     }
 
     // C) Verificar el selector de modelo/ajustes activo en la barra inferior y asegurar modo Video + 'Veo 3.1 - Lite [Lower Priority]' + x1
     const modelTriggerBtn = allUiButtons.find((b) => {
+      if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
+        return false;
+      }
       const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
       return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
     });
     if (modelTriggerBtn) {
       const currentModelTxt = (modelTriggerBtn.innerText || modelTriggerBtn.textContent || '').replace(/\s+/g, ' ').trim();
-      const alreadyPrimary = isVideoMode
-        ? preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt)
-        : preferredModels[0].test(currentModelTxt) || preferredModels[1].test(currentModelTxt);
+      const alreadyPrimary = preferredModels.some((pat) => pat.test(currentModelTxt));
       const hasMultiCountInPill = /\bx[234]\b/i.test(currentModelTxt);
 
       if (!alreadyPrimary || hasMultiCountInPill) {
-        modelTriggerBtn.click();
-        await sleepMain(200);
+        realUiClick(modelTriggerBtn);
+        await sleepMain(240);
 
         // C1) Si estamos en modo VIDEO pero el popover está en la pestaña Image (Nano Banana), pulsar la pestaña Video/Videos primero
         if (isVideoMode) {
@@ -570,16 +618,14 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         }
 
         // C2) Asegurar cantidad x1 dentro del popover si aparece el selector x1/x2/x3/x4
-        if (hasMultiCountInPill) {
-          await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i], modelTriggerBtn);
-        }
+        await selectMenuOptionMatching([/^x?1$/i, /^1\s*(output|video|image|item)?s?$/i], modelTriggerBtn);
 
         // C3) Intentar elegir directamente 'Veo 3.1 - Lite [Lower Priority]' (o abrir el sub-dropdown de modelo dentro del popover)
         let picked = await selectMenuOptionMatching(preferredModels, modelTriggerBtn);
         if (!picked) {
           const innerDropdownBtns = collectNodesDeep(
             document,
-            '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [role="dialog"] button, [role="menu"] button'
+            '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"], [role="menu"] button'
           ).filter((el) => {
             if (!el || el === modelTriggerBtn) return false;
             const r = el.getBoundingClientRect();
@@ -588,8 +634,8 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
             return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3|model|modelo)/i.test(txt);
           });
           if (innerDropdownBtns.length > 0) {
-            innerDropdownBtns[0].click();
-            await sleepMain(180);
+            realUiClick(innerDropdownBtns[0]);
+            await sleepMain(240);
             picked = await selectMenuOptionMatching(preferredModels, innerDropdownBtns[0]);
           }
         }
@@ -601,12 +647,12 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
         if (backdrops.length > 0) {
           for (const bd of backdrops) {
             try {
-              bd.click();
+              realUiClick(bd);
             } catch {}
           }
           await sleepMain(100);
-        } else if (!picked) {
-          document.body.click();
+        } else {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
           await sleepMain(80);
         }
       }
@@ -709,7 +755,35 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
 
   await sleepMain(180);
 
-  // Intentar primer click directo sobre button.generate-icon-button en MAIN world
+  // Verificar si el botón de modelo en la barra inferior ya quedó en el motor correcto ('Veo 3.1 - Lite [Lower Priority]' para video)
+  let modelVerifiedOnTarget = true;
+  try {
+    const isVideoModeCheck =
+      mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+    const pillBtn = Array.from(
+      document.querySelectorAll('button, [role="button"], [role="combobox"], mat-select')
+    ).find((b) => {
+      if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
+        return false;
+      }
+      const r = b.getBoundingClientRect();
+      if (r.width < 18 || r.height < 14 || getComputedStyle(b).visibility === 'hidden') return false;
+      const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+      return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
+    });
+    if (pillBtn) {
+      const pillTxt = (pillBtn.innerText || pillBtn.textContent || '').replace(/\s+/g, ' ').trim();
+      if (isVideoModeCheck && !/veo\s*3\.1\s*-\s*lite/i.test(pillTxt)) {
+        modelVerifiedOnTarget = false;
+      } else if (!isVideoModeCheck && !/nano\s*banana/i.test(pillTxt)) {
+        modelVerifiedOnTarget = false;
+      } else if (/\bx[234]\b/i.test(pillTxt)) {
+        modelVerifiedOnTarget = false;
+      }
+    }
+  } catch {}
+
+  // Intentar primer click directo sobre button.generate-icon-button en MAIN world SÓLO si el modelo ya está en Veo 3.1 - Lite [Lower Priority]
   const genBtn = Array.from(
     document.querySelectorAll(
       'button.generate-icon-button, flow-generate-icon-button button, span.submit-button-slot button, [submitbutton] button'
@@ -725,7 +799,7 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
     );
   });
 
-  if (genBtn) {
+  if (genBtn && modelVerifiedOnTarget) {
     try {
       genBtn.click();
     } catch {}
@@ -736,6 +810,7 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
   return {
     injected: finalLen > 0 || Boolean(genBtn),
     remainingLength: finalLen,
+    needsHardwareModelSwitch: !modelVerifiedOnTarget,
   };
 }
 
@@ -2131,6 +2206,181 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
   await sleep(350);
 
   try {
+    // 3B. Si el selector de modelo aún no está en 'Veo 3.1 - Lite [Lower Priority]' (para video) o 'Nano Banana' (para imagen),
+    //     cambiarlo usando clics físicos de hardware (isTrusted: true vía CDP) antes de enviar el prompt.
+    try {
+      const isVideoModeCdp =
+        mediaType === 'VIDEO' || /^\s*\*?\*?Clip\s+\d+/i.test(String(rawPromptText || ''));
+      const [pillCheck] = await chrome.scripting.executeScript({
+        target: frameTarget,
+        world: 'MAIN',
+        args: [isVideoModeCdp],
+        func: (isVid) => {
+          const allBtns = Array.from(
+            document.querySelectorAll('button, [role="button"], [role="combobox"], mat-select')
+          ).filter((b) => {
+            if (b.closest('.cdk-overlay-container, [role="dialog"], [role="menu"], [role="listbox"]'))
+              return false;
+            const r = b.getBoundingClientRect();
+            return r.width > 18 && r.height > 14 && getComputedStyle(b).visibility !== 'hidden';
+          });
+          const pill = allBtns.find((b) => {
+            const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+            return /(veo\s*2|veo\s*3|omni\s*1|nano\s*banana|imagen\s*3)/i.test(txt);
+          });
+          if (!pill) return { needsSwitch: false };
+          const txt = (pill.innerText || pill.textContent || '').replace(/\s+/g, ' ').trim();
+          const okModel = isVid ? /veo\s*3\.1\s*-\s*lite/i.test(txt) : /nano\s*banana/i.test(txt);
+          const okCount = !/\bx[234]\b/i.test(txt);
+          const r = pill.getBoundingClientRect();
+          return {
+            needsSwitch: !okModel || !okCount,
+            x: Math.round(r.left + r.width / 2),
+            y: Math.round(r.top + r.height / 2),
+          };
+        },
+      });
+
+      if (pillCheck?.result?.needsSwitch && pillCheck.result.x && pillCheck.result.y) {
+        // 1) Clic físico en la píldora de modelo inferior para abrir el popover
+        await dispatchHardwareClick(target, pillCheck.result.x, pillCheck.result.y);
+        await sleep(320);
+
+        // 2) Buscar dentro del popover la pestaña Video/Image, botón x1, y la opción 'Veo 3.1 - Lite [Lower Priority]' (o el sub-dropdown de modelo)
+        const [popoverCheck] = await chrome.scripting.executeScript({
+          target: frameTarget,
+          world: 'MAIN',
+          args: [isVideoModeCdp],
+          func: (isVid) => {
+            const getCenter = (el) => {
+              if (!el) return null;
+              const r = el.getBoundingClientRect();
+              if (r.width < 12 || r.height < 12) return null;
+              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            };
+            const allNodes = Array.from(
+              document.querySelectorAll(
+                '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="tab"], [role="radio"], mat-option, mat-button-toggle button, .cdk-overlay-container button, [data-radix-popper-content-wrapper] button, [role="dialog"] button, [role="listbox"] *, button, li'
+              )
+            ).filter((el) => {
+              const r = el.getBoundingClientRect();
+              return r.width > 14 && r.height > 12 && getComputedStyle(el).visibility !== 'hidden';
+            });
+
+            const targetPat = isVid
+              ? /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]|veo\s*3\.1\s*-\s*lite/i
+              : /nano\s*banana\s*2\.1|nano\s*banana\s*pro|nano\s*banana/i;
+
+            const directOpt = allNodes.find((el) => {
+              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return targetPat.test(t) && t.length < 60;
+            });
+
+            const x1Btn = allNodes.find((el) => {
+              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return /^x?1$/i.test(t);
+            });
+
+            const innerDropdown = Array.from(
+              document.querySelectorAll(
+                '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"]'
+              )
+            ).find((el) => {
+              const r = el.getBoundingClientRect();
+              if (r.width < 45 || r.height < 16 || getComputedStyle(el).visibility === 'hidden')
+                return false;
+              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return /(omni\s*1|veo\s*2|veo\s*3|nano\s*banana|imagen\s*3)/i.test(t);
+            });
+
+            return {
+              x1Coords: getCenter(x1Btn),
+              directOptCoords: getCenter(directOpt),
+              innerDropdownCoords: getCenter(innerDropdown),
+            };
+          },
+        });
+
+        if (popoverCheck?.result?.x1Coords) {
+          await dispatchHardwareClick(
+            target,
+            popoverCheck.result.x1Coords.x,
+            popoverCheck.result.x1Coords.y
+          );
+          await sleep(180);
+        }
+
+        if (popoverCheck?.result?.directOptCoords) {
+          await dispatchHardwareClick(
+            target,
+            popoverCheck.result.directOptCoords.x,
+            popoverCheck.result.directOptCoords.y
+          );
+          await sleep(240);
+        } else if (popoverCheck?.result?.innerDropdownCoords) {
+          // Abrir el sub-dropdown de modelo dentro del popover con clic físico
+          await dispatchHardwareClick(
+            target,
+            popoverCheck.result.innerDropdownCoords.x,
+            popoverCheck.result.innerDropdownCoords.y
+          );
+          await sleep(300);
+
+          const [listCheck] = await chrome.scripting.executeScript({
+            target: frameTarget,
+            world: 'MAIN',
+            args: [isVideoModeCdp],
+            func: (isVid) => {
+              const targetPat = isVid
+                ? /veo\s*3\.1\s*-\s*lite\s*\[lower priority\]|veo\s*3\.1\s*-\s*lite/i
+                : /nano\s*banana\s*2\.1|nano\s*banana\s*pro|nano\s*banana/i;
+              const items = Array.from(
+                document.querySelectorAll(
+                  '[role="option"], [role="menuitem"], [role="menuitemradio"], mat-option, .cdk-overlay-container button, [data-radix-popper-content-wrapper] *, [role="listbox"] *, li, button'
+                )
+              ).filter((el) => {
+                const r = el.getBoundingClientRect();
+                return r.width > 30 && r.height > 14 && getComputedStyle(el).visibility !== 'hidden';
+              });
+              const hit = items.find((el) => {
+                const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return targetPat.test(t) && t.length < 65;
+              });
+              if (!hit) return null;
+              const r = hit.getBoundingClientRect();
+              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            },
+          });
+
+          if (listCheck?.result?.x && listCheck?.result?.y) {
+            await dispatchHardwareClick(target, listCheck.result.x, listCheck.result.y);
+            await sleep(240);
+          }
+        }
+
+        // Cerrar cualquier popover residual con Escape antes de medir el botón de enviar
+        await chrome.debugger
+          .sendCommand(target, 'Input.dispatchKeyEvent', {
+            type: 'keyDown',
+            key: 'Escape',
+            code: 'Escape',
+            windowsVirtualKeyCode: 27,
+            nativeVirtualKeyCode: 27,
+          })
+          .catch(() => {});
+        await chrome.debugger
+          .sendCommand(target, 'Input.dispatchKeyEvent', {
+            type: 'keyUp',
+            key: 'Escape',
+            code: 'Escape',
+            windowsVirtualKeyCode: 27,
+            nativeVirtualKeyCode: 27,
+          })
+          .catch(() => {});
+        await sleep(150);
+      }
+    } catch {}
+
     // 4. Asegurar que el texto sigue en el editor inferior y obtener las coordenadas exactas de button.generate-icon-button
     const [prep] = await chrome.scripting.executeScript({
       target: frameTarget,
