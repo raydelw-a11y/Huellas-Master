@@ -1239,7 +1239,15 @@ function cleanWordLower(w: string): string {
   return (w || '').toLowerCase().replace(/^[^a-záéíóúüñ0-9]+|[^a-záéíóúüñ0-9]+$/gi, '');
 }
 
-export function splitWordsIntoShortLines(words: string[], maxChars: number = 32): string[][] {
+export function splitWordsIntoShortLines(
+  inputWords: string[] | string,
+  maxChars: number = 32
+): string[][] {
+  const words = Array.isArray(inputWords)
+    ? inputWords
+    : typeof inputWords === 'string'
+    ? inputWords.trim().split(/\s+/).filter(Boolean)
+    : [];
   if (!words || words.length === 0) return [];
   if (maxChars <= 0) return [words];
   const fullText = words.join(' ');

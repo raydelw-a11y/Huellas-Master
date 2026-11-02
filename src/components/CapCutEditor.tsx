@@ -1218,7 +1218,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         .replace(/\s{2,}/g, ' ')
         .trim();
       if (!clean) return [];
-      return splitWordsIntoShortLines(clean, maxCharsPerCaption);
+      const words = clean.split(/\s+/).filter(Boolean);
+      return splitWordsIntoShortLines(words, maxCharsPerCaption)
+        .map((lineWords) => (Array.isArray(lineWords) ? lineWords.join(' ') : String(lineWords)))
+        .filter(Boolean);
     };
 
     // Align N text units (sentences or clauses) to candidate silences inside [tStart, tEnd] via Dynamic Programming
