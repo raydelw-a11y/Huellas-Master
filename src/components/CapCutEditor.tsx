@@ -660,7 +660,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>('outline');
   const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>('semi');
   const [captionBgColor, setCaptionBgColor] = useState<string>('#000000');
-  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(78);
+  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(25);
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
@@ -4301,6 +4301,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     onChange={(e) => setCaptionBgColor(e.target.value)}
                     className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
                   />
+                  <span>{captionBgOpacity}%</span>
                   <input
                     type="range"
                     min={10}
