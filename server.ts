@@ -47,6 +47,25 @@ process.on('unhandledRejection', (reason) => {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4200;
 
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Range, Access-Control-Request-Private-Network'
+  );
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Range, Accept-Ranges, Content-Length'
+  );
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 app.use(cors({ origin: '*', optionsSuccessStatus: 200 }));
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ limit: '200mb', extended: true }));

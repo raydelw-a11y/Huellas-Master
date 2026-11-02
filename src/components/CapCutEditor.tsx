@@ -835,6 +835,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const data = await res.json();
           if (cancelled) return;
           const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+          if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0) {
+            const nextFrames: Record<number, string> = {};
+            for (const f of data.clipFrames) {
+              if (f.clipNumber > 0 && f.url && !nextFrames[f.clipNumber]) {
+                nextFrames[f.clipNumber] = prefix(f.url);
+              }
+            }
+            if (Object.keys(nextFrames).length > 0) {
+              setFirstFrameByClip((prev) => ({ ...nextFrames, ...prev }));
+            }
+          }
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
             const nextVids: Record<number, string> = {};
             for (const item of data.clipVideos) {
@@ -863,13 +874,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath, isEditorActive]);
 
-  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video when paused or when a clip's videoUrl updates
+  // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video ONLY when editor is active & paused, without saturating Chrome's 6-socket pool
   useEffect(() => {
-    if (isPlaying) return;
+    if (!isEditorActive || isPlaying) return;
     let cancelled = false;
     const clipsToExtract = timelineClips.filter(
       (c) =>
         c.videoUrl &&
+        !c.posterUrl &&
+        !firstFrameByClip[c.clipNumber] &&
         extractedVideoUrlByClipRef.current[c.clipNumber] !== c.videoUrl
     );
     if (clipsToExtract.length === 0) return;
@@ -894,7 +907,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           resolve(dataUrl);
         };
 
-        const timer = setTimeout(() => finish(''), 3500);
+        const timer = setTimeout(() => finish(''), 2500);
 
         const captureFrame = () => {
           try {
@@ -934,21 +947,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     (async () => {
       for (const item of clipsToExtract) {
         if (cancelled || !item.videoUrl) return;
-        extractedVideoUrlByClipRef.current[item.clipNumber] = item.videoUrl;
         const frameDataUrl = await extractFirstFrameFromVideoUrl(item.videoUrl);
-        if (!cancelled && frameDataUrl) {
+        if (cancelled) return;
+        extractedVideoUrlByClipRef.current[item.clipNumber] = item.videoUrl;
+        if (frameDataUrl) {
           setFirstFrameByClip((prev) => ({
             ...prev,
             [item.clipNumber]: frameDataUrl,
           }));
         }
+        await new Promise((r) => setTimeout(r, 80));
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [timelineClips, isPlaying]);
+  }, [timelineClips, isPlaying, isEditorActive]);
 
   // Resolve Voiceover URL across masterAudioUrl, audioTracks, folderVoiceoverUrl, or pre-bundled TTS files
   const effectiveVoiceoverUrl = useMemo(() => {
@@ -2325,6 +2340,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const vid = previewVideoRef.current;
     if (vid && activeClipAtPlayhead?.videoUrl) {
       try {
+        if (vid.readyState === 0 || vid.error) {
+          vid.load();
+        }
         const { effectiveRate, clampedOffset, reachedClipMediaEnd } = computeClipVideoSyncParams(
           vid,
           activeClipAtPlayhead,
@@ -2334,7 +2352,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
         clipEndedHoldRef.current = reachedClipMediaEnd;
         vid.playbackRate = effectiveRate;
-        vid.currentTime = clampedOffset;
+        if (vid.readyState >= 1) {
+          vid.currentTime = clampedOffset;
+        }
         vid.muted = false;
         vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
         if (!reachedClipMediaEnd) {
@@ -2406,10 +2426,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const handleTogglePlayRef = useRef(handleTogglePlay);
   handleTogglePlayRef.current = handleTogglePlay;
+  const isEditorActiveRef = useRef(isEditorActive);
+  isEditorActiveRef.current = isEditorActive;
 
-  // Global Space key shortcut to Play / Pause the Video Editor viewer when not typing in text fields
+  // Global Space key shortcut to Play / Pause the Video Editor viewer ONLY when the Video Editor is active
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!isEditorActiveRef.current) return;
       if (e.code !== 'Space' && e.key !== ' ') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
@@ -3429,7 +3452,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         <audio
           ref={voiceAudioRef}
           src={effectiveVoiceoverUrl}
-          preload="auto"
+          preload={isEditorActive ? 'auto' : 'metadata'}
           onError={() => setVoiceAudioError(true)}
           onLoadedMetadata={(e) => {
             setVoiceAudioError(false);
@@ -3449,7 +3472,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       <audio
         ref={musicAudioRef}
         src={activeMusicAtPlayhead?.audioUrl || musicTracks[0]?.audioUrl || undefined}
-        preload="auto"
+        preload={isEditorActive ? 'auto' : 'none'}
       />
 
       {/* =====================================================================
@@ -3771,7 +3794,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               onClick={() => {
                 if (selectedCanvasObject !== null) {
                   setSelectedCanvasObject(null);
-                  return;
                 }
                 handleTogglePlay();
               }}
@@ -3791,6 +3813,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <video
                   ref={previewVideoRef}
                   src={activeClipAtPlayhead.videoUrl}
+                  poster={activeClipAtPlayhead.posterUrl || undefined}
                   className="w-full h-full object-cover block bg-black"
                   style={{
                     opacity: liveClipAnim.opacity,
@@ -3798,7 +3821,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
                   }}
                   playsInline
-                  preload="auto"
+                  preload={isEditorActive ? 'auto' : 'none'}
                   onLoadedMetadata={(e) => {
                     const vid = e.currentTarget;
                     try {

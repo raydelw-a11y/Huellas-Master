@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:18 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:27 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -785,6 +785,57 @@ export default function App() {
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
   const lastActiveStage8VideoRef = useRef<HTMLVideoElement | null>(null);
+  // Keep at most 6 active <video> WebMediaPlayer instances mounted simultaneously in Stage 8 so Chrome never hits its 75-player limit or 6-socket HTTP/1.1 deadlock
+  const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+  const autoPlayStage8ClipRef = useRef<number | null>(null);
+
+  const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
+    if (!clipNum || clipNum <= 0) return;
+    if (shouldAutoPlay) {
+      autoPlayStage8ClipRef.current = clipNum;
+    }
+    setActiveStage8VideoPool((prev) => {
+      if (prev[0] === clipNum && prev.length <= 6) return prev;
+      const next = [clipNum, ...prev.filter((n) => n !== clipNum)].slice(0, 6);
+      return next;
+    });
+  };
+
+  // Automatically mount <video> players for Stage 8 clip cards as they enter the viewport
+  useEffect(() => {
+    if (mainView !== 'workflow') return;
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-stage8-clip-slot]'));
+    if (slots.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entering: number[] = [];
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const num = Number(entry.target.getAttribute('data-stage8-clip-slot') || 0);
+            if (num > 0) entering.push(num);
+          }
+        }
+        if (entering.length > 0) {
+          setActiveStage8VideoPool((prev) => {
+            const combined = [...entering, ...prev.filter((n) => !entering.includes(n))].slice(
+              0,
+              6
+            );
+            if (
+              combined.length === prev.length &&
+              combined.every((val, idx) => val === prev[idx])
+            ) {
+              return prev;
+            }
+            return combined;
+          });
+        }
+      },
+      { rootMargin: '300px 0px', threshold: 0.05 }
+    );
+    slots.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [mainView, activeDoc?.id, Object.keys(capturedClipVideosMap).length]);
 
   // Space bar Play / Pause shortcut for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
   useEffect(() => {
@@ -805,7 +856,7 @@ export default function App() {
       }
 
       const allVideos = Array.from(
-        document.querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"], video')
+        document.querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
       );
       if (allVideos.length === 0) return;
 
@@ -855,6 +906,9 @@ export default function App() {
         e.preventDefault();
         e.stopPropagation();
         lastActiveStage8VideoRef.current = chosenVid;
+        if (chosenVid.readyState === 0 || chosenVid.error) {
+          chosenVid.load();
+        }
         chosenVid.play().catch(() => {});
       }
     };
@@ -11047,6 +11101,8 @@ export default function App() {
                             {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (FITS 100% ON SCREEN WITH REVISADO & REHACER OPTIONS) */}
                             <div className="w-full flex justify-center">
                               <div
+                                data-stage8-clip-slot={clip.clipNumber}
+                                onMouseEnter={() => activateStage8ClipInPool(clip.clipNumber, false)}
                                 className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
                                   activeDoc.productionType === 'REEL_9X16' ||
                                   activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
@@ -11055,36 +11111,65 @@ export default function App() {
                                 }`}
                               >
                                 {capturedClipVideosMap[clip.clipNumber] ? (
-                                  <video
-                                    key={capturedClipVideosMap[clip.clipNumber]}
-                                    data-stage8-clip-video="true"
-                                    src={capturedClipVideosMap[clip.clipNumber]}
-                                    poster={clip.videoFrames?.[0] || undefined}
-                                    controls
-                                    playsInline
-                                    loop
-                                    preload="none"
-                                    onMouseEnter={(e) => {
-                                      lastActiveStage8VideoRef.current = e.currentTarget;
-                                    }}
-                                    onPlay={(e) => {
-                                      const currentVid = e.currentTarget;
-                                      lastActiveStage8VideoRef.current = currentVid;
-                                      document
-                                        .querySelectorAll<HTMLVideoElement>(
-                                          'video[data-stage8-clip-video="true"]'
-                                        )
-                                        .forEach((v) => {
-                                          if (v !== currentVid && !v.paused) {
-                                            v.pause();
-                                          }
-                                        });
-                                    }}
-                                    onPause={(e) => {
-                                      lastActiveStage8VideoRef.current = e.currentTarget;
-                                    }}
-                                    className="w-full h-full object-contain block bg-black"
-                                  />
+                                  activeStage8VideoPool.includes(clip.clipNumber) ? (
+                                    <video
+                                      key={capturedClipVideosMap[clip.clipNumber]}
+                                      data-stage8-clip-video="true"
+                                      src={capturedClipVideosMap[clip.clipNumber]}
+                                      poster={
+                                        clip.videoFrames?.[0] || clip.imagePreviewUrl || undefined
+                                      }
+                                      controls
+                                      playsInline
+                                      loop
+                                      preload="metadata"
+                                      onLoadedData={(e) => {
+                                        if (autoPlayStage8ClipRef.current === clip.clipNumber) {
+                                          autoPlayStage8ClipRef.current = null;
+                                          lastActiveStage8VideoRef.current = e.currentTarget;
+                                          e.currentTarget.play().catch(() => {});
+                                        }
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        lastActiveStage8VideoRef.current = e.currentTarget;
+                                      }}
+                                      onPlay={(e) => {
+                                        const currentVid = e.currentTarget;
+                                        lastActiveStage8VideoRef.current = currentVid;
+                                        document
+                                          .querySelectorAll<HTMLVideoElement>(
+                                            'video[data-stage8-clip-video="true"]'
+                                          )
+                                          .forEach((v) => {
+                                            if (v !== currentVid && !v.paused) {
+                                              v.pause();
+                                            }
+                                          });
+                                      }}
+                                      onPause={(e) => {
+                                        lastActiveStage8VideoRef.current = e.currentTarget;
+                                      }}
+                                      className="w-full h-full object-contain block bg-black"
+                                    />
+                                  ) : (
+                                    <div
+                                      onClick={() => activateStage8ClipInPool(clip.clipNumber, true)}
+                                      className="w-full h-full relative flex flex-col items-center justify-center bg-slate-950 cursor-pointer group"
+                                      title={`Haz clic para reproducir el Clip ${paddedNum}`}
+                                    >
+                                      {(clip.videoFrames?.[0] || clip.imagePreviewUrl) && (
+                                        <img
+                                          src={clip.videoFrames?.[0] || clip.imagePreviewUrl}
+                                          alt={`Clip ${paddedNum}`}
+                                          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition"
+                                        />
+                                      )}
+                                      <div className="relative z-10 px-4 py-2 rounded-full bg-amber-500 group-hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-xl">
+                                        <Play className="w-4 h-4 fill-current" />
+                                        ▶️ Reproducir Clip {paddedNum} (.MP4)
+                                      </div>
+                                    </div>
+                                  )
                                 ) : (
                                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                                     <Film className="w-9 h-9 text-amber-400/70" />
