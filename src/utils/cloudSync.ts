@@ -788,6 +788,14 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     }
   }
 
+  let nextCorrectedSrt = doc.correctedSrt;
+  if (
+    typeof nextCorrectedSrt === 'string' &&
+    (/\[pausa/i.test(nextCorrectedSrt) || /^1\s*\r?\n00:00:00[,.]000/m.test(nextCorrectedSrt))
+  ) {
+    nextCorrectedSrt = '';
+  }
+
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
     audioTracks !== doc.audioTracks ||
@@ -797,7 +805,8 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
     nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '') ||
     nextConfirmedFinalDuration !== doc.confirmedFinalDuration ||
-    nextSunoTracks !== doc.sunoTracks
+    nextSunoTracks !== doc.sunoTracks ||
+    nextCorrectedSrt !== doc.correctedSrt
   ) {
     return {
       ...doc,
@@ -810,6 +819,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       clip1OptionsRaw: nextClip1OptionsRaw,
       confirmedFinalDuration: nextConfirmedFinalDuration,
       sunoTracks: nextSunoTracks,
+      correctedSrt: nextCorrectedSrt,
     };
   }
   return doc;

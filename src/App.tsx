@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:59 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:13 PM - 11/01/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -3617,6 +3617,22 @@ export default function App() {
     const currentDoc = activeDocRef.current;
     if (!currentDoc || !Array.isArray(currentDoc.clips)) return;
 
+    const rawVideoUrl = String(msg.videoUrl || '').trim();
+    const videoDataUrl: string = msg.videoDataUrl || '';
+
+    // Bloquear cualquier clip sintético de imagen estática con zoom (MediaRecorder / data: URL sin URL real de <video> en Google Flow)
+    if (
+      rawVideoUrl.startsWith('data:') ||
+      videoDataUrl.includes(';codecs=') ||
+      videoDataUrl.startsWith('data:video/webm')
+    ) {
+      sendCommandToWebBridge('FLOW', {
+        action: 'STOP_FLOW_WATCHER',
+        tabId: selectedFlowTabId,
+      });
+      return;
+    }
+
     const clipNum = Number(msg.clipNumber) || 1;
     const targetClip =
       currentDoc.clips.find((c) => msg.clipId && c.id === msg.clipId) ||
@@ -3626,7 +3642,6 @@ export default function App() {
 
     const padded = String(targetClip.clipNumber).padStart(2, '0');
     const frames: string[] = Array.isArray(msg.frames) ? msg.frames : [];
-    const videoDataUrl: string = msg.videoDataUrl || '';
     const attempt: number = Number(msg.attempt) || 1;
     const fromScan: boolean = Boolean(msg.fromScan);
 
@@ -4819,40 +4834,8 @@ export default function App() {
           }
         }
       } else if (msg.type === 'FLOW_CLIP_IMAGE_CAPTURED') {
+        // Ignorar imágenes estáticas de clips para evitar que se guarde Imagen_Clip_XX.png en 05_Clips_Video o reemplace el video real
         setExtensionInstalled(true);
-        const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
-        const clipNum = Number(msg.clipNumber) || 1;
-        const clipIdFromMsg = String(msg.clipId || '').trim();
-        if (dataUrl) {
-          const currentDoc = activeDocRef.current;
-          if (currentDoc && Array.isArray(currentDoc.clips)) {
-            const targetClip =
-              currentDoc.clips.find((c) => clipIdFromMsg && c.id === clipIdFromMsg) ||
-              currentDoc.clips.find((c) => c.clipNumber === clipNum);
-            if (targetClip) {
-              const padded = String(targetClip.clipNumber).padStart(2, '0');
-              const nextClips = currentDoc.clips.map((c) =>
-                c.id === targetClip.id
-                  ? {
-                      ...c,
-                      imageReady: true,
-                      videoFrames:
-                        c.videoFrames && c.videoFrames.length > 0 ? c.videoFrames : [dataUrl],
-                    }
-                  : c
-              );
-              updateActiveDoc({ clips: nextClips });
-              const imgFileName = `Imagen_Clip_${padded}.png`;
-              await handleSaveAnyFileToChosenFolder(imgFileName, dataUrl, '05_Clips_Video');
-              if (!flowAutoPilotActiveRef.current) {
-                const logMsg = `🖼️ Imagen inicial del Clip #${padded} generada en Google Flow y guardada en 05_Clips_Video/${imgFileName}.`;
-                setFlowStatusLog(logMsg);
-                setBridgeStatusType('SUCCESS');
-                setBridgeStatusMsg(logMsg);
-              }
-            }
-          }
-        }
       } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
         // ITEM 5: Auto-import captured Thumbnail A/B/C from Google Flow into our site & save into 03_Miniaturas inside Root Folder
         setExtensionInstalled(true);
@@ -5417,8 +5400,9 @@ export default function App() {
       return { sentences: [], formatted: '', srt: '' };
     }
 
-    // Tokenize words & pause tags ([pausa de X segundos] / (pausa de X segundos))
-    const pauseRegex = /(?:\[|\()\s*pausa(?:\s+de)?\s+(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?)?\s*(?:\]|\))/gi;
+    // Tokenize words & pause tags ([pausa: 1.5s] / [pausa de X segundos] / (pausa de X segundos))
+    const pauseRegex =
+      /(?:\[|\(|\{)\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?|ms|milisegundos?)?\s*(?:\]|\)|\})|(?:\[|\(|\{)\s*(?:pausa|pause|silencio)\s*:?\s*(?:\]|\)|\})/gi;
     interface TimedWordToken {
       word: string;
       pauseAfterSec: number;
@@ -5429,7 +5413,8 @@ export default function App() {
     let match: RegExpExecArray | null;
 
     const pushWordsChunk = (chunk: string) => {
-      const words = chunk
+      const words = stripPauseTags(chunk)
+        .replace(/\[pausa[^\]]*\]?/gi, '')
         .replace(/\r?\n+/g, ' ')
         .trim()
         .split(/\s+/)
@@ -5443,7 +5428,7 @@ export default function App() {
       if (match.index > lastIndex) {
         pushWordsChunk(cleanRaw.slice(lastIndex, match.index));
       }
-      const pSec = parseFloat(String(match[1]).replace(',', '.')) || 0;
+      const pSec = match[1] ? parseFloat(String(match[1]).replace(',', '.')) || 1.5 : 1.5;
       if (tokens.length > 0 && pSec > 0) {
         tokens[tokens.length - 1].pauseAfterSec += pSec;
       }
