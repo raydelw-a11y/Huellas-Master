@@ -1878,6 +1878,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [captions, currentTime]);
 
+  const nearestCaptionAtPlayhead = useMemo(() => {
+    if (activeCaptionAtPlayhead) return activeCaptionAtPlayhead;
+    if (captions.length === 0) return null;
+    return captions.reduce((best, cap) => {
+      const distBest =
+        currentTime < best.start
+          ? best.start - currentTime
+          : currentTime > best.end
+          ? currentTime - best.end
+          : 0;
+      const distCap =
+        currentTime < cap.start
+          ? cap.start - currentTime
+          : currentTime > cap.end
+          ? currentTime - cap.end
+          : 0;
+      return distCap < distBest ? cap : best;
+    }, captions[0]);
+  }, [activeCaptionAtPlayhead, captions, currentTime]);
+
   const activeMusicAtPlayhead = useMemo(() => {
     return (
       musicTracks.find(
@@ -3870,7 +3890,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 )}
 
               {/* Layer 4: Dynamic Captions (.SRT) — 100% Real-Time WYSIWYG (never changes appearance when selected!) */}
-              {(activeCaptionAtPlayhead || selectedCanvasObject === 'captions') && (
+              {(activeCaptionAtPlayhead ||
+                (!isPlaying && selectedCanvasObject === 'captions' && nearestCaptionAtPlayhead)) && (
                 <div
                   className="absolute inset-x-4 z-20 text-center pointer-events-none"
                   style={{
@@ -3931,11 +3952,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         : {}),
                     }}
                   >
-                    {activeCaptionAtPlayhead?.text ||
-                      captions[0]?.text ||
-                      (currentTime < voiceStartOffsetSec
-                        ? `🎙️ Subtítulos inician en 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}`
-                        : '💬 Subtítulos activos')}
+                    {activeCaptionAtPlayhead?.text || nearestCaptionAtPlayhead?.text || ''}
                   </span>
                 </div>
               )}
@@ -4199,12 +4216,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <span className="font-black text-sky-300 text-[11px]">
                 💬 Estilo Captions:
               </span>
-              {(activeCaptionAtPlayhead || captions[0]) && (
+              {(activeCaptionAtPlayhead || nearestCaptionAtPlayhead) && (
                 <input
                   type="text"
-                  value={(activeCaptionAtPlayhead || captions[0]).text}
+                  value={(activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.text}
                   onChange={(e) => {
-                    const targetCap = activeCaptionAtPlayhead || captions[0];
+                    const targetCap = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
                     if (!targetCap) return;
                     const newText = e.target.value;
                     setCaptions((prev) =>
