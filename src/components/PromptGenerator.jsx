@@ -47,6 +47,9 @@ INSTRUCCIÓN OBLIGATORIA PARA LA IA: Has recibido el Manual Maestro completo con
 4. Qué duración de clips a partir del segundo clip prefiere:
    - 10 segundos (1 shot de 10s por defecto; o 2 shots de 5s cada uno en aquel clip específico donde una escena se demoraría demasiado visualmente porque la voz narrativa y sus pausas ya cambiaron a otra escena)
    - 8 segundos (1 shot de 8s por defecto; o 2 shots en aquel clip específico donde la voz narrativa y sus pausas ya cambiaron a otra escena)
+5. Qué ubicación para el Intro Oficial de Marca (4 segundos - Minimalismo en Piedra y Oro) prefiere:
+   - Opción A (Intro al Inicio Absoluto [00:00 - 00:04]): El documental abre en el segundo 00:00 con el Intro de 4s. Inmediatamente después entra el Clip 1 del Hook Sensorial sin voz (desplazando todos los timestamps +4s en el timeline de CapCut: ej. Hook sin voz de 00:04 a 00:10, entrando la locución en el segundo 00:10 / 00:12).
+   - Opción B (Intro Post-Promesa / Slogan [~00:25 - 00:35]): El documental abre directamente con el Hook Sensorial (00:00 - 00:06/00:08) y el inicio narrativo. El Intro de 4s se inserta exactamente después del Párrafo 2 (Promesa Narrativa y Slogan Completo: "...Cada historia deja una huella. Aquí seguimos sus rastros."), colocando obligatoriamente una [pausa: 4s] en el guion de voz justo después del Slogan Completo y sumando +4s al conteo de los clips a partir del Capítulo 1 (Párrafo 3).
 No comiences a escribir hasta que el usuario te indique sus elecciones.
 [/?TIPO_PRODUCCION]
 [?TIPO_PRODUCCION=INMERSIVO_CONTEMPLATIVO]
@@ -463,7 +466,9 @@ Una vez validada la Etapa 3 por el usuario[?SUB_OPCION_REELS=16X9] y recibida la
   (Estructura obligatoria de párrafos en el guion de voz en off:
   [Párrafo 1 - Hook inicial y contexto]: "Año 1888, callejón de Whitechapel, Londres, Inglaterra. El laberinto donde operaba un cazador nocturno que la policía jamás atrapó..."
 
-  [Párrafo 2 - Párrafo aparte completo exclusivo para el Slogan Completo antes del segundo 30]: "En los próximos minutos [explicación breve de lo que estará pasando en el documental]. Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros."
+  [Párrafo 2 - Párrafo aparte completo exclusivo para el Slogan Completo antes del segundo 30]: "En los próximos minutos [explicación breve de lo que estará pasando en el documental]. Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros."[?UBICACION_INTRO_MARCA=INTRO_POST_SLOGAN] [pausa: 4s][/?UBICACION_INTRO_MARCA]
+
+[?UBICACION_INTRO_MARCA=INTRO_POST_SLOGAN]  * REGLA OBLIGATORIA DE ESPACIO DE 4 SEGUNDOS PARA EL INTRO OFICIAL DE MARCA POST-SLOGAN (~00:25 - 00:35): Inmediatamente al terminar la última palabra del Párrafo 2 ("...Cada historia deja una huella. Aquí seguimos sus rastros."), la IA DEBE COLOCAR OBLIGATORIAMENTE la etiqueta [pausa: 4s] antes de comenzar el Párrafo 3 (Capítulo 1). Esos 4 segundos exactos de silencio del narrador corresponden a la entrada del Intro Oficial de Marca de 4 segundos ("Minimalismo de Estudio en Piedra y Oro" con su golpe acústico de piedra y sub-bass), asegurando que el Intro jamás pise la voz narrativa y los subtítulos queden 100% sincronizados.[/?UBICACION_INTRO_MARCA][?UBICACION_INTRO_MARCA=INTRO_INICIO_00]  * REGLA OBLIGATORIA DE INTRO OFICIAL DE MARCA AL INICIO ABSOLUTO (00:00 - 00:04): El documental abre en 00:00 - 00:04 con el Intro Oficial de Marca de 4 segundos ("Minimalismo de Estudio en Piedra y Oro"), por lo que el Hook Sensorial sin voz y la entrada de la locución se desplazan +4 segundos en el timeline de edición.[/?UBICACION_INTRO_MARCA]
 
   [Párrafo 3 - Desarrollo de la historia principal]: Desarrollo cronológico y temático con micro-ganchos cada 90 segundos...
 
@@ -589,6 +594,29 @@ Una vez que el usuario elija su preferencia, la IA generará y entregará los pr
 
 - Regla Inquebrantable del Clip del Slogan Completo al Principio (Escena de una Mesa de un Historiador Antiguo):
   Para el clip (o los clips) que cubre la parte donde la voz narrativa pronuncia el Slogan Completo al principio del video (~segundos 20–30: desde "En los próximos minutos..." hasta "...Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros."), tanto su imagen inicial (Nano Banana 2.1) como su clip de video (Omni Flash) DEBEN SER OBLIGATORIAMENTE una escena de una mesa de un historiador antiguo llena de objetos antiguos, además de pergaminos, plumas de escritura, bote de tinta, entre otros artefactos históricos de época (an antique historian's wooden desk richly covered with ancient historical objects, aged parchment scrolls, quill pens, inkpot, antique maps, wax seals, and period relics).
+
+[?UBICACION_INTRO_MARCA=INTRO_POST_SLOGAN]
+- Regla Inquebrantable del Intro Oficial de Marca (Opción B: Intro Post-Promesa / Slogan [~00:25 - 00:35] — Activo Fijo de 4 Segundos "Minimalismo de Estudio en Piedra y Oro"):
+  * El documental abre directamente con el Hook Sensorial (00:00 - 00:[DURACION_CLIP_1_RALENTIZADO_PAD]) y el inicio narrativo.
+  * El Intro Oficial de Marca de 4 segundos se inserta exactamente después del Párrafo 2 (Promesa Narrativa y Slogan Completo: "...Cada historia deja una huella. Aquí seguimos sus rastros."), durante la ventana de [pausa: 4s] del guion de voz, sumando +4 segundos al conteo de los timestamps de los clips a partir del Capítulo 1 (Párrafo 3).
+  * Prompts Maestros del Activo Fijo de 4 Segundos (Estándar Oficial "Minimalismo de Estudio en Piedra y Oro"):
+    - Imagen Inicial (Nano Banana 2.1):
+      Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
+    - Clip de Video (Omni Flash - 4 Segundos):
+      Clip Intro (4s Post-Slogan): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
+[/?UBICACION_INTRO_MARCA]
+[?UBICACION_INTRO_MARCA=INTRO_INICIO_00]
+- Regla Inquebrantable del Intro Oficial de Marca (Opción A: Intro al Inicio Absoluto [00:00 - 00:04] — Activo Fijo de 4 Segundos "Minimalismo de Estudio en Piedra y Oro"):
+  * El documental abre en el segundo 00:00 con el Intro Oficial de Marca de 4 segundos (00:00 - 00:04). Inmediatamente después entra el Clip 1 del Hook Sensorial sin voz, desplazando todos los timestamps +4 segundos en el timeline de CapCut (ej. Hook sin voz de 00:04 a 00:10/00:12, entrando la locución tras ese bloque).
+  * Prompts Maestros del Activo Fijo de 4 Segundos (Estándar Oficial "Minimalismo de Estudio en Piedra y Oro"):
+    - Imagen Inicial (Nano Banana 2.1):
+      Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
+    - Clip de Video (Omni Flash - 4 Segundos):
+      Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
+[/?UBICACION_INTRO_MARCA]
+[?UBICACION_INTRO_MARCA=SIN_INTRO]
+- Nota de Intro de Marca: Este episodio se produce sin insertar el clip Stinger de 4 segundos del Intro de Marca, manteniendo los timestamps directos estándar.
+[/?UBICACION_INTRO_MARCA]
 
 - Regla Inquebrantable del Último Clip de los Reels (Escena Panorámica Amplia y Rica Visualmente - Prohibido Objeto Close-Up):
   Para el último clip de todos los Reels (tanto en formato vertical 9:16 como horizontal 16:9), queda TERMINANTEMENTE PROHIBIDO poner un objeto en close-up, plano macro o detalle aislado. Tanto la última imagen inicial (Nano Banana 2.1) como el último clip de video (Omni Flash) DEBEN SER OBLIGATORIAMENTE una escena panorámica amplia y rica visualmente (wide panoramic shot / sweeping cinematic vista) que muestre la amplitud, atmósfera, arquitectura o paisaje histórico del episodio con máxima riqueza visual como cierre épico del video.
@@ -1566,6 +1594,7 @@ const PromptGenerator = ({
       DURACION_CLIPS: '10_SEGUNDOS',
       DURACION_CLIPS_SEGUNDOS: '10',
       VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+      UBICACION_INTRO_MARCA: 'INTRO_POST_SLOGAN',
       YOUTUBE_VIRAL_LINK: '',
       YOUTUBE_COMMENTS_RESEARCH_BLOCK: '',
       ...(initialFormData || {}),
@@ -1651,7 +1680,7 @@ const PromptGenerator = ({
 
   // Cargar plantilla desde LocalStorage al iniciar
   useEffect(() => {
-    const key = 'huellas_master_template_v182';
+    const key = 'huellas_master_template_v183';
     const savedTemplate = localStorage.getItem(key);
     const initialText = savedTemplate ? savedTemplate : DEFAULT_TEMPLATE.trim();
     setTemplateText(initialText);
@@ -1661,7 +1690,7 @@ const PromptGenerator = ({
 
   // Guardar plantilla en LocalStorage MANUALMENTE
   const saveTemplate = () => {
-    const key = 'huellas_master_template_v182';
+    const key = 'huellas_master_template_v183';
     localStorage.setItem(key, templateText);
     alert('✅ Plantilla Base guardada con éxito.');
   };
@@ -1789,6 +1818,13 @@ const PromptGenerator = ({
           const idxB = order.indexOf(b);
           return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
         });
+      } else if (k === 'UBICACION_INTRO_MARCA') {
+        const order = ['INTRO_POST_SLOGAN', 'INTRO_INICIO_00', 'SIN_INTRO'];
+        arr.sort((a, b) => {
+          const idxA = order.indexOf(a);
+          const idxB = order.indexOf(b);
+          return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+        });
       }
       finalGroups[k] = arr;
     });
@@ -1811,6 +1847,7 @@ const PromptGenerator = ({
         DURACION_CLIP_1: '6',
         DURACION_CLIPS: '10_SEGUNDOS',
         VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+        UBICACION_INTRO_MARCA: 'INTRO_POST_SLOGAN',
       };
       const newData = { ...prev };
       if (!newData.DURACION_CLIP_1) {
@@ -3203,6 +3240,7 @@ const PromptGenerator = ({
                                      group === 'TEXTO_PANTALLA_CLIP_1' ? 'Texto en Pantalla del Primer Clip (Clip 1)' :
                                      group === 'DURACION_CLIPS' ? 'Duración de Clips (a partir del Clip 2)' :
                                      group === 'VOZ_NARRATIVA_EN_CLIPS' ? 'Texto de Voz Narrativa en Prompts de Clips' :
+                                     group === 'UBICACION_INTRO_MARCA' ? '🎬 Ubicación del Intro Oficial de Marca (4s — Minimalismo de Estudio en Piedra y Oro)' :
                                      group.replace(/_/g, ' ');
 
                   const duracionNum = parseInt(formData.DURACION_CLIP_1 || '6', 10) || 6;
@@ -3491,6 +3529,9 @@ const PromptGenerator = ({
                           else if (val === '8_SEGUNDOS') labelText = '8 segundos (1 shot de 8s)';
                           else if (val === 'INCLUIR') labelText = 'Incluir texto de la voz narrativa al final de los prompts de los clips (como una oración más sin comillas ni paréntesis)';
                           else if (val === 'EXCLUIR') labelText = 'Excluir texto de la voz narrativa de los prompts de los clips (prompts limpios cerrando solo con el sufijo "no text, no speech, no music")';
+                          else if (val === 'INTRO_POST_SLOGAN') labelText = 'Opción B (Recomendada — Intro Post-Promesa / Slogan [~00:25 - 00:35]): El Intro de 4s entra exactamente después del Párrafo 2 (Slogan Completo "...Aquí seguimos sus rastros."), insertando [pausa: 4s] en el guion de voz y sumando +4s al conteo de clips desde el Capítulo 1 (Párrafo 3)';
+                          else if (val === 'INTRO_INICIO_00') labelText = 'Opción A (Intro al Inicio Absoluto [00:00 - 00:04]): El documental abre en 00:00 con el Intro de 4s; luego entra el Clip 1 del Hook Sensorial sin voz (desplazando todos los timestamps +4s en el timeline)';
+                          else if (val === 'SIN_INTRO') labelText = 'Sin Intro de Marca (Omitir el Stinger de 4s en este episodio)';
 
                           return (
                             <React.Fragment key={val}>
@@ -3594,6 +3635,64 @@ const PromptGenerator = ({
                           );
                         })}
                       </div>
+
+                      {group === 'UBICACION_INTRO_MARCA' && formData.UBICACION_INTRO_MARCA !== 'SIN_INTRO' && (
+                        <div
+                          style={{
+                            marginTop: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            backgroundColor: 'var(--box-bg)',
+                            borderRadius: '6px',
+                            border: '1.5px solid var(--accent-gold)',
+                            boxShadow: '0 2px 8px var(--shadow-color)',
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, color: 'var(--accent-gold)', marginBottom: '0.45rem' }}>
+                            🏛️ Prompts Maestros de la Opción 3 (Activo Fijo de 4s — Minimalismo de Estudio en Piedra y Oro)
+                          </div>
+                          <div style={{ marginBottom: '0.55rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                              <strong style={{ color: 'var(--text-primary)' }}>1. Imagen Inicial (Nano Banana 2.1):</strong>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    "Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music."
+                                  );
+                                }}
+                              >
+                                📋 Copiar Image Intro
+                              </button>
+                            </div>
+                            <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.4rem 0.55rem', borderRadius: '4px' }}>
+                              Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                              <strong style={{ color: 'var(--text-primary)' }}>2. Clip de Video (Omni Flash - 4 Segundos):</strong>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    "Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
+                                  );
+                                }}
+                              >
+                                📋 Copiar Clip Intro (4s)
+                              </button>
+                            </div>
+                            <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.4rem 0.55rem', borderRadius: '4px' }}>
+                              Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

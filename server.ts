@@ -1755,7 +1755,12 @@ Genera la ETAPA 3 completa:
           : ''
       }.`;
     } else if (stageNumber === 4) {
-      const targetChars = Math.round(((doc.targetDurationSeconds || 120) - voiceEntrySec) * 13.5);
+      const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_POST_SLOGAN';
+      const effectiveVoiceEntrySec =
+        introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 4 : voiceEntrySec;
+      const targetChars = Math.round(
+        ((doc.targetDurationSeconds || 120) - effectiveVoiceEntrySec) * 13.5
+      );
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
 Estructura e Investigación previa:
@@ -1764,7 +1769,9 @@ ${doc.deepResearchResult || ''}
 
 Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Sincronización de Entrada de Voz: ${
-        doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+        introPlacement === 'INTRO_INICIO_00'
+          ? `El documental abre en 00:00 - 00:04 con el Intro Oficial de Marca de 4s, seguido por la ventana sin voz del Hook (${c1Dur + 2}s); por lo tanto, la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.`
+          : doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
           ? `El Clip 1 dura ${c1Dur}s (00:00 - 00:0${c1Dur}) sin voz y los primeros 2s del Clip 2 (00:0${c1Dur} - 00:0${voiceEntrySec}) tampoco llevan voz; por lo tanto, los primeros ${voiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${voiceEntrySec} del video (que es el segundo 2 del segundo clip).`
           : `El Clip 1 de ${c1Dur}s se ralentiza en edición a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec}) sin voz; la voz narrativa entra en el segundo ${voiceEntrySec} del video (al inicio del Clip 2).`
       }
@@ -1772,7 +1779,11 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
 - Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
-- Si es documental largo, incluye antes del segundo 30 el slogan en párrafo aparte y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
+- Si es documental largo, incluye antes del segundo 30 el slogan en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
+        introPlacement === 'INTRO_POST_SLOGAN'
+          ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 4s] para que durante esos 4 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 4s ("Minimalismo en Piedra y Oro") antes del Párrafo 3'
+          : ''
+      }, y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
 - Extensión aproximada calibrada: ~${targetChars} caracteres.`;
     } else if (stageNumber === 5) {
       const thumbOrientation =
@@ -3169,6 +3180,81 @@ app.post('/api/assets/official-logo', (req, res) => {
     res.json({ ok: true, ...payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error guardando logo oficial.' });
+  }
+});
+
+// ============================================================================
+// PERMANENT OFFICIAL INTRO VIDEO (4s STINGER "MINIMALISMO EN PIEDRA Y ORO")
+// Uploaded ONCE, stored forever across all documentaries
+// ============================================================================
+const OFFICIAL_INTRO_MP4_FILE = path.join(DATA_DIR, 'official_huellas_intro.mp4');
+const OFFICIAL_INTRO_META_FILE = path.join(DATA_DIR, 'official_huellas_intro.json');
+
+app.get('/api/assets/official-intro', (_req, res) => {
+  try {
+    if (fs.existsSync(OFFICIAL_INTRO_MP4_FILE)) {
+      const stat = fs.statSync(OFFICIAL_INTRO_MP4_FILE);
+      let meta: any = {};
+      if (fs.existsSync(OFFICIAL_INTRO_META_FILE)) {
+        try {
+          meta = JSON.parse(fs.readFileSync(OFFICIAL_INTRO_META_FILE, 'utf8'));
+        } catch {}
+      }
+      res.json({
+        ok: true,
+        hasIntro: true,
+        introUrl: `/api/assets/official-intro-stream?t=${Math.floor(stat.mtimeMs)}`,
+        fileName: meta.fileName || 'Intro_Oficial_Huellas_4s.mp4',
+        updatedAt: meta.updatedAt || new Date(stat.mtimeMs).toISOString(),
+      });
+      return;
+    }
+    res.json({ ok: true, hasIntro: false, introUrl: '' });
+  } catch {
+    res.json({ ok: true, hasIntro: false, introUrl: '' });
+  }
+});
+
+app.get('/api/assets/official-intro-stream', (_req, res) => {
+  try {
+    if (!fs.existsSync(OFFICIAL_INTRO_MP4_FILE)) {
+      res.status(404).json({ error: 'No hay video de Intro Oficial guardado.' });
+      return;
+    }
+    res.setHeader('Content-Type', 'video/mp4');
+    res.sendFile(OFFICIAL_INTRO_MP4_FILE);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error sirviendo Intro Oficial.' });
+  }
+});
+
+app.post('/api/assets/official-intro', (req, res) => {
+  try {
+    const { videoDataUrl, fileName = 'Intro_Oficial_Huellas_4s.mp4' } = req.body || {};
+    if (!videoDataUrl || typeof videoDataUrl !== 'string') {
+      res.status(400).json({ error: 'No se envió el archivo de video del Intro Oficial.' });
+      return;
+    }
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const base64Clean = videoDataUrl.replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(base64Clean, 'base64');
+    fs.writeFileSync(OFFICIAL_INTRO_MP4_FILE, buf);
+    const meta = {
+      fileName: String(fileName),
+      sizeBytes: buf.length,
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(OFFICIAL_INTRO_META_FILE, JSON.stringify(meta, null, 2), 'utf8');
+    res.json({
+      ok: true,
+      hasIntro: true,
+      introUrl: `/api/assets/official-intro-stream?t=${Date.now()}`,
+      ...meta,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error guardando Intro Oficial.' });
   }
 });
 

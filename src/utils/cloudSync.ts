@@ -1319,7 +1319,12 @@ Genera la ETAPA 3 completa:
         : ''
     }.`;
   } else if (stageNumber === 4) {
-    const targetChars = Math.round(((doc.targetDurationSeconds || 120) - voiceEntrySec) * 13.5);
+    const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_POST_SLOGAN';
+    const effectiveVoiceEntrySec =
+      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 4 : voiceEntrySec;
+    const targetChars = Math.round(
+      ((doc.targetDurationSeconds || 120) - effectiveVoiceEntrySec) * 13.5
+    );
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
 Estructura e Investigación previa:
@@ -1327,10 +1332,15 @@ ${doc.sectionsStructure || ''}
 ${doc.deepResearchResult || ''}
 
 Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
-- Los primeros ${voiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${voiceEntrySec} del video.
+- Los primeros ${effectiveVoiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.
 - Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
 - Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
+- Si es documental largo, incluye antes del segundo 30 el Slogan Completo en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
+      introPlacement === 'INTRO_POST_SLOGAN'
+        ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 4s] para que durante esos 4 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 4s ("Minimalismo en Piedra y Oro") antes del Párrafo 3'
+        : ''
+    }.
 - Cierra con el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
 - Extensión aproximada calibrada: ~${targetChars} caracteres.`;
   } else if (stageNumber === 5) {

@@ -490,6 +490,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>('fade');
   const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(1);
 
+  // 2B. Permanent Official Intro Stinger Video (4s — Uploaded ONCE, stored forever across all documentaries)
+  const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
+  const [officialIntroFileName, setOfficialIntroFileName] = useState<string>('');
+  const [introPlacementMode, setIntroPlacementMode] = useState<'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00'>(() => {
+    return activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_INICIO_00'
+      ? 'INTRO_INICIO_00'
+      : 'INTRO_POST_SLOGAN';
+  });
+
   // 3. Clip 1 Hook Overlay Text (First 8s) + Typography, Size, Shadow, Background, Position & Animations
   const [clip1Line1, setClip1Line1] = useState<string>(
     normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '')
@@ -920,6 +929,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       })
       .catch(() => {});
+
+    fetch('/api/assets/official-intro')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.hasIntro && data?.introUrl) {
+          setOfficialIntroUrl(data.introUrl);
+          setOfficialIntroFileName(data.fileName || 'Intro_Oficial_Huellas_4s.mp4');
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Save permanent official logo (One-time upload for all documentaries)
@@ -943,6 +962,92 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       );
     };
     reader.readAsDataURL(file);
+  };
+
+  // Save permanent official 4-second Intro Stinger video (One-time upload for all documentaries)
+  const handleUploadPermanentIntro = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      try {
+        const resp = await fetch('/api/assets/official-intro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoDataUrl: dataUrl, fileName: file.name }),
+        });
+        const data = await resp.json();
+        if (data?.ok && data.introUrl) {
+          setOfficialIntroUrl(data.introUrl);
+          setOfficialIntroFileName(file.name);
+          setStatusMessage(
+            `✅ Video de Intro Oficial "${file.name}" (4s) guardado permanentemente para todos tus documentales.`
+          );
+          return;
+        }
+      } catch {}
+      const blobUrl = URL.createObjectURL(file);
+      setOfficialIntroUrl(blobUrl);
+      setOfficialIntroFileName(file.name);
+      setStatusMessage(`✅ Video de Intro Oficial "${file.name}" cargado.`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Insert the 4-second Official Intro Stinger into Track 3 (either at 00:00 or Post-Slogan ~00:28)
+  const handleInsertOfficialIntroInTimeline = (
+    mode: 'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00' = introPlacementMode
+  ) => {
+    if (!officialIntroUrl) {
+      setStatusMessage('⚠️ Primero sube tu video .MP4 del Intro Oficial (4s) una sola vez.');
+      return;
+    }
+    const introClipItem: TimelineClipItem = {
+      id: `official_intro_${Date.now()}`,
+      clipNumber: 0,
+      fileName: '00_Intro_Oficial_Huellas_4s.mp4',
+      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:04' : 'Intro Oficial (4s)',
+      duration: 4,
+      originalDuration: 4,
+      speed: 1,
+      foleyVolume: 100,
+      transition: 'fade_black',
+      videoUrl: officialIntroUrl,
+      posterUrl: officialLogoUrl || undefined,
+      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (4s — Minimalismo en Piedra y Oro)',
+      trimStart: 0,
+      trimEnd: 0,
+    };
+
+    setTimelineClips((prev) => {
+      const withoutExistingIntro = prev.filter((c) => !c.id.startsWith('official_intro_'));
+      if (mode === 'INTRO_INICIO_00') {
+        return [introClipItem, ...withoutExistingIntro];
+      }
+      // Opción B: Post-Promesa / Slogan (~00:28, right after Clip 3 which covers the Slogan desk scene)
+      const insertIdx = Math.min(3, withoutExistingIntro.length);
+      return [
+        ...withoutExistingIntro.slice(0, insertIdx),
+        introClipItem,
+        ...withoutExistingIntro.slice(insertIdx),
+      ];
+    });
+
+    if (mode === 'INTRO_INICIO_00') {
+      const { clip1Sec } = getStage1ClipDurations(activeDoc);
+      const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+      setVoiceStartOffsetSec(baseHookSec + 4);
+      setHookLine1StartSec(4);
+      setHookLine2StartSec(6);
+      setClip1OverlayEndSec(baseHookSec + 4);
+      setStatusMessage(
+        '✅ Intro Oficial (4s) insertado en 00:00 - 00:04 (Opción A) y tiempos desplazados +4s automáticamente.'
+      );
+    } else {
+      setStatusMessage(
+        '✅ Intro Oficial (4s) insertado después del Clip 3 / Slogan Completo (~00:28, Opción B).'
+      );
+    }
   };
 
   const isVideo76Doc = useMemo(() => {
@@ -5002,6 +5107,90 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="hidden"
                     />
                   </label>
+                </div>
+
+                {/* PERMANENT OFFICIAL 4-SECOND INTRO STINGER ("MINIMALISMO EN PIEDRA Y ORO") */}
+                <div className="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 space-y-2 mt-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="font-bold text-amber-300 text-[11px]">
+                        🎬 Intro Oficial de Marca (4s — Minimalismo en Piedra y Oro • Subir 1 Sola Vez)
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {officialIntroUrl
+                          ? `✅ Guardado permanente: ${officialIntroFileName || 'Intro_Oficial_Huellas_4s.mp4'}`
+                          : 'Sube una sola vez el clip .MP4 de 4 segundos para insertarlo en tus documentales.'}
+                      </div>
+                    </div>
+                    <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0">
+                      {officialIntroUrl ? '🔄 Cambiar Intro (.MP4)' : '📤 Subir Intro Oficial (.MP4 4s)'}
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime,video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadPermanentIntro(file);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={introPlacementMode}
+                      onChange={(e) =>
+                        setIntroPlacementMode(
+                          e.target.value === 'INTRO_INICIO_00'
+                            ? 'INTRO_INICIO_00'
+                            : 'INTRO_POST_SLOGAN'
+                        )
+                      }
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 font-semibold"
+                    >
+                      <option value="INTRO_POST_SLOGAN">
+                        Opción B (Recomendada): Post-Promesa / Slogan (~00:28 tras Clip 3)
+                      </option>
+                      <option value="INTRO_INICIO_00">
+                        Opción A: Inicio Absoluto (00:00 - 00:04 • desplaza +4s)
+                      </option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleInsertOfficialIntroInTimeline(introPlacementMode)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0"
+                    >
+                      ➕ Insertar Intro (4s) en Línea de Tiempo
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          "Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music."
+                        );
+                        setStatusMessage('📋 Prompt de Imagen Inicial del Intro Oficial (Nano Banana 2.1) copiado.');
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
+                    >
+                      📋 Copiar Prompt Image Intro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          "Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
+                        );
+                        setStatusMessage('📋 Prompt de Video del Intro Oficial 4s (Omni Flash) copiado.');
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
+                    >
+                      📋 Copiar Prompt Clip Intro (4s)
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-1">
