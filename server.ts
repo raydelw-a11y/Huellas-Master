@@ -2769,6 +2769,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       clips = [],
       voiceoverStartSec = 6,
       voiceoverVolume = 1.0,
+      voiceoverGainDb = 5,
       voiceoverDataUrl = '',
       sunoSilenceGapSec = 15,
       sunoMasterVolume = 0.14,
@@ -3009,11 +3010,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       let nextInputIdx = 1;
 
       const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
+      const voDbMultiplier = Math.pow(10, Number(voiceoverGainDb ?? 5) / 20); // +5 dB => ~1.778x
+      const boostedVoVol = safeVoVol * voDbMultiplier;
       if (hasVo) {
         ffmpegArgs.push('-i', voPath);
         const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
         filterParts.push(
-          `[${nextInputIdx}:a]adelay=${delayMs}|${delayMs},volume=${safeVoVol.toFixed(2)}[vo]`
+          `[${nextInputIdx}:a]adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)}[vo]`
         );
         mixLabels.push('[vo]');
         nextInputIdx++;

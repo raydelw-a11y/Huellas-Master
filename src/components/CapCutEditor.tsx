@@ -646,6 +646,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
   const [voiceVolume, setVoiceVolume] = useState<number>(100);
+  const [voiceGainDb, setVoiceGainDb] = useState<number>(5); // Always +5 dB boost for narrative voiceover
   const [autoDuckingEnabled, setAutoDuckingEnabled] = useState<boolean>(true);
   const [foleyHighVolume, setFoleyHighVolume] = useState<number>(80); // When narrator is silent
   const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(35); // When narrator speaks
@@ -688,6 +689,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const playIntervalRef = useRef<any>(null);
   const webAudioCtxRef = useRef<AudioContext | null>(null);
   const ambientGainRef = useRef<GainNode | null>(null);
+  const voiceWebAudioRef = useRef<{
+    el: HTMLAudioElement;
+    ctx: AudioContext;
+    source: MediaElementAudioSourceNode;
+    gainNode: GainNode;
+  } | null>(null);
   const lastSpokenClipIdRef = useRef<string>('');
   const extractedVideoUrlByClipRef = useRef<Record<number, string>>({});
   const playWallStartMsRef = useRef<number>(0);
@@ -2013,6 +2020,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } catch {}
   };
 
+  // Apply +5 dB Web Audio gain boost (with soft peak limiter) to narrative voiceover <audio> element
+  const applyVoiceoverAudioGain = (
+    vo: HTMLAudioElement | null,
+    volPct: number = voiceVolume,
+    gainDb: number = voiceGainDb
+  ) => {
+    if (!vo) return;
+    const baseLinear = Math.min(1, Math.max(0, volPct / 100));
+    const dbMultiplier = Math.pow(10, gainDb / 20); // +5 dB => ~1.778x
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        if (!voiceWebAudioRef.current || voiceWebAudioRef.current.el !== vo) {
+          const ctx = new AudioCtx();
+          const source = ctx.createMediaElementSource(vo);
+          const gainNode = ctx.createGain();
+          const limiter = ctx.createDynamicsCompressor();
+          limiter.threshold.value = -1.5;
+          limiter.knee.value = 6;
+          limiter.ratio.value = 12;
+          limiter.attack.value = 0.003;
+          limiter.release.value = 0.15;
+          source.connect(gainNode);
+          gainNode.connect(limiter);
+          limiter.connect(ctx.destination);
+          voiceWebAudioRef.current = { el: vo, ctx, source, gainNode };
+        }
+        const { ctx, gainNode } = voiceWebAudioRef.current;
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        vo.volume = 1;
+        gainNode.gain.value = Math.max(0, baseLinear * dbMultiplier);
+        return;
+      }
+    } catch {}
+    vo.volume = baseLinear;
+  };
+
   // Explicit manual seek helper so user scrubbing immediately updates wall-clock anchor & media players without backward drift
   const seekToTime = (targetSec: number) => {
     const clamped = Math.max(0, Math.min(totalDurationSec, targetSec));
@@ -2109,7 +2155,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (vo && effectiveVoiceoverUrl) {
       try {
         appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
-        vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
+        applyVoiceoverAudioGain(vo, voiceVolume, voiceGainDb);
         if (startSec >= voiceStartOffsetSec) {
           vo.muted = false;
           vo.currentTime = Math.max(0, startSec - voiceStartOffsetSec);
@@ -2494,7 +2540,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           } catch {}
         }
         vo.muted = false;
-        vo.volume = Math.min(1, Math.max(0, voiceVolume / 100));
+        applyVoiceoverAudioGain(vo, voiceVolume, voiceGainDb);
         if (isPlaying && vo.paused && !vo.ended) {
           vo.play().catch(() => {});
         }
@@ -2550,6 +2596,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     effectiveMusicVolumeAtPlayhead,
     voiceStartOffsetSec,
     voiceVolume,
+    voiceGainDb,
     effectiveVoiceoverUrl,
     voiceAudioError,
     masterMusicVolume,
@@ -2710,6 +2757,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               })),
               voiceoverStartSec: voiceStartOffsetSec,
               voiceoverVolume: voiceVolume / 100,
+              voiceoverGainDb: voiceGainDb,
               voiceoverDataUrl:
                 activeDoc.masterAudioUrl && activeDoc.masterAudioUrl.startsWith('data:')
                   ? activeDoc.masterAudioUrl
@@ -4831,7 +4879,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     onChange={(e) => setVoiceStartOffsetSec(Math.max(0, Number(e.target.value)))}
                     className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
                   />
-                  <label className="text-[11px] text-slate-400">Volumen Voz: {voiceVolume}%</label>
+                  <label className="text-[11px] text-slate-400">
+                    Volumen Voz: {voiceVolume}%{' '}
+                    <span className="text-emerald-400 font-bold">
+                      ({voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb} dB)
+                    </span>
+                  </label>
                   <input
                     type="range"
                     min={50}
@@ -4839,6 +4892,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     value={voiceVolume}
                     onChange={(e) => setVoiceVolume(Number(e.target.value))}
                     className="flex-1 accent-emerald-500"
+                  />
+                  <label className="text-[11px] text-emerald-300 font-bold shrink-0">Ganancia dB:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={12}
+                    step={0.5}
+                    value={voiceGainDb}
+                    onChange={(e) => setVoiceGainDb(Number(e.target.value))}
+                    className="w-16 bg-slate-900 border border-emerald-500/40 rounded px-2 py-1 text-xs text-emerald-300 font-bold"
                   />
                 </div>
               </div>
@@ -6151,7 +6214,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       voiceStartOffsetSec +
                         Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
                     )}{' '}
-                    • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}%
+                    • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}% ({voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb} dB)
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {effectiveVoiceoverUrl && (
