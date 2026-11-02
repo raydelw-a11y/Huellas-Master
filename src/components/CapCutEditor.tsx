@@ -22,6 +22,8 @@ import {
   Check,
   Clock,
   Layers,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { DocumentaryProject, DocumentaryClip } from '../types';
 import {
@@ -546,6 +548,44 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [hookBoxWidthPct, setHookBoxWidthPct] = useState<number>(82);
   const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
   const viewerCanvasRef = useRef<HTMLDivElement | null>(null);
+  const viewerContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isViewerFullscreen, setIsViewerFullscreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      const fsEl =
+        document.fullscreenElement || (document as any).webkitFullscreenElement || null;
+      setIsViewerFullscreen(Boolean(fsEl));
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const handleToggleViewerFullscreen = async () => {
+    const el = viewerContainerRef.current;
+    if (!el) return;
+    try {
+      const fsEl =
+        document.fullscreenElement || (document as any).webkitFullscreenElement || null;
+      if (fsEl) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      } else {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if ((el as any).webkitRequestFullscreen) {
+          (el as any).webkitRequestFullscreen();
+        }
+      }
+    } catch {}
+  };
 
   const handleStartHookBoxDrag = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -3662,9 +3702,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* Aspect-Ratio Locked Video Container (Zero Side Black Bars) + Bottom Scrubber & Play/Pause Controls */}
           <div
+            ref={viewerContainerRef}
             className={`${
-              aspectRatio === '16:9' ? 'w-full' : 'w-full max-w-[380px] mx-auto'
-            } rounded-xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col`}
+              isViewerFullscreen
+                ? 'w-screen h-screen bg-black flex flex-col justify-center'
+                : aspectRatio === '16:9'
+                ? 'w-full rounded-xl'
+                : 'w-full max-w-[380px] mx-auto rounded-xl'
+            } overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col`}
           >
             <div
               ref={viewerCanvasRef}
@@ -3683,7 +3728,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 handleTogglePlay();
               }}
               className={`relative w-full bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
-                aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16]'
+                isViewerFullscreen
+                  ? aspectRatio === '16:9'
+                    ? 'flex-1 max-h-[calc(100vh-52px)] aspect-video mx-auto'
+                    : 'flex-1 max-h-[calc(100vh-52px)] aspect-[9/16] mx-auto'
+                  : aspectRatio === '16:9'
+                  ? 'aspect-video'
+                  : 'aspect-[9/16]'
               }`}
               title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
@@ -4148,6 +4199,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   {isNarratorSpeakingAtPlayhead ? '(Auto-Ducking Voz 🎙️)' : '(Ambiente Alto 🔊)'}
                 </span>
               </div>
+
+              {/* Bottom-Right Little Fullscreen Toggle Button inside the Visor */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleViewerFullscreen();
+                }}
+                className="absolute bottom-2 right-2.5 z-30 p-1.5 rounded-lg bg-black/75 hover:bg-amber-500 border border-slate-700/80 hover:border-amber-400 text-slate-200 hover:text-slate-950 transition cursor-pointer shadow-lg"
+                title={isViewerFullscreen ? 'Salir de pantalla completa (Esc)' : 'Ver visor en pantalla completa'}
+              >
+                {isViewerFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
 
             {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
@@ -4202,6 +4271,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 title="Ir al final"
               >
                 <SkipForward className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleViewerFullscreen}
+                className="p-1.5 rounded-lg bg-slate-900 hover:bg-amber-500 text-slate-300 hover:text-slate-950 cursor-pointer shrink-0 transition"
+                title={isViewerFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
+              >
+                {isViewerFullscreen ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
