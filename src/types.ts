@@ -320,11 +320,14 @@ export interface DocumentaryProject {
 
   // Etapa 12: Respuestas a Comentarios de la Audiencia (Post-Producción)
   commentReplies?: AudienceCommentReply[];
+
+  // Motor de generación de video en Google Flow (Etapa 7)
+  flowVideoEngine?: 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH';
 }
 
 export const DEFAULT_OPERATIONAL_HEADER = `Actúa como un historiador, director de cine, y periodista profesional.
 Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-Usa omni flash para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
 Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
 Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
 No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.

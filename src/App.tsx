@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:44 PM - 11/01/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:43 AM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -181,10 +181,10 @@ function resolveSubfolderForDocumentaryAsset(
   if (/^Miniatura_|^Logo_|miniatura/i.test(clean)) return '03_Miniaturas';
   if (/\.(mp3|wav|m4a|ogg)$/i.test(clean)) return '02_Audio';
   if (/^@|^Ref_|referencia/i.test(clean)) return '04_Referencias';
-  if (
-    /^Documental_|_Master|_Final|_4K|_2K|_8K|_HD/i.test(clean) &&
-    /\.(mp4|webm|mov)$/i.test(clean)
-  ) {
+  if (/^(?:0*\d+[_\-\s.]|clip[_\-\s.]*0*\d+)/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {
+    return '05_Clips_Video';
+  }
+  if (/^Documental_|_Master|_Final/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {
     return '06_Video_Final';
   }
   if (/\.(mp4|webm|mov)$/i.test(clean) || /_(Inicio|Fin)\.(png|jpg|jpeg|webp)$/i.test(clean)) {
@@ -192,6 +192,23 @@ function resolveSubfolderForDocumentaryAsset(
   }
   if (/\.(srt|txt|json|md)$/i.test(clean)) return '01_Guion_y_SEO';
   return '03_Miniaturas';
+}
+
+function applyFlowVideoEngineToDirectiveText(
+  text: string,
+  engine: 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH'
+): string {
+  const engineLabel =
+    engine === 'OMNI_1_1_FLASH' ? 'Omni 1.1 Flash' : 'Veo 3.1 - Lite [Lower Priority]';
+  const targetLine = `Usa ${engineLabel} para videos y nano banana 2.1 para imágenes iniciales de cada clip.`;
+  const src = String(text || '').trim();
+  if (!src) return targetLine;
+  const lineRegex =
+    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
+  if (lineRegex.test(src)) {
+    return src.replace(lineRegex, targetLine);
+  }
+  return src;
 }
 
 // Persist FileSystemDirectoryHandle in IndexedDB so once selected in Stage 1,
@@ -3098,13 +3115,19 @@ export default function App() {
         : c
     );
 
-    const nextRawClipsText = nextClips
-      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
-      .join('\n\n');
+    const currentHeader = applyFlowVideoEngineToDirectiveText(
+      currentDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      currentDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY'
+    );
+    const nextRawClipsText = ensureOperationalHeaderInRawClips(
+      nextClips.map((c) => `${c.imagePrompt}\n${c.videoPrompt}`).join('\n\n'),
+      currentHeader
+    );
 
     updateActiveDoc({
       clips: nextClips,
       rawClipsText: nextRawClipsText,
+      operationalHeader: currentHeader,
     });
 
     const updatedClipObj = nextClips.find((c) => c.id === clip.id) || {
@@ -3113,15 +3136,16 @@ export default function App() {
       videoPrompt: shieldedVid || clip.videoPrompt,
     };
 
-    setFlowStatusLog(reasonMsg);
-    setBridgeStatusType('WORKING');
-    setBridgeStatusMsg(reasonMsg);
+    const singlePairToCopy = `${currentHeader}\n\n${updatedClipObj.imagePrompt}\n${updatedClipObj.videoPrompt}`;
+    try {
+      navigator.clipboard.writeText(singlePairToCopy);
+      setCopiedId(`rehacer-${clip.id}`);
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {}
 
-    sendClipToFlowWithAutoAudit(
-      updatedClipObj,
-      shieldedVid || updatedClipObj.videoPrompt,
-      nextAttempt
-    );
+    setFlowStatusLog(`${reasonMsg} (Prompt corregido copiado al portapapeles)`);
+    setBridgeStatusType('SUCCESS');
+    setBridgeStatusMsg(reasonMsg);
   };
 
   // Option 1 Batch Button: Shield All Clips in Documentary with Controlled Camera + Stage 1 Sustained Action + Anti-Mutation Physics
@@ -3140,9 +3164,14 @@ export default function App() {
       };
     });
 
-    const nextRawClipsText = nextClips
-      .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
-      .join('\n\n');
+    const currentHeader = applyFlowVideoEngineToDirectiveText(
+      currentDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      currentDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY'
+    );
+    const nextRawClipsText = ensureOperationalHeaderInRawClips(
+      nextClips.map((c) => `${c.imagePrompt}\n${c.videoPrompt}`).join('\n\n'),
+      currentHeader
+    );
 
     updateActiveDoc({
       clips: nextClips,
@@ -3389,15 +3418,20 @@ export default function App() {
 
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
             const isDoc76 = extractDocVideoNumber(docTitle) === '76';
+            const nextFileNames: Record<number, string> = {};
             setCapturedClipVideosMap((prev) => {
               const next = { ...prev };
               for (const item of data.clipVideos) {
                 const fullUrl = prefixUrl(item.url);
+                if (item.clipNumber > 0 && item.fileName) {
+                  nextFileNames[item.clipNumber] = item.fileName;
+                }
                 if (
                   item.clipNumber > 0 &&
                   fullUrl &&
                   (!next[item.clipNumber] ||
                     next[item.clipNumber].includes('/api/flow/serve-folder-file') ||
+                    /[_\-]4k\.(mp4|webm|mov)$/i.test(item.fileName || '') ||
                     (isDoc76 && item.clipNumber === 2))
                 ) {
                   next[item.clipNumber] = fullUrl;
@@ -3406,6 +3440,9 @@ export default function App() {
               }
               return next;
             });
+            if (Object.keys(nextFileNames).length > 0) {
+              setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextFileNames }));
+            }
           }
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
             setCapturedSunoAudioMap((prev) => {
@@ -3437,6 +3474,180 @@ export default function App() {
     return loadedCount;
   };
 
+  const [folderClipFileNamesMap, setFolderClipFileNamesMap] = useState<Record<number, string>>({});
+  const [isProcessingClips4K, setIsProcessingClips4K] = useState<boolean>(false);
+  const [clipsPipelineProgress, setClipsPipelineProgress] = useState<{
+    phase: string;
+    current: number;
+    total: number;
+    currentFileName: string;
+    message: string;
+  } | null>(null);
+
+  // Unified 1-Click Semi-Automatic Pipeline: Locate clips, unzip & delete .zip, normalize names, upscale to 4K (_4K), delete originals, and mount in Editor Timeline
+  const handleProcessClipsPipeline = async () => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc || isProcessingClips4K) return;
+
+    setIsProcessingClips4K(true);
+    setClipsPipelineProgress({
+      phase: 'locating',
+      current: 0,
+      total: 0,
+      currentFileName: '',
+      message: 'Localizando clips, verificando archivos .ZIP y preparando conversión a 4K...',
+    });
+
+    const rawFolderPath = (
+      flowServerFolderPath ||
+      currentDoc?.downloadFolderPath ||
+      localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+      ''
+    ).trim();
+    const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
+    const folderName = (
+      (flowDownloadDirHandleRef.current?.name &&
+      doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
+        ? flowDownloadDirHandleRef.current.name
+        : '') ||
+      (doesFolderMatchDoc(flowDownloadFolderName, currentDoc) ? flowDownloadFolderName : '') ||
+      (doesFolderMatchDoc(currentDoc?.downloadFolderName, currentDoc)
+        ? currentDoc?.downloadFolderName
+        : '') ||
+      getCanonicalFolderNameForDoc(currentDoc) ||
+      ''
+    ).trim();
+    const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
+    const aspectRatio =
+      currentDoc?.productionType === 'REEL_9X16' ||
+      currentDoc?.promptConfig?.SUB_OPCION_REELS === '9X16' ||
+      flowAspectRatio === '9:16'
+        ? '9:16'
+        : '16:9';
+
+    const isLocalhostOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiBases = isLocalhostOrigin
+      ? ['']
+      : isCloudMode
+      ? ['http://localhost:4200']
+      : ['', 'http://localhost:4200'];
+
+    let pollTimer: any = null;
+    try {
+      let chosenBase = apiBases[0];
+      for (const b of apiBases) {
+        try {
+          const ping = await fetch(`${b}/api/flow/process-clips-status`);
+          if (ping.ok) {
+            chosenBase = b;
+            break;
+          }
+        } catch {}
+      }
+
+      pollTimer = setInterval(async () => {
+        try {
+          const stRes = await fetch(`${chosenBase}/api/flow/process-clips-status`);
+          if (!stRes.ok) return;
+          const stData = await stRes.json();
+          if (stData && stData.running) {
+            setClipsPipelineProgress({
+              phase: stData.phase || 'upscaling_4k',
+              current: Number(stData.current || 0),
+              total: Number(stData.total || 0),
+              currentFileName: stData.currentFileName || '',
+              message: stData.message || 'Procesando clips a 4K...',
+            });
+          }
+        } catch {}
+      }, 900);
+
+      const res = await fetch(`${chosenBase}/api/flow/process-clips-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath,
+          folderName,
+          docTitle,
+          aspectRatio,
+          clips: (currentDoc.clips || []).map((c) => ({
+            clipNumber: c.clipNumber,
+            imagePrompt: c.imagePrompt,
+            videoPrompt: c.videoPrompt,
+            narrationSegment: c.narrationSegment,
+          })),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || 'No se pudieron procesar los clips en la carpeta local.');
+      }
+
+      const prefixUrl = (u: string) =>
+        u && u.startsWith('/') && chosenBase ? `${chosenBase}${u}` : u;
+
+      if (Array.isArray(data.clipVideos)) {
+        const nextMap: Record<number, string> = {};
+        const nextNames: Record<number, string> = {};
+        for (const item of data.clipVideos) {
+          if (item.clipNumber > 0 && item.url) {
+            nextMap[item.clipNumber] = prefixUrl(item.url);
+            if (item.fileName) {
+              nextNames[item.clipNumber] = item.fileName;
+            }
+          }
+        }
+        setCapturedClipVideosMap((prev) => ({ ...prev, ...nextMap }));
+        setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextNames }));
+
+        if (Array.isArray(currentDoc.clips) && currentDoc.clips.length > 0) {
+          const updatedClips = currentDoc.clips.map((c) => {
+            const fName = nextNames[c.clipNumber];
+            if (fName) {
+              return {
+                ...c,
+                videoReady: true,
+                videoSavedFileName: fName,
+              };
+            }
+            return c;
+          });
+          updateActiveDoc({ clips: updatedClips });
+        }
+      }
+
+      await handleAutoLoadAllFolderMedia(true);
+
+      const summaryMsg =
+        data.message ||
+        `✅ Clips procesados a 4K y montados en el Timeline del Editor (${data.upscaled4kCount || 0} nuevos en 4K, ${data.already4kCount || 0} ya estaban en 4K).`;
+      setClipsPipelineProgress({
+        phase: 'completed',
+        current: Number(data.upscaled4kCount || 0),
+        total: Number(data.upscaled4kCount || 0),
+        currentFileName: '',
+        message: summaryMsg,
+      });
+      setFlowStatusLog(summaryMsg);
+    } catch (err: any) {
+      const errMsg = err?.message || 'Error al procesar los clips a 4K.';
+      setClipsPipelineProgress({
+        phase: 'error',
+        current: 0,
+        total: 0,
+        currentFileName: '',
+        message: `⚠️ ${errMsg}`,
+      });
+      setFlowStatusLog(`⚠️ ${errMsg}`);
+    } finally {
+      if (pollTimer) clearInterval(pollTimer);
+      setIsProcessingClips4K(false);
+    }
+  };
+
   useEffect(() => {
     if (mainView === 'capcut_editor' || activeStage === 8) {
       handleAutoLoadAllFolderMedia(true);
@@ -3461,9 +3672,21 @@ export default function App() {
     const hasRefs = Array.isArray(baseRefs) && baseRefs.length > 0;
     if (!hasClips && !hasRefs) return;
 
+    const activeEngine = activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+    const expectedHeader = applyFlowVideoEngineToDirectiveText(
+      activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      activeEngine
+    );
+    const headerNeedsEngineSync =
+      expectedHeader !== (activeDoc.operationalHeader || '').trim() ||
+      (activeDoc.rawClipsText &&
+        /Usa\s+omni\s*flash\s+para\s+videos/i.test(activeDoc.rawClipsText) &&
+        activeEngine === 'VEO_3_1_LITE_LOWER_PRIORITY');
+
     const normalizedChanged =
       normalizedBase.clips !== activeDoc.clips ||
-      normalizedBase.rawClipsText !== activeDoc.rawClipsText;
+      normalizedBase.rawClipsText !== activeDoc.rawClipsText ||
+      headerNeedsEngineSync;
 
     const needsClipShield =
       hasClips &&
@@ -3492,6 +3715,9 @@ export default function App() {
     if (!normalizedChanged && !needsClipShield && !needsRefShield) return;
 
     const patch: Partial<DocumentaryProject> = {};
+    if (headerNeedsEngineSync) {
+      patch.operationalHeader = expectedHeader;
+    }
 
     if (normalizedChanged || needsClipShield) {
       const nextClips = baseClips.map((c) => ({
@@ -3503,8 +3729,13 @@ export default function App() {
           ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
           : c.videoPrompt,
       }));
+      const nextRawWithHeader = ensureOperationalHeaderInRawClips(
+        nextClips.map((c) => `${c.imagePrompt}\n${c.videoPrompt}`).join('\n\n'),
+        expectedHeader
+      );
       const actuallyChangedClips =
         !activeDoc.clips ||
+        nextRawWithHeader !== activeDoc.rawClipsText ||
         nextClips.some(
           (nc, idx) =>
             nc.imagePrompt !== activeDoc.clips[idx]?.imagePrompt ||
@@ -3512,9 +3743,7 @@ export default function App() {
         );
       if (actuallyChangedClips) {
         patch.clips = nextClips;
-        patch.rawClipsText = nextClips
-          .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
-          .join('\n\n');
+        patch.rawClipsText = nextRawWithHeader;
       }
     }
 
@@ -9527,88 +9756,150 @@ export default function App() {
                           {aiGenerating ? 'Creando...' : '✨ Crear Prompts con IA'}
                         </button>
                       </div>
+
+                      {/* Selector de Motor de Video para Google Flow Agent (Veo 3.1 - Lite [Lower Priority] por defecto vs Omni 1.1 Flash) */}
+                      <div className="bg-slate-950/90 border border-purple-500/30 rounded-xl p-2 flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-slate-300">
+                          🎬 Motor de Video en Prompts:
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(
+                            [
+                              {
+                                id: 'VEO_3_1_LITE_LOWER_PRIORITY' as const,
+                                label: 'Veo 3.1 - Lite [Lower Priority]',
+                              },
+                              {
+                                id: 'OMNI_1_1_FLASH' as const,
+                                label: 'Omni 1.1 Flash',
+                              },
+                            ] as const
+                          ).map((eng) => {
+                            const currentEngine =
+                              activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+                            const isSelected = currentEngine === eng.id;
+                            return (
+                              <button
+                                key={eng.id}
+                                type="button"
+                                onClick={() => {
+                                  const nextHeader = applyFlowVideoEngineToDirectiveText(
+                                    activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                    eng.id
+                                  );
+                                  const nextRaw = applyFlowVideoEngineToDirectiveText(
+                                    ensureOperationalHeaderInRawClips(
+                                      activeDoc.rawClipsText || '',
+                                      nextHeader
+                                    ),
+                                    eng.id
+                                  );
+                                  updateActiveDoc({
+                                    flowVideoEngine: eng.id,
+                                    operationalHeader: nextHeader,
+                                    rawClipsText: nextRaw,
+                                  });
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-500 text-slate-950 border-amber-300 shadow'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
+                              >
+                                {isSelected ? '✓ ' : ''}
+                                {eng.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       <textarea
-                        rows={14}
+                        rows={13}
                         value={activeDoc.rawClipsText}
                         onChange={(e) => {
                           const val = e.target.value;
+                          const activeEngine =
+                            activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+                          const currentHeader = applyFlowVideoEngineToDirectiveText(
+                            activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                            activeEngine
+                          );
                           if (/^\s*(?:Image|Imagen|Clip)\s+0*1\b/i.test(val)) {
                             updateActiveDoc({
-                              rawClipsText: ensureOperationalHeaderInRawClips(val, activeDoc.operationalHeader),
+                              rawClipsText: ensureOperationalHeaderInRawClips(val, currentHeader),
                             });
                           } else {
                             updateActiveDoc({ rawClipsText: val });
                           }
                         }}
                         placeholder={
-                          'Actúa como un historiador, director de cine, y periodista profesional...\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video...\n\nImage 2: Create an image...\nClip 2 (00:06 - 00:16): Create a video...'
+                          'Actúa como un historiador, director de cine, y periodista profesional...\nUsa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video...'
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                       />
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => {
-                            const withHeader = ensureOperationalHeaderInRawClips(
-                              activeDoc.rawClipsText || '',
-                              activeDoc.operationalHeader
-                            );
-                            updateActiveDoc({ rawClipsText: withHeader });
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-[11px] text-amber-300 font-semibold cursor-pointer"
-                          title="Garantiza que el Párrafo Inicial de 9 Líneas esté al principio de los prompts"
-                        >
-                          {/Act[uú]a como un historiador/i.test(activeDoc.rawClipsText || '')
-                            ? '✓ Párrafo Inicial (9 Líneas)'
-                            : '➕ Poner Párrafo Inicial (9 Líneas)'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            const nextNum = (activeDoc.clips?.length || 0) + 1;
-                            const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
-                            const startSec =
-                              nextNum === 1 ? 0 : clip1Sec + (nextNum - 2) * standardClipSec;
-                            const endSec =
-                              nextNum === 1 ? clip1Sec : startSec + standardClipSec;
-                            const fmt = (s: number) =>
-                              `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
-                                s % 60
-                              ).padStart(2, '0')}`;
-                            const rangeStr = `${fmt(startSec)} - ${fmt(endSec)}`;
-                            const newClip: DocumentaryClip = {
-                              id: `clip-${nextNum}-${Date.now()}`,
-                              clipNumber: nextNum,
-                              timeRange: rangeStr,
-                              cameraSelection: '',
-                              visualExplanation: '',
-                              imagePrompt: `Image ${nextNum}: Create an image `,
-                              videoPrompt: `Clip ${nextNum} (${rangeStr}): Create a video `,
-                              narrationSegment: '',
-                              imageReady: false,
-                              videoReady: false,
-                            };
-                            updateActiveDoc({ clips: [...(activeDoc.clips || []), newClip] });
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" /> Añadir Clip
-                        </button>
-                      </div>
                       <button
                         onClick={() => {
-                          const textToCopy = ensureOperationalHeaderInRawClips(
-                            activeDoc.rawClipsText || '',
-                            activeDoc.operationalHeader
+                          const nextNum = (activeDoc.clips?.length || 0) + 1;
+                          const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+                          const startSec =
+                            nextNum === 1 ? 0 : clip1Sec + (nextNum - 2) * standardClipSec;
+                          const endSec =
+                            nextNum === 1 ? clip1Sec : startSec + standardClipSec;
+                          const fmt = (s: number) =>
+                            `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
+                              s % 60
+                            ).padStart(2, '0')}`;
+                          const rangeStr = `${fmt(startSec)} - ${fmt(endSec)}`;
+                          const newClip: DocumentaryClip = {
+                            id: `clip-${nextNum}-${Date.now()}`,
+                            clipNumber: nextNum,
+                            timeRange: rangeStr,
+                            cameraSelection: '',
+                            visualExplanation: '',
+                            imagePrompt: `Image ${nextNum}: Create an image `,
+                            videoPrompt: `Clip ${nextNum} (${rangeStr}): Create a video `,
+                            narrationSegment: '',
+                            imageReady: false,
+                            videoReady: false,
+                          };
+                          updateActiveDoc({ clips: [...(activeDoc.clips || []), newClip] });
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" /> Añadir Clip
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const activeEngine =
+                            activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+                          const currentHeader = applyFlowVideoEngineToDirectiveText(
+                            activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                            activeEngine
+                          );
+                          const textToCopy = applyFlowVideoEngineToDirectiveText(
+                            ensureOperationalHeaderInRawClips(
+                              activeDoc.rawClipsText || '',
+                              currentHeader
+                            ),
+                            activeEngine
                           );
                           if (textToCopy !== activeDoc.rawClipsText) {
-                            updateActiveDoc({ rawClipsText: textToCopy });
+                            updateActiveDoc({
+                              operationalHeader: currentHeader,
+                              rawClipsText: textToCopy,
+                            });
                           }
                           copyText(textToCopy, 'copy-prod-raw-clips');
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow"
                       >
-                        {copiedId === 'copy-prod-raw-clips' ? '✓ Copiado' : '📋 Copiar Prompts'}
+                        {copiedId === 'copy-prod-raw-clips'
+                          ? '✓ Todos los Prompts Copiados'
+                          : '📋 Copiar Todos los Prompts'}
                       </button>
                     </div>
                   </div>
@@ -9647,25 +9938,25 @@ export default function App() {
                 </div>
 
                 {/* ===============================================================
-                    PILOTO AUTOMÁTICO GOOGLE FLOW + LOTES DE 10 + CARPETA ELEGIDA + AUDITOR VISUAL
+                    FLUJO SEMI-AUTOMÁTICO: UN SOLO BOTÓN MAESTRO "PROCESAR CLIPS"
                 =============================================================== */}
-                <div className="bg-gradient-to-r from-emerald-950/60 via-[#14120f] to-amber-950/40 border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                <div className="bg-gradient-to-r from-emerald-950/60 via-[#14120f] to-amber-950/40 border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="space-y-0.5 max-w-3xl">
                       <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
-                        🤖 Piloto Automático Google Flow: Lotes de 10 + Auditoría Visual IA + Auto-Descarga (6 Palabras)
+                        ⚡ Procesamiento Automático de Clips (ZIP → 4K → Sustitución → Timeline del Editor)
                       </h4>
                       <p className="text-xs text-slate-300 leading-relaxed">
-                        1️⃣ Elige primero tu carpeta de descarga. 2️⃣ Envía tus{' '}
-                        <strong className="text-amber-300">@Referencias</strong> y los{' '}
-                        <strong className="text-amber-300">Lotes de 10 en 10</strong> (con la Orden Operativa de 9
-                        líneas + Pares Image/Clip). 3️⃣ El sistema vigila Google Flow, audita cada video contra su{' '}
-                        <strong>Prompt</strong> y su <strong>Voz Narrativa</strong>, y descarga los aprobados como{' '}
-                        <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>.
+                        Descarga tus clips de Google Flow en <code className="text-amber-300">05_Clips_Video</code> (o en{' '}
+                        <code className="text-amber-300">.zip</code>) y pulsa{' '}
+                        <strong className="text-emerald-300">⚡ Procesar Clips</strong>: localiza los videos, descomprime y
+                        borra el <code className="text-amber-300">.zip</code>, los mejora a{' '}
+                        <strong className="text-amber-300">4K (_4K.mp4)</strong>, elimina los originales antiguos y los
+                        sitúa automáticamente en el Timeline del Editor de Video.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       {/* Aspect Ratio Selector (16:9 / 9:16) */}
                       <div className="flex items-center bg-slate-950/90 border border-slate-700 rounded-xl p-0.5">
                         {(['16:9', '9:16'] as EditorAspectRatio[]).map((ratio) => (
@@ -9684,21 +9975,6 @@ export default function App() {
                         ))}
                       </div>
 
-                      {/* Resolution Selector (HD / 2K / 4K / 8K) */}
-                      <select
-                        value={flowDownloadResolution}
-                        onChange={(e) =>
-                          setFlowDownloadResolution(e.target.value as ExportResolutionPreset)
-                        }
-                        className="bg-slate-950/90 border border-amber-500/40 rounded-xl px-2.5 py-1.5 text-[11px] font-black text-amber-300 focus:outline-none cursor-pointer"
-                        title="Calidad de descarga y exportación (HD, 2K, 4K, 8K)"
-                      >
-                        <option value="HD_1080P">Calidad: HD (1080p)</option>
-                        <option value="2K_1440P">Calidad: 2K (1440p)</option>
-                        <option value="4K_2160P">Calidad: 4K (2160p)</option>
-                        <option value="8K_4320P">Calidad: 8K Ultra (4320p)</option>
-                      </select>
-
                       {/* Confirmed Destination Folder from Stage 1 */}
                       {hasSelectedDocFolder ? (
                         <div className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-500/15 border-emerald-500/40 text-emerald-200">
@@ -9712,144 +9988,56 @@ export default function App() {
                           className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow"
                         >
                           <FolderOpen className="w-4 h-4" />
-                          📂 Elegir Carpeta de Descarga
+                          📂 Elegir Carpeta del Proyecto
                         </button>
                       )}
 
-                      {/* Step 2: Start / Stop Full Autopilot Queue */}
-                      {!flowAutoPilotActive ? (
-                        <button
-                          type="button"
-                          onClick={handleStartFlowAutoPilot}
-                          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
-                        >
-                          <Film className="w-4 h-4" />
-                          🚀 2. Piloto Automático Secuencial
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleStopFlowAutoPilot}
-                          className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer animate-pulse"
-                        >
-                          ⏹️ Detener Piloto (Clip #{String(flowCurrentClipNum || 1).padStart(2, '0')})
-                        </button>
-                      )}
-
-                      {/* Scan & Audit Already Generated Videos in Open Flow Tab */}
+                      {/* SINGLE MASTER BUTTON: PROCESAR CLIPS */}
                       <button
                         type="button"
-                        onClick={handleScanExistingFlowVideosInTab}
-                        className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-amber-300 flex items-center gap-1.5 cursor-pointer"
-                        title="Si ya tienes videos creados en la pestaña abierta de Google Flow, los captura, audita contra sus prompts y voz narrativa, y descarga los aprobados"
+                        disabled={isProcessingClips4K}
+                        onClick={handleProcessClipsPipeline}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/25 transition"
                       >
-                        🔍 Auditar Videos Actuales en Flow
+                        <RefreshCw className={`w-4 h-4 ${isProcessingClips4K ? 'animate-spin' : ''}`} />
+                        {isProcessingClips4K ? 'Procesando Clips a 4K...' : '⚡ Procesar Clips'}
                       </button>
 
                       {/* Open Multi-Track Video Editor */}
                       <button
                         type="button"
                         onClick={() => setMainView('capcut_editor')}
-                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+                        className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
                       >
                         🎬 Abrir en Editor de Video
                       </button>
                     </div>
                   </div>
 
-                  {/* BATCHES OF 10 EXECUTION BAR (Orden Operativa 9 líneas + 10 Pares Image/Clip) */}
-                  {(activeDoc.clips?.length || 0) > 0 && (
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
-                          📦 Envío por Lotes a Google Flow (Orden Operativa + 10 Pares Image/Clip):
-                        </span>
-                        {(activeDoc.references?.length || 0) > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleSendReferencesBlockToFlow}
-                            className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-[11px] font-bold cursor-pointer transition"
-                            title="Envía el bloque de @Personas y @Lugares para fijar consistencia antes de los lotes"
-                          >
-                            🧬 0. Enviar @{activeDoc.references.length} Referencias
-                          </button>
-                        )}
-                        {Array.from(
-                          { length: Math.ceil((activeDoc.clips?.length || 0) / 10) },
-                          (_, batchIdx) => {
-                            const startClipNum = batchIdx * 10 + 1;
-                            const endClipNum = Math.min(
-                              (batchIdx + 1) * 10,
-                              activeDoc.clips?.length || 0
-                            );
-                            const isActiveBatch = flowCurrentBatchNum === batchIdx + 1;
-                            return (
-                              <button
-                                key={batchIdx}
-                                type="button"
-                                onClick={() => handleSendBatch10ToFlow(batchIdx + 1)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
-                                  isActiveBatch
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow'
-                                    : 'bg-slate-900/90 hover:bg-slate-800 text-emerald-300 border-emerald-500/30'
-                                }`}
-                                title={`Envía la Orden Operativa de 9 líneas + Pares Image/Clip del ${String(
-                                  startClipNum
-                                ).padStart(2, '0')} al ${String(endClipNum).padStart(2, '0')} a Google Flow`}
-                              >
-                                🚀 Lote {batchIdx + 1} ({String(startClipNum).padStart(2, '0')}-
-                                {String(endClipNum).padStart(2, '0')})
-                              </button>
-                            );
-                          }
-                        )}
+                  {(isProcessingClips4K || clipsPipelineProgress || flowStatusLog) && (
+                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                      {isProcessingClips4K && clipsPipelineProgress && clipsPipelineProgress.total > 0 && (
+                        <div className="w-full bg-slate-950 rounded-full h-2.5 border border-emerald-500/30 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-emerald-500 to-amber-400 h-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round(
+                                  (clipsPipelineProgress.current /
+                                    Math.max(1, clipsPipelineProgress.total)) *
+                                    100
+                                )
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                      <div className="text-xs font-mono text-emerald-300 bg-slate-950/90 border border-emerald-500/30 rounded-lg px-3 py-1.5">
+                        {clipsPipelineProgress?.message || flowStatusLog}
                       </div>
                     </div>
                   )}
-
-                  {/* Toggles & Live Status Bar */}
-                  <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-800/80 text-xs">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={flowAutoDownloadEnabled}
-                          onChange={(e) => setFlowAutoDownloadEnabled(e.target.checked)}
-                          className="accent-emerald-500"
-                        />
-                        <span>
-                          Auto-descargar aprobados (✅) como{' '}
-                          <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={flowAutoRetryEnabled}
-                          onChange={(e) => setFlowAutoRetryEnabled(e.target.checked)}
-                          className="accent-amber-500"
-                        />
-                        <span>Auto-corregir prompt y re-hacer en Flow si un video falla (🚨 máx. 2 intentos)</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 text-emerald-300 font-semibold cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={flowAutoChainBatches}
-                          onChange={(e) => setFlowAutoChainBatches(e.target.checked)}
-                          className="accent-emerald-400"
-                        />
-                        <span>
-                          🌙 Auto-encadenar Lotes (Al terminar el Lote 1 dispara solo el Lote 2, 3...)
-                        </span>
-                      </label>
-                    </div>
-
-                    {flowStatusLog && (
-                      <div className="text-xs font-mono text-emerald-300 bg-slate-950/90 border border-emerald-500/30 rounded-lg px-3 py-1">
-                        {flowStatusLog}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* AUDIT SUMMARY & 1-CLICK APPLY ALL SUGGESTIONS */}
@@ -10554,39 +10742,40 @@ export default function App() {
                                     Recreado
                                   </label>
 
+                                  {/[_\-]4k\.(mp4|mov|webm)$/i.test(
+                                    folderClipFileNamesMap[clip.clipNumber] ||
+                                      clip.videoSavedFileName ||
+                                      ''
+                                  ) && (
+                                    <span
+                                      className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-black shadow-sm"
+                                      title={`Archivo 4K UHD: ${
+                                        folderClipFileNamesMap[clip.clipNumber] ||
+                                        clip.videoSavedFileName
+                                      }`}
+                                    >
+                                      ✨ 4K
+                                    </span>
+                                  )}
+
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
-                                    }
+                                    onClick={() => {
+                                      const header = applyFlowVideoEngineToDirectiveText(
+                                        activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                        activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY'
+                                      );
+                                      copyText(
+                                        `${header}\n\n${clip.imagePrompt}\n${clip.videoPrompt}`,
+                                        `copy-clip-${clip.id}`
+                                      );
+                                    }}
                                     className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold cursor-pointer"
-                                    title="Enviar prompt de video a Google Flow en segundo plano"
+                                    title="Copiar directiva + Image y Clip de este segmento para Google Flow Agent"
                                   >
-                                    🎬 Flow Video
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
-                                    }
-                                    className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-[10px] text-amber-200 font-bold cursor-pointer"
-                                    title="Enviar prompt de imagen inicial a Google Flow en segundo plano"
-                                  >
-                                    🚀 Flow Imagen
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleEvadeFilterAndResendClip(
-                                        clip,
-                                        (clip.videoAttempts || 1) + 1,
-                                        'Reajuste manual Anti-Filtro Prominent People'
-                                      )
-                                    }
-                                    className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-[10px] text-rose-200 font-bold cursor-pointer"
-                                    title="Evadir filtro Prominent People y re-enviar a Google Flow"
-                                  >
-                                    🛡️ Evadir Filtro
+                                    {copiedId === `copy-clip-${clip.id}`
+                                      ? '✅ Copiado'
+                                      : '📋 Copiar Clip'}
                                   </button>
 
                                   <label className="flex items-center gap-0.5 text-[10px] text-slate-300 cursor-pointer">
@@ -10785,17 +10974,19 @@ export default function App() {
                                         }`}
                                         title={
                                           selectedModesForClip.length > 0
-                                            ? `Aplicar los ${selectedModesForClip.length} criterios seleccionados y mandar a rehacer el clip en Google Flow`
-                                            : 'Selecciona 1 o más criterios arriba o haz clic aquí para aplicar todos los blindajes juntos y re-enviar a Google Flow'
+                                            ? `Aplicar los ${selectedModesForClip.length} criterios seleccionados y copiar el prompt corregido al portapapeles`
+                                            : 'Selecciona 1 o más criterios arriba o haz clic aquí para aplicar todos los blindajes y copiar el prompt corregido'
                                         }
                                       >
-                                        {selectedModesForClip.length > 0
-                                          ? `🔄 Rehacer Clip en Flow (${selectedModesForClip.length} ${
+                                        {copiedId === `rehacer-${clip.id}`
+                                          ? '✅ ¡Prompt Corregido Copiado!'
+                                          : selectedModesForClip.length > 0
+                                          ? `🔄 Rehacer y Copiar (${selectedModesForClip.length} ${
                                               selectedModesForClip.length === 1
                                                 ? 'criterio'
                                                 : 'criterios'
                                             })`
-                                          : '🔧 Rehacer con Todo (o marca criterios)'}
+                                          : '🔧 Rehacer y Copiar Prompt'}
                                       </button>
                                       {selectedModesForClip.length > 0 ? (
                                         <button

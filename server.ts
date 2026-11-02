@@ -220,6 +220,16 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // ============================================================================
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
+const DEFAULT_OPERATIONAL_HEADER_SERVER = `Actúa como un historiador, director de cine, y periodista profesional.
+Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
+Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
+Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
+No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
+Divide la creación en batches de 10.
+rename everything adding _ as the blank spaces between words
+from 1 to 9 change them to 01 to 09`;
+
 function ensureOperationalHeaderText(rawText: string, operationalHeader?: string): string {
   const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
   const trimmed = (rawText || '').trim();
@@ -2416,7 +2426,10 @@ function resolveSubfolderForDocumentaryAsset(fileName: string, explicitSubFolder
   if (/^Miniatura_|^Logo_|miniatura/i.test(clean)) return '03_Miniaturas';
   if (/\.(mp3|wav|m4a|ogg)$/i.test(clean)) return '02_Audio';
   if (/^@|^Ref_|referencia/i.test(clean)) return '04_Referencias';
-  if ((/^Documental_|_Master|_Final|_4K|_2K|_8K|_HD/i.test(clean)) && /\.mp4$/i.test(clean)) {
+  if (/^(?:0*\d+[_\-\s.]|clip[_\-\s.]*0*\d+)/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {
+    return '05_Clips_Video';
+  }
+  if ((/^Documental_|_Master|_Final/i.test(clean)) && /\.mp4$/i.test(clean)) {
     return '06_Video_Final';
   }
   if (/\.(mp4|webm|mov)$/i.test(clean) || /_(Inicio|Fin)\.(png|jpg|jpeg|webp)$/i.test(clean)) {
@@ -2777,10 +2790,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       srtContent = '',
     } = req.body;
 
+    const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, '', docTitle);
     const targetRoot =
-      folderPath && String(folderPath).trim()
+      resolvedDocFolder ||
+      (folderPath && String(folderPath).trim()
         ? String(folderPath).trim()
-        : path.join(process.env.HOME || '/tmp', 'Downloads');
+        : path.join(process.env.HOME || '/tmp', 'Downloads'));
 
     if (!fs.existsSync(targetRoot)) {
       fs.mkdirSync(targetRoot, { recursive: true });
@@ -2802,8 +2817,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const outW = aspectRatio === '9:16' ? preset.h169 : preset.w169;
     const outH = aspectRatio === '9:16' ? preset.w169 : preset.h169;
 
-    // 1. Collect all available MP4 clips on disk (from clips array or folderPath)
+    // 1. Collect all available MP4 clips on disk (from 05_Clips_Video, Clips_Aprobados, or targetRoot)
     const normalizedClipPaths: string[] = [];
+    const clipsVideoSubdir = path.join(targetRoot, '05_Clips_Video');
     const clipsSubdir = path.join(targetRoot, 'Clips_Aprobados');
 
     for (let i = 0; i < clips.length; i++) {
@@ -2811,9 +2827,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const fileName = c.fileName || `${String(c.clipNumber || i + 1).padStart(2, '0')}_Clip.mp4`;
       let sourceMp4 = '';
 
+      const candidate0 = path.join(clipsVideoSubdir, fileName);
       const candidate1 = path.join(targetRoot, fileName);
       const candidate2 = path.join(clipsSubdir, fileName);
-      if (fs.existsSync(candidate1)) {
+      if (fs.existsSync(candidate0)) {
+        sourceMp4 = candidate0;
+      } else if (fs.existsSync(candidate1)) {
         sourceMp4 = candidate1;
       } else if (fs.existsSync(candidate2)) {
         sourceMp4 = candidate2;
@@ -2822,15 +2841,29 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         sourceMp4 = candidate1;
         fs.writeFileSync(sourceMp4, Buffer.from(cleanB64, 'base64'));
       } else {
-        // Fallback: match by prefix number (e.g. "01_") in targetRoot or Clips_Aprobados
-        const prefix = `${String(c.clipNumber || i + 1).padStart(2, '0')}_`;
-        for (const searchDir of [targetRoot, clipsSubdir]) {
+        // Fallback: match by prefix number (e.g. "01_") in 05_Clips_Video, targetRoot, or Clips_Aprobados (prioritizing _4K.mp4)
+        const num = Number(c.clipNumber || i + 1);
+        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const searchDir of [clipsVideoSubdir, targetRoot, clipsSubdir]) {
           if (fs.existsSync(searchDir)) {
-            const found = fs
+            const matches = fs
               .readdirSync(searchDir)
-              .find((f) => f.startsWith(prefix) && f.toLowerCase().endsWith('.mp4'));
-            if (found) {
-              sourceMp4 = path.join(searchDir, found);
+              .filter((f) => prefixRegex.test(f) && /\.(mp4|mov|webm)$/i.test(f))
+              .sort((a, b) => {
+                const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+                const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+                if (b4k !== a4k) return b4k - a4k;
+                try {
+                  return (
+                    fs.statSync(path.join(searchDir, b)).mtimeMs -
+                    fs.statSync(path.join(searchDir, a)).mtimeMs
+                  );
+                } catch {
+                  return 0;
+                }
+              });
+            if (matches.length > 0) {
+              sourceMp4 = path.join(searchDir, matches[0]);
               break;
             }
           }
@@ -3257,10 +3290,11 @@ app.get('/api/flow/list-folder-media', (req, res) => {
           }
         });
         for (const entry of entries) {
+          if (entry.startsWith('.') || /\.tmp\.(mp4|webm|mov)$/i.test(entry)) continue;
           const full = path.join(dir, entry);
           const st = fs.statSync(full);
           if (!st.isFile()) continue;
-          const mVid = entry.match(/^0*(\d+)[_\-\s.].*\.(mp4|webm|mov)$/i);
+          const mVid = entry.match(/^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
           if (mVid) {
             const num = parseInt(mVid[1], 10);
             if (num > 0 && !seenVideoClips.has(num)) {
@@ -3272,7 +3306,7 @@ app.get('/api/flow/list-folder-media', (req, res) => {
               });
             }
           }
-          const mImg = entry.match(/^0*(\d+)[_\-\s.].*\.(png|jpg|jpeg|webp)$/i);
+          const mImg = entry.match(/^(?:(?:image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
           if (mImg) {
             const num = parseInt(mImg[1], 10);
             if (num > 0) {
@@ -3419,6 +3453,552 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
     res.sendFile(path.resolve(filePath));
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
+  }
+});
+
+// ============================================================================
+// UNIFIED SEMI-AUTOMATIC PIPELINE: LOCATE, UNZIP & DELETE ZIP, NORMALIZE, UPSCALE 4K (_4K) & REPLACE ORIGINALS
+// ============================================================================
+interface ClipsPipelineStatus {
+  running: boolean;
+  phase: 'idle' | 'locating' | 'unzipping' | 'normalizing' | 'upscaling_4k' | 'completed' | 'error';
+  current: number;
+  total: number;
+  currentFileName: string;
+  message: string;
+  extractedZipsCount: number;
+  importedFilesCount: number;
+  upscaled4kCount: number;
+  already4kCount: number;
+  completedAt?: string;
+  error?: string;
+}
+
+let activeClipsPipelineStatus: ClipsPipelineStatus = {
+  running: false,
+  phase: 'idle',
+  current: 0,
+  total: 0,
+  currentFileName: '',
+  message: '',
+  extractedZipsCount: 0,
+  importedFilesCount: 0,
+  upscaled4kCount: 0,
+  already4kCount: 0,
+};
+
+app.get('/api/flow/process-clips-status', (_req, res) => {
+  res.json({ ok: true, ...activeClipsPipelineStatus });
+});
+
+function normalizeWordTokensForMatch(str: string): string[] {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2);
+}
+
+function inferClipNumberFromFileName(
+  fileName: string,
+  clipsList: Array<{ clipNumber: number; videoPrompt?: string; narrationSegment?: string }>
+): number {
+  const base = path.basename(fileName, path.extname(fileName));
+  // 1. Direct leading number or Clip_XX prefix
+  const mDirect = base.match(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i);
+  if (mDirect) {
+    const n = parseInt(mDirect[1], 10);
+    if (n > 0 && n <= 300) return n;
+  }
+  // 2. Match against narrationSegment or videoPrompt words
+  const fileTokens = normalizeWordTokensForMatch(base.replace(/[_\-]?4k$/i, ''));
+  if (fileTokens.length >= 2 && Array.isArray(clipsList) && clipsList.length > 0) {
+    let bestClipNum = 0;
+    let bestScore = 0;
+    for (const c of clipsList) {
+      const cNum = Number(c.clipNumber);
+      if (!cNum) continue;
+      const narTokens = normalizeWordTokensForMatch(c.narrationSegment || '');
+      const vidTokens = normalizeWordTokensForMatch(
+        String(c.videoPrompt || '').replace(/^Clip\s*\d+\s*\([^)]*\)\s*:\s*/i, '')
+      );
+      let score = 0;
+      for (let i = 0; i < Math.min(fileTokens.length, 7); i++) {
+        const tok = fileTokens[i];
+        if (narTokens.slice(0, 10).includes(tok)) score += 3;
+        if (vidTokens.slice(0, 12).includes(tok)) score += 2;
+      }
+      if (score > bestScore && score >= 5) {
+        bestScore = score;
+        bestClipNum = cNum;
+      }
+    }
+    if (bestClipNum > 0) return bestClipNum;
+  }
+  return 0;
+}
+
+async function upscaleFileTo4KOnDisk(
+  inputPath: string,
+  outputPath: string,
+  aspectRatio: string = '16:9'
+): Promise<void> {
+  const ffmpegBin = resolveFfmpegBin();
+  const isVertical = aspectRatio === '9:16';
+  const targetW = isVertical ? 2160 : 3840;
+  const targetH = isVertical ? 3840 : 2160;
+  const vfFilter = `scale=${targetW}:${targetH}:flags=bicubic,unsharp=3:3:0.5:3:3:0.0,format=yuv420p`;
+
+  const runFfmpegCmd = (args: string[]) =>
+    new Promise<void>((resolve, reject) => {
+      const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+      proc.on('error', reject);
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 10000) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}`));
+        }
+      });
+    });
+
+  try {
+    await runFfmpegCmd([
+      '-y',
+      '-threads',
+      '0',
+      '-i',
+      inputPath,
+      '-vf',
+      vfFilter,
+      '-c:v',
+      'h264_videotoolbox',
+      '-b:v',
+      '28M',
+      '-profile:v',
+      'high',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      '-c:a',
+      'copy',
+      outputPath,
+    ]);
+  } catch {
+    await runFfmpegCmd([
+      '-y',
+      '-threads',
+      '0',
+      '-i',
+      inputPath,
+      '-vf',
+      vfFilter,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '17',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      '-c:a',
+      'copy',
+      outputPath,
+    ]);
+  }
+}
+
+app.post('/api/flow/process-clips-pipeline', async (req, res) => {
+  try {
+    const {
+      folderPath = '',
+      folderName = '',
+      docTitle = '',
+      aspectRatio = '16:9',
+      clips = [],
+    } = req.body || {};
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (!resolvedRoot || !fs.existsSync(resolvedRoot)) {
+      res.status(400).json({
+        ok: false,
+        error:
+          'No se encontró la carpeta local del proyecto. Asegúrate de tener vinculada la carpeta del documental en tu Mac.',
+      });
+      return;
+    }
+
+    ensureDocumentarySubfolders(resolvedRoot);
+    const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
+    const downloadsDir = path.join(process.env.HOME || '', 'Downloads');
+    const clipsList = Array.isArray(clips) ? clips : [];
+
+    activeClipsPipelineStatus = {
+      running: true,
+      phase: 'locating',
+      current: 0,
+      total: 0,
+      currentFileName: '',
+      message: 'Localizando clips y verificando archivos ZIP...',
+      extractedZipsCount: 0,
+      importedFilesCount: 0,
+      upscaled4kCount: 0,
+      already4kCount: 0,
+    };
+
+    // ------------------------------------------------------------------------
+    // STEP 1: EXTRACT ANY .ZIP FILES IN 05_Clips_Video, resolvedRoot, OR ~/Downloads AND DELETE THE .ZIP
+    // ------------------------------------------------------------------------
+    activeClipsPipelineStatus.phase = 'unzipping';
+    const zipCandidates: string[] = [];
+
+    for (const dir of [clipsDir, resolvedRoot]) {
+      if (!fs.existsSync(dir)) continue;
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry.startsWith('.')) continue;
+        if (/\.zip$/i.test(entry)) {
+          zipCandidates.push(path.join(dir, entry));
+        }
+      }
+    }
+
+    // Also check ~/Downloads for recent .zip files (last 24h) that contain clip videos
+    if (downloadsDir && fs.existsSync(downloadsDir)) {
+      const nowMs = Date.now();
+      for (const entry of fs.readdirSync(downloadsDir)) {
+        if (entry.startsWith('.') || !/\.zip$/i.test(entry)) continue;
+        const fullZip = path.join(downloadsDir, entry);
+        try {
+          const st = fs.statSync(fullZip);
+          if (!st.isFile() || nowMs - st.mtimeMs > 24 * 3600 * 1000) continue;
+          const listOut = execSync(`unzip -l "${fullZip.replace(/"/g, '\\"')}"`, {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          });
+          const hasClipVideos =
+            /\.(mp4|mov|webm)/i.test(listOut) &&
+            (/(?:^|\s|\/)(?:0*\d+_|clip|video|create_a_video)/i.test(listOut) ||
+              /flow/i.test(entry));
+          if (hasClipVideos) {
+            zipCandidates.push(fullZip);
+          }
+        } catch {}
+      }
+    }
+
+    for (const zipFull of zipCandidates) {
+      if (!fs.existsSync(zipFull)) continue;
+      const tmpUnzipDir = path.join(
+        os.tmpdir(),
+        `huellas_unzip_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+      );
+      try {
+        activeClipsPipelineStatus.message = `Descomprimiendo ${path.basename(zipFull)}...`;
+        fs.mkdirSync(tmpUnzipDir, { recursive: true });
+        execSync(`unzip -o -j "${zipFull.replace(/"/g, '\\"')}" -d "${tmpUnzipDir}"`, {
+          stdio: 'ignore',
+        });
+        for (const extracted of fs.readdirSync(tmpUnzipDir)) {
+          if (extracted.startsWith('.') || extracted.startsWith('__MACOSX')) continue;
+          if (/\.(mp4|mov|webm)$/i.test(extracted)) {
+            const srcFile = path.join(tmpUnzipDir, extracted);
+            const destFile = path.join(clipsDir, extracted);
+            fs.copyFileSync(srcFile, destFile);
+            activeClipsPipelineStatus.importedFilesCount++;
+          }
+        }
+        // Delete the .zip file immediately after extraction as requested
+        fs.unlinkSync(zipFull);
+        activeClipsPipelineStatus.extractedZipsCount++;
+      } catch (e) {
+        console.warn('[ClipsPipeline] Warning extracting zip:', zipFull, e);
+      } finally {
+        try {
+          if (fs.existsSync(tmpUnzipDir)) {
+            fs.rmSync(tmpUnzipDir, { recursive: true, force: true });
+          }
+        } catch {}
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // STEP 2: LOCATE LOOSE CLIP VIDEOS IN resolvedRoot OR ~/Downloads (RECENT) AND MOVE TO 05_Clips_Video
+    // ------------------------------------------------------------------------
+    activeClipsPipelineStatus.phase = 'locating';
+    if (fs.existsSync(resolvedRoot)) {
+      for (const entry of fs.readdirSync(resolvedRoot)) {
+        if (entry.startsWith('.') || !/\.(mp4|mov|webm)$/i.test(entry)) continue;
+        if (/^Documental_|_Master|_Final/i.test(entry)) continue;
+        const fullSrc = path.join(resolvedRoot, entry);
+        try {
+          if (fs.statSync(fullSrc).isFile()) {
+            const dest = path.join(clipsDir, entry);
+            fs.renameSync(fullSrc, dest);
+            activeClipsPipelineStatus.importedFilesCount++;
+          }
+        } catch {}
+      }
+    }
+
+    if (downloadsDir && fs.existsSync(downloadsDir) && clipsList.length > 0) {
+      const nowMs = Date.now();
+      for (const entry of fs.readdirSync(downloadsDir)) {
+        if (entry.startsWith('.') || !/\.(mp4|mov|webm)$/i.test(entry)) continue;
+        if (/^Documental_|_Master|_Final/i.test(entry)) continue;
+        const fullDl = path.join(downloadsDir, entry);
+        try {
+          const st = fs.statSync(fullDl);
+          if (!st.isFile() || nowMs - st.mtimeMs > 12 * 3600 * 1000) continue;
+          const inferredNum = inferClipNumberFromFileName(entry, clipsList);
+          if (inferredNum > 0) {
+            // Verify word overlap with this documentary's clip so we only import clips belonging to this project
+            const targetClip = clipsList.find((c: any) => Number(c.clipNumber) === inferredNum);
+            if (targetClip) {
+              const fileToks = normalizeWordTokensForMatch(entry);
+              const clipToks = normalizeWordTokensForMatch(
+                `${targetClip.narrationSegment || ''} ${targetClip.videoPrompt || ''}`
+              );
+              const overlap = fileToks.filter((t) => clipToks.includes(t)).length;
+              if (overlap >= 2) {
+                const dest = path.join(clipsDir, entry);
+                fs.copyFileSync(fullDl, dest);
+                fs.unlinkSync(fullDl);
+                activeClipsPipelineStatus.importedFilesCount++;
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // STEP 3: NORMALIZE FILENAMES IN 05_Clips_Video (01 to 09 zero-padded, _ between words)
+    // ------------------------------------------------------------------------
+    activeClipsPipelineStatus.phase = 'normalizing';
+    activeClipsPipelineStatus.message = 'Normalizando numeración y nombres de clips...';
+    if (fs.existsSync(clipsDir)) {
+      for (const entry of fs.readdirSync(clipsDir)) {
+        if (entry.startsWith('.') || /\.tmp\.(mp4|mov|webm)$/i.test(entry)) continue;
+        if (!/\.(mp4|mov|webm)$/i.test(entry)) continue;
+        const fullOrig = path.join(clipsDir, entry);
+        let st: fs.Stats;
+        try {
+          st = fs.statSync(fullOrig);
+        } catch {
+          continue;
+        }
+        if (!st.isFile()) continue;
+
+        const clipNum = inferClipNumberFromFileName(entry, clipsList);
+        if (clipNum > 0) {
+          const isAlready4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(entry);
+          const ext = path.extname(entry);
+          let rawBase = path.basename(entry, ext).replace(/[_\-]4k$/i, '');
+          // Strip leading Clip_01 / 01_ prefix so we can re-prefix cleanly with 2-digit pad
+          rawBase = rawBase
+            .replace(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+            .replace(/\s+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+          if (!rawBase) {
+            rawBase = 'Clip';
+          }
+          const numPrefix = String(clipNum).padStart(2, '0');
+          const normalizedName = `${numPrefix}_${rawBase}${isAlready4k ? '_4K' : ''}${ext}`;
+          if (normalizedName !== entry) {
+            const fullNormalized = path.join(clipsDir, normalizedName);
+            if (!fs.existsSync(fullNormalized)) {
+              try {
+                fs.renameSync(fullOrig, fullNormalized);
+              } catch {}
+            }
+          }
+        }
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // STEP 4: UPSCALE ALL NON-4K VIDEOS TO 4K (_4K.mp4) AND DELETE OLD ORIGINALS
+    // ------------------------------------------------------------------------
+    activeClipsPipelineStatus.phase = 'upscaling_4k';
+    const allVideoEntries = fs.existsSync(clipsDir)
+      ? fs
+          .readdirSync(clipsDir)
+          .filter(
+            (e) =>
+              !e.startsWith('.') &&
+              !/\.tmp\.(mp4|mov|webm)$/i.test(e) &&
+              /\.(mp4|mov|webm)$/i.test(e)
+          )
+      : [];
+
+    // Separate files that already have _4K vs files that need 4K conversion
+    const pendingUpscaleFiles: string[] = [];
+    for (const entry of allVideoEntries) {
+      if (/[_\-]4k\.(mp4|mov|webm)$/i.test(entry)) {
+        activeClipsPipelineStatus.already4kCount++;
+      } else {
+        pendingUpscaleFiles.push(entry);
+      }
+    }
+
+    // Sort pending files by clip number
+    pendingUpscaleFiles.sort((a, b) => {
+      const na = inferClipNumberFromFileName(a, clipsList) || 9999;
+      const nb = inferClipNumberFromFileName(b, clipsList) || 9999;
+      return na - nb;
+    });
+
+    activeClipsPipelineStatus.total = pendingUpscaleFiles.length;
+    activeClipsPipelineStatus.current = 0;
+
+    // Process with concurrency = 2 for fast hardware-accelerated 4K conversion on Mac
+    let nextIdx = 0;
+    const workerCount = Math.min(2, pendingUpscaleFiles.length);
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIdx < pendingUpscaleFiles.length) {
+        const myIdx = nextIdx++;
+        const entry = pendingUpscaleFiles[myIdx];
+        const srcFull = path.join(clipsDir, entry);
+        if (!fs.existsSync(srcFull)) continue;
+
+        const baseNoExt = path.basename(entry, path.extname(entry)).replace(/[_\-]4k$/i, '');
+        const final4kName = `${baseNoExt}_4K.mp4`;
+        const final4kFull = path.join(clipsDir, final4kName);
+        const tmp4kFull = path.join(
+          clipsDir,
+          `.${baseNoExt}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.tmp.mp4`
+        );
+
+        activeClipsPipelineStatus.currentFileName = entry;
+        activeClipsPipelineStatus.message = `Mejorando a 4K (${activeClipsPipelineStatus.current + 1}/${activeClipsPipelineStatus.total}): ${entry}`;
+
+        try {
+          await upscaleFileTo4KOnDisk(srcFull, tmp4kFull, aspectRatio);
+          if (fs.existsSync(tmp4kFull) && fs.statSync(tmp4kFull).size > 10000) {
+            // Remove any older 4K file for the same clip number before placing the new _4K.mp4
+            const clipNum = inferClipNumberFromFileName(entry, clipsList);
+            if (clipNum > 0) {
+              const prefix = `${String(clipNum).padStart(2, '0')}_`;
+              for (const existing of fs.readdirSync(clipsDir)) {
+                if (
+                  existing.startsWith(prefix) &&
+                  /[_\-]4k\.(mp4|mov|webm)$/i.test(existing) &&
+                  existing !== path.basename(tmp4kFull)
+                ) {
+                  try {
+                    fs.unlinkSync(path.join(clipsDir, existing));
+                  } catch {}
+                }
+              }
+            }
+            fs.renameSync(tmp4kFull, final4kFull);
+            // Delete the original non-4K video file so only the _4K.mp4 remains
+            if (fs.existsSync(srcFull) && path.resolve(srcFull) !== path.resolve(final4kFull)) {
+              fs.unlinkSync(srcFull);
+            }
+            activeClipsPipelineStatus.upscaled4kCount++;
+          }
+        } catch (err) {
+          console.warn(`[ClipsPipeline] Error upscaling ${entry} to 4K:`, err);
+        } finally {
+          try {
+            if (fs.existsSync(tmp4kFull)) fs.unlinkSync(tmp4kFull);
+          } catch {}
+          activeClipsPipelineStatus.current++;
+        }
+      }
+    });
+
+    await Promise.all(workers);
+
+    // ------------------------------------------------------------------------
+    // STEP 5: COLLECT FINAL 4K CLIPS LIST FOR STAGE 8 & VIDEO EDITOR TIMELINE
+    // ------------------------------------------------------------------------
+    const clipVideos: Array<{ clipNumber: number; fileName: string; url: string; is4K: boolean }> = [];
+    const seenClips = new Set<number>();
+    if (fs.existsSync(clipsDir)) {
+      const finalEntries = fs
+        .readdirSync(clipsDir)
+        .filter(
+          (e) =>
+            !e.startsWith('.') &&
+            !/\.tmp\.(mp4|mov|webm)$/i.test(e) &&
+            /\.(mp4|mov|webm)$/i.test(e)
+        )
+        .sort((a, b) => {
+          const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+          const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+          if (b4k !== a4k) return b4k - a4k;
+          try {
+            return (
+              fs.statSync(path.join(clipsDir, b)).mtimeMs -
+              fs.statSync(path.join(clipsDir, a)).mtimeMs
+            );
+          } catch {
+            return 0;
+          }
+        });
+
+      for (const entry of finalEntries) {
+        const full = path.join(clipsDir, entry);
+        const st = fs.statSync(full);
+        if (!st.isFile()) continue;
+        const mVid = entry.match(/^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
+        if (mVid) {
+          const num = parseInt(mVid[1], 10);
+          if (num > 0 && !seenClips.has(num)) {
+            seenClips.add(num);
+            clipVideos.push({
+              clipNumber: num,
+              fileName: entry,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
+              is4K: /[_\-]4k\.(mp4|webm|mov)$/i.test(entry),
+            });
+          }
+        }
+      }
+    }
+
+    clipVideos.sort((a, b) => a.clipNumber - b.clipNumber);
+
+    activeClipsPipelineStatus = {
+      ...activeClipsPipelineStatus,
+      running: false,
+      phase: 'completed',
+      currentFileName: '',
+      message: `Proceso completado: ${activeClipsPipelineStatus.upscaled4kCount} convertidos a 4K, ${activeClipsPipelineStatus.already4kCount} ya en 4K (${clipVideos.length} listos en el Timeline).`,
+      completedAt: new Date().toISOString(),
+    };
+
+    res.json({
+      ok: true,
+      resolvedRoot,
+      clipVideos,
+      extractedZipsCount: activeClipsPipelineStatus.extractedZipsCount,
+      importedFilesCount: activeClipsPipelineStatus.importedFilesCount,
+      upscaled4kCount: activeClipsPipelineStatus.upscaled4kCount,
+      already4kCount: activeClipsPipelineStatus.already4kCount,
+      message: activeClipsPipelineStatus.message,
+    });
+  } catch (err: any) {
+    activeClipsPipelineStatus = {
+      ...activeClipsPipelineStatus,
+      running: false,
+      phase: 'error',
+      error: err?.message || 'Error procesando clips a 4K.',
+      message: err?.message || 'Error procesando clips a 4K.',
+    };
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error procesando clips a 4K.',
+    });
   }
 });
 

@@ -637,7 +637,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
-  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(true);
+  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
 
   // Voiceover Track (Track 4) — Always starts at 8s (when Hook Text fades out at 00:08)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
@@ -1027,7 +1027,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return {
         id: c.id || `tl-clip-${c.clipNumber}`,
         clipNumber: c.clipNumber,
-        fileName: buildClipSixWordFileName(c, activeDoc),
+        fileName: c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc),
         narrationSegment: c.narrationSegment || '',
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
