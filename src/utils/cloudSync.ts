@@ -796,11 +796,31 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextCorrectedSrt = '';
   }
 
+  const normalizeEngineRefs = (text?: string): string => {
+    if (typeof text !== 'string' || !text) return text || '';
+    return text
+      .replace(
+        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos/gi,
+        'Usa Veo 3.1 - Lite [Lower Priority] para videos'
+      )
+      .replace(/\bOmni\s*(?:1\.1\s*)?Flash\b/gi, 'Veo 3.1 - Lite [Lower Priority]');
+  };
+
+  const nextOperationalHeader = normalizeEngineRefs(doc.operationalHeader);
+  nextRawClipsText = normalizeEngineRefs(nextRawClipsText);
+  const nextRawReferencePrompts = normalizeEngineRefs(doc.rawReferencePrompts);
+  const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
+  const nextFlowVideoEngine = 'VEO_3_1_LITE_LOWER_PRIORITY' as const;
+
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
     audioTracks !== doc.audioTracks ||
     nextClips !== doc.clips ||
     nextRawClipsText !== doc.rawClipsText ||
+    nextOperationalHeader !== (doc.operationalHeader || '') ||
+    nextRawReferencePrompts !== (doc.rawReferencePrompts || '') ||
+    nextCompiledMasterPrompt !== (doc.compiledMasterPrompt || '') ||
+    nextFlowVideoEngine !== doc.flowVideoEngine ||
     nextClip1Line1 !== (doc.clip1Line1LocationTime || '') ||
     nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
     nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '') ||
@@ -814,6 +834,10 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       audioTracks,
       clips: nextClips,
       rawClipsText: nextRawClipsText,
+      operationalHeader: nextOperationalHeader || doc.operationalHeader,
+      rawReferencePrompts: nextRawReferencePrompts || doc.rawReferencePrompts,
+      compiledMasterPrompt: nextCompiledMasterPrompt || doc.compiledMasterPrompt,
+      flowVideoEngine: nextFlowVideoEngine,
       clip1Line1LocationTime: nextClip1Line1,
       clip1Line2Hook: nextClip1Line2,
       clip1OptionsRaw: nextClip1OptionsRaw,
@@ -1454,7 +1478,7 @@ REGLAS INQUEBRANTABLES DE LA ETAPA 7:
             .join(', ')
         : 'Usar personajes y lugares del guion';
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Veo 3.1 - Lite [Lower Priority]) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
 Referencias visuales obligatorias (@Personas y Lugares de Etapa 6): ${refsListText}.
 Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.
 Timeline de la Voz Narrativa:

@@ -5315,7 +5315,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         navigator.clipboard.writeText(
                           "Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
                         );
-                        setStatusMessage('📋 Prompt de Video del Intro Oficial 4s (Omni Flash) copiado.');
+                        setStatusMessage('📋 Prompt de Video del Intro Oficial 4s (Veo 3.1 - Lite [Lower Priority]) copiado.');
                       }}
                       className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
                     >

@@ -1863,7 +1863,7 @@ REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mi
     } else if (stageNumber === 8) {
       const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Omni Flash) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Veo 3.1 - Lite [Lower Priority]) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
 Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
 Sincronización de Clip 1 y Entrada de Voz: ${
         doc.clip1SyncMode === 'VOZ_EN_CLIP_2'

@@ -117,7 +117,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:06 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:13 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -196,15 +196,14 @@ function resolveSubfolderForDocumentaryAsset(
 
 function applyFlowVideoEngineToDirectiveText(
   text: string,
-  engine: 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH'
+  _engine: 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH' = 'VEO_3_1_LITE_LOWER_PRIORITY'
 ): string {
-  const engineLabel =
-    engine === 'OMNI_1_1_FLASH' ? 'Omni 1.1 Flash' : 'Veo 3.1 - Lite [Lower Priority]';
+  const engineLabel = 'Veo 3.1 - Lite [Lower Priority]';
   const targetLine = `Usa ${engineLabel} para videos y nano banana 2.1 para imágenes iniciales de cada clip.`;
   const src = String(text || '').trim();
   if (!src) return targetLine;
   const lineRegex =
-    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
+    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
   if (lineRegex.test(src)) {
     return src.replace(lineRegex, targetLine);
   }
@@ -9761,7 +9760,7 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Selector de Motor de Video para Google Flow Agent (Veo 3.1 - Lite [Lower Priority] por defecto vs Omni 1.1 Flash) */}
+                      {/* Motor de Video para Google Flow Agent (Veo 3.1 - Lite [Lower Priority]) */}
                       <div className="bg-slate-950/90 border border-purple-500/30 rounded-xl p-2 flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[11px] font-bold text-slate-300">
                           🎬 Motor de Video en Prompts:
@@ -9773,15 +9772,9 @@ export default function App() {
                                 id: 'VEO_3_1_LITE_LOWER_PRIORITY' as const,
                                 label: 'Veo 3.1 - Lite [Lower Priority]',
                               },
-                              {
-                                id: 'OMNI_1_1_FLASH' as const,
-                                label: 'Omni 1.1 Flash',
-                              },
                             ] as const
                           ).map((eng) => {
-                            const currentEngine =
-                              activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
-                            const isSelected = currentEngine === eng.id;
+                            const isSelected = true;
                             return (
                               <button
                                 key={eng.id}
@@ -11173,7 +11166,7 @@ export default function App() {
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1.5">
                                   <span className="text-xs font-semibold text-emerald-300">
-                                    🎬 Prompt de Video (Omni Flash + Foley)
+                                    🎬 Prompt de Video (Veo 3.1 - Lite [Lower Priority] + Foley)
                                   </span>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <button
