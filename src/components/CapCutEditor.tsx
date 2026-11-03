@@ -1779,11 +1779,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const effectiveVoiceoverUrl = useMemo(() => {
     const norm = (u?: string) => {
       if (!u || typeof u !== 'string') return '';
-      const t = u.trim();
+      let t = u.trim();
       if (/^\/?tts-files\/(.+)\.wav$/i.test(t)) {
-        return t.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
+        t = t.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
       }
-      if (t.startsWith('/tts-files/')) return t.slice(1);
+      if (t.startsWith('/tts-files/')) t = t.slice(1);
+      if (
+        (t.includes('tts-video-76-exodo-espanol') ||
+          t.includes('Voz_Narrativa_Master_Video_76_Exodo_Espanol_Transatlantico')) &&
+        !t.includes('v=leveled_v1')
+      ) {
+        t += (t.includes('?') ? '&' : '?') + 'v=leveled_v1';
+      }
       return t;
     };
 
@@ -1802,7 +1809,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       combinedText.includes('exodo espanol') ||
       combinedText.includes('maliaño, santander')
     ) {
-      return 'tts-files/tts-video-76-exodo-espanol.mp3';
+      return 'tts-files/tts-video-76-exodo-espanol.mp3?v=leveled_v1';
     }
     if (
       combinedText.includes('74') ||

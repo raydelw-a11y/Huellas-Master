@@ -1463,11 +1463,43 @@ app.post('/api/tts/merge', async (req, res) => {
       pcmBuffers.push(extractPcmFromWav(fs.readFileSync(targetWavPath)));
     }
 
+    // Level active-speech RMS across all segments so no fragment sounds louder/quieter than the others
+    const computeActiveRms = (buf: Buffer): number => {
+      const n = Math.floor(buf.length / 2);
+      if (n === 0) return 0;
+      let sumSq = 0;
+      let activeCount = 0;
+      for (let i = 0; i < n; i++) {
+        const s = buf.readInt16LE(i * 2) / 32768;
+        if (Math.abs(s) > 0.015) {
+          sumSq += s * s;
+          activeCount++;
+        }
+      }
+      return activeCount > 100 ? Math.sqrt(sumSq / activeCount) : 0;
+    };
+    const rmsList = pcmBuffers.map(computeActiveRms).filter((r) => r > 0.01);
+    const sortedRms = [...rmsList].sort((a, b) => a - b);
+    const targetRms =
+      sortedRms.length > 0 ? sortedRms[Math.floor(sortedRms.length / 2)] : 0.11;
+
     const pauseSamples = Math.round(24000 * 0.25);
     const silenceBuffer = Buffer.alloc(pauseSamples * 2);
     const combinedChunks: Buffer[] = [];
     pcmBuffers.forEach((b, idx) => {
-      combinedChunks.push(applyMicroFade(b, 240));
+      const segRms = computeActiveRms(b);
+      let leveledBuf = Buffer.from(b);
+      if (segRms > 0.01 && targetRms > 0.01) {
+        const gain = Math.max(0.35, Math.min(2.2, targetRms / segRms));
+        if (Math.abs(gain - 1) > 0.05) {
+          const n = Math.floor(leveledBuf.length / 2);
+          for (let i = 0; i < n; i++) {
+            const v = Math.round(leveledBuf.readInt16LE(i * 2) * gain);
+            leveledBuf.writeInt16LE(Math.max(-32767, Math.min(32767, v)), i * 2);
+          }
+        }
+      }
+      combinedChunks.push(applyMicroFade(leveledBuf, 240));
       if (idx < pcmBuffers.length - 1) combinedChunks.push(silenceBuffer);
     });
 
