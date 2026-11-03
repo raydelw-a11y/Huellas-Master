@@ -2925,33 +2925,107 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
+      // Check if an Optical Flow baked file already exists for this clip segment
+      if (c.opticalFlowUrl && typeof c.opticalFlowUrl === 'string') {
+        try {
+          const parsedOpt = new URL(c.opticalFlowUrl, 'http://localhost:4200');
+          const optFile = parsedOpt.searchParams.get('filePath');
+          if (optFile && fs.existsSync(optFile)) {
+            sourceMp4 = optFile;
+          }
+        } catch {}
+      }
+      if (!sourceMp4 && c.videoUrl && typeof c.videoUrl === 'string') {
+        try {
+          const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
+          const vidFile = parsedVid.searchParams.get('filePath');
+          if (vidFile && fs.existsSync(vidFile)) {
+            sourceMp4 = vidFile;
+          }
+        } catch {}
+      }
+
       if (!sourceMp4 || !fs.existsSync(sourceMp4)) continue;
 
       // Normalize each segment with FFmpeg so concat is 100% glitch-free
+      const ffmpegBin = resolveFfmpegBin();
       const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.mp4`);
-      const speed = Number(c.speed) > 0 ? Number(c.speed) : 1;
-      const ptsFactor = (1 / speed).toFixed(3);
+      const usingPrebakedOpticalFlow =
+        Boolean(c.opticalFlowUrl) && sourceMp4.includes('.optical_flow_cache');
+      const speed = usingPrebakedOpticalFlow
+        ? 1
+        : Number(c.speed) > 0
+        ? Number(c.speed)
+        : 1;
+      const trimStartSec = usingPrebakedOpticalFlow
+        ? 0
+        : Math.max(0, Number(c.trimStart || 0));
+      const trimEndSec = usingPrebakedOpticalFlow
+        ? 0
+        : Number(c.trimEnd || 0) > trimStartSec
+        ? Number(c.trimEnd)
+        : 0;
+      const smoothSlowMo =
+        c.smoothSlowMo !== undefined ? Boolean(c.smoothSlowMo) : speed < 0.99;
+      const ptsFactor = (1 / speed).toFixed(4);
       const foleyVol = typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.35;
       const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
+      const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
       const isFirstClipAfterIntro =
         !isIntroClip &&
+        !isOutroClip &&
         (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
 
       const vfFadeSuffix = isFirstClipAfterIntro
         ? ',fade=t=in:st=0:d=1.2'
         : isIntroClip
-        ? ',fade=t=out:st=7.2:d=0.8'
+        ? ',fade=t=in:st=0:d=0.6,fade=t=out:st=7.2:d=0.8'
+        : isOutroClip
+        ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
         : '';
-      const vfFilter = `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p${vfFadeSuffix}`;
-      const afFilter = isFirstClipAfterIntro
-        ? `afade=t=in:st=0:d=1.2,volume=${foleyVol}`
-        : `volume=${foleyVol}`;
+      const slowMoInterpFilter =
+        !usingPrebakedOpticalFlow && speed < 0.99 && smoothSlowMo
+          ? ',minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none'
+          : ',fps=30';
+      const vfFilter = `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black${slowMoInterpFilter},format=yuv420p${vfFadeSuffix}`;
+      const buildAtempoChain = (spd: number): string => {
+        if (Math.abs(spd - 1) < 0.02) return '';
+        const stages: string[] = [];
+        let rem = Math.max(0.2, Math.min(4.0, spd));
+        while (rem < 0.5) {
+          stages.push('atempo=0.5');
+          rem /= 0.5;
+        }
+        while (rem > 2.0) {
+          stages.push('atempo=2.0');
+          rem /= 2.0;
+        }
+        stages.push(`atempo=${rem.toFixed(3)}`);
+        return `${stages.join(',')},`;
+      };
+      const atempoPrefix = buildAtempoChain(speed);
+      const afFilter = isIntroClip
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=6.2:d=1.8,volume=${foleyVol}`
+        : isOutroClip
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=5.5:d=2.5,volume=${foleyVol}`
+        : isFirstClipAfterIntro
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.2,volume=${foleyVol}`
+        : `${atempoPrefix}volume=${foleyVol}`;
+
+      const inputTrimArgs: string[] = [];
+      if (trimStartSec > 0.01) {
+        inputTrimArgs.push('-ss', trimStartSec.toFixed(3));
+      }
+      if (trimEndSec > trimStartSec + 0.05) {
+        inputTrimArgs.push('-to', trimEndSec.toFixed(3));
+      }
 
       await new Promise<void>((resolve, reject) => {
         execFile(
-          'ffmpeg',
+          ffmpegBin,
           [
             '-y',
+            ...inputTrimArgs,
             '-i',
             sourceMp4,
             '-vf',
@@ -2977,9 +3051,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             if (err) {
               // Retry without audio filter if source clip had no audio stream
               execFile(
-                'ffmpeg',
+                ffmpegBin,
                 [
                   '-y',
+                  ...inputTrimArgs,
                   '-i',
                   sourceMp4,
                   '-f',

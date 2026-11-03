@@ -1687,16 +1687,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
     const introVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Intro.mp4`
-    )}&v=8k_native`;
+    )}&v=8k_audio_fade`;
     const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Intro_Poster.jpg`
-    )}&v=8k_native`;
+    )}&v=8k_audio_fade`;
     const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Outro.mp4`
-    )}&v=8k_native`;
+    )}&v=8k_audio_fade`;
     const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Outro_Poster.jpg`
-    )}&v=8k_native`;
+    )}&v=8k_audio_fade`;
 
     // 1. Build Clips Track (Track 3)
     const allDocClips = activeDoc.clips || [];
@@ -1807,7 +1807,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       id: 'fixed-doc-intro',
       clipNumber: 0,
       fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
-      narrationSegment: '🎬 INTRO OFICIAL (00:00 - 00:08) — Huellas de la Humanidad (8K)',
+      narrationSegment:
+        '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
       duration: FIXED_INTRO_SEC,
       sourceDuration: FIXED_INTRO_SEC,
       speed: 1,
@@ -1824,7 +1825,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       clipNumber: 999,
       fileName: 'Outro_Huellas_de_la_Humanidad_8K_FadeOut.mp4',
       narrationSegment:
-        '🎬 OUTRO OFICIAL (8s • Crossfade + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
+        '🎬 OUTRO OFICIAL (8s • Crossfade + Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
       duration: FIXED_OUTRO_SEC,
       sourceDuration: FIXED_OUTRO_SEC,
       speed: 1,
@@ -2781,15 +2782,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       activeClipAtPlayhead.id === 'fixed-doc-intro' ||
       activeClipAtPlayhead.clipNumber === 0
     ) {
-      return 100;
+      const baseIntroVol =
+        typeof activeClipAtPlayhead.foleyVolume === 'number'
+          ? activeClipAtPlayhead.foleyVolume
+          : 100;
+      const elapsed = Math.max(0, currentTime - activeClipAtPlayhead.start);
+      const remaining = Math.max(0, activeClipAtPlayhead.end - currentTime);
+      const fadeInSec = 1.5;
+      const fadeOutSec = 1.8;
+      const fadeInFactor = elapsed < fadeInSec ? Math.max(0, elapsed / fadeInSec) : 1;
+      const fadeOutFactor = remaining < fadeOutSec ? Math.max(0, remaining / fadeOutSec) : 1;
+      return Math.round(baseIntroVol * Math.min(fadeInFactor, fadeOutFactor));
     }
     if (
       activeClipAtPlayhead.id === 'fixed-doc-outro' ||
       activeClipAtPlayhead.clipNumber === 999
     ) {
+      const baseOutroVol =
+        typeof activeClipAtPlayhead.foleyVolume === 'number'
+          ? activeClipAtPlayhead.foleyVolume
+          : 100;
+      const elapsed = Math.max(0, currentTime - activeClipAtPlayhead.start);
       const remaining = Math.max(0, activeClipAtPlayhead.end - currentTime);
-      const fadeOutFactor = remaining < 2.5 ? Math.max(0, remaining / 2.5) : 1;
-      return Math.round(100 * fadeOutFactor);
+      const fadeInSec = 1.5;
+      const fadeOutSec = 2.5;
+      const fadeInFactor = elapsed < fadeInSec ? Math.max(0, elapsed / fadeInSec) : 1;
+      const fadeOutFactor = remaining < fadeOutSec ? Math.max(0, remaining / fadeOutSec) : 1;
+      return Math.round(baseOutroVol * Math.min(fadeInFactor, fadeOutFactor));
     }
     const baseFoleyVol = !autoDuckingEnabled
       ? activeClipAtPlayhead.foleyVolume
@@ -7350,9 +7369,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               >
                                 {isCurrent ? '▶ ' : ''}
                                 {clip.clipNumber === 0
-                                  ? '🎬 INTRO 8K'
+                                  ? '🎬 INTRO 8K (Fade In/Out)'
                                   : clip.clipNumber === 999
-                                  ? '🎬 OUTRO 8K (Fade Out)'
+                                  ? '🎬 OUTRO 8K (Fade In/Out)'
                                   : `#${String(idx + 1).padStart(2, '0')} (C${String(clip.clipNumber).padStart(2, '0')})`}
                                 {clip.reviewedForEditor && (
                                   <span title="Revisado y enviado desde Etapa 8">✅</span>
@@ -7396,7 +7415,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               <span>
                                 {clip.duration}s • {clip.speed}x
                               </span>
-                              <span>Foley {clip.foleyVolume}%</span>
+                              <span>
+                                {clip.clipNumber === 0 || clip.clipNumber === 999
+                                  ? `Audio Fade In/Out • ${clip.foleyVolume}%`
+                                  : `Foley ${clip.foleyVolume}%`}
+                              </span>
                             </div>
                           </>
                         )}
