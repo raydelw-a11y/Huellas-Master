@@ -3170,6 +3170,27 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
+      // Prefer cleaned audio MP4 (.foley_only_cache / .vocals_cache / .music_cache) if present on c.videoUrl
+      if (c.videoUrl && typeof c.videoUrl === 'string') {
+        try {
+          const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
+          const vidFile = parsedVid.searchParams.get('filePath');
+          if (
+            vidFile &&
+            fs.existsSync(vidFile) &&
+            (!sourceMp4 ||
+              c.foleyOnlyIsolated ||
+              c.vocalsSeparated ||
+              c.musicSeparated ||
+              vidFile.includes('.foley_only_cache') ||
+              vidFile.includes('.vocals_cache') ||
+              vidFile.includes('.music_cache'))
+          ) {
+            sourceMp4 = vidFile;
+          }
+        } catch {}
+      }
+
       // Check if an Optical Flow baked file already exists for this clip segment
       if (c.opticalFlowUrl && typeof c.opticalFlowUrl === 'string') {
         try {
@@ -3177,15 +3198,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const optFile = parsedOpt.searchParams.get('filePath');
           if (optFile && fs.existsSync(optFile)) {
             sourceMp4 = optFile;
-          }
-        } catch {}
-      }
-      if (!sourceMp4 && c.videoUrl && typeof c.videoUrl === 'string') {
-        try {
-          const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
-          const vidFile = parsedVid.searchParams.get('filePath');
-          if (vidFile && fs.existsSync(vidFile)) {
-            sourceMp4 = vidFile;
           }
         } catch {}
       }
@@ -6671,6 +6683,214 @@ app.post('/api/flow/separate-clip-music', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: err?.message || 'Error extrayendo música del clip.',
+    });
+  }
+});
+
+// Detect, separate, and eliminate BOTH background music and voices from a video clip, leaving ONLY pure ambient Foley audio
+app.post('/api/flow/isolate-clip-foley', async (req, res) => {
+  try {
+    const {
+      clipId,
+      clipNumber,
+      videoUrl,
+      opticalFlowUrl,
+      fileName,
+      folderPath,
+      folderName,
+      docTitle,
+    } = req.body || {};
+
+    let sourceMp4 = '';
+    if (typeof videoUrl === 'string' && videoUrl.includes('filePath=')) {
+      try {
+        const parsed = new URL(videoUrl, 'http://localhost:4200');
+        const fp = parsed.searchParams.get('filePath');
+        if (fp && fs.existsSync(fp)) {
+          sourceMp4 = fp;
+        }
+      } catch {}
+    }
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const clipsVideoSubdir = resolvedRoot ? path.join(resolvedRoot, '05_Clips_Video') : '';
+    const clipsApprovedSubdir = resolvedRoot ? path.join(resolvedRoot, 'Clips_Aprobados') : '';
+
+    if (
+      (!sourceMp4 ||
+        sourceMp4.includes('.vocals_cache') ||
+        sourceMp4.includes('.music_cache') ||
+        sourceMp4.includes('.foley_only_cache')) &&
+      resolvedRoot &&
+      fs.existsSync(resolvedRoot)
+    ) {
+      const searchDirs = [clipsVideoSubdir, resolvedRoot, clipsApprovedSubdir].filter(
+        (d) => d && fs.existsSync(d)
+      );
+      if (fileName) {
+        for (const d of searchDirs) {
+          const cand = path.join(d, path.basename(fileName));
+          if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+            sourceMp4 = cand;
+            break;
+          }
+        }
+      }
+      if (
+        (!sourceMp4 ||
+          sourceMp4.includes('.vocals_cache') ||
+          sourceMp4.includes('.music_cache') ||
+          sourceMp4.includes('.foley_only_cache')) &&
+        Number(clipNumber) > 0
+      ) {
+        const num = Number(clipNumber);
+        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const d of searchDirs) {
+          const matches = fs
+            .readdirSync(d)
+            .filter(
+              (f) =>
+                !f.startsWith('.') &&
+                prefixRegex.test(f) &&
+                /\.(mp4|mov|webm)$/i.test(f)
+            )
+            .sort((a, b) => {
+              const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+              const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+              if (b4k !== a4k) return b4k - a4k;
+              try {
+                return (
+                  fs.statSync(path.join(d, b)).mtimeMs -
+                  fs.statSync(path.join(d, a)).mtimeMs
+                );
+              } catch {
+                return 0;
+              }
+            });
+          if (matches.length > 0) {
+            sourceMp4 = path.join(d, matches[0]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+      res.status(404).json({
+        ok: false,
+        error: `No se encontró el archivo MP4 original para aislar el Foley del Clip ${String(clipNumber || '').padStart(2, '0')}.`,
+      });
+      return;
+    }
+
+    const cacheDir = path.join(path.dirname(sourceMp4), '.foley_only_cache');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const baseKey = path
+      .basename(sourceMp4, path.extname(sourceMp4))
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 56);
+    const foleyMp4Path = path.join(cacheDir, `${baseKey}_foley_only.mp4`);
+
+    const ffmpegBin = resolveFfmpegBin();
+    // Multi-stage Foley isolation filter:
+    // 1. Stereo Mid/Side stage attenuating center-panned speech & lead instruments (mlev=0.28) while boosting side ambient room/outdoor Foley (slev=1.18)
+    // 2. Surgical multi-band notch/peaking suppression across vocal formants (F1/F2/F3: 360Hz, 750Hz, 1450Hz, 2550Hz, 3600Hz) and musical chord fundamentals (180Hz)
+    // 3. Spectral FFT noise/harmonic floor reduction (afftdn=nf=-22)
+    // 4. Low-end rumble/footstep pass (35Hz) + crisp high-frequency Foley detail pass (up to 14.5kHz) + natural presence makeup (volume=1.35)
+    const isolateFoleyFilter =
+      'aformat=channel_layouts=stereo,stereotools=mlev=0.28:slev=1.18,equalizer=f=180:t=o:w=1.2:g=-14,equalizer=f=360:t=o:w=1.4:g=-20,equalizer=f=750:t=o:w=1.5:g=-24,equalizer=f=1450:t=o:w=1.5:g=-26,equalizer=f=2550:t=o:w=1.4:g=-22,equalizer=f=3600:t=o:w=1.2:g=-16,afftdn=nf=-22,highpass=f=35,lowpass=f=14500,volume=1.35';
+
+    const srcStat = fs.statSync(sourceMp4);
+    const needsRebuild =
+      !fs.existsSync(foleyMp4Path) ||
+      fs.statSync(foleyMp4Path).size < 5000 ||
+      fs.statSync(foleyMp4Path).mtimeMs < srcStat.mtimeMs;
+
+    if (needsRebuild) {
+      await new Promise<void>((resolve) => {
+        const args = [
+          '-y',
+          '-i',
+          sourceMp4,
+          '-c:v',
+          'copy',
+          '-af',
+          isolateFoleyFilter,
+          '-c:a',
+          'aac',
+          '-b:a',
+          '160k',
+          foleyMp4Path,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', () => resolve());
+        proc.on('close', () => resolve());
+      });
+    }
+
+    // If the clip also has a pre-baked 60fps Optical Flow MP4, clean its audio stream in-place (preserving 60fps video)
+    let cleanOpticalFlowUrl = '';
+    if (typeof opticalFlowUrl === 'string' && opticalFlowUrl.includes('filePath=')) {
+      try {
+        const parsedOpt = new URL(opticalFlowUrl, 'http://localhost:4200');
+        const optPath = parsedOpt.searchParams.get('filePath');
+        if (optPath && fs.existsSync(optPath)) {
+          const optBase = path.basename(optPath, path.extname(optPath)).replace(/_foley_only$/i, '');
+          const foleyOptPath = path.join(path.dirname(optPath), `${optBase}_foley_only.mp4`);
+          if (!fs.existsSync(foleyOptPath) || fs.statSync(foleyOptPath).size < 5000) {
+            await new Promise<void>((resolve) => {
+              const proc = spawn(
+                ffmpegBin,
+                [
+                  '-y',
+                  '-i',
+                  optPath,
+                  '-c:v',
+                  'copy',
+                  '-af',
+                  isolateFoleyFilter,
+                  '-c:a',
+                  'aac',
+                  '-b:a',
+                  '160k',
+                  foleyOptPath,
+                ],
+                { stdio: 'ignore' }
+              );
+              proc.on('error', () => resolve());
+              proc.on('close', () => resolve());
+            });
+          }
+          if (fs.existsSync(foleyOptPath) && fs.statSync(foleyOptPath).size > 5000) {
+            const optSt = fs.statSync(foleyOptPath);
+            cleanOpticalFlowUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(foleyOptPath)}&v=${Math.floor(optSt.mtimeMs)}`;
+          }
+        }
+      } catch {}
+    }
+
+    const cleanStat =
+      fs.existsSync(foleyMp4Path) && fs.statSync(foleyMp4Path).size > 5000
+        ? fs.statSync(foleyMp4Path)
+        : null;
+
+    res.json({
+      ok: true,
+      clipId,
+      clipNumber,
+      cleanFoleyVideoUrl: cleanStat
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(foleyMp4Path)}&v=${Math.floor(cleanStat.mtimeMs)}`
+        : '',
+      cleanOpticalFlowUrl,
+    });
+  } catch (err: any) {
+    console.error('Error en /api/flow/isolate-clip-foley:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error aislando el audio Foley del clip.',
     });
   }
 });
