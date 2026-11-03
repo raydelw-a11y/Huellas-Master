@@ -3856,6 +3856,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       da.activeSlot === 0 ? deckAVideoRef.current : deckBVideoRef.current;
     preloadNextVideoRef.current =
       da.activeSlot === 0 ? deckBVideoRef.current : deckAVideoRef.current;
+
+    if (preloadNextVideoRef.current) {
+      try {
+        preloadNextVideoRef.current.volume = 0;
+        preloadNextVideoRef.current.muted = true;
+      } catch {}
+    }
+    if (
+      previewVideoRef.current &&
+      (activeClipAtPlayhead?.audioMuted || (activeClipAtPlayhead?.foleyVolume ?? 0) <= 0)
+    ) {
+      try {
+        previewVideoRef.current.volume = 0;
+        previewVideoRef.current.muted = true;
+      } catch {}
+    }
   }
   const activeDeckSlot = deckAssignRef.current.activeSlot;
   const deckAUrl = deckAssignRef.current.slotUrls[0];
@@ -4335,6 +4351,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const standbyVid = preloadNextVideoRef.current;
     if (standbyVid) {
       try {
+        standbyVid.volume = 0;
         standbyVid.muted = true;
         standbyVid.pause();
       } catch {}
@@ -4357,8 +4374,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (vid.readyState >= 1) {
           vid.currentTime = clampedOffset;
         }
-        vid.muted = false;
-        vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+        const targetVol = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+        const shouldMute =
+          targetVol <= 0 ||
+          Boolean(activeClipAtPlayhead.audioMuted) ||
+          (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
+        vid.volume = shouldMute ? 0 : targetVol;
+        vid.muted = shouldMute;
         if (!reachedClipMediaEnd) {
           vid.play().catch(() => {});
         }
@@ -4875,8 +4897,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           vid.playbackRate = effectiveRate;
         } catch {}
       }
-      vid.muted = false;
-      vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+      const targetVol = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+      const shouldMute =
+        targetVol <= 0 ||
+        Boolean(activeClipAtPlayhead.audioMuted) ||
+        (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
+      vid.volume = shouldMute ? 0 : targetVol;
+      vid.muted = shouldMute;
       vid.style.opacity = '1';
 
       if (isClipSwitch || isManualSeek || !isPlaying) {
@@ -4886,6 +4913,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (isClipSwitch && standbyVid && standbyVid !== vid) {
           try {
             standbyVid.style.opacity = '0';
+            standbyVid.volume = 0;
             standbyVid.muted = true;
             if (!standbyVid.paused) {
               standbyVid.pause();
@@ -4924,6 +4952,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               );
               standbyVid.defaultPlaybackRate = nextSync.effectiveRate;
               standbyVid.playbackRate = nextSync.effectiveRate;
+              standbyVid.volume = 0;
               standbyVid.muted = true;
               if (Math.abs(standbyVid.currentTime - nextTrimStart) > 0.12) {
                 standbyVid.currentTime = nextTrimStart;
@@ -4933,6 +4962,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         } else if (timeToCut > 0.12 || !isPlaying) {
           try {
+            standbyVid.volume = 0;
             standbyVid.muted = true;
             if (!standbyVid.paused) {
               standbyVid.pause();
@@ -8520,7 +8550,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           pointerEvents: isDeckActive ? 'auto' : 'none',
                         }}
                         playsInline
-                        muted={!isDeckActive}
+                        muted={
+                          !isDeckActive ||
+                          effectiveFoleyVolumeAtPlayhead <= 0 ||
+                          Boolean(activeClipAtPlayhead?.audioMuted) ||
+                          (activeClipAtPlayhead?.foleyVolume ?? 0) <= 0
+                        }
                         preload={isEditorActive ? 'auto' : 'none'}
                         onLoadedMetadata={(e) => {
                           const vid = e.currentTarget;
@@ -8543,11 +8578,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               ) {
                                 vid.currentTime = clampedOffset;
                               }
-                              vid.muted = false;
-                              vid.volume = Math.min(
+                              const targetVol = Math.min(
                                 1,
                                 Math.max(0, effectiveFoleyVolumeAtPlayhead / 100)
                               );
+                              const shouldMute =
+                                targetVol <= 0 ||
+                                Boolean(activeClipAtPlayhead.audioMuted) ||
+                                (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
+                              vid.volume = shouldMute ? 0 : targetVol;
+                              vid.muted = shouldMute;
                               if (isPlaying && !reachedClipMediaEnd) {
                                 vid.play().catch(() => {});
                               }
@@ -8559,6 +8599,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               );
                               vid.defaultPlaybackRate = effectiveRate;
                               vid.playbackRate = effectiveRate;
+                              vid.volume = 0;
                               vid.muted = true;
                               const tStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
                               if (Math.abs(vid.currentTime - tStart) > 0.05) {
@@ -8567,6 +8608,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               if (!vid.paused) {
                                 vid.pause();
                               }
+                            } else {
+                              vid.volume = 0;
+                              vid.muted = true;
                             }
                           } catch {}
                         }}
