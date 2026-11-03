@@ -3240,8 +3240,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           '03_Miniaturas',
           'Logo_Huellas_de_la_Humanidad.png'
         );
+        const masterLogoCandidate =
+          '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/LOGO DEFINITIVO.png';
         if (fs.existsSync(diskLogoCandidate)) {
           rawLogoPath = diskLogoCandidate;
+        } else if (fs.existsSync(masterLogoCandidate)) {
+          rawLogoPath = masterLogoCandidate;
         }
       }
       if (rawLogoPath && fs.existsSync(rawLogoPath)) {
@@ -3713,25 +3717,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         if (assEvents.length > 0) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
           const capFontSizeAss = Math.round(outH * 0.037);
-          const capMarginV = Math.round(outH * 0.068);
+          const capMarginV = Math.round(outH * 0.11);
           const capWideMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0045));
           const capTightMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0025));
 
-          const hook1FontSizeAss = Math.round(outH * 0.03);
-          const hook2FontSizeAss = Math.round(outH * 0.046);
-          const hook1MarginV = Math.round(outH * 0.517);
+          const hook1FontSizeAss = Math.round(outH * 0.036);
+          const hook2FontSizeAss = Math.round(outH * 0.0574);
+          const hook1MarginV = Math.round(outH * 0.555);
           const hook1WideMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0045));
           const hook1TightMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0025));
-          const hook2MarginV = Math.round(outH * 0.454);
-          const hook2WideMarginV = Math.max(0, hook2MarginV - Math.round(outH * 0.005));
-          const hook2TightMarginV = Math.max(0, hook2MarginV - Math.round(outH * 0.0028));
+          // Alignment=8 (top-center): MarginV is measured from the top of the frame, so downward shadow offsets add to MarginV
+          const hook2MarginV = Math.round(outH * 0.463);
+          const hook2WideMarginV = hook2MarginV + Math.round(outH * 0.0055);
+          const hook2TightMarginV = hook2MarginV + Math.round(outH * 0.0028);
 
           const capWordOutline = Math.max(12, Math.round(outH * 0.0185));
           const capWideOutline = Math.max(1, Math.round(outH * 0.0018));
-          const hook1WideOutline = Math.max(1, Math.round(outH * 0.0018));
-          const hook2WideOutline = Math.max(2, Math.round(outH * 0.0023));
-          const hook1Spacing = Number((3 * blurScale).toFixed(1));
-          const hook2Spacing = Number((1.2 * blurScale).toFixed(1));
+          const hook1WideOutline = Math.max(1, Math.round(outH * 0.002));
+          const hook2WideOutline = Math.max(2, Math.round(outH * 0.0026));
+          const hook1Spacing = Number((3.5 * blurScale).toFixed(1));
+          const hook2Spacing = Number((1.5 * blurScale).toFixed(1));
 
           const assContent = [
             '[Script Info]',
@@ -3747,12 +3752,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             `Style: CaptionCinemaWide,Helvetica Neue,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
             `Style: CaptionCinemaTight,Helvetica Neue,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
             `Style: CaptionCrisp,Helvetica Neue,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
-            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1WideMarginV},1`,
-            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1TightMarginV},1`,
-            `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1MarginV},1`,
-            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2WideMarginV},1`,
-            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2TightMarginV},1`,
-            `Style: Hook2Crisp,Georgia,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2MarginV},1`,
+            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
+            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
+            `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1MarginV},1`,
+            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2WideMarginV},1`,
+            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2TightMarginV},1`,
+            `Style: Hook2Crisp,Georgia,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2MarginV},1`,
             '',
             '[Events]',
             'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
