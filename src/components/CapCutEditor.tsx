@@ -842,7 +842,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => initialOverlayStyles.hookShadowStyle || 'cinema'
   );
   const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>(
-    () => initialOverlayStyles.hookBgStyle || 'word_shadow'
+    () => (initialOverlayStyles.hookBgStyle === 'semi' || initialOverlayStyles.hookBgStyle === 'solid' ? initialOverlayStyles.hookBgStyle : 'none')
   );
   const [hookBgColor, setHookBgColor] = useState<string>(
     () => initialOverlayStyles.hookBgColor || '#000000'
@@ -7824,16 +7824,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   wPct: logoScalePct,
                 },
                 burnInHook,
-                hookSegments: hookSegmentsPayload,
+                hookSegments: [],
                 hookText: {
                   line1: clip1Line1,
                   line2: clip1Line2,
                   line1StartSec: hookLine1StartSec,
                   line2StartSec: hookLine2StartSec,
                   endSec: clip1OverlayEndSec,
+                  bgStyle: hookBgStyle,
+                  shadowStyle: hookShadowStyle,
+                  line1Color: hookLine1Color,
+                  line2Color: hookLine2Color,
                 },
                 burnInCaptions,
-                captionSegments: captionSegmentsPayload,
+                captionSegments: [],
+                captionStyle: {
+                  bgStyle: captionBgStyle,
+                  shadowStyle: captionShadowStyle,
+                  bgColor: captionBgColor,
+                  bgOpacity: captionBgOpacity,
+                  bottomPct: captionBottomPct,
+                },
               },
             }),
           });

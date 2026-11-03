@@ -3664,18 +3664,35 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       if (overlappingCaptions.length > 0 || hasAssHook) {
         const assEvents: string[] = [];
+        const blurScale = Math.max(1, outH / 1080);
+        const capWordBlur = Math.round(14 * blurScale);
+        const capWideBlur = Math.round(8 * blurScale);
+        const capTightBlur = Number((2 * blurScale).toFixed(1));
+        const hook1WideBlur = Math.round(9 * blurScale);
+        const hook1TightBlur = Number((2 * blurScale).toFixed(1));
+        const hook2WideBlur = Math.round(11 * blurScale);
+        const hook2TightBlur = Number((2.2 * blurScale).toFixed(1));
+
         if (hasAssHook && hookTextConfig) {
           const h1Start = Math.max(0, Number(hookTextConfig.line1StartSec ?? 8) - segStartSec);
           const h2Start = Math.max(0, Number(hookTextConfig.line2StartSec ?? 10) - segStartSec);
           const hEnd = Math.min(effectiveClipDur, Number(hookTextConfig.endSec ?? 16) - segStartSec);
-          if (hookTextConfig.line1 && hEnd > h1Start + 0.05) {
+          const line1Txt = escapeAssText(String(hookTextConfig.line1 || '').toUpperCase());
+          const line2Txt = escapeAssText(String(hookTextConfig.line2 || '').toUpperCase());
+          if (line1Txt && hEnd > h1Start + 0.05) {
+            // Hook Line 1: NO background ('none'), ONLY cinematic drop shadow on the letters ('cinema') + pure crisp gold letters
             assEvents.push(
-              `Dialogue: 1,${formatAssTime(h1Start)},${formatAssTime(hEnd)},HookLine1,,0,0,0,,{\\fad(900,900)}${escapeAssText(hookTextConfig.line1)}`
+              `Dialogue: 1,${formatAssTime(h1Start)},${formatAssTime(hEnd)},Hook1CinemaWide,,0,0,0,,{\\fad(1000,1000)\\blur${hook1WideBlur}}${line1Txt}`,
+              `Dialogue: 2,${formatAssTime(h1Start)},${formatAssTime(hEnd)},Hook1CinemaTight,,0,0,0,,{\\fad(1000,1000)\\blur${hook1TightBlur}}${line1Txt}`,
+              `Dialogue: 3,${formatAssTime(h1Start)},${formatAssTime(hEnd)},Hook1Crisp,,0,0,0,,{\\fad(1000,1000)}${line1Txt}`
             );
           }
-          if (hookTextConfig.line2 && hEnd > h2Start + 0.05) {
+          if (line2Txt && hEnd > h2Start + 0.05) {
+            // Hook Line 2: NO background ('none'), ONLY cinematic drop shadow on the letters ('cinema') + pure crisp white letters
             assEvents.push(
-              `Dialogue: 1,${formatAssTime(h2Start)},${formatAssTime(hEnd)},HookLine2,,0,0,0,,{\\fad(900,900)}${escapeAssText(hookTextConfig.line2)}`
+              `Dialogue: 1,${formatAssTime(h2Start)},${formatAssTime(hEnd)},Hook2CinemaWide,,0,0,0,,{\\fad(1000,1000)\\blur${hook2WideBlur}}${line2Txt}`,
+              `Dialogue: 2,${formatAssTime(h2Start)},${formatAssTime(hEnd)},Hook2CinemaTight,,0,0,0,,{\\fad(1000,1000)\\blur${hook2TightBlur}}${line2Txt}`,
+              `Dialogue: 3,${formatAssTime(h2Start)},${formatAssTime(hEnd)},Hook2Crisp,,0,0,0,,{\\fad(1000,1000)}${line2Txt}`
             );
           }
         }
@@ -3683,19 +3700,39 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const localS = Math.max(0, cp.startSec - segStartSec);
           const localE = Math.min(effectiveClipDur, cp.endSec - segStartSec);
           if (localE > localS + 0.04) {
+            const capTxt = escapeAssText(cp.text);
+            // Captions: Layer 0 = Soft word-hugging shadow ('word_shadow'), Layer 1+2 = Cinematic letter shadow ('cinema'), Layer 3 = Pure crisp white letters
             assEvents.push(
-              `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},Caption,,0,0,0,,{\\fad(180,180)}${escapeAssText(cp.text)}`
+              `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},CaptionWordShadow,,0,0,0,,{\\fad(180,180)\\blur${capWordBlur}}${capTxt}`,
+              `Dialogue: 1,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaWide,,0,0,0,,{\\fad(180,180)\\blur${capWideBlur}}${capTxt}`,
+              `Dialogue: 2,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaTight,,0,0,0,,{\\fad(180,180)\\blur${capTightBlur}}${capTxt}`,
+              `Dialogue: 3,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCrisp,,0,0,0,,{\\fad(180,180)}${capTxt}`
             );
           }
         }
         if (assEvents.length > 0) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
-          const capFontSizeAss = Math.round(outH * 0.041);
+          const capFontSizeAss = Math.round(outH * 0.037);
           const capMarginV = Math.round(outH * 0.068);
-          const hook1FontSizeAss = Math.round(outH * 0.036);
-          const hook2FontSizeAss = Math.round(outH * 0.052);
-          const hook1MarginV = Math.round(outH * 0.52);
-          const hook2MarginV = Math.round(outH * 0.39);
+          const capWideMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0045));
+          const capTightMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0025));
+
+          const hook1FontSizeAss = Math.round(outH * 0.03);
+          const hook2FontSizeAss = Math.round(outH * 0.046);
+          const hook1MarginV = Math.round(outH * 0.517);
+          const hook1WideMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0045));
+          const hook1TightMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0025));
+          const hook2MarginV = Math.round(outH * 0.454);
+          const hook2WideMarginV = Math.max(0, hook2MarginV - Math.round(outH * 0.005));
+          const hook2TightMarginV = Math.max(0, hook2MarginV - Math.round(outH * 0.0028));
+
+          const capWordOutline = Math.max(12, Math.round(outH * 0.0185));
+          const capWideOutline = Math.max(1, Math.round(outH * 0.0018));
+          const hook1WideOutline = Math.max(1, Math.round(outH * 0.0018));
+          const hook2WideOutline = Math.max(2, Math.round(outH * 0.0023));
+          const hook1Spacing = Number((3 * blurScale).toFixed(1));
+          const hook2Spacing = Number((1.2 * blurScale).toFixed(1));
+
           const assContent = [
             '[Script Info]',
             'ScriptType: v4.00+',
@@ -3706,9 +3743,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '',
             '[V4+ Styles]',
             'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-            `Style: Caption,Helvetica Neue,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H66000000,&H80000000,-1,0,0,0,100,100,0,0,3,${Math.max(8, Math.round(outH * 0.008))},0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${capMarginV},1`,
-            `Style: HookLine1,Helvetica Neue,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H70000000,&H80000000,-1,0,0,0,100,100,1,0,3,${Math.max(8, Math.round(outH * 0.007))},0,2,${Math.round(outW * 0.1)},${Math.round(outW * 0.1)},${hook1MarginV},1`,
-            `Style: HookLine2,Helvetica Neue,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H70000000,&H80000000,-1,0,0,0,100,100,1,0,3,${Math.max(10, Math.round(outH * 0.009))},0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook2MarginV},1`,
+            `Style: CaptionWordShadow,Helvetica Neue,${capFontSizeAss},&HFF000000,&HFF000000,&H64000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWordOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
+            `Style: CaptionCinemaWide,Helvetica Neue,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
+            `Style: CaptionCinemaTight,Helvetica Neue,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
+            `Style: CaptionCrisp,Helvetica Neue,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
+            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1WideMarginV},1`,
+            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1TightMarginV},1`,
+            `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.09)},${Math.round(outW * 0.09)},${hook1MarginV},1`,
+            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2WideMarginV},1`,
+            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2TightMarginV},1`,
+            `Style: Hook2Crisp,Georgia,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,2,${Math.round(outW * 0.08)},${Math.round(outW * 0.08)},${hook2MarginV},1`,
             '',
             '[Events]',
             'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
