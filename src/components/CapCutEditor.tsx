@@ -5610,7 +5610,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }
                   : undefined
               }
-              title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
               {/* Layer 1: Active Clip Video with Seamless Last-Frame Bridge Canvas + Next-Clip Preloader (Zero Black Frames Between Direct Cuts) */}
               {activeClipAtPlayhead?.videoUrl ? (
