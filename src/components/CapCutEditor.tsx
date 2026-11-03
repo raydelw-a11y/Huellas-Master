@@ -7559,7 +7559,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             hPct: number;
           }> = [];
 
-          if (burnInCaptions && captions.length > 0) {
+          if (burnInCaptions && captions.length > 0 && captions.length <= 40) {
             const stripH = Math.round(refH * 0.24);
             const yBottomRef = Math.round(refH * (1 - captionBottomPct / 100));
             const stripTopPx = Math.max(
@@ -7825,6 +7825,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 },
                 burnInHook,
                 hookSegments: hookSegmentsPayload,
+                hookText: {
+                  line1: clip1Line1,
+                  line2: clip1Line2,
+                  line1StartSec: hookLine1StartSec,
+                  line2StartSec: hookLine2StartSec,
+                  endSec: clip1OverlayEndSec,
+                },
                 burnInCaptions,
                 captionSegments: captionSegmentsPayload,
               },
