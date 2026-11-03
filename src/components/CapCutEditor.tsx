@@ -558,7 +558,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const onFsChange = () => {
       const fsEl =
         document.fullscreenElement || (document as any).webkitFullscreenElement || null;
-      setIsViewerFullscreen(Boolean(fsEl));
+      const isFs = Boolean(fsEl);
+      setIsViewerFullscreen(isFs);
+      if (isFs) {
+        setSelectedCanvasObject(null);
+        setIsDraggingOrResizingHook(false);
+      }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -591,7 +596,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   };
 
   const handleStartHookBoxDrag = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || isViewerFullscreen) return;
     e.stopPropagation();
     setSelectedCanvasObject('hook_text');
     setActiveInspectorTab('branding');
@@ -638,7 +643,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     e: React.MouseEvent,
     handle: 'nw' | 'ne' | 'sw' | 'se' | 'w' | 'e'
   ) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || isViewerFullscreen) return;
     e.stopPropagation();
     e.preventDefault();
     setSelectedCanvasObject('hook_text');
@@ -3258,8 +3263,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         }
 
-        // 4. Clip 1 Hook Text (First 8s) with Independent Line 1 (0s-8s) & Line 2 (2s-8s) Animations
-        if (simTime <= clip1OverlayEndSec && (clip1Line1 || clip1Line2)) {
+        // Helper to word-wrap text identically to the 520p canonical WYSIWYG visor stage
+        const wrapCanvasTextLines = (
+          context: CanvasRenderingContext2D,
+          rawText: string,
+          maxLineWidth: number
+        ): string[] => {
+          const paragraphs = String(rawText || '').split('\n');
+          const wrapped: string[] = [];
+          for (const para of paragraphs) {
+            const words = para.trim().split(/\s+/).filter(Boolean);
+            if (words.length === 0) {
+              wrapped.push('');
+              continue;
+            }
+            let currentLine = words[0];
+            for (let wi = 1; wi < words.length; wi++) {
+              const candidate = `${currentLine} ${words[wi]}`;
+              if (context.measureText(candidate).width <= maxLineWidth) {
+                currentLine = candidate;
+              } else {
+                wrapped.push(currentLine);
+                currentLine = words[wi];
+              }
+            }
+            wrapped.push(currentLine);
+          }
+          return wrapped;
+        };
+
+        // 4. Clip 1 Hook Text (00:08 - clip1OverlayEndSec) — 100% identical to Canonical Visor
+        if (
+          simTime >= Math.min(hookLine1StartSec, hookLine2StartSec) &&
+          simTime <= clip1OverlayEndSec &&
+          (clip1Line1 || clip1Line2)
+        ) {
           const l1Anim = computeElementAnimationState(
             simTime,
             hookLine1StartSec,
@@ -3286,11 +3324,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const f2 = Math.round(hookLine2FontSize * scaleRatio);
           const xCenter = Math.round(width * (hookLeftPct / 100));
           const yCenter = Math.round(height * (hookTopPct / 100));
+          const boxW = Math.round(width * (hookBoxWidthPct / 100));
+          const maxHookTextWidth = Math.max(80, boxW - Math.round(40 * scaleRatio));
 
-          const line1Rows = (clip1Line1 || '').split('\n');
-          const line2Rows = (clip1Line2 || '').split('\n');
-          const totalH1 = clip1Line1 ? line1Rows.length * Math.round(f1 * 1.25) : 0;
-          const totalH2 = clip1Line2 ? line2Rows.length * Math.round(f2 * 1.25) : 0;
+          ctx.font = `700 ${f1}px ${hookFontFamily}`;
+          if ('letterSpacing' in ctx) {
+            (ctx as any).letterSpacing = `${(f1 * 0.1).toFixed(2)}px`;
+          }
+          const line1Rows = clip1Line1
+            ? wrapCanvasTextLines(ctx, clip1Line1.toUpperCase(), maxHookTextWidth)
+            : [];
+
+          ctx.font = `900 ${f2}px ${hookFontFamily}`;
+          if ('letterSpacing' in ctx) {
+            (ctx as any).letterSpacing = `${(f2 * 0.025).toFixed(2)}px`;
+          }
+          const line2Rows = clip1Line2
+            ? wrapCanvasTextLines(ctx, clip1Line2.toUpperCase(), maxHookTextWidth)
+            : [];
+          if ('letterSpacing' in ctx) {
+            (ctx as any).letterSpacing = '0px';
+          }
+
+          const line1RowH = Math.round(f1 * 1.375);
+          const line2RowH = Math.round(f2 * 1.375);
+          const interBlockGap = clip1Line1 && clip1Line2 ? Math.round(6 * scaleRatio) : 0;
+          const totalH1 = line1Rows.length * line1RowH;
+          const totalH2 = line2Rows.length * line2RowH;
+          const totalContentH = totalH1 + interBlockGap + totalH2;
 
           if ((hookBgStyle === 'semi' || hookBgStyle === 'solid') && (l1Anim.visible || l2Anim.visible)) {
             ctx.save();
@@ -3299,18 +3360,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               hookBgColor,
               hookBgStyle === 'solid' ? 95 : hookBgOpacity
             );
-            const boxW = Math.round(width * (hookBoxWidthPct / 100));
-            const boxH = Math.round(totalH1 + totalH2 + f1 * 0.9);
-            ctx.fillRect(
+            const padBox = Math.round(10 * scaleRatio);
+            const boxH = Math.round(totalContentH + padBox * 2);
+            ctx.beginPath();
+            ctx.roundRect(
               Math.round(xCenter - boxW / 2),
-              Math.round(yCenter - (totalH1 + totalH2) / 2 - f1 * 0.4),
+              Math.round(yCenter - boxH / 2),
               boxW,
-              boxH
+              boxH,
+              Math.round(12 * scaleRatio)
             );
+            ctx.fill();
             ctx.restore();
           }
 
-          let cursorY = Math.round(yCenter - (totalH1 + totalH2) / 2 + f1 * 0.65);
+          let cursorY = Math.round(yCenter - totalContentH / 2 + f1 * 0.85);
           if (clip1Line1) {
             if (l1Anim.visible) {
               ctx.save();
@@ -3323,25 +3387,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ctx.scale(l1Anim.scale, l1Anim.scale);
               ctx.translate(-xCenter, -cursorY);
               ctx.font = `700 ${f1}px ${hookFontFamily}`;
+              if ('letterSpacing' in ctx) {
+                (ctx as any).letterSpacing = `${(f1 * 0.1).toFixed(2)}px`;
+              }
               let rowY1 = cursorY;
               for (const rowText of line1Rows) {
                 if (hookBgStyle === 'word_shadow' && rowText.trim()) {
                   ctx.save();
                   const m1 = ctx.measureText(rowText);
-                  const padX1 = Math.round(f1 * 0.45);
-                  const padY1 = Math.round(f1 * 0.22);
-                  const w1 = Math.min(width * 0.94, m1.width + padX1 * 2);
-                  const h1 = f1 + padY1 * 2;
+                  const padX1 = Math.round(10 * scaleRatio);
+                  const padY1 = Math.round(2 * scaleRatio);
+                  const w1 = Math.min(boxW, m1.width + padX1 * 2);
+                  const h1 = Math.round(f1 * 1.22) + padY1 * 2;
                   ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
-                  ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
-                  ctx.shadowBlur = Math.round(f1 * 0.55);
+                  ctx.shadowColor = hexToRgba(hookBgColor, Math.round(hookBgOpacity * 0.85));
+                  ctx.shadowBlur = Math.round(12 * scaleRatio);
                   ctx.beginPath();
                   ctx.roundRect(
                     Math.round(xCenter - w1 / 2),
                     Math.round(rowY1 - f1 * 0.88 - padY1),
                     Math.round(w1),
                     Math.round(h1),
-                    Math.round(f1 * 0.25)
+                    Math.round(6 * scaleRatio)
                   );
                   ctx.fill();
                   ctx.restore();
@@ -3349,8 +3416,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 if (hookShadowStyle !== 'none') {
                   ctx.shadowColor =
                     hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-                  ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
-                  ctx.shadowOffsetY = 4;
+                  ctx.shadowBlur = (hookShadowStyle === 'soft' ? 8 : 18) * scaleRatio;
+                  ctx.shadowOffsetY = 3 * scaleRatio;
                 }
                 if (hookShadowStyle === 'outline') {
                   ctx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
@@ -3359,17 +3426,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }
                 ctx.fillStyle = hookLine1Color;
                 ctx.fillText(rowText, xCenter, rowY1);
-                rowY1 += Math.round(f1 * 1.25);
+                rowY1 += line1RowH;
               }
               ctx.restore();
             }
-            cursorY += line1Rows.length * Math.round(f1 * 1.25);
+            cursorY += totalH1 + interBlockGap + Math.round((f2 - f1) * 0.85);
           }
           if (clip1Line2 && l2Anim.visible) {
             if (!clip1Line1) {
-              cursorY = Math.round(yCenter - totalH2 / 2 + f2 * 0.75);
-            } else {
-              cursorY += Math.round(f2 * 0.25);
+              cursorY = Math.round(yCenter - totalH2 / 2 + f2 * 0.85);
             }
             ctx.save();
             ctx.globalAlpha = l2Anim.opacity;
@@ -3381,24 +3446,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ctx.scale(l2Anim.scale, l2Anim.scale);
             ctx.translate(-xCenter, -cursorY);
             ctx.font = `900 ${f2}px ${hookFontFamily}`;
+            if ('letterSpacing' in ctx) {
+              (ctx as any).letterSpacing = `${(f2 * 0.025).toFixed(2)}px`;
+            }
             for (const rowText of line2Rows) {
               if (hookBgStyle === 'word_shadow' && rowText.trim()) {
                 ctx.save();
                 const m2 = ctx.measureText(rowText);
-                const padX2 = Math.round(f2 * 0.45);
-                const padY2 = Math.round(f2 * 0.22);
-                const w2 = Math.min(width * 0.94, m2.width + padX2 * 2);
-                const h2 = f2 + padY2 * 2;
+                const padX2 = Math.round(10 * scaleRatio);
+                const padY2 = Math.round(2 * scaleRatio);
+                const w2 = Math.min(boxW, m2.width + padX2 * 2);
+                const h2 = Math.round(f2 * 1.22) + padY2 * 2;
                 ctx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
-                ctx.shadowColor = hexToRgba(hookBgColor, Math.min(95, hookBgOpacity + 20));
-                ctx.shadowBlur = Math.round(f2 * 0.55);
+                ctx.shadowColor = hexToRgba(hookBgColor, Math.round(hookBgOpacity * 0.85));
+                ctx.shadowBlur = Math.round(14 * scaleRatio);
                 ctx.beginPath();
                 ctx.roundRect(
                   Math.round(xCenter - w2 / 2),
                   Math.round(cursorY - f2 * 0.88 - padY2),
                   Math.round(w2),
                   Math.round(h2),
-                  Math.round(f2 * 0.25)
+                  Math.round(6 * scaleRatio)
                 );
                 ctx.fill();
                 ctx.restore();
@@ -3406,8 +3474,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               if (hookShadowStyle !== 'none') {
                 ctx.shadowColor =
                   hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-                ctx.shadowBlur = hookShadowStyle === 'soft' ? 8 : 18;
-                ctx.shadowOffsetY = 4;
+                ctx.shadowBlur = (hookShadowStyle === 'soft' ? 8 : 18) * scaleRatio;
+                ctx.shadowOffsetY = 3 * scaleRatio;
               }
               if (hookShadowStyle === 'outline') {
                 ctx.lineWidth = Math.max(4, Math.round(f2 * 0.16));
@@ -3416,14 +3484,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
               ctx.fillStyle = hookLine2Color;
               ctx.fillText(rowText, xCenter, cursorY);
-              cursorY += Math.round(f2 * 1.25);
+              cursorY += line2RowH;
             }
             ctx.restore();
           }
           ctx.restore();
         }
 
-        // 5. Active Caption (.SRT) with Custom Font, Size, Color, Shadow, Background & Animation
+        // 5. Active Caption (.SRT) — 100% identical to Canonical Visor
         const cap = captions.find((c) => simTime >= c.start && simTime <= c.end);
         if (cap) {
           const capAnim = computeElementAnimationState(
@@ -3438,55 +3506,98 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (capAnim.visible) {
             ctx.save();
             const scaleRatio = height / 520;
-            const capFontPx = Math.round(captionFontSize * scaleRatio);
+            const effectiveCapPx = Math.max(13, captionFontSize * 0.76);
+            const capFontPx = Math.round(effectiveCapPx * scaleRatio);
             ctx.font = `800 ${capFontPx}px ${captionFontFamily}`;
             ctx.textAlign = 'center';
-            const yPos = Math.round(height * (1 - captionBottomPct / 100));
+            const maxCapTextW = Math.max(100, width - Math.round(52 * scaleRatio));
+            const capRows = wrapCanvasTextLines(ctx, cap.text, maxCapTextW);
+            const capLineH = Math.round(capFontPx * 1.35);
+            const yBottom = Math.round(height * (1 - captionBottomPct / 100));
             ctx.globalAlpha = capAnim.opacity;
             if (capAnim.blurPx > 0.1) ctx.filter = `blur(${capAnim.blurPx.toFixed(1)}px)`;
             ctx.translate(
               width / 2 + capAnim.translateX * scaleRatio,
-              yPos + capAnim.translateY * scaleRatio
+              yBottom + capAnim.translateY * scaleRatio
             );
             ctx.scale(capAnim.scale, capAnim.scale);
-            ctx.translate(-width / 2, -yPos);
+            ctx.translate(-width / 2, -yBottom);
 
-            if (captionBgStyle !== 'none') {
-              const textMetrics = ctx.measureText(cap.text);
-              const padX = Math.round(capFontPx * 0.8);
-              const padY = Math.round(capFontPx * 0.45);
-              const boxW = Math.min(width * 0.9, textMetrics.width + padX * 2);
-              const boxH = capFontPx + padY * 2;
+            if (captionBgStyle === 'semi' || captionBgStyle === 'solid') {
+              let maxRowW = 0;
+              for (const r of capRows) {
+                maxRowW = Math.max(maxRowW, ctx.measureText(r).width);
+              }
+              const padX = Math.round(14 * scaleRatio);
+              const padY = Math.round(4 * scaleRatio);
+              const boxW = Math.min(width - Math.round(32 * scaleRatio), maxRowW + padX * 2);
+              const boxH = capRows.length * capLineH + padY * 2;
               ctx.fillStyle = hexToRgba(
                 captionBgColor,
                 captionBgStyle === 'solid' ? 95 : captionBgOpacity
               );
-              ctx.fillRect(
+              ctx.beginPath();
+              ctx.roundRect(
                 Math.round((width - boxW) / 2),
-                Math.round(yPos - capFontPx - padY * 0.5),
+                Math.round(yBottom - boxH),
                 Math.round(boxW),
-                Math.round(boxH)
+                Math.round(boxH),
+                Math.round(8 * scaleRatio)
               );
+              ctx.fill();
             }
 
-            if (captionShadowStyle === 'outline') {
-              ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
-              ctx.strokeStyle = '#000000';
-              ctx.strokeText(cap.text, width / 2, yPos);
-            } else if (captionShadowStyle !== 'none') {
-              ctx.shadowColor =
-                captionShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
-              ctx.shadowBlur = captionShadowStyle === 'soft' ? 6 : 14;
-              ctx.shadowOffsetY = 3;
-            }
+            for (let ri = 0; ri < capRows.length; ri++) {
+              const rowText = capRows[ri];
+              const rowY =
+                yBottom -
+                (capRows.length - 1 - ri) * capLineH -
+                Math.round(capFontPx * 0.28);
 
-            ctx.fillStyle =
-              captionColor === 'amber'
-                ? '#fde047'
-                : captionColor === 'custom'
-                ? captionCustomColor
-                : '#ffffff';
-            ctx.fillText(cap.text, width / 2, yPos);
+              if (captionBgStyle === 'word_shadow' && rowText.trim()) {
+                ctx.save();
+                const mCap = ctx.measureText(rowText);
+                const padX = Math.round(10 * scaleRatio);
+                const padY = Math.round(2 * scaleRatio);
+                const wCap = Math.min(
+                  width - Math.round(32 * scaleRatio),
+                  mCap.width + padX * 2
+                );
+                const hCap = Math.round(capFontPx * 1.22) + padY * 2;
+                ctx.fillStyle = hexToRgba(captionBgColor, captionBgOpacity);
+                ctx.shadowColor = hexToRgba(captionBgColor, Math.round(captionBgOpacity * 0.85));
+                ctx.shadowBlur = Math.round(12 * scaleRatio);
+                ctx.beginPath();
+                ctx.roundRect(
+                  Math.round((width - wCap) / 2),
+                  Math.round(rowY - capFontPx * 0.88 - padY),
+                  Math.round(wCap),
+                  Math.round(hCap),
+                  Math.round(6 * scaleRatio)
+                );
+                ctx.fill();
+                ctx.restore();
+              }
+
+              if (captionShadowStyle === 'outline') {
+                ctx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
+                ctx.strokeStyle = '#000000';
+                ctx.strokeText(rowText, width / 2, rowY);
+              } else if (captionShadowStyle !== 'none') {
+                ctx.shadowColor =
+                  captionShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+                ctx.shadowBlur = (captionShadowStyle === 'soft' ? 6 : 14) * scaleRatio;
+                ctx.shadowOffsetY = 3 * scaleRatio;
+              }
+
+              ctx.fillStyle =
+                captionColor === 'amber'
+                  ? '#fde047'
+                  : captionColor === 'custom'
+                  ? captionCustomColor
+                  : '#ffffff';
+              ctx.fillText(rowText, width / 2, rowY);
+            }
             ctx.restore();
           }
         }
@@ -4115,18 +4226,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer, with End Fade-Out) */}
+              {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer, with End Fade-Out; non-selectable in fullscreen) */}
               <div
-                onMouseDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => {
+                  if (isViewerFullscreen) return;
+                  e.stopPropagation();
+                }}
                 onClick={(e) => {
+                  if (isViewerFullscreen) return;
                   e.stopPropagation();
                   setSelectedCanvasObject('logo');
                   setActiveInspectorTab('branding');
                 }}
-                className={`absolute z-20 flex flex-col items-start cursor-pointer transition rounded-lg p-1 ${
-                  selectedCanvasObject === 'logo'
-                    ? 'ring-2 ring-amber-400 bg-amber-500/15 shadow-lg'
-                    : 'hover:ring-1 hover:ring-amber-400/60'
+                className={`absolute z-20 flex flex-col items-start transition rounded-lg p-1 ${
+                  isViewerFullscreen
+                    ? 'pointer-events-none select-none'
+                    : selectedCanvasObject === 'logo'
+                    ? 'cursor-pointer ring-2 ring-amber-400 bg-amber-500/15 shadow-lg'
+                    : 'cursor-pointer hover:ring-1 hover:ring-amber-400/60'
                 }`}
                 style={{
                   top: `${logoPosY}%`,
@@ -4134,13 +4251,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   width: `${logoScalePct}%`,
                   minWidth: '46px',
                   opacity:
-                    selectedCanvasObject === 'logo' && !isPlaying
+                    !isViewerFullscreen && selectedCanvasObject === 'logo' && !isPlaying
                       ? logoOpacity / 100
                       : (logoOpacity / 100) * liveLogoAnim.opacity,
                   transform: `translate3d(${liveLogoAnim.translateX}px, ${liveLogoAnim.translateY}px, 0) scale(${liveLogoAnim.scale})`,
                   filter: liveLogoAnim.blurPx > 0.1 ? `blur(${liveLogoAnim.blurPx.toFixed(1)}px)` : undefined,
                 }}
-                title="Haz clic para seleccionar y ajustar el Logo Oficial (Por defecto: Fade Out 1s al final del documental)"
+                title={
+                  isViewerFullscreen
+                    ? undefined
+                    : 'Haz clic para seleccionar y ajustar el Logo Oficial (Por defecto: Fade Out 1s al final del documental)'
+                }
               >
                 {officialLogoUrl ? (
                   <img
@@ -4153,7 +4274,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     Huellas de la Humanidad
                   </div>
                 )}
-                {selectedCanvasObject === 'logo' && (
+                {!isViewerFullscreen && selectedCanvasObject === 'logo' && (
                   <span className="mt-0.5 px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[9px] whitespace-nowrap shadow">
                     🏷️ Logo ({logoScalePct}%)
                   </span>
@@ -4190,21 +4311,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16, after the 8s Intro — 100% Real-Time WYSIWYG) */}
+              {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16, after the 8s Intro — 100% Real-Time WYSIWYG; non-selectable in fullscreen) */}
               {((currentTime >= 8 && currentTime <= clip1OverlayEndSec) ||
-                selectedCanvasObject === 'hook_text') &&
-                (clip1Line1 || clip1Line2 || selectedCanvasObject === 'hook_text') && (
+                (!isViewerFullscreen && selectedCanvasObject === 'hook_text')) &&
+                (clip1Line1 ||
+                  clip1Line2 ||
+                  (!isViewerFullscreen && selectedCanvasObject === 'hook_text')) && (
                   <div
-                    onMouseDown={handleStartHookBoxDrag}
+                    onMouseDown={isViewerFullscreen ? undefined : handleStartHookBoxDrag}
                     onClick={(e) => {
+                      if (isViewerFullscreen) return;
                       e.stopPropagation();
                       setSelectedCanvasObject('hook_text');
                       setActiveInspectorTab('branding');
                     }}
-                    className={`group absolute z-20 text-center cursor-move rounded-xl p-2.5 ${
-                      selectedCanvasObject === 'hook_text'
-                        ? 'ring-1 ring-dashed ring-amber-400/80'
-                        : ''
+                    className={`group absolute z-20 text-center rounded-xl p-2.5 ${
+                      isViewerFullscreen
+                        ? 'pointer-events-none select-none'
+                        : selectedCanvasObject === 'hook_text'
+                        ? 'cursor-move ring-1 ring-dashed ring-amber-400/80'
+                        : 'cursor-move'
                     }`}
                     style={{
                       left: `${hookLeftPct}%`,
@@ -4218,10 +4344,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           ? undefined
                           : hexToRgba(hookBgColor, hookBgStyle === 'solid' ? 95 : hookBgOpacity),
                     }}
-                    title="Mantén presionado y arrastra para mover por todo el video, o jala de las esquinas para alargar/achicar la caja de texto"
+                    title={
+                      isViewerFullscreen
+                        ? undefined
+                        : 'Mantén presionado y arrastra para mover por todo el video, o jala de las esquinas para alargar/achicar la caja de texto'
+                    }
                   >
-                    {/* Corner & Side Resize Handles (always visible while hook_text is selected) */}
-                    {selectedCanvasObject === 'hook_text' && (
+                    {/* Corner & Side Resize Handles (always visible while hook_text is selected outside fullscreen) */}
+                    {!isViewerFullscreen && selectedCanvasObject === 'hook_text' && (
                       <div className="opacity-100 transition-opacity">
                         {/* Top-Left Corner (NW) */}
                         <div
@@ -4369,21 +4499,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </div>
                 )}
 
-              {/* Layer 4: Dynamic Captions (.SRT) — 100% Real-Time WYSIWYG (never changes appearance when selected!) */}
+              {/* Layer 4: Dynamic Captions (.SRT) — 100% Real-Time WYSIWYG (never changes appearance when selected; non-selectable in fullscreen) */}
               {(activeCaptionAtPlayhead ||
-                (!isPlaying && selectedCanvasObject === 'captions' && nearestCaptionAtPlayhead)) && (
+                (!isViewerFullscreen &&
+                  !isPlaying &&
+                  selectedCanvasObject === 'captions' &&
+                  nearestCaptionAtPlayhead)) && (
                 <div
                   className="absolute inset-x-4 z-20 text-center pointer-events-none"
                   style={{
                     bottom: `${captionBottomPct}%`,
                     opacity:
-                      selectedCanvasObject === 'captions' && !isPlaying ? 1 : liveCaptionAnim.opacity,
+                      !isViewerFullscreen && selectedCanvasObject === 'captions' && !isPlaying
+                        ? 1
+                        : liveCaptionAnim.opacity,
                     transform:
-                      selectedCanvasObject === 'captions' && !isPlaying
+                      !isViewerFullscreen && selectedCanvasObject === 'captions' && !isPlaying
                         ? undefined
                         : `translate3d(${liveCaptionAnim.translateX}px, ${liveCaptionAnim.translateY}px, 0) scale(${liveCaptionAnim.scale})`,
                     filter:
-                      selectedCanvasObject === 'captions' && !isPlaying
+                      !isViewerFullscreen && selectedCanvasObject === 'captions' && !isPlaying
                         ? undefined
                         : liveCaptionAnim.blurPx > 0.1
                         ? `blur(${liveCaptionAnim.blurPx.toFixed(1)}px)`
@@ -4391,14 +4526,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }}
                 >
                   <span
-                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => {
+                      if (isViewerFullscreen) return;
+                      e.stopPropagation();
+                    }}
                     onClick={(e) => {
+                      if (isViewerFullscreen) return;
                       e.stopPropagation();
                       setSelectedCanvasObject('captions');
                       setActiveInspectorTab('captions');
                     }}
-                    title="Haz clic para seleccionar los Captions y ver tus cambios de estilo en tiempo real"
-                    className={`pointer-events-auto cursor-pointer ${
+                    title={
+                      isViewerFullscreen
+                        ? undefined
+                        : 'Haz clic para seleccionar los Captions y ver tus cambios de estilo en tiempo real'
+                    }
+                    className={`${
+                      isViewerFullscreen
+                        ? 'pointer-events-none select-none'
+                        : 'pointer-events-auto cursor-pointer'
+                    } ${
                       captionBgStyle === 'word_shadow'
                         ? 'inline px-2.5 py-0.5 rounded-md'
                         : 'inline-block px-3.5 py-1 rounded-lg'
