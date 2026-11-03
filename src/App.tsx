@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:30 AM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:47 AM - 11/03/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -857,14 +857,13 @@ export default function App() {
   const STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK = useMemo(
     () => [
       {
-        id: 'seed_exodo_espanol_1880_1940',
-        videoId: 'exodo_espanol_1880_1940_v76',
-        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
-        title:
-          'Éxodo Español Transatlántico (1880–1940): De Asturias, Galicia, Cantabria y Canarias a América (Video 76)',
-        channelTitle: '@huellas_de_la_humanidad',
-        channelName: '@huellas_de_la_humanidad',
-        analyzedAt: '2026-11-03T15:20:00.000Z',
+        id: 'vid_clqshy5NB7I',
+        videoId: 'clqshy5NB7I',
+        url: 'https://youtu.be/clqshy5NB7I',
+        title: 'La llegada de los italianos a Argentina',
+        channelTitle: 'Reimaginando Pasados',
+        channelName: 'Reimaginando Pasados',
+        analyzedAt: '2026-11-03T15:38:31.830Z',
         commentsCount: 84,
         structureSummary: `1. DECONSTRUCCIÓN DEL HOOK Y PARADOJA CENTRAL (00:00 - 00:30):
    - Arranca con el Intro Oficial (8s, 00:00 - 00:08) seguido del Clip 1 (6s con fade-in visual y Foley puro en el muelle de piedra húmeda de Maliaño, Santander, 1885). En el segundo 16 entra la voz narrativa con Año y Lugar cerrados con punto ("Año 1885, muelle de Maliaño, Santander, España."), planteando la contradicción central del éxodo: para escapar de la servidumbre agraria del minifundio y de las 2.000 pesetas de la redención militar a Ultramar («impuesto de sangre»), una generación de adolescentes de 14 a 18 años se entregó voluntariamente a un régimen de servidumbre laboral intrafamiliar de 16 horas diarias al otro lado del océano. Antes del segundo 30 cierra con el Slogan Oficial sobre la mesa del historiador antiguo.
@@ -930,90 +929,112 @@ export default function App() {
           {
             id: 'seed-v76-c1',
             text: '¿Por qué los jóvenes españoles preferían embarcarse casi adolescentes a los 14 o 16 años hacia Cuba y México antes de cumplir la edad del sorteo militar?',
-            author: 'Comunidad Huellas',
+            author: 'Comunidad YouTube',
             likes: 94,
             repeatCount: 14,
             category: 'question',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c2',
             text: 'Hagan un documental sobre qué pasó con los miles de emigrantes españoles que NO se hicieron ricos ("los indianos fracasados") tras el desplome azucarero de 1921 y el Crac de 1929.',
-            author: 'Comunidad Huellas',
+            author: 'Comunidad YouTube',
             likes: 82,
             repeatCount: 12,
             category: 'suggestion',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c3',
             text: '¿Cómo era realmente el campamento de cuarentena de Triscornia en La Habana y qué les hacían a los inmigrantes de tercera clase al bajar del barco?',
-            author: 'Suscriptor Huellas',
+            author: 'Comunidad YouTube',
             likes: 76,
             repeatCount: 11,
             category: 'question',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c4',
             text: '¿Es verdad que los dependientes españoles en las bodegas de La Habana y tiendas de abarrotes y panaderías de México tenían prohibido casarse y dormían sobre el mostrador?',
-            author: 'Comunidad Huellas',
+            author: 'Comunidad YouTube',
             likes: 68,
             repeatCount: 9,
             category: 'question',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c5',
             text: 'Deberían contar la historia de los grandes hospitales y palacios que construyeron los inmigrantes con sus cuotas: la Quinta Covadonga, La Benéfica en La Habana y la Beneficencia Española en México.',
-            author: 'Suscriptor Huellas',
+            author: 'Comunidad YouTube',
             likes: 59,
             repeatCount: 8,
             category: 'suggestion',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c6',
             text: 'Hagan la continuación sobre el viaje del vapor Sinaia a Veracruz en junio de 1939 y cómo los refugiados republicanos transformaron la ciencia y la cultura en México.',
-            author: 'Comunidad Huellas',
+            author: 'Comunidad YouTube',
             likes: 53,
             repeatCount: 7,
             category: 'suggestion',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
             id: 'seed-v76-c7',
             text: '¿Cómo funcionaban las "cartas de llamada" y las redes de emigración clandestina desde las rías de Galicia, Asturias y Canarias hacia América?',
-            author: 'Suscriptor Huellas',
+            author: 'Comunidad YouTube',
             likes: 47,
             repeatCount: 6,
             category: 'question',
             sourceType: 'analyzed_video',
-            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
-            videoId: 'exodo_espanol_1880_1940_v76',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
           {
-            id: 'seed-v76-c8',
-            text: 'Cuba en esa época fue receptor de migrantes españoles buscando oportunidades trabajando duro; traían tanta sed de trabajo y emprender que muchos terminaron dueños de bodegas, panaderías y pequeños negocios de la época.',
-            author: '@esmiroperez9022',
-            likes: 39,
-            repeatCount: 5,
+            id: 'analyzed_video-1-mw0ureh5',
+            text: 'Mi papá italiano decidió volver a Italia a los 75 años y me vine a Italia con él. En casa siempre hablamos italiano y conservamos tradiciones italianas. Crecí con las dos culturas, pero extraño mi patria argentina cada día. Emigrar es tener el corazón partido en dos. 🇦🇷❤️',
+            author: '@alessandramagni2147',
+            likes: 621,
+            repeatCount: 3,
             category: 'comment',
-            sourceType: 'channel',
-            videoTitle: "Así era La Habana de los 50's | Huellas de la Humanidad",
-            videoId: 'rOfrwwANg9k',
+            sourceType: 'analyzed_video',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
+          },
+          {
+            id: 'analyzed_video-3-mw0ureh5',
+            text: 'Mis abuelos vinieron de Italia en esos barcos.! Yo tengo 78 años. Tengo fotos de ellos y de bisabuelos también! Mi emociona este vídeo 😥y ahora sus bisnietos son exitosos!!! ❤️❤️❤️❤️🇦🇷🇦🇷🇦🇷',
+            author: '@cristinadebernardi5811',
+            likes: 282,
+            repeatCount: 2,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
+          },
+          {
+            id: 'analyzed_video-8-mw0ureh5',
+            text: 'Cuantas lágrimas salieron...hoy...yo vine con 8 años en el vapor FEDERICO .. Y ASÍ FUE EL VIAJE. GRACIAS😊',
+            author: '@mariatenaglia8168',
+            likes: 144,
+            repeatCount: 2,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle: 'La llegada de los italianos a Argentina',
+            videoId: 'clqshy5NB7I',
           },
         ],
       },
@@ -1236,7 +1257,7 @@ export default function App() {
     () => STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK
   );
   const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>(
-    'exodo_espanol_1880_1940_v76'
+    'clqshy5NB7I'
   );
   const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>(() =>
     STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.flatMap((v) => v.comments || []).filter(
