@@ -1757,9 +1757,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
         duration: isClip1 ? clip1HookDur : existingItem ? existingItem.duration : srcDur,
-        sourceDuration: srcDur,
+        sourceDuration: existingItem?.sourceDuration || srcDur,
         speed: existingItem ? existingItem.speed : 1,
         trimStart: existingItem ? existingItem.trimStart : 0,
+        trimEnd: existingItem?.trimEnd ?? srcDur,
+        smoothSlowMo:
+          existingItem?.smoothSlowMo !== undefined
+            ? existingItem.smoothSlowMo
+            : Boolean(existingItem && existingItem.speed < 1),
+        opticalFlowUrl: existingItem?.opticalFlowUrl,
+        opticalFlowBakedKey: existingItem?.opticalFlowBakedKey,
+        parentGroupId: existingItem?.parentGroupId,
+        originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
+        partLabel: existingItem?.partLabel,
         foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 35,
         transition: isClip1 ? 'fade_black' : existingItem ? existingItem.transition : defaultTransition,
         videoUrl,
@@ -1786,6 +1796,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           sourceDuration: srcDur,
           speed: 1,
           trimStart: 0,
+          trimEnd: srcDur,
+          smoothSlowMo: false,
+          originalSlotDuration: srcDur,
           foleyVolume: isClip1 ? 80 : 35,
           transition: isClip1 ? 'fade_black' : defaultTransition,
           videoUrl: combinedClipVideosMap[num],
@@ -1811,6 +1824,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             nc.duration = Math.max(2, scaled);
             runningSec += nc.duration;
           }
+          nc.originalSlotDuration = nc.duration;
         });
       }
     }
@@ -1825,6 +1839,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sourceDuration: FIXED_INTRO_SEC,
       speed: 1,
       trimStart: 0,
+      trimEnd: FIXED_INTRO_SEC,
+      smoothSlowMo: false,
+      originalSlotDuration: FIXED_INTRO_SEC,
       foleyVolume: 100,
       transition: 'crossfade',
       videoUrl: introVideoUrl,
@@ -1842,6 +1859,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sourceDuration: FIXED_OUTRO_SEC,
       speed: 1,
       trimStart: 0,
+      trimEnd: FIXED_OUTRO_SEC,
+      smoothSlowMo: false,
+      originalSlotDuration: FIXED_OUTRO_SEC,
       foleyVolume: 100,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
@@ -1849,7 +1869,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       reviewedForEditor: true,
     };
 
-    const builtClips: TimelineClipItem[] = [fixedIntroClip, ...bodyClips, fixedOutroClip];
+    let builtClips: TimelineClipItem[] = [fixedIntroClip, ...bodyClips, fixedOutroClip];
+
+    // If the user has custom cuts/splits/deletions/speed adjustments saved for this documentary, preserve them while keeping fresh videoUrl/posterUrl!
+    if (
+      savedDocOverlays?.userEditedClips &&
+      Array.isArray(savedDocOverlays.customTimelineClips) &&
+      savedDocOverlays.customTimelineClips.length > 0
+    ) {
+      builtClips = (savedDocOverlays.customTimelineClips as TimelineClipItem[]).map((tc) => {
+        if (tc.id === 'fixed-doc-intro' || tc.clipNumber === 0) {
+          return { ...fixedIntroClip, ...tc, videoUrl: introVideoUrl, posterUrl: introPosterUrl };
+        }
+        if (tc.id === 'fixed-doc-outro' || tc.clipNumber === 999) {
+          return { ...fixedOutroClip, ...tc, videoUrl: outroVideoUrl, posterUrl: outroPosterUrl };
+        }
+        const freshVideoUrl = combinedClipVideosMap[tc.clipNumber] || tc.videoUrl || '';
+        const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
+        return {
+          ...tc,
+          videoUrl: freshVideoUrl,
+          posterUrl: freshPosterUrl,
+          smoothSlowMo:
+            tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
+        };
+      });
+    }
 
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
@@ -2989,33 +3034,68 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCurrentTime(clamped);
   };
 
-  // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips fit their slot smoothly and never hit vid.ended -> restart at 00:00
+  // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips and trimmed/slow-mo clips fit their slot smoothly
   const computeClipVideoSyncParams = (
     vid: HTMLVideoElement,
-    clip: { start: number; duration: number; speed: number; trimStart: number },
+    clip: {
+      start: number;
+      duration: number;
+      speed: number;
+      trimStart: number;
+      trimEnd?: number;
+      sourceDuration?: number;
+      smoothSlowMo?: boolean;
+      opticalFlowUrl?: string;
+    },
     timelineSec: number
   ) => {
-    const trimStart = clip.trimStart || 0;
-    const slotDur = Math.max(0.5, clip.duration || 8);
+    const slotDur = Math.max(0.4, clip.duration || 8);
     const hasKnownVidDur =
       typeof vid.duration === 'number' && Number.isFinite(vid.duration) && vid.duration > 0.25;
-    const playableMediaDur = hasKnownVidDur ? Math.max(0.2, vid.duration - trimStart) : slotDur;
 
-    // If user kept default speed (1x) and the MP4 file is slightly shorter than the timeline slot (e.g. 6s in 8s slot, or 7.2s-9.8s in 10s slot),
-    // automatically adjust playbackRate so the video plays smoothly across the entire timeline slot without ending early or restarting
+    // If playing a pre-baked Optical Flow MP4, it is already trimmed and stretched to slotDur at 1.0x
+    const usingOpticalFlowVideo = Boolean(
+      clip.opticalFlowUrl && clip.smoothSlowMo !== false && clip.speed < 0.99
+    );
+    if (usingOpticalFlowVideo) {
+      const rawOffset = Math.max(0, timelineSec - clip.start);
+      const maxSafeOffset = hasKnownVidDur
+        ? Math.max(0, vid.duration - 0.06)
+        : Math.max(0, slotDur - 0.04);
+      const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
+      const reachedClipMediaEnd = Boolean(rawOffset >= maxSafeOffset);
+      return {
+        effectiveRate: 1,
+        clampedOffset,
+        reachedClipMediaEnd,
+      };
+    }
+
+    const trimStart = Math.max(0, clip.trimStart || 0);
+    const fallbackEnd = hasKnownVidDur ? vid.duration : clip.sourceDuration || 8;
+    const trimEnd =
+      typeof clip.trimEnd === 'number' && clip.trimEnd > trimStart + 0.05
+        ? hasKnownVidDur
+          ? Math.min(vid.duration, clip.trimEnd)
+          : clip.trimEnd
+        : fallbackEnd;
+    const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
+
+    // If user specified custom speed (or if playableMediaDur is shorter/longer than slotDur), sync rate smoothly
     const effectiveRate =
-      clip.speed && clip.speed !== 1
-        ? clip.speed
-        : hasKnownVidDur && playableMediaDur < slotDur - 0.12
-        ? Math.max(0.35, Math.min(1.0, Number((playableMediaDur / slotDur).toFixed(3))))
+      clip.speed && Math.abs(clip.speed - 1) > 0.01
+        ? Math.max(0.2, Math.min(4.0, clip.speed))
+        : hasKnownVidDur && Math.abs(playableMediaDur - slotDur) > 0.12
+        ? Math.max(0.25, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(3))))
         : 1;
 
     const rawOffset = Math.max(0, timelineSec - clip.start) * effectiveRate + trimStart;
-    const maxSafeOffset = hasKnownVidDur
-      ? Math.max(0, vid.duration - 0.08)
-      : Math.max(0, rawOffset);
-    const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
-    const reachedClipMediaEnd = Boolean(hasKnownVidDur && rawOffset >= vid.duration - 0.08);
+    const mediaCeiling = hasKnownVidDur
+      ? Math.min(vid.duration - 0.06, trimEnd - 0.04)
+      : trimEnd - 0.04;
+    const maxSafeOffset = Math.max(trimStart, mediaCeiling);
+    const clampedOffset = Math.max(trimStart, Math.min(maxSafeOffset, rawOffset));
+    const reachedClipMediaEnd = Boolean(rawOffset >= maxSafeOffset);
 
     return {
       effectiveRate,
@@ -3523,6 +3603,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     currentTime,
     activeClipAtPlayhead?.id,
     activeClipAtPlayhead?.videoUrl,
+    activeClipAtPlayhead?.opticalFlowUrl,
+    activeClipAtPlayhead?.speed,
+    activeClipAtPlayhead?.trimStart,
+    activeClipAtPlayhead?.trimEnd,
+    activeClipAtPlayhead?.smoothSlowMo,
     activeMusicAtPlayhead?.id,
     activeMusicAtPlayhead?.audioUrl,
     isPlaying,
@@ -3536,15 +3621,658 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     masterMusicVolume,
   ]);
 
+  // Undo stack and Optical Flow processing state for Track 3 Clips
+  const [clipUndoStack, setClipUndoStack] = useState<TimelineClipItem[][]>([]);
+  const [opticalFlowProcessingByClipId, setOpticalFlowProcessingByClipId] = useState<
+    Record<string, boolean>
+  >({});
+  const [autoStretchOnTrim, setAutoStretchOnTrim] = useState<boolean>(true);
+  const opticalFlowDebounceTimerRef = useRef<Record<string, any>>({});
+
+  const getClipActiveSourceSpan = (clip: TimelineClipItem): number => {
+    const srcDur = clip.sourceDuration && clip.sourceDuration > 0.2 ? clip.sourceDuration : 8;
+    const tStart = Math.max(0, Number(clip.trimStart || 0));
+    const tEnd =
+      typeof clip.trimEnd === 'number' && clip.trimEnd > tStart + 0.05 ? clip.trimEnd : srcDur;
+    return Math.max(0.2, Number((tEnd - tStart).toFixed(2)));
+  };
+
+  const commitTimelineClipsUpdate = (
+    updater: (prev: TimelineClipItem[]) => TimelineClipItem[],
+    recordUndo = true
+  ) => {
+    setTimelineClips((prev) => {
+      if (recordUndo) {
+        setClipUndoStack((stack) => [...stack.slice(-24), prev]);
+      }
+      const next = updater(prev);
+      const docId = activeDoc?.id || 'default';
+      persistDocOverlaysPatch(
+        {
+          userEditedClips: true,
+          customTimelineClips: next,
+        },
+        docId
+      );
+      return next;
+    });
+  };
+
+  const handleUndoClipEdit = () => {
+    setClipUndoStack((stack) => {
+      if (stack.length === 0) {
+        setStatusMessage('ℹ️ No hay cortes ni eliminaciones pendientes por deshacer.');
+        return stack;
+      }
+      const previousClips = stack[stack.length - 1];
+      const nextStack = stack.slice(0, -1);
+      setTimelineClips(previousClips);
+      const docId = activeDoc?.id || 'default';
+      persistDocOverlaysPatch(
+        {
+          userEditedClips: true,
+          customTimelineClips: previousClips,
+        },
+        docId
+      );
+      setStatusMessage('↩️ Último cambio en los clips deshecho.');
+      return nextStack;
+    });
+  };
+
+  // Trigger server-side FFmpeg Optical Flow (minterpolate MCI) for a slowed/trimmed clip
+  const triggerOpticalFlowForClip = async (clip: TimelineClipItem, silent = false) => {
+    if (!clip || clip.clipNumber === 0 || clip.clipNumber === 999) return;
+    if (clip.speed >= 0.99 || clip.smoothSlowMo === false) return;
+
+    const safeTrimStart = Math.max(0, Number(clip.trimStart || 0));
+    const safeTrimEnd =
+      typeof clip.trimEnd === 'number' && clip.trimEnd > safeTrimStart + 0.05
+        ? Number(clip.trimEnd)
+        : Number(clip.sourceDuration || 8);
+    const expectedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_s${Number(
+      clip.speed
+    ).toFixed(3)}_of1`;
+
+    if (clip.opticalFlowUrl && clip.opticalFlowBakedKey === expectedKey) {
+      if (!silent) {
+        setStatusMessage(
+          `✅ Smooth Slow Motion (Optical Flow) ya está activo en el Clip ${String(
+            clip.clipNumber
+          ).padStart(2, '0')} (${clip.speed}x • ${clip.duration}s).`
+        );
+      }
+      return;
+    }
+
+    setOpticalFlowProcessingByClipId((prev) => ({ ...prev, [clip.id]: true }));
+    if (!silent) {
+      setStatusMessage(
+        `🌊 Generando Smooth Slow Motion (Optical Flow) para Clip ${String(
+          clip.clipNumber
+        ).padStart(2, '0')} (${clip.speed}x → ${clip.duration}s)...`
+      );
+    }
+
+    try {
+      const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+      const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+      const dTitle = (activeDoc?.title || '').trim();
+      const isLocal =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const base = isLocal ? '' : 'http://localhost:4200';
+
+      const resp = await fetch(`${base}/api/video/optical-flow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: fPath,
+          folderName: fName,
+          docTitle: dTitle,
+          clipId: clip.id,
+          clipNumber: clip.clipNumber,
+          fileName: clip.fileName,
+          videoUrl: clip.videoUrl || '',
+          aspectRatio,
+          trimStart: safeTrimStart,
+          trimEnd: safeTrimEnd,
+          speed: clip.speed,
+          targetDuration: clip.duration,
+          smoothSlowMo: true,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.ok && data?.ok && data.opticalFlowUrl) {
+        const finalUrl =
+          data.opticalFlowUrl.startsWith('/') && base
+            ? `${base}${data.opticalFlowUrl}`
+            : data.opticalFlowUrl;
+        commitTimelineClipsUpdate(
+          (prev) =>
+            prev.map((c) =>
+              c.id === clip.id
+                ? {
+                    ...c,
+                    opticalFlowUrl: finalUrl,
+                    opticalFlowBakedKey: data.bakedKey || expectedKey,
+                    smoothSlowMo: true,
+                  }
+                : c
+            ),
+          false
+        );
+        if (!silent) {
+          setStatusMessage(
+            `✅ Smooth Slow Motion (Optical Flow) aplicado al Clip ${String(
+              clip.clipNumber
+            ).padStart(2, '0')} (${clip.speed}x • ${clip.duration}s).`
+          );
+        }
+      } else if (!silent) {
+        setStatusMessage(
+          `⚠️ Optical Flow en visor activo (${clip.speed}x • ${clip.duration}s). ${
+            data?.error || ''
+          }`
+        );
+      }
+    } catch {
+      if (!silent) {
+        setStatusMessage(
+          `🌊 Smooth Slow Motion (${clip.speed}x • ${clip.duration}s) activo en la línea de tiempo.`
+        );
+      }
+    } finally {
+      setOpticalFlowProcessingByClipId((prev) => ({ ...prev, [clip.id]: false }));
+    }
+  };
+
+  const scheduleAutoOpticalFlow = (clip: TimelineClipItem) => {
+    if (!clip || clip.clipNumber === 0 || clip.clipNumber === 999) return;
+    if (opticalFlowDebounceTimerRef.current[clip.id]) {
+      clearTimeout(opticalFlowDebounceTimerRef.current[clip.id]);
+    }
+    if (clip.speed < 0.99 && clip.smoothSlowMo !== false) {
+      opticalFlowDebounceTimerRef.current[clip.id] = setTimeout(() => {
+        triggerOpticalFlowForClip(clip, true);
+      }, 750);
+    }
+  };
+
+  // Bidirectional Speed (x, where 1x = normal) -> automatically updates Duration (s) & auto-enables Smooth Slow Motion when speed < 1.00x
+  const handleUpdateClipSpeed = (clipId: string, rawSpeed: number) => {
+    const newSpeed = Math.max(0.2, Math.min(4.0, Number(rawSpeed.toFixed(3))));
+    let updatedClipForFlow: TimelineClipItem | null = null;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        if (c.id !== clipId) return c;
+        const activeSpan = getClipActiveSourceSpan(c);
+        const newDuration = Number(Math.max(0.5, activeSpan / newSpeed).toFixed(2));
+        const autoSlowMo = newSpeed < 1.0 ? true : false;
+        const updated: TimelineClipItem = {
+          ...c,
+          speed: Number(newSpeed.toFixed(2)),
+          duration: newDuration,
+          smoothSlowMo: autoSlowMo,
+          opticalFlowUrl: undefined,
+          opticalFlowBakedKey: undefined,
+        };
+        updatedClipForFlow = updated;
+        return updated;
+      })
+    );
+    if (updatedClipForFlow) {
+      scheduleAutoOpticalFlow(updatedClipForFlow);
+    }
+  };
+
+  // Bidirectional Duration (s) -> automatically updates Speed (x, where 1x = normal) & auto-enables Smooth Slow Motion when speed < 1.00x
+  const handleUpdateClipDurationSeconds = (clipId: string, rawDurationSec: number) => {
+    const newDuration = Math.max(0.5, Math.min(60, Number(rawDurationSec.toFixed(2))));
+    let updatedClipForFlow: TimelineClipItem | null = null;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        if (c.id !== clipId) return c;
+        const activeSpan = getClipActiveSourceSpan(c);
+        const newSpeed = Number(Math.max(0.2, Math.min(4.0, activeSpan / newDuration)).toFixed(2));
+        const autoSlowMo = newSpeed < 1.0 ? true : false;
+        const updated: TimelineClipItem = {
+          ...c,
+          duration: newDuration,
+          speed: newSpeed,
+          smoothSlowMo: autoSlowMo,
+          opticalFlowUrl: undefined,
+          opticalFlowBakedKey: undefined,
+        };
+        updatedClipForFlow = updated;
+        return updated;
+      })
+    );
+    if (updatedClipForFlow) {
+      scheduleAutoOpticalFlow(updatedClipForFlow);
+    }
+  };
+
+  // Update Trim Start / Trim End on a clip (with automatic Smooth Slow Motion stretching when autoStretchOnTrim is enabled)
+  const handleUpdateClipTrimBounds = (
+    clipId: string,
+    nextTrimStart: number,
+    nextTrimEnd: number,
+    stretchToOriginalSlot = autoStretchOnTrim
+  ) => {
+    let updatedClipForFlow: TimelineClipItem | null = null;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        if (c.id !== clipId) return c;
+        const srcDur = c.sourceDuration && c.sourceDuration > 0.5 ? c.sourceDuration : 8;
+        const safeStart = Math.max(0, Math.min(srcDur - 0.4, Number(nextTrimStart.toFixed(2))));
+        const safeEnd = Math.max(
+          safeStart + 0.4,
+          Math.min(srcDur, Number(nextTrimEnd.toFixed(2)))
+        );
+        const activeSpan = Number((safeEnd - safeStart).toFixed(2));
+        const targetDur = stretchToOriginalSlot
+          ? Number((c.originalSlotDuration || c.duration || srcDur).toFixed(2))
+          : Number((activeSpan / (c.speed || 1)).toFixed(2));
+        const newSpeed = Number(Math.max(0.2, Math.min(4.0, activeSpan / targetDur)).toFixed(2));
+        const autoSlowMo = newSpeed < 1.0 ? true : Boolean(c.smoothSlowMo);
+        const updated: TimelineClipItem = {
+          ...c,
+          trimStart: safeStart,
+          trimEnd: safeEnd,
+          duration: targetDur,
+          speed: newSpeed,
+          smoothSlowMo: autoSlowMo,
+          opticalFlowUrl: undefined,
+          opticalFlowBakedKey: undefined,
+        };
+        updatedClipForFlow = updated;
+        return updated;
+      })
+    );
+    if (updatedClipForFlow) {
+      scheduleAutoOpticalFlow(updatedClipForFlow);
+    }
+  };
+
+  // Split (Cortar / Dividir ✂️) the clip at the current Playhead position (or midpoint if playhead is outside the clip) into Parte A & Parte B
+  const handleSplitClipAtPlayhead = (targetClipId?: string) => {
+    const targetBoundClip =
+      (targetClipId
+        ? clipsWithTimelineBounds.find((c) => c.id === targetClipId)
+        : activeClipAtPlayhead) ||
+      clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
+      null;
+
+    if (!targetBoundClip) return;
+    if (targetBoundClip.clipNumber === 0 || targetBoundClip.clipNumber === 999) {
+      setStatusMessage('ℹ️ El Intro y el Outro oficiales son bloques fijos.');
+      return;
+    }
+    if (targetBoundClip.duration < 0.8) {
+      setStatusMessage('⚠️ Este fragmento ya es demasiado corto para dividirlo más.');
+      return;
+    }
+
+    const isPlayheadInside =
+      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+    const splitTimelineSec = isPlayheadInside
+      ? currentTime
+      : Number((targetBoundClip.start + targetBoundClip.duration / 2).toFixed(2));
+
+    const durA = Number(Math.max(0.3, splitTimelineSec - targetBoundClip.start).toFixed(2));
+    const durB = Number(Math.max(0.3, targetBoundClip.end - splitTimelineSec).toFixed(2));
+    const ratioA = durA / Math.max(0.6, durA + durB);
+
+    const srcDur =
+      targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
+        ? targetBoundClip.sourceDuration
+        : 8;
+    const tStart = Math.max(0, targetBoundClip.trimStart || 0);
+    const tEnd =
+      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
+        ? targetBoundClip.trimEnd
+        : srcDur;
+    const splitSourceSec = Number((tStart + (tEnd - tStart) * ratioA).toFixed(2));
+
+    const groupId =
+      targetBoundClip.parentGroupId ||
+      `clip-group-${targetBoundClip.clipNumber}-${targetBoundClip.id}`;
+    const origSlotDur =
+      targetBoundClip.originalSlotDuration || Number((durA + durB).toFixed(2));
+
+    const stamp = Date.now();
+    const partA: TimelineClipItem = {
+      ...targetBoundClip,
+      id: `${targetBoundClip.id}-partA-${stamp}`,
+      duration: durA,
+      trimStart: tStart,
+      trimEnd: splitSourceSec,
+      parentGroupId: groupId,
+      originalSlotDuration: origSlotDur,
+      partLabel: 'Parte A',
+      opticalFlowUrl: undefined,
+      opticalFlowBakedKey: undefined,
+    };
+
+    const partB: TimelineClipItem = {
+      ...targetBoundClip,
+      id: `${targetBoundClip.id}-partB-${stamp}`,
+      duration: durB,
+      trimStart: splitSourceSec,
+      trimEnd: tEnd,
+      parentGroupId: groupId,
+      originalSlotDuration: origSlotDur,
+      partLabel: 'Parte B',
+      opticalFlowUrl: undefined,
+      opticalFlowBakedKey: undefined,
+    };
+
+    commitTimelineClipsUpdate((prev) => {
+      const idx = prev.findIndex((c) => c.id === targetBoundClip.id);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next.splice(idx, 1, partA, partB);
+      return next;
+    });
+
+    setSelectedClipId(partB.id);
+    if (!isPlayheadInside) {
+      seekToTime(splitTimelineSec);
+    }
+    setStatusMessage(
+      `✂️ Clip ${String(targetBoundClip.clipNumber).padStart(
+        2,
+        '0'
+      )} dividido en 2 partes (${durA}s y ${durB}s). Selecciona la parte que quieras borrar y pulsa 🗑️ Eliminar para que el resto se estire automáticamente con Smooth Slow Motion.`
+    );
+  };
+
+  // One-click: Delete from clip Start up to Playhead & automatically stretch the remaining part with Smooth Slow Motion to cover the original seconds
+  const handleCutFromStartToPlayhead = (targetClipId?: string) => {
+    const targetBoundClip =
+      (targetClipId
+        ? clipsWithTimelineBounds.find((c) => c.id === targetClipId)
+        : activeClipAtPlayhead) ||
+      clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
+      null;
+    if (!targetBoundClip || targetBoundClip.clipNumber === 0 || targetBoundClip.clipNumber === 999)
+      return;
+
+    const isPlayheadInside =
+      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+    if (!isPlayheadInside) {
+      setStatusMessage(
+        '⚠️ Coloca la aguja roja dentro del clip en el punto exacto hasta donde quieres cortar el inicio.'
+      );
+      return;
+    }
+
+    const ratioCut =
+      (currentTime - targetBoundClip.start) / Math.max(0.5, targetBoundClip.duration);
+    const srcDur =
+      targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
+        ? targetBoundClip.sourceDuration
+        : 8;
+    const tStart = Math.max(0, targetBoundClip.trimStart || 0);
+    const tEnd =
+      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
+        ? targetBoundClip.trimEnd
+        : srcDur;
+    const newTrimStart = Number((tStart + (tEnd - tStart) * ratioCut).toFixed(2));
+    const newActiveSpan = Number(Math.max(0.4, tEnd - newTrimStart).toFixed(2));
+    const targetDur = Number(
+      (targetBoundClip.originalSlotDuration || targetBoundClip.duration).toFixed(2)
+    );
+    const newSpeed = Number(Math.max(0.2, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
+
+    let updatedClipForFlow: TimelineClipItem | null = null;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        if (c.id !== targetBoundClip.id) return c;
+        const updated: TimelineClipItem = {
+          ...c,
+          trimStart: newTrimStart,
+          trimEnd: tEnd,
+          duration: targetDur,
+          speed: newSpeed,
+          smoothSlowMo: true,
+          opticalFlowUrl: undefined,
+          opticalFlowBakedKey: undefined,
+        };
+        updatedClipForFlow = updated;
+        return updated;
+      })
+    );
+    seekToTime(targetBoundClip.start);
+    if (updatedClipForFlow) {
+      scheduleAutoOpticalFlow(updatedClipForFlow);
+    }
+    setStatusMessage(
+      `🌊 Inicio cortado (${tStart.toFixed(1)}s → ${newTrimStart.toFixed(
+        1
+      )}s): el resto del Clip ${String(targetBoundClip.clipNumber).padStart(
+        2,
+        '0'
+      )} (${newActiveSpan}s) se estiró a ${targetDur}s (${newSpeed}x) con Smooth Slow Motion (Optical Flow).`
+    );
+  };
+
+  // One-click: Delete from Playhead to clip End & automatically stretch the remaining first part with Smooth Slow Motion to cover the original seconds
+  const handleCutFromPlayheadToEnd = (targetClipId?: string) => {
+    const targetBoundClip =
+      (targetClipId
+        ? clipsWithTimelineBounds.find((c) => c.id === targetClipId)
+        : activeClipAtPlayhead) ||
+      clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
+      null;
+    if (!targetBoundClip || targetBoundClip.clipNumber === 0 || targetBoundClip.clipNumber === 999)
+      return;
+
+    const isPlayheadInside =
+      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+    if (!isPlayheadInside) {
+      setStatusMessage(
+        '⚠️ Coloca la aguja roja dentro del clip en el punto exacto desde donde quieres borrar hasta el final.'
+      );
+      return;
+    }
+
+    const ratioKeep =
+      (currentTime - targetBoundClip.start) / Math.max(0.5, targetBoundClip.duration);
+    const srcDur =
+      targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
+        ? targetBoundClip.sourceDuration
+        : 8;
+    const tStart = Math.max(0, targetBoundClip.trimStart || 0);
+    const tEnd =
+      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
+        ? targetBoundClip.trimEnd
+        : srcDur;
+    const newTrimEnd = Number((tStart + (tEnd - tStart) * ratioKeep).toFixed(2));
+    const newActiveSpan = Number(Math.max(0.4, newTrimEnd - tStart).toFixed(2));
+    const targetDur = Number(
+      (targetBoundClip.originalSlotDuration || targetBoundClip.duration).toFixed(2)
+    );
+    const newSpeed = Number(Math.max(0.2, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
+
+    let updatedClipForFlow: TimelineClipItem | null = null;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        if (c.id !== targetBoundClip.id) return c;
+        const updated: TimelineClipItem = {
+          ...c,
+          trimStart: tStart,
+          trimEnd: newTrimEnd,
+          duration: targetDur,
+          speed: newSpeed,
+          smoothSlowMo: true,
+          opticalFlowUrl: undefined,
+          opticalFlowBakedKey: undefined,
+        };
+        updatedClipForFlow = updated;
+        return updated;
+      })
+    );
+    seekToTime(targetBoundClip.start);
+    if (updatedClipForFlow) {
+      scheduleAutoOpticalFlow(updatedClipForFlow);
+    }
+    setStatusMessage(
+      `🌊 Final cortado (${newTrimEnd.toFixed(1)}s → ${tEnd.toFixed(
+        1
+      )}s): el resto del Clip ${String(targetBoundClip.clipNumber).padStart(
+        2,
+        '0'
+      )} (${newActiveSpan}s) se estiró a ${targetDur}s (${newSpeed}x) con Smooth Slow Motion (Optical Flow).`
+    );
+  };
+
+  // Delete a clip piece (and automatically stretch the remaining part of that same clip with Smooth Slow Motion to cover its original seconds!) or delete the whole clip
+  const handleDeleteClipOrStretchSibling = (clipId: string, forceDeleteWholeClip = false) => {
+    const targetClip = timelineClips.find((c) => c.id === clipId);
+    if (!targetClip) return;
+    if (targetClip.clipNumber === 0 || targetClip.clipNumber === 999) {
+      setStatusMessage('ℹ️ El Intro y el Outro oficiales no se pueden eliminar.');
+      return;
+    }
+
+    const siblings = timelineClips.filter(
+      (c) =>
+        c.id !== clipId &&
+        ((targetClip.parentGroupId && c.parentGroupId === targetClip.parentGroupId) ||
+          c.clipNumber === targetClip.clipNumber)
+    );
+
+    if (!forceDeleteWholeClip && siblings.length > 0) {
+      const siblingIds = new Set(siblings.map((s) => s.id));
+      const totalSiblingsDur = siblings.reduce((acc, s) => acc + s.duration, 0);
+      let primaryUpdatedSibling: TimelineClipItem | null = null;
+
+      commitTimelineClipsUpdate((prev) => {
+        const filtered = prev.filter((c) => c.id !== clipId);
+        return filtered.map((c) => {
+          if (!siblingIds.has(c.id)) return c;
+          const shareRatio =
+            totalSiblingsDur > 0 ? c.duration / totalSiblingsDur : 1 / siblings.length;
+          const newDur =
+            siblings.length === 1 && (c.originalSlotDuration || targetClip.originalSlotDuration)
+              ? Number((c.originalSlotDuration || targetClip.originalSlotDuration || c.duration + targetClip.duration).toFixed(2))
+              : Number((c.duration + targetClip.duration * shareRatio).toFixed(2));
+          const activeSpan = getClipActiveSourceSpan(c);
+          const newSpeed = Number(Math.max(0.2, Math.min(4.0, activeSpan / newDur)).toFixed(2));
+          const updated: TimelineClipItem = {
+            ...c,
+            duration: newDur,
+            speed: newSpeed,
+            smoothSlowMo: newSpeed < 1.0 ? true : Boolean(c.smoothSlowMo),
+            partLabel: siblings.length === 1 ? undefined : c.partLabel,
+            opticalFlowUrl: undefined,
+            opticalFlowBakedKey: undefined,
+          };
+          primaryUpdatedSibling = updated;
+          return updated;
+        });
+      });
+
+      if (primaryUpdatedSibling) {
+        const chosen = primaryUpdatedSibling as TimelineClipItem;
+        setSelectedClipId(chosen.id);
+        scheduleAutoOpticalFlow(chosen);
+        setStatusMessage(
+          `🌊 Fragmento eliminado: el resto del Clip ${String(targetClip.clipNumber).padStart(
+            2,
+            '0'
+          )} se estiró automáticamente a ${chosen.duration}s (${
+            chosen.speed
+          }x) con Smooth Slow Motion (Optical Flow).`
+        );
+      }
+      return;
+    }
+
+    // Delete the entire clip (or all parts of this clip if forceDeleteWholeClip)
+    const idx = timelineClips.findIndex((c) => c.id === clipId);
+    const nextFallbackClip =
+      timelineClips[idx + 1] || timelineClips[idx - 1] || timelineClips[0] || null;
+    commitTimelineClipsUpdate((prev) =>
+      forceDeleteWholeClip && targetClip.parentGroupId
+        ? prev.filter((c) => c.parentGroupId !== targetClip.parentGroupId && c.id !== clipId)
+        : prev.filter((c) => c.id !== clipId)
+    );
+    if (nextFallbackClip) {
+      setSelectedClipId(nextFallbackClip.id);
+    }
+    setStatusMessage(
+      `🗑️ Clip ${String(targetClip.clipNumber).padStart(
+        2,
+        '0'
+      )} eliminado de la línea de tiempo. (Puedes pulsar "↩️ Deshacer" para restaurarlo).`
+    );
+  };
+
+  // Restore a cut/slowed clip back to its full 1.0x un-trimmed original state
+  const handleResetClipToOriginal = (clipId: string) => {
+    const targetClip = timelineClips.find((c) => c.id === clipId);
+    if (!targetClip) return;
+    const srcDur =
+      targetClip.sourceDuration && targetClip.sourceDuration > 0.5
+        ? targetClip.sourceDuration
+        : 8;
+    const origDur = targetClip.originalSlotDuration || srcDur;
+    const restored: TimelineClipItem = {
+      ...targetClip,
+      id: `tl-clip-${targetClip.clipNumber}`,
+      trimStart: 0,
+      trimEnd: srcDur,
+      duration: origDur,
+      speed: 1,
+      smoothSlowMo: false,
+      opticalFlowUrl: undefined,
+      opticalFlowBakedKey: undefined,
+      parentGroupId: undefined,
+      partLabel: undefined,
+    };
+
+    commitTimelineClipsUpdate((prev) => {
+      const result: TimelineClipItem[] = [];
+      let inserted = false;
+      for (const c of prev) {
+        const isSameGroup =
+          c.id === clipId ||
+          (targetClip.parentGroupId && c.parentGroupId === targetClip.parentGroupId) ||
+          c.clipNumber === targetClip.clipNumber;
+        if (isSameGroup) {
+          if (!inserted) {
+            result.push(restored);
+            inserted = true;
+          }
+        } else {
+          result.push(c);
+        }
+      }
+      return result;
+    });
+    setSelectedClipId(restored.id);
+    setStatusMessage(
+      `🔄 Clip ${String(targetClip.clipNumber).padStart(
+        2,
+        '0'
+      )} restaurado completo sin cortes (${origDur}s • 1.00x).`
+    );
+  };
+
   // Drag & Drop Reordering of Clips on Track 3
   const handleMoveClipOrder = (fromIdx: number, toIdx: number) => {
     if (fromIdx < 0 || toIdx < 0 || fromIdx >= timelineClips.length || toIdx >= timelineClips.length)
       return;
     if (fromIdx === toIdx) return;
-    const copy = [...timelineClips];
-    const [moved] = copy.splice(fromIdx, 1);
-    copy.splice(toIdx, 0, moved);
-    setTimelineClips(copy);
+    commitTimelineClipsUpdate((prev) => {
+      const copy = [...prev];
+      const [moved] = copy.splice(fromIdx, 1);
+      copy.splice(toIdx, 0, moved);
+      return copy;
+    });
   };
 
   // Slow down Clip 1 automatically so a 4s or 6s clip covers 8s smoothly
@@ -3558,6 +4286,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ...c1,
       duration: targetSeconds,
       speed: calculatedSpeed,
+      smoothSlowMo: calculatedSpeed < 1,
       foleyVolume: 80,
     };
     setTimelineClips(copy);
@@ -3684,7 +4413,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 clipNumber: c.clipNumber,
                 fileName: c.fileName,
                 durationSec: c.duration,
+                sourceDuration: c.sourceDuration,
+                trimStart: c.trimStart || 0,
+                trimEnd: c.trimEnd,
                 speed: c.speed,
+                smoothSlowMo:
+                  c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
+                opticalFlowUrl: c.opticalFlowUrl || '',
+                videoUrl: c.videoUrl || '',
                 foleyVolume: c.foleyVolume / 100,
                 transition: c.transition,
                 videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
@@ -4697,7 +5433,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {activeClipAtPlayhead?.videoUrl ? (
                 <video
                   ref={previewVideoRef}
-                  src={activeClipAtPlayhead.videoUrl}
+                  src={
+                    activeClipAtPlayhead.opticalFlowUrl &&
+                    activeClipAtPlayhead.smoothSlowMo !== false &&
+                    activeClipAtPlayhead.speed < 0.99
+                      ? activeClipAtPlayhead.opticalFlowUrl
+                      : activeClipAtPlayhead.videoUrl
+                  }
                   poster={activeClipAtPlayhead.posterUrl || undefined}
                   className="w-full h-full object-cover block bg-black"
                   style={{
@@ -5735,22 +6477,37 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {/* Selected Clip Detailed Controls */}
               {selectedClip && (
                 <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-3 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-black text-amber-300">
-                      Editando: CLIP {String(selectedClip.clipNumber).padStart(2, '0')} (
-                      {selectedClip.fileName})
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-black text-amber-300 flex items-center gap-1.5 flex-wrap">
+                      <span>
+                        Editando: CLIP {String(selectedClip.clipNumber).padStart(2, '0')}
+                        {selectedClip.partLabel ? ` (${selectedClip.partLabel})` : ''}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">
+                        ({selectedClip.fileName})
+                      </span>
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {clipUndoStack.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleUndoClipEdit}
+                          className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-bold text-[10px] cursor-pointer"
+                          title="Deshacer último corte, eliminación o cambio de velocidad"
+                        >
+                          ↩️ Deshacer ({clipUndoStack.length})
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
                           const idx = timelineClips.findIndex((c) => c.id === selectedClip.id);
                           handleMoveClipOrder(idx, idx - 1);
                         }}
-                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] cursor-pointer"
+                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] cursor-pointer"
                         title="Mover este clip una posición antes"
                       >
-                        ⬅️ Mover Antes
+                        ⬅️ Antes
                       </button>
                       <button
                         type="button"
@@ -5758,70 +6515,368 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           const idx = timelineClips.findIndex((c) => c.id === selectedClip.id);
                           handleMoveClipOrder(idx, idx + 1);
                         }}
-                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] cursor-pointer"
+                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] cursor-pointer"
                         title="Mover este clip una posición después"
                       >
-                        Mover Después ➡️
+                        Después ➡️
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-400">Duración (s)</label>
-                      <input
-                        type="number"
-                        step={0.5}
-                        min={1}
-                        max={30}
-                        value={selectedClip.duration}
-                        onChange={(e) => {
-                          const val = Math.max(1, Number(e.target.value));
-                          setTimelineClips((prev) =>
-                            prev.map((c) =>
-                              c.id === selectedClip.id ? { ...c, duration: val } : c
-                            )
-                          );
-                        }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                      />
+                  {/* 1. CUT / SPLIT / DELETE TOOLS (WITH AUTO-STRETCH SMOOTH SLOW MOTION) */}
+                  {selectedClip.clipNumber !== 0 && selectedClip.clipNumber !== 999 && (
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 space-y-2">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[11px] font-bold text-amber-200 flex items-center gap-1">
+                          <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                          Cortar y Eliminar (Estira el resto con Smooth Slow Motion)
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          Fuente activa: {(selectedClip.trimStart || 0).toFixed(1)}s -{' '}
+                          {(
+                            selectedClip.trimEnd ??
+                            selectedClip.sourceDuration ??
+                            8
+                          ).toFixed(1)}
+                          s ({getClipActiveSourceSpan(selectedClip).toFixed(2)}s)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleSplitClipAtPlayhead(selectedClip.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                          title="Divide el clip en 2 partes exactas donde está la aguja roja. Al borrar una de las partes, la otra se estira automáticamente con Smooth Slow Motion para cubrir los segundos originales."
+                        >
+                          <Scissors className="w-3.5 h-3.5" />
+                          ✂️ Dividir en Aguja
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteClipOrStretchSibling(selectedClip.id, false)}
+                          className="px-2.5 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-black text-[11px] flex items-center justify-center gap-1 cursor-pointer shadow"
+                          title={
+                            selectedClip.partLabel || selectedClip.parentGroupId
+                              ? 'Elimina este pedazo cortado y estira automáticamente el resto del mismo clip con Smooth Slow Motion (Optical Flow) para cubrir sus segundos originales'
+                              : 'Eliminar este clip de la línea de tiempo'
+                          }
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {selectedClip.partLabel || selectedClip.parentGroupId
+                            ? 'Eliminar Pedazo (Auto Slow-Mo)'
+                            : 'Eliminar Clip'}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCutFromStartToPlayhead(selectedClip.id)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-200 font-semibold text-[10px] cursor-pointer text-center"
+                          title="Borra desde el inicio del clip hasta la aguja roja y estira automáticamente el resto con Smooth Slow Motion para seguir cubriendo sus segundos originales"
+                        >
+                          ⏪ Borrar Inicio → Aguja (Slow-Mo)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCutFromPlayheadToEnd(selectedClip.id)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-200 font-semibold text-[10px] cursor-pointer text-center"
+                          title="Borra desde la aguja roja hasta el final del clip y estira automáticamente el inicio con Smooth Slow Motion para seguir cubriendo sus segundos originales"
+                        >
+                          ⏩ Borrar Aguja → Final (Slow-Mo)
+                        </button>
+                      </div>
+
+                      {/* Numeric Trim Start / Trim End Controls */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                        <div>
+                          <label className="block text-[10px] text-slate-400">
+                            Recorte Inicio Fuente (s):
+                          </label>
+                          <input
+                            type="number"
+                            step={0.1}
+                            min={0}
+                            max={Math.max(
+                              0,
+                              (selectedClip.trimEnd ?? selectedClip.sourceDuration ?? 8) - 0.5
+                            )}
+                            value={Number((selectedClip.trimStart || 0).toFixed(2))}
+                            onChange={(e) => {
+                              const nextStart = Math.max(0, Number(e.target.value));
+                              const curEnd =
+                                selectedClip.trimEnd ?? selectedClip.sourceDuration ?? 8;
+                              handleUpdateClipTrimBounds(
+                                selectedClip.id,
+                                nextStart,
+                                curEnd,
+                                autoStretchOnTrim
+                              );
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400">
+                            Recorte Fin Fuente (s):
+                          </label>
+                          <input
+                            type="number"
+                            step={0.1}
+                            min={(selectedClip.trimStart || 0) + 0.5}
+                            max={selectedClip.sourceDuration || 12}
+                            value={Number(
+                              (
+                                selectedClip.trimEnd ??
+                                selectedClip.sourceDuration ??
+                                8
+                              ).toFixed(2)
+                            )}
+                            onChange={(e) => {
+                              const nextEnd = Math.max(0.5, Number(e.target.value));
+                              const curStart = selectedClip.trimStart || 0;
+                              handleUpdateClipTrimBounds(
+                                selectedClip.id,
+                                curStart,
+                                nextEnd,
+                                autoStretchOnTrim
+                              );
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white mt-0.5"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <label className="flex items-center gap-1.5 text-[10px] text-emerald-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={autoStretchOnTrim}
+                            onChange={(e) => setAutoStretchOnTrim(e.target.checked)}
+                            className="accent-emerald-500 rounded cursor-pointer"
+                          />
+                          <span>
+                            Al recortar un pedazo, estirar el resto con Smooth Slow Motion para cubrir sus{' '}
+                            {selectedClip.originalSlotDuration || selectedClip.duration}s originales
+                          </span>
+                        </label>
+
+                        {(selectedClip.trimStart > 0.05 ||
+                          (selectedClip.trimEnd &&
+                            selectedClip.trimEnd < (selectedClip.sourceDuration || 8) - 0.05) ||
+                          selectedClip.partLabel ||
+                          selectedClip.speed !== 1) && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetClipToOriginal(selectedClip.id)}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[10px] text-amber-300 font-semibold whitespace-nowrap cursor-pointer"
+                            title="Restaurar este clip a su estado original completo (1.00x sin recortes)"
+                          >
+                            🔄 Restaurar Original
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400">Velocidad (x)</label>
+                  )}
+
+                  {/* 2. BIDIRECTIONAL SPEED (x, 1x = NORMAL) <-> TIME IN SECONDS (s) */}
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-sky-300">
+                        ⚡ Velocidad (1x = Normal) ↔ Tiempo en Segundos
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-300 font-bold">
+                        {selectedClip.speed}x = {selectedClip.duration}s
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-300 font-semibold">
+                          Velocidad (x)
+                        </label>
+                        <input
+                          type="number"
+                          step={0.05}
+                          min={0.2}
+                          max={4}
+                          value={selectedClip.speed}
+                          onChange={(e) => {
+                            const val = Math.max(0.2, Number(e.target.value));
+                            handleUpdateClipSpeed(selectedClip.id, val);
+                          }}
+                          className="w-full bg-slate-950 border border-sky-500/40 rounded px-2 py-1 text-xs font-mono text-sky-200 mt-0.5"
+                          title="Ajusta la velocidad en multiplicador x (1x es la velocidad normal; < 1x activa Smooth Slow Motion)"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-300 font-semibold">
+                          Tiempo (Segundos)
+                        </label>
+                        <input
+                          type="number"
+                          step={0.1}
+                          min={0.5}
+                          max={60}
+                          value={selectedClip.duration}
+                          onChange={(e) => {
+                            const val = Math.max(0.5, Number(e.target.value));
+                            handleUpdateClipDurationSeconds(selectedClip.id, val);
+                          }}
+                          className="w-full bg-slate-950 border border-amber-500/40 rounded px-2 py-1 text-xs font-mono text-amber-200 mt-0.5"
+                          title="Ajusta el tiempo en segundos que dura este clip y recalcula la velocidad (x) automáticamente"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">Volumen Foley (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={selectedClip.foleyVolume}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, Number(e.target.value)));
+                            commitTimelineClipsUpdate(
+                              (prev) =>
+                                prev.map((c) =>
+                                  c.id === selectedClip.id ? { ...c, foleyVolume: val } : c
+                                ),
+                              false
+                            );
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white mt-0.5"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Speed Slider + Quick Presets (0.5x, 0.75x, 0.8x, 1x Normal, 1.25x, 1.5x, 2x) */}
+                    <div className="space-y-1.5">
                       <input
-                        type="number"
-                        step={0.05}
+                        type="range"
                         min={0.25}
-                        max={2}
-                        value={selectedClip.speed}
-                        onChange={(e) => {
-                          const val = Math.max(0.25, Number(e.target.value));
-                          setTimelineClips((prev) =>
-                            prev.map((c) =>
-                              c.id === selectedClip.id ? { ...c, speed: val } : c
-                            )
-                          );
-                        }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                        max={2.0}
+                        step={0.01}
+                        value={Math.max(0.25, Math.min(2.0, selectedClip.speed))}
+                        onChange={(e) =>
+                          handleUpdateClipSpeed(selectedClip.id, Number(e.target.value))
+                        }
+                        className="w-full accent-sky-400 cursor-pointer"
                       />
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        {[
+                          { label: '0.5x', spd: 0.5 },
+                          { label: '0.75x', spd: 0.75 },
+                          { label: '0.8x', spd: 0.8 },
+                          { label: '1x (Normal)', spd: 1.0 },
+                          { label: '1.25x', spd: 1.25 },
+                          { label: '1.5x', spd: 1.5 },
+                          { label: '2x', spd: 2.0 },
+                        ].map((p) => {
+                          const isAct = Math.abs(selectedClip.speed - p.spd) < 0.02;
+                          return (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => handleUpdateClipSpeed(selectedClip.id, p.spd)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                                isAct
+                                  ? 'bg-sky-500 text-slate-950 shadow'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                        {selectedClip.originalSlotDuration &&
+                          Math.abs(selectedClip.duration - selectedClip.originalSlotDuration) >
+                            0.1 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateClipDurationSeconds(
+                                  selectedClip.id,
+                                  selectedClip.originalSlotDuration!
+                                )
+                              }
+                              className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer"
+                              title="Ajustar velocidad automáticamente para que el clip cubra sus segundos originales"
+                            >
+                              ⏱️ Cubrir {selectedClip.originalSlotDuration}s orig.
+                            </button>
+                          )}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400">Volumen Foley (%)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={selectedClip.foleyVolume}
-                        onChange={(e) => {
-                          const val = Math.min(100, Math.max(0, Number(e.target.value)));
-                          setTimelineClips((prev) =>
-                            prev.map((c) =>
-                              c.id === selectedClip.id ? { ...c, foleyVolume: val } : c
-                            )
-                          );
-                        }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                      />
+
+                    {/* 3. CAPCUT-STYLE SMOOTH SLOW MOTION (OPTICAL FLOW) SWITCH — ACTIVE BY DEFAULT WHEN SPEED < 1.00x */}
+                    <div
+                      className={`rounded-lg p-2 border transition ${
+                        selectedClip.speed < 1.0 && selectedClip.smoothSlowMo !== false
+                          ? 'bg-sky-950/45 border-sky-500/50'
+                          : 'bg-slate-950/70 border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={
+                              selectedClip.smoothSlowMo !== undefined
+                                ? selectedClip.smoothSlowMo
+                                : selectedClip.speed < 1.0
+                            }
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              let targetForFlow: TimelineClipItem | null = null;
+                              commitTimelineClipsUpdate(
+                                (prev) =>
+                                  prev.map((c) => {
+                                    if (c.id !== selectedClip.id) return c;
+                                    const nextClip = { ...c, smoothSlowMo: checked };
+                                    targetForFlow = nextClip;
+                                    return nextClip;
+                                  }),
+                                false
+                              );
+                              if (checked && targetForFlow && selectedClip.speed < 1.0) {
+                                triggerOpticalFlowForClip(targetForFlow, false);
+                              }
+                            }}
+                            className="w-3.5 h-3.5 accent-sky-400 rounded cursor-pointer"
+                          />
+                          <span className="text-[11px] font-black text-sky-200">
+                            🌊 Smooth Slow Motion (Optical Flow — Estilo CapCut)
+                          </span>
+                        </label>
+
+                        {selectedClip.speed < 1.0 && (
+                          <button
+                            type="button"
+                            disabled={Boolean(opticalFlowProcessingByClipId[selectedClip.id])}
+                            onClick={() => triggerOpticalFlowForClip(selectedClip, false)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer flex items-center gap-1 ${
+                              opticalFlowProcessingByClipId[selectedClip.id]
+                                ? 'bg-sky-500/20 text-sky-300 animate-pulse'
+                                : selectedClip.opticalFlowUrl
+                                ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                                : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+                            }`}
+                          >
+                            {opticalFlowProcessingByClipId[selectedClip.id]
+                              ? '🌊 Interpolando Optical Flow...'
+                              : selectedClip.opticalFlowUrl
+                              ? '✅ Optical Flow Listo (Re-aplicar)'
+                              : '🌊 Generar Optical Flow'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">
+                        {selectedClip.speed < 1.0
+                          ? '✨ Activo por defecto (< 1.00x): sintetiza fotogramas intermedios por flujo óptico (FFmpeg minterpolate MCI) para una cámara lenta sedosa sin saltos.'
+                          : 'Se marca activo automáticamente en cuanto la velocidad baja de 1.00x.'}
+                      </div>
                     </div>
                   </div>
 
@@ -5830,10 +6885,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       value={selectedClip.transition}
                       onChange={(e) => {
                         const val = e.target.value as ClipTransitionType;
-                        setTimelineClips((prev) =>
-                          prev.map((c) =>
-                            c.id === selectedClip.id ? { ...c, transition: val } : c
-                          )
+                        commitTimelineClipsUpdate(
+                          (prev) =>
+                            prev.map((c) =>
+                              c.id === selectedClip.id ? { ...c, transition: val } : c
+                            ),
+                          false
                         );
                       }}
                       className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200"
@@ -5854,10 +6911,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           const f = e.target.files?.[0];
                           if (!f) return;
                           const url = URL.createObjectURL(f);
-                          setTimelineClips((prev) =>
+                          commitTimelineClipsUpdate((prev) =>
                             prev.map((c) =>
                               c.id === selectedClip.id
-                                ? { ...c, videoUrl: url, fileName: f.name }
+                                ? {
+                                    ...c,
+                                    videoUrl: url,
+                                    fileName: f.name,
+                                    opticalFlowUrl: undefined,
+                                    opticalFlowBakedKey: undefined,
+                                  }
                                 : c
                             )
                           );
@@ -6916,17 +7979,66 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ===================================================================== */}
       <div className="flex-1 bg-[#0b0907] p-4 overflow-y-auto space-y-2.5">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <Layers className="w-4 h-4" /> Línea de Tiempo Multipista (Arrastra los Clips para Cambiar el Orden)
+              <Layers className="w-4 h-4" /> Línea de Tiempo Multipista (Arrastra o Corta Clips)
             </span>
             {activeClipAtPlayhead && (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[11px] font-bold text-amber-200 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                Seleccionado en Tiempo Real: #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
-                {String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}) • {formatTimeMMSS(currentTime)}.
-                {Math.floor((currentTime % 1) * 10)}
+                #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
+                {String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}
+                {activeClipAtPlayhead.partLabel ? ` • ${activeClipAtPlayhead.partLabel}` : ''}) •{' '}
+                {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
               </span>
+            )}
+            {/* Quick Timeline Cut / Split / Delete Toolbar */}
+            {selectedClip && (
+              <div className="flex items-center gap-1.5 flex-wrap pl-1 border-l border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => handleSplitClipAtPlayhead(selectedClip.id)}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow shadow-amber-500/20 cursor-pointer transition"
+                  title="Divide el clip actual en 2 partes (Parte A y Parte B) exactamente donde está la aguja roja"
+                >
+                  <Scissors className="w-3.5 h-3.5" /> Dividir en Aguja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCutFromStartToPlayhead(selectedClip.id, true)}
+                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
+                  title="Corta desde el inicio del clip hasta la aguja y estira el resto con Smooth Slow Motion (Optical Flow)"
+                >
+                  ⏪ Cortar Inicio→Aguja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCutFromPlayheadToEnd(selectedClip.id, true)}
+                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
+                  title="Corta desde la aguja hasta el final del clip y estira el inicio con Smooth Slow Motion (Optical Flow)"
+                >
+                  ⏩ Cortar Aguja→Fin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteClipOrStretchSibling(selectedClip.id, false)}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600/25 hover:bg-rose-600/40 border border-rose-500/50 text-rose-200 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition"
+                  title="Elimina el pedazo seleccionado; si pertenece a un clip dividido, la otra parte se estira automáticamente con Smooth Slow Motion (Optical Flow) para cubrir sus segundos originales"
+                >
+                  <Trash2 className="w-3 h-3" />{' '}
+                  {selectedClip.parentGroupId ? 'Borrar Pedazo (Auto Slow-Mo)' : 'Eliminar Clip'}
+                </button>
+                {clipEditHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleUndoClipEdit}
+                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[10px] cursor-pointer transition"
+                    title="Deshacer último corte, eliminación o cambio de velocidad"
+                  >
+                    ↩️ Deshacer ({clipEditHistory.length})
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -7304,15 +8416,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         }
                         setDraggedClipIndex(null);
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
                         setSelectedClipId(clip.id);
-                        seekToTime(clip.start);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        if (rect.width > 12) {
+                          const ratio = Math.max(0, Math.min(0.98, (e.clientX - rect.left) / rect.width));
+                          const clickedTime = Number((clip.start + ratio * clip.duration).toFixed(2));
+                          seekToTime(clickedTime);
+                        } else {
+                          seekToTime(clip.start);
+                        }
                       }}
                       title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
                         clip.clipNumber
-                      ).padStart(2, '0')}) • ${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(
-                        clip.end
-                      )} • ${clip.fileName}`}
+                      ).padStart(2, '0')}${clip.partLabel ? ` • ${clip.partLabel}` : ''}) • ${formatTimeMMSS(
+                        clip.start
+                      )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Haz clic en cualquier punto del clip para colocar la aguja roja ahí`}
                       style={
                         isFitEntireProject
                           ? {
@@ -7362,8 +8481,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   ? 'INTRO'
                                   : clip.clipNumber === 999
                                   ? 'OUTRO'
-                                  : String(clip.clipNumber).padStart(2, '0')}
+                                  : `${String(clip.clipNumber).padStart(2, '0')}${
+                                      clip.partLabel ? (clip.partLabel.includes('A') ? 'A' : 'B') : ''
+                                    }`}
                               </span>
+                              {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
+                                <span className="px-0.5 py-0.2 rounded bg-sky-500/80 text-[7px] font-black text-slate-950 leading-none">
+                                  🌊 {clip.speed}x
+                                </span>
+                              )}
                               <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
                                 {formatTimeMMSS(clip.start)}
                               </span>
@@ -7384,7 +8510,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   ? '🎬 INTRO 8K (Fade In/Out)'
                                   : clip.clipNumber === 999
                                   ? '🎬 OUTRO 8K (Fade In/Out)'
-                                  : `#${String(idx + 1).padStart(2, '0')} (C${String(clip.clipNumber).padStart(2, '0')})`}
+                                  : `#${String(idx + 1).padStart(2, '0')} (C${String(clip.clipNumber).padStart(2, '0')}${
+                                      clip.partLabel ? ` • ${clip.partLabel}` : ''
+                                    })`}
                                 {clip.reviewedForEditor && (
                                   <span title="Revisado y enviado desde Etapa 8">✅</span>
                                 )}
@@ -7401,6 +8529,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   alt={clip.fileName}
                                   className="w-full h-full object-cover"
                                 />
+                                {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
+                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-sky-500/90 text-[8px] font-black text-slate-950 shadow">
+                                    🌊 Optical Flow {clip.speed}x {clip.opticalFlowUrl ? '✓' : ''}
+                                  </span>
+                                )}
                                 <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
                                   {isCurrent ? '▶ En Curso' : 'Fotograma 1'}
                                 </span>
@@ -7424,8 +8557,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             </div>
 
                             <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
-                              <span>
+                              <span className={clip.speed < 1.0 ? 'text-sky-300 font-bold' : ''}>
                                 {clip.duration}s • {clip.speed}x
+                                {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
                               </span>
                               <span>
                                 {clip.clipNumber === 0 || clip.clipNumber === 999

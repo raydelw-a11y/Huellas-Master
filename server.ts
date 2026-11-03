@@ -5077,6 +5077,266 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
   }
 });
 
+// ============================================================================
+// CAPCUT-STYLE SMOOTH SLOW MOTION (OPTICAL FLOW / MINTERPOLATE) & CLIP TRIMMER
+// ============================================================================
+app.post('/api/video/optical-flow', async (req, res) => {
+  try {
+    const {
+      folderPath = '',
+      folderName = '',
+      docTitle = '',
+      clipId = '',
+      clipNumber = 0,
+      fileName = '',
+      videoUrl = '',
+      aspectRatio = '16:9',
+      trimStart = 0,
+      trimEnd = 0,
+      speed = 1,
+      targetDuration = 0,
+      smoothSlowMo = true,
+    } = req.body || {};
+
+    let sourceMp4 = '';
+
+    // 1. Try extracting filePath directly from videoUrl query parameter (unless it points to a previous optical_flow_cache file)
+    if (videoUrl && typeof videoUrl === 'string') {
+      try {
+        const parsed = new URL(videoUrl, 'http://localhost:4200');
+        const fp = parsed.searchParams.get('filePath');
+        if (fp && !fp.includes('.optical_flow_cache') && fs.existsSync(fp)) {
+          sourceMp4 = fp;
+        }
+      } catch {}
+    }
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const clipsVideoSubdir = resolvedRoot ? path.join(resolvedRoot, '05_Clips_Video') : '';
+    const clipsApprovedSubdir = resolvedRoot ? path.join(resolvedRoot, 'Clips_Aprobados') : '';
+
+    // 2. Fallback: locate pristine source MP4 in 05_Clips_Video, resolvedRoot, or Clips_Aprobados
+    if (!sourceMp4 && resolvedRoot && fs.existsSync(resolvedRoot)) {
+      const searchDirs = [clipsVideoSubdir, resolvedRoot, clipsApprovedSubdir].filter(
+        (d) => d && fs.existsSync(d)
+      );
+      if (fileName) {
+        for (const d of searchDirs) {
+          const cand = path.join(d, path.basename(fileName));
+          if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+            sourceMp4 = cand;
+            break;
+          }
+        }
+      }
+      if (!sourceMp4 && Number(clipNumber) > 0) {
+        const num = Number(clipNumber);
+        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const d of searchDirs) {
+          const matches = fs
+            .readdirSync(d)
+            .filter(
+              (f) =>
+                !f.startsWith('.') &&
+                prefixRegex.test(f) &&
+                /\.(mp4|mov|webm)$/i.test(f)
+            )
+            .sort((a, b) => {
+              const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+              const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+              if (b4k !== a4k) return b4k - a4k;
+              try {
+                return (
+                  fs.statSync(path.join(d, b)).mtimeMs -
+                  fs.statSync(path.join(d, a)).mtimeMs
+                );
+              } catch {
+                return 0;
+              }
+            });
+          if (matches.length > 0) {
+            sourceMp4 = path.join(d, matches[0]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+      res.status(404).json({
+        ok: false,
+        error: `No se encontró el archivo MP4 original para el Clip ${String(clipNumber || '').padStart(2, '0')}.`,
+      });
+      return;
+    }
+
+    const safeSpeed = Math.max(0.2, Math.min(4.0, Number(speed) || 1));
+    const safeTrimStart = Math.max(0, Number(trimStart) || 0);
+    const safeTrimEnd = Number(trimEnd) > safeTrimStart + 0.05 ? Number(trimEnd) : 0;
+    const useOpticalFlow = Boolean(smoothSlowMo) && safeSpeed < 0.99;
+
+    const cacheDir = path.join(path.dirname(sourceMp4), '.optical_flow_cache');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const baseKey = path
+      .basename(sourceMp4, path.extname(sourceMp4))
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 48);
+    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_s${safeSpeed.toFixed(3)}_of${useOpticalFlow ? 1 : 0}`;
+    const outFileName = `${baseKey}_${bakedKey}.mp4`;
+    const outFullPath = path.join(cacheDir, outFileName);
+
+    // Return cached optical-flow MP4 immediately if already generated for these exact parameters
+    if (fs.existsSync(outFullPath) && fs.statSync(outFullPath).size > 15000) {
+      const st = fs.statSync(outFullPath);
+      res.json({
+        ok: true,
+        cached: true,
+        clipId,
+        clipNumber,
+        bakedKey,
+        speed: safeSpeed,
+        trimStart: safeTrimStart,
+        trimEnd: safeTrimEnd,
+        smoothSlowMo: useOpticalFlow,
+        opticalFlowUrl: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(outFullPath)}&v=${Math.floor(st.mtimeMs)}`,
+      });
+      return;
+    }
+
+    const ffmpegBin = resolveFfmpegBin();
+    const ptsFactor = (1 / safeSpeed).toFixed(4);
+    const isVertical = aspectRatio === '9:16';
+    const outW = isVertical ? 1080 : 1920;
+    const outH = isVertical ? 1920 : 1080;
+    const motionEstW = isVertical ? 480 : 854;
+    const motionEstH = isVertical ? 854 : 480;
+
+    const inputTrimArgs: string[] = [];
+    if (safeTrimStart > 0.01) {
+      inputTrimArgs.push('-ss', safeTrimStart.toFixed(3));
+    }
+    if (safeTrimEnd > safeTrimStart + 0.05) {
+      inputTrimArgs.push('-to', safeTrimEnd.toFixed(3));
+    }
+
+    const buildAtempoChain = (spd: number): string => {
+      if (Math.abs(spd - 1) < 0.02) return 'volume=1.0';
+      const stages: string[] = [];
+      let rem = Math.max(0.2, Math.min(4.0, spd));
+      while (rem < 0.5) {
+        stages.push('atempo=0.5');
+        rem /= 0.5;
+      }
+      while (rem > 2.0) {
+        stages.push('atempo=2.0');
+        rem /= 2.0;
+      }
+      stages.push(`atempo=${rem.toFixed(3)}`);
+      return stages.join(',');
+    };
+    const afFilter = buildAtempoChain(safeSpeed);
+
+    // Optical Flow MCI filter chain (CapCut Smooth Slow Motion equivalent)
+    const vfMci = useOpticalFlow
+      ? `scale=${motionEstW}:${motionEstH}:force_original_aspect_ratio=decrease,pad=${motionEstW}:${motionEstH}:(ow-iw)/2:(oh-ih)/2,setpts=${ptsFactor}*PTS,minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none,scale=${outW}:${outH}:flags=bicubic,unsharp=3:3:0.55:3:3:0.0,format=yuv420p`
+      : `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
+
+    const vfBlendFallback = useOpticalFlow
+      ? `setpts=${ptsFactor}*PTS,minterpolate=fps=60:mi_mode=blend,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p`
+      : vfMci;
+
+    const tmpOutPath = path.join(
+      cacheDir,
+      `.tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp4`
+    );
+
+    const runEncode = (vf: string, withAudio: boolean) =>
+      new Promise<void>((resolve, reject) => {
+        const args = [
+          '-y',
+          ...inputTrimArgs,
+          '-i',
+          sourceMp4,
+          ...(withAudio
+            ? ['-af', afFilter]
+            : ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100', '-shortest']),
+          ...(Number(targetDuration) > 0.3 ? ['-t', Number(targetDuration).toFixed(3)] : []),
+          '-vf',
+          vf,
+          '-c:v',
+          'h264_videotoolbox',
+          '-b:v',
+          '16M',
+          '-pix_fmt',
+          'yuv420p',
+          '-movflags',
+          '+faststart',
+          '-c:a',
+          'aac',
+          '-ar',
+          '44100',
+          '-ac',
+          '2',
+          tmpOutPath,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+          if (code === 0 && fs.existsSync(tmpOutPath) && fs.statSync(tmpOutPath).size > 10000) {
+            resolve();
+          } else {
+            reject(new Error(`ffmpeg exited with code ${code}`));
+          }
+        });
+      });
+
+    try {
+      try {
+        await runEncode(vfMci, true);
+      } catch {
+        try {
+          await runEncode(vfMci, false);
+        } catch {
+          try {
+            await runEncode(vfBlendFallback, true);
+          } catch {
+            await runEncode(vfBlendFallback, false);
+          }
+        }
+      }
+
+      fs.renameSync(tmpOutPath, outFullPath);
+    } finally {
+      try {
+        if (fs.existsSync(tmpOutPath)) fs.unlinkSync(tmpOutPath);
+      } catch {}
+    }
+
+    const st = fs.statSync(outFullPath);
+    res.json({
+      ok: true,
+      cached: false,
+      clipId,
+      clipNumber,
+      bakedKey,
+      speed: safeSpeed,
+      trimStart: safeTrimStart,
+      trimEnd: safeTrimEnd,
+      smoothSlowMo: useOpticalFlow,
+      opticalFlowUrl: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(outFullPath)}&v=${Math.floor(st.mtimeMs)}`,
+    });
+  } catch (err: any) {
+    console.error('Error en /api/video/optical-flow:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error procesando Smooth Slow Motion (Optical Flow).',
+    });
+  }
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
