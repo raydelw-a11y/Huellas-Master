@@ -3626,6 +3626,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   }, [timelineClips]);
 
+  const selectedClip = useMemo(
+    () =>
+      clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
+      clipsWithTimelineBounds[0] ||
+      null,
+    [clipsWithTimelineBounds, selectedClipId]
+  );
+
   // Detect if the 8s Official Intro (fixed-doc-intro) is placed Post-Slogan in the middle of the timeline (Opción B)
   const postSloganIntroBounds = useMemo(() => {
     const introClip = clipsWithTimelineBounds.find(
@@ -7247,10 +7255,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
-  const selectedClip =
-    clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
-    clipsWithTimelineBounds[0] ||
-    null;
   const activePreset = RESOLUTION_PRESETS[exportResolution];
   const clipProgressRatio = activeClipAtPlayhead
     ? Math.min(

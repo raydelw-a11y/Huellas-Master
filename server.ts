@@ -4241,8 +4241,27 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       }
     }
     // Allow browser to cache MP4 range chunks in memory (URLs already include ?v=mtimeMs cache-buster)
+    const resolvedFilePath = path.resolve(filePath);
+    try {
+      const fileSize = fs.statSync(resolvedFilePath).size;
+      const rangeHeader = req.headers.range;
+      if (typeof rangeHeader === 'string') {
+        const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+        if (m) {
+          const start = m[1] ? parseInt(m[1], 10) : 0;
+          const end = m[2] ? parseInt(m[2], 10) : fileSize - 1;
+          if (start >= fileSize || start < 0) {
+            delete req.headers.range;
+          } else if (m[2] && end >= fileSize) {
+            req.headers.range = `bytes=${start}-${Math.max(start, fileSize - 1)}`;
+          }
+        }
+      }
+    } catch {
+      // ignore stat errors
+    }
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.sendFile(path.resolve(filePath), { dotfiles: 'allow' });
+    res.sendFile(resolvedFilePath, { dotfiles: 'allow' });
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
   }
