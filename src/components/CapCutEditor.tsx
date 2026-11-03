@@ -8805,18 +8805,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
           )}
 
-          {/* Export Organized Final YouTube/Reels Package */}
-          {onExportOrganizedFolder && (
-            <button
-              type="button"
-              onClick={onExportOrganizedFolder}
-              className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
-              title="Genera en tu carpeta la estructura completa lista para YouTube: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
-            >
-              📦 Paquete YT
-            </button>
-          )}
-
           {/* Single Unified Download / Export Video Button -> Opens Export Settings Modal */}
           <button
             type="button"
