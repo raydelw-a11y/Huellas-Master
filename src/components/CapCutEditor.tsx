@@ -7245,6 +7245,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
+  // Whenever any element is selected (on canvas, left media list, or timeline), open the Right Column Inspector to that element's settings
+  useEffect(() => {
+    if (selectedCanvasObject === 'logo' || selectedCanvasObject === 'hook_text') {
+      setActiveInspectorTab('branding');
+      setIsRightPanelCollapsed(false);
+    } else if (selectedCanvasObject === 'captions') {
+      setActiveInspectorTab('captions');
+      setIsRightPanelCollapsed(false);
+    }
+  }, [selectedCanvasObject]);
+
+  useEffect(() => {
+    if (selectedClipId) {
+      setActiveInspectorTab('clips');
+      setIsRightPanelCollapsed(false);
+    }
+  }, [selectedClipId]);
+
+  useEffect(() => {
+    if (selectedMusicTrackId) {
+      setActiveInspectorTab('audio');
+      setIsRightPanelCollapsed(false);
+    }
+  }, [selectedMusicTrackId]);
+
   return (
     <div className="w-full h-full flex-1 min-h-0 flex flex-col bg-[#0c0a08] text-slate-100 overflow-hidden">
       {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
@@ -8818,284 +8843,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </button>
             </div>
           </div>
-
-          {/* Contextual Quick-Edit Toolbar when an Overlay Object (Logo, Hook Text, or Captions) is Selected */}
-          {selectedCanvasObject === 'hook_text' && (
-            <div
-              data-keep-canvas-selection="true"
-              className="w-full max-h-20 overflow-y-auto bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2 text-xs shrink-0"
-            >
-              <span className="font-black text-amber-300 text-[11px]">
-                🔤 Estilo Texto en Pantalla:
-              </span>
-              <input
-                type="text"
-                value={clip1Line1}
-                onChange={(e) => handleUpdateClip1Line1(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-                placeholder="Línea 1: Lugar y Año..."
-                className="w-44 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-200 outline-none focus:border-amber-400"
-                title="Texto Línea 1 (guardado en tiempo real)"
-              />
-              <input
-                type="text"
-                value={clip1Line2}
-                onChange={(e) => handleUpdateClip1Line2(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-                placeholder="Línea 2: Título Gancho..."
-                className="w-48 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-amber-400"
-                title="Texto Línea 2 (guardado en tiempo real)"
-              />
-              {(hookLeftPct !== 50 || hookTopPct !== 50) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHookLeftPct(50);
-                    setHookTopPct(50);
-                  }}
-                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400/60 text-[11px] font-bold cursor-pointer"
-                  title="Centrar exactamente en la cruz central (50% X, 50% Y)"
-                >
-                  🎯 Centrar
-                </button>
-              )}
-              <select
-                value={hookFontFamily}
-                onChange={(e) => setHookFontFamily(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-200 cursor-pointer"
-                title="Fuente tipográfica"
-              >
-                {EDITOR_FONT_OPTIONS.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                L1:
-                <input
-                  type="number"
-                  min={10}
-                  max={42}
-                  value={hookLine1FontSize}
-                  onChange={(e) => setHookLine1FontSize(Number(e.target.value))}
-                  className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-white"
-                />
-                <input
-                  type="color"
-                  value={hookLine1Color}
-                  onChange={(e) => setHookLine1Color(e.target.value)}
-                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                  title="Color Línea 1"
-                />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                L2:
-                <input
-                  type="number"
-                  min={14}
-                  max={56}
-                  value={hookLine2FontSize}
-                  onChange={(e) => setHookLine2FontSize(Number(e.target.value))}
-                  className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-white"
-                />
-                <input
-                  type="color"
-                  value={hookLine2Color}
-                  onChange={(e) => setHookLine2Color(e.target.value)}
-                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                  title="Color Línea 2"
-                />
-              </label>
-              <select
-                value={hookShadowStyle}
-                onChange={(e) => setHookShadowStyle(e.target.value as OverlayShadowStyle)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-                title="Sombra del texto"
-              >
-                {EDITOR_SHADOW_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={hookBgStyle}
-                onChange={(e) => setHookBgStyle(e.target.value as OverlayBgStyle)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-                title="Fondo del texto"
-              >
-                <option value="none">Fondo: Transparente</option>
-                <option value="word_shadow">Fondo: Sombra Ceñida a las Palabras</option>
-                <option value="semi">Fondo: Caja Semitransparente</option>
-                <option value="solid">Fondo: Caja Sólida</option>
-              </select>
-              {hookBgStyle !== 'none' && (
-                <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                  <input
-                    type="color"
-                    value={hookBgColor}
-                    onChange={(e) => setHookBgColor(e.target.value)}
-                    className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                    title="Color de fondo"
-                  />
-                  <span>{hookBgOpacity}%</span>
-                  <input
-                    type="range"
-                    min={10}
-                    max={100}
-                    value={hookBgOpacity}
-                    onChange={(e) => setHookBgOpacity(Number(e.target.value))}
-                    className="w-16 accent-amber-500"
-                  />
-                </label>
-              )}
-              <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                Posición Y:
-                <input
-                  type="range"
-                  min={8}
-                  max={82}
-                  value={hookTopPct}
-                  onChange={(e) => setHookTopPct(Number(e.target.value))}
-                  className="w-16 accent-amber-500"
-                />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
-                ✨ Animación L1 ({hookLine1StartSec}s):
-                <select
-                  value={hookLine1AnimIn}
-                  onChange={(e) => setHookLine1AnimIn(e.target.value as ElementAnimationType)}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
-                  title="Animación de entrada Línea 1 (Por defecto: Fade 1s en 0s)"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      In: {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
-                ✨ Animación L2 ({hookLine2StartSec}s):
-                <select
-                  value={hookLine2AnimIn}
-                  onChange={(e) => setHookLine2AnimIn(e.target.value as ElementAnimationType)}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
-                  title="Animación de entrada Línea 2 (Por defecto: aparece en 2s con Fade 1s)"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      In: {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
-                Salida (→{clip1OverlayEndSec}s):
-                <select
-                  value={hookLine1AnimOut}
-                  onChange={(e) => {
-                    const val = e.target.value as ElementAnimationType;
-                    setHookLine1AnimOut(val);
-                    setHookLine2AnimOut(val);
-                  }}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
-                  title="Animación de salida de ambas líneas hacia el segundo 8 (Por defecto: Fade Out 1s)"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      Out: {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-
-          {selectedCanvasObject === 'logo' && (
-            <div
-              data-keep-canvas-selection="true"
-              className="w-full bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2.5 text-xs shrink-0"
-            >
-              <span className="font-black text-amber-300 text-[11px]">
-                🏷️ Ajuste Rápido del Logo:
-              </span>
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                Tamaño ({logoScalePct}%):
-                <input
-                  type="range"
-                  min={3}
-                  max={18}
-                  value={logoScalePct}
-                  onChange={(e) => setLogoScalePct(Number(e.target.value))}
-                  className="w-20 accent-amber-500"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                Opacidad ({logoOpacity}%):
-                <input
-                  type="range"
-                  min={20}
-                  max={100}
-                  value={logoOpacity}
-                  onChange={(e) => setLogoOpacity(Number(e.target.value))}
-                  className="w-20 accent-amber-500"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                X ({logoPosX}%):
-                <input
-                  type="range"
-                  min={1}
-                  max={85}
-                  value={logoPosX}
-                  onChange={(e) => setLogoPosX(Number(e.target.value))}
-                  className="w-16 accent-amber-500"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                Y ({logoPosY}%):
-                <input
-                  type="range"
-                  min={1}
-                  max={85}
-                  value={logoPosY}
-                  onChange={(e) => setLogoPosY(Number(e.target.value))}
-                  className="w-16 accent-amber-500"
-                />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
-                ✨ Entrada:
-                <select
-                  value={logoAnimIn}
-                  onChange={(e) => setLogoAnimIn(e.target.value as ElementAnimationType)}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-amber-200 font-semibold">
-                ✨ Salida Final ({logoAnimOutDur}s):
-                <select
-                  value={logoAnimOut}
-                  onChange={(e) => setLogoAnimOut(e.target.value as ElementAnimationType)}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-amber-200"
-                  title="Por defecto: Fade Out 1 segundo al final del documental"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
         </div>
 
         {/* =================================================================
@@ -9199,7 +8946,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 1: CLIPS, ORDER, SPEED, FOLEY & TRANSITIONS */}
           {activeInspectorTab === 'clips' && (
-            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div>
                   <div className="font-bold text-amber-300">
@@ -9305,9 +9052,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              {/* Selected Clip Detailed Controls */}
+              {/* Selected Clip Detailed Controls — Displayed at the top of the Right Column when a clip is selected */}
               {selectedClip && (
-                <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-3 space-y-2.5">
+                <div className="order-first bg-slate-950/90 border border-amber-500/40 ring-1 ring-amber-400/50 rounded-xl p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="font-black text-amber-300 flex items-center gap-1.5 flex-wrap">
                       <span>
@@ -9818,7 +9565,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 2: AUDIO MIXING, VOICE OFFSET, AUTO-DUCKING & SUNO */}
           {activeInspectorTab === 'audio' && (
-            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-300">
@@ -10033,7 +9780,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-950/90 border border-purple-500/40 rounded-xl p-3 space-y-2.5">
+              <div
+                className={`bg-slate-950/90 border border-purple-500/40 rounded-xl p-3 space-y-2.5 ${
+                  selectedMusicTrack ? 'order-first ring-1 ring-purple-400' : ''
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="font-bold text-purple-300">
                     🎵 Pista 5: Música Flow Music (Selecciona una canción en el timeline o aquí)
@@ -10269,8 +10020,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 3: PERMANENT OFFICIAL LOGO & CLIP 1 ON-SCREEN TEXT (FONT, SIZE, SHADOW, BACKGROUND) */}
           {activeInspectorTab === 'branding' && (
-            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
-              <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3 space-y-2.5">
+            <div
+              data-keep-canvas-selection="true"
+              className="flex flex-col gap-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1"
+            >
+              <div
+                className={`bg-slate-950/90 border rounded-xl p-3 space-y-2.5 ${
+                  selectedCanvasObject === 'logo'
+                    ? 'border-amber-400 ring-1 ring-amber-400'
+                    : 'border-amber-500/40'
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="font-bold text-amber-300">
@@ -10405,6 +10165,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="w-full accent-amber-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400">
+                      Posición X: {logoPosX}%
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={85}
+                      value={logoPosX}
+                      onChange={(e) => setLogoPosX(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400">
+                      Posición Y: {logoPosY}%
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={85}
+                      value={logoPosY}
+                      onChange={(e) => setLogoPosY(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
                 </div>
 
                 {/* Logo Animations (Default: Fade Out 1s at the end of the documentary) */}
@@ -10475,7 +10261,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
+              <div
+                className={`bg-slate-950/90 border rounded-xl p-3 space-y-2.5 ${
+                  selectedCanvasObject === 'hook_text'
+                    ? 'order-first border-amber-400 ring-1 ring-amber-400'
+                    : 'border-slate-800'
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-bold text-amber-300">
                     🔤 Texto Gancho en Pantalla (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
@@ -10614,9 +10406,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       />
                     </div>
                   )}
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-[10px] text-slate-400">
-                      Posición Vertical en Pantalla ({hookTopPct}%)
+                      Posición Horizontal X ({hookLeftPct}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={90}
+                      value={hookLeftPct}
+                      onChange={(e) => setHookLeftPct(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400">
+                      Posición Vertical Y ({hookTopPct}%)
                     </label>
                     <input
                       type="range"
@@ -10627,6 +10432,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="w-full accent-amber-500"
                     />
                   </div>
+                  {(hookLeftPct !== 50 || hookTopPct !== 50) && (
+                    <div className="col-span-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHookLeftPct(50);
+                          setHookTopPct(50);
+                        }}
+                        className="w-full px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400/60 text-[11px] font-bold cursor-pointer"
+                      >
+                        🎯 Centrar Texto Exactamente en el Centro (50% X, 50% Y)
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Independent Animations for Hook Line 1 (8s->16s) & Hook Line 2 (10s->16s) */}
@@ -12243,6 +12062,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
                 {/* Main Voiceover Bar — Always spans the full voiceover duration */}
                 <div
+                  onClick={() => {
+                    setSelectedMusicTrackId(null);
+                    setActiveInspectorTab('audio');
+                    setIsRightPanelCollapsed(false);
+                  }}
                   style={
                     isFitEntireProject
                       ? {
@@ -12256,7 +12080,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           width: `${Math.max(0, totalDurationSec - voiceStartOffsetSec) * timelineZoom}px`,
                         }
                   }
-                  className="px-2 py-0.5 rounded-r bg-emerald-500/20 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold flex items-center justify-between gap-2 truncate shrink-0"
+                  className="px-2 py-0.5 rounded-r bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold flex items-center justify-between gap-2 truncate shrink-0 cursor-pointer"
                 >
                   <span className="truncate">
                     🎙️ Voz Narrativa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
@@ -12433,185 +12257,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   )}
                 </div>
               </div>
-
-              {/* Quick Inline Control Bar when a Song is Selected on the Timeline */}
-              {selectedMusicTrackId && selectedMusicTrack && (
-                <div className="ml-38 bg-purple-950/80 border border-purple-400/50 rounded-xl px-3 py-1.5 flex items-center justify-between gap-3 flex-wrap shadow-lg">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="px-2 py-0.5 rounded bg-purple-500 text-slate-950 font-black text-[10px] shrink-0">
-                      🎵 Canción #{selectedMusicTrack.trackNumber}
-                    </span>
-                    <span className="text-xs font-bold text-purple-100 truncate max-w-[220px]">
-                      {selectedMusicTrack.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-purple-300 shrink-0">
-                      ({formatTimeMMSS(selectedMusicTrack.start)} -{' '}
-                      {formatTimeMMSS(selectedMusicTrack.start + selectedMusicTrack.duration)})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => seekToTime(selectedMusicTrack.start + 0.05)}
-                      className="px-2 py-0.5 rounded bg-purple-500/30 hover:bg-purple-500/50 border border-purple-400/40 text-purple-100 text-[10px] font-bold cursor-pointer shrink-0"
-                    >
-                      ▶ Inicio
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        seekToTime(
-                          Math.max(
-                            selectedMusicTrack.start,
-                            selectedMusicTrack.start +
-                              selectedMusicTrack.duration -
-                              Math.max(3, (selectedMusicTrack.fadeOutSec ?? 3.0) + 1)
-                          )
-                        )
-                      }
-                      className="px-2 py-0.5 rounded bg-purple-500/30 hover:bg-purple-500/50 border border-purple-400/40 text-purple-100 text-[10px] font-bold cursor-pointer shrink-0"
-                    >
-                      🔉 Final (Fade Out)
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-4 flex-wrap">
-                    {/* Volume Control */}
-                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
-                      <span>🔊 Volumen:</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={selectedMusicTrack.volume ?? masterMusicVolume}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            volume: Number(e.target.value),
-                          })
-                        }
-                        className="w-24 accent-purple-400 cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={selectedMusicTrack.volume ?? masterMusicVolume}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            volume: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
-                          })
-                        }
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
-                      />
-                      <span className="text-[10px] text-purple-300">%</span>
-                    </label>
-
-                    {/* Fade In Control */}
-                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
-                      <span>📈 Fade In:</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={selectedMusicTrack.fadeInSec ?? 5}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            fadeInSec: Number(e.target.value),
-                          })
-                        }
-                        className="w-20 accent-purple-400 cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={selectedMusicTrack.fadeInSec ?? 5}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            fadeInSec: Math.max(
-                              0,
-                              Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
-                            ),
-                          })
-                        }
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
-                      />
-                      <span className="text-[10px] text-purple-300">s</span>
-                    </label>
-
-                    {/* Fade Out Control */}
-                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
-                      <span>📉 Fade Out:</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={selectedMusicTrack.fadeOutSec ?? 5}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            fadeOutSec: Number(e.target.value),
-                          })
-                        }
-                        className="w-20 accent-purple-400 cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={selectedMusicTrack.fadeOutSec ?? 5}
-                        onChange={(e) =>
-                          handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            fadeOutSec: Math.max(
-                              0,
-                              Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
-                            ),
-                          })
-                        }
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
-                      />
-                      <span className="text-[10px] text-purple-300">s</span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleUpdateMusicTrack(
-                          selectedMusicTrack.id,
-                          {
-                            volume: selectedMusicTrack.volume ?? masterMusicVolume,
-                            fadeInSec: selectedMusicTrack.fadeInSec ?? 5,
-                            fadeOutSec: selectedMusicTrack.fadeOutSec ?? 5,
-                          },
-                          true
-                        );
-                        setStatusMessage(
-                          `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a todas las canciones.`
-                        );
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer shrink-0"
-                      title="Aplicar este Volumen, Fade-In y Fade-Out a todas las canciones del documental"
-                    >
-                      ✨ Aplicar a Todas
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMusicTrackId(null)}
-                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold cursor-pointer shrink-0"
-                      title="Cerrar barra rápida de canción"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
