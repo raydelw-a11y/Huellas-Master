@@ -835,6 +835,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Voiceover Track (Track 4) — Always starts at 16s (after 8s Intro at 00:00-00:08 + 8s Clip 1 Hook Text at 00:08-00:16)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
+    if (initialDocOverlays && Number(initialDocOverlays.voiceStartOffsetSec) >= 8) {
+      return Number(initialDocOverlays.voiceStartOffsetSec);
+    }
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
     return 8 + clip1HookDur;
@@ -847,18 +850,235 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(35); // When narrator speaks
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
-  const [captions, setCaptions] = useState<TimelineCaptionItem[]>([]);
-  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[0].value);
-  const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
-    activeDoc?.productionType === 'REEL_9X16' ? 22 : 40
+  const [captions, setCaptions] = useState<TimelineCaptionItem[]>(() => {
+    if (
+      initialDocOverlays &&
+      Array.isArray(initialDocOverlays.captions) &&
+      initialDocOverlays.captions.length > 0
+    ) {
+      return initialDocOverlays.captions;
+    }
+    return [];
+  });
+  const [captionFontFamily, setCaptionFontFamily] = useState<string>(
+    () => initialOverlayStyles.captionFontFamily || EDITOR_FONT_OPTIONS[0].value
   );
-  const [captionBottomPct, setCaptionBottomPct] = useState<number>(11);
-  const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>('white');
-  const [captionCustomColor, setCaptionCustomColor] = useState<string>('#ffffff');
-  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>('cinema');
-  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>('word_shadow');
-  const [captionBgColor, setCaptionBgColor] = useState<string>('#000000');
-  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(25);
+  const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
+    Number(initialOverlayStyles.captionFontSize) ||
+    (activeDoc?.productionType === 'REEL_9X16' ? 22 : 40)
+  );
+  const [captionBottomPct, setCaptionBottomPct] = useState<number>(() =>
+    typeof initialOverlayStyles.captionBottomPct === 'number'
+      ? initialOverlayStyles.captionBottomPct
+      : 11
+  );
+  const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(
+    () => initialOverlayStyles.captionColor || 'white'
+  );
+  const [captionCustomColor, setCaptionCustomColor] = useState<string>(
+    () => initialOverlayStyles.captionCustomColor || '#ffffff'
+  );
+  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>(
+    () => initialOverlayStyles.captionShadowStyle || 'cinema'
+  );
+  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>(
+    () => initialOverlayStyles.captionBgStyle || 'word_shadow'
+  );
+  const [captionBgColor, setCaptionBgColor] = useState<string>(
+    () => initialOverlayStyles.captionBgColor || '#000000'
+  );
+  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(() =>
+    typeof initialOverlayStyles.captionBgOpacity === 'number'
+      ? initialOverlayStyles.captionBgOpacity
+      : 25
+  );
+
+  // Track whether the user has edited Hook Text or Captions on the active documentary so background effects NEVER reset them
+  const userEditedHookDocIdRef = useRef<string>(
+    initialDocOverlays?.userEditedHook ? activeDoc?.id || 'default' : ''
+  );
+  const userEditedCaptionsDocIdRef = useRef<string>(
+    initialDocOverlays?.userEditedCaptions ? activeDoc?.id || 'default' : ''
+  );
+  const lastSyncedDocIdRef = useRef<string>(activeDoc?.id || 'default');
+
+  const persistDocOverlaysPatch = (patch: Record<string, any>, targetDocId?: string) => {
+    const docKey = `huellas_editor_doc_overlays_${targetDocId || activeDoc?.id || 'default'}`;
+    try {
+      const existingRaw = localStorage.getItem(docKey);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      localStorage.setItem(docKey, JSON.stringify({ ...existing, ...patch, updatedAt: Date.now() }));
+    } catch {}
+  };
+
+  // Real-time persistence for all Hook Text, Captions, and Logo styles/positions/animations
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'huellas_editor_overlay_styles_v1',
+        JSON.stringify({
+          logoScalePct,
+          logoOpacity,
+          logoPosX,
+          logoPosY,
+          logoAnimIn,
+          logoAnimInDur,
+          logoAnimOut,
+          logoAnimOutDur,
+          hookFontFamily,
+          hookLine1FontSize,
+          hookLine2FontSize,
+          hookLine1Color,
+          hookLine2Color,
+          hookShadowStyle,
+          hookBgStyle,
+          hookBgColor,
+          hookBgOpacity,
+          hookLeftPct,
+          hookTopPct,
+          hookBoxWidthPct,
+          hookLine1StartSec,
+          hookLine1AnimIn,
+          hookLine1AnimInDur,
+          hookLine1AnimOut,
+          hookLine1AnimOutDur,
+          hookLine2StartSec,
+          hookLine2AnimIn,
+          hookLine2AnimInDur,
+          hookLine2AnimOut,
+          hookLine2AnimOutDur,
+          captionFontFamily,
+          captionFontSize,
+          captionBottomPct,
+          captionColor,
+          captionCustomColor,
+          captionShadowStyle,
+          captionBgStyle,
+          captionBgColor,
+          captionBgOpacity,
+          captionAnimIn,
+          captionAnimOut,
+          captionAnimDur,
+        })
+      );
+    } catch {}
+  }, [
+    logoScalePct,
+    logoOpacity,
+    logoPosX,
+    logoPosY,
+    logoAnimIn,
+    logoAnimInDur,
+    logoAnimOut,
+    logoAnimOutDur,
+    hookFontFamily,
+    hookLine1FontSize,
+    hookLine2FontSize,
+    hookLine1Color,
+    hookLine2Color,
+    hookShadowStyle,
+    hookBgStyle,
+    hookBgColor,
+    hookBgOpacity,
+    hookLeftPct,
+    hookTopPct,
+    hookBoxWidthPct,
+    hookLine1StartSec,
+    hookLine1AnimIn,
+    hookLine1AnimInDur,
+    hookLine1AnimOut,
+    hookLine1AnimOutDur,
+    hookLine2StartSec,
+    hookLine2AnimIn,
+    hookLine2AnimInDur,
+    hookLine2AnimOut,
+    hookLine2AnimOutDur,
+    captionFontFamily,
+    captionFontSize,
+    captionBottomPct,
+    captionColor,
+    captionCustomColor,
+    captionShadowStyle,
+    captionBgStyle,
+    captionBgColor,
+    captionBgOpacity,
+    captionAnimIn,
+    captionAnimOut,
+    captionAnimDur,
+  ]);
+
+  const handleUpdateClip1Line1 = (newVal: string) => {
+    const docId = activeDoc?.id || 'default';
+    userEditedHookDocIdRef.current = docId;
+    setClip1Line1(newVal);
+    persistDocOverlaysPatch({ clip1Line1: newVal, userEditedHook: true }, docId);
+    updateActiveDoc({ clip1Line1LocationTime: newVal });
+  };
+
+  const handleUpdateClip1Line2 = (newVal: string) => {
+    const docId = activeDoc?.id || 'default';
+    userEditedHookDocIdRef.current = docId;
+    setClip1Line2(newVal);
+    persistDocOverlaysPatch({ clip1Line2: newVal, userEditedHook: true }, docId);
+    updateActiveDoc({ clip1Line2Hook: newVal });
+  };
+
+  const serializeCaptionsToSrt = (items: TimelineCaptionItem[]): string => {
+    const fmtSrtTime = (sec: number) => {
+      const s = Math.max(0, sec);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const whole = Math.floor(s % 60);
+      const ms = Math.round((s - Math.floor(s)) * 1000);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(whole).padStart(
+        2,
+        '0'
+      )},${String(Math.min(999, ms)).padStart(3, '0')}`;
+    };
+    return items
+      .map((c, idx) => `${idx + 1}\n${fmtSrtTime(c.start)} --> ${fmtSrtTime(c.end)}\n${c.text}`)
+      .join('\n\n');
+  };
+
+  const handleUpdateCaptionText = (captionId: string, newText: string) => {
+    const docId = activeDoc?.id || 'default';
+    userEditedCaptionsDocIdRef.current = docId;
+    setCaptions((prev) => {
+      const updated = prev.map((c) => (c.id === captionId ? { ...c, text: newText } : c));
+      persistDocOverlaysPatch({ captions: updated, userEditedCaptions: true }, docId);
+      updateActiveDoc({ correctedSrt: serializeCaptionsToSrt(updated) });
+      return updated;
+    });
+  };
+
+  const handleStartCaptionDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0 || isViewerFullscreen) return;
+    e.stopPropagation();
+    setSelectedCanvasObject('captions');
+    setActiveInspectorTab('captions');
+    const canvasEl = viewerCanvasRef.current;
+    if (!canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    if (!rect.height) return;
+
+    const startY = e.clientY;
+    const initBottom = captionBottomPct;
+
+    const onMove = (moveEvt: MouseEvent) => {
+      const dyPx = moveEvt.clientY - startY;
+      if (Math.abs(dyPx) < 2) return;
+      const nextBottom = Math.max(4, Math.min(55, initBottom - (dyPx / rect.height) * 100));
+      setCaptionBottomPct(Number(nextBottom.toFixed(1)));
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
@@ -1334,6 +1554,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const syncTracksFromDocumentary = () => {
     if (!activeDoc) return;
 
+    const docId = activeDoc.id || 'default';
+    const isDocSwitch = lastSyncedDocIdRef.current !== docId;
+    lastSyncedDocIdRef.current = docId;
+    const savedDocOverlays = readSavedDocOverlays(docId);
+
     const FIXED_INTRO_SEC = 8;
     const FIXED_OUTRO_SEC = 8;
     const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
@@ -1341,17 +1566,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // Fixed 8s Intro (00:00 - 00:08) -> Clip 1 with Hook Text (00:08 - 00:16) -> Voiceover & Captions start at 16s (00:16)
     const entrySec = FIXED_INTRO_SEC + clip1HookDur;
 
-    setClip1Line1(
-      normalizeClip1Line1Format(
+    if (savedDocOverlays?.userEditedHook) {
+      userEditedHookDocIdRef.current = docId;
+      if (isDocSwitch) {
+        if (typeof savedDocOverlays.clip1Line1 === 'string') {
+          setClip1Line1(savedDocOverlays.clip1Line1);
+        }
+        if (typeof savedDocOverlays.clip1Line2 === 'string') {
+          setClip1Line2(savedDocOverlays.clip1Line2);
+        }
+      }
+    } else if (isDocSwitch || userEditedHookDocIdRef.current !== docId) {
+      const defaultLine1 = normalizeClip1Line1Format(
         activeDoc.clip1Line1LocationTime ||
           [activeDoc.historicalLocation, activeDoc.historicalTime].filter(Boolean).join(', ')
-      )
-    );
-    setClip1Line2(activeDoc.clip1Line2Hook || activeDoc.title || '');
-    setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
-    setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
-    setClip1OverlayEndSec(entrySec);
-    setVoiceStartOffsetSec(entrySec);
+      );
+      const defaultLine2 = activeDoc.clip1Line2Hook || activeDoc.title || '';
+      setClip1Line1((prev) => (isDocSwitch || !prev ? defaultLine1 : prev));
+      setClip1Line2((prev) => (isDocSwitch || !prev ? defaultLine2 : prev));
+    }
+
+    if (isDocSwitch) {
+      setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
+      setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
+      setClip1OverlayEndSec(entrySec);
+      setVoiceStartOffsetSec(entrySec);
+    }
 
     const isLocalHost =
       typeof window !== 'undefined' &&
@@ -1517,17 +1757,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setSelectedClipId(builtClips[0].id);
     }
 
-    // 2. Build Captions Track (Track 2) aligned to entrySec (16s) and real Voiceover audio
+    // 2. Build Captions Track (Track 2) aligned to entrySec (16s) and real Voiceover audio (never overwrite user-edited captions!)
     if (
-      activeDoc.voiceoverScript &&
-      activeDoc.voiceoverScript.trim() &&
-      effectiveVoiceDurationSec > 1
+      savedDocOverlays?.userEditedCaptions &&
+      Array.isArray(savedDocOverlays.captions) &&
+      savedDocOverlays.captions.length > 0
     ) {
-      handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
-    } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
-      setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec));
-    } else {
-      handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
+      userEditedCaptionsDocIdRef.current = docId;
+      if (isDocSwitch || captions.length === 0) {
+        setCaptions(savedDocOverlays.captions);
+      }
+    } else if (userEditedCaptionsDocIdRef.current !== docId) {
+      if (
+        activeDoc.voiceoverScript &&
+        activeDoc.voiceoverScript.trim() &&
+        effectiveVoiceDurationSec > 1
+      ) {
+        handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
+      } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
+        setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec));
+      } else {
+        handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
+      }
     }
 
     // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) — OFF during 8s Intro (00:00-00:08) and OFF during 8s Outro at the end
@@ -1641,9 +1892,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const handleGenerateAutoCaptionsFromVoice = (
     customEntryOffset?: number,
     customVoiceDurSec?: number,
-    customSilences?: Array<{ start: number; end: number; dur: number }>
+    customSilences?: Array<{ start: number; end: number; dur: number }>,
+    forceOverwrite = false
   ) => {
     if (!activeDoc) return;
+    const docId = activeDoc.id || 'default';
+    if (!forceOverwrite) {
+      const savedDocOverlays = readSavedDocOverlays(docId);
+      if (
+        userEditedCaptionsDocIdRef.current === docId ||
+        (savedDocOverlays?.userEditedCaptions &&
+          Array.isArray(savedDocOverlays.captions) &&
+          savedDocOverlays.captions.length > 0)
+      ) {
+        userEditedCaptionsDocIdRef.current = docId;
+        return;
+      }
+    } else {
+      userEditedCaptionsDocIdRef.current = '';
+    }
+
     const offset =
       typeof customEntryOffset === 'number' ? customEntryOffset : voiceStartOffsetSec;
     const targetVoiceDur =
@@ -1657,6 +1925,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const parsed76 = parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset);
       if (parsed76.length > 0) {
         setCaptions(parsed76);
+        persistDocOverlaysPatch(
+          { captions: parsed76, ...(forceOverwrite ? { userEditedCaptions: false } : {}) },
+          docId
+        );
         return;
       }
     }
@@ -2144,13 +2416,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     setCaptions(generated);
+    persistDocOverlaysPatch(
+      { captions: generated, ...(forceOverwrite ? { userEditedCaptions: false } : {}) },
+      docId
+    );
   };
 
   // Pre-load verified 3-Level Acoustically Locked SRT for Video 76 so playback captions match 100% immediately
   useEffect(() => {
     if (!isVideo76Doc) return;
+    const docId = activeDoc?.id || 'default';
+    const savedDocOverlays = readSavedDocOverlays(docId);
+    if (
+      userEditedCaptionsDocIdRef.current === docId ||
+      (savedDocOverlays?.userEditedCaptions &&
+        Array.isArray(savedDocOverlays.captions) &&
+        savedDocOverlays.captions.length > 0)
+    ) {
+      userEditedCaptionsDocIdRef.current = docId;
+      return;
+    }
     if (prealignedVideo76SrtRef.current) {
-      setCaptions(parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec));
+      const parsed = parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec);
+      setCaptions(parsed);
+      persistDocOverlaysPatch({ captions: parsed }, docId);
       return;
     }
     let cancelled = false;
@@ -2159,13 +2448,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       .then((txt) => {
         if (cancelled || !txt || !txt.includes('-->')) return;
         prealignedVideo76SrtRef.current = txt;
-        setCaptions(parseSrtToCaptionItems(txt, voiceStartOffsetSec));
+        if (userEditedCaptionsDocIdRef.current === docId) return;
+        const parsed = parseSrtToCaptionItems(txt, voiceStartOffsetSec);
+        setCaptions(parsed);
+        persistDocOverlaysPatch({ captions: parsed }, docId);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [isVideo76Doc, voiceStartOffsetSec]);
+  }, [isVideo76Doc, voiceStartOffsetSec, activeDoc?.id]);
 
   // Decode actual Voiceover MP3/WAV waveform via Web Audio API to extract exact acoustic silences & speech islands
   useEffect(() => {
@@ -2259,9 +2551,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [effectiveVoiceoverUrl, activeDoc?.id]);
 
-  // Re-align captions automatically whenever voiceStartOffsetSec or effectiveVoiceDurationSec updates
+  // Re-align captions automatically whenever voiceStartOffsetSec or effectiveVoiceDurationSec updates (unless user edited captions)
   useEffect(() => {
     if (!activeDoc) return;
+    const docId = activeDoc.id || 'default';
+    const savedDocOverlays = readSavedDocOverlays(docId);
+    if (
+      userEditedCaptionsDocIdRef.current === docId ||
+      (savedDocOverlays?.userEditedCaptions &&
+        Array.isArray(savedDocOverlays.captions) &&
+        savedDocOverlays.captions.length > 0)
+    ) {
+      userEditedCaptionsDocIdRef.current = docId;
+      return;
+    }
     if (
       activeDoc.voiceoverScript &&
       activeDoc.voiceoverScript.trim() &&
@@ -4685,10 +4988,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }}
                 >
                   <span
-                    onMouseDown={(e) => {
-                      if (isViewerFullscreen) return;
-                      e.stopPropagation();
-                    }}
+                    onMouseDown={isViewerFullscreen ? undefined : handleStartCaptionDrag}
                     onClick={(e) => {
                       if (isViewerFullscreen) return;
                       e.stopPropagation();
@@ -4698,12 +4998,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     title={
                       isViewerFullscreen
                         ? undefined
-                        : 'Haz clic para seleccionar los Captions y ver tus cambios de estilo en tiempo real'
+                        : 'Haz clic o arrastra verticalmente para ajustar los Captions en tiempo real'
                     }
                     className={`${
                       isViewerFullscreen
                         ? 'pointer-events-none select-none'
-                        : 'pointer-events-auto cursor-pointer'
+                        : 'pointer-events-auto cursor-ns-resize'
                     } ${
                       captionBgStyle === 'word_shadow'
                         ? 'inline px-2.5 py-0.5 rounded-md'
@@ -4823,18 +5123,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <input
                 type="text"
                 value={clip1Line1}
-                onChange={(e) => setClip1Line1(e.target.value)}
+                onChange={(e) => handleUpdateClip1Line1(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Línea 1: Lugar y Año..."
                 className="w-44 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-200 outline-none focus:border-amber-400"
-                title="Texto Línea 1 (en vivo en el visor)"
+                title="Texto Línea 1 (guardado en tiempo real)"
               />
               <input
                 type="text"
                 value={clip1Line2}
-                onChange={(e) => setClip1Line2(e.target.value)}
+                onChange={(e) => handleUpdateClip1Line2(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Línea 2: Título Gancho..."
                 className="w-48 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-amber-400"
-                title="Texto Línea 2 (en vivo en el visor)"
+                title="Texto Línea 2 (guardado en tiempo real)"
               />
               {(hookLeftPct !== 50 || hookTopPct !== 50) && (
                 <button
@@ -5015,14 +5317,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   onChange={(e) => {
                     const targetCap = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
                     if (!targetCap) return;
-                    const newText = e.target.value;
-                    setCaptions((prev) =>
-                      prev.map((c) => (c.id === targetCap.id ? { ...c, text: newText } : c))
-                    );
+                    handleUpdateCaptionText(targetCap.id, e.target.value);
                   }}
+                  onKeyDown={(e) => e.stopPropagation()}
                   placeholder="Texto del caption actual..."
                   className="w-56 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-sky-400"
-                  title="Editar texto del caption actual (en vivo en el visor)"
+                  title="Editar texto del caption actual (guardado en tiempo real)"
                 />
               )}
               <select
@@ -5041,7 +5341,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <input
                   type="range"
                   min={14}
-                  max={40}
+                  max={64}
                   value={captionFontSize}
                   onChange={(e) => setCaptionFontSize(Number(e.target.value))}
                   className="w-16 accent-sky-400"
@@ -5905,20 +6205,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-bold text-amber-300">
-                    🔤 Texto Gancho en Pantalla (00:00 - 00:0{clip1OverlayEndSec})
+                    🔤 Texto Gancho en Pantalla (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCanvasObject('hook_text')}
-                    className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer"
-                  >
-                    ✏️ Editar en Visor
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-emerald-400 font-semibold">
+                      💾 Guardado en tiempo real
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCanvasObject('hook_text')}
+                      className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer"
+                    >
+                      ✏️ Editar en Visor
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   rows={Math.max(1, (clip1Line1 || '').split('\n').length)}
                   value={clip1Line1}
-                  onChange={(e) => setClip1Line1(e.target.value)}
+                  onChange={(e) => handleUpdateClip1Line1(e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   placeholder="Línea 1: Ciudad, País, Año o Siglo en romanos... (Enter para saltar de línea)"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 resize-y leading-tight"
@@ -5926,7 +6231,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <textarea
                   rows={Math.max(1, (clip1Line2 || '').split('\n').length)}
                   value={clip1Line2}
-                  onChange={(e) => setClip1Line2(e.target.value)}
+                  onChange={(e) => handleUpdateClip1Line2(e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   placeholder="Línea 2: Título Gancho intrigante... (Enter para saltar de línea)"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold resize-y leading-tight"
@@ -6051,29 +6356,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </div>
                 </div>
 
-                {/* Independent Animations for Hook Line 1 (0s->8s) & Hook Line 2 (2s->8s) */}
+                {/* Independent Animations for Hook Line 1 (8s->16s) & Hook Line 2 (10s->16s) */}
                 <div className="pt-2 border-t border-slate-800 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-amber-300 text-[11px]">
-                      ✨ Animaciones del Texto Inicial (Por defecto: L1 en 0s, L2 en 2s, Fade 1s)
+                      ✨ Animaciones del Texto Inicial (Por defecto: L1 en 8s, L2 en 10s, Fade 1s)
                     </span>
                     <button
                       type="button"
                       onClick={() => {
-                        setHookLine1StartSec(0);
+                        setHookLine1StartSec(8);
                         setHookLine1AnimIn('fade');
                         setHookLine1AnimInDur(1);
                         setHookLine1AnimOut('fade');
                         setHookLine1AnimOutDur(1);
-                        setHookLine2StartSec(2);
+                        setHookLine2StartSec(10);
                         setHookLine2AnimIn('fade');
                         setHookLine2AnimInDur(1);
                         setHookLine2AnimOut('fade');
                         setHookLine2AnimOutDur(1);
-                        setClip1OverlayEndSec(8);
+                        setClip1OverlayEndSec(16);
                       }}
                       className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer shrink-0"
-                      title="Restaurar configuración por defecto: Fade In 1s (L1 en 0s, L2 en 2s) y Fade Out 1s hacia el segundo 8"
+                      title="Restaurar configuración por defecto: Fade In 1s (L1 en 8s, L2 en 10s) y Fade Out 1s hacia el segundo 16"
                     >
                       🔄 Por Defecto
                     </button>
@@ -6091,7 +6396,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           type="number"
                           step={0.5}
                           min={0}
-                          max={6}
+                          max={16}
                           value={hookLine1StartSec}
                           onChange={(e) => setHookLine1StartSec(Math.max(0, Number(e.target.value)))}
                           className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
@@ -6168,7 +6473,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           type="number"
                           step={0.5}
                           min={0}
-                          max={6}
+                          max={16}
                           value={hookLine2StartSec}
                           onChange={(e) => setHookLine2StartSec(Math.max(0, Number(e.target.value)))}
                           className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
@@ -6246,7 +6551,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     💬 Subtítulos Sincronizados ({captions.length} bloques desde 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')})
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    Sincronizados acústicamente con la Voz Narrativa ({formatTimeMMSS(effectiveVoiceDurationSec)}) y sus pausas reales.
+                    💾 Guardado automático en tiempo real • Voz Narrativa ({formatTimeMMSS(effectiveVoiceDurationSec)})
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -6256,7 +6561,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       handleGenerateAutoCaptionsFromVoice(
                         voiceStartOffsetSec,
                         effectiveVoiceDurationSec,
-                        detectedAudioSilencesRef.current
+                        detectedAudioSilencesRef.current,
+                        true
                       );
                       setStatusMessage(
                         `💬 Subtítulos resincronizados acústicamente desde 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} hasta ${formatTimeMMSS(totalDurationSec)}.`
@@ -6270,22 +6576,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     type="button"
                     onClick={() => {
                       if (captions.length === 0) return;
-                      const fmtSrtTime = (sec: number) => {
-                        const s = Math.max(0, sec);
-                        const h = Math.floor(s / 3600);
-                        const m = Math.floor((s % 3600) / 60);
-                        const whole = Math.floor(s % 60);
-                        const ms = Math.round((s - Math.floor(s)) * 1000);
-                        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
-                          whole
-                        ).padStart(2, '0')},${String(Math.min(999, ms)).padStart(3, '0')}`;
-                      };
-                      const srtOut = captions
-                        .map(
-                          (c, idx) =>
-                            `${idx + 1}\n${fmtSrtTime(c.start)} --> ${fmtSrtTime(c.end)}\n${c.text}`
-                        )
-                        .join('\n\n');
+                      const srtOut = serializeCaptionsToSrt(captions);
                       updateActiveDoc({ correctedSrt: srtOut });
                       const blob = new Blob([srtOut + '\n'], { type: 'text/plain;charset=utf-8' });
                       const url = URL.createObjectURL(blob);
@@ -6307,6 +6598,64 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </button>
                 </div>
               </div>
+
+              {(activeCaptionAtPlayhead || nearestCaptionAtPlayhead) && (
+                <div className="bg-slate-950/90 border border-sky-500/40 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-sky-300 text-[11px]">
+                      ✏️ Texto del Caption en Pantalla (#{(activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.index} •{' '}
+                      {formatTimeMMSS((activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.start)} -{' '}
+                      {formatTimeMMSS((activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.end)})
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
+                          if (!target) return;
+                          const idx = captions.findIndex((c) => c.id === target.id);
+                          if (idx > 0) {
+                            seekToTime(captions[idx - 1].start + 0.05);
+                            setSelectedCanvasObject('captions');
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-slate-300 cursor-pointer"
+                        title="Ir al caption anterior"
+                      >
+                        ◀ Ant
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
+                          if (!target) return;
+                          const idx = captions.findIndex((c) => c.id === target.id);
+                          if (idx >= 0 && idx < captions.length - 1) {
+                            seekToTime(captions[idx + 1].start + 0.05);
+                            setSelectedCanvasObject('captions');
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-slate-300 cursor-pointer"
+                        title="Ir al siguiente caption"
+                      >
+                        Sig ▶
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={(activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.text}
+                    onChange={(e) => {
+                      const target = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
+                      if (!target) return;
+                      handleUpdateCaptionText(target.id, e.target.value);
+                    }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    placeholder="Escribe o corrige el texto del caption actual..."
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-sky-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-semibold outline-none"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div className="col-span-2">
