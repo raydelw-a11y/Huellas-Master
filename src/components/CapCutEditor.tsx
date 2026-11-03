@@ -1388,8 +1388,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ...cur,
               volume: item.volume,
               userSetVolumeV10: true,
-              fadeInSec: item.fadeInSec ?? 2.5,
-              fadeOutSec: item.fadeOutSec ?? 3.0,
+              userSetFadesV5: true,
+              fadeInSec: item.fadeInSec ?? 5,
+              fadeOutSec: item.fadeOutSec ?? 5,
             };
           }
         }
@@ -2624,7 +2625,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (sunoList.length > 0) {
       const savedMusicEdits: Record<
         string,
-        { volume?: number; userSetVolumeV10?: boolean; fadeInSec?: number; fadeOutSec?: number }
+        {
+          volume?: number;
+          userSetVolumeV10?: boolean;
+          userSetFadesV5?: boolean;
+          fadeInSec?: number;
+          fadeOutSec?: number;
+        }
       > =
         savedDocOverlays && typeof savedDocOverlays.musicTrackEdits === 'object'
           ? savedDocOverlays.musicTrackEdits
@@ -2685,9 +2692,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           audioUrl: combinedSunoAudioMap[trackNum] || st.audioUrl,
           isLast90Sec: isLast,
           fadeInSec:
-            typeof savedEdit.fadeInSec === 'number' ? savedEdit.fadeInSec : 2.5,
+            savedEdit.userSetFadesV5 && typeof savedEdit.fadeInSec === 'number'
+              ? savedEdit.fadeInSec
+              : 5,
           fadeOutSec:
-            typeof savedEdit.fadeOutSec === 'number' ? savedEdit.fadeOutSec : 3.0,
+            savedEdit.userSetFadesV5 && typeof savedEdit.fadeOutSec === 'number'
+              ? savedEdit.fadeOutSec
+              : 5,
           videoTimeRange: st.videoTimeRange,
         };
       });
@@ -2707,17 +2718,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 ? prevMatch.volume
                 : 10,
             fadeInSec:
-              typeof savedEdit.fadeInSec === 'number'
+              savedEdit.userSetFadesV5 && typeof savedEdit.fadeInSec === 'number'
                 ? savedEdit.fadeInSec
-                : prevMatch && typeof prevMatch.fadeInSec === 'number'
+                : prevMatch &&
+                  typeof prevMatch.fadeInSec === 'number' &&
+                  prevMatch.fadeInSec !== 2.5
                 ? prevMatch.fadeInSec
-                : bm.fadeInSec,
+                : 5,
             fadeOutSec:
-              typeof savedEdit.fadeOutSec === 'number'
+              savedEdit.userSetFadesV5 && typeof savedEdit.fadeOutSec === 'number'
                 ? savedEdit.fadeOutSec
-                : prevMatch && typeof prevMatch.fadeOutSec === 'number'
+                : prevMatch &&
+                  typeof prevMatch.fadeOutSec === 'number' &&
+                  prevMatch.fadeOutSec !== 3.0
                 ? prevMatch.fadeOutSec
-                : bm.fadeOutSec,
+                : 5,
           };
         })
       );
@@ -3819,8 +3834,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : Math.min(100, Math.round(rawBasePct * 1.18))
       : rawBasePct;
 
-    const fadeInSec = Math.max(0, activeMusicAtPlayhead.fadeInSec ?? 2.5);
-    const fadeOutSec = Math.max(0, activeMusicAtPlayhead.fadeOutSec ?? 3.0);
+    const fadeInSec = Math.max(0, activeMusicAtPlayhead.fadeInSec ?? 5);
+    const fadeOutSec = Math.max(0, activeMusicAtPlayhead.fadeOutSec ?? 5);
     const elapsedInTrack = Math.max(0, currentTime - activeMusicAtPlayhead.start);
     const remainingInTrack = Math.max(
       0,
@@ -5420,18 +5435,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       > = {};
 
+      let pureFoleyUntouchedCount = 0;
+      let surgicalCleanedCount = 0;
+
       for (let i = 0; i < targetClips.length; i++) {
         const clip = targetClips[i];
         setFoleyIsolationProgress({ current: i + 1, total: targetClips.length });
         setStatusMessage(
-          `🌿 (${i + 1}/${targetClips.length}) Detectando y eliminando música y voces en Clip ${String(clip.clipNumber).padStart(2, '0')} para dejar solo Foley ambiente...`
+          `🌿 (${i + 1}/${targetClips.length}) Analizando audio de Clip ${String(clip.clipNumber).padStart(2, '0')} (conservando 100% del Foley y eliminando solo voces/música)...`
         );
 
-        const origVideoUrl = clip.originalVideoUrlBeforeSeparation || clip.videoUrl || '';
-        const origOpticalFlowUrl =
+        const rawOrigVideoUrl = clip.originalVideoUrlBeforeSeparation || clip.videoUrl || '';
+        const origVideoUrl = rawOrigVideoUrl.includes('_foley_only.mp4')
+          ? clip.videoUrl || rawOrigVideoUrl
+          : rawOrigVideoUrl;
+        const rawOrigOpticalFlowUrl =
           clip.originalOpticalFlowUrlBeforeSeparation || clip.opticalFlowUrl || '';
+        const origOpticalFlowUrl = rawOrigOpticalFlowUrl.includes('_foley_only.mp4')
+          ? rawOrigOpticalFlowUrl.replace(/_foley_only\.mp4/gi, '.mp4')
+          : rawOrigOpticalFlowUrl;
         let cleanFoleyVideoUrl: string | undefined;
         let cleanOpticalFlowUrl: string | undefined;
+        let alreadyPureFoley = false;
 
         for (const base of bases) {
           try {
@@ -5455,16 +5480,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
                 if (data.cleanFoleyVideoUrl) cleanFoleyVideoUrl = prefix(data.cleanFoleyVideoUrl);
                 if (data.cleanOpticalFlowUrl) cleanOpticalFlowUrl = prefix(data.cleanOpticalFlowUrl);
+                alreadyPureFoley = Boolean(data.alreadyPureFoley);
                 break;
               }
             }
           } catch {}
         }
 
+        if (alreadyPureFoley) {
+          pureFoleyUntouchedCount++;
+        } else if (cleanFoleyVideoUrl || cleanOpticalFlowUrl) {
+          surgicalCleanedCount++;
+        }
+
+        const safePristineOrigUrl =
+          alreadyPureFoley && cleanFoleyVideoUrl ? cleanFoleyVideoUrl : origVideoUrl;
+
         isolatedMap[clip.id] = {
           cleanFoleyVideoUrl,
           cleanOpticalFlowUrl,
-          origVideoUrl,
+          origVideoUrl: safePristineOrigUrl,
           origOpticalFlowUrl,
         };
 
@@ -5479,7 +5514,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     foleyOnlyIsolated: true,
                     vocalsSeparated: false,
                     musicSeparated: false,
-                    originalVideoUrlBeforeSeparation: origVideoUrl || c.videoUrl,
+                    originalVideoUrlBeforeSeparation: safePristineOrigUrl || c.videoUrl,
                     originalOpticalFlowUrlBeforeSeparation:
                       origOpticalFlowUrl || c.opticalFlowUrl,
                     cleanFoleyOnlyVideoUrl: cleanFoleyVideoUrl || c.cleanFoleyOnlyVideoUrl,
@@ -5532,7 +5567,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       );
 
       setStatusMessage(
-        `✅ Música y voces eliminadas automáticamente en ${targetClips.length} clip(s): solo queda el audio de Foley ambiente limpio.`
+        `✅ Foley listo en ${targetClips.length} clip(s): ${pureFoleyUntouchedCount} clip(s) con Foley puro intacto al 100% y ${surgicalCleanedCount} clip(s) con voces/música limpiadas quirúrgicamente.`
       );
     } finally {
       setIsIsolatingFoley(false);
@@ -5583,14 +5618,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const docId = activeDoc?.id || 'doc';
     const pendingClips = timelineClips.filter((c) => {
       if (c.clipNumber <= 0 || c.clipNumber === 999) return false;
-      if (c.foleyOnlyIsolated) return false;
+      const hasLegacyV1FoleyUrl =
+        Boolean(c.videoUrl && c.videoUrl.includes('_foley_only.mp4')) ||
+        Boolean(c.cleanFoleyOnlyVideoUrl && c.cleanFoleyOnlyVideoUrl.includes('_foley_only.mp4')) ||
+        Boolean(c.opticalFlowUrl && c.opticalFlowUrl.includes('_foley_only.mp4'));
+      if (c.foleyOnlyIsolated && !hasLegacyV1FoleyUrl) return false;
       if (!c.videoUrl && !c.fileName) return false;
-      const attemptKey = `${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
+      const attemptKey = `v2_${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
       return !autoAttemptedFoleyClipIdsRef.current.has(attemptKey);
     });
     if (pendingClips.length === 0) return;
     pendingClips.forEach((c) => {
-      const attemptKey = `${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
+      const attemptKey = `v2_${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
       autoAttemptedFoleyClipIdsRef.current.add(attemptKey);
     });
     handleIsolateFoleyOnlyFromClips(pendingClips.map((c) => c.id));
@@ -6467,8 +6506,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 startSec: mt.start,
                 durationSec: mt.duration,
                 volume: (typeof mt.volume === 'number' ? mt.volume : masterMusicVolume) / 100,
-                fadeInSec: mt.fadeInSec ?? 2.5,
-                fadeOutSec: mt.fadeOutSec ?? 3.0,
+                fadeInSec: mt.fadeInSec ?? 5,
+                fadeOutSec: mt.fadeOutSec ?? 5,
                 audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
               })),
               srtContent: srtText,
@@ -9911,7 +9950,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 selectedMusicTrack.start,
                                 selectedMusicTrack.start +
                                   selectedMusicTrack.duration -
-                                  Math.max(3, (selectedMusicTrack.fadeOutSec ?? 3.0) + 1)
+                                  Math.max(3, (selectedMusicTrack.fadeOutSec ?? 5) + 1)
                               )
                             )
                           }
@@ -9968,7 +10007,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               min={0}
                               max={15}
                               step={0.5}
-                              value={selectedMusicTrack.fadeInSec ?? 2.5}
+                              value={selectedMusicTrack.fadeInSec ?? 5}
                               onChange={(e) => {
                                 const fi = Math.max(
                                   0,
@@ -9987,7 +10026,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           min={0}
                           max={15}
                           step={0.5}
-                          value={selectedMusicTrack.fadeInSec ?? 2.5}
+                          value={selectedMusicTrack.fadeInSec ?? 5}
                           onChange={(e) =>
                             handleUpdateMusicTrack(selectedMusicTrack.id, {
                               fadeInSec: Number(e.target.value),
@@ -10006,7 +10045,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               min={0}
                               max={15}
                               step={0.5}
-                              value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                              value={selectedMusicTrack.fadeOutSec ?? 5}
                               onChange={(e) => {
                                 const fo = Math.max(
                                   0,
@@ -10025,7 +10064,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           min={0}
                           max={15}
                           step={0.5}
-                          value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                          value={selectedMusicTrack.fadeOutSec ?? 5}
                           onChange={(e) =>
                             handleUpdateMusicTrack(selectedMusicTrack.id, {
                               fadeOutSec: Number(e.target.value),
@@ -10044,13 +10083,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             selectedMusicTrack.id,
                             {
                               volume: selectedMusicTrack.volume ?? masterMusicVolume,
-                              fadeInSec: selectedMusicTrack.fadeInSec ?? 2.5,
-                              fadeOutSec: selectedMusicTrack.fadeOutSec ?? 3.0,
+                              fadeInSec: selectedMusicTrack.fadeInSec ?? 5,
+                              fadeOutSec: selectedMusicTrack.fadeOutSec ?? 5,
                             },
                             true
                           );
                           setStatusMessage(
-                            `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 2.5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 3.0}s) aplicados a las ${musicTracks.length} canciones.`
+                            `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a las ${musicTracks.length} canciones.`
                           );
                         }}
                         className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer"
@@ -10062,13 +10101,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={() => {
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             volume: 10,
-                            fadeInSec: 2.5,
-                            fadeOutSec: 3.0,
+                            fadeInSec: 5,
+                            fadeOutSec: 5,
                           });
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
                       >
-                        🔄 Restaurar Canción (10% • 2.5s / 3.0s)
+                        🔄 Restaurar Canción (10% • 5s / 5s)
                       </button>
                     </div>
                   </div>
@@ -12176,8 +12215,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         mIdx > 0 ? Math.max(0, Math.round(mt.start - prevEnd)) : Math.max(0, mt.start);
                       const isSongSelected = selectedMusicTrackId === mt.id;
                       const songVol = mt.volume ?? masterMusicVolume;
-                      const songFadeIn = mt.fadeInSec ?? 2.5;
-                      const songFadeOut = mt.fadeOutSec ?? 3.0;
+                      const songFadeIn = mt.fadeInSec ?? 5;
+                      const songFadeOut = mt.fadeOutSec ?? 5;
                       const fadeInWidthPct = Math.min(
                         45,
                         Math.max(0, (songFadeIn / Math.max(1, mt.duration)) * 100)
@@ -12345,7 +12384,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={15}
                         step={0.5}
-                        value={selectedMusicTrack.fadeInSec ?? 2.5}
+                        value={selectedMusicTrack.fadeInSec ?? 5}
                         onChange={(e) =>
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             fadeInSec: Number(e.target.value),
@@ -12358,7 +12397,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={15}
                         step={0.5}
-                        value={selectedMusicTrack.fadeInSec ?? 2.5}
+                        value={selectedMusicTrack.fadeInSec ?? 5}
                         onChange={(e) =>
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             fadeInSec: Math.max(
@@ -12381,7 +12420,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={15}
                         step={0.5}
-                        value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                        value={selectedMusicTrack.fadeOutSec ?? 5}
                         onChange={(e) =>
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             fadeOutSec: Number(e.target.value),
@@ -12394,7 +12433,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={15}
                         step={0.5}
-                        value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                        value={selectedMusicTrack.fadeOutSec ?? 5}
                         onChange={(e) =>
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             fadeOutSec: Math.max(
@@ -12416,13 +12455,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           selectedMusicTrack.id,
                           {
                             volume: selectedMusicTrack.volume ?? masterMusicVolume,
-                            fadeInSec: selectedMusicTrack.fadeInSec ?? 2.5,
-                            fadeOutSec: selectedMusicTrack.fadeOutSec ?? 3.0,
+                            fadeInSec: selectedMusicTrack.fadeInSec ?? 5,
+                            fadeOutSec: selectedMusicTrack.fadeOutSec ?? 5,
                           },
                           true
                         );
                         setStatusMessage(
-                          `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 2.5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 3.0}s) aplicados a todas las canciones.`
+                          `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a todas las canciones.`
                         );
                       }}
                       className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer shrink-0"
