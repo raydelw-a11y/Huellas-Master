@@ -1927,7 +1927,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const effectiveVoiceDurationSec = useMemo(() => {
     if (voiceDurationSec > 1) return voiceDurationSec;
-    if (isVideo76Doc) return 890.83;
+    if (isVideo76Doc) return 890.88;
     if (effectiveVoiceoverUrl.includes('tts-1793103539750-763')) return 739.76;
     const trackDur = Number(activeDoc?.audioTracks?.[0]?.duration || 0);
     if (trackDur > 1) return trackDur;
@@ -1965,6 +1965,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     return 68.5;
   }, [isVideo76Doc, activeDoc?.voiceoverScript, effectiveVoiceDurationSec]);
+
+  // Helper: scale a list of timeline clips to an exact target span (in seconds) using cumulative boundary rounding so zero rounding drift ever crushes the final clip (Clip 82)
+  const scaleClipsToExactSpan = (items: TimelineClipItem[], targetSpanSec: number, protectClosingClip = false) => {
+    if (items.length === 0 || targetSpanSec <= 0) return;
+    const avgTarget = targetSpanSec / items.length;
+    const weights = items.map((it, idx) => {
+      const d = Number(it.duration) || 10;
+      // If the closing clip (e.g. Clip 82) was previously crushed below 9.5s by cumulative rounding, restore its weight to the average clip duration
+      if (protectClosingClip && idx === items.length - 1 && d < Math.min(9.5, avgTarget * 0.88)) {
+        return Math.max(10, avgTarget);
+      }
+      return Math.max(2, d);
+    });
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    if (totalWeight <= 0) return;
+
+    let cumWeight = 0;
+    let prevRoundedSec = 0;
+    items.forEach((it, idx) => {
+      cumWeight += weights[idx];
+      const exactCumSec =
+        idx === items.length - 1 ? targetSpanSec : (cumWeight / totalWeight) * targetSpanSec;
+      const roundedCumSec = Number(exactCumSec.toFixed(2));
+      const clipDur = Number(Math.max(1.5, roundedCumSec - prevRoundedSec).toFixed(2));
+      prevRoundedSec = Number((prevRoundedSec + clipDur).toFixed(2));
+      it.duration = clipDur;
+      it.originalSlotDuration = clipDur;
+    });
+  };
 
   // Build & align Track 3 clips for either Opción A (INTRO_INICIO_00: 00:00-00:08) or Opción B (INTRO_POST_SLOGAN: right after Slogan Completo without cutting any clip)
   const buildAlignedTimelineClipsForIntroMode = (
@@ -2004,10 +2033,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return fixedOutroClip ? [fixedIntroClip, fixedOutroClip] : [fixedIntroClip];
     }
 
+    // Ensure Clip 1 (all parts with clipNumber === 1) covers the full 8s Hook before Voiceover starts
+    const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
+    const targetHookSec = !c1Base || c1Base <= 6 ? 8 : c1Base;
+    let firstNarratedIdx = cleanBody.findIndex((c) => c.clipNumber > 1);
+    if (firstNarratedIdx < 1) firstNarratedIdx = 1;
+    const clip1Slice = cleanBody.slice(0, firstNarratedIdx);
+    const clip1Sum = clip1Slice.reduce((acc, c) => acc + (c.duration || targetHookSec), 0);
+    if (Math.abs(clip1Sum - targetHookSec) > 0.05) {
+      scaleClipsToExactSpan(clip1Slice, targetHookSec, false);
+    }
+
     // 2. Locate the exact clip in the opening section (Clips 2..12) where the Slogan Completo ("Aquí seguimos sus rastros.") ends
     let sloganClipIdx = -1;
-    const searchLimit = Math.min(cleanBody.length, 13);
-    for (let i = 1; i < searchLimit; i++) {
+    const searchLimit = Math.min(cleanBody.length, firstNarratedIdx + 14);
+    for (let i = firstNarratedIdx; i < searchLimit; i++) {
       const c = cleanBody[i];
       let decodedUrl = '';
       try {
@@ -2020,6 +2060,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
       if (
+        c.clipNumber === 7 ||
         haystack.includes('seguimos sus rastros') ||
         haystack.includes('seguimos_sus_rastros') ||
         haystack.includes('historia deja una huella') ||
@@ -2030,14 +2071,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         break;
       }
     }
-    if (sloganClipIdx < 1) {
-      if (isVideo76Doc && cleanBody.length >= 7) {
-        sloganClipIdx = 6; // Clip 7 (07_suscribete_Cada_historia_deja_una_huella_4K.mp4)
+    if (sloganClipIdx < firstNarratedIdx) {
+      if (isVideo76Doc && cleanBody.length > firstNarratedIdx + 5) {
+        sloganClipIdx = firstNarratedIdx + 5; // Clip 7
       } else {
         let cum = 0;
-        let bestIdx = Math.min(6, cleanBody.length - 1);
+        let bestIdx = Math.min(firstNarratedIdx + 5, cleanBody.length - 1);
         let bestDiff = Infinity;
-        for (let i = 1; i < searchLimit; i++) {
+        for (let i = firstNarratedIdx; i < searchLimit; i++) {
           cum += cleanBody[i].duration || 10;
           const diff = Math.abs(cum - sloganSplitAudioSec);
           if (diff < bestDiff) {
@@ -2045,12 +2086,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             bestIdx = i;
           }
         }
-        sloganClipIdx = Math.max(1, bestIdx);
+        sloganClipIdx = Math.max(firstNarratedIdx, bestIdx);
       }
     }
 
-    // 3. Align durations of pre-slogan and post-slogan narrated clips so the Slogan clip ends at the exact second "Aquí seguimos sus rastros." finishes
-    const targetVoiceDur = effectiveVoiceDurationSec > 20 ? effectiveVoiceDurationSec : 0;
+    // 3. Align durations of pre-slogan and post-slogan narrated clips (+1.20s closing breath cushion so the final slogan "Cada historia deja una huella. Aquí seguimos sus rastros." always finishes completely before the Outro)
+    const targetVoiceDur =
+      effectiveVoiceDurationSec > 20 ? Number((effectiveVoiceDurationSec + 1.2).toFixed(2)) : 0;
     if (mode === 'INTRO_POST_SLOGAN') {
       const sloganClip = cleanBody[sloganClipIdx];
       // In Video 76, Clip 7 (7.85s MP4) has Shot 1 (0s-4.28s: Historian's Desk for Slogan) and Shot 2 (4.36s-7.85s: Asturias Mountains for Chapter 1)
@@ -2082,47 +2124,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             'Para comprender la raíz de esta marea humana es necesario adentrarse en las montañas',
         };
 
-        const preClips = [...cleanBody.slice(1, sloganClipIdx), partA];
+        const preClips = [...cleanBody.slice(firstNarratedIdx, sloganClipIdx), partA];
         const postClips = [partB, ...cleanBody.slice(sloganClipIdx + 1)];
 
         if (targetVoiceDur > sloganSplitAudioSec + 10) {
-          const preRawSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
-          if (preRawSum > 0) {
-            let runPre = 0;
-            preClips.forEach((pc, idx) => {
-              if (idx === preClips.length - 1) {
-                pc.duration = Number(Math.max(2, sloganSplitAudioSec - runPre).toFixed(2));
-              } else {
-                pc.duration = Number(
-                  Math.max(2, (pc.duration / preRawSum) * sloganSplitAudioSec).toFixed(2)
-                );
-                runPre += pc.duration;
-              }
-              pc.originalSlotDuration = pc.duration;
-            });
-          }
-
+          scaleClipsToExactSpan(preClips, sloganSplitAudioSec, false);
           const remAfterPartB = Math.max(10, targetVoiceDur - sloganSplitAudioSec - partB.duration);
           const restPost = postClips.slice(1);
-          const restRawSum = restPost.reduce((acc, it) => acc + (it.duration || 10), 0);
-          if (restRawSum > 0 && restPost.length > 0) {
-            let runPost = 0;
-            restPost.forEach((rc, idx) => {
-              if (idx === restPost.length - 1) {
-                rc.duration = Number(Math.max(2, remAfterPartB - runPost).toFixed(2));
-              } else {
-                rc.duration = Number(
-                  Math.max(2, (rc.duration / restRawSum) * remAfterPartB).toFixed(2)
-                );
-                runPost += rc.duration;
-              }
-              rc.originalSlotDuration = rc.duration;
-            });
-          }
+          scaleClipsToExactSpan(restPost, remAfterPartB, true);
         }
 
         const assembled = [
-          cleanBody[0],
+          ...clip1Slice,
           ...preClips,
           fixedIntroClip,
           ...postClips,
@@ -2132,44 +2145,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
 
       // Standard single-shot Slogan clip in Opción B: align Clips 2..sloganClipIdx to sloganSplitAudioSec, then insert fixedIntroClip
-      const preClips = cleanBody.slice(1, sloganClipIdx + 1);
+      const preClips = cleanBody.slice(firstNarratedIdx, sloganClipIdx + 1);
       const postClips = cleanBody.slice(sloganClipIdx + 1);
       if (targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
-        const preRawSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
-        if (preRawSum > 0) {
-          let runPre = 0;
-          preClips.forEach((pc, idx) => {
-            if (idx === preClips.length - 1) {
-              pc.duration = Number(Math.max(2, sloganSplitAudioSec - runPre).toFixed(2));
-            } else {
-              pc.duration = Number(
-                Math.max(2, (pc.duration / preRawSum) * sloganSplitAudioSec).toFixed(2)
-              );
-              runPre += pc.duration;
-            }
-            pc.originalSlotDuration = pc.duration;
-          });
-        }
+        scaleClipsToExactSpan(preClips, sloganSplitAudioSec, false);
         const remVoiceDur = Math.max(10, targetVoiceDur - sloganSplitAudioSec);
-        const postRawSum = postClips.reduce((acc, it) => acc + (it.duration || 10), 0);
-        if (postRawSum > 0 && postClips.length > 0) {
-          let runPost = 0;
-          postClips.forEach((rc, idx) => {
-            if (idx === postClips.length - 1) {
-              rc.duration = Number(Math.max(2, remVoiceDur - runPost).toFixed(2));
-            } else {
-              rc.duration = Number(
-                Math.max(2, (rc.duration / postRawSum) * remVoiceDur).toFixed(2)
-              );
-              runPost += rc.duration;
-            }
-            rc.originalSlotDuration = rc.duration;
-          });
-        }
+        scaleClipsToExactSpan(postClips, remVoiceDur, true);
       }
 
       return [
-        cleanBody[0],
+        ...clip1Slice,
         ...preClips,
         fixedIntroClip,
         ...postClips,
@@ -2178,55 +2163,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned to targetVoiceDur
-    if (targetVoiceDur > 10 && cleanBody.length > 1) {
-      if (isVideo76Doc && sloganClipIdx === 6 && cleanBody.length > 7) {
+    if (targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
+      if (
+        isVideo76Doc &&
+        sloganClipIdx >= firstNarratedIdx &&
+        cleanBody[sloganClipIdx]?.clipNumber === 7 &&
+        cleanBody.length > sloganClipIdx + 1
+      ) {
         // Lock Clips 2..7 to end at 77.30s of audio (so Clip 7's internal 4.33s shot cut lands right at 68.5s after the Slogan!)
         const preTarget = 77.3;
-        const preClips = cleanBody.slice(1, 7);
-        const postClips = cleanBody.slice(7);
-        const preSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
-        if (preSum > 0) {
-          let runPre = 0;
-          preClips.forEach((pc, idx) => {
-            if (idx === preClips.length - 1) {
-              pc.duration = Number(Math.max(2, preTarget - runPre).toFixed(2));
-            } else {
-              pc.duration = Number(Math.max(2, (pc.duration / preSum) * preTarget).toFixed(2));
-              runPre += pc.duration;
-            }
-            pc.originalSlotDuration = pc.duration;
-          });
-        }
+        const preClips = cleanBody.slice(firstNarratedIdx, sloganClipIdx + 1);
+        const postClips = cleanBody.slice(sloganClipIdx + 1);
+        scaleClipsToExactSpan(preClips, preTarget, false);
         const remTarget = Math.max(10, targetVoiceDur - preTarget);
-        const postSum = postClips.reduce((acc, it) => acc + (it.duration || 10), 0);
-        if (postSum > 0 && postClips.length > 0) {
-          let runPost = 0;
-          postClips.forEach((rc, idx) => {
-            if (idx === postClips.length - 1) {
-              rc.duration = Number(Math.max(2, remTarget - runPost).toFixed(2));
-            } else {
-              rc.duration = Number(Math.max(2, (rc.duration / postSum) * remTarget).toFixed(2));
-              runPost += rc.duration;
-            }
-            rc.originalSlotDuration = rc.duration;
-          });
-        }
+        scaleClipsToExactSpan(postClips, remTarget, true);
       } else {
-        const narratedClips = cleanBody.slice(1);
-        const rawNarratedSum = narratedClips.reduce((acc, item) => acc + item.duration, 0);
-        if (rawNarratedSum > 0 && Math.abs(targetVoiceDur - rawNarratedSum) > 0.5) {
-          let runningSec = 0;
-          narratedClips.forEach((nc, idx) => {
-            if (idx === narratedClips.length - 1) {
-              nc.duration = Number(Math.max(2, targetVoiceDur - runningSec).toFixed(2));
-            } else {
-              const scaled = Number(((nc.duration / rawNarratedSum) * targetVoiceDur).toFixed(2));
-              nc.duration = Math.max(2, scaled);
-              runningSec += nc.duration;
-            }
-            nc.originalSlotDuration = nc.duration;
-          });
-        }
+        const narratedClips = cleanBody.slice(firstNarratedIdx);
+        scaleClipsToExactSpan(narratedClips, targetVoiceDur, true);
       }
     }
 
@@ -2802,11 +2755,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           };
         }
       );
-      if (anyRegeneratedOrUpdated && activeDoc?.id) {
-        persistDocOverlaysPatch(
-          { customTimelineClips: sourceClipsForBuild },
-          activeDoc.id
-        );
+      if (anyRegeneratedOrUpdated) {
+        // Will persist builtClips right after alignment below
       }
     }
 
@@ -2816,6 +2766,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       fixedIntroClip,
       fixedOutroClip
     );
+
+    if (
+      activeDoc?.id &&
+      savedDocOverlays?.userEditedClips &&
+      Array.isArray(savedDocOverlays.customTimelineClips)
+    ) {
+      const prevSum = (savedDocOverlays.customTimelineClips as TimelineClipItem[])
+        .filter((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999)
+        .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+      const nextSum = builtClips
+        .filter((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999)
+        .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+      const prevClosingClip = [...(savedDocOverlays.customTimelineClips as TimelineClipItem[])]
+        .reverse()
+        .find((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999 && c.clipNumber > 0);
+      const nextClosingClip = [...builtClips]
+        .reverse()
+        .find((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999 && c.clipNumber > 0);
+      const durationRepaired =
+        Math.abs(nextSum - prevSum) > 0.15 ||
+        (prevClosingClip &&
+          nextClosingClip &&
+          Math.abs((nextClosingClip.duration || 0) - (prevClosingClip.duration || 0)) > 0.15);
+      if (durationRepaired || sourceClipsForBuild !== bodyClips) {
+        persistDocOverlaysPatch({ customTimelineClips: builtClips }, activeDoc.id);
+      }
+    }
 
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
@@ -6308,7 +6285,39 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (recordUndo) {
         setClipUndoStack((stack) => [...stack.slice(-24), prev]);
       }
-      const next = updater(prev);
+      let next = updater(prev);
+      if (effectiveVoiceDurationSec > 20 && next.length >= 3) {
+        const outroIdx = next.findIndex(
+          (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
+        );
+        if (outroIdx > 0) {
+          const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
+          const hookSec = !c1Base || c1Base <= 6 ? 8 : c1Base;
+          const requiredBeforeOutroSec = Number(
+            (8 + hookSec + effectiveVoiceDurationSec + 1.2).toFixed(2)
+          );
+          const preOutroSum = next
+            .slice(0, outroIdx)
+            .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+          const deficit = Number((requiredBeforeOutroSec - preOutroSum).toFixed(2));
+          if (deficit > 0.15) {
+            const lastBodyIdx = outroIdx - 1;
+            const lastBody = next[lastBodyIdx];
+            if (lastBody && lastBody.clipNumber > 0 && lastBody.clipNumber !== 999) {
+              const newLastDur = Number(((lastBody.duration || 8) + deficit).toFixed(2));
+              next = next.map((c, idx) =>
+                idx === lastBodyIdx
+                  ? {
+                      ...c,
+                      duration: newLastDur,
+                      originalSlotDuration: newLastDur,
+                    }
+                  : c
+              );
+            }
+          }
+        }
+      }
       const docId = activeDoc?.id || 'default';
       persistDocOverlaysPatch(
         {
