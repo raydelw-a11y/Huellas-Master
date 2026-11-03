@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import {
   Film,
   Play,
@@ -1235,6 +1235,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
   const isScrubbingRulerRef = useRef<boolean>(false);
   const prevDocIdForPlayheadRef = useRef<string | undefined>(activeDoc?.id);
+  const zoomPlayheadViewportOffsetRef = useRef<number | null>(null);
 
   // Persist playhead position per documentary so leaving the editor to another stage and returning keeps the video right where it was
   useEffect(() => {
@@ -3320,7 +3321,65 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         behavior: 'smooth',
       });
     }
-  }, [currentTime, isPlaying, isFitEntireProject, timelineZoom]);
+  }, [currentTime, isPlaying, isFitEntireProject]);
+
+  // Helper to change timeline zoom while recording the playhead's exact screen offset so it never jumps out of view
+  const handleChangeTimelineZoom = (
+    nextZoomOrUpdater: number | ((prevZoom: number) => number),
+    nextFitEntireProject: boolean = false
+  ) => {
+    const container = timelineScrollContainerRef.current;
+    if (container && !nextFitEntireProject) {
+      const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+      const viewWidth = container.clientWidth;
+      if (isFitEntireProject) {
+        const fitTrackWidth = Math.max(100, viewWidth - trackHeaderOffsetPx - 24);
+        const progress = Math.min(
+          1,
+          Math.max(0, currentTimeRef.current / Math.max(1, totalDurationSec))
+        );
+        zoomPlayheadViewportOffsetRef.current = trackHeaderOffsetPx + fitTrackWidth * progress;
+      } else {
+        const oldPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
+        const currentViewportOffset = oldPlayheadX - container.scrollLeft;
+        // Keep the playhead locked at its exact current visual offset on screen if visible;
+        // otherwise bring it into a comfortable visible position.
+        if (currentViewportOffset >= 40 && currentViewportOffset <= Math.max(240, viewWidth - 28)) {
+          zoomPlayheadViewportOffsetRef.current = currentViewportOffset;
+        } else {
+          zoomPlayheadViewportOffsetRef.current = Math.min(
+            Math.max(trackHeaderOffsetPx + 96, viewWidth * 0.42),
+            Math.max(trackHeaderOffsetPx + 96, viewWidth - 64)
+          );
+        }
+      }
+    }
+    setIsFitEntireProject(nextFitEntireProject);
+    setTimelineZoom((prev) => {
+      const rawNext =
+        typeof nextZoomOrUpdater === 'function' ? nextZoomOrUpdater(prev) : nextZoomOrUpdater;
+      return Math.max(1, Math.min(50, rawNext));
+    });
+  };
+
+  // Synchronously adjust scrollLeft before browser paint whenever zoom changes so the playhead stays right where it was
+  useLayoutEffect(() => {
+    if (isFitEntireProject) return;
+    const container = timelineScrollContainerRef.current;
+    if (!container) return;
+    const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+    const viewWidth = container.clientWidth;
+    const newPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
+    const targetViewportOffset =
+      zoomPlayheadViewportOffsetRef.current !== null
+        ? zoomPlayheadViewportOffsetRef.current
+        : Math.min(
+            Math.max(trackHeaderOffsetPx + 96, viewWidth * 0.42),
+            Math.max(trackHeaderOffsetPx + 96, viewWidth - 64)
+          );
+    container.scrollLeft = Math.max(0, newPlayheadX - targetViewportOffset);
+    zoomPlayheadViewportOffsetRef.current = null;
+  }, [timelineZoom, isFitEntireProject]);
 
   // Dynamic top time ruler configuration (seconds, minutes, or hours depending on zoom level)
   const timelineRulerData = useMemo(() => {
@@ -8032,10 +8091,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <span>Zoom de Pistas ({timelineRulerData.scaleUnitLabel}):</span>
             <button
               type="button"
-              onClick={() => {
-                setIsFitEntireProject(false);
-                setTimelineZoom((z) => Math.max(1, z - 3));
-              }}
+              onClick={() => handleChangeTimelineZoom((z) => Math.max(1, z - 3), false)}
               className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Alejar línea de tiempo (ver minutos / horas)"
             >
@@ -8046,18 +8102,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               min={1}
               max={50}
               value={isFitEntireProject ? 1 : timelineZoom}
-              onChange={(e) => {
-                setIsFitEntireProject(false);
-                setTimelineZoom(Number(e.target.value));
-              }}
+              onChange={(e) => handleChangeTimelineZoom(Number(e.target.value), false)}
               className="w-28 accent-amber-500 cursor-pointer"
             />
             <button
               type="button"
-              onClick={() => {
-                setIsFitEntireProject(false);
-                setTimelineZoom((z) => Math.min(50, z + 3));
-              }}
+              onClick={() => handleChangeTimelineZoom((z) => Math.min(50, z + 3), false)}
               className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Acercar línea de tiempo (ver segundos detallados)"
             >
@@ -8065,7 +8115,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setIsFitEntireProject((prev) => !prev)}
+              onClick={() => handleChangeTimelineZoom(timelineZoom, !isFitEntireProject)}
               className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                 isFitEntireProject
                   ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
@@ -8085,7 +8135,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
           }`}
         >
-          <div className={`relative space-y-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+          <div className={`relative space-y-2 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
             {/* =================================================================
                 GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
             ================================================================= */}
