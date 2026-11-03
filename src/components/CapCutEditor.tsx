@@ -7137,7 +7137,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0c0a08] text-slate-100 min-h-0 lg:h-[calc(100vh-52px)] lg:overflow-hidden">
+    <div className="w-full flex flex-col bg-[#0c0a08] text-slate-100 min-h-0 overflow-hidden">
       {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
       {effectiveVoiceoverUrl && (
         <audio
@@ -7627,13 +7627,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       {/* =====================================================================
           UPPER 3-COLUMN CAPCUT WORKSPACE:
           [1] COMPACT LEFT MEDIA SIDEBAR  |  [2] DOMINANT CENTER VIDEO PLAYER  |  [3] COMPACT RIGHT DETAILS/INSPECTOR
+          Left & Right columns are strictly locked to the exact vertical height of the Center Video Player and scroll internally.
       ===================================================================== */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row items-stretch gap-1.5 p-1.5 bg-[#0e0c09] overflow-hidden">
+      <div
+        className="w-full shrink-0 flex flex-row items-stretch gap-1.5 p-1.5 bg-[#0e0c09] overflow-hidden"
+        style={{
+          height: isTimelineDockExpanded
+            ? 'clamp(340px, calc(100vh - 385px), 520px)'
+            : 'clamp(390px, calc(100vh - 285px), 600px)',
+        }}
+      >
         {/* =================================================================
             COLUMN 1: COMPACT CAPCUT-STYLE LEFT MEDIA & ASSETS PANEL
         ================================================================= */}
         {isLeftPanelCollapsed ? (
-          <div className="hidden lg:flex w-8 shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+          <div className="flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
             <button
               type="button"
               onClick={() => setIsLeftPanelCollapsed(false)}
@@ -7647,7 +7655,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
           </div>
         ) : (
-          <div className="w-full lg:w-[190px] xl:w-[210px] shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 max-h-[220px] lg:max-h-none overflow-hidden">
+          <div className="w-[185px] lg:w-[195px] xl:w-[210px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 overflow-hidden">
             {/* CapCut Top Category Icon Strip (Media, Audio, Text, Transitions, Captions) */}
             <div className="px-1.5 py-1 bg-[#100d0a] border-b border-slate-800/90 flex items-center justify-between gap-0.5 shrink-0">
               {(
@@ -7874,7 +7882,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         {/* =================================================================
             COLUMN 2: DOMINANT CENTER VIDEO PLAYER (MAXIMIZED VIEWPORT AREA)
         ================================================================= */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 h-full max-h-full flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
           {/* Compact CapCut-Style Player Header ("Player - Timeline 01" + Quick Overlay Selection) */}
           <div className="w-full px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-1.5 shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -8703,7 +8711,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {selectedCanvasObject === 'hook_text' && (
             <div
               data-keep-canvas-selection="true"
-              className="w-full bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2 text-xs shrink-0"
+              className="w-full max-h-20 overflow-y-auto bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2 text-xs shrink-0"
             >
               <span className="font-black text-amber-300 text-[11px]">
                 🔤 Estilo Texto en Pantalla:
@@ -8982,7 +8990,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             COLUMN 3: COMPACT RIGHT DETAILS & INSPECTOR PANEL
         ================================================================= */}
         {isRightPanelCollapsed && (
-          <div className="hidden lg:flex w-8 shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+          <div className="flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
             <button
               type="button"
               onClick={() => setIsRightPanelCollapsed(false)}
@@ -9001,7 +9009,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           className={
             isRightPanelCollapsed
               ? 'hidden'
-              : 'w-full lg:w-[255px] xl:w-[275px] shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl p-2 flex flex-col min-h-0 max-h-[380px] lg:max-h-none overflow-hidden space-y-2'
+              : 'w-[240px] lg:w-[255px] xl:w-[275px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl p-2 flex flex-col min-h-0 overflow-hidden space-y-2'
           }
         >
           {/* CapCut-Style "Details" Header + Collapse Button */}
@@ -9079,7 +9087,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 1: CLIPS, ORDER, SPEED, FOLEY & TRANSITIONS */}
           {activeInspectorTab === 'clips' && (
-            <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
+            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div>
                   <div className="font-bold text-amber-300">
@@ -9698,7 +9706,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 2: AUDIO MIXING, VOICE OFFSET, AUTO-DUCKING & SUNO */}
           {activeInspectorTab === 'audio' && (
-            <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
+            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-300">
@@ -10149,7 +10157,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 3: PERMANENT OFFICIAL LOGO & CLIP 1 ON-SCREEN TEXT (FONT, SIZE, SHADOW, BACKGROUND) */}
           {activeInspectorTab === 'branding' && (
-            <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
+            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -10697,7 +10705,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* TAB 4: AUTO-CAPTIONS (.SRT) + FONT, SIZE, SHADOW & BACKGROUND */}
           {activeInspectorTab === 'captions' && (
-            <div className="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
+            <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="flex items-center justify-between gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div>
                   <div className="font-bold text-emerald-300">
@@ -11009,11 +11017,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       </div>
 
       {/* =====================================================================
-          LOWER WORKSPACE: COMPACT MULTI-TRACK TIMELINE DOCK (LESS HEIGHT AT BOTTOM)
+          LOWER WORKSPACE: FULL-WIDTH MULTI-TRACK TIMELINE DOCK (LEFT TO RIGHT)
       ===================================================================== */}
       <div
-        className={`shrink-0 bg-[#0b0907] border-t border-slate-800/90 flex flex-col overflow-hidden transition-all ${
-          isTimelineDockExpanded ? 'lg:h-[310px]' : 'lg:h-[195px] xl:h-[210px]'
+        className={`w-full shrink-0 bg-[#0b0907] border-t border-slate-800/90 flex flex-col overflow-hidden transition-all ${
+          isTimelineDockExpanded ? 'h-[310px]' : 'h-[205px] xl:h-[215px]'
         }`}
       >
         {/* CapCut Slim Middle Action Toolbar */}
