@@ -118,7 +118,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:07 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:15 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2243,21 +2243,45 @@ export default function App() {
       });
     }
 
-    const activeServerPath = (flowServerFolderPath || globalStoredFolderPath || '').trim();
-    if (activeServerPath && !isCloudMode && dataUrl.startsWith('data:')) {
-      try {
-        const res = await fetch('/api/flow/save-asset-to-folder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            folderPath: activeServerPath,
-            subFolder: resolvedSubFolder,
-            fileName: cleanFileName,
-            dataUrl,
-          }),
-        });
-        if (res.ok) return true;
-      } catch {}
+    const currentDocForSave = activeDocRef.current || activeDoc;
+    const activeServerPath = (
+      flowServerFolderPath ||
+      currentDocForSave?.downloadFolderPath ||
+      globalStoredFolderPath ||
+      ''
+    ).trim();
+    const activeFolderName = (
+      flowDownloadDirHandleRef.current?.name ||
+      flowDownloadFolderName ||
+      currentDocForSave?.downloadFolderName ||
+      getCanonicalFolderNameForDoc(currentDocForSave) ||
+      globalStoredFolderName ||
+      ''
+    ).trim();
+    const activeDocTitle = `${currentDocForSave?.title || ''} ${currentDocForSave?.topic || ''}`.trim();
+
+    if ((activeServerPath || activeFolderName || activeDocTitle) && dataUrl.startsWith('data:')) {
+      const isLocalhostOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const saveBases = isLocalhostOrigin ? [''] : ['', 'http://localhost:4200'];
+      for (const baseOrigin of saveBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/save-asset-to-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderPath: activeServerPath,
+              folderName: activeFolderName,
+              docTitle: activeDocTitle,
+              subFolder: resolvedSubFolder,
+              fileName: cleanFileName,
+              dataUrl,
+            }),
+          });
+          if (res.ok) return true;
+        } catch {}
+      }
     }
 
     if (dataUrl) {
@@ -4023,7 +4047,10 @@ export default function App() {
     videoDataUrl?: string
   ): Promise<string> => {
     if (!videoDataUrl) return '';
-    const fileName = buildClipSixWordFileName(clipObj, activeDocRef.current);
+    const baseFileName = buildClipSixWordFileName(clipObj, activeDocRef.current);
+    const fileName = /[_\-]4k\.mp4$/i.test(baseFileName)
+      ? baseFileName
+      : baseFileName.replace(/\.mp4$/i, '_4K.mp4');
 
     // Option B Automatic 4K UHD (3840x2160) Upscale with Lanczos + Unsharp Mask + VideoToolbox before saving to 05_Clips_Video
     let finalVideoDataUrl = videoDataUrl;
@@ -4044,6 +4071,10 @@ export default function App() {
     setCapturedClipVideosMap((prev) => ({
       ...prev,
       [clipObj.clipNumber]: finalVideoDataUrl,
+    }));
+    setFolderClipFileNamesMap((prev) => ({
+      ...prev,
+      [clipObj.clipNumber]: fileName,
     }));
 
     const ok = await handleSaveAnyFileToChosenFolder(fileName, finalVideoDataUrl, '05_Clips_Video');

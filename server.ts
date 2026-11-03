@@ -2628,27 +2628,52 @@ app.post('/api/flow/upscale-clip-4k', async (req, res) => {
 
 app.post('/api/flow/save-video-to-folder', async (req, res) => {
   try {
-    const { folderPath, fileName, videoDataUrl, subFolder } = req.body;
-    if (!folderPath || !fileName || !videoDataUrl) {
+    const { folderPath = '', folderName = '', docTitle = '', fileName, videoDataUrl, subFolder } = req.body || {};
+    const resolvedRoot =
+      (folderPath && String(folderPath).trim() && fs.existsSync(String(folderPath).trim())
+        ? String(folderPath).trim()
+        : '') || resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (!resolvedRoot || !fileName || !videoDataUrl) {
       res.status(400).json({ error: 'Faltan parámetros para guardar el video.' });
       return;
     }
-    const safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_'));
-    const rootDir = String(folderPath).trim();
-    ensureDocumentarySubfolders(rootDir);
+    let safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_'));
+    ensureDocumentarySubfolders(resolvedRoot);
     const resolvedSub = resolveSubfolderForDocumentaryAsset(safeName, subFolder || '05_Clips_Video');
-    const targetDir = path.join(rootDir, resolvedSub);
+    const targetDir = path.join(resolvedRoot, resolvedSub);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const isClipVideo = resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName);
+    if (isClipVideo && !/[_\-]4k\.mp4$/i.test(safeName)) {
+      safeName = safeName.replace(/\.mp4$/i, '_4K.mp4');
     }
     const fullTarget = path.join(targetDir, safeName);
     const cleanBase64 = String(videoDataUrl).replace(/^data:[^;]+;base64,/, '');
     const rawBuffer = Buffer.from(cleanBase64, 'base64');
-    const finalBuffer =
-      resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName)
-        ? await upscaleMp4BufferTo4K(rawBuffer)
-        : rawBuffer;
+    const finalBuffer = isClipVideo ? await upscaleMp4BufferTo4K(rawBuffer) : rawBuffer;
     fs.writeFileSync(fullTarget, finalBuffer);
+    try {
+      execSync(`chflags nohidden "${fullTarget.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+    } catch {}
+    if (isClipVideo) {
+      const mClip = safeName.match(/^0*(\d+)_/);
+      if (mClip) {
+        const prefix = `${String(parseInt(mClip[1], 10)).padStart(2, '0')}_`;
+        for (const entry of fs.readdirSync(targetDir)) {
+          if (
+            entry !== safeName &&
+            entry.startsWith(prefix) &&
+            /\.(mp4|mov|webm)$/i.test(entry) &&
+            !/^0*\d+_Imagen_Inicial/i.test(entry)
+          ) {
+            try {
+              fs.unlinkSync(path.join(targetDir, entry));
+            } catch {}
+          }
+        }
+      }
+    }
     res.json({
       ok: true,
       savedPath: fullTarget,
@@ -2666,31 +2691,56 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
 // Save any captured asset into its corresponding subfolder inside the single root folder
 app.post('/api/flow/save-asset-to-folder', async (req, res) => {
   try {
-    const { folderPath, fileName, dataUrl, subFolder } = req.body;
-    if (!folderPath || !fileName || !dataUrl) {
+    const { folderPath = '', folderName = '', docTitle = '', fileName, dataUrl, subFolder } = req.body || {};
+    const resolvedRoot =
+      (folderPath && String(folderPath).trim() && fs.existsSync(String(folderPath).trim())
+        ? String(folderPath).trim()
+        : '') || resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (!resolvedRoot || !fileName || !dataUrl) {
       res.status(400).json({ error: 'Faltan parámetros para guardar el archivo.' });
       return;
     }
-    const safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._@-]/g, '_'));
+    let safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._@-]/g, '_'));
     if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(safeName)) {
       res.json({ ok: true, skippedLegacySuno: true, fileName: safeName });
       return;
     }
-    const rootDir = String(folderPath).trim();
-    ensureDocumentarySubfolders(rootDir);
+    ensureDocumentarySubfolders(resolvedRoot);
     const resolvedSub = resolveSubfolderForDocumentaryAsset(safeName, subFolder);
-    const targetDir = path.join(rootDir, resolvedSub);
+    const targetDir = path.join(resolvedRoot, resolvedSub);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const isClipVideo = resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName);
+    if (isClipVideo && !/[_\-]4k\.mp4$/i.test(safeName)) {
+      safeName = safeName.replace(/\.mp4$/i, '_4K.mp4');
     }
     const fullTarget = path.join(targetDir, safeName);
     const cleanBase64 = String(dataUrl).replace(/^data:[^;]+;base64,/, '');
     const rawBuffer = Buffer.from(cleanBase64, 'base64');
-    const finalBuffer =
-      resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName)
-        ? await upscaleMp4BufferTo4K(rawBuffer)
-        : rawBuffer;
+    const finalBuffer = isClipVideo ? await upscaleMp4BufferTo4K(rawBuffer) : rawBuffer;
     fs.writeFileSync(fullTarget, finalBuffer);
+    try {
+      execSync(`chflags nohidden "${fullTarget.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+    } catch {}
+    if (isClipVideo) {
+      const mClip = safeName.match(/^0*(\d+)_/);
+      if (mClip) {
+        const prefix = `${String(parseInt(mClip[1], 10)).padStart(2, '0')}_`;
+        for (const entry of fs.readdirSync(targetDir)) {
+          if (
+            entry !== safeName &&
+            entry.startsWith(prefix) &&
+            /\.(mp4|mov|webm)$/i.test(entry) &&
+            !/^0*\d+_Imagen_Inicial/i.test(entry)
+          ) {
+            try {
+              fs.unlinkSync(path.join(targetDir, entry));
+            } catch {}
+          }
+        }
+      }
+    }
     res.json({ ok: true, savedPath: fullTarget, subFolder: resolvedSub, fileName: safeName, bytes: finalBuffer.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error guardando activo en carpeta.' });
@@ -3499,51 +3549,6 @@ app.get('/api/flow/list-folder-media', (req, res) => {
       for (const sub of videoSubfolders) {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-        const rawEntries = fs.readdirSync(dir);
-        // Auto-consolidate any newly regenerated Clip_XX_...mp4 into the canonical XX_six_words.mp4 file in the same folder
-        const canonicalSixWordByClip = new Map<number, string>();
-        for (const e of rawEntries) {
-          if (/^0*(\d+)_[a-zA-Z0-9].*\.(mp4|webm|mov)$/i.test(e) && !/^(?:clip|video)[_\-\s.]/i.test(e)) {
-            const mCan = e.match(/^0*(\d+)_/);
-            if (mCan) {
-              const n = parseInt(mCan[1], 10);
-              if (n > 0 && !canonicalSixWordByClip.has(n)) {
-                canonicalSixWordByClip.set(n, e);
-              }
-            }
-          }
-        }
-        for (const e of rawEntries) {
-          if (/^(?:clip|video)[_\-\s.]*0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i.test(e)) {
-            const mRegen = e.match(/^(?:clip|video)[_\-\s.]*0*(\d+)/i);
-            const n = mRegen ? parseInt(mRegen[1], 10) : 0;
-            const canName = n > 0 ? canonicalSixWordByClip.get(n) : undefined;
-            if (canName && canName !== e) {
-              const regenFull = path.join(dir, e);
-              const canFull = path.join(dir, canName);
-              try {
-                const stRegen = fs.statSync(regenFull);
-                const stCan = fs.statSync(canFull);
-                if (stRegen.isFile() && stRegen.size > 10000 && stRegen.mtimeMs >= stCan.mtimeMs) {
-                  const isRegen4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(e);
-                  const targetCanName = isRegen4k
-                    ? canName
-                    : canName.replace(/[_\-]4k(?=\.(mp4|webm|mov)$)/i, '');
-                  const targetCanFull = path.join(dir, targetCanName);
-                  if (targetCanFull !== canFull && fs.existsSync(canFull)) {
-                    try {
-                      fs.unlinkSync(canFull);
-                    } catch {}
-                  }
-                  fs.renameSync(regenFull, targetCanFull);
-                  const now = new Date();
-                  fs.utimesSync(targetCanFull, now, now);
-                }
-              } catch {}
-            }
-          }
-        }
-
         const entries = fs.readdirSync(dir).sort((a, b) => {
           try {
             return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
@@ -3556,6 +3561,12 @@ app.get('/api/flow/list-folder-media', (req, res) => {
           const full = path.join(dir, entry);
           const st = fs.statSync(full);
           if (!st.isFile()) continue;
+          // Ensure macOS UF_HIDDEN flag is cleared on any visible clip video/image inside 05_Clips_Video
+          if ((st as any).mode && /[_\-]4k\.(mp4|webm|mov)$/i.test(entry)) {
+            try {
+              execSync(`chflags nohidden "${full.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+            } catch {}
+          }
           const mVid = entry.match(/^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
           if (mVid) {
             const num = parseInt(mVid[1], 10);
@@ -3705,14 +3716,27 @@ app.get('/api/flow/list-folder-media', (req, res) => {
 
 app.get('/api/flow/serve-folder-file', (req, res) => {
   try {
-    const filePath = String(req.query.filePath || '').trim();
-    if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    let filePath = String(req.query.filePath || '').trim();
+    if (!filePath) {
       res.status(404).send('Archivo no encontrado');
       return;
     }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4, serve the _4K.mp4 file seamlessly
+      const ext = path.extname(filePath);
+      const baseNoExt = path.basename(filePath, ext).replace(/[_\-]4k$/i, '');
+      const dir = path.dirname(filePath);
+      const candidate4k = path.join(dir, `${baseNoExt}_4K${ext}`);
+      if (fs.existsSync(candidate4k) && fs.statSync(candidate4k).isFile()) {
+        filePath = candidate4k;
+      } else {
+        res.status(404).send('Archivo no encontrado');
+        return;
+      }
+    }
     // Allow browser to cache MP4 range chunks in memory (URLs already include ?v=mtimeMs cache-buster)
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.sendFile(path.resolve(filePath));
+    res.sendFile(path.resolve(filePath), { dotfiles: 'allow' });
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
   }
@@ -4133,9 +4157,10 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
         const baseNoExt = path.basename(entry, path.extname(entry)).replace(/[_\-]4k$/i, '');
         const final4kName = `${baseNoExt}_4K.mp4`;
         const final4kFull = path.join(clipsDir, final4kName);
+        // Write temp 4K file in os.tmpdir() WITHOUT a leading dot so macOS / iCloud Drive never sets UF_HIDDEN on the file
         const tmp4kFull = path.join(
-          clipsDir,
-          `.${baseNoExt}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.tmp.mp4`
+          os.tmpdir(),
+          `huellas_4k_${baseNoExt}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
         );
 
         activeClipsPipelineStatus.currentFileName = entry;
@@ -4160,7 +4185,10 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
                 }
               }
             }
-            fs.renameSync(tmp4kFull, final4kFull);
+            fs.copyFileSync(tmp4kFull, final4kFull);
+            try {
+              execSync(`chflags nohidden "${final4kFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+            } catch {}
             // Delete the original non-4K video file so only the _4K.mp4 remains
             if (fs.existsSync(srcFull) && path.resolve(srcFull) !== path.resolve(final4kFull)) {
               fs.unlinkSync(srcFull);
@@ -4454,15 +4482,15 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
         } catch {}
       }
     } else {
-      // Upscale newest file to 4K UHD (_4K.mp4)
+      // Upscale newest file to 4K UHD (_4K.mp4) using os.tmpdir() WITHOUT a leading dot so macOS / iCloud Drive never sets UF_HIDDEN
       const tmp4kFull = path.join(
-        clipsDir,
-        `.${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.tmp.mp4`
+        os.tmpdir(),
+        `huellas_single_4k_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
       );
       try {
         await upscaleFileTo4KOnDisk(newest.fullPath, tmp4kFull, aspectRatio);
         if (fs.existsSync(tmp4kFull) && fs.statSync(tmp4kFull).size > 10000) {
-          fs.renameSync(tmp4kFull, final4kFull);
+          fs.copyFileSync(tmp4kFull, final4kFull);
           wasUpscaled = true;
         }
       } finally {
@@ -4470,6 +4498,13 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
           if (fs.existsSync(tmp4kFull)) fs.unlinkSync(tmp4kFull);
         } catch {}
       }
+    }
+
+    // Ensure macOS UF_HIDDEN flag is explicitly cleared on the final 4K clip so it is 100% visible in Finder
+    if (fs.existsSync(final4kFull)) {
+      try {
+        execSync(`chflags nohidden "${final4kFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+      } catch {}
     }
 
     // Clean up any other older / non-4K video files for this clipNumber in clipsDir (and if newest came from Downloads, remove the duplicate from Downloads)
@@ -4508,6 +4543,9 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
         proc.on('close', () => resolve());
       });
       if (fs.existsSync(frameFullPath)) {
+        try {
+          execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+        } catch {}
         const fst = fs.statSync(frameFullPath);
         frameUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(frameFullPath)}&v=${Math.floor(fst.mtimeMs)}`;
       }
