@@ -7992,7 +7992,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCutFromStartToPlayhead(selectedClip.id, true)}
+                  onClick={() => handleCutFromStartToPlayhead(selectedClip.id)}
                   className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
                   title="Corta desde el inicio del clip hasta la aguja y estira el resto con Smooth Slow Motion (Optical Flow)"
                 >
@@ -8000,7 +8000,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCutFromPlayheadToEnd(selectedClip.id, true)}
+                  onClick={() => handleCutFromPlayheadToEnd(selectedClip.id)}
                   className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
                   title="Corta desde la aguja hasta el final del clip y estira el inicio con Smooth Slow Motion (Optical Flow)"
                 >
@@ -8015,14 +8015,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <Trash2 className="w-3 h-3" />{' '}
                   {selectedClip.parentGroupId ? 'Borrar Pedazo (Auto Slow-Mo)' : 'Eliminar Clip'}
                 </button>
-                {clipEditHistory.length > 0 && (
+                {clipUndoStack.length > 0 && (
                   <button
                     type="button"
                     onClick={handleUndoClipEdit}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[10px] cursor-pointer transition"
                     title="Deshacer último corte, eliminación o cambio de velocidad"
                   >
-                    ↩️ Deshacer ({clipEditHistory.length})
+                    ↩️ Deshacer ({clipUndoStack.length})
                   </button>
                 )}
               </div>
