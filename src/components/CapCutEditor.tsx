@@ -626,12 +626,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [logoPosY, setLogoPosY] = useState<number>(
     () => (typeof initialOverlayStyles.logoPosY === 'number' ? initialOverlayStyles.logoPosY : 3)
   );
-  // Default Logo animations for ALL documentaries: Fade Out 2.5s at the end of the documentary (matching Outro Fade Out)
-  const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.logoAnimIn || 'none'
+  // Default Logo animations for ALL documentaries: Fade In 1.5s at the start and Fade Out 2.5s at the end of the documentary
+  const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>(() =>
+    initialOverlayStyles.logoAnimInFadeV1 && initialOverlayStyles.logoAnimIn
+      ? initialOverlayStyles.logoAnimIn
+      : 'fade'
   );
-  const [logoAnimInDur, setLogoAnimInDur] = useState<number>(
-    () => Number(initialOverlayStyles.logoAnimInDur) || 1
+  const [logoAnimInDur, setLogoAnimInDur] = useState<number>(() =>
+    initialOverlayStyles.logoAnimInFadeV1 && Number(initialOverlayStyles.logoAnimInDur) > 0
+      ? Number(initialOverlayStyles.logoAnimInDur)
+      : 1.5
   );
   const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>(
     () => initialOverlayStyles.logoAnimOut || 'fade'
@@ -1214,6 +1218,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           logoPosY,
           logoAnimIn,
           logoAnimInDur,
+          logoAnimInFadeV1: true,
           logoAnimOut,
           logoAnimOutDur,
           hookFontFamily,
@@ -9045,7 +9050,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 title={
                   isViewerFullscreen
                     ? undefined
-                    : 'Haz clic para seleccionar y ajustar el Logo Oficial (Por defecto: Fade Out 1s al final del documental)'
+                    : 'Haz clic para seleccionar y ajustar el Logo Oficial (Por defecto: Fade In 1.5s al inicio y Fade Out 2.5s al final)'
                 }
               >
                 {officialLogoUrl ? (
@@ -11161,11 +11166,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </div>
                 </div>
 
-                {/* Logo Animations (Default: Fade Out 1s at the end of the documentary) */}
+                {/* Logo Animations (Default: Fade In 1.5s at start and Fade Out 2.5s at the end of the documentary) */}
                 <div className="pt-2 border-t border-amber-500/20 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-300 text-[11px]">
-                      ✨ Animación del Logo (Por defecto: Fade Out 1s al final)
+                      ✨ Animación del Logo (Por defecto: Fade In 1.5s al inicio • Fade Out 2.5s al final)
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
