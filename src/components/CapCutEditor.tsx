@@ -484,15 +484,52 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setOfficialLogoUrl(propOfficialLogoUrl);
     }
   }, [propOfficialLogoUrl]);
-  const [logoScalePct, setLogoScalePct] = useState<number>(6);
-  const [logoOpacity, setLogoOpacity] = useState<number>(95);
-  const [logoPosX, setLogoPosX] = useState<number>(3);
-  const [logoPosY, setLogoPosY] = useState<number>(3);
+  // Load saved global overlay styles (Logo, Hook Text, Captions) so visual adjustments never reset
+  const initialOverlayStyles = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const readSavedDocOverlays = (docId: string | undefined) => {
+    try {
+      const raw = localStorage.getItem(`huellas_editor_doc_overlays_${docId || 'default'}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialDocOverlays = useMemo(() => readSavedDocOverlays(activeDoc?.id), [activeDoc?.id]);
+
+  const [logoScalePct, setLogoScalePct] = useState<number>(
+    () => Number(initialOverlayStyles.logoScalePct) || 6
+  );
+  const [logoOpacity, setLogoOpacity] = useState<number>(
+    () => Number(initialOverlayStyles.logoOpacity) || 95
+  );
+  const [logoPosX, setLogoPosX] = useState<number>(
+    () => (typeof initialOverlayStyles.logoPosX === 'number' ? initialOverlayStyles.logoPosX : 3)
+  );
+  const [logoPosY, setLogoPosY] = useState<number>(
+    () => (typeof initialOverlayStyles.logoPosY === 'number' ? initialOverlayStyles.logoPosY : 3)
+  );
   // Default Logo animations for ALL documentaries: Fade Out 2.5s at the end of the documentary (matching Outro Fade Out)
-  const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>('none');
-  const [logoAnimInDur, setLogoAnimInDur] = useState<number>(1);
-  const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>('fade');
-  const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(2.5);
+  const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.logoAnimIn || 'none'
+  );
+  const [logoAnimInDur, setLogoAnimInDur] = useState<number>(
+    () => Number(initialOverlayStyles.logoAnimInDur) || 1
+  );
+  const [logoAnimOut, setLogoAnimOut] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.logoAnimOut || 'fade'
+  );
+  const [logoAnimOutDur, setLogoAnimOutDur] = useState<number>(
+    () => Number(initialOverlayStyles.logoAnimOutDur) || 2.5
+  );
 
   // 2B. Permanent Official Intro Stinger Video (8s — Fixed across all documentaries)
   const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
@@ -504,11 +541,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
 
   // 3. Clip 1 Hook Overlay Text (00:08 - 00:16, right after the 8s Intro) + Typography, Size, Shadow, Background, Position & Animations
-  const [clip1Line1, setClip1Line1] = useState<string>(
-    normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '')
-  );
-  const [clip1Line2, setClip1Line2] = useState<string>(activeDoc?.clip1Line2Hook || '');
+  const [clip1Line1, setClip1Line1] = useState<string>(() => {
+    if (initialDocOverlays && typeof initialDocOverlays.clip1Line1 === 'string') {
+      return initialDocOverlays.clip1Line1;
+    }
+    return normalizeClip1Line1Format(activeDoc?.clip1Line1LocationTime || '');
+  });
+  const [clip1Line2, setClip1Line2] = useState<string>(() => {
+    if (initialDocOverlays && typeof initialDocOverlays.clip1Line2 === 'string') {
+      return initialDocOverlays.clip1Line2;
+    }
+    return activeDoc?.clip1Line2Hook || '';
+  });
   const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
+    if (initialDocOverlays && Number(initialDocOverlays.clip1OverlayEndSec) >= 8) {
+      return Number(initialDocOverlays.clip1OverlayEndSec);
+    }
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
     return 8 + clip1HookDur;
@@ -516,43 +564,132 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Default Hook Text animations for ALL documentaries (after 8s Intro at 00:00 - 00:08):
   // Line 1: starts at 8s (Clip 1), Fade In 1s (8s->9s), Fade Out 1s toward 16s (15s->16s)
   // Line 2: appears at 10s (2s into Clip 1), Fade In 1s (10s->11s), Fade Out 1s toward 16s (15s->16s)
-  const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(8);
-  const [hookLine1AnimIn, setHookLine1AnimIn] = useState<ElementAnimationType>('fade');
-  const [hookLine1AnimInDur, setHookLine1AnimInDur] = useState<number>(1);
-  const [hookLine1AnimOut, setHookLine1AnimOut] = useState<ElementAnimationType>('fade');
-  const [hookLine1AnimOutDur, setHookLine1AnimOutDur] = useState<number>(1);
+  const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(() =>
+    typeof initialOverlayStyles.hookLine1StartSec === 'number'
+      ? initialOverlayStyles.hookLine1StartSec
+      : 8
+  );
+  const [hookLine1AnimIn, setHookLine1AnimIn] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.hookLine1AnimIn || 'fade'
+  );
+  const [hookLine1AnimInDur, setHookLine1AnimInDur] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine1AnimInDur) || 1
+  );
+  const [hookLine1AnimOut, setHookLine1AnimOut] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.hookLine1AnimOut || 'fade'
+  );
+  const [hookLine1AnimOutDur, setHookLine1AnimOutDur] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine1AnimOutDur) || 1
+  );
 
-  const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(10);
-  const [hookLine2AnimIn, setHookLine2AnimIn] = useState<ElementAnimationType>('fade');
-  const [hookLine2AnimInDur, setHookLine2AnimInDur] = useState<number>(1);
-  const [hookLine2AnimOut, setHookLine2AnimOut] = useState<ElementAnimationType>('fade');
-  const [hookLine2AnimOutDur, setHookLine2AnimOutDur] = useState<number>(1);
+  const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(() =>
+    typeof initialOverlayStyles.hookLine2StartSec === 'number'
+      ? initialOverlayStyles.hookLine2StartSec
+      : 10
+  );
+  const [hookLine2AnimIn, setHookLine2AnimIn] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.hookLine2AnimIn || 'fade'
+  );
+  const [hookLine2AnimInDur, setHookLine2AnimInDur] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine2AnimInDur) || 1
+  );
+  const [hookLine2AnimOut, setHookLine2AnimOut] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.hookLine2AnimOut || 'fade'
+  );
+  const [hookLine2AnimOutDur, setHookLine2AnimOutDur] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine2AnimOutDur) || 1
+  );
 
   // Animations for Captions & Video Clips / Images
-  const [captionAnimIn, setCaptionAnimIn] = useState<ElementAnimationType>('fade');
-  const [captionAnimOut, setCaptionAnimOut] = useState<ElementAnimationType>('fade');
-  const [captionAnimDur, setCaptionAnimDur] = useState<number>(0.25);
+  const [captionAnimIn, setCaptionAnimIn] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.captionAnimIn || 'fade'
+  );
+  const [captionAnimOut, setCaptionAnimOut] = useState<ElementAnimationType>(
+    () => initialOverlayStyles.captionAnimOut || 'fade'
+  );
+  const [captionAnimDur, setCaptionAnimDur] = useState<number>(
+    () => Number(initialOverlayStyles.captionAnimDur) || 0.25
+  );
 
   const [clipAnimIn, setClipAnimIn] = useState<ElementAnimationType>('none');
   const [clipAnimOut, setClipAnimOut] = useState<ElementAnimationType>('none');
   const [clipAnimDur, setClipAnimDur] = useState<number>(0.6);
 
-  const [hookFontFamily, setHookFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[0].value);
-  const [hookLine1FontSize, setHookLine1FontSize] = useState<number>(15);
-  const [hookLine2FontSize, setHookLine2FontSize] = useState<number>(24);
-  const [hookLine1Color, setHookLine1Color] = useState<string>('#fcd34d');
-  const [hookLine2Color, setHookLine2Color] = useState<string>('#ffffff');
-  const [hookShadowStyle, setHookShadowStyle] = useState<OverlayShadowStyle>('cinema');
-  const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>('word_shadow');
-  const [hookBgColor, setHookBgColor] = useState<string>('#000000');
-  const [hookBgOpacity, setHookBgOpacity] = useState<number>(55);
-  const [hookLeftPct, setHookLeftPct] = useState<number>(50);
-  const [hookTopPct, setHookTopPct] = useState<number>(50);
-  const [hookBoxWidthPct, setHookBoxWidthPct] = useState<number>(82);
+  const [hookFontFamily, setHookFontFamily] = useState<string>(
+    () => initialOverlayStyles.hookFontFamily || EDITOR_FONT_OPTIONS[0].value
+  );
+  const [hookLine1FontSize, setHookLine1FontSize] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine1FontSize) || 15
+  );
+  const [hookLine2FontSize, setHookLine2FontSize] = useState<number>(
+    () => Number(initialOverlayStyles.hookLine2FontSize) || 24
+  );
+  const [hookLine1Color, setHookLine1Color] = useState<string>(
+    () => initialOverlayStyles.hookLine1Color || '#fcd34d'
+  );
+  const [hookLine2Color, setHookLine2Color] = useState<string>(
+    () => initialOverlayStyles.hookLine2Color || '#ffffff'
+  );
+  const [hookShadowStyle, setHookShadowStyle] = useState<OverlayShadowStyle>(
+    () => initialOverlayStyles.hookShadowStyle || 'cinema'
+  );
+  const [hookBgStyle, setHookBgStyle] = useState<OverlayBgStyle>(
+    () => initialOverlayStyles.hookBgStyle || 'word_shadow'
+  );
+  const [hookBgColor, setHookBgColor] = useState<string>(
+    () => initialOverlayStyles.hookBgColor || '#000000'
+  );
+  const [hookBgOpacity, setHookBgOpacity] = useState<number>(() =>
+    typeof initialOverlayStyles.hookBgOpacity === 'number' ? initialOverlayStyles.hookBgOpacity : 55
+  );
+  const [hookLeftPct, setHookLeftPct] = useState<number>(() =>
+    typeof initialOverlayStyles.hookLeftPct === 'number' ? initialOverlayStyles.hookLeftPct : 50
+  );
+  const [hookTopPct, setHookTopPct] = useState<number>(() =>
+    typeof initialOverlayStyles.hookTopPct === 'number' ? initialOverlayStyles.hookTopPct : 50
+  );
+  const [hookBoxWidthPct, setHookBoxWidthPct] = useState<number>(
+    () => Number(initialOverlayStyles.hookBoxWidthPct) || 82
+  );
   const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
   const viewerCanvasRef = useRef<HTMLDivElement | null>(null);
   const viewerContainerRef = useRef<HTMLDivElement | null>(null);
   const [isViewerFullscreen, setIsViewerFullscreen] = useState<boolean>(false);
+  const CANONICAL_STAGE_HEIGHT = 520;
+  const canonicalStageWidth =
+    aspectRatio === '16:9' ? (CANONICAL_STAGE_HEIGHT * 16) / 9 : (CANONICAL_STAGE_HEIGHT * 9) / 16;
+  const [viewerCanvasSize, setViewerCanvasSize] = useState<{ width: number; height: number }>({
+    width: canonicalStageWidth,
+    height: CANONICAL_STAGE_HEIGHT,
+  });
+  const viewerScaleX =
+    viewerCanvasSize.width > 0 ? viewerCanvasSize.width / canonicalStageWidth : 1;
+  const viewerScaleY =
+    viewerCanvasSize.height > 0 ? viewerCanvasSize.height / CANONICAL_STAGE_HEIGHT : 1;
+
+  useEffect(() => {
+    const el = viewerCanvasRef.current;
+    if (!el) return;
+    const syncViewerSize = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setViewerCanvasSize((prev) =>
+          Math.abs(prev.width - rect.width) < 0.5 && Math.abs(prev.height - rect.height) < 0.5
+            ? prev
+            : { width: rect.width, height: rect.height }
+        );
+      }
+    };
+    syncViewerSize();
+    const ro =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncViewerSize()) : null;
+    if (ro) ro.observe(el);
+    window.addEventListener('resize', syncViewerSize);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', syncViewerSize);
+    };
+  }, [isViewerFullscreen, aspectRatio, isEditorActive]);
 
   useEffect(() => {
     const onFsChange = () => {
@@ -4079,15 +4216,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }
                 handleTogglePlay();
               }}
-              className={`relative w-full bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
+              className={`relative bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
                 isViewerFullscreen
-                  ? aspectRatio === '16:9'
-                    ? 'flex-1 max-h-[calc(100vh-52px)] aspect-video mx-auto'
-                    : 'flex-1 max-h-[calc(100vh-52px)] aspect-[9/16] mx-auto'
+                  ? 'mx-auto'
                   : aspectRatio === '16:9'
-                  ? 'aspect-video'
-                  : 'aspect-[9/16]'
+                  ? 'w-full aspect-video'
+                  : 'w-full aspect-[9/16]'
               }`}
+              style={
+                isViewerFullscreen
+                  ? {
+                      width:
+                        aspectRatio === '16:9'
+                          ? 'min(100vw, calc((100vh - 52px) * 16 / 9))'
+                          : 'min(100vw, calc((100vh - 52px) * 9 / 16))',
+                      height:
+                        aspectRatio === '16:9'
+                          ? 'min(calc(100vh - 52px), calc(100vw * 9 / 16))'
+                          : 'min(calc(100vh - 52px), calc(100vw * 16 / 9))',
+                    }
+                  : undefined
+              }
               title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
               {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
@@ -4226,6 +4375,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
+              {/* Canonical 520p WYSIWYG Overlay Stage: guarantees 100% identical text size, line wrapping & distribution in Normal Mode, Fullscreen & Exported Video */}
+              <div
+                className="absolute top-0 left-0 pointer-events-none select-none overflow-hidden z-20"
+                style={{
+                  width: `${canonicalStageWidth}px`,
+                  height: `${CANONICAL_STAGE_HEIGHT}px`,
+                  transform: `scale(${viewerScaleX}, ${viewerScaleY})`,
+                  transformOrigin: 'top left',
+                }}
+              >
               {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer, with End Fade-Out; non-selectable in fullscreen) */}
               <div
                 onMouseDown={(e) => {
@@ -4242,8 +4401,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   isViewerFullscreen
                     ? 'pointer-events-none select-none'
                     : selectedCanvasObject === 'logo'
-                    ? 'cursor-pointer ring-2 ring-amber-400 bg-amber-500/15 shadow-lg'
-                    : 'cursor-pointer hover:ring-1 hover:ring-amber-400/60'
+                    ? 'pointer-events-auto cursor-pointer ring-2 ring-amber-400 bg-amber-500/15 shadow-lg'
+                    : 'pointer-events-auto cursor-pointer hover:ring-1 hover:ring-amber-400/60'
                 }`}
                 style={{
                   top: `${logoPosY}%`,
@@ -4329,8 +4488,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       isViewerFullscreen
                         ? 'pointer-events-none select-none'
                         : selectedCanvasObject === 'hook_text'
-                        ? 'cursor-move ring-1 ring-dashed ring-amber-400/80'
-                        : 'cursor-move'
+                        ? 'pointer-events-auto cursor-move ring-1 ring-dashed ring-amber-400/80'
+                        : 'pointer-events-auto cursor-move'
                     }`}
                     style={{
                       left: `${hookLeftPct}%`,
@@ -4583,6 +4742,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </span>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
