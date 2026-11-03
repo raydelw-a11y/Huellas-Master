@@ -706,8 +706,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
   const [captions, setCaptions] = useState<TimelineCaptionItem[]>([]);
-  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[7].value);
-  const [captionFontSize, setCaptionFontSize] = useState<number>(22);
+  const [captionFontFamily, setCaptionFontFamily] = useState<string>(EDITOR_FONT_OPTIONS[0].value);
+  const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
+    activeDoc?.productionType === 'REEL_9X16' ? 22 : 40
+  );
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(11);
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>('white');
   const [captionCustomColor, setCaptionCustomColor] = useState<string>('#ffffff');
@@ -3731,7 +3733,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
             <button
               type="button"
-              onClick={() => setAspectRatio('16:9')}
+              onClick={() => {
+                setAspectRatio('16:9');
+                setCaptionFontSize(40);
+              }}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                 aspectRatio === '16:9'
                   ? 'bg-amber-500 text-slate-950'
@@ -3742,7 +3747,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setAspectRatio('9:16')}
+              onClick={() => {
+                setAspectRatio('9:16');
+                if (captionFontSize === 40) setCaptionFontSize(22);
+              }}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                 aspectRatio === '9:16'
                   ? 'bg-amber-500 text-slate-950'
@@ -6013,7 +6021,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <input
                     type="range"
                     min={14}
-                    max={40}
+                    max={64}
                     value={captionFontSize}
                     onChange={(e) => setCaptionFontSize(Number(e.target.value))}
                     className="w-full accent-amber-500"
