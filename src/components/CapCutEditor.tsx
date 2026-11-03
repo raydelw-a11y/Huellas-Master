@@ -616,6 +616,56 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     else setExportBitrateMbps(tiers.recommended);
   };
 
+  // Sync with any active server-side FFmpeg render job (e.g. if page reloaded during render)
+  useEffect(() => {
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    let timer: number | null = null;
+
+    const checkServerRenderStatus = async () => {
+      try {
+        const r = await fetch(`${serverOrigin}/api/editor/render-status`);
+        if (!r.ok) return;
+        const st = await r.json();
+        if (st && st.running) {
+          setIsRenderingVideo(true);
+          if (typeof st.progressPct === 'number' && st.progressPct > 0) {
+            setRenderProgressPct(st.progressPct);
+          }
+          if (st.stageLabel) {
+            setRenderStageLabel(st.stageLabel);
+          }
+          if (typeof st.startedAt === 'number' && st.startedAt > 0) {
+            const elapsed = Math.max(1, Math.floor((Date.now() - st.startedAt) / 1000));
+            setRenderElapsedSec(elapsed);
+            const cur = Number(st.currentStep || 1);
+            const tot = Number(st.totalSteps || 84);
+            setRenderStepInfo({ current: cur, total: tot });
+            if (cur >= 2) {
+              const secPerSeg = elapsed / Math.max(1, cur - 1);
+              const remSegs = Math.max(0, tot - (cur - 1));
+              setRenderRemainingSec(Math.max(2, Math.round(remSegs * secPerSeg + 10)));
+            }
+          }
+        } else if (st && st.progressPct === 100 && st.outputPath) {
+          setIsRenderingVideo(false);
+          setRenderProgressPct(100);
+          setRenderRemainingSec(0);
+          setLastExportedOutputPath(st.outputPath);
+          if (st.stageLabel) setRenderStageLabel(st.stageLabel);
+        }
+      } catch {}
+    };
+
+    checkServerRenderStatus();
+    timer = window.setInterval(checkServerRenderStatus, 2000);
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
   // Interactive Selection of Objects inside the Video Viewer ('logo' | 'hook_text' | 'captions' | null)
   const [selectedCanvasObject, setSelectedCanvasObject] = useState<
     'logo' | 'hook_text' | 'captions' | null
@@ -7649,6 +7699,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             })
             .join('\n\n');
 
+          const isLocalHost =
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+          const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+
           // 1-second smooth countdown & elapsed timer
           let effectiveStartMs = localStartMs;
           secTimer = window.setInterval(() => {
@@ -7660,7 +7715,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           // Poll live render progress from server & calibrate remaining time
           pollTimer = window.setInterval(async () => {
             try {
-              const stResp = await fetch('/api/editor/render-status');
+              const stResp = await fetch(`${serverOrigin}/api/editor/render-status`);
               if (stResp.ok) {
                 const stData = await stResp.json();
                 if (stData && stData.running) {
@@ -7704,7 +7759,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             } catch {}
           }, 1200);
 
-          const resp = await fetch('/api/editor/render-ffmpeg', {
+          const resp = await fetch(`${serverOrigin}/api/editor/render-ffmpeg`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
