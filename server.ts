@@ -3529,7 +3529,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       if (!sourceMp4 || !fs.existsSync(sourceMp4)) continue;
 
-      const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.mp4`);
+      const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.ts`);
       const usingPrebakedOpticalFlow =
         Boolean(c.opticalFlowUrl) && sourceMp4.includes('.optical_flow_cache');
       const slotDur =
@@ -3807,10 +3807,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      const effectiveEncodeBitrateMbps =
-        isIntelMac && outW <= 3840 && outH <= 3840
-          ? Math.min(safeBitrateMbps, 38)
-          : safeBitrateMbps;
+      const effectiveEncodeBitrateMbps = safeBitrateMbps;
 
       const hwEncoderArgs = is8K
         ? ['-c:v', 'hevc_videotoolbox', '-realtime', 'true', '-b:v', `${effectiveEncodeBitrateMbps}M`, '-tag:v', 'hvc1']
@@ -3879,6 +3876,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '44100',
             '-ac',
             '2',
+            '-f',
+            'mpegts',
             segOut,
           ];
         } else {
@@ -3909,6 +3908,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '-ac',
             '2',
             '-shortest',
+            '-f',
+            'mpegts',
             segOut,
           ];
         }
@@ -3922,7 +3923,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const segLabel = isIntroClip ? 'Intro' : isOutroClip ? 'Outro' : `Clip ${c.clipNumber || i}`;
       normalizedClipPaths.push(segOut);
       segmentEncodeTasks.push({
-        idx: i,
+        idx: segmentEncodeTasks.length,
         label: segLabel,
         segOut,
         run: async () => {
@@ -3943,44 +3944,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       });
     }
 
-    // Execute segment encodes with a 4-worker parallel pool for maximum VideoToolbox GPU throughput
-    let completedSegCount = 0;
-    const totalSegTasks = segmentEncodeTasks.length;
-    const workerConcurrency = Math.min(4, Math.max(1, totalSegTasks));
-    let nextTaskCursor = 0;
-
-    const runWorker = async () => {
-      while (nextTaskCursor < totalSegTasks) {
-        const myIdx = nextTaskCursor++;
-        const task = segmentEncodeTasks[myIdx];
-        if (!task) break;
-        activeRenderJobState = {
-          ...activeRenderJobState,
-          progressPct: Math.min(
-            88,
-            Math.max(3, Math.round(((completedSegCount + 1) / Math.max(1, totalSegTasks)) * 85))
-          ),
-          currentStep: Math.min(totalSegTasks, completedSegCount + 1),
-          totalSteps: totalSegTasks,
-          stageLabel: `Renderizando segmento ${Math.min(totalSegTasks, completedSegCount + 1)}/${totalSegTasks} (${task.label}) en ${preset.label} • ${safeFps} FPS...`,
-        };
-        await task.run();
-        completedSegCount++;
-        activeRenderJobState = {
-          ...activeRenderJobState,
-          progressPct: Math.min(
-            88,
-            Math.max(3, Math.round((completedSegCount / Math.max(1, totalSegTasks)) * 85))
-          ),
-          currentStep: completedSegCount,
-          totalSteps: totalSegTasks,
-          stageLabel: `Renderizando segmento ${completedSegCount}/${totalSegTasks} (${task.label}) en ${preset.label} • ${safeFps} FPS...`,
-        };
-      }
-    };
-
-    await Promise.all(Array.from({ length: workerConcurrency }, () => runWorker()));
-
     if (normalizedClipPaths.length === 0) {
       activeRenderJobState = {
         running: false,
@@ -3998,20 +3961,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       return;
     }
 
-    activeRenderJobState = {
-      ...activeRenderJobState,
-      progressPct: 92,
-      stageLabel: `Uniendo ${normalizedClipPaths.length} segmentos y mezclando Voz Narrativa (+5 dB) + FlowMusic...`,
-    };
-
-    // 2. Prepare concat list for direct final muxing (zero intermediate duplicate file on disk)
-    const concatListPath = path.join(workDir, 'concat_list.txt');
-    const concatContent = normalizedClipPaths
-      .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
-      .join('\n');
-    fs.writeFileSync(concatListPath, concatContent, 'utf8');
-
-    // 3. Check for Voiceover MP3 and Flow Music / Suno tracks to mix in final pass
+    // 2. Discover Voiceover MP3 and Flow Music / Suno tracks BEFORE starting the streaming muxer
     const audioDirs = [path.join(targetRoot, '02_Audio'), path.join(targetRoot, 'Audio'), targetRoot];
     let voPath = path.join(targetRoot, '02_Audio', 'Voz_Narrativa.mp3');
     if (!fs.existsSync(voPath)) {
@@ -4040,7 +3990,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fs.writeFileSync(voPath, Buffer.from(cleanB64, 'base64'));
     }
 
-    // Discover Flow Music / Suno tracks on disk or from base64 payload
     const resolvedMusicInputs: Array<{
       filePath: string;
       startSec: number;
@@ -4106,6 +4055,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       ? path.join(videoFinalSubdir, finalFileName)
       : path.join(targetRoot, finalFileName);
 
+    // Remove any existing file at finalOutputPath before starting so disk space is immediately freed
+    if (fs.existsSync(finalOutputPath)) {
+      try {
+        fs.unlinkSync(finalOutputPath);
+      } catch {}
+    }
+
     if (srtContent) {
       fs.writeFileSync(path.join(targetRoot, 'Subtitulos.srt'), String(srtContent), 'utf8');
       const seoDir = path.join(targetRoot, '01_Guion_y_SEO');
@@ -4114,18 +4070,34 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       }
     }
 
+    // 3. Create Named Pipes (FIFOs) for zero-duplicate-disk-space streaming concat + audio mix
+    const totalSegTasks = segmentEncodeTasks.length;
+    const fifoPaths: string[] = [];
+    for (let k = 0; k < totalSegTasks; k++) {
+      const fp = path.join(workDir, `fifo_${String(k + 1).padStart(3, '0')}.ts`);
+      execSync(`mkfifo "${fp.replace(/"/g, '\\"')}"`);
+      fifoPaths.push(fp);
+    }
+
+    const concatListPath = path.join(workDir, 'concat_list.txt');
+    const concatContent = fifoPaths
+      .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
+      .join('\n');
+    fs.writeFileSync(concatListPath, concatContent, 'utf8');
+
     const hasVo = fs.existsSync(voPath);
+    let muxerArgs: string[] = [];
     if (hasVo || resolvedMusicInputs.length > 0) {
-      const ffmpegArgs: string[] = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
+      muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
       const filterParts: string[] = [];
       const mixLabels: string[] = ['[0:a]'];
       let nextInputIdx = 1;
 
       const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
-      const voDbMultiplier = Math.pow(10, Number(voiceoverGainDb ?? 5) / 20); // +5 dB => ~1.778x
+      const voDbMultiplier = Math.pow(10, Number(voiceoverGainDb ?? 5) / 20);
       const boostedVoVol = safeVoVol * voDbMultiplier;
       if (hasVo) {
-        ffmpegArgs.push('-i', voPath);
+        muxerArgs.push('-i', voPath);
         const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
         filterParts.push(
           `[${nextInputIdx}:a]adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)}[vo]`
@@ -4137,7 +4109,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.1)));
       for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
         const mItem = resolvedMusicInputs[mIdx];
-        ffmpegArgs.push('-i', mItem.filePath);
+        muxerArgs.push('-i', mItem.filePath);
         const startMs = Math.max(0, Math.round(mItem.startSec * 1000));
         const dur = Math.max(8, mItem.durationSec);
         const trackVol =
@@ -4163,7 +4135,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0[aout]`
       );
 
-      ffmpegArgs.push(
+      muxerArgs.push(
         '-filter_complex',
         filterParts.join(';'),
         '-map',
@@ -4176,26 +4148,125 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         'aac',
         '-b:a',
         '256k',
-        '-movflags',
-        '+faststart',
         finalOutputPath
       );
-
-      await new Promise<void>((resolve, reject) => {
-        execFile(ffmpegBin, ffmpegArgs, { timeout: 600000 }, (err) =>
-          err ? reject(err) : resolve()
-        );
-      });
     } else {
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          ffmpegBin,
-          ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', '-movflags', '+faststart', finalOutputPath],
-          { timeout: 600000 },
-          (err) => (err ? reject(err) : resolve())
-        );
-      });
+      muxerArgs = [
+        '-y',
+        '-f',
+        'concat',
+        '-safe',
+        '0',
+        '-i',
+        concatListPath,
+        '-c',
+        'copy',
+        finalOutputPath,
+      ];
     }
+
+    const muxerProc = spawn(ffmpegBin, muxerArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let muxerStderr = '';
+    muxerProc.stderr?.on('data', (d) => {
+      muxerStderr = (muxerStderr + d.toString()).slice(-4000);
+    });
+    const muxerDonePromise = new Promise<void>((resolve, reject) => {
+      muxerProc.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`Final muxer exited with code ${code}: ${muxerStderr}`));
+      });
+      muxerProc.on('error', reject);
+    });
+
+    // 4. Execute segment encodes in parallel (with bounded lookahead <= 5 segments so /tmp never exceeds ~900 MB) and stream each completed .ts into its FIFO + delete immediately!
+    let completedSegCount = 0;
+    let nextTaskCursor = 0;
+    let nextFifoToFeed = 0;
+    const segReadyFlags: boolean[] = new Array(totalSegTasks).fill(false);
+    let workerError: any = null;
+
+    const workerConcurrency = Math.min(4, Math.max(1, totalSegTasks));
+
+    const runWorker = async () => {
+      while (nextTaskCursor < totalSegTasks && !workerError) {
+        // Throttle lookahead so at most 5 encoded segments wait in /tmp at any moment (~850 MB max)
+        while (nextTaskCursor > nextFifoToFeed + 5 && !workerError) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        if (workerError || nextTaskCursor >= totalSegTasks) break;
+        const myIdx = nextTaskCursor++;
+        const task = segmentEncodeTasks[myIdx];
+        if (!task) break;
+        try {
+          await task.run();
+          segReadyFlags[myIdx] = true;
+          completedSegCount++;
+          activeRenderJobState = {
+            ...activeRenderJobState,
+            progressPct: Math.min(
+              97,
+              Math.max(3, Math.round((completedSegCount / Math.max(1, totalSegTasks)) * 96))
+            ),
+            currentStep: completedSegCount,
+            totalSteps: totalSegTasks,
+            stageLabel: `Renderizando y uniendo segmento ${completedSegCount}/${totalSegTasks} (${task.label}) en ${preset.label} • ${safeFps} FPS • ${safeBitrateMbps} Mbps...`,
+          };
+        } catch (err) {
+          workerError = err;
+          break;
+        }
+      }
+    };
+
+    const runFifoFeeder = async () => {
+      for (let k = 0; k < totalSegTasks; k++) {
+        while (!segReadyFlags[k] && !workerError) {
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        if (workerError) {
+          try {
+            muxerProc.kill('SIGKILL');
+          } catch {}
+          break;
+        }
+        const srcTs = segmentEncodeTasks[k].segOut;
+        const fifoTs = fifoPaths[k];
+        await new Promise<void>((resolve, reject) => {
+          const rs = fs.createReadStream(srcTs);
+          const ws = fs.createWriteStream(fifoTs);
+          rs.on('error', reject);
+          ws.on('error', reject);
+          ws.on('finish', () => {
+            try {
+              fs.unlinkSync(srcTs);
+            } catch {}
+            try {
+              fs.unlinkSync(fifoTs);
+            } catch {}
+            resolve();
+          });
+          rs.pipe(ws);
+        });
+        nextFifoToFeed = k + 1;
+      }
+    };
+
+    await Promise.all([
+      ...Array.from({ length: workerConcurrency }, () => runWorker()),
+      runFifoFeeder(),
+    ]);
+
+    if (workerError) {
+      throw workerError;
+    }
+
+    activeRenderJobState = {
+      ...activeRenderJobState,
+      progressPct: 99,
+      stageLabel: 'Finalizando contenedor MP4 masterizado...',
+    };
+
+    await muxerDonePromise;
 
     try {
       execSync(`chflags nohidden "${finalOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
