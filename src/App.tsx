@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:38 AM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:43 AM - 11/03/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -7467,19 +7467,6 @@ export default function App() {
               />
             </button>
           )}
-
-          <button
-            onClick={() => setShowKeyModal(true)}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 border transition cursor-pointer ${
-              serverStatus?.hasGeminiKey
-                ? 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
-                : 'bg-rose-950/60 border-rose-700/60 text-rose-300'
-            }`}
-            title="Configurar API Key de Gemini y Enlace Mágico para Teléfono"
-          >
-            <Key className="w-3.5 h-3.5" />
-            <span>{serverStatus?.hasGeminiKey ? 'IA / Móvil' : 'Configurar IA'}</span>
-          </button>
         </div>
 
         {/* COMPACT STICKY STAGES BAR (Icon right next to stage number to free vertical space) */}
