@@ -3957,7 +3957,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCurrentTime(clamped);
   };
 
-  // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips and trimmed/slow-mo clips fit their slot smoothly
+  // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips (e.g. 7.83s Flow clips) and trimmed/slow-mo clips fit their slot smoothly without ever freezing at the end
   const computeClipVideoSyncParams = (
     vid: HTMLVideoElement,
     clip: {
@@ -3975,22 +3975,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const slotDur = Math.max(0.4, clip.duration || 8);
     const hasKnownVidDur =
       typeof vid.duration === 'number' && Number.isFinite(vid.duration) && vid.duration > 0.25;
+    // Flow 24fps MP4s often have audio container duration 7.85s while last video frame is at ~7.79s; reserve 0.07s margin so video frames never run out before audio/container end
+    const safeVidStreamEnd = hasKnownVidDur
+      ? Math.max(0.25, vid.duration - 0.07)
+      : Math.max(0.4, (clip.sourceDuration || 8) - 0.07);
+    const elapsedInSlot = Math.max(0, timelineSec - clip.start);
+    const remainingSlotSec = Math.max(0.03, slotDur - elapsedInSlot);
 
     // If playing a pre-baked Optical Flow MP4, pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
       clip.opticalFlowUrl && clip.smoothSlowMo !== false && clip.speed < 0.99
     );
     if (usingOpticalFlowVideo) {
-      const optRate =
-        hasKnownVidDur && Math.abs(vid.duration - slotDur) > 0.05
-          ? Math.max(0.2, Math.min(4.0, Number((vid.duration / slotDur).toFixed(4))))
-          : 1;
-      const rawOffset = Math.max(0, timelineSec - clip.start) * optRate;
+      let optRate = hasKnownVidDur
+        ? Math.max(0.15, Math.min(4.0, Number((safeVidStreamEnd / slotDur).toFixed(4))))
+        : 1;
+      const rawOffset = elapsedInSlot * optRate;
       const maxSafeOffset = hasKnownVidDur
-        ? Math.max(0, vid.duration - 0.04)
+        ? Math.max(0, safeVidStreamEnd - 0.02)
         : Math.max(0, slotDur - 0.04);
       const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
-      const reachedClipMediaEnd = Boolean(timelineSec - clip.start >= slotDur - 0.04);
+      if (
+        hasKnownVidDur &&
+        !vid.paused &&
+        vid.readyState >= 2 &&
+        remainingSlotSec > 0.12 &&
+        vid.currentTime > 0.05 &&
+        safeVidStreamEnd - vid.currentTime > 0.06
+      ) {
+        optRate = Math.max(
+          0.15,
+          Math.min(4.0, Number(((safeVidStreamEnd - vid.currentTime) / remainingSlotSec).toFixed(4)))
+        );
+      }
+      const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur - 0.02);
       return {
         effectiveRate: optRate,
         clampedOffset,
@@ -3999,31 +4017,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     const trimStart = Math.max(0, clip.trimStart || 0);
-    const fallbackEnd = hasKnownVidDur ? vid.duration : clip.sourceDuration || 8;
     const trimEnd =
       typeof clip.trimEnd === 'number' && clip.trimEnd > trimStart + 0.05
         ? hasKnownVidDur
-          ? Math.min(vid.duration, clip.trimEnd)
+          ? Math.min(safeVidStreamEnd, clip.trimEnd)
           : clip.trimEnd
-        : fallbackEnd;
+        : safeVidStreamEnd;
     const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
 
-    // Always pace playableMediaDur across the full slotDur when vid.duration is known so trimmed/slow-mo clips never freeze before the end of slotDur
-    const effectiveRate = hasKnownVidDur
+    // Always pace playableMediaDur across the full slotDur; during active playback, dynamically pace remaining frames across remainingSlotSec so the clip never runs out of frames early
+    let effectiveRate = hasKnownVidDur
       ? Math.max(0.15, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
       : clip.speed && Math.abs(clip.speed - 1) > 0.01
       ? Math.max(0.2, Math.min(4.0, clip.speed))
-      : Math.abs(playableMediaDur - slotDur) > 0.12
-      ? Math.max(0.25, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
+      : Math.abs(playableMediaDur - slotDur) > 0.04
+      ? Math.max(0.2, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
       : 1;
 
-    const rawOffset = Math.max(0, timelineSec - clip.start) * effectiveRate + trimStart;
-    const mediaCeiling = hasKnownVidDur
-      ? Math.min(vid.duration - 0.04, trimEnd - 0.02)
-      : trimEnd - 0.04;
-    const maxSafeOffset = Math.max(trimStart, mediaCeiling);
+    const rawOffset = elapsedInSlot * effectiveRate + trimStart;
+    const maxSafeOffset = Math.max(trimStart, trimEnd - 0.02);
     const clampedOffset = Math.max(trimStart, Math.min(maxSafeOffset, rawOffset));
-    const reachedClipMediaEnd = Boolean(timelineSec - clip.start >= slotDur - 0.04);
+
+    if (
+      hasKnownVidDur &&
+      !vid.paused &&
+      vid.readyState >= 2 &&
+      remainingSlotSec > 0.12 &&
+      vid.currentTime >= trimStart &&
+      trimEnd - vid.currentTime > 0.06
+    ) {
+      effectiveRate = Math.max(
+        0.15,
+        Math.min(4.0, Number(((trimEnd - vid.currentTime) / remainingSlotSec).toFixed(4)))
+      );
+    }
+
+    const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur - 0.02);
 
     return {
       effectiveRate,
@@ -4566,8 +4595,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const isClipSwitch = activeClipAtPlayhead.id !== activePlayingClipIdRef.current;
       const isManualSeek = appliedVideoSeekVersionRef.current !== lastSeekVersionRef.current;
 
-      if (Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.02) {
+      if (Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.002) {
         try {
+          vid.defaultPlaybackRate = effectiveRate;
           vid.playbackRate = effectiveRate;
         } catch {}
       }
@@ -4631,11 +4661,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             }
           }
         }
-        const vidDur = vid.duration;
-        const isAtEndOfMedia =
-          vid.ended ||
-          reachedClipMediaEnd ||
-          (typeof vidDur === 'number' && Number.isFinite(vidDur) && vidDur > 0.25 && vid.currentTime >= vidDur - 0.08);
+        const isAtEndOfMedia = vid.ended || reachedClipMediaEnd;
 
         if (isAtEndOfMedia) {
           clipEndedHoldRef.current = true;
@@ -8052,6 +8078,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
                         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
                         clipEndedHoldRef.current = reachedClipMediaEnd;
+                        vid.defaultPlaybackRate = effectiveRate;
                         vid.playbackRate = effectiveRate;
                         // Avoid redundant seek to ~0s on natural clip transition so frame 0 never jumps
                         if (

@@ -3209,22 +3209,70 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.mp4`);
       const usingPrebakedOpticalFlow =
         Boolean(c.opticalFlowUrl) && sourceMp4.includes('.optical_flow_cache');
-      const speed = usingPrebakedOpticalFlow
-        ? 1
-        : Number(c.speed) > 0
-        ? Number(c.speed)
-        : 1;
+      const slotDur =
+        Number(c.end) > Number(c.start) + 0.2
+          ? Math.max(0.4, Number(c.end) - Number(c.start))
+          : 0;
+      const probedSegDur = !usingPrebakedOpticalFlow
+        ? await new Promise<number>((resolve) => {
+            const p = spawn(ffmpegBin, ['-i', sourceMp4], {
+              stdio: ['ignore', 'ignore', 'pipe'],
+            });
+            let se = '';
+            p.stderr?.on('data', (d) => {
+              se += d.toString();
+            });
+            p.on('close', () => {
+              const m = se.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+              if (m) {
+                const sec =
+                  parseInt(m[1], 10) * 3600 +
+                  parseInt(m[2], 10) * 60 +
+                  parseFloat(m[3]);
+                if (Number.isFinite(sec) && sec > 0.3) {
+                  resolve(Math.max(0.3, sec - 0.06));
+                  return;
+                }
+              }
+              resolve(0);
+            });
+            p.on('error', () => resolve(0));
+          })
+        : 0;
       const trimStartSec = usingPrebakedOpticalFlow
         ? 0
         : Math.max(0, Number(c.trimStart || 0));
-      const trimEndSec = usingPrebakedOpticalFlow
+      const rawTrimEnd = usingPrebakedOpticalFlow
         ? 0
         : Number(c.trimEnd || 0) > trimStartSec
         ? Number(c.trimEnd)
         : 0;
+      const trimEndSec =
+        !usingPrebakedOpticalFlow && probedSegDur > 0.4
+          ? rawTrimEnd > trimStartSec + 0.1 && rawTrimEnd < probedSegDur - 0.05
+            ? rawTrimEnd
+            : Math.max(trimStartSec + 0.2, probedSegDur - 0.05)
+          : rawTrimEnd;
+      const effectiveSpan =
+        trimEndSec > trimStartSec + 0.1
+          ? trimEndSec - trimStartSec
+          : probedSegDur > trimStartSec + 0.2
+          ? probedSegDur - trimStartSec
+          : 0;
+      const speed = usingPrebakedOpticalFlow
+        ? 1
+        : slotDur > 0.3 && effectiveSpan > 0.2
+        ? Math.max(0.15, Math.min(4.0, effectiveSpan / slotDur))
+        : Number(c.speed) > 0
+        ? Number(c.speed)
+        : 1;
       const smoothSlowMo =
         c.smoothSlowMo !== undefined ? Boolean(c.smoothSlowMo) : speed < 0.99;
-      const ptsFactor = (1 / speed).toFixed(4);
+      const ptsFactor = usingPrebakedOpticalFlow
+        ? '1.0000'
+        : slotDur > 0.3 && effectiveSpan > 0.2
+        ? ((slotDur + 0.08) / effectiveSpan).toFixed(5)
+        : (1 / speed).toFixed(4);
       const foleyVol = typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.35;
       const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
       const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
@@ -3241,12 +3289,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
         : '';
       const slowMoInterpFilter =
-        !usingPrebakedOpticalFlow && speed < 0.99 && smoothSlowMo
+        !usingPrebakedOpticalFlow && speed < 0.96 && smoothSlowMo
           ? ',minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none'
           : ',fps=30';
-      const vfFilter = `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black${slowMoInterpFilter},format=yuv420p${vfFadeSuffix}`;
+      const vfTrimSuffix =
+        !usingPrebakedOpticalFlow && slotDur > 0.3
+          ? `,trim=duration=${slotDur.toFixed(3)},setpts=PTS-STARTPTS`
+          : '';
+      const vfFilter = `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black${slowMoInterpFilter},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}`;
       const buildAtempoChain = (spd: number): string => {
-        if (Math.abs(spd - 1) < 0.02) return '';
+        if (Math.abs(spd - 1) < 0.003) return '';
         const stages: string[] = [];
         let rem = Math.max(0.2, Math.min(4.0, spd));
         while (rem < 0.5) {
@@ -3257,17 +3309,21 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           stages.push('atempo=2.0');
           rem /= 2.0;
         }
-        stages.push(`atempo=${rem.toFixed(3)}`);
+        stages.push(`atempo=${rem.toFixed(4)}`);
         return `${stages.join(',')},`;
       };
       const atempoPrefix = buildAtempoChain(speed);
+      const afTrimSuffix =
+        !usingPrebakedOpticalFlow && slotDur > 0.3
+          ? `,apad,atrim=duration=${slotDur.toFixed(3)},asetpts=PTS-STARTPTS`
+          : '';
       const afFilter = isIntroClip
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=6.2:d=1.8,volume=${foleyVol}`
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=6.2:d=1.8,volume=${foleyVol}${afTrimSuffix}`
         : isOutroClip
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=5.5:d=2.5,volume=${foleyVol}`
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=5.5:d=2.5,volume=${foleyVol}${afTrimSuffix}`
         : isFirstClipAfterIntro
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.2,volume=${foleyVol}`
-        : `${atempoPrefix}volume=${foleyVol}`;
+        ? `${atempoPrefix}afade=t=in:st=0:d=1.2,volume=${foleyVol}${afTrimSuffix}`
+        : `${atempoPrefix}volume=${foleyVol}${afTrimSuffix}`;
 
       const inputTrimArgs: string[] = [];
       if (trimStartSec > 0.01) {
@@ -6125,7 +6181,8 @@ app.post('/api/video/optical-flow', async (req, res) => {
                   parseInt(m[2], 10) * 60 +
                   parseFloat(m[3]);
                 if (Number.isFinite(sec) && sec > 0.3) {
-                  resolve(sec);
+                  // Container duration includes audio tail (~0.06s longer than 24fps video stream)
+                  resolve(Math.max(0.3, sec - 0.06));
                   return;
                 }
               }
@@ -6150,9 +6207,9 @@ app.post('/api/video/optical-flow', async (req, res) => {
 
     const realTrimStart = Math.max(0, Math.min(actualSourceDur - 0.35, reqTrimStart));
     const realTrimEnd =
-      reqTrimEnd > realTrimStart + 0.1 && reqTrimEnd < actualSourceDur - 0.04
+      reqTrimEnd > realTrimStart + 0.1 && reqTrimEnd < actualSourceDur - 0.06
         ? reqTrimEnd
-        : Math.max(realTrimStart + 0.35, actualSourceDur - 0.02);
+        : Math.max(realTrimStart + 0.35, actualSourceDur - 0.06);
     const realSpan = Math.max(0.3, realTrimEnd - realTrimStart);
 
     const effectiveTargetDur =
@@ -6201,7 +6258,8 @@ app.post('/api/video/optical-flow', async (req, res) => {
       return;
     }
 
-    const ptsFactor = (effectiveTargetDur / realSpan).toFixed(5);
+    // Stretch slightly past effectiveTargetDur (+0.12s) and trim at exact effectiveTargetDur so video frames never end before audio
+    const ptsFactor = ((effectiveTargetDur + 0.12) / realSpan).toFixed(5);
     const isVertical = aspectRatio === '9:16';
     const outW = isVertical ? 1080 : 1920;
     const outH = isVertical ? 1920 : 1080;
@@ -6237,13 +6295,13 @@ app.post('/api/video/optical-flow', async (req, res) => {
     };
     const afFilter = buildAtempoChain(safeSpeed);
 
-    // Optical Flow MCI filter chain (CapCut Smooth Slow Motion equivalent) — uses PTS-STARTPTS so trimmed clips stretch across 100% of targetDuration
+    // Optical Flow MCI filter chain (CapCut Smooth Slow Motion equivalent) — uses PTS-STARTPTS + trim=duration so trimmed clips stretch across 100% of targetDuration
     const vfMci = useOpticalFlow
-      ? `scale=${motionEstW}:${motionEstH}:force_original_aspect_ratio=decrease,pad=${motionEstW}:${motionEstH}:(ow-iw)/2:(oh-ih)/2,setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none,scale=${outW}:${outH}:flags=bicubic,unsharp=3:3:0.55:3:3:0.0,format=yuv420p`
-      : `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
+      ? `scale=${motionEstW}:${motionEstH}:force_original_aspect_ratio=decrease,pad=${motionEstW}:${motionEstH}:(ow-iw)/2:(oh-ih)/2,setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none,trim=duration=${effectiveTargetDur.toFixed(3)},scale=${outW}:${outH}:flags=bicubic,unsharp=3:3:0.55:3:3:0.0,format=yuv420p`
+      : `setpts=${ptsFactor}*(PTS-STARTPTS),trim=duration=${effectiveTargetDur.toFixed(3)},scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
 
     const vfBlendFallback = useOpticalFlow
-      ? `setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=60:mi_mode=blend,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p`
+      ? `setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=60:mi_mode=blend,trim=duration=${effectiveTargetDur.toFixed(3)},scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p`
       : vfMci;
 
     const tmpOutPath = path.join(
