@@ -3387,6 +3387,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       filePath: string;
       startSec: number;
       durationSec: number;
+      volume?: number;
       fadeInSec: number;
       fadeOutSec: number;
     }> = [];
@@ -3417,8 +3418,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             filePath: foundTrackPath,
             startSec: Math.max(0, Number(mt.startSec || 0)),
             durationSec: Math.max(10, Number(mt.durationSec || 90)),
-            fadeInSec: Math.max(0.5, Number(mt.fadeInSec || 2.5)),
-            fadeOutSec: Math.max(0.5, Number(mt.fadeOutSec || 3.0)),
+            volume:
+              typeof mt.volume === 'number' && Number.isFinite(mt.volume)
+                ? Math.max(0, Math.min(1, Number(mt.volume)))
+                : undefined,
+            fadeInSec:
+              mt.fadeInSec !== undefined && mt.fadeInSec !== null
+                ? Math.max(0, Number(mt.fadeInSec))
+                : 2.5,
+            fadeOutSec:
+              mt.fadeOutSec !== undefined && mt.fadeOutSec !== null
+                ? Math.max(0, Number(mt.fadeOutSec))
+                : 3.0,
           });
         }
       }
@@ -3454,20 +3465,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         nextInputIdx++;
       }
 
-      // Strict Voice-Priority Ceiling: music volume is always capped <= 18% of narrator voice volume
-      const safeMusicVol = Math.min(
-        safeVoVol * 0.18,
-        Math.max(0.08, Number(sunoMasterVolume || 0.14))
-      );
+      const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.24)));
       for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
         const mItem = resolvedMusicInputs[mIdx];
         ffmpegArgs.push('-i', mItem.filePath);
         const startMs = Math.max(0, Math.round(mItem.startSec * 1000));
         const dur = Math.max(8, mItem.durationSec);
-        const fadeOutStart = Math.max(0.5, Number((dur - mItem.fadeOutSec).toFixed(2)));
+        const trackVol =
+          typeof mItem.volume === 'number' ? mItem.volume : defaultMusicVol;
+        const fadeFilters: string[] = [];
+        if (mItem.fadeInSec > 0) {
+          fadeFilters.push(`afade=t=in:st=0:d=${mItem.fadeInSec}:curve=tri`);
+        }
+        if (mItem.fadeOutSec > 0) {
+          const fadeOutStart = Math.max(0, Number((dur - mItem.fadeOutSec).toFixed(2)));
+          fadeFilters.push(`afade=t=out:st=${fadeOutStart}:d=${mItem.fadeOutSec}:curve=tri`);
+        }
+        const fadeChain = fadeFilters.length > 0 ? `,${fadeFilters.join(',')}` : '';
         const lbl = `mus${mIdx}`;
         filterParts.push(
-          `[${nextInputIdx}:a]atrim=0:${dur},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=${mItem.fadeInSec}:curve=tri,afade=t=out:st=${fadeOutStart}:d=${mItem.fadeOutSec}:curve=tri,volume=${safeMusicVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
+          `[${nextInputIdx}:a]atrim=0:${dur},asetpts=PTS-STARTPTS${fadeChain},volume=${trackVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
         );
         mixLabels.push(`[${lbl}]`);
         nextInputIdx++;
