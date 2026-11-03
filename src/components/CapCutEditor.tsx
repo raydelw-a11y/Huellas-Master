@@ -1216,16 +1216,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const introOutroBasePath =
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
     const introVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Intro.mp4`
+      `${introOutroBasePath}/.Intro_WebPreview.mp4`
     )}&v=8k`;
     const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Intro_Poster.jpg`
+      `${introOutroBasePath}/.Intro_Poster.jpg`
     )}&v=8k`;
     const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Outro.mp4`
+      `${introOutroBasePath}/.Outro_WebPreview.mp4`
     )}&v=8k`;
     const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Outro_Poster.jpg`
+      `${introOutroBasePath}/.Outro_Poster.jpg`
     )}&v=8k`;
 
     // 1. Build Clips Track (Track 3)
