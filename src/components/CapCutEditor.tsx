@@ -72,6 +72,8 @@ export interface TimelineClipItem {
   reviewedForEditor?: boolean;
   vocalsSeparated?: boolean; // true when vocal stem has been extracted to the Voces Separadas track
   cleanNoVocalsVideoUrl?: string; // MP4 URL with vocal speech band suppressed
+  musicSeparated?: boolean; // true when music stem has been extracted to the Música Extraída track
+  cleanNoMusicVideoUrl?: string; // MP4 URL with harmonic music band suppressed
   originalVideoUrlBeforeSeparation?: string;
 }
 
@@ -82,11 +84,12 @@ export interface TimelineSeparatedVocalItem {
   title: string;
   start: number; // in seconds on master timeline (movable horizontally)
   duration: number; // in seconds on master timeline
-  audioUrl?: string; // separated vocal stem audio URL (or fallback clip videoUrl)
+  audioUrl?: string; // separated vocal or music stem audio URL (or fallback clip videoUrl)
   sourceTrimStart?: number;
   speed?: number;
   volume: number; // default 100
   muted?: boolean;
+  stemType?: 'vocals' | 'music';
 }
 
 export interface TimelineCaptionItem {
@@ -1010,6 +1013,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   );
   const [selectedVocalSegmentId, setSelectedVocalSegmentId] = useState<string | null>(null);
   const [isSeparatingVocals, setIsSeparatingVocals] = useState<boolean>(false);
+  const [separatedMusicSegments, setSeparatedMusicSegments] = useState<TimelineSeparatedVocalItem[]>(
+    () =>
+      initialDocOverlays && Array.isArray(initialDocOverlays.separatedMusicSegments)
+        ? initialDocOverlays.separatedMusicSegments
+        : []
+  );
+  const [selectedMusicSegmentId, setSelectedMusicSegmentId] = useState<string | null>(null);
+  const [isSeparatingMusic, setIsSeparatingMusic] = useState<boolean>(false);
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
 
@@ -1323,6 +1334,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const separatedVocalsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const separatedMusicAudioRef = useRef<HTMLAudioElement | null>(null);
   const playIntervalRef = useRef<any>(null);
   const webAudioCtxRef = useRef<AudioContext | null>(null);
   const ambientGainRef = useRef<GainNode | null>(null);
@@ -1342,9 +1354,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const appliedVoiceSeekVersionRef = useRef<number>(-1);
   const appliedMusicSeekVersionRef = useRef<number>(-1);
   const appliedSeparatedVocalSeekVersionRef = useRef<number>(-1);
+  const appliedSeparatedMusicSeekVersionRef = useRef<number>(-1);
   const activePlayingClipIdRef = useRef<string | null>(null);
   const activePlayingMusicIdRef = useRef<string | null>(null);
   const activePlayingSeparatedVocalIdRef = useRef<string | null>(null);
+  const activePlayingSeparatedMusicIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
@@ -2428,6 +2442,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           : []
       );
       setSelectedVocalSegmentId(null);
+      setSeparatedMusicSegments(
+        Array.isArray(savedDocOverlays?.separatedMusicSegments)
+          ? savedDocOverlays.separatedMusicSegments
+          : []
+      );
+      setSelectedMusicSegmentId(null);
     }
 
     // 2. Build Captions Track (Track 2) aligned to docIntroPlacement and real Voiceover audio
@@ -3528,6 +3548,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [separatedVocalSegments, currentTime]);
 
+  const activeSeparatedMusicAtPlayhead = useMemo(() => {
+    return (
+      separatedMusicSegments.find(
+        (seg) =>
+          !seg.muted &&
+          Boolean(seg.audioUrl) &&
+          currentTime >= seg.start &&
+          currentTime < seg.start + seg.duration
+      ) || null
+    );
+  }, [separatedMusicSegments, currentTime]);
+
   const isNarratorSpeakingAtPlayhead = useMemo(() => {
     if (currentTime < voiceStartOffsetSec) return false;
     if (
@@ -3950,6 +3982,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               sepVo.pause();
               sepVo.muted = false;
               sepVo.currentTime = 0;
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+
+    // 3C. Unlock & play Separated Music Segment <audio> if present on Track 3C
+    const sepMus = separatedMusicAudioRef.current;
+    if (sepMus) {
+      try {
+        appliedSeparatedMusicSeekVersionRef.current = lastSeekVersionRef.current;
+        if (activeSeparatedMusicAtPlayhead?.audioUrl) {
+          if (activePlayingSeparatedMusicIdRef.current !== activeSeparatedMusicAtPlayhead.id) {
+            activePlayingSeparatedMusicIdRef.current = activeSeparatedMusicAtPlayhead.id;
+            sepMus.src = activeSeparatedMusicAtPlayhead.audioUrl;
+          }
+          sepMus.muted = false;
+          sepMus.currentTime = Math.max(0, startSec - activeSeparatedMusicAtPlayhead.start);
+          sepMus.volume = Math.min(1, Math.max(0.05, (activeSeparatedMusicAtPlayhead.volume ?? 100) / 100));
+          sepMus.play().catch(() => {});
+        } else if (separatedMusicSegments[0]?.audioUrl) {
+          sepMus.muted = true;
+          sepMus.play()
+            .then(() => {
+              sepMus.pause();
+              sepMus.muted = false;
+              sepMus.currentTime = 0;
             })
             .catch(() => {});
         }
@@ -4514,11 +4573,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         );
         if (isPlaying && sepVo.paused && !sepVo.ended) {
           sepVo.play().catch(() => {});
+        } else if (!isPlaying && !sepVo.paused) {
+          sepVo.pause();
         }
       } else {
         activePlayingSeparatedVocalIdRef.current = null;
         if (!sepVo.paused) {
           sepVo.pause();
+        }
+      }
+    }
+
+    const sepMus = separatedMusicAudioRef.current;
+    if (sepMus) {
+      if (activeSeparatedMusicAtPlayhead?.audioUrl) {
+        const isSegSwitch =
+          activePlayingSeparatedMusicIdRef.current !== activeSeparatedMusicAtPlayhead.id;
+        if (isSegSwitch) {
+          activePlayingSeparatedMusicIdRef.current = activeSeparatedMusicAtPlayhead.id;
+          sepMus.src = activeSeparatedMusicAtPlayhead.audioUrl;
+        }
+        const segTime = Math.max(0, currentTime - activeSeparatedMusicAtPlayhead.start);
+        const isManualSegSeek =
+          appliedSeparatedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
+        if (
+          isSegSwitch ||
+          isManualSegSeek ||
+          !isPlaying ||
+          Math.abs(sepMus.currentTime - segTime) > 1.2
+        ) {
+          appliedSeparatedMusicSeekVersionRef.current = lastSeekVersionRef.current;
+          try {
+            sepMus.currentTime = segTime;
+          } catch {}
+        }
+        sepMus.muted = Boolean(activeSeparatedMusicAtPlayhead.muted);
+        sepMus.volume = Math.min(
+          1,
+          Math.max(0, (activeSeparatedMusicAtPlayhead.volume ?? 100) / 100)
+        );
+        if (isPlaying && sepMus.paused && !sepMus.ended) {
+          sepMus.play().catch(() => {});
+        } else if (!isPlaying && !sepMus.paused) {
+          sepMus.pause();
+        }
+      } else {
+        activePlayingSeparatedMusicIdRef.current = null;
+        if (!sepMus.paused) {
+          sepMus.pause();
         }
       }
     }
@@ -4538,6 +4640,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeSeparatedVocalAtPlayhead?.start,
     activeSeparatedVocalAtPlayhead?.muted,
     activeSeparatedVocalAtPlayhead?.volume,
+    activeSeparatedMusicAtPlayhead?.id,
+    activeSeparatedMusicAtPlayhead?.audioUrl,
+    activeSeparatedMusicAtPlayhead?.start,
+    activeSeparatedMusicAtPlayhead?.muted,
+    activeSeparatedMusicAtPlayhead?.volume,
     isPlaying,
     effectiveFoleyVolumeAtPlayhead,
     effectiveMusicVolumeAtPlayhead,
@@ -4549,7 +4656,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     masterMusicVolume,
   ]);
 
-  // Close clip right-click context menu on outside click or Escape, and allow deleting selected vocal segment with Delete/Backspace
+  // Close clip right-click context menu on outside click or Escape, and allow deleting selected vocal or music segment with Delete/Backspace
   useEffect(() => {
     const onGlobalClick = () => {
       setClipContextMenu(null);
@@ -4560,7 +4667,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
       if (
         (e.key === 'Delete' || e.key === 'Backspace') &&
-        selectedVocalSegmentId &&
+        (selectedVocalSegmentId || selectedMusicSegmentId) &&
         !(
           document.activeElement instanceof HTMLInputElement ||
           document.activeElement instanceof HTMLTextAreaElement ||
@@ -4568,21 +4675,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         )
       ) {
         e.preventDefault();
-        setSeparatedVocalSegments((prev) => {
-          const target = prev.find((s) => s.id === selectedVocalSegmentId);
-          const next = prev.filter((s) => s.id !== selectedVocalSegmentId);
-          persistDocOverlaysPatch(
-            { separatedVocalSegments: next },
-            activeDoc?.id || 'default'
-          );
-          if (target) {
-            setStatusMessage(
-              `🗑️ Segmento de voz "${target.title}" eliminado de la línea de tiempo.`
+        if (selectedVocalSegmentId) {
+          setSeparatedVocalSegments((prev) => {
+            const target = prev.find((s) => s.id === selectedVocalSegmentId);
+            const next = prev.filter((s) => s.id !== selectedVocalSegmentId);
+            persistDocOverlaysPatch(
+              { separatedVocalSegments: next },
+              activeDoc?.id || 'default'
             );
-          }
-          return next;
-        });
-        setSelectedVocalSegmentId(null);
+            if (target) {
+              setStatusMessage(
+                `🗑️ Segmento de voz "${target.title}" eliminado de la línea de tiempo.`
+              );
+            }
+            return next;
+          });
+          setSelectedVocalSegmentId(null);
+        }
+        if (selectedMusicSegmentId) {
+          setSeparatedMusicSegments((prev) => {
+            const target = prev.find((s) => s.id === selectedMusicSegmentId);
+            const next = prev.filter((s) => s.id !== selectedMusicSegmentId);
+            persistDocOverlaysPatch(
+              { separatedMusicSegments: next },
+              activeDoc?.id || 'default'
+            );
+            if (target) {
+              setStatusMessage(
+                `🗑️ Segmento de música "${target.title}" eliminado de la línea de tiempo.`
+              );
+            }
+            return next;
+          });
+          setSelectedMusicSegmentId(null);
+        }
       }
     };
     window.addEventListener('click', onGlobalClick);
@@ -4591,7 +4717,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       window.removeEventListener('click', onGlobalClick);
       window.removeEventListener('keydown', onGlobalKeyDown);
     };
-  }, [selectedVocalSegmentId, activeDoc?.id]);
+  }, [selectedVocalSegmentId, selectedMusicSegmentId, activeDoc?.id]);
 
   const handleSeparateVocalsFromClips = async (targetClipIds: string[]) => {
     setClipContextMenu(null);
@@ -4807,7 +4933,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ...tc,
               vocalsSeparated: false,
               cleanNoVocalsVideoUrl: undefined,
-              videoUrl: tc.originalVideoUrlBeforeSeparation || tc.videoUrl,
+              videoUrl: tc.musicSeparated
+                ? tc.cleanNoMusicVideoUrl || tc.originalVideoUrlBeforeSeparation || tc.videoUrl
+                : tc.originalVideoUrlBeforeSeparation || tc.videoUrl,
             }
           : tc
       )
@@ -4840,6 +4968,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (e.button !== 0 || !laneEl) return;
     e.stopPropagation();
     setSelectedVocalSegmentId(seg.id);
+    setSelectedMusicSegmentId(null);
     const startClientX = e.clientX;
     const initialStartSec = seg.start;
     const laneRect = laneEl.getBoundingClientRect();
@@ -4866,6 +4995,222 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setSeparatedVocalSegments((prev) => {
         const sorted = [...prev].sort((a, b) => a.start - b.start);
         persistDocOverlaysPatch({ separatedVocalSegments: sorted }, docId);
+        return sorted;
+      });
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const handleSeparateMusicFromClips = async (targetClipIds: string[]) => {
+    setClipContextMenu(null);
+    const targetClips = clipsWithTimelineBounds.filter((c) => targetClipIds.includes(c.id));
+    if (targetClips.length === 0) return;
+
+    setIsSeparatingMusic(true);
+    setStatusMessage(
+      `🎵 Detectando y extrayendo la música de ${targetClips.length} clip(s) seleccionado(s) en la pista 3C...`
+    );
+
+    const docId = activeDoc?.id || 'default';
+    const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+    const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+    const dTitle = (activeDoc?.title || '').trim();
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+
+    const newMusicSegments: TimelineSeparatedVocalItem[] = [];
+    const clipPatchById: Record<
+      string,
+      {
+        musicSeparated: boolean;
+        cleanNoMusicVideoUrl?: string;
+        originalVideoUrlBeforeSeparation?: string;
+        videoUrl?: string;
+      }
+    > = {};
+
+    for (const clip of targetClips) {
+      const origVideoUrl = clip.originalVideoUrlBeforeSeparation || clip.videoUrl || '';
+      let musicAudioUrl = '';
+      let cleanVideoUrl = '';
+
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${base}/api/flow/separate-clip-music`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clipId: clip.id,
+              clipNumber: clip.clipNumber,
+              videoUrl: origVideoUrl,
+              fileName: clip.fileName,
+              folderPath: fPath,
+              folderName: fName,
+              docTitle: dTitle,
+              trimStart: clip.trimStart || 0,
+              trimEnd: clip.trimEnd || clip.sourceDuration || clip.duration,
+              speed: clip.speed || 1,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) {
+              const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+              musicAudioUrl = prefix(data.musicAudioUrl || '');
+              cleanVideoUrl = prefix(data.cleanVideoUrl || '');
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      const segId = `sep-music-${clip.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      newMusicSegments.push({
+        id: segId,
+        sourceClipId: clip.id,
+        clipNumber: clip.clipNumber,
+        title:
+          clip.clipNumber === 0
+            ? '🎵 Música Intro'
+            : clip.clipNumber === 999
+            ? '🎵 Música Outro'
+            : `🎵 Música Clip ${String(clip.clipNumber).padStart(2, '0')}${
+                clip.partLabel ? ` (${clip.partLabel})` : ''
+              }`,
+        start: Number(clip.start.toFixed(2)),
+        duration: Number(clip.duration.toFixed(2)),
+        audioUrl: musicAudioUrl || origVideoUrl,
+        sourceTrimStart: clip.trimStart || 0,
+        speed: clip.speed || 1,
+        volume: 100,
+        muted: false,
+        stemType: 'music',
+      });
+
+      clipPatchById[clip.id] = {
+        musicSeparated: true,
+        originalVideoUrlBeforeSeparation: origVideoUrl,
+        cleanNoMusicVideoUrl: cleanVideoUrl || undefined,
+        ...(cleanVideoUrl ? { videoUrl: cleanVideoUrl } : {}),
+      };
+    }
+
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((tc) => (clipPatchById[tc.id] ? { ...tc, ...clipPatchById[tc.id] } : tc))
+    );
+
+    setSeparatedMusicSegments((prev) => {
+      const filtered = prev.filter((s) => !targetClipIds.includes(s.sourceClipId));
+      const next = [...filtered, ...newMusicSegments].sort((a, b) => a.start - b.start);
+      persistDocOverlaysPatch({ separatedMusicSegments: next }, docId);
+      return next;
+    });
+
+    if (newMusicSegments.length > 0) {
+      setSelectedMusicSegmentId(newMusicSegments[0].id);
+      setSelectedVocalSegmentId(null);
+    }
+    setIsSeparatingMusic(false);
+    setStatusMessage(
+      `✅ Música extraída de ${targetClips.length} clip(s) en la pista "3C. 🎵 Música Clips". Puedes arrastrarla por el timeline o borrarla con 🗑️ / Suprimir.`
+    );
+  };
+
+  const handleDeleteSeparatedMusicSegment = (segId: string) => {
+    const docId = activeDoc?.id || 'default';
+    setSeparatedMusicSegments((prev) => {
+      const target = prev.find((s) => s.id === segId);
+      const next = prev.filter((s) => s.id !== segId);
+      persistDocOverlaysPatch({ separatedMusicSegments: next }, docId);
+      if (target) {
+        setStatusMessage(
+          `🗑️ Segmento "${target.title}" eliminado de la pista de Música Extraída (el clip conserva su video y Foley sin esa música).`
+        );
+      }
+      return next;
+    });
+    if (selectedMusicSegmentId === segId) {
+      setSelectedMusicSegmentId(null);
+    }
+  };
+
+  const handleRestoreSeparatedMusicToClip = (seg: TimelineSeparatedVocalItem) => {
+    const docId = activeDoc?.id || 'default';
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((tc) =>
+        tc.id === seg.sourceClipId
+          ? {
+              ...tc,
+              musicSeparated: false,
+              cleanNoMusicVideoUrl: undefined,
+              videoUrl: tc.vocalsSeparated
+                ? tc.cleanNoVocalsVideoUrl || tc.originalVideoUrlBeforeSeparation || tc.videoUrl
+                : tc.originalVideoUrlBeforeSeparation || tc.videoUrl,
+            }
+          : tc
+      )
+    );
+    setSeparatedMusicSegments((prev) => {
+      const next = prev.filter((s) => s.id !== seg.id);
+      persistDocOverlaysPatch({ separatedMusicSegments: next }, docId);
+      return next;
+    });
+    if (selectedMusicSegmentId === seg.id) {
+      setSelectedMusicSegmentId(null);
+    }
+    setStatusMessage(
+      `↩️ Audio de música restaurado al Clip ${String(seg.clipNumber).padStart(2, '0')}.`
+    );
+  };
+
+  const handleToggleMuteSeparatedMusic = (segId: string) => {
+    const docId = activeDoc?.id || 'default';
+    setSeparatedMusicSegments((prev) => {
+      const next = prev.map((s) => (s.id === segId ? { ...s, muted: !s.muted } : s));
+      persistDocOverlaysPatch({ separatedMusicSegments: next }, docId);
+      return next;
+    });
+  };
+
+  const handleStartDragSeparatedMusic = (
+    e: React.MouseEvent,
+    seg: TimelineSeparatedVocalItem,
+    laneEl: HTMLDivElement | null
+  ) => {
+    if (e.button !== 0 || !laneEl) return;
+    e.stopPropagation();
+    setSelectedMusicSegmentId(seg.id);
+    setSelectedVocalSegmentId(null);
+    const startClientX = e.clientX;
+    const initialStartSec = seg.start;
+    const laneRect = laneEl.getBoundingClientRect();
+    const maxStartSec = Math.max(0, totalDurationSec - seg.duration);
+    let latestStartSec = initialStartSec;
+
+    const onMove = (moveEvt: MouseEvent) => {
+      const dxPx = moveEvt.clientX - startClientX;
+      const deltaSec = isFitEntireProject
+        ? (dxPx / Math.max(1, laneRect.width)) * totalDurationSec
+        : dxPx / Math.max(1, timelineZoom);
+      latestStartSec = Number(
+        Math.max(0, Math.min(maxStartSec, initialStartSec + deltaSec)).toFixed(2)
+      );
+      setSeparatedMusicSegments((prev) =>
+        prev.map((s) => (s.id === seg.id ? { ...s, start: latestStartSec } : s))
+      );
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      const docId = activeDoc?.id || 'default';
+      setSeparatedMusicSegments((prev) => {
+        const sorted = [...prev].sort((a, b) => a.start - b.start);
+        persistDocOverlaysPatch({ separatedMusicSegments: sorted }, docId);
         return sorted;
       });
     };
@@ -6334,8 +6679,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
         preload={isEditorActive ? 'auto' : 'none'}
       />
+      <audio
+        ref={separatedMusicAudioRef}
+        src={
+          activeSeparatedMusicAtPlayhead?.audioUrl ||
+          separatedMusicSegments[0]?.audioUrl ||
+          undefined
+        }
+        preload={isEditorActive ? 'auto' : 'none'}
+      />
 
-      {/* FLOATING RIGHT-CLICK CONTEXT MENU FOR SELECTED TIMELINE CLIPS (Separar ▸ Voces) */}
+      {/* FLOATING RIGHT-CLICK CONTEXT MENU FOR SELECTED TIMELINE CLIPS (Separar ▸ Voces / Extraer Música) */}
       {clipContextMenu && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -6389,7 +6743,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
             <span className="text-amber-400 font-black">▸</span>
 
-            {/* Submenu Panel: Voces */}
+            {/* Submenu Panel: Voces / Extraer Música */}
             {clipContextMenu.showSepararSubmenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
@@ -6410,6 +6764,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </span>
                   <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-mono text-emerald-200">
                     Pista 3B
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSeparatingMusic}
+                  onClick={() => handleSeparateMusicFromClips(clipContextMenu.clipIds)}
+                  className="w-full px-3 py-2 text-left hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 font-black flex items-center justify-between gap-2 border-t border-slate-800/70 cursor-pointer transition disabled:opacity-50"
+                >
+                  <span className="flex items-center gap-2">
+                    <span>🎵</span>
+                    <span>Extraer Música</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-[9px] font-mono text-purple-200">
+                    Pista 3C
                   </span>
                 </button>
               </div>
@@ -10033,6 +10401,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   🗣️ Sep
                                 </span>
                               )}
+                              {clip.musicSeparated && (
+                                <span className="px-0.5 py-0.2 rounded bg-purple-500/90 text-[7px] font-black text-slate-950 leading-none">
+                                  🎵 Sep
+                                </span>
+                              )}
                               {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
                                 <span className="px-0.5 py-0.2 rounded bg-sky-500/80 text-[7px] font-black text-slate-950 leading-none">
                                   🌊 {clip.speed}x
@@ -10082,11 +10455,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     🌊 Optical Flow {clip.speed}x {clip.opticalFlowUrl ? '✓' : ''}
                                   </span>
                                 )}
-                                {clip.vocalsSeparated && (
-                                  <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-emerald-500/95 text-[8px] font-black text-slate-950 shadow">
-                                    🗣️ Voz Separada
-                                  </span>
-                                )}
+                                <div className="absolute top-1 right-1 flex flex-col items-end gap-0.5">
+                                  {clip.vocalsSeparated && (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/95 text-[8px] font-black text-slate-950 shadow">
+                                      🗣️ Voz Separada
+                                    </span>
+                                  )}
+                                  {clip.musicSeparated && (
+                                    <span className="px-1.5 py-0.5 rounded bg-purple-500/95 text-[8px] font-black text-white shadow">
+                                      🎵 Música Extraída
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
                                   {isCurrent ? '▶ En Curso' : 'Fotograma 1'}
                                 </span>
@@ -10099,6 +10479,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.vocalsSeparated && (
                                   <span className="mt-0.5 px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/50 text-[8px] font-black text-emerald-300">
                                     🗣️ Voz Separada en Pista 3B
+                                  </span>
+                                )}
+                                {clip.musicSeparated && (
+                                  <span className="mt-0.5 px-1.5 py-0.5 rounded bg-purple-500/25 border border-purple-500/50 text-[8px] font-black text-purple-300">
+                                    🎵 Música Extraída en Pista 3C
                                   </span>
                                 )}
                                 <span className="text-[9px] text-slate-400 line-clamp-2 mt-0.5">
@@ -10120,8 +10505,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
                               </span>
                               <span>
-                                {clip.vocalsSeparated
+                                {clip.vocalsSeparated && clip.musicSeparated
+                                  ? '🔇 Voz y Música Extraídas'
+                                  : clip.vocalsSeparated
                                   ? '🔇 Voz Extraída'
+                                  : clip.musicSeparated
+                                  ? '🔇 Música Extraída'
                                   : clip.clipNumber === 0 || clip.clipNumber === 999
                                   ? `Audio Fade In/Out • ${clip.foleyVolume}%`
                                   : `Foley ${clip.foleyVolume}%`}
@@ -10173,6 +10562,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedVocalSegmentId(seg.id);
+                          setSelectedMusicSegmentId(null);
                         }}
                         style={
                           isFitEntireProject
@@ -10241,6 +10631,123 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }}
                             className="px-1 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 text-[9px] text-white font-bold cursor-pointer"
                             title="Borrar este segmento de voz de la línea de tiempo"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* TRACK 3C: EXTRACTED MUSIC FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-purple-950/70 border border-purple-500/40 text-[11px] font-black text-purple-300 flex items-center justify-between">
+                <span>3C. 🎵 Música Clips ({separatedMusicSegments.length})</span>
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`relative h-10 bg-slate-950/90 border border-purple-500/30 rounded-lg overflow-hidden flex items-center ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {separatedMusicSegments.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 px-3 truncate">
+                    Haz clic derecho sobre uno o varios clips de la Pista 3 y elige{' '}
+                    <strong className="text-purple-300">Separar ▸ 🎵 Extraer Música</strong> para separar la música de fondo aquí, moverla o borrarla.
+                  </span>
+                ) : (
+                  separatedMusicSegments.map((seg) => {
+                    const isSegSelected = selectedMusicSegmentId === seg.id;
+                    const isSegPlaying = activeSeparatedMusicAtPlayhead?.id === seg.id;
+                    return (
+                      <div
+                        key={seg.id}
+                        onMouseDown={(e) =>
+                          handleStartDragSeparatedMusic(
+                            e,
+                            seg,
+                            e.currentTarget.parentElement as HTMLDivElement | null
+                          )
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedMusicSegmentId(seg.id);
+                          setSelectedVocalSegmentId(null);
+                        }}
+                        style={
+                          isFitEntireProject
+                            ? {
+                                left: `${(seg.start / Math.max(1, totalDurationSec)) * 100}%`,
+                                width: `${(seg.duration / Math.max(1, totalDurationSec)) * 100}%`,
+                              }
+                            : {
+                                left: `${seg.start * timelineZoom}px`,
+                                width: `${Math.max(36, seg.duration * timelineZoom)}px`,
+                              }
+                        }
+                        title={`${seg.title} (${formatTimeMMSS(seg.start)} - ${formatTimeMMSS(
+                          seg.start + seg.duration
+                        )}) • Arrastra horizontalmente para mover por el timeline o pulsa 🗑️ / Suprimir para borrar`}
+                        className={`absolute top-1 bottom-1 rounded-md border px-2 flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing select-none transition ${
+                          seg.muted
+                            ? 'bg-slate-900/90 border-slate-700 text-slate-500 opacity-60'
+                            : isSegSelected
+                            ? 'bg-purple-500/35 border-2 border-amber-300 text-white shadow-lg shadow-purple-500/20 z-20'
+                            : isSegPlaying
+                            ? 'bg-purple-500/30 border-purple-300 text-purple-100 z-10'
+                            : 'bg-purple-950/85 hover:bg-purple-900/80 border-purple-500/50 text-purple-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 min-w-0 truncate">
+                          <span className="text-[10px] font-black truncate">
+                            {seg.muted ? '🔇 ' : '🎵 '}
+                            {seg.title.replace(/^🎵\s*/, '')}
+                          </span>
+                          <span className="text-[9px] font-mono text-purple-300/90 shrink-0">
+                            ({formatTimeMMSS(seg.start)}-{formatTimeMMSS(seg.start + seg.duration)})
+                          </span>
+                        </div>
+                        <div
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 shrink-0"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleMuteSeparatedMusic(seg.id);
+                            }}
+                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-purple-200 cursor-pointer"
+                            title={seg.muted ? 'Activar audio de este segmento de música' : 'Silenciar este segmento de música'}
+                          >
+                            {seg.muted ? '🔇' : '🔊'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRestoreSeparatedMusicToClip(seg);
+                            }}
+                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
+                            title="Devolver la música a su clip original"
+                          >
+                            ↩️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSeparatedMusicSegment(seg.id);
+                            }}
+                            className="px-1 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 text-[9px] text-white font-bold cursor-pointer"
+                            title="Borrar este segmento de música de la línea de tiempo"
                           >
                             🗑️
                           </button>

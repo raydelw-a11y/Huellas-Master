@@ -6441,6 +6441,240 @@ app.post('/api/flow/separate-clip-vocals', async (req, res) => {
   }
 });
 
+// Separate background music stem from a video clip into a standalone MP3 and a music-attenuated MP4
+app.post('/api/flow/separate-clip-music', async (req, res) => {
+  try {
+    const {
+      clipId,
+      clipNumber,
+      videoUrl,
+      fileName,
+      folderPath,
+      folderName,
+      docTitle,
+      trimStart,
+      trimEnd,
+      speed,
+    } = req.body || {};
+
+    let sourceMp4 = '';
+    if (typeof videoUrl === 'string' && videoUrl.includes('filePath=')) {
+      try {
+        const parsed = new URL(videoUrl, 'http://localhost:4200');
+        const fp = parsed.searchParams.get('filePath');
+        if (fp && fs.existsSync(fp)) {
+          sourceMp4 = fp;
+        }
+      } catch {}
+    }
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const clipsVideoSubdir = resolvedRoot ? path.join(resolvedRoot, '05_Clips_Video') : '';
+    const clipsApprovedSubdir = resolvedRoot ? path.join(resolvedRoot, 'Clips_Aprobados') : '';
+
+    if (!sourceMp4 && resolvedRoot && fs.existsSync(resolvedRoot)) {
+      const searchDirs = [clipsVideoSubdir, resolvedRoot, clipsApprovedSubdir].filter(
+        (d) => d && fs.existsSync(d)
+      );
+      if (fileName) {
+        for (const d of searchDirs) {
+          const cand = path.join(d, path.basename(fileName));
+          if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+            sourceMp4 = cand;
+            break;
+          }
+        }
+      }
+      if (!sourceMp4 && Number(clipNumber) > 0) {
+        const num = Number(clipNumber);
+        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const d of searchDirs) {
+          const matches = fs
+            .readdirSync(d)
+            .filter(
+              (f) =>
+                !f.startsWith('.') &&
+                prefixRegex.test(f) &&
+                /\.(mp4|mov|webm)$/i.test(f)
+            )
+            .sort((a, b) => {
+              const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+              const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+              if (b4k !== a4k) return b4k - a4k;
+              try {
+                return (
+                  fs.statSync(path.join(d, b)).mtimeMs -
+                  fs.statSync(path.join(d, a)).mtimeMs
+                );
+              } catch {
+                return 0;
+              }
+            });
+          if (matches.length > 0) {
+            sourceMp4 = path.join(d, matches[0]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+      res.status(404).json({
+        ok: false,
+        error: `No se encontró el archivo MP4 original para extraer música del Clip ${String(clipNumber || '').padStart(2, '0')}.`,
+      });
+      return;
+    }
+
+    const safeSpeed = Math.max(0.2, Math.min(4.0, Number(speed) || 1));
+    const safeTrimStart = Math.max(0, Number(trimStart) || 0);
+    const safeTrimEnd = Number(trimEnd) > safeTrimStart + 0.05 ? Number(trimEnd) : 0;
+
+    const cacheDir = path.join(path.dirname(sourceMp4), '.music_cache');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const baseKey = path
+      .basename(sourceMp4, path.extname(sourceMp4))
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 48);
+    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_s${safeSpeed.toFixed(3)}`;
+    const musicMp3Path = path.join(cacheDir, `${baseKey}_${bakedKey}_music.mp3`);
+    const cleanMp4Path = path.join(cacheDir, `${baseKey}_${bakedKey}_nomusic.mp4`);
+
+    const ffmpegBin = resolveFfmpegBin();
+    const inputTrimArgs: string[] = [];
+    if (safeTrimStart > 0.01) {
+      inputTrimArgs.push('-ss', safeTrimStart.toFixed(3));
+    }
+    if (safeTrimEnd > safeTrimStart + 0.05) {
+      inputTrimArgs.push('-to', safeTrimEnd.toFixed(3));
+    }
+
+    const buildAtempoChain = (spd: number): string => {
+      if (Math.abs(spd - 1) < 0.02) return '';
+      const stages: string[] = [];
+      let rem = Math.max(0.2, Math.min(4.0, spd));
+      while (rem < 0.5) {
+        stages.push('atempo=0.5');
+        rem /= 0.5;
+      }
+      while (rem > 2.0) {
+        stages.push('atempo=2.0');
+        rem /= 2.0;
+      }
+      stages.push(`atempo=${rem.toFixed(3)}`);
+      return stages.join(',');
+    };
+    const atempoPart = buildAtempoChain(safeSpeed);
+
+    // 1. Extract musical / harmonic stem (.mp3)
+    if (!fs.existsSync(musicMp3Path) || fs.statSync(musicMp3Path).size < 1024) {
+      const musicFilter = [
+        'highpass=f=70',
+        'lowpass=f=9500',
+        'afftdn=nf=-28',
+        'acompressor=threshold=-22dB:ratio=2.5:makeup=3dB',
+        atempoPart,
+      ]
+        .filter(Boolean)
+        .join(',');
+
+      await new Promise<void>((resolve) => {
+        const args = [
+          '-y',
+          ...inputTrimArgs,
+          '-i',
+          sourceMp4,
+          '-vn',
+          '-af',
+          musicFilter,
+          '-c:a',
+          'libmp3lame',
+          '-q:a',
+          '2',
+          musicMp3Path,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', () => resolve());
+        proc.on('close', () => resolve());
+      });
+
+      if (!fs.existsSync(musicMp3Path) || fs.statSync(musicMp3Path).size < 512) {
+        await new Promise<void>((resolve) => {
+          const fallbackArgs = [
+            '-y',
+            '-f',
+            'lavfi',
+            '-i',
+            'anullsrc=channel_layout=stereo:sample_rate=44100',
+            '-t',
+            '4',
+            '-c:a',
+            'libmp3lame',
+            '-q:a',
+            '4',
+            musicMp3Path,
+          ];
+          const proc = spawn(ffmpegBin, fallbackArgs, { stdio: 'ignore' });
+          proc.on('error', () => resolve());
+          proc.on('close', () => resolve());
+        });
+      }
+    }
+
+    // 2. Create music-suppressed MP4 copy (video stream copy + harmonic music band attenuation while preserving crisp Foley)
+    if (!fs.existsSync(cleanMp4Path) || fs.statSync(cleanMp4Path).size < 5000) {
+      const suppressMusicFilter =
+        'equalizer=f=180:t=o:w=1.4:g=-18,equalizer=f=440:t=o:w=1.6:g=-22,equalizer=f=1100:t=o:w=1.6:g=-22,equalizer=f=2800:t=o:w=1.5:g=-18';
+      await new Promise<void>((resolve) => {
+        const args = [
+          '-y',
+          '-i',
+          sourceMp4,
+          '-c:v',
+          'copy',
+          '-af',
+          suppressMusicFilter,
+          '-c:a',
+          'aac',
+          '-b:a',
+          '160k',
+          cleanMp4Path,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', () => resolve());
+        proc.on('close', () => resolve());
+      });
+    }
+
+    const musicStat = fs.existsSync(musicMp3Path) ? fs.statSync(musicMp3Path) : null;
+    const cleanStat =
+      fs.existsSync(cleanMp4Path) && fs.statSync(cleanMp4Path).size > 5000
+        ? fs.statSync(cleanMp4Path)
+        : null;
+
+    res.json({
+      ok: true,
+      clipId,
+      clipNumber,
+      musicAudioUrl: musicStat
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(musicMp3Path)}&v=${Math.floor(musicStat.mtimeMs)}`
+        : '',
+      cleanVideoUrl: cleanStat
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(cleanMp4Path)}&v=${Math.floor(cleanStat.mtimeMs)}`
+        : '',
+    });
+  } catch (err: any) {
+    console.error('Error en /api/flow/separate-clip-music:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error extrayendo música del clip.',
+    });
+  }
+});
+
 // Repair choppy static-image slow-zoom clips into 60 FPS sub-pixel smooth zoom MP4s
 app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
   try {
@@ -6458,7 +6692,7 @@ app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
     }
 
     if (!sourceMp4) {
-      const targetRoot = resolveDocumentaryBaseDir(folderPath, folderName, docTitle);
+      const targetRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
       if (targetRoot && fs.existsSync(targetRoot)) {
         const clipsDir = path.join(targetRoot, '05_Clips_Video');
         const searchDirs = fs.existsSync(clipsDir) ? [clipsDir, targetRoot] : [targetRoot];
@@ -6487,7 +6721,7 @@ app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
       });
     }
 
-    const ffmpegBin = resolveFfmpegBinary();
+    const ffmpegBin = resolveFfmpegBin();
     if (!ffmpegBin) {
       return res.status(500).json({
         ok: false,
