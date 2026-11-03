@@ -584,6 +584,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [burnInHook, setBurnInHook] = useState<boolean>(true);
   const [burnInCaptions, setBurnInCaptions] = useState<boolean>(true);
   const [renderStageLabel, setRenderStageLabel] = useState<string>('');
+  const [renderStartedAtMs, setRenderStartedAtMs] = useState<number>(0);
+  const [renderElapsedSec, setRenderElapsedSec] = useState<number>(0);
+  const [renderRemainingSec, setRenderRemainingSec] = useState<number>(0);
+  const [renderStepInfo, setRenderStepInfo] = useState<{ current: number; total: number }>({
+    current: 0,
+    total: 0,
+  });
   const [lastExportedOutputPath, setLastExportedOutputPath] = useState<string>('');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
 
@@ -7191,8 +7198,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
+    const totalSegs = Math.max(1, clipsWithTimelineBounds.length);
+    const baseSecPerSeg =
+      exportResolution === '8K_4320P'
+        ? 4.2
+        : exportResolution === '4K_2160P'
+        ? 2.2
+        : exportResolution === '2K_1440P'
+        ? 1.5
+        : 1.0;
+    const fpsFactor = exportFps === 60 ? 1.45 : exportFps === 24 ? 0.9 : 1.0;
+    const initialEtaSec = Math.max(15, Math.round(totalSegs * baseSecPerSeg * fpsFactor + 12));
+    const localStartMs = Date.now();
+
     setIsRenderingVideo(true);
     setRenderProgressPct(2);
+    setRenderStartedAtMs(localStartMs);
+    setRenderElapsedSec(0);
+    setRenderRemainingSec(initialEtaSec);
+    setRenderStepInfo({ current: 0, total: totalSegs });
     setLastExportedOutputPath('');
     setRenderStageLabel(
       `Preparando capas visuales (Logo, Gancho y Subtítulos) en ${preset.badge} • ${exportFps} FPS • ${exportBitrateMbps} Mbps...`
@@ -7246,6 +7270,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       // 3. Try Ultra-Fast Native FFmpeg Render first if activeDoc is available
       if (activeDoc) {
         let pollTimer: number | null = null;
+        let secTimer: number | null = null;
         try {
           // A) Generate Logo PNG with opacity baked in
           let logoPngDataUrl = '';
@@ -7624,15 +7649,51 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             })
             .join('\n\n');
 
-          // Poll live render progress from server
+          // 1-second smooth countdown & elapsed timer
+          let effectiveStartMs = localStartMs;
+          secTimer = window.setInterval(() => {
+            const elapsed = Math.max(0, Math.floor((Date.now() - effectiveStartMs) / 1000));
+            setRenderElapsedSec(elapsed);
+            setRenderRemainingSec((prev) => (prev > 2 ? prev - 1 : prev));
+          }, 1000);
+
+          // Poll live render progress from server & calibrate remaining time
           pollTimer = window.setInterval(async () => {
             try {
               const stResp = await fetch('/api/editor/render-status');
               if (stResp.ok) {
                 const stData = await stResp.json();
                 if (stData && stData.running) {
+                  if (typeof stData.startedAt === 'number' && stData.startedAt > 0) {
+                    effectiveStartMs = stData.startedAt;
+                    setRenderStartedAtMs(stData.startedAt);
+                  }
+                  const curStep = Number(stData.currentStep || 0);
+                  const totSteps = Number(stData.totalSteps || totalSegs);
+                  setRenderStepInfo({ current: curStep, total: totSteps });
+
                   if (typeof stData.progressPct === 'number' && stData.progressPct > 0) {
-                    setRenderProgressPct(stData.progressPct);
+                    const pct = Math.min(99, Math.max(2, stData.progressPct));
+                    setRenderProgressPct(pct);
+
+                    const elapsedSecNow = Math.max(
+                      1,
+                      (Date.now() - effectiveStartMs) / 1000
+                    );
+                    if (curStep >= 2 && pct >= 5) {
+                      const completedSegments = Math.max(1, curStep - 1);
+                      const measuredSecPerSeg = elapsedSecNow / completedSegments;
+                      const remSegments = Math.max(0, totSteps - completedSegments);
+                      const postMixOverheadSec = pct >= 90 ? 6 : 12;
+                      const measuredEta = Math.round(
+                        remSegments * measuredSecPerSeg + postMixOverheadSec
+                      );
+                      setRenderRemainingSec((prev) =>
+                        prev > 0
+                          ? Math.max(2, Math.round(prev * 0.35 + measuredEta * 0.65))
+                          : Math.max(2, measuredEta)
+                      );
+                    }
                   }
                   if (stData.stageLabel) {
                     setRenderStageLabel(stData.stageLabel);
@@ -7718,10 +7779,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             window.clearInterval(pollTimer);
             pollTimer = null;
           }
+          if (secTimer) {
+            window.clearInterval(secTimer);
+            secTimer = null;
+          }
           if (resp.ok && (resp.headers.get('content-type') || '').includes('application/json')) {
             const data = await resp.json();
             if (data.ok) {
               setRenderProgressPct(100);
+              setRenderRemainingSec(0);
               setLastExportedOutputPath(data.outputPath || '');
               setRenderStageLabel(
                 `✅ ¡Exportado en ${data.elapsedSec}s! Archivo: ${data.fileName}`
@@ -7742,6 +7808,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (pollTimer) {
             window.clearInterval(pollTimer);
             pollTimer = null;
+          }
+          if (secTimer) {
+            window.clearInterval(secTimer);
+            secTimer = null;
           }
           console.error('Error en renderizado nativo FFmpeg:', ffErr);
           setRenderStageLabel(`⚠️ ${ffErr?.message || 'Error en FFmpeg'}`);
@@ -8831,7 +8901,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             {isRenderingVideo
-              ? `Exportando ${renderProgressPct}%...`
+              ? `Exportando ${renderProgressPct}% (~${formatTimeMMSS(renderRemainingSec)})...`
               : !officialLogoUrl
               ? '🔒 Subir Logo'
               : `Export (${activePreset.badge.split(' ')[0]} • ${exportFps}fps)`}
@@ -9058,9 +9128,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              {/* Live Render Progress Bar */}
+              {/* Live Render Progress Bar & Remaining Time Countdown Timer */}
               {(isRenderingVideo || renderStageLabel) && (
-                <div className="bg-slate-950 border border-teal-500/40 rounded-xl p-2.5 space-y-1.5">
+                <div className="bg-slate-950 border border-teal-500/40 rounded-xl p-2.5 space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-bold text-teal-200 truncate pr-2">
                       {renderStageLabel || 'Procesando video...'}
@@ -9075,6 +9145,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 transition-all duration-300"
                     />
                   </div>
+                  {isRenderingVideo && (
+                    <div className="flex items-center justify-between gap-2 pt-0.5 text-[10px] font-mono">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-teal-400" />
+                        <span>Transcurrido: {formatTimeMMSS(renderElapsedSec)}</span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black flex items-center gap-1">
+                        <span>⏳ Tiempo restante: ~{formatTimeMMSS(renderRemainingSec)}</span>
+                      </span>
+                    </div>
+                  )}
                   {lastExportedOutputPath && !isRenderingVideo && (
                     <div className="text-[10px] font-mono text-emerald-300 break-all pt-1">
                       📂 Guardado en: {lastExportedOutputPath}
@@ -9102,7 +9183,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               >
                 <Download className="w-3.5 h-3.5" />
                 {isRenderingVideo
-                  ? `Renderizando (${renderProgressPct}%)...`
+                  ? `Renderizando ${renderProgressPct}% • Restante ~${formatTimeMMSS(renderRemainingSec)}`
                   : `🚀 Renderizar y Exportar (${activePreset.badge.split(' ')[0]} • ${exportFps} FPS)`}
               </button>
             </div>
