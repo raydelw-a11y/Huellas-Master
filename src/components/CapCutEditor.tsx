@@ -4708,6 +4708,78 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   };
 
+  const handleRepairChoppyZoomForClips = async (targetClipIds: string[]) => {
+    setClipContextMenu(null);
+    const targetClips = clipsWithTimelineBounds.filter((c) => targetClipIds.includes(c.id));
+    if (targetClips.length === 0) return;
+
+    setStatusMessage(
+      `✨ Suavizando slow zoom-in entrecortado a 60 FPS sub-píxel en ${targetClips.length} clip(s)...`
+    );
+
+    const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+    const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+    const dTitle = (activeDoc?.title || '').trim();
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+
+    const repairedUrlById: Record<string, string> = {};
+    let repairedCount = 0;
+
+    for (const clip of targetClips) {
+      const origVideoUrl = clip.originalVideoUrlBeforeSeparation || clip.videoUrl || '';
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${base}/api/flow/repair-choppy-zoom`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clipId: clip.id,
+              clipNumber: clip.clipNumber,
+              videoUrl: origVideoUrl,
+              fileName: clip.fileName,
+              folderPath: fPath,
+              folderName: fName,
+              docTitle: dTitle,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.repairedVideoUrl) {
+              const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+              repairedUrlById[clip.id] = prefix(data.repairedVideoUrl);
+              repairedCount++;
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (repairedCount > 0) {
+      commitTimelineClipsUpdate((prev) =>
+        prev.map((tc) =>
+          repairedUrlById[tc.id]
+            ? {
+                ...tc,
+                videoUrl: repairedUrlById[tc.id],
+                originalVideoUrlBeforeSeparation: repairedUrlById[tc.id],
+                opticalFlowUrl: undefined,
+                opticalFlowBakedKey: undefined,
+              }
+            : tc
+        )
+      );
+      setStatusMessage(
+        `✅ ${repairedCount} clip(s) con slow zoom-in reconstruidos a 60 FPS sub-píxel totalmente fluidos.`
+      );
+    } else {
+      setStatusMessage('⚠️ No se pudo reconstruir el slow zoom-in de los clips seleccionados.');
+    }
+  };
+
   const handleDeleteSeparatedVocalSegment = (segId: string) => {
     const docId = activeDoc?.id || 'default';
     setSeparatedVocalSegments((prev) => {
@@ -6343,6 +6415,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRepairChoppyZoomForClips(clipContextMenu.clipIds);
+            }}
+            className="w-full px-3 py-2 text-left hover:bg-sky-500/20 text-sky-300 hover:text-sky-200 font-bold flex items-center justify-between gap-2 border-t border-slate-800/80 cursor-pointer transition"
+            title="Reconstruir el slow zoom-in entrecortado de imagen estática a 60 FPS sub-píxel totalmente fluido"
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              <span>Suavizar Zoom Entrecortado</span>
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-sky-500/20 border border-sky-500/40 text-[9px] font-mono text-sky-200">
+              60 FPS
+            </span>
+          </button>
         </div>
       )}
 

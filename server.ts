@@ -6441,6 +6441,120 @@ app.post('/api/flow/separate-clip-vocals', async (req, res) => {
   }
 });
 
+// Repair choppy static-image slow-zoom clips into 60 FPS sub-pixel smooth zoom MP4s
+app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
+  try {
+    const { clipId, clipNumber, videoUrl, fileName, folderPath, folderName, docTitle } =
+      req.body || {};
+
+    let sourceMp4 = '';
+    const rawUrl = String(videoUrl || '');
+    if (rawUrl.includes('filePath=')) {
+      try {
+        const parsed = new URL(rawUrl, 'http://localhost:4200');
+        const fp = parsed.searchParams.get('filePath');
+        if (fp && fs.existsSync(fp)) sourceMp4 = fp;
+      } catch {}
+    }
+
+    if (!sourceMp4) {
+      const targetRoot = resolveDocumentaryBaseDir(folderPath, folderName, docTitle);
+      if (targetRoot && fs.existsSync(targetRoot)) {
+        const clipsDir = path.join(targetRoot, '05_Clips_Video');
+        const searchDirs = fs.existsSync(clipsDir) ? [clipsDir, targetRoot] : [targetRoot];
+        const padded = String(Number(clipNumber) || 0).padStart(2, '0');
+        for (const d of searchDirs) {
+          if (fileName && fs.existsSync(path.join(d, fileName))) {
+            sourceMp4 = path.join(d, fileName);
+            break;
+          }
+          const files = fs.readdirSync(d).filter((f) => f.toLowerCase().endsWith('.mp4'));
+          const match = files.find(
+            (f) => f.startsWith(`${padded}_`) || new RegExp(`^Clip[ _-]0*${Number(clipNumber)}\\b`, 'i').test(f)
+          );
+          if (match) {
+            sourceMp4 = path.join(d, match);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+      return res.status(404).json({
+        ok: false,
+        error: 'No se encontró el archivo .MP4 local del clip para suavizar su zoom.',
+      });
+    }
+
+    const ffmpegBin = resolveFfmpegBinary();
+    if (!ffmpegBin) {
+      return res.status(500).json({
+        ok: false,
+        error: 'No se encontró FFmpeg en el servidor.',
+      });
+    }
+
+    const tmpOut = path.join('/tmp', `smooth_zoom_${process.pid}_${Date.now()}_${path.basename(sourceMp4)}`);
+    const vf =
+      "trim=end_frame=1,fps=60,format=rgb24,tpad=stop_mode=clone:stop_duration=10,trim=duration=10,perspective=" +
+      "x0='W*0.06*(in/600)':y0='H*0.06*(in/600)':" +
+      "x1='W*(1-0.06*(in/600))':y1='H*0.06*(in/600)':" +
+      "x2='W*0.06*(in/600)':y2='H*(1-0.06*(in/600))':" +
+      "x3='W*(1-0.06*(in/600))':y3='H*(1-0.06*(in/600))':" +
+      'interpolation=linear:sense=source:eval=frame,format=yuv420p';
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(
+        ffmpegBin,
+        [
+          '-y',
+          '-i',
+          sourceMp4,
+          '-vf',
+          vf,
+          '-an',
+          '-c:v',
+          'h264_videotoolbox',
+          '-b:v',
+          '8M',
+          '-movflags',
+          '+faststart',
+          tmpOut,
+        ],
+        { stdio: 'ignore' }
+      );
+      proc.on('error', reject);
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 50000) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg exited with code ${code}`));
+        }
+      });
+    });
+
+    fs.copyFileSync(tmpOut, sourceMp4);
+    try {
+      fs.unlinkSync(tmpOut);
+    } catch {}
+
+    const st = fs.statSync(sourceMp4);
+    res.json({
+      ok: true,
+      clipId,
+      clipNumber,
+      repairedVideoUrl: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(sourceMp4)}&v=${Math.floor(st.mtimeMs)}`,
+    });
+  } catch (err: any) {
+    console.error('Error en /api/flow/repair-choppy-zoom:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error suavizando el slow zoom-in del clip.',
+    });
+  }
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
