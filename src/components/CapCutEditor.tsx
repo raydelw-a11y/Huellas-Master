@@ -657,6 +657,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const viewerCanvasRef = useRef<HTMLDivElement | null>(null);
   const viewerContainerRef = useRef<HTMLDivElement | null>(null);
   const [isViewerFullscreen, setIsViewerFullscreen] = useState<boolean>(false);
+  const [showFullscreenControls, setShowFullscreenControls] = useState<boolean>(true);
+  const fsInactivityTimerRef = useRef<any>(null);
   const CANONICAL_STAGE_HEIGHT = 520;
   const canonicalStageWidth =
     aspectRatio === '16:9' ? (CANONICAL_STAGE_HEIGHT * 16) / 9 : (CANONICAL_STAGE_HEIGHT * 9) / 16;
@@ -699,6 +701,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         document.fullscreenElement || (document as any).webkitFullscreenElement || null;
       const isFs = Boolean(fsEl);
       setIsViewerFullscreen(isFs);
+      setShowFullscreenControls(true);
       if (isFs) {
         setSelectedCanvasObject(null);
         setIsDraggingOrResizingHook(false);
@@ -711,6 +714,48 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       document.removeEventListener('webkitfullscreenchange', onFsChange);
     };
   }, []);
+
+  // Auto-hide bottom player controls in Fullscreen after 5 seconds of inactivity; wake up on any mouse or keyboard activity
+  useEffect(() => {
+    if (!isViewerFullscreen) {
+      setShowFullscreenControls(true);
+      if (fsInactivityTimerRef.current) {
+        clearTimeout(fsInactivityTimerRef.current);
+        fsInactivityTimerRef.current = null;
+      }
+      return;
+    }
+
+    const wakeControlsAndResetTimer = () => {
+      setShowFullscreenControls(true);
+      if (fsInactivityTimerRef.current) {
+        clearTimeout(fsInactivityTimerRef.current);
+      }
+      fsInactivityTimerRef.current = setTimeout(() => {
+        setShowFullscreenControls(false);
+      }, 5000);
+    };
+
+    wakeControlsAndResetTimer();
+
+    window.addEventListener('mousemove', wakeControlsAndResetTimer, { passive: true });
+    window.addEventListener('mousedown', wakeControlsAndResetTimer, { passive: true });
+    window.addEventListener('keydown', wakeControlsAndResetTimer);
+    window.addEventListener('wheel', wakeControlsAndResetTimer, { passive: true });
+    window.addEventListener('touchstart', wakeControlsAndResetTimer, { passive: true });
+
+    return () => {
+      if (fsInactivityTimerRef.current) {
+        clearTimeout(fsInactivityTimerRef.current);
+        fsInactivityTimerRef.current = null;
+      }
+      window.removeEventListener('mousemove', wakeControlsAndResetTimer);
+      window.removeEventListener('mousedown', wakeControlsAndResetTimer);
+      window.removeEventListener('keydown', wakeControlsAndResetTimer);
+      window.removeEventListener('wheel', wakeControlsAndResetTimer);
+      window.removeEventListener('touchstart', wakeControlsAndResetTimer);
+    };
+  }, [isViewerFullscreen]);
 
   useEffect(() => {
     if (!selectedCanvasObject) return;
@@ -4571,7 +4616,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ref={viewerContainerRef}
             className={`${
               isViewerFullscreen
-                ? 'w-screen h-screen bg-black flex flex-col justify-center'
+                ? 'relative w-screen h-screen bg-black flex flex-col justify-center'
                 : aspectRatio === '16:9'
                 ? 'w-full rounded-xl'
                 : 'w-full max-w-[380px] mx-auto rounded-xl'
@@ -4592,7 +4637,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }
                 handleTogglePlay();
               }}
-              className={`relative bg-black overflow-hidden flex items-center justify-center cursor-pointer select-none ${
+              className={`relative bg-black overflow-hidden flex items-center justify-center select-none ${
+                isViewerFullscreen && !showFullscreenControls ? 'cursor-none' : 'cursor-pointer'
+              } ${
                 isViewerFullscreen
                   ? 'mx-auto'
                   : aspectRatio === '16:9'
@@ -4604,12 +4651,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? {
                       width:
                         aspectRatio === '16:9'
-                          ? 'min(100vw, calc((100vh - 52px) * 16 / 9))'
-                          : 'min(100vw, calc((100vh - 52px) * 9 / 16))',
+                          ? 'min(100vw, calc(100vh * 16 / 9))'
+                          : 'min(100vw, calc(100vh * 9 / 16))',
                       height:
                         aspectRatio === '16:9'
-                          ? 'min(calc(100vh - 52px), calc(100vw * 9 / 16))'
-                          : 'min(calc(100vh - 52px), calc(100vw * 16 / 9))',
+                          ? 'min(100vh, calc(100vw * 9 / 16))'
+                          : 'min(100vh, calc(100vw * 16 / 9))',
                     }
                   : undefined
               }
@@ -5120,8 +5167,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             </div>
 
-            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, -10s / +10s, Scrubber Timeline & Timecode (Also visible in Fullscreen) */}
-            <div className="w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-2.5">
+            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, -10s / +10s, Scrubber Timeline & Timecode (Auto-hides after 5s of inactivity in Fullscreen) */}
+            <div
+              className={`w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-2.5 transition-all duration-300 ${
+                isViewerFullscreen
+                  ? `absolute inset-x-0 bottom-0 z-30 bg-[#110e0b]/95 backdrop-blur-md ${
+                      showFullscreenControls
+                        ? 'opacity-100 translate-y-0 pointer-events-auto'
+                        : 'opacity-0 translate-y-3 pointer-events-none'
+                    }`
+                  : ''
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => seekToTime(0)}
