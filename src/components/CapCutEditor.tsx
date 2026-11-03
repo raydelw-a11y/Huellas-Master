@@ -1164,9 +1164,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => initialOverlayStyles.captionBgColor || '#000000'
   );
   const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(() =>
+    initialOverlayStyles.captionBgOpacityV30 &&
     typeof initialOverlayStyles.captionBgOpacity === 'number'
       ? initialOverlayStyles.captionBgOpacity
-      : 25
+      : 30
   );
   const [captionTextCase, setCaptionTextCase] = useState<'original' | 'uppercase' | 'lowercase'>(
     () =>
@@ -1254,6 +1255,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           captionBgStyle,
           captionBgColor,
           captionBgOpacity,
+          captionBgOpacityV30: true,
           captionTextCase,
           captionAnimIn,
           captionAnimOut,
