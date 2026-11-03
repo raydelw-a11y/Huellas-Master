@@ -2190,13 +2190,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       originalSlotDuration: 8,
       speed: 1,
       foleyVolume: 100,
+      audioFadeInSec: 1.5,
+      audioFadeOutSec: 2.5,
       transition: 'crossfade',
       videoUrl: effectiveIntroUrl,
       posterUrl: introPosterUrl || officialLogoUrl || undefined,
       narrationSegment:
         mode === 'INTRO_INICIO_00'
-          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
-          : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
+          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
       narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (8s — Minimalismo en Piedra y Oro)',
       trimStart: 0,
       trimEnd: 8,
@@ -2218,6 +2220,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       smoothSlowMo: false,
       originalSlotDuration: 8,
       foleyVolume: 100,
+      audioFadeInSec: 1.5,
+      audioFadeOutSec: 2.5,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
       posterUrl: outroPosterUrl,
@@ -2476,8 +2480,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
       narrationSegment:
         docIntroPlacement === 'INTRO_POST_SLOGAN'
-          ? '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
-          : '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
+          ? '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
       duration: FIXED_INTRO_SEC,
       sourceDuration: FIXED_INTRO_SEC,
       speed: 1,
@@ -2486,6 +2490,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       smoothSlowMo: false,
       originalSlotDuration: FIXED_INTRO_SEC,
       foleyVolume: 100,
+      audioFadeInSec: 1.5,
+      audioFadeOutSec: 2.5,
       transition: 'crossfade',
       videoUrl: introVideoUrl,
       posterUrl: introPosterUrl,
@@ -2506,6 +2512,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       smoothSlowMo: false,
       originalSlotDuration: FIXED_OUTRO_SEC,
       foleyVolume: 100,
+      audioFadeInSec: 1.5,
+      audioFadeOutSec: 2.5,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
       posterUrl: outroPosterUrl,
@@ -3586,15 +3594,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeDoc?.id,
   ]);
 
-  // Compute each clip's start & end time on the master timeline
+  // Compute each clip's start & end time on the master timeline (with default audio fade-in / fade-out on Intro & Outro)
   const clipsWithTimelineBounds = useMemo(() => {
     let cursor = 0;
     return timelineClips.map((clip, index) => {
       const start = cursor;
       const end = cursor + clip.duration;
       cursor = end;
+      const isIntroClip = clip.id === 'fixed-doc-intro' || clip.clipNumber === 0;
+      const isOutroClip = clip.id === 'fixed-doc-outro' || clip.clipNumber === 999;
       return {
         ...clip,
+        audioFadeInSec:
+          typeof clip.audioFadeInSec === 'number'
+            ? clip.audioFadeInSec
+            : isIntroClip || isOutroClip
+            ? 1.5
+            : clip.clipNumber === 1
+            ? 1.2
+            : undefined,
+        audioFadeOutSec:
+          typeof clip.audioFadeOutSec === 'number'
+            ? clip.audioFadeOutSec
+            : isIntroClip || isOutroClip
+            ? 2.5
+            : undefined,
         index,
         start,
         end,
@@ -3852,7 +3876,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1
       ? 1.2
       : 0;
-    const defaultFadeOut = isIntro ? 1.8 : isOutro ? 2.5 : 0;
+    const defaultFadeOut = isIntro ? 2.5 : isOutro ? 2.5 : 0;
 
     const fadeInSec =
       typeof activeClipAtPlayhead.audioFadeInSec === 'number'
@@ -3864,7 +3888,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : defaultFadeOut;
 
     const elapsedInClip = Math.max(0, currentTime - activeClipAtPlayhead.start);
-    const remainingInClip = Math.max(0, activeClipAtPlayhead.end - currentTime);
+    const remainingInClip = Math.max(
+      0,
+      activeClipAtPlayhead.end - currentTime - (isIntro || isOutro ? 0.12 : 0)
+    );
     const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInClip / fadeInSec) : 1;
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInClip / fadeOutSec) : 1;
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
@@ -5883,9 +5910,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Active target clip IDs for editing 1 selected clip or multiple selected clips simultaneously
   const activeTargetClipIds = useMemo(() => {
     if (selectedClipIds.length > 0) return selectedClipIds;
-    if (selectedClip?.id) return [selectedClip.id];
-    return [];
-  }, [selectedClipIds, selectedClip?.id]);
+    if (selectedClipId) return [selectedClipId];
+    return timelineClips[0]?.id ? [timelineClips[0].id] : [];
+  }, [selectedClipIds, selectedClipId, timelineClips]);
 
   // Update Audio Volume, Fade In, Fade Out, or Mute across 1 selected clip, multiple selected clips, or all clips
   const handleUpdateClipsAudio = (
@@ -7220,7 +7247,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
-  const selectedClip = timelineClips.find((c) => c.id === selectedClipId) || timelineClips[0] || null;
+  const selectedClip =
+    clipsWithTimelineBounds.find((c) => c.id === selectedClipId) ||
+    clipsWithTimelineBounds[0] ||
+    null;
   const activePreset = RESOLUTION_PRESETS[exportResolution];
   const clipProgressRatio = activeClipAtPlayhead
     ? Math.min(
@@ -9352,9 +9382,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       const effFadeOut =
                         typeof selectedClip.audioFadeOutSec === 'number'
                           ? selectedClip.audioFadeOutSec
-                          : isIntroClip
-                          ? 1.8
-                          : isOutroClip
+                          : isIntroClip || isOutroClip
                           ? 2.5
                           : 0;
                       const maxFadeSec = Math.max(2, Math.min(15, Number((selectedClip.duration || 8).toFixed(1))));
