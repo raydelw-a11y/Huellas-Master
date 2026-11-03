@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:11 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:15 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1043,12 +1043,36 @@ export default function App() {
     Object.keys(capturedClipVideosMap).length,
   ]);
 
-  // Space bar Play / Pause shortcut for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
+  // Space bar Play / Pause shortcut + Fullscreen ArrowLeft / ArrowRight (-10s / +10s) for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
   useEffect(() => {
     if (mainView === 'capcut_editor') return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' && e.key !== ' ') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const fsEl =
+        (document.fullscreenElement || (document as any).webkitFullscreenElement) as HTMLElement | null;
+      if (
+        fsEl &&
+        (e.key === 'ArrowLeft' ||
+          e.code === 'ArrowLeft' ||
+          e.key === 'ArrowRight' ||
+          e.code === 'ArrowRight')
+      ) {
+        const fsVid =
+          fsEl.tagName === 'VIDEO'
+            ? (fsEl as HTMLVideoElement)
+            : fsEl.querySelector<HTMLVideoElement>('video');
+        if (fsVid) {
+          e.preventDefault();
+          e.stopPropagation();
+          const delta = e.key === 'ArrowLeft' || e.code === 'ArrowLeft' ? -10 : 10;
+          const dur = Number.isFinite(fsVid.duration) && fsVid.duration > 0 ? fsVid.duration : 999999;
+          fsVid.currentTime = Math.max(0, Math.min(dur, (fsVid.currentTime || 0) + delta));
+          return;
+        }
+      }
+
+      if (e.code !== 'Space' && e.key !== ' ') return;
       const target = e.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;

@@ -3272,13 +3272,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   handleTogglePlayRef.current = handleTogglePlay;
   const isEditorActiveRef = useRef(isEditorActive);
   isEditorActiveRef.current = isEditorActive;
+  const seekToTimeRef = useRef(seekToTime);
+  seekToTimeRef.current = seekToTime;
+  const isViewerFullscreenRef = useRef(isViewerFullscreen);
+  isViewerFullscreenRef.current = isViewerFullscreen;
+  const totalDurationSecRef = useRef(totalDurationSec);
+  totalDurationSecRef.current = totalDurationSec;
 
-  // Global Space key shortcut to Play / Pause the Video Editor viewer ONLY when the Video Editor is active
+  // Global keyboard shortcuts for the Video Editor viewer:
+  // - Space: Play / Pause (when Video Editor is active)
+  // - ArrowLeft / ArrowRight: Rewind / Advance 10 seconds (-10s / +10s) when Viewer is in Fullscreen
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isEditorActiveRef.current) return;
-      if (e.code !== 'Space' && e.key !== ' ') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const isFsActive =
+        isViewerFullscreenRef.current ||
+        Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+
+      if (isFsActive && (e.key === 'ArrowLeft' || e.code === 'ArrowLeft')) {
+        e.preventDefault();
+        e.stopPropagation();
+        seekToTimeRef.current(Math.max(0, currentTimeRef.current - 10));
+        return;
+      }
+
+      if (isFsActive && (e.key === 'ArrowRight' || e.code === 'ArrowRight')) {
+        e.preventDefault();
+        e.stopPropagation();
+        seekToTimeRef.current(
+          Math.min(totalDurationSecRef.current, currentTimeRef.current + 10)
+        );
+        return;
+      }
+
+      if (e.code !== 'Space' && e.key !== ' ') return;
       const target = e.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;
@@ -6161,7 +6190,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 type="button"
                 onClick={() => seekToTime(Math.max(0, currentTime - 10))}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
-                title="Retroceder 10 segundos (-10s)"
+                title="Retroceder 10 segundos (-10s • Flecha Izquierda ⬅️ en Pantalla Completa)"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>-10s</span>
@@ -6170,7 +6199,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 type="button"
                 onClick={handleTogglePlay}
                 className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow shrink-0"
-                title={isPlaying ? 'Pausar reproducción' : 'Reproducir video y voz narrativa'}
+                title={isPlaying ? 'Pausar reproducción (Espacio)' : 'Reproducir video y voz narrativa (Espacio)'}
               >
                 {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 <span>{isPlaying ? 'Pausa' : 'Play'}</span>
@@ -6179,7 +6208,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 type="button"
                 onClick={() => seekToTime(Math.min(totalDurationSec, currentTime + 10))}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
-                title="Adelantar 10 segundos (+10s)"
+                title="Adelantar 10 segundos (+10s • Flecha Derecha ➡️ en Pantalla Completa)"
               >
                 <span>+10s</span>
                 <RotateCw className="w-3.5 h-3.5" />
