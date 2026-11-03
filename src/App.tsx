@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:15 AM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:23 AM - 11/03/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -7304,22 +7304,30 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0b0a09] text-slate-100 flex flex-col">
+    <div
+      className={`${
+        mainView === 'capcut_editor'
+          ? 'h-screen max-h-screen overflow-hidden'
+          : 'min-h-screen'
+      } bg-[#0b0a09] text-slate-100 flex flex-col`}
+    >
       {/* Floating Scroll-to-Top Button + Global Deployment Verification Timestamp Badge */}
       <div className="fixed bottom-2 right-3 z-50 flex flex-col items-end gap-1.5 pointer-events-none">
-        <button
-          type="button"
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            document.documentElement?.scrollTo?.({ top: 0, behavior: 'smooth' });
-            document.body?.scrollTo?.({ top: 0, behavior: 'smooth' });
-          }}
-          title="Subir al inicio de la página"
-          aria-label="Subir al inicio de la página"
-          className="pointer-events-auto w-9 h-9 rounded-full bg-slate-900/80 backdrop-blur-sm hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 shadow-lg shadow-black/40 flex items-center justify-center opacity-50 hover:opacity-100 transition cursor-pointer"
-        >
-          <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-        </button>
+        {mainView !== 'capcut_editor' && (
+          <button
+            type="button"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              document.documentElement?.scrollTo?.({ top: 0, behavior: 'smooth' });
+              document.body?.scrollTo?.({ top: 0, behavior: 'smooth' });
+            }}
+            title="Subir al inicio de la página"
+            aria-label="Subir al inicio de la página"
+            className="pointer-events-auto w-9 h-9 rounded-full bg-slate-900/80 backdrop-blur-sm hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 shadow-lg shadow-black/40 flex items-center justify-center opacity-50 hover:opacity-100 transition cursor-pointer"
+          >
+            <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        )}
         <div className="text-[11px] text-amber-300/90 font-mono bg-slate-900/80 backdrop-blur-sm px-2.5 py-0.5 rounded border border-amber-500/30 opacity-50">
           Actualizado: {LAST_UPDATED_TEXT}
         </div>
@@ -7327,32 +7335,50 @@ export default function App() {
 
       {/* TOP NAVIGATION BAR */}
       <header
-        className={`sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-5 ${
-          mainView === 'studio' && isStagesBarCompact ? 'py-1.5' : 'py-2.5 sm:py-3'
-        } flex items-center justify-between gap-2.5 flex-wrap`}
+        className={`sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-4 shrink-0 ${
+          mainView === 'capcut_editor'
+            ? 'py-1 flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap'
+            : mainView === 'studio' && isStagesBarCompact
+            ? 'py-1.5 flex items-center justify-between gap-2.5 flex-wrap'
+            : 'py-2.5 sm:py-3 flex items-center justify-between gap-2.5 flex-wrap'
+        }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={() => setMainView('dashboard')}
-            className="flex items-center gap-2.5 text-left group cursor-pointer"
+            className="flex items-center gap-2 text-left group cursor-pointer"
           >
             <div
               className={`${
-                mainView === 'studio' && isStagesBarCompact ? 'w-7 h-7' : 'w-9 h-9'
+                mainView === 'capcut_editor' || (mainView === 'studio' && isStagesBarCompact)
+                  ? 'w-6 h-6'
+                  : 'w-9 h-9'
               } rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0`}
             >
-              <Film className={mainView === 'studio' && isStagesBarCompact ? 'w-4 h-4' : 'w-5 h-5'} />
+              <Film
+                className={
+                  mainView === 'capcut_editor' || (mainView === 'studio' && isStagesBarCompact)
+                    ? 'w-3.5 h-3.5'
+                    : 'w-5 h-5'
+                }
+              />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold tracking-wider text-amber-300 uppercase text-sm">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className={`font-bold tracking-wider text-amber-300 uppercase ${
+                    mainView === 'capcut_editor' ? 'text-xs' : 'text-sm'
+                  }`}
+                >
                   Huellas Master
                 </span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">
-                  {isCloudMode ? '📱 Nube Móvil + GitHub' : '💻 Laptop + Nube GitHub'}
-                </span>
+                {mainView !== 'capcut_editor' && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">
+                    {isCloudMode ? '📱 Nube Móvil + GitHub' : '💻 Laptop + Nube GitHub'}
+                  </span>
+                )}
               </div>
-              {!(mainView === 'studio' && isStagesBarCompact) && (
+              {mainView !== 'capcut_editor' && !(mainView === 'studio' && isStagesBarCompact) && (
                 <p className="text-[11px] text-slate-400 hidden sm:block">
                   Prompt Maestro + VoxFlow + Narration Timeline Extractor + Corrector .SRT
                 </p>
@@ -7362,13 +7388,17 @@ export default function App() {
         </div>
 
         {/* Navigation Pills */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
               setMainView('dashboard');
             }}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`${
+              mainView === 'capcut_editor'
+                ? 'px-2 py-0.5 text-[11px]'
+                : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+            } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'dashboard'
                 ? 'bg-amber-500 text-slate-950 shadow'
                 : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
@@ -7384,14 +7414,18 @@ export default function App() {
                 saveCurrentSectionScrollPosition();
                 setMainView('studio');
               }}
-              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`${
+                mainView === 'capcut_editor'
+                  ? 'px-2 py-0.5 text-[11px]'
+                  : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+              } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
                 mainView === 'studio'
                   ? 'bg-amber-500 text-slate-950 shadow'
                   : 'bg-slate-900 text-amber-300 hover:bg-slate-800 border border-amber-500/30'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[140px] sm:max-w-[220px]">
+              <span className="truncate max-w-[140px] sm:max-w-[200px]">
                 Estudio: {activeDoc.title}
               </span>
             </button>
@@ -7402,7 +7436,11 @@ export default function App() {
               saveCurrentSectionScrollPosition();
               setMainView('standalone_prompt');
             }}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`${
+              mainView === 'capcut_editor'
+                ? 'px-2 py-0.5 text-[11px]'
+                : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+            } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'standalone_prompt'
                 ? 'bg-amber-500 text-slate-950 shadow'
                 : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
@@ -7430,7 +7468,11 @@ export default function App() {
               handleAutoLoadAllFolderMedia(true, true);
               setMainView('capcut_editor');
             }}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${
+            className={`${
+              mainView === 'capcut_editor'
+                ? 'px-2.5 py-0.5 text-[11px]'
+                : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+            } rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
               mainView === 'capcut_editor'
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
                 : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/40'
@@ -7447,7 +7489,11 @@ export default function App() {
                 if (mainView !== 'studio') setMainView('studio');
                 setShowWebStudio((prev) => !prev);
               }}
-              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
+              className={`${
+                mainView === 'capcut_editor'
+                  ? 'px-2 py-0.5 text-[11px]'
+                  : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+              } rounded-lg font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
                 showWebStudio
                   ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
                   : 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
@@ -7910,7 +7956,13 @@ export default function App() {
           Kept mounted while activeDoc exists so leaving to another stage and returning keeps the video & timeline right where it was
       ===================================================================== */}
       {(mainView === 'capcut_editor' || activeDoc) && (
-        <div className={mainView === 'capcut_editor' ? 'flex-1 flex flex-col' : 'hidden'}>
+        <div
+          className={
+            mainView === 'capcut_editor'
+              ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
+              : 'hidden'
+          }
+        >
           <CapCutEditor
             activeDoc={activeDoc}
             documentaries={documentaries}

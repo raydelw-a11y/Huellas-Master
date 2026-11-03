@@ -7137,7 +7137,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
   return (
-    <div className="w-full flex flex-col bg-[#0c0a08] text-slate-100 min-h-0 overflow-hidden">
+    <div className="w-full h-full flex-1 min-h-0 flex flex-col bg-[#0c0a08] text-slate-100 overflow-hidden">
       {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
       {effectiveVoiceoverUrl && (
         <audio
@@ -7379,8 +7379,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       {/* =====================================================================
           TOP BAR: CAPCUT-STYLE ULTRA-COMPACT PROJECT BAR, RATIO, QUALITY & EXPORT
       ===================================================================== */}
-      <div className="bg-[#14110d] border-b border-amber-500/25 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="bg-[#14110d] border-b border-amber-500/25 px-2.5 py-1 flex items-center justify-between gap-2 shrink-0 overflow-x-auto whitespace-nowrap">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="flex items-center gap-1.5">
             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
               <Film className="w-3 h-3" />
@@ -7487,7 +7487,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Aspect Ratio Selector */}
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
             <button
@@ -7612,7 +7612,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       </div>
 
       {statusMessage && (
-        <div className="bg-emerald-950/80 border-b border-emerald-500/30 px-3 py-1 text-[11px] text-emerald-200 flex items-center justify-between shrink-0">
+        <div className="fixed top-10 right-3 z-[220] max-w-md bg-emerald-950/95 backdrop-blur border border-emerald-500/40 rounded-lg px-3 py-1 text-[11px] text-emerald-200 flex items-center justify-between shadow-2xl">
           <span className="truncate">{statusMessage}</span>
           <button
             type="button"
@@ -7629,14 +7629,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           [1] COMPACT LEFT MEDIA SIDEBAR  |  [2] DOMINANT CENTER VIDEO PLAYER  |  [3] COMPACT RIGHT DETAILS/INSPECTOR
           Left & Right columns are strictly locked to the exact vertical height of the Center Video Player and scroll internally.
       ===================================================================== */}
-      <div
-        className="w-full shrink-0 flex flex-row items-stretch gap-1.5 p-1.5 bg-[#0e0c09] overflow-hidden"
-        style={{
-          height: isTimelineDockExpanded
-            ? 'clamp(340px, calc(100vh - 385px), 520px)'
-            : 'clamp(390px, calc(100vh - 285px), 600px)',
-        }}
-      >
+      <div className="flex-1 min-h-0 w-full flex flex-row items-stretch gap-1.5 p-1 bg-[#0e0c09] overflow-hidden">
         {/* =================================================================
             COLUMN 1: COMPACT CAPCUT-STYLE LEFT MEDIA & ASSETS PANEL
         ================================================================= */}
@@ -7998,7 +7991,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               className={
                 isViewerFullscreen
                   ? 'w-full h-full flex items-center justify-center'
-                  : 'flex-1 min-h-[260px] w-full flex items-center justify-center p-1 bg-[#050403] overflow-hidden relative'
+                  : 'flex-1 min-h-0 w-full flex items-center justify-center p-1 bg-[#050403] overflow-hidden relative'
               }
             >
               <div
@@ -11029,12 +11022,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ===================================================================== */}
       <div
         className={`w-full shrink-0 bg-[#0b0907] border-t border-slate-800/90 flex flex-col overflow-hidden transition-all ${
-          isTimelineDockExpanded ? 'h-[310px]' : 'h-[205px] xl:h-[215px]'
+          isTimelineDockExpanded ? 'h-[280px]' : 'h-[195px] xl:h-[210px]'
         }`}
       >
         {/* CapCut Slim Middle Action Toolbar */}
-        <div className="px-2.5 py-1 bg-[#120f0c] border-b border-slate-800/90 flex items-center justify-between flex-wrap gap-1.5 shrink-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="px-2 py-1 bg-[#120f0c] border-b border-slate-800/90 flex items-center justify-between gap-1.5 shrink-0 overflow-x-auto whitespace-nowrap">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5" /> Timeline
             </span>
