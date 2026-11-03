@@ -4099,7 +4099,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     const safeDocName = String(docTitle || 'Huellas_Documental')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
       .slice(0, 45);
     const finalFileName = `${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps_${aspectRatio.replace(':', 'x')}.mp4`;
     const videoFinalSubdir = path.join(targetRoot, '06_Video_Final');
