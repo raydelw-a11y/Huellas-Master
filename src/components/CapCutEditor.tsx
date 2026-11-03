@@ -1616,6 +1616,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 return changed ? { ...prev, ...nextSuno } : prev;
               });
             }
+            if (
+              data.clipPrompts &&
+              typeof data.clipPrompts === 'object' &&
+              Array.isArray(activeDoc?.clips) &&
+              activeDoc.clips.length > 0
+            ) {
+              const p5 = data.clipPrompts[5] || data.clipPrompts['5'];
+              if (p5 && (p5.imagePrompt || p5.videoPrompt)) {
+                const cur5 = activeDoc.clips.find((c) => c.clipNumber === 5);
+                if (
+                  cur5 &&
+                  ((p5.imagePrompt && cur5.imagePrompt !== p5.imagePrompt) ||
+                    (p5.videoPrompt && cur5.videoPrompt !== p5.videoPrompt))
+                ) {
+                  updateActiveDoc({
+                    clips: activeDoc.clips.map((c) =>
+                      c.clipNumber === 5
+                        ? {
+                            ...c,
+                            imagePrompt: p5.imagePrompt || c.imagePrompt,
+                            videoPrompt: p5.videoPrompt || c.videoPrompt,
+                          }
+                        : c
+                    ),
+                  });
+                  commitTimelineClipsUpdate((prev) =>
+                    prev.map((tc) =>
+                      tc.clipNumber === 5
+                        ? {
+                            ...tc,
+                            imagePrompt: p5.imagePrompt || tc.imagePrompt,
+                            videoPrompt: p5.videoPrompt || tc.videoPrompt,
+                          }
+                        : tc
+                    )
+                  );
+                }
+              }
+            }
             break;
           }
         } catch {}

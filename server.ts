@@ -4192,6 +4192,34 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       }
     }
 
+    const clipPrompts: Record<number, { imagePrompt?: string; videoPrompt?: string }> = {};
+    if (resolvedRoot) {
+      const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
+      if (fs.existsSync(promptsTxtPath)) {
+        try {
+          const txt = fs.readFileSync(promptsTxtPath, 'utf8');
+          for (const rawLine of txt.split(/\r?\n/)) {
+            const line = rawLine.trim();
+            const mImg = line.match(/^Image\s+(\d+)\s*:\s*(.+)$/i);
+            if (mImg) {
+              const num = parseInt(mImg[1], 10);
+              if (num > 0) {
+                clipPrompts[num] = { ...(clipPrompts[num] || {}), imagePrompt: mImg[2].trim() };
+              }
+              continue;
+            }
+            const mClip = line.match(/^Clip\s+(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+            if (mClip) {
+              const num = parseInt(mClip[1], 10);
+              if (num > 0) {
+                clipPrompts[num] = { ...(clipPrompts[num] || {}), videoPrompt: mClip[2].trim() };
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
     res.json({
       ok: true,
       resolvedRoot,
@@ -4200,6 +4228,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       voiceoverFiles,
       sunoFiles: sunoFiles.sort((a, b) => a.trackNumber - b.trackNumber),
       localTtsFiles,
+      clipPrompts,
     });
   } catch (err: any) {
     res.json({
