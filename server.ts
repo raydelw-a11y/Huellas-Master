@@ -6206,6 +6206,241 @@ app.post('/api/video/optical-flow', async (req, res) => {
   }
 });
 
+// Separate vocal stem (speech) from a video clip into a standalone MP3 and a vocal-attenuated MP4
+app.post('/api/flow/separate-clip-vocals', async (req, res) => {
+  try {
+    const {
+      clipId,
+      clipNumber,
+      videoUrl,
+      fileName,
+      folderPath,
+      folderName,
+      docTitle,
+      trimStart,
+      trimEnd,
+      speed,
+    } = req.body || {};
+
+    let sourceMp4 = '';
+    if (typeof videoUrl === 'string' && videoUrl.includes('filePath=')) {
+      try {
+        const parsed = new URL(videoUrl, 'http://localhost:4200');
+        const fp = parsed.searchParams.get('filePath');
+        if (fp && fs.existsSync(fp)) {
+          sourceMp4 = fp;
+        }
+      } catch {}
+    }
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const clipsVideoSubdir = resolvedRoot ? path.join(resolvedRoot, '05_Clips_Video') : '';
+    const clipsApprovedSubdir = resolvedRoot ? path.join(resolvedRoot, 'Clips_Aprobados') : '';
+
+    if (!sourceMp4 && resolvedRoot && fs.existsSync(resolvedRoot)) {
+      const searchDirs = [clipsVideoSubdir, resolvedRoot, clipsApprovedSubdir].filter(
+        (d) => d && fs.existsSync(d)
+      );
+      if (fileName) {
+        for (const d of searchDirs) {
+          const cand = path.join(d, path.basename(fileName));
+          if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+            sourceMp4 = cand;
+            break;
+          }
+        }
+      }
+      if (!sourceMp4 && Number(clipNumber) > 0) {
+        const num = Number(clipNumber);
+        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const d of searchDirs) {
+          const matches = fs
+            .readdirSync(d)
+            .filter(
+              (f) =>
+                !f.startsWith('.') &&
+                prefixRegex.test(f) &&
+                /\.(mp4|mov|webm)$/i.test(f)
+            )
+            .sort((a, b) => {
+              const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+              const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+              if (b4k !== a4k) return b4k - a4k;
+              try {
+                return (
+                  fs.statSync(path.join(d, b)).mtimeMs -
+                  fs.statSync(path.join(d, a)).mtimeMs
+                );
+              } catch {
+                return 0;
+              }
+            });
+          if (matches.length > 0) {
+            sourceMp4 = path.join(d, matches[0]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+      res.status(404).json({
+        ok: false,
+        error: `No se encontró el archivo MP4 original para separar voces del Clip ${String(clipNumber || '').padStart(2, '0')}.`,
+      });
+      return;
+    }
+
+    const safeSpeed = Math.max(0.2, Math.min(4.0, Number(speed) || 1));
+    const safeTrimStart = Math.max(0, Number(trimStart) || 0);
+    const safeTrimEnd = Number(trimEnd) > safeTrimStart + 0.05 ? Number(trimEnd) : 0;
+
+    const cacheDir = path.join(path.dirname(sourceMp4), '.vocals_cache');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const baseKey = path
+      .basename(sourceMp4, path.extname(sourceMp4))
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 48);
+    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_s${safeSpeed.toFixed(3)}`;
+    const vocalsMp3Path = path.join(cacheDir, `${baseKey}_${bakedKey}_vocals.mp3`);
+    const cleanMp4Path = path.join(cacheDir, `${baseKey}_${bakedKey}_novocals.mp4`);
+
+    const ffmpegBin = resolveFfmpegBin();
+    const inputTrimArgs: string[] = [];
+    if (safeTrimStart > 0.01) {
+      inputTrimArgs.push('-ss', safeTrimStart.toFixed(3));
+    }
+    if (safeTrimEnd > safeTrimStart + 0.05) {
+      inputTrimArgs.push('-to', safeTrimEnd.toFixed(3));
+    }
+
+    const buildAtempoChain = (spd: number): string => {
+      if (Math.abs(spd - 1) < 0.02) return '';
+      const stages: string[] = [];
+      let rem = Math.max(0.2, Math.min(4.0, spd));
+      while (rem < 0.5) {
+        stages.push('atempo=0.5');
+        rem /= 0.5;
+      }
+      while (rem > 2.0) {
+        stages.push('atempo=2.0');
+        rem /= 2.0;
+      }
+      stages.push(`atempo=${rem.toFixed(3)}`);
+      return stages.join(',');
+    };
+    const atempoPart = buildAtempoChain(safeSpeed);
+
+    // 1. Extract vocal speech stem (.mp3)
+    if (!fs.existsSync(vocalsMp3Path) || fs.statSync(vocalsMp3Path).size < 1024) {
+      const vocalFilter = [
+        'highpass=f=200',
+        'lowpass=f=3600',
+        'afftdn=nf=-24',
+        'acompressor=threshold=-20dB:ratio=3:makeup=4dB',
+        atempoPart,
+      ]
+        .filter(Boolean)
+        .join(',');
+
+      await new Promise<void>((resolve) => {
+        const args = [
+          '-y',
+          ...inputTrimArgs,
+          '-i',
+          sourceMp4,
+          '-vn',
+          '-af',
+          vocalFilter,
+          '-c:a',
+          'libmp3lame',
+          '-q:a',
+          '2',
+          vocalsMp3Path,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', () => resolve());
+        proc.on('close', () => resolve());
+      });
+
+      // Fallback if clip had no audio stream or afftdn wasn't supported
+      if (!fs.existsSync(vocalsMp3Path) || fs.statSync(vocalsMp3Path).size < 512) {
+        await new Promise<void>((resolve) => {
+          const fallbackArgs = [
+            '-y',
+            '-f',
+            'lavfi',
+            '-i',
+            'anullsrc=channel_layout=stereo:sample_rate=44100',
+            '-t',
+            '4',
+            '-c:a',
+            'libmp3lame',
+            '-q:a',
+            '4',
+            vocalsMp3Path,
+          ];
+          const proc = spawn(ffmpegBin, fallbackArgs, { stdio: 'ignore' });
+          proc.on('error', () => resolve());
+          proc.on('close', () => resolve());
+        });
+      }
+    }
+
+    // 2. Create vocal-suppressed MP4 copy (video stream copy + vocal band attenuation)
+    if (!fs.existsSync(cleanMp4Path) || fs.statSync(cleanMp4Path).size < 5000) {
+      const suppressVocalFilter =
+        'equalizer=f=450:t=o:w=1.8:g=-22,equalizer=f=1400:t=o:w=1.8:g=-24,equalizer=f=2600:t=o:w=1.5:g=-20';
+      await new Promise<void>((resolve) => {
+        const args = [
+          '-y',
+          '-i',
+          sourceMp4,
+          '-c:v',
+          'copy',
+          '-af',
+          suppressVocalFilter,
+          '-c:a',
+          'aac',
+          '-b:a',
+          '160k',
+          cleanMp4Path,
+        ];
+        const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+        proc.on('error', () => resolve());
+        proc.on('close', () => resolve());
+      });
+    }
+
+    const vocalsStat = fs.existsSync(vocalsMp3Path) ? fs.statSync(vocalsMp3Path) : null;
+    const cleanStat =
+      fs.existsSync(cleanMp4Path) && fs.statSync(cleanMp4Path).size > 5000
+        ? fs.statSync(cleanMp4Path)
+        : null;
+
+    res.json({
+      ok: true,
+      clipId,
+      clipNumber,
+      vocalsAudioUrl: vocalsStat
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(vocalsMp3Path)}&v=${Math.floor(vocalsStat.mtimeMs)}`
+        : '',
+      cleanVideoUrl: cleanStat
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(cleanMp4Path)}&v=${Math.floor(cleanStat.mtimeMs)}`
+        : '',
+    });
+  } catch (err: any) {
+    console.error('Error en /api/flow/separate-clip-vocals:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error separando voces del clip.',
+    });
+  }
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {

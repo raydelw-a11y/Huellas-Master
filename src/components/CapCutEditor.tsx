@@ -70,6 +70,23 @@ export interface TimelineClipItem {
   videoUrl?: string; // local blob URL or data URL of the MP4
   posterUrl?: string; // keyframe or preview image
   reviewedForEditor?: boolean;
+  vocalsSeparated?: boolean; // true when vocal stem has been extracted to the Voces Separadas track
+  cleanNoVocalsVideoUrl?: string; // MP4 URL with vocal speech band suppressed
+  originalVideoUrlBeforeSeparation?: string;
+}
+
+export interface TimelineSeparatedVocalItem {
+  id: string;
+  sourceClipId: string;
+  clipNumber: number;
+  title: string;
+  start: number; // in seconds on master timeline (movable horizontally)
+  duration: number; // in seconds on master timeline
+  audioUrl?: string; // separated vocal stem audio URL (or fallback clip videoUrl)
+  sourceTrimStart?: number;
+  speed?: number;
+  volume: number; // default 100
+  muted?: boolean;
 }
 
 export interface TimelineCaptionItem {
@@ -978,6 +995,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // 4. Five Multi-Tracks State
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
+  const [clipContextMenu, setClipContextMenu] = useState<{
+    x: number;
+    y: number;
+    clipIds: string[];
+    showSepararSubmenu: boolean;
+  } | null>(null);
+  const [separatedVocalSegments, setSeparatedVocalSegments] = useState<TimelineSeparatedVocalItem[]>(
+    () =>
+      initialDocOverlays && Array.isArray(initialDocOverlays.separatedVocalSegments)
+        ? initialDocOverlays.separatedVocalSegments
+        : []
+  );
+  const [selectedVocalSegmentId, setSelectedVocalSegmentId] = useState<string | null>(null);
+  const [isSeparatingVocals, setIsSeparatingVocals] = useState<boolean>(false);
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
 
@@ -1290,6 +1322,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const preloadNextVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const separatedVocalsAudioRef = useRef<HTMLAudioElement | null>(null);
   const playIntervalRef = useRef<any>(null);
   const webAudioCtxRef = useRef<AudioContext | null>(null);
   const ambientGainRef = useRef<GainNode | null>(null);
@@ -1308,8 +1341,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const appliedVideoSeekVersionRef = useRef<number>(-1);
   const appliedVoiceSeekVersionRef = useRef<number>(-1);
   const appliedMusicSeekVersionRef = useRef<number>(-1);
+  const appliedSeparatedVocalSeekVersionRef = useRef<number>(-1);
   const activePlayingClipIdRef = useRef<string | null>(null);
   const activePlayingMusicIdRef = useRef<string | null>(null);
+  const activePlayingSeparatedVocalIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
@@ -2360,7 +2395,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
           return {
             ...tc,
-            videoUrl: freshVideoUrl,
+            videoUrl:
+              tc.vocalsSeparated && tc.cleanNoVocalsVideoUrl
+                ? tc.cleanNoVocalsVideoUrl
+                : freshVideoUrl,
+            originalVideoUrlBeforeSeparation:
+              tc.originalVideoUrlBeforeSeparation || freshVideoUrl,
             posterUrl: freshPosterUrl,
             smoothSlowMo:
               tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
@@ -2379,6 +2419,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
       setSelectedClipId(builtClips[0].id);
+      setSelectedClipIds([builtClips[0].id]);
+    }
+    if (isDocSwitch) {
+      setSeparatedVocalSegments(
+        Array.isArray(savedDocOverlays?.separatedVocalSegments)
+          ? savedDocOverlays.separatedVocalSegments
+          : []
+      );
+      setSelectedVocalSegmentId(null);
     }
 
     // 2. Build Captions Track (Track 2) aligned to docIntroPlacement and real Voiceover audio
@@ -3467,6 +3516,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [musicTracks, currentTime, activeClipAtPlayhead?.id, activeClipAtPlayhead?.clipNumber]);
 
+  const activeSeparatedVocalAtPlayhead = useMemo(() => {
+    return (
+      separatedVocalSegments.find(
+        (seg) =>
+          !seg.muted &&
+          Boolean(seg.audioUrl) &&
+          currentTime >= seg.start &&
+          currentTime < seg.start + seg.duration
+      ) || null
+    );
+  }, [separatedVocalSegments, currentTime]);
+
   const isNarratorSpeakingAtPlayhead = useMemo(() => {
     if (currentTime < voiceStartOffsetSec) return false;
     if (
@@ -3486,6 +3547,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const effectiveFoleyVolumeAtPlayhead = useMemo(() => {
     if (!activeClipAtPlayhead) return 0;
+    if (activeClipAtPlayhead.vocalsSeparated && !activeClipAtPlayhead.cleanNoVocalsVideoUrl) {
+      return 0;
+    }
     if (
       activeClipAtPlayhead.id === 'fixed-doc-intro' ||
       activeClipAtPlayhead.clipNumber === 0
@@ -3859,6 +3923,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               mus.pause();
               mus.muted = false;
               mus.currentTime = 0;
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+
+    // 3B. Unlock & play Separated Vocal Segment <audio> if present on Track 3B
+    const sepVo = separatedVocalsAudioRef.current;
+    if (sepVo) {
+      try {
+        appliedSeparatedVocalSeekVersionRef.current = lastSeekVersionRef.current;
+        if (activeSeparatedVocalAtPlayhead?.audioUrl) {
+          if (activePlayingSeparatedVocalIdRef.current !== activeSeparatedVocalAtPlayhead.id) {
+            activePlayingSeparatedVocalIdRef.current = activeSeparatedVocalAtPlayhead.id;
+            sepVo.src = activeSeparatedVocalAtPlayhead.audioUrl;
+          }
+          sepVo.muted = false;
+          sepVo.currentTime = Math.max(0, startSec - activeSeparatedVocalAtPlayhead.start);
+          sepVo.volume = Math.min(1, Math.max(0.05, (activeSeparatedVocalAtPlayhead.volume ?? 100) / 100));
+          sepVo.play().catch(() => {});
+        } else if (separatedVocalSegments[0]?.audioUrl) {
+          sepVo.muted = true;
+          sepVo.play()
+            .then(() => {
+              sepVo.pause();
+              sepVo.muted = false;
+              sepVo.currentTime = 0;
             })
             .catch(() => {});
         }
@@ -4392,6 +4483,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       }
     }
+
+    const sepVo = separatedVocalsAudioRef.current;
+    if (sepVo) {
+      if (activeSeparatedVocalAtPlayhead?.audioUrl) {
+        const isSegSwitch =
+          activePlayingSeparatedVocalIdRef.current !== activeSeparatedVocalAtPlayhead.id;
+        if (isSegSwitch) {
+          activePlayingSeparatedVocalIdRef.current = activeSeparatedVocalAtPlayhead.id;
+          sepVo.src = activeSeparatedVocalAtPlayhead.audioUrl;
+        }
+        const segTime = Math.max(0, currentTime - activeSeparatedVocalAtPlayhead.start);
+        const isManualSegSeek =
+          appliedSeparatedVocalSeekVersionRef.current !== lastSeekVersionRef.current;
+        if (
+          isSegSwitch ||
+          isManualSegSeek ||
+          !isPlaying ||
+          Math.abs(sepVo.currentTime - segTime) > 1.2
+        ) {
+          appliedSeparatedVocalSeekVersionRef.current = lastSeekVersionRef.current;
+          try {
+            sepVo.currentTime = segTime;
+          } catch {}
+        }
+        sepVo.muted = Boolean(activeSeparatedVocalAtPlayhead.muted);
+        sepVo.volume = Math.min(
+          1,
+          Math.max(0, (activeSeparatedVocalAtPlayhead.volume ?? 100) / 100)
+        );
+        if (isPlaying && sepVo.paused && !sepVo.ended) {
+          sepVo.play().catch(() => {});
+        }
+      } else {
+        activePlayingSeparatedVocalIdRef.current = null;
+        if (!sepVo.paused) {
+          sepVo.pause();
+        }
+      }
+    }
   }, [
     currentTime,
     activeClipAtPlayhead?.id,
@@ -4403,6 +4533,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeClipAtPlayhead?.smoothSlowMo,
     activeMusicAtPlayhead?.id,
     activeMusicAtPlayhead?.audioUrl,
+    activeSeparatedVocalAtPlayhead?.id,
+    activeSeparatedVocalAtPlayhead?.audioUrl,
+    activeSeparatedVocalAtPlayhead?.start,
+    activeSeparatedVocalAtPlayhead?.muted,
+    activeSeparatedVocalAtPlayhead?.volume,
     isPlaying,
     effectiveFoleyVolumeAtPlayhead,
     effectiveMusicVolumeAtPlayhead,
@@ -4413,6 +4548,259 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     voiceAudioError,
     masterMusicVolume,
   ]);
+
+  // Close clip right-click context menu on outside click or Escape, and allow deleting selected vocal segment with Delete/Backspace
+  useEffect(() => {
+    const onGlobalClick = () => {
+      setClipContextMenu(null);
+    };
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setClipContextMenu(null);
+      }
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        selectedVocalSegmentId &&
+        !(
+          document.activeElement instanceof HTMLInputElement ||
+          document.activeElement instanceof HTMLTextAreaElement ||
+          document.activeElement instanceof HTMLSelectElement
+        )
+      ) {
+        e.preventDefault();
+        setSeparatedVocalSegments((prev) => {
+          const target = prev.find((s) => s.id === selectedVocalSegmentId);
+          const next = prev.filter((s) => s.id !== selectedVocalSegmentId);
+          persistDocOverlaysPatch(
+            { separatedVocalSegments: next },
+            activeDoc?.id || 'default'
+          );
+          if (target) {
+            setStatusMessage(
+              `🗑️ Segmento de voz "${target.title}" eliminado de la línea de tiempo.`
+            );
+          }
+          return next;
+        });
+        setSelectedVocalSegmentId(null);
+      }
+    };
+    window.addEventListener('click', onGlobalClick);
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => {
+      window.removeEventListener('click', onGlobalClick);
+      window.removeEventListener('keydown', onGlobalKeyDown);
+    };
+  }, [selectedVocalSegmentId, activeDoc?.id]);
+
+  const handleSeparateVocalsFromClips = async (targetClipIds: string[]) => {
+    setClipContextMenu(null);
+    const targetClips = clipsWithTimelineBounds.filter((c) => targetClipIds.includes(c.id));
+    if (targetClips.length === 0) return;
+
+    setIsSeparatingVocals(true);
+    setStatusMessage(
+      `🗣️ Detectando y separando el audio de las voces en ${targetClips.length} clip(s) seleccionado(s)...`
+    );
+
+    const docId = activeDoc?.id || 'default';
+    const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+    const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+    const dTitle = (activeDoc?.title || '').trim();
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+
+    const newVocalSegments: TimelineSeparatedVocalItem[] = [];
+    const clipPatchById: Record<
+      string,
+      {
+        vocalsSeparated: boolean;
+        cleanNoVocalsVideoUrl?: string;
+        originalVideoUrlBeforeSeparation?: string;
+        videoUrl?: string;
+      }
+    > = {};
+
+    for (const clip of targetClips) {
+      const origVideoUrl = clip.originalVideoUrlBeforeSeparation || clip.videoUrl || '';
+      let vocalsAudioUrl = '';
+      let cleanVideoUrl = '';
+
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${base}/api/flow/separate-clip-vocals`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clipId: clip.id,
+              clipNumber: clip.clipNumber,
+              videoUrl: origVideoUrl,
+              fileName: clip.fileName,
+              folderPath: fPath,
+              folderName: fName,
+              docTitle: dTitle,
+              trimStart: clip.trimStart || 0,
+              trimEnd: clip.trimEnd || clip.sourceDuration || clip.duration,
+              speed: clip.speed || 1,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) {
+              const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+              vocalsAudioUrl = prefix(data.vocalsAudioUrl || '');
+              cleanVideoUrl = prefix(data.cleanVideoUrl || '');
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      const segId = `sep-vocal-${clip.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      newVocalSegments.push({
+        id: segId,
+        sourceClipId: clip.id,
+        clipNumber: clip.clipNumber,
+        title:
+          clip.clipNumber === 0
+            ? '🗣️ Voz Intro'
+            : clip.clipNumber === 999
+            ? '🗣️ Voz Outro'
+            : `🗣️ Voz Clip ${String(clip.clipNumber).padStart(2, '0')}${
+                clip.partLabel ? ` (${clip.partLabel})` : ''
+              }`,
+        start: Number(clip.start.toFixed(2)),
+        duration: Number(clip.duration.toFixed(2)),
+        audioUrl: vocalsAudioUrl || origVideoUrl,
+        sourceTrimStart: clip.trimStart || 0,
+        speed: clip.speed || 1,
+        volume: 100,
+        muted: false,
+      });
+
+      clipPatchById[clip.id] = {
+        vocalsSeparated: true,
+        originalVideoUrlBeforeSeparation: origVideoUrl,
+        cleanNoVocalsVideoUrl: cleanVideoUrl || undefined,
+        ...(cleanVideoUrl ? { videoUrl: cleanVideoUrl } : {}),
+      };
+    }
+
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((tc) => (clipPatchById[tc.id] ? { ...tc, ...clipPatchById[tc.id] } : tc))
+    );
+
+    setSeparatedVocalSegments((prev) => {
+      const filtered = prev.filter((s) => !targetClipIds.includes(s.sourceClipId));
+      const next = [...filtered, ...newVocalSegments].sort((a, b) => a.start - b.start);
+      persistDocOverlaysPatch({ separatedVocalSegments: next }, docId);
+      return next;
+    });
+
+    if (newVocalSegments.length > 0) {
+      setSelectedVocalSegmentId(newVocalSegments[0].id);
+    }
+    setIsSeparatingVocals(false);
+    setStatusMessage(
+      `✅ Voces detectadas y separadas de ${targetClips.length} clip(s) en la pista "3B. 🗣️ Voces Separadas". Puedes arrastrarlas por el timeline o borrarlas con 🗑️ / Suprimir.`
+    );
+  };
+
+  const handleDeleteSeparatedVocalSegment = (segId: string) => {
+    const docId = activeDoc?.id || 'default';
+    setSeparatedVocalSegments((prev) => {
+      const target = prev.find((s) => s.id === segId);
+      const next = prev.filter((s) => s.id !== segId);
+      persistDocOverlaysPatch({ separatedVocalSegments: next }, docId);
+      if (target) {
+        setStatusMessage(
+          `🗑️ Segmento "${target.title}" eliminado de la pista de Voces Separadas (el clip mantiene su video sin esa voz).`
+        );
+      }
+      return next;
+    });
+    if (selectedVocalSegmentId === segId) {
+      setSelectedVocalSegmentId(null);
+    }
+  };
+
+  const handleRestoreSeparatedVocalToClip = (seg: TimelineSeparatedVocalItem) => {
+    const docId = activeDoc?.id || 'default';
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((tc) =>
+        tc.id === seg.sourceClipId
+          ? {
+              ...tc,
+              vocalsSeparated: false,
+              cleanNoVocalsVideoUrl: undefined,
+              videoUrl: tc.originalVideoUrlBeforeSeparation || tc.videoUrl,
+            }
+          : tc
+      )
+    );
+    setSeparatedVocalSegments((prev) => {
+      const next = prev.filter((s) => s.id !== seg.id);
+      persistDocOverlaysPatch({ separatedVocalSegments: next }, docId);
+      return next;
+    });
+    if (selectedVocalSegmentId === seg.id) {
+      setSelectedVocalSegmentId(null);
+    }
+    setStatusMessage(`↩️ Audio de voz restaurado al Clip ${String(seg.clipNumber).padStart(2, '0')}.`);
+  };
+
+  const handleToggleMuteSeparatedVocal = (segId: string) => {
+    const docId = activeDoc?.id || 'default';
+    setSeparatedVocalSegments((prev) => {
+      const next = prev.map((s) => (s.id === segId ? { ...s, muted: !s.muted } : s));
+      persistDocOverlaysPatch({ separatedVocalSegments: next }, docId);
+      return next;
+    });
+  };
+
+  const handleStartDragSeparatedVocal = (
+    e: React.MouseEvent,
+    seg: TimelineSeparatedVocalItem,
+    laneEl: HTMLDivElement | null
+  ) => {
+    if (e.button !== 0 || !laneEl) return;
+    e.stopPropagation();
+    setSelectedVocalSegmentId(seg.id);
+    const startClientX = e.clientX;
+    const initialStartSec = seg.start;
+    const laneRect = laneEl.getBoundingClientRect();
+    const maxStartSec = Math.max(0, totalDurationSec - seg.duration);
+    let latestStartSec = initialStartSec;
+
+    const onMove = (moveEvt: MouseEvent) => {
+      const dxPx = moveEvt.clientX - startClientX;
+      const deltaSec = isFitEntireProject
+        ? (dxPx / Math.max(1, laneRect.width)) * totalDurationSec
+        : dxPx / Math.max(1, timelineZoom);
+      latestStartSec = Number(
+        Math.max(0, Math.min(maxStartSec, initialStartSec + deltaSec)).toFixed(2)
+      );
+      setSeparatedVocalSegments((prev) =>
+        prev.map((s) => (s.id === seg.id ? { ...s, start: latestStartSec } : s))
+      );
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      const docId = activeDoc?.id || 'default';
+      setSeparatedVocalSegments((prev) => {
+        const sorted = [...prev].sort((a, b) => a.start - b.start);
+        persistDocOverlaysPatch({ separatedVocalSegments: sorted }, docId);
+        return sorted;
+      });
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // Undo stack and Optical Flow processing state for Track 3 Clips
   const [clipUndoStack, setClipUndoStack] = useState<TimelineClipItem[][]>([]);
@@ -5865,6 +6253,98 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         src={activeMusicAtPlayhead?.audioUrl || musicTracks[0]?.audioUrl || undefined}
         preload={isEditorActive ? 'auto' : 'none'}
       />
+      <audio
+        ref={separatedVocalsAudioRef}
+        src={
+          activeSeparatedVocalAtPlayhead?.audioUrl ||
+          separatedVocalSegments[0]?.audioUrl ||
+          undefined
+        }
+        preload={isEditorActive ? 'auto' : 'none'}
+      />
+
+      {/* FLOATING RIGHT-CLICK CONTEXT MENU FOR SELECTED TIMELINE CLIPS (Separar ▸ Voces) */}
+      {clipContextMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          style={{
+            left: `${Math.min(
+              typeof window !== 'undefined' ? window.innerWidth - 260 : 900,
+              Math.max(12, clipContextMenu.x)
+            )}px`,
+            top: `${Math.min(
+              typeof window !== 'undefined' ? window.innerHeight - 180 : 600,
+              Math.max(12, clipContextMenu.y)
+            )}px`,
+          }}
+          className="fixed z-[250] w-56 rounded-xl bg-slate-950/95 backdrop-blur-md border border-amber-500/40 shadow-2xl shadow-black/80 py-1.5 text-xs select-none"
+        >
+          <div className="px-3 py-1.5 border-b border-slate-800/90 flex items-center justify-between gap-2">
+            <span className="font-black text-amber-300 text-[11px] truncate">
+              🎬 {clipContextMenu.clipIds.length} clip
+              {clipContextMenu.clipIds.length === 1 ? ' seleccionado' : 's seleccionados'}
+            </span>
+            <span className="text-[9px] text-slate-400 font-mono">Clic derecho</span>
+          </div>
+
+          {/* Submenu Trigger: Separar ▸ */}
+          <div
+            onMouseEnter={() =>
+              setClipContextMenu((prev) =>
+                prev ? { ...prev, showSepararSubmenu: true } : null
+              )
+            }
+            onMouseLeave={() =>
+              setClipContextMenu((prev) =>
+                prev ? { ...prev, showSepararSubmenu: false } : null
+              )
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              setClipContextMenu((prev) =>
+                prev ? { ...prev, showSepararSubmenu: !prev.showSepararSubmenu } : null
+              );
+            }}
+            className="relative px-3 py-2 hover:bg-amber-500/20 text-slate-100 hover:text-amber-200 font-bold flex items-center justify-between cursor-pointer transition"
+          >
+            <span className="flex items-center gap-2">
+              <Scissors className="w-3.5 h-3.5 text-amber-400" />
+              Separar
+            </span>
+            <span className="text-amber-400 font-black">▸</span>
+
+            {/* Submenu Panel: Voces */}
+            {clipContextMenu.showSepararSubmenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute left-full top-0 ml-1 w-60 rounded-xl bg-slate-950/95 backdrop-blur-md border border-amber-500/40 shadow-2xl shadow-black/90 py-1.5 z-[260]"
+              >
+                <div className="px-3 py-1 border-b border-slate-800/80 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Separar Audio en Pista Aparte
+                </div>
+                <button
+                  type="button"
+                  disabled={isSeparatingVocals}
+                  onClick={() => handleSeparateVocalsFromClips(clipContextMenu.clipIds)}
+                  className="w-full px-3 py-2 text-left hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 font-black flex items-center justify-between gap-2 cursor-pointer transition disabled:opacity-50"
+                >
+                  <span className="flex items-center gap-2">
+                    <span>🗣️</span>
+                    <span>Voces</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-mono text-emerald-200">
+                    Pista 3B
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* =====================================================================
           TOP BAR: PROJECT SELECTOR, ASPECT RATIO (16:9 / 9:16), QUALITY (HD/2K/4K/8K) & EXPORT
@@ -9318,7 +9798,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               >
                 {clipsWithTimelineBounds.map((clip, idx) => {
                   const isCurrent = currentTime >= clip.start && currentTime < clip.end;
-                  const isSelected = selectedClip?.id === clip.id || isCurrent;
+                  const isMultiSelected = selectedClipIds.includes(clip.id);
+                  const isSelected =
+                    selectedClip?.id === clip.id || isMultiSelected || isCurrent;
                   const slotWidthPx = clip.duration * timelineZoom;
                   const useCompactCard = isFitEntireProject || slotWidthPx < 135;
                   const clipPlayProgressPct = isCurrent
@@ -9341,7 +9823,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         setDraggedClipIndex(null);
                       }}
                       onClick={(e) => {
-                        setSelectedClipId(clip.id);
+                        if (e.metaKey || e.ctrlKey) {
+                          setSelectedClipIds((prev) => {
+                            const base = prev.length > 0 ? prev : selectedClipId ? [selectedClipId] : [];
+                            const exists = base.includes(clip.id);
+                            const next = exists
+                              ? base.filter((id) => id !== clip.id)
+                              : [...base, clip.id];
+                            return next.length > 0 ? next : [clip.id];
+                          });
+                          setSelectedClipId(clip.id);
+                        } else if (e.shiftKey && selectedClipId) {
+                          const anchorIdx = clipsWithTimelineBounds.findIndex(
+                            (c) => c.id === selectedClipId
+                          );
+                          if (anchorIdx >= 0) {
+                            const startIdx = Math.min(anchorIdx, idx);
+                            const endIdx = Math.max(anchorIdx, idx);
+                            const rangeIds = clipsWithTimelineBounds
+                              .slice(startIdx, endIdx + 1)
+                              .map((c) => c.id);
+                            setSelectedClipIds(rangeIds);
+                          } else {
+                            setSelectedClipIds([clip.id]);
+                          }
+                          setSelectedClipId(clip.id);
+                        } else {
+                          setSelectedClipId(clip.id);
+                          setSelectedClipIds([clip.id]);
+                        }
                         const rect = e.currentTarget.getBoundingClientRect();
                         if (rect.width > 12) {
                           const ratio = Math.max(0, Math.min(0.98, (e.clientX - rect.left) / rect.width));
@@ -9351,11 +9861,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           seekToTime(clip.start);
                         }
                       }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        let targetIds =
+                          selectedClipIds.length > 0 && selectedClipIds.includes(clip.id)
+                            ? selectedClipIds
+                            : [clip.id];
+                        if (!selectedClipIds.includes(clip.id)) {
+                          setSelectedClipId(clip.id);
+                          setSelectedClipIds([clip.id]);
+                        }
+                        setClipContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          clipIds: targetIds,
+                          showSepararSubmenu: true,
+                        });
+                      }}
                       title={`#${String(idx + 1).padStart(2, '0')} (Clip ${String(
                         clip.clipNumber
                       ).padStart(2, '0')}${clip.partLabel ? ` • ${clip.partLabel}` : ''}) • ${formatTimeMMSS(
                         clip.start
-                      )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Haz clic en cualquier punto del clip para colocar la aguja roja ahí`}
+                      )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Clic derecho: Separar ▸ Voces (Cmd/Ctrl+Clic o Shift+Clic para varios clips)`}
                       style={
                         isFitEntireProject
                           ? {
@@ -9369,7 +9897,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         className={`group relative h-full rounded-lg border flex flex-col justify-between cursor-grab active:cursor-grabbing transition overflow-hidden ${
                           useCompactCard ? 'p-1 min-h-[82px]' : 'rounded-xl p-2 gap-1.5'
                         } ${
-                          isCurrent
+                          isMultiSelected && selectedClipIds.length > 1
+                            ? 'border-2 border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-400/50 z-10'
+                            : isCurrent
                             ? 'border-2 border-amber-400 bg-amber-500/25 shadow-lg shadow-amber-500/25 ring-2 ring-rose-500/50 z-10'
                             : isSelected
                             ? 'border-amber-400 bg-amber-500/20 shadow-lg shadow-amber-500/10 z-10'
@@ -9409,6 +9939,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                       clip.partLabel ? (clip.partLabel.includes('A') ? 'A' : 'B') : ''
                                     }`}
                               </span>
+                              {clip.vocalsSeparated && (
+                                <span className="px-0.5 py-0.2 rounded bg-emerald-500/90 text-[7px] font-black text-slate-950 leading-none">
+                                  🗣️ Sep
+                                </span>
+                              )}
                               {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
                                 <span className="px-0.5 py-0.2 rounded bg-sky-500/80 text-[7px] font-black text-slate-950 leading-none">
                                   🌊 {clip.speed}x
@@ -9458,6 +9993,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     🌊 Optical Flow {clip.speed}x {clip.opticalFlowUrl ? '✓' : ''}
                                   </span>
                                 )}
+                                {clip.vocalsSeparated && (
+                                  <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-emerald-500/95 text-[8px] font-black text-slate-950 shadow">
+                                    🗣️ Voz Separada
+                                  </span>
+                                )}
                                 <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
                                   {isCurrent ? '▶ En Curso' : 'Fotograma 1'}
                                 </span>
@@ -9467,6 +10007,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 <span className="text-[10px] font-bold text-amber-300/90">
                                   🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
                                 </span>
+                                {clip.vocalsSeparated && (
+                                  <span className="mt-0.5 px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/50 text-[8px] font-black text-emerald-300">
+                                    🗣️ Voz Separada en Pista 3B
+                                  </span>
+                                )}
                                 <span className="text-[9px] text-slate-400 line-clamp-2 mt-0.5">
                                   {stripPauseTags(clip.narrationSegment || clip.videoPrompt || 'Sin .MP4 aún')}
                                 </span>
@@ -9486,7 +10031,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
                               </span>
                               <span>
-                                {clip.clipNumber === 0 || clip.clipNumber === 999
+                                {clip.vocalsSeparated
+                                  ? '🔇 Voz Extraída'
+                                  : clip.clipNumber === 0 || clip.clipNumber === 999
                                   ? `Audio Fade In/Out • ${clip.foleyVolume}%`
                                   : `Foley ${clip.foleyVolume}%`}
                               </span>
@@ -9497,6 +10044,122 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* TRACK 3B: SEPARATED VOCALS FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-teal-950/70 border border-teal-500/40 text-[11px] font-black text-teal-300 flex items-center justify-between">
+                <span>3B. 🗣️ Voces Clips ({separatedVocalSegments.length})</span>
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                }
+                className={`relative h-10 bg-slate-950/90 border border-teal-500/30 rounded-lg overflow-hidden flex items-center ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {separatedVocalSegments.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 px-3 truncate">
+                    Haz clic derecho sobre uno o varios clips de la Pista 3 y elige{' '}
+                    <strong className="text-amber-300">Separar ▸ 🗣️ Voces</strong> para extraer sus voces aquí, moverlas por el timeline o borrarlas.
+                  </span>
+                ) : (
+                  separatedVocalSegments.map((seg) => {
+                    const isSegSelected = selectedVocalSegmentId === seg.id;
+                    const isSegPlaying = activeSeparatedVocalAtPlayhead?.id === seg.id;
+                    return (
+                      <div
+                        key={seg.id}
+                        onMouseDown={(e) =>
+                          handleStartDragSeparatedVocal(
+                            e,
+                            seg,
+                            e.currentTarget.parentElement as HTMLDivElement | null
+                          )
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVocalSegmentId(seg.id);
+                        }}
+                        style={
+                          isFitEntireProject
+                            ? {
+                                left: `${(seg.start / Math.max(1, totalDurationSec)) * 100}%`,
+                                width: `${(seg.duration / Math.max(1, totalDurationSec)) * 100}%`,
+                              }
+                            : {
+                                left: `${seg.start * timelineZoom}px`,
+                                width: `${Math.max(36, seg.duration * timelineZoom)}px`,
+                              }
+                        }
+                        title={`${seg.title} (${formatTimeMMSS(seg.start)} - ${formatTimeMMSS(
+                          seg.start + seg.duration
+                        )}) • Arrastra horizontalmente para mover por el timeline o pulsa 🗑️ / Suprimir para borrar`}
+                        className={`absolute top-1 bottom-1 rounded-md border px-2 flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing select-none transition ${
+                          seg.muted
+                            ? 'bg-slate-900/90 border-slate-700 text-slate-500 opacity-60'
+                            : isSegSelected
+                            ? 'bg-teal-500/35 border-2 border-amber-300 text-white shadow-lg shadow-teal-500/20 z-20'
+                            : isSegPlaying
+                            ? 'bg-teal-500/30 border-teal-300 text-teal-100 z-10'
+                            : 'bg-teal-950/85 hover:bg-teal-900/80 border-teal-500/50 text-teal-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 min-w-0 truncate">
+                          <span className="text-[10px] font-black truncate">
+                            {seg.muted ? '🔇 ' : '🗣️ '}
+                            {seg.title.replace(/^🗣️\s*/, '')}
+                          </span>
+                          <span className="text-[9px] font-mono text-teal-300/90 shrink-0">
+                            ({formatTimeMMSS(seg.start)}-{formatTimeMMSS(seg.start + seg.duration)})
+                          </span>
+                        </div>
+                        <div
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 shrink-0"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleMuteSeparatedVocal(seg.id);
+                            }}
+                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-teal-200 cursor-pointer"
+                            title={seg.muted ? 'Activar audio de este segmento de voz' : 'Silenciar este segmento de voz'}
+                          >
+                            {seg.muted ? '🔇' : '🔊'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRestoreSeparatedVocalToClip(seg);
+                            }}
+                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
+                            title="Devolver la voz a su clip original"
+                          >
+                            ↩️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSeparatedVocalSegment(seg.id);
+                            }}
+                            className="px-1 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 text-[9px] text-white font-bold cursor-pointer"
+                            title="Borrar este segmento de voz de la línea de tiempo"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
