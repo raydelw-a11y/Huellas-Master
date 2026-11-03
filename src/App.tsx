@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:17 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:27 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1644,6 +1644,7 @@ export default function App() {
     const onFocusOrVisible = () => {
       if (document.visibilityState === 'visible') {
         silentRealtimeSync();
+        handleAutoLoadAllFolderMedia(true);
       }
     };
     window.addEventListener('focus', onFocusOrVisible);
@@ -2529,8 +2530,12 @@ export default function App() {
       } catch {}
     }
 
+    const isClipVideoAsset =
+      resolvedSubFolder === '05_Clips_Video' && /\.(mp4|mov|webm)$/i.test(cleanFileName);
+
     // A) Write directly via File System Access API into the corresponding subfolder inside the Stage 1 root folder
-    if (flowDownloadDirHandleRef.current) {
+    // (Skip direct browser write for 05_Clips_Video MP4s so the local server's hardware-accelerated 4K upscaler + cleanup always runs first)
+    if (flowDownloadDirHandleRef.current && !isClipVideoAsset) {
       try {
         if (typeof flowDownloadDirHandleRef.current.queryPermission === 'function') {
           const perm = await flowDownloadDirHandleRef.current.queryPermission({ mode: 'readwrite' });
@@ -3665,10 +3670,89 @@ export default function App() {
       }
 
       if (matchedFile) {
+        const is4kFile =
+          /[_\-]4k\.(mp4|webm|mov)$/i.test(matchedFile.name) &&
+          matchedFile.size >= 12 * 1024 * 1024;
+        const isRecentRegen = Date.now() - matchedFile.lastModified <= 3 * 3600 * 1000;
+
+        // If the clip file in 05_Clips_Video was recently regenerated manually and is not yet 4K, upscale it to 4K first on the local server before loading
+        if (!is4kFile && isRecentRegen) {
+          const isLocalhostOrigin =
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+          const apiBases = isLocalhostOrigin
+            ? ['']
+            : isCloudMode
+            ? ['http://localhost:4200']
+            : ['', 'http://localhost:4200'];
+          const rawFolderPath = (
+            flowServerFolderPath ||
+            currentDoc?.downloadFolderPath ||
+            localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+            ''
+          ).trim();
+          const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
+          const folderName = (
+            activeHandle?.name ||
+            flowDownloadFolderName ||
+            currentDoc?.downloadFolderName ||
+            getCanonicalFolderNameForDoc(currentDoc) ||
+            ''
+          ).trim();
+          const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
+          const isVertical =
+            currentDoc?.productionType === 'REEL_9X16' ||
+            currentDoc?.promptConfig?.SUB_OPCION_REELS === '9X16';
+          const aspectRatio = isVertical ? '9:16' : '16:9';
+
+          for (const baseOrigin of apiBases) {
+            try {
+              const res = await fetch(`${baseOrigin}/api/flow/load-and-upscale-single-clip`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  folderPath,
+                  folderName,
+                  docTitle,
+                  aspectRatio,
+                  clip: {
+                    clipNumber: clip.clipNumber,
+                    expectedFileName: expectedName,
+                    narrationSegment: clip.narrationSegment || '',
+                    videoPrompt: clip.videoPrompt || '',
+                  },
+                }),
+              });
+              if (!res.ok) continue;
+              const data = await res.json();
+              if (data?.ok && data.url) {
+                const prefixUrl = (u: string) =>
+                  u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+                const fullVideoUrl = `${prefixUrl(data.url)}&r=${Date.now()}`;
+                setCapturedClipVideosMap((prev) => ({
+                  ...prev,
+                  [clip.clipNumber]: fullVideoUrl,
+                }));
+                if (data.fileName) {
+                  setFolderClipFileNamesMap((prev) => ({
+                    ...prev,
+                    [clip.clipNumber]: data.fileName,
+                  }));
+                }
+                return fullVideoUrl;
+              }
+            } catch {}
+          }
+        }
+
         const objUrl = URL.createObjectURL(matchedFile);
         setCapturedClipVideosMap((prev) => ({
           ...prev,
           [clip.clipNumber]: objUrl,
+        }));
+        setFolderClipFileNamesMap((prev) => ({
+          ...prev,
+          [clip.clipNumber]: matchedFile!.name,
         }));
         return objUrl;
       }
@@ -3873,7 +3957,9 @@ export default function App() {
 
         if (perm === 'granted') {
           const newClipUrls: Record<number, string> = {};
+          const newClipFileNames: Record<number, string> = {};
           const bestFileMtimeByClip: Record<number, number> = {};
+          const bestFileIs4kByClip: Record<number, boolean> = {};
           const subCandidates = ['05_Clips_Video', 'Clips_Aprobados', ''];
           for (const sub of subCandidates) {
             try {
@@ -3889,10 +3975,25 @@ export default function App() {
                   const num = parseInt(m[1], 10);
                   if (num > 0) {
                     const file = await entryHandle.getFile();
-                    if (!bestFileMtimeByClip[num] || file.lastModified >= bestFileMtimeByClip[num]) {
+                    const is4kCandidate =
+                      /[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
+                      file.size >= 12 * 1024 * 1024;
+                    const isRecentNon4k =
+                      !is4kCandidate && Date.now() - file.lastModified <= 3 * 3600 * 1000;
+                    // Skip loading a recently regenerated non-4K clip via raw browser handle so /api/flow/list-folder-media upscales it to 4K first
+                    if (isRecentNon4k) continue;
+
+                    const prevIs4k = Boolean(bestFileIs4kByClip[num]);
+                    const shouldTake =
+                      !bestFileMtimeByClip[num] ||
+                      (is4kCandidate && !prevIs4k) ||
+                      (is4kCandidate === prevIs4k && file.lastModified >= bestFileMtimeByClip[num]);
+                    if (shouldTake) {
                       if (!bestFileMtimeByClip[num]) loadedCount++;
                       bestFileMtimeByClip[num] = file.lastModified;
+                      bestFileIs4kByClip[num] = is4kCandidate;
                       newClipUrls[num] = URL.createObjectURL(file);
+                      newClipFileNames[num] = String(entryName);
                     }
                   }
                 }
@@ -3902,6 +4003,9 @@ export default function App() {
 
           if (Object.keys(newClipUrls).length > 0) {
             setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
+          }
+          if (Object.keys(newClipFileNames).length > 0) {
+            setFolderClipFileNamesMap((prev) => ({ ...prev, ...newClipFileNames }));
           }
 
           // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
@@ -4011,6 +4115,28 @@ export default function App() {
             });
             if (Object.keys(nextFileNames).length > 0) {
               setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextFileNames }));
+              if (currentDoc?.clips?.length) {
+                let docNamesChanged = false;
+                const syncedClips = currentDoc.clips.map((c) => {
+                  const diskName = nextFileNames[c.clipNumber];
+                  if (
+                    diskName &&
+                    /[_\-]4k\.(mp4|webm|mov)$/i.test(diskName) &&
+                    c.videoSavedFileName !== diskName
+                  ) {
+                    docNamesChanged = true;
+                    return {
+                      ...c,
+                      videoSavedFileName: diskName,
+                      videoReady: true,
+                    };
+                  }
+                  return c;
+                });
+                if (docNamesChanged) {
+                  updateActiveDoc({ clips: syncedClips });
+                }
+              }
             }
           }
           if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0 && currentDoc?.clips?.length) {
@@ -4382,26 +4508,93 @@ export default function App() {
     videoDataUrl?: string
   ): Promise<string> => {
     if (!videoDataUrl) return '';
-    const baseFileName = buildClipSixWordFileName(clipObj, activeDocRef.current);
+    const currentDocForSave = activeDocRef.current || activeDoc;
+    const baseFileName = buildClipSixWordFileName(clipObj, currentDocForSave);
     const fileName = /[_\-]4k\.mp4$/i.test(baseFileName)
       ? baseFileName
       : baseFileName.replace(/\.mp4$/i, '_4K.mp4');
 
-    // Option B Automatic 4K UHD (3840x2160) Upscale with Lanczos + Unsharp Mask + VideoToolbox before saving to 05_Clips_Video
-    let finalVideoDataUrl = videoDataUrl;
-    try {
-      const resp = await fetch('/api/flow/upscale-clip-4k', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoDataUrl }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data?.ok && typeof data.videoDataUrl === 'string' && data.videoDataUrl.startsWith('data:video')) {
-          finalVideoDataUrl = data.videoDataUrl;
-        }
+    const isLocalhostOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiBases = isLocalhostOrigin
+      ? ['']
+      : isCloudMode
+      ? ['http://localhost:4200', '']
+      : ['', 'http://localhost:4200'];
+
+    const activeServerPath = (
+      flowServerFolderPath ||
+      currentDocForSave?.downloadFolderPath ||
+      globalStoredFolderPath ||
+      ''
+    ).trim();
+    const activeFolderName = (
+      flowDownloadDirHandleRef.current?.name ||
+      flowDownloadFolderName ||
+      currentDocForSave?.downloadFolderName ||
+      getCanonicalFolderNameForDoc(currentDocForSave) ||
+      globalStoredFolderName ||
+      ''
+    ).trim();
+    const activeDocTitle = `${currentDocForSave?.title || ''} ${currentDocForSave?.topic || ''}`.trim();
+
+    // 1. Primary: Save & Upscale directly to 4K (_4K.mp4) on local server disk via /api/flow/save-asset-to-folder
+    if ((activeServerPath || activeFolderName || activeDocTitle) && videoDataUrl.startsWith('data:')) {
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/save-asset-to-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderPath: activeServerPath,
+              folderName: activeFolderName,
+              docTitle: activeDocTitle,
+              subFolder: '05_Clips_Video',
+              fileName,
+              dataUrl: videoDataUrl,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.ok) {
+              const prefixUrl = (u: string) =>
+                u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+              const final4kUrl = data.url ? `${prefixUrl(data.url)}&r=${Date.now()}` : videoDataUrl;
+              const finalName = data.fileName || fileName;
+              setCapturedClipVideosMap((prev) => ({
+                ...prev,
+                [clipObj.clipNumber]: final4kUrl,
+              }));
+              setFolderClipFileNamesMap((prev) => ({
+                ...prev,
+                [clipObj.clipNumber]: finalName,
+              }));
+              return finalName;
+            }
+          }
+        } catch {}
       }
-    } catch {}
+    }
+
+    // 2. Fallback: Upscale in-memory via /api/flow/upscale-clip-4k before saving
+    let finalVideoDataUrl = videoDataUrl;
+    for (const baseOrigin of apiBases) {
+      try {
+        const resp = await fetch(`${baseOrigin}/api/flow/upscale-clip-4k`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoDataUrl }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data?.ok && typeof data.videoDataUrl === 'string' && data.videoDataUrl.startsWith('data:video')) {
+            finalVideoDataUrl = data.videoDataUrl;
+            break;
+          }
+        }
+      } catch {}
+    }
 
     setCapturedClipVideosMap((prev) => ({
       ...prev,
@@ -4648,13 +4841,6 @@ export default function App() {
     const attempt: number = Number(msg.attempt) || 1;
     const fromScan: boolean = Boolean(msg.fromScan);
 
-    if (videoDataUrl) {
-      setCapturedClipVideosMap((prev) => ({
-        ...prev,
-        [targetClip.clipNumber]: videoDataUrl,
-      }));
-    }
-
     try {
       // Extract 3 guaranteed distinct keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) in the foreground tab
       const distinctFrames = await extractThreeDistinctKeyframesInForeground(videoDataUrl, frames);
@@ -4701,9 +4887,9 @@ export default function App() {
         : 'Video capturado desde Google Flow con 3 fotogramas (Inicio 1.0s, Mitad 4.5s, Final 7.2s) y auditado sin mutaciones detectadas en la segunda mitad.';
       const issues: string[] = [];
 
-      // Auto-Download to 05_Clips_Video Subfolder inside Chosen Root Folder with 6-Word Filename
+      // Always upscale to 4K UHD (_4K.mp4) and save to 05_Clips_Video BEFORE loading into the player
       let savedFileName = targetClip.videoSavedFileName || '';
-      if (flowAutoDownloadEnabledRef.current && videoDataUrl) {
+      if (videoDataUrl) {
         savedFileName = await saveApprovedClipVideoToFolder(targetClip, videoDataUrl);
       }
 

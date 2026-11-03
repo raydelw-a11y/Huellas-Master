@@ -2798,7 +2798,8 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
     if (isClipVideo) {
       const mClip = safeName.match(/^0*(\d+)_/);
       if (mClip) {
-        const prefix = `${String(parseInt(mClip[1], 10)).padStart(2, '0')}_`;
+        const paddedNum = String(parseInt(mClip[1], 10)).padStart(2, '0');
+        const prefix = `${paddedNum}_`;
         for (const entry of fs.readdirSync(targetDir)) {
           if (
             entry !== safeName &&
@@ -2811,8 +2812,29 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
             } catch {}
           }
         }
+        // Extract/update initial frame .jpg for the 4K clip
+        const baseNo4k = path.basename(safeName, path.extname(safeName)).replace(/[_\-]4k$/i, '');
+        const suffixWithoutNum = baseNo4k.replace(/^0*\d+_/, '');
+        const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+        const frameFullPath = path.join(targetDir, frameFileName);
+        try {
+          const ffmpegBin = resolveFfmpegBin();
+          await new Promise<void>((resolve) => {
+            const proc = spawn(
+              ffmpegBin,
+              ['-y', '-i', fullTarget, '-frames:v', '1', '-q:v', '2', frameFullPath],
+              { stdio: 'ignore' }
+            );
+            proc.on('error', () => resolve());
+            proc.on('close', () => resolve());
+          });
+          if (fs.existsSync(frameFullPath)) {
+            execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+          }
+        } catch {}
       }
     }
+    const savedSt = fs.statSync(fullTarget);
     res.json({
       ok: true,
       savedPath: fullTarget,
@@ -2820,6 +2842,7 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
       fileName: safeName,
       bytes: finalBuffer.length,
       resolution: '3840x2160',
+      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(fullTarget)}&v=${Math.floor(savedSt.mtimeMs)}`,
     });
   } catch (err: any) {
     console.error('Error guardando video en carpeta elegida:', err);
@@ -2850,9 +2873,9 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
-    const isClipVideo = resolvedSub === '05_Clips_Video' && /\.mp4$/i.test(safeName);
-    if (isClipVideo && !/[_\-]4k\.mp4$/i.test(safeName)) {
-      safeName = safeName.replace(/\.mp4$/i, '_4K.mp4');
+    const isClipVideo = resolvedSub === '05_Clips_Video' && /\.(mp4|mov|webm)$/i.test(safeName);
+    if (isClipVideo && !/[_\-]4k\.(mp4|mov|webm)$/i.test(safeName)) {
+      safeName = safeName.replace(/\.(mp4|mov|webm)$/i, '_4K.mp4');
     }
     const fullTarget = path.join(targetDir, safeName);
     const cleanBase64 = String(dataUrl).replace(/^data:[^;]+;base64,/, '');
@@ -2862,10 +2885,12 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
     try {
       execSync(`chflags nohidden "${fullTarget.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
     } catch {}
+    let frameUrl = '';
     if (isClipVideo) {
       const mClip = safeName.match(/^0*(\d+)_/);
       if (mClip) {
-        const prefix = `${String(parseInt(mClip[1], 10)).padStart(2, '0')}_`;
+        const paddedNum = String(parseInt(mClip[1], 10)).padStart(2, '0');
+        const prefix = `${paddedNum}_`;
         for (const entry of fs.readdirSync(targetDir)) {
           if (
             entry !== safeName &&
@@ -2878,9 +2903,40 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
             } catch {}
           }
         }
+        // Extract/update initial frame .jpg for the 4K clip
+        const baseNo4k = path.basename(safeName, path.extname(safeName)).replace(/[_\-]4k$/i, '');
+        const suffixWithoutNum = baseNo4k.replace(/^0*\d+_/, '');
+        const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+        const frameFullPath = path.join(targetDir, frameFileName);
+        try {
+          const ffmpegBin = resolveFfmpegBin();
+          await new Promise<void>((resolve) => {
+            const proc = spawn(
+              ffmpegBin,
+              ['-y', '-i', fullTarget, '-frames:v', '1', '-q:v', '2', frameFullPath],
+              { stdio: 'ignore' }
+            );
+            proc.on('error', () => resolve());
+            proc.on('close', () => resolve());
+          });
+          if (fs.existsSync(frameFullPath)) {
+            execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+            const fst = fs.statSync(frameFullPath);
+            frameUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(frameFullPath)}&v=${Math.floor(fst.mtimeMs)}`;
+          }
+        } catch {}
       }
     }
-    res.json({ ok: true, savedPath: fullTarget, subFolder: resolvedSub, fileName: safeName, bytes: finalBuffer.length });
+    const savedSt = fs.statSync(fullTarget);
+    res.json({
+      ok: true,
+      savedPath: fullTarget,
+      subFolder: resolvedSub,
+      fileName: safeName,
+      bytes: finalBuffer.length,
+      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(fullTarget)}&v=${Math.floor(savedSt.mtimeMs)}`,
+      frameUrl,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error guardando activo en carpeta.' });
   }
@@ -3670,7 +3726,7 @@ function resolveLocalDocumentaryFolder(
   return '';
 }
 
-app.get('/api/flow/list-folder-media', (req, res) => {
+app.get('/api/flow/list-folder-media', async (req, res) => {
   try {
     const folderPath = String(req.query.folderPath || '');
     const folderName = String(req.query.folderName || '');
@@ -3683,12 +3739,189 @@ app.get('/api/flow/list-folder-media', (req, res) => {
     const sunoFiles: Array<{ trackNumber: number; fileName: string; url: string }> = [];
 
     if (resolvedRoot) {
+      const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
+      if (!fs.existsSync(clipsDir)) {
+        try {
+          fs.mkdirSync(clipsDir, { recursive: true });
+        } catch {}
+      }
+
+      // Move any loose clip videos dropped in the project root into 05_Clips_Video first
+      try {
+        for (const rootEntry of fs.readdirSync(resolvedRoot)) {
+          if (rootEntry.startsWith('.') || /^Documental_|_Master|_Final/i.test(rootEntry)) continue;
+          if (/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(].*\.(mp4|webm|mov)$/i.test(rootEntry)) {
+            const srcLoose = path.join(resolvedRoot, rootEntry);
+            if (fs.statSync(srcLoose).isFile()) {
+              fs.renameSync(srcLoose, path.join(clipsDir, rootEntry));
+            }
+          }
+        }
+      } catch {}
+
+      // Auto-upscale any manually regenerated / newly added non-4K clip in 05_Clips_Video BEFORE serving it
+      if (fs.existsSync(clipsDir) && fs.statSync(clipsDir).isDirectory()) {
+        try {
+          const allDirEntries = fs.readdirSync(clipsDir);
+          const nowMs = Date.now();
+          const has4kOrFrameByClip = new Set<number>();
+          const canonicalBaseByClip = new Map<number, string>();
+          const non4kVideos: Array<{
+            entry: string;
+            full: string;
+            clipNum: number;
+            mtimeMs: number;
+            size: number;
+          }> = [];
+
+          for (const entry of allDirEntries) {
+            if (entry.startsWith('.') || /\.tmp\.(mp4|webm|mov)$/i.test(entry)) continue;
+            const full = path.join(clipsDir, entry);
+            let st: fs.Stats;
+            try {
+              st = fs.statSync(full);
+            } catch {
+              continue;
+            }
+            if (!st.isFile()) continue;
+
+            const mFrame = entry.match(/^0*(\d+)_Imagen_Inicial_(.+)\.(jpg|jpeg|png|webp)$/i);
+            if (mFrame) {
+              const cNum = parseInt(mFrame[1], 10);
+              if (cNum > 0) {
+                has4kOrFrameByClip.add(cNum);
+                const padded = String(cNum).padStart(2, '0');
+                if (!canonicalBaseByClip.has(cNum)) {
+                  canonicalBaseByClip.set(cNum, `${padded}_${mFrame[2]}`);
+                }
+              }
+              continue;
+            }
+
+            const mVid = entry.match(
+              /^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+            );
+            if (mVid) {
+              const cNum = parseInt(mVid[1], 10);
+              if (cNum <= 0) continue;
+              const is4kName = /[_\-]4k\.(mp4|webm|mov)$/i.test(entry);
+              const isReal4k = is4kName && st.size >= 12 * 1024 * 1024;
+              const ext = path.extname(entry);
+              const cleanBase = path.basename(entry, ext).replace(/[_\-]4k$/i, '');
+              if (
+                new RegExp(`^0*${cNum}_[a-zA-Z0-9]`, 'i').test(entry) &&
+                !/^(?:clip|video|scene|escena)[_\-\s.]/i.test(entry)
+              ) {
+                canonicalBaseByClip.set(cNum, cleanBase);
+              }
+              if (isReal4k) {
+                has4kOrFrameByClip.add(cNum);
+              } else if (st.size > 10000) {
+                non4kVideos.push({
+                  entry,
+                  full,
+                  clipNum: cNum,
+                  mtimeMs: st.mtimeMs,
+                  size: st.size,
+                });
+              }
+            }
+          }
+
+          // Identify recent non-4K videos (added/modified in the last 3 hours, or replacing an existing 4K/regenerated clip)
+          // Exclude bulk batch dumps where >6 files share the exact same minute timestamp
+          const recentWindowNon4k = non4kVideos.filter(
+            (v) => nowMs - v.mtimeMs <= 3 * 3600 * 1000
+          );
+          const isSmallManualBatch = recentWindowNon4k.length > 0 && recentWindowNon4k.length <= 6;
+
+          const toAutoUpscale = non4kVideos
+            .filter((v) => has4kOrFrameByClip.has(v.clipNum) || (isSmallManualBatch && nowMs - v.mtimeMs <= 3 * 3600 * 1000))
+            .sort((a, b) => b.mtimeMs - a.mtimeMs)
+            .slice(0, 4);
+
+          for (const item of toAutoUpscale) {
+            if (!fs.existsSync(item.full)) continue;
+            const paddedNum = String(item.clipNum).padStart(2, '0');
+            let canonicalBase = canonicalBaseByClip.get(item.clipNum) || '';
+            if (!canonicalBase) {
+              let rawBase = path
+                .basename(item.entry, path.extname(item.entry))
+                .replace(/[_\-]4k$/i, '')
+                .replace(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+                .replace(/\s+/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_|_$/g, '');
+              if (!rawBase) rawBase = 'Clip';
+              canonicalBase = `${paddedNum}_${rawBase}`;
+            }
+            const final4kName = `${canonicalBase}_4K.mp4`;
+            const final4kFull = path.join(clipsDir, final4kName);
+            const tmp4kFull = path.join(
+              os.tmpdir(),
+              `huellas_autoload_4k_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
+            );
+            try {
+              await upscaleFileTo4KOnDisk(item.full, tmp4kFull, '16:9');
+              if (fs.existsSync(tmp4kFull) && fs.statSync(tmp4kFull).size > 10000) {
+                fs.copyFileSync(tmp4kFull, final4kFull);
+                try {
+                  execSync(`chflags nohidden "${final4kFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+                } catch {}
+                // Delete non-4K original and any other older video files for this clip number
+                const prefix = `${paddedNum}_`;
+                for (const existing of fs.readdirSync(clipsDir)) {
+                  const fullExisting = path.join(clipsDir, existing);
+                  if (
+                    path.resolve(fullExisting) !== path.resolve(final4kFull) &&
+                    /\.(mp4|mov|webm)$/i.test(existing) &&
+                    (existing.startsWith(prefix) || existing === item.entry)
+                  ) {
+                    try {
+                      fs.unlinkSync(fullExisting);
+                    } catch {}
+                  }
+                }
+                // Extract/update initial frame .jpg
+                const suffixWithoutNum = canonicalBase.replace(/^0*\d+_/, '');
+                const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+                const frameFullPath = path.join(clipsDir, frameFileName);
+                try {
+                  const ffmpegBin = resolveFfmpegBin();
+                  await new Promise<void>((resolve) => {
+                    const proc = spawn(
+                      ffmpegBin,
+                      ['-y', '-i', final4kFull, '-frames:v', '1', '-q:v', '2', frameFullPath],
+                      { stdio: 'ignore' }
+                    );
+                    proc.on('error', () => resolve());
+                    proc.on('close', () => resolve());
+                  });
+                  if (fs.existsSync(frameFullPath)) {
+                    execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+                  }
+                } catch {}
+              }
+            } catch (err) {
+              console.warn(`[Auto-4K on Load] Failed to upscale ${item.entry}:`, err);
+            } finally {
+              try {
+                if (fs.existsSync(tmp4kFull)) fs.unlinkSync(tmp4kFull);
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+
       const videoSubfolders = ['05_Clips_Video', 'Clips_Aprobados', ''];
       const seenVideoClips = new Set<number>();
       for (const sub of videoSubfolders) {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
         const entries = fs.readdirSync(dir).sort((a, b) => {
+          const a4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(a) ? 1 : 0;
+          const b4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(b) ? 1 : 0;
+          if (b4k !== a4k) return b4k - a4k;
           try {
             return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
           } catch {

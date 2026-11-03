@@ -410,18 +410,21 @@ function parseSrtToCaptionItems(
 
   if (items.length > 0 && typeof alignStartSec === 'number') {
     const firstStart = items[0].start;
-    // If SRT starts near 0.0s (e.g. 0.0s - 2.0s), shift by +alignStartSec.
-    // If SRT is already offset to ~8.0s (e.g. 8.55s with 0.55s acoustic lead-in), preserve the acoustic lead-in
-    // and only shift by (alignStartSec - 8.0) when alignStartSec differs from 8.0s!
-    let delta = 0;
-    if (firstStart < 2.2) {
-      delta = alignStartSec - (firstStart < 0.25 ? firstStart : 0);
-    } else if (firstStart >= 7.8 && firstStart <= 9.8) {
-      delta = alignStartSec - 8.0;
-    } else if (Math.abs(alignStartSec - firstStart) > 1.8) {
-      delta = alignStartSec - firstStart;
+    // Detect base offset (0s, 6s, 8s, or 16s) while preserving exact sub-second acoustic lead-in (e.g. 0.55s in Video 76)
+    let sourceBaseOffset = 0;
+    if (firstStart >= 15.5 && firstStart <= 18.5) {
+      sourceBaseOffset = 16.0;
+    } else if (firstStart >= 7.5 && firstStart <= 10.5) {
+      sourceBaseOffset = 8.0;
+    } else if (firstStart >= 5.5 && firstStart < 7.5) {
+      sourceBaseOffset = 6.0;
+    } else if (firstStart < 2.5) {
+      sourceBaseOffset = 0.0;
+    } else {
+      sourceBaseOffset = Math.max(0, firstStart - 0.55);
     }
-    if (Math.abs(delta) > 0.05) {
+    const delta = alignStartSec - sourceBaseOffset;
+    if (Math.abs(delta) > 0.03) {
       return items.map((it) => ({
         ...it,
         start: Number(Math.max(0, it.start + delta).toFixed(2)),
@@ -431,6 +434,73 @@ function parseSrtToCaptionItems(
   }
 
   return items;
+}
+
+// Deterministically align any caption list to either Opción A (INTRO_INICIO_00: Voice starts at 16s)
+// or Opción B (INTRO_POST_SLOGAN: Voice starts at 8s, with an 8s Intro pause inserted right after the Slogan Completo)
+function alignCaptionsToIntroPlacement(
+  rawItems: TimelineCaptionItem[],
+  mode: 'INTRO_INICIO_00' | 'INTRO_POST_SLOGAN',
+  baseHookSec = 8,
+  introDurSec = 8,
+  sloganSplitAudioSec = 68.5
+): TimelineCaptionItem[] {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+
+  const firstStart = Number(rawItems[0].start || 0);
+  let sourceBaseOffset = 0;
+  if (firstStart >= 15.5 && firstStart <= 18.5) {
+    sourceBaseOffset = 16.0;
+  } else if (firstStart >= 7.5 && firstStart <= 10.5) {
+    sourceBaseOffset = 8.0;
+  } else if (firstStart >= 5.5 && firstStart < 7.5) {
+    sourceBaseOffset = 6.0;
+  } else if (firstStart < 2.5) {
+    sourceBaseOffset = 0.0;
+  } else {
+    sourceBaseOffset = Math.max(0, firstStart - 0.55);
+  }
+
+  // Detect if rawItems already has an 8s Post-Slogan gap baked in after "Aquí seguimos sus rastros" (~50s-90s of audio)
+  let existingPostSloganGapIdx = -1;
+  for (let i = 0; i < Math.min(rawItems.length - 1, 65); i++) {
+    const approxAudioEnd = rawItems[i].end - sourceBaseOffset;
+    if (approxAudioEnd >= 45 && approxAudioEnd <= 90) {
+      const gap = rawItems[i + 1].start - rawItems[i].end;
+      const combinedTxt = `${rawItems[Math.max(0, i - 1)].text || ''} ${rawItems[i].text || ''}`
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      if (
+        gap >= 7.2 &&
+        (combinedTxt.includes('rastros') ||
+          combinedTxt.includes('huella') ||
+          Math.abs(approxAudioEnd - sloganSplitAudioSec) <= 4.5)
+      ) {
+        existingPostSloganGapIdx = i;
+        break;
+      }
+    }
+  }
+
+  const targetInitialOffset = mode === 'INTRO_POST_SLOGAN' ? baseHookSec : baseHookSec + introDurSec;
+
+  return rawItems.map((it, idx) => {
+    const hadExtraIntroGap = existingPostSloganGapIdx >= 0 && idx > existingPostSloganGapIdx;
+    const effectiveSourceOffset = sourceBaseOffset + (hadExtraIntroGap ? introDurSec : 0);
+    const audioStart = Math.max(0, it.start - effectiveSourceOffset);
+    const audioEnd = Math.max(audioStart + 0.25, it.end - effectiveSourceOffset);
+
+    const needsPostSloganShift =
+      mode === 'INTRO_POST_SLOGAN' && audioStart >= sloganSplitAudioSec - 0.15;
+    const finalOffset = targetInitialOffset + (needsPostSloganShift ? introDurSec : 0);
+
+    return {
+      ...it,
+      start: Number((audioStart + finalOffset).toFixed(2)),
+      end: Number((audioEnd + finalOffset).toFixed(2)),
+    };
+  });
 }
 
 interface CapCutEditorProps {
@@ -911,14 +981,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
 
-  // Voiceover Track (Track 4) — Always starts at 16s (after 8s Intro at 00:00-00:08 + 8s Clip 1 Hook Text at 00:08-00:16)
+  // Voiceover Track (Track 4) — Starts at 16s in Opción A (after 8s Intro + 8s Clip 1 Hook) or 8s in Opción B (Post-Slogan)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
-    if (initialDocOverlays && Number(initialDocOverlays.voiceStartOffsetSec) >= 8) {
-      return Number(initialDocOverlays.voiceStartOffsetSec);
-    }
+    const mode =
+      activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+        ? 'INTRO_POST_SLOGAN'
+        : 'INTRO_INICIO_00';
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
-    return 8 + clip1HookDur;
+    return mode === 'INTRO_POST_SLOGAN' ? clip1HookDur : 8 + clip1HookDur;
   });
   const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
   const [voiceVolume, setVoiceVolume] = useState<number>(100);
@@ -934,7 +1005,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       Array.isArray(initialDocOverlays.captions) &&
       initialDocOverlays.captions.length > 0
     ) {
-      return initialDocOverlays.captions;
+      const mode =
+        activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+          ? 'INTRO_POST_SLOGAN'
+          : 'INTRO_INICIO_00';
+      const { clip1Sec } = getStage1ClipDurations(activeDoc);
+      const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+      return alignCaptionsToIntroPlacement(initialDocOverlays.captions, mode, clip1HookDur, 8, 68.5);
     }
     return [];
   });
@@ -995,7 +1072,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const userEditedCaptionsDocIdRef = useRef<string>(
     initialDocOverlays?.userEditedCaptions ? activeDoc?.id || 'default' : ''
   );
-  const lastSyncedDocIdRef = useRef<string>(activeDoc?.id || 'default');
+  const lastSyncedDocIdRef = useRef<string>('');
+  const lastSyncedIntroPlacementRef = useRef<string>('');
 
   const persistDocOverlaysPatch = (patch: Record<string, any>, targetDocId?: string) => {
     const docKey = `huellas_editor_doc_overlays_${targetDocId || activeDoc?.id || 'default'}`;
@@ -1285,7 +1363,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     let cancelled = false;
-    (async () => {
+    const fetchFolderMedia = async () => {
       const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
@@ -1310,7 +1388,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
             }
             if (Object.keys(nextFrames).length > 0) {
-              setFirstFrameByClip((prev) => ({ ...nextFrames, ...prev }));
+              setFirstFrameByClip((prev) => ({ ...prev, ...nextFrames }));
             }
           }
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
@@ -1334,10 +1412,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         } catch {}
       }
-    })();
+    };
+
+    fetchFolderMedia();
+    const onWinFocus = () => {
+      if (isEditorActive) fetchFolderMedia();
+    };
+    window.addEventListener('focus', onWinFocus);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', onWinFocus);
     };
   }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath, isEditorActive]);
 
@@ -1564,83 +1649,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Insert the 8-second Official Intro (Intro.mp4) into Track 3 (either at 00:00 - 00:08 by default, or Post-Slogan ~00:28)
-  const handleInsertOfficialIntroInTimeline = (
-    mode: 'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00' = introPlacementMode
-  ) => {
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
-    const introOutroBasePath =
-      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
-    const defaultIntro8kUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Intro.mp4`
-    )}&v=8k_audio_fade`;
-    const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
-
-    const introClipItem: TimelineClipItem = {
-      id: 'fixed-doc-intro',
-      clipNumber: 0,
-      fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
-      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:08' : 'Intro Oficial (8s)',
-      duration: 8,
-      sourceDuration: 8,
-      originalDuration: 8,
-      originalSlotDuration: 8,
-      speed: 1,
-      foleyVolume: 100,
-      transition: 'crossfade',
-      videoUrl: effectiveIntroUrl,
-      posterUrl: officialLogoUrl || undefined,
-      narrationSegment:
-        mode === 'INTRO_INICIO_00'
-          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
-          : '🎬 INTRO OFICIAL POST-SLOGAN (8s • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
-      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (8s — Minimalismo en Piedra y Oro)',
-      trimStart: 0,
-      trimEnd: 8,
-      smoothSlowMo: false,
-      reviewedForEditor: true,
-    };
-
-    setTimelineClips((prev) => {
-      const withoutExistingIntro = prev.filter(
-        (c) => c.id !== 'fixed-doc-intro' && !c.id.startsWith('official_intro_') && c.clipNumber !== 0
-      );
-      if (mode === 'INTRO_INICIO_00') {
-        return [introClipItem, ...withoutExistingIntro];
-      }
-      // Opción B: Post-Promesa / Slogan (~00:28, right after Clip 3 which covers the Slogan desk scene)
-      const insertIdx = Math.min(3, withoutExistingIntro.length);
-      return [
-        ...withoutExistingIntro.slice(0, insertIdx),
-        introClipItem,
-        ...withoutExistingIntro.slice(insertIdx),
-      ];
-    });
-
-    const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
-    if (mode === 'INTRO_INICIO_00') {
-      setVoiceStartOffsetSec(baseHookSec + 8);
-      setHookLine1StartSec(8);
-      setHookLine2StartSec(10);
-      setClip1OverlayEndSec(baseHookSec + 8);
-      setStatusMessage(
-        '✅ Intro Oficial (8s — Intro.mp4) ubicado en 00:00 - 00:08 (Opción A por defecto) y tiempos desplazados +8s automáticamente.'
-      );
-    } else {
-      setVoiceStartOffsetSec(baseHookSec);
-      setHookLine1StartSec(0);
-      setHookLine2StartSec(2);
-      setClip1OverlayEndSec(baseHookSec);
-      setStatusMessage(
-        '✅ Intro Oficial (8s — Intro.mp4) ubicado después del Clip 3 / Slogan Completo (~00:28, Opción B Post-Slogan).'
-      );
-    }
-  };
-
   const isVideo76Doc = useMemo(() => {
     const combined = `${effectiveVoiceoverUrl || ''} ${activeDoc?.title || ''} ${activeDoc?.topic || ''} ${activeDoc?.downloadFolderName || ''} ${(activeDoc?.voiceoverScript || '').slice(0, 400)}`.toLowerCase();
     return (
@@ -1667,6 +1675,439 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (trackDur > 1) return trackDur;
     return 0;
   }, [voiceDurationSec, activeDoc?.audioTracks, effectiveVoiceoverUrl, isVideo76Doc]);
+
+  // Exact audio second (relative to 0.0s of Voiceover MP3) where the opening Slogan Completo ("...Aquí seguimos sus rastros.") ends
+  const sloganSplitAudioSec = useMemo(() => {
+    if (isVideo76Doc) {
+      // In tts-video-76-exodo-espanol.mp3, "Aquí seguimos sus rastros." ends at 67.66s and "Para comprender la raíz..." starts at 69.89s
+      return 68.5;
+    }
+    const rawScript = (activeDoc?.voiceoverScript || '').trim();
+    if (rawScript && effectiveVoiceDurationSec > 20) {
+      const norm = rawScript
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      const idxRastros = norm.indexOf('seguimos sus rastros');
+      const idxHuella = norm.indexOf('deja una huella');
+      const matchIdx =
+        idxRastros > 0 && idxRastros < 1800
+          ? idxRastros + 'seguimos sus rastros.'.length
+          : idxHuella > 0 && idxHuella < 1800
+          ? idxHuella + 'deja una huella.'.length
+          : -1;
+      if (matchIdx > 0) {
+        const cleanBefore = stripPauseTags(rawScript.slice(0, matchIdx)).trim();
+        const cleanAll = stripPauseTags(rawScript).trim();
+        if (cleanAll.length > 50) {
+          const estSec = (cleanBefore.length / cleanAll.length) * effectiveVoiceDurationSec + 0.8;
+          return Number(Math.max(22, Math.min(110, estSec)).toFixed(2));
+        }
+      }
+    }
+    return 68.5;
+  }, [isVideo76Doc, activeDoc?.voiceoverScript, effectiveVoiceDurationSec]);
+
+  // Build & align Track 3 clips for either Opción A (INTRO_INICIO_00: 00:00-00:08) or Opción B (INTRO_POST_SLOGAN: right after Slogan Completo without cutting any clip)
+  const buildAlignedTimelineClipsForIntroMode = (
+    rawClipsInput: TimelineClipItem[],
+    mode: 'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00',
+    fixedIntroClip: TimelineClipItem,
+    fixedOutroClip?: TimelineClipItem | null
+  ): TimelineClipItem[] => {
+    // 1. Strip existing intro, outro, and any previously split partB slogan clip; restore partA to full clip
+    const cleanBody: TimelineClipItem[] = [];
+    for (const c of rawClipsInput) {
+      if (
+        c.id === 'fixed-doc-intro' ||
+        c.id.startsWith('official_intro_') ||
+        c.clipNumber === 0 ||
+        c.id === 'fixed-doc-outro' ||
+        c.clipNumber === 999 ||
+        c.id.endsWith('-slogan-partB')
+      ) {
+        continue;
+      }
+      if (c.id.endsWith('-slogan-partA')) {
+        const fullSrcDur = c.sourceDuration && c.sourceDuration > 6 ? c.sourceDuration : 7.85;
+        cleanBody.push({
+          ...c,
+          id: c.id.replace(/-slogan-partA$/, ''),
+          trimStart: 0,
+          trimEnd: fullSrcDur,
+          partLabel: undefined,
+        });
+      } else {
+        cleanBody.push({ ...c });
+      }
+    }
+
+    if (cleanBody.length === 0) {
+      return fixedOutroClip ? [fixedIntroClip, fixedOutroClip] : [fixedIntroClip];
+    }
+
+    // 2. Locate the exact clip in the opening section (Clips 2..12) where the Slogan Completo ("Aquí seguimos sus rastros.") ends
+    let sloganClipIdx = -1;
+    const searchLimit = Math.min(cleanBody.length, 13);
+    for (let i = 1; i < searchLimit; i++) {
+      const c = cleanBody[i];
+      let decodedUrl = '';
+      try {
+        decodedUrl = decodeURIComponent(c.videoUrl || '');
+      } catch {
+        decodedUrl = c.videoUrl || '';
+      }
+      const haystack = `${c.narrationSegment || ''} ${c.videoPrompt || ''} ${c.fileName || ''} ${decodedUrl}`
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      if (
+        haystack.includes('seguimos sus rastros') ||
+        haystack.includes('seguimos_sus_rastros') ||
+        haystack.includes('historia deja una huella') ||
+        haystack.includes('historia_deja_una_huella') ||
+        haystack.includes('suscribete_cada_historia')
+      ) {
+        sloganClipIdx = i;
+        break;
+      }
+    }
+    if (sloganClipIdx < 1) {
+      if (isVideo76Doc && cleanBody.length >= 7) {
+        sloganClipIdx = 6; // Clip 7 (07_suscribete_Cada_historia_deja_una_huella_4K.mp4)
+      } else {
+        let cum = 0;
+        let bestIdx = Math.min(6, cleanBody.length - 1);
+        let bestDiff = Infinity;
+        for (let i = 1; i < searchLimit; i++) {
+          cum += cleanBody[i].duration || 10;
+          const diff = Math.abs(cum - sloganSplitAudioSec);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = i;
+          }
+        }
+        sloganClipIdx = Math.max(1, bestIdx);
+      }
+    }
+
+    // 3. Align durations of pre-slogan and post-slogan narrated clips so the Slogan clip ends at the exact second "Aquí seguimos sus rastros." finishes
+    const targetVoiceDur = effectiveVoiceDurationSec > 20 ? effectiveVoiceDurationSec : 0;
+    if (mode === 'INTRO_POST_SLOGAN') {
+      const sloganClip = cleanBody[sloganClipIdx];
+      // In Video 76, Clip 7 (7.85s MP4) has Shot 1 (0s-4.28s: Historian's Desk for Slogan) and Shot 2 (4.36s-7.85s: Asturias Mountains for Chapter 1)
+      const isVid76TwoShotClip7 = Boolean(isVideo76Doc && sloganClip && sloganClip.clipNumber === 7);
+
+      if (isVid76TwoShotClip7 && sloganClip) {
+        const partA: TimelineClipItem = {
+          ...sloganClip,
+          id: `${sloganClip.id}-slogan-partA`,
+          sourceDuration: 7.85,
+          trimStart: 0,
+          trimEnd: 4.28,
+          speed: 1,
+          partLabel: 'Slogan (Mesa)',
+          narrationSegment:
+            'suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros.',
+        };
+        const partB: TimelineClipItem = {
+          ...sloganClip,
+          id: `${sloganClip.id}-slogan-partB`,
+          sourceDuration: 7.85,
+          trimStart: 4.36,
+          trimEnd: 7.85,
+          duration: 8.8,
+          originalSlotDuration: 8.8,
+          speed: 1,
+          partLabel: 'Cap. 1 (Asturias)',
+          narrationSegment:
+            'Para comprender la raíz de esta marea humana es necesario adentrarse en las montañas',
+        };
+
+        const preClips = [...cleanBody.slice(1, sloganClipIdx), partA];
+        const postClips = [partB, ...cleanBody.slice(sloganClipIdx + 1)];
+
+        if (targetVoiceDur > sloganSplitAudioSec + 10) {
+          const preRawSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
+          if (preRawSum > 0) {
+            let runPre = 0;
+            preClips.forEach((pc, idx) => {
+              if (idx === preClips.length - 1) {
+                pc.duration = Number(Math.max(2, sloganSplitAudioSec - runPre).toFixed(2));
+              } else {
+                pc.duration = Number(
+                  Math.max(2, (pc.duration / preRawSum) * sloganSplitAudioSec).toFixed(2)
+                );
+                runPre += pc.duration;
+              }
+              pc.originalSlotDuration = pc.duration;
+            });
+          }
+
+          const remAfterPartB = Math.max(10, targetVoiceDur - sloganSplitAudioSec - partB.duration);
+          const restPost = postClips.slice(1);
+          const restRawSum = restPost.reduce((acc, it) => acc + (it.duration || 10), 0);
+          if (restRawSum > 0 && restPost.length > 0) {
+            let runPost = 0;
+            restPost.forEach((rc, idx) => {
+              if (idx === restPost.length - 1) {
+                rc.duration = Number(Math.max(2, remAfterPartB - runPost).toFixed(2));
+              } else {
+                rc.duration = Number(
+                  Math.max(2, (rc.duration / restRawSum) * remAfterPartB).toFixed(2)
+                );
+                runPost += rc.duration;
+              }
+              rc.originalSlotDuration = rc.duration;
+            });
+          }
+        }
+
+        const assembled = [
+          cleanBody[0],
+          ...preClips,
+          fixedIntroClip,
+          ...postClips,
+          ...(fixedOutroClip ? [fixedOutroClip] : []),
+        ];
+        return assembled;
+      }
+
+      // Standard single-shot Slogan clip in Opción B: align Clips 2..sloganClipIdx to sloganSplitAudioSec, then insert fixedIntroClip
+      const preClips = cleanBody.slice(1, sloganClipIdx + 1);
+      const postClips = cleanBody.slice(sloganClipIdx + 1);
+      if (targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
+        const preRawSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
+        if (preRawSum > 0) {
+          let runPre = 0;
+          preClips.forEach((pc, idx) => {
+            if (idx === preClips.length - 1) {
+              pc.duration = Number(Math.max(2, sloganSplitAudioSec - runPre).toFixed(2));
+            } else {
+              pc.duration = Number(
+                Math.max(2, (pc.duration / preRawSum) * sloganSplitAudioSec).toFixed(2)
+              );
+              runPre += pc.duration;
+            }
+            pc.originalSlotDuration = pc.duration;
+          });
+        }
+        const remVoiceDur = Math.max(10, targetVoiceDur - sloganSplitAudioSec);
+        const postRawSum = postClips.reduce((acc, it) => acc + (it.duration || 10), 0);
+        if (postRawSum > 0 && postClips.length > 0) {
+          let runPost = 0;
+          postClips.forEach((rc, idx) => {
+            if (idx === postClips.length - 1) {
+              rc.duration = Number(Math.max(2, remVoiceDur - runPost).toFixed(2));
+            } else {
+              rc.duration = Number(
+                Math.max(2, (rc.duration / postRawSum) * remVoiceDur).toFixed(2)
+              );
+              runPost += rc.duration;
+            }
+            rc.originalSlotDuration = rc.duration;
+          });
+        }
+      }
+
+      return [
+        cleanBody[0],
+        ...preClips,
+        fixedIntroClip,
+        ...postClips,
+        ...(fixedOutroClip ? [fixedOutroClip] : []),
+      ];
+    }
+
+    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned to targetVoiceDur
+    if (targetVoiceDur > 10 && cleanBody.length > 1) {
+      if (isVideo76Doc && sloganClipIdx === 6 && cleanBody.length > 7) {
+        // Lock Clips 2..7 to end at 77.30s of audio (so Clip 7's internal 4.33s shot cut lands right at 68.5s after the Slogan!)
+        const preTarget = 77.3;
+        const preClips = cleanBody.slice(1, 7);
+        const postClips = cleanBody.slice(7);
+        const preSum = preClips.reduce((acc, it) => acc + (it.duration || 10), 0);
+        if (preSum > 0) {
+          let runPre = 0;
+          preClips.forEach((pc, idx) => {
+            if (idx === preClips.length - 1) {
+              pc.duration = Number(Math.max(2, preTarget - runPre).toFixed(2));
+            } else {
+              pc.duration = Number(Math.max(2, (pc.duration / preSum) * preTarget).toFixed(2));
+              runPre += pc.duration;
+            }
+            pc.originalSlotDuration = pc.duration;
+          });
+        }
+        const remTarget = Math.max(10, targetVoiceDur - preTarget);
+        const postSum = postClips.reduce((acc, it) => acc + (it.duration || 10), 0);
+        if (postSum > 0 && postClips.length > 0) {
+          let runPost = 0;
+          postClips.forEach((rc, idx) => {
+            if (idx === postClips.length - 1) {
+              rc.duration = Number(Math.max(2, remTarget - runPost).toFixed(2));
+            } else {
+              rc.duration = Number(Math.max(2, (rc.duration / postSum) * remTarget).toFixed(2));
+              runPost += rc.duration;
+            }
+            rc.originalSlotDuration = rc.duration;
+          });
+        }
+      } else {
+        const narratedClips = cleanBody.slice(1);
+        const rawNarratedSum = narratedClips.reduce((acc, item) => acc + item.duration, 0);
+        if (rawNarratedSum > 0 && Math.abs(targetVoiceDur - rawNarratedSum) > 0.5) {
+          let runningSec = 0;
+          narratedClips.forEach((nc, idx) => {
+            if (idx === narratedClips.length - 1) {
+              nc.duration = Number(Math.max(2, targetVoiceDur - runningSec).toFixed(2));
+            } else {
+              const scaled = Number(((nc.duration / rawNarratedSum) * targetVoiceDur).toFixed(2));
+              nc.duration = Math.max(2, scaled);
+              runningSec += nc.duration;
+            }
+            nc.originalSlotDuration = nc.duration;
+          });
+        }
+      }
+    }
+
+    return [
+      fixedIntroClip,
+      ...cleanBody,
+      ...(fixedOutroClip ? [fixedOutroClip] : []),
+    ];
+  };
+
+  // Insert the 8-second Official Intro (Intro.mp4) into Track 3 (either at 00:00 - 00:08 by default, or Post-Slogan right after "Aquí seguimos sus rastros.")
+  const handleInsertOfficialIntroInTimeline = (
+    mode: 'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00' = introPlacementMode
+  ) => {
+    const docId = activeDoc?.id || 'default';
+    setIntroPlacementMode(mode);
+    lastSyncedIntroPlacementRef.current = mode;
+    if (activeDoc && activeDoc.promptConfig?.UBICACION_INTRO_MARCA !== mode) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          UBICACION_INTRO_MARCA: mode,
+        },
+      });
+    }
+
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const introOutroBasePath =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
+    const defaultIntro8kUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Intro.mp4`
+    )}&v=8k_audio_fade`;
+    const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/.Intro_Poster.jpg`
+    )}&v=8k_audio_fade`;
+    const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Outro.mp4`
+    )}&v=8k_audio_fade`;
+    const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/.Outro_Poster.jpg`
+    )}&v=8k_audio_fade`;
+    const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
+
+    const introClipItem: TimelineClipItem = {
+      id: 'fixed-doc-intro',
+      clipNumber: 0,
+      fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
+      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:08' : 'Intro Oficial Post-Slogan (8s)',
+      duration: 8,
+      sourceDuration: 8,
+      originalDuration: 8,
+      originalSlotDuration: 8,
+      speed: 1,
+      foleyVolume: 100,
+      transition: 'crossfade',
+      videoUrl: effectiveIntroUrl,
+      posterUrl: introPosterUrl || officialLogoUrl || undefined,
+      narrationSegment:
+        mode === 'INTRO_INICIO_00'
+          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
+      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (8s — Minimalismo en Piedra y Oro)',
+      trimStart: 0,
+      trimEnd: 8,
+      smoothSlowMo: false,
+      reviewedForEditor: true,
+    };
+
+    const outroClipItem: TimelineClipItem = {
+      id: 'fixed-doc-outro',
+      clipNumber: 999,
+      fileName: 'Outro_Huellas_de_la_Humanidad_8K_FadeOut.mp4',
+      narrationSegment:
+        '🎬 OUTRO OFICIAL (8s • Crossfade + Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
+      duration: 8,
+      sourceDuration: 8,
+      speed: 1,
+      trimStart: 0,
+      trimEnd: 8,
+      smoothSlowMo: false,
+      originalSlotDuration: 8,
+      foleyVolume: 100,
+      transition: 'crossfade',
+      videoUrl: outroVideoUrl,
+      posterUrl: outroPosterUrl,
+      reviewedForEditor: true,
+    };
+
+    setTimelineClips((prev) => {
+      const nextClips = buildAlignedTimelineClipsForIntroMode(
+        prev,
+        mode,
+        introClipItem,
+        outroClipItem
+      );
+      persistDocOverlaysPatch({ customTimelineClips: nextClips }, docId);
+      return nextClips;
+    });
+
+    const { clip1Sec } = getStage1ClipDurations(activeDoc);
+    const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    const nextVoiceOffset = mode === 'INTRO_INICIO_00' ? baseHookSec + 8 : baseHookSec;
+
+    setVoiceStartOffsetSec(nextVoiceOffset);
+    if (mode === 'INTRO_INICIO_00') {
+      setHookLine1StartSec(8);
+      setHookLine2StartSec(10);
+      setClip1OverlayEndSec(baseHookSec + 8);
+      setStatusMessage(
+        '✅ Intro Oficial (8s — Intro.mp4) ubicado en 00:00 - 00:08 (Opción A) y subtítulos sincronizados al 100% desde 00:16.'
+      );
+    } else {
+      setHookLine1StartSec(0);
+      setHookLine2StartSec(2);
+      setClip1OverlayEndSec(baseHookSec);
+      setStatusMessage(
+        '✅ Intro Oficial (8s — Intro.mp4) ubicado exactamente después del Slogan Completo ("Aquí seguimos sus rastros.") sin cortar ningún clip.'
+      );
+    }
+
+    setCaptions((prevCaps) => {
+      if (!prevCaps || prevCaps.length === 0) return prevCaps;
+      const aligned = alignCaptionsToIntroPlacement(
+        prevCaps,
+        mode,
+        baseHookSec,
+        8,
+        sloganSplitAudioSec
+      );
+      persistDocOverlaysPatch(
+        { captions: aligned, voiceStartOffsetSec: nextVoiceOffset },
+        docId
+      );
+      return aligned;
+    });
+  };
 
   // Detected acoustic silences from the real Voiceover MP3/WAV waveform
   const detectedAudioSilencesRef = useRef<Array<{ start: number; end: number; dur: number }>>([]);
@@ -1756,6 +2197,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ...capturedClipVideosMap,
       ...localServerClipVideosMap,
     };
+    for (const [kStr, capUrl] of Object.entries(capturedClipVideosMap)) {
+      const kNum = Number(kStr);
+      const srvUrl = localServerClipVideosMap[kNum] || '';
+      if (!capUrl) continue;
+      const capIs4k = /(_4k|%5f4k)/i.test(capUrl);
+      const srvIs4k = /(_4k|%5f4k)/i.test(srvUrl);
+      if ((capIs4k && !srvIs4k) || capUrl.includes('&r=')) {
+        combinedClipVideosMap[kNum] = capUrl;
+      }
+    }
     const combinedSunoAudioMap: Record<number, string> = {
       ...localServerSunoMap,
       ...capturedSunoAudioMap,
