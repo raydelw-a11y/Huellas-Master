@@ -2758,9 +2758,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       );
       if (anyRegeneratedOrUpdated && activeDoc?.id) {
-        writeSavedDocOverlays(activeDoc.id, {
-          customTimelineClips: sourceClipsForBuild,
-        });
+        persistDocOverlaysPatch(
+          { customTimelineClips: sourceClipsForBuild },
+          activeDoc.id
+        );
       }
     }
 
