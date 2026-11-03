@@ -6206,7 +6206,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 />
               </div>
 
-              <span className="font-mono text-xs text-emerald-300 font-bold shrink-0">
+              <span className="font-mono tabular-nums min-w-[96px] text-center text-xs text-emerald-300 font-bold shrink-0">
                 {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
               </span>
 
@@ -8180,15 +8180,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
               <Layers className="w-4 h-4" /> Línea de Tiempo Multipista (Arrastra o Corta Clips)
             </span>
-            {activeClipAtPlayhead && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[11px] font-bold text-amber-200 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
-                {String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}
-                {activeClipAtPlayhead.partLabel ? ` • ${activeClipAtPlayhead.partLabel}` : ''}) •{' '}
-                {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
+            <span className="w-[236px] shrink-0 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[11px] font-mono tabular-nums font-bold text-amber-200 flex items-center justify-between gap-1.5 whitespace-nowrap overflow-hidden">
+              <span className="flex items-center gap-1.5 truncate">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                {activeClipAtPlayhead ? (
+                  <span className="truncate">
+                    #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
+                    {String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}
+                    {activeClipAtPlayhead.partLabel ? ` • ${activeClipAtPlayhead.partLabel}` : ''})
+                  </span>
+                ) : (
+                  <span className="truncate">#-- (Clip --)</span>
+                )}
               </span>
-            )}
+              <span className="shrink-0 tabular-nums">
+                • {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
+              </span>
+            </span>
             {/* Quick Timeline Cut / Split / Delete Toolbar */}
             {selectedClip && (
               <div className="flex items-center gap-1.5 flex-wrap pl-1 border-l border-slate-800">
