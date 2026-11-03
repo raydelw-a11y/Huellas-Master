@@ -1579,7 +1579,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
             }
             if (Object.keys(nextFrames).length > 0) {
-              setFirstFrameByClip((prev) => ({ ...prev, ...nextFrames }));
+              setFirstFrameByClip((prev) => {
+                const changed = Object.entries(nextFrames).some(([k, v]) => prev[Number(k)] !== v);
+                return changed ? { ...prev, ...nextFrames } : prev;
+              });
             }
           }
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
@@ -1589,7 +1592,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 nextVids[item.clipNumber] = prefix(item.url);
               }
             }
-            setLocalServerClipVideosMap(nextVids);
+            setLocalServerClipVideosMap((prev) => {
+              const prevKeys = Object.keys(prev);
+              const nextKeys = Object.keys(nextVids);
+              if (
+                prevKeys.length === nextKeys.length &&
+                nextKeys.every((k) => prev[Number(k)] === nextVids[Number(k)])
+              ) {
+                return prev;
+              }
+              return nextVids;
+            });
             if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
               const nextSuno: Record<number, string> = {};
               for (const s of data.sunoFiles) {
@@ -1597,7 +1610,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   nextSuno[s.trackNumber] = prefix(s.url);
                 }
               }
-              setLocalServerSunoMap(nextSuno);
+              setLocalServerSunoMap((prev) => {
+                const changed = Object.entries(nextSuno).some(([k, v]) => prev[Number(k)] !== v);
+                return changed ? { ...prev, ...nextSuno } : prev;
+              });
             }
             break;
           }
@@ -1610,10 +1626,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (isEditorActive) fetchFolderMedia();
     };
     window.addEventListener('focus', onWinFocus);
+    const pollTimer = window.setInterval(() => {
+      if (isEditorActive && !document.hidden) {
+        fetchFolderMedia();
+      }
+    }, 6000);
 
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onWinFocus);
+      window.clearInterval(pollTimer);
     };
   }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath, isEditorActive]);
 
@@ -2419,6 +2441,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const docClips =
       showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
 
+    const getUrlTimestampMs = (u?: string): number => {
+      if (!u) return 0;
+      let maxTs = 0;
+      const matches = u.matchAll(/[?&](?:v|r|t)=(\d{10,})/g);
+      for (const m of matches) {
+        const val = Number(m[1]);
+        if (Number.isFinite(val) && val > maxTs) maxTs = val;
+      }
+      return maxTs;
+    };
+
     const combinedClipVideosMap: Record<number, string> = {
       ...capturedClipVideosMap,
       ...localServerClipVideosMap,
@@ -2427,9 +2460,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const kNum = Number(kStr);
       const srvUrl = localServerClipVideosMap[kNum] || '';
       if (!capUrl) continue;
+      if (!srvUrl) {
+        combinedClipVideosMap[kNum] = capUrl;
+        continue;
+      }
+      const capTs = getUrlTimestampMs(capUrl);
+      const srvTs = getUrlTimestampMs(srvUrl);
       const capIs4k = /(_4k|%5f4k)/i.test(capUrl);
       const srvIs4k = /(_4k|%5f4k)/i.test(srvUrl);
-      if ((capIs4k && !srvIs4k) || capUrl.includes('&r=')) {
+      if (srvTs > 0 && capTs > 0 && srvTs > capTs + 500) {
+        combinedClipVideosMap[kNum] = srvUrl;
+      } else if (capTs > 0 && srvTs > 0 && capTs > srvTs + 500) {
+        combinedClipVideosMap[kNum] = capUrl;
+      } else if ((capIs4k && !srvIs4k) || capUrl.includes('&r=')) {
         combinedClipVideosMap[kNum] = capUrl;
       }
     }
@@ -2623,34 +2666,102 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       Array.isArray(savedDocOverlays.customTimelineClips) &&
       savedDocOverlays.customTimelineClips.length > 0
     ) {
+      let anyRegeneratedOrUpdated = false;
       sourceClipsForBuild = (savedDocOverlays.customTimelineClips as TimelineClipItem[]).map(
         (tc) => {
           const freshVideoUrl = combinedClipVideosMap[tc.clipNumber] || tc.videoUrl || '';
           const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
+          const prevBaseVideoUrl = tc.originalVideoUrlBeforeSeparation || tc.videoUrl || '';
+          const freshTs = getUrlTimestampMs(freshVideoUrl);
+          const prevBaseTs = getUrlTimestampMs(prevBaseVideoUrl);
+          const isNewerDiskVideo =
+            freshTs > 0 &&
+            prevBaseTs > 0 &&
+            freshTs > prevBaseTs + 1000 &&
+            !freshVideoUrl.includes('.foley_only_cache') &&
+            !freshVideoUrl.includes('.optical_flow_cache');
+
+          const foleyCacheTs = getUrlTimestampMs(tc.cleanFoleyOnlyVideoUrl);
+          const vocalsCacheTs = getUrlTimestampMs(tc.cleanNoVocalsVideoUrl);
+          const musicCacheTs = getUrlTimestampMs(tc.cleanNoMusicVideoUrl);
+          const opticalFlowTs = getUrlTimestampMs(tc.opticalFlowUrl);
+
+          const foleyStillValid =
+            Boolean(tc.foleyOnlyIsolated && tc.cleanFoleyOnlyVideoUrl) &&
+            !isNewerDiskVideo &&
+            (freshTs === 0 || foleyCacheTs === 0 || foleyCacheTs >= freshTs - 1000);
+          const vocalsStillValid =
+            Boolean(tc.vocalsSeparated && tc.cleanNoVocalsVideoUrl) &&
+            !isNewerDiskVideo &&
+            (freshTs === 0 || vocalsCacheTs === 0 || vocalsCacheTs >= freshTs - 1000);
+          const musicStillValid =
+            Boolean(tc.musicSeparated && tc.cleanNoMusicVideoUrl) &&
+            !isNewerDiskVideo &&
+            (freshTs === 0 || musicCacheTs === 0 || musicCacheTs >= freshTs - 1000);
+          const opticalFlowStillValid =
+            Boolean(tc.opticalFlowUrl) &&
+            !isNewerDiskVideo &&
+            (freshTs === 0 || opticalFlowTs === 0 || opticalFlowTs >= freshTs - 1000);
+
+          const effectiveVideoUrl = foleyStillValid
+            ? tc.cleanFoleyOnlyVideoUrl!
+            : vocalsStillValid
+              ? tc.cleanNoVocalsVideoUrl!
+              : musicStillValid
+                ? tc.cleanNoMusicVideoUrl!
+                : freshVideoUrl;
+
+          const effectiveOpticalFlowUrl = opticalFlowStillValid
+            ? foleyStillValid && tc.cleanOpticalFlowOnlyUrl
+              ? tc.cleanOpticalFlowOnlyUrl
+              : tc.opticalFlowUrl
+            : undefined;
+
+          if (
+            isNewerDiskVideo ||
+            effectiveVideoUrl !== tc.videoUrl ||
+            freshPosterUrl !== tc.posterUrl ||
+            effectiveOpticalFlowUrl !== tc.opticalFlowUrl
+          ) {
+            anyRegeneratedOrUpdated = true;
+            if (isNewerDiskVideo) {
+              delete extractedVideoUrlByClipRef.current[tc.clipNumber];
+            }
+          }
+
+          const srcDur = tc.sourceDuration || standardDur;
           return {
             ...tc,
-            videoUrl:
-              tc.foleyOnlyIsolated && tc.cleanFoleyOnlyVideoUrl
-                ? tc.cleanFoleyOnlyVideoUrl
-                : tc.vocalsSeparated && tc.cleanNoVocalsVideoUrl
-                  ? tc.cleanNoVocalsVideoUrl
-                  : tc.musicSeparated && tc.cleanNoMusicVideoUrl
-                    ? tc.cleanNoMusicVideoUrl
-                    : freshVideoUrl,
-            opticalFlowUrl:
-              tc.foleyOnlyIsolated && tc.cleanOpticalFlowOnlyUrl
-                ? tc.cleanOpticalFlowOnlyUrl
-                : tc.opticalFlowUrl,
-            originalVideoUrlBeforeSeparation:
-              tc.originalVideoUrlBeforeSeparation || freshVideoUrl,
-            originalOpticalFlowUrlBeforeSeparation:
-              tc.originalOpticalFlowUrlBeforeSeparation || tc.opticalFlowUrl,
+            videoUrl: effectiveVideoUrl,
+            opticalFlowUrl: effectiveOpticalFlowUrl,
+            opticalFlowBakedKey: opticalFlowStillValid ? tc.opticalFlowBakedKey : undefined,
+            foleyOnlyIsolated: foleyStillValid ? tc.foleyOnlyIsolated : false,
+            cleanFoleyOnlyVideoUrl: foleyStillValid ? tc.cleanFoleyOnlyVideoUrl : undefined,
+            cleanOpticalFlowOnlyUrl:
+              foleyStillValid && opticalFlowStillValid ? tc.cleanOpticalFlowOnlyUrl : undefined,
+            vocalsSeparated: vocalsStillValid ? tc.vocalsSeparated : false,
+            cleanNoVocalsVideoUrl: vocalsStillValid ? tc.cleanNoVocalsVideoUrl : undefined,
+            musicSeparated: musicStillValid ? tc.musicSeparated : false,
+            cleanNoMusicVideoUrl: musicStillValid ? tc.cleanNoMusicVideoUrl : undefined,
+            originalVideoUrlBeforeSeparation: isNewerDiskVideo
+              ? freshVideoUrl
+              : tc.originalVideoUrlBeforeSeparation || freshVideoUrl,
+            originalOpticalFlowUrlBeforeSeparation: opticalFlowStillValid
+              ? tc.originalOpticalFlowUrlBeforeSeparation || tc.opticalFlowUrl
+              : undefined,
+            trimStart: isNewerDiskVideo ? 0 : tc.trimStart,
+            trimEnd: isNewerDiskVideo ? srcDur : tc.trimEnd,
             posterUrl: freshPosterUrl,
             smoothSlowMo:
               tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
           };
         }
       );
+      if (anyRegeneratedOrUpdated && activeDoc?.id) {
+        writeSavedDocOverlays(activeDoc.id, {
+          customTimelineClips: sourceClipsForBuild,
+        });
+      }
     }
 
     const builtClips = buildAlignedTimelineClipsForIntroMode(
@@ -2863,12 +2974,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .map((c) => `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}`)
     .join('|');
 
-  const capturedClipVideosSignature = Object.entries({
-    ...localServerClipVideosMap,
-    ...capturedClipVideosMap,
-  })
-    .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([k, v]) => `${k}:${v ? v.slice(-32) : ''}`)
+  const allKnownClipNums = Array.from(
+    new Set([
+      ...Object.keys(localServerClipVideosMap).map(Number),
+      ...Object.keys(capturedClipVideosMap).map(Number),
+      ...Object.keys(firstFrameByClip).map(Number),
+    ])
+  )
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+
+  const capturedClipVideosSignature = allKnownClipNums
+    .map(
+      (k) =>
+        `${k}:${(localServerClipVideosMap[k] || '').slice(-28)}:${(
+          capturedClipVideosMap[k] || ''
+        ).slice(-28)}:${(firstFrameByClip[k] || '').slice(-20)}`
+    )
     .join('|');
 
   const sunoTracksSignature = (activeDoc?.sunoTracks || [])
@@ -4052,11 +4174,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : masterMusicVolume;
     if (rawBasePct <= 0) return 0;
 
-    const targetBasePct = autoDuckingEnabled
-      ? isNarratorSpeakingAtPlayhead
-        ? rawBasePct
-        : Math.min(100, Math.round(rawBasePct * 1.18))
-      : rawBasePct;
+    const targetBasePct = rawBasePct;
 
     const fadeInSec = Math.max(0, activeMusicAtPlayhead.fadeInSec ?? 5);
     const fadeOutSec = Math.max(0, activeMusicAtPlayhead.fadeOutSec ?? 5);
@@ -4425,16 +4543,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       try {
         appliedMusicSeekVersionRef.current = lastSeekVersionRef.current;
         if (activeMusicAtPlayhead?.audioUrl) {
-          if (activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id) {
+          if (
+            activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id ||
+            mus.getAttribute('data-loaded-src') !== activeMusicAtPlayhead.audioUrl
+          ) {
             activePlayingMusicIdRef.current = activeMusicAtPlayhead.id;
+            mus.setAttribute('data-loaded-src', activeMusicAtPlayhead.audioUrl);
             mus.src = activeMusicAtPlayhead.audioUrl;
           }
+          mus.defaultPlaybackRate = 1;
+          mus.playbackRate = 1;
+          (mus as any).preservesPitch = true;
           mus.muted = false;
           mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
           mus.volume = Math.min(1, Math.max(0.05, effectiveMusicVolumeAtPlayhead / 100));
           mus.play().catch(() => {});
         } else if (musicTracks[0]?.audioUrl) {
           // Unlock autoplay permission now so deferred play when the next music track starts is never blocked
+          if (mus.getAttribute('data-loaded-src') !== musicTracks[0].audioUrl) {
+            mus.setAttribute('data-loaded-src', musicTracks[0].audioUrl);
+            mus.src = musicTracks[0].audioUrl;
+          }
           mus.muted = true;
           mus.play()
             .then(() => {
@@ -5019,11 +5148,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const mus = musicAudioRef.current;
     if (mus) {
       if (activeMusicAtPlayhead?.audioUrl) {
-        const isTrackSwitch = activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id;
+        const isTrackSwitch =
+          activePlayingMusicIdRef.current !== activeMusicAtPlayhead.id ||
+          mus.getAttribute('data-loaded-src') !== activeMusicAtPlayhead.audioUrl;
         if (isTrackSwitch) {
           activePlayingMusicIdRef.current = activeMusicAtPlayhead.id;
+          mus.setAttribute('data-loaded-src', activeMusicAtPlayhead.audioUrl);
           mus.src = activeMusicAtPlayhead.audioUrl;
         }
+        if (mus.playbackRate !== 1) {
+          mus.defaultPlaybackRate = 1;
+          mus.playbackRate = 1;
+        }
+        (mus as any).preservesPitch = true;
         const musTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
         const isManualMusSeek = appliedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
         if (
@@ -5044,6 +5181,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         );
         if (isPlaying && mus.paused && !mus.ended) {
           mus.play().catch(() => {});
+        } else if (!isPlaying && !mus.paused) {
+          mus.pause();
         }
       } else {
         activePlayingMusicIdRef.current = null;
@@ -7570,7 +7709,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )}
       <audio
         ref={musicAudioRef}
-        src={activeMusicAtPlayhead?.audioUrl || musicTracks[0]?.audioUrl || undefined}
         preload={isEditorActive ? 'auto' : 'none'}
       />
       <audio
