@@ -3501,12 +3501,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
         clipEndedHoldRef.current = reachedClipMediaEnd;
-        if (Math.abs(vid.currentTime - clampedOffset) > 0.08) {
+        const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.22 : 0.08;
+        if (vid.readyState >= 1 && Math.abs(vid.currentTime - clampedOffset) > seekThreshold) {
           try {
             vid.currentTime = clampedOffset;
           } catch {}
         }
-        if (isPlaying && !reachedClipMediaEnd && vid.paused) {
+        if (isPlaying && !reachedClipMediaEnd && vid.paused && vid.readyState >= 1) {
           vid.play().catch(() => {});
         }
       } else {
@@ -5429,7 +5430,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
               title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
-              {/* Layer 1: Active Clip Video, Animated Ken Burns Poster, or Cinematic Storyboard */}
+              {/* Layer 1: Active Clip Video or Cinematic Storyboard (Never render timeline card thumbnails inside the video viewer to prevent frame jumps) */}
               {activeClipAtPlayhead?.videoUrl ? (
                 <video
                   ref={previewVideoRef}
@@ -5440,7 +5441,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       ? activeClipAtPlayhead.opticalFlowUrl
                       : activeClipAtPlayhead.videoUrl
                   }
-                  poster={activeClipAtPlayhead.posterUrl || undefined}
                   className="w-full h-full object-cover block bg-black"
                   style={{
                     opacity: liveClipAnim.opacity,
@@ -5462,7 +5462,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
                       clipEndedHoldRef.current = reachedClipMediaEnd;
                       vid.playbackRate = effectiveRate;
-                      vid.currentTime = clampedOffset;
+                      // Avoid redundant seek to ~0s on natural clip transition so frame 0 never jumps
+                      if (
+                        Math.abs(vid.currentTime - clampedOffset) >
+                        (isPlaying && clampedOffset < 0.2 ? 0.22 : 0.08)
+                      ) {
+                        vid.currentTime = clampedOffset;
+                      }
                       vid.muted = false;
                       vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
                       if (isPlaying && !reachedClipMediaEnd) {
@@ -5492,25 +5498,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }
                   }}
                 />
-              ) : activeClipAtPlayhead?.posterUrl ? (
-                <div
-                  className="w-full h-full overflow-hidden relative bg-black"
-                  style={{
-                    opacity: liveClipAnim.opacity,
-                    transform: `translate3d(${liveClipAnim.translateX}px, ${liveClipAnim.translateY}px, 0) scale(${liveClipAnim.scale})`,
-                    filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
-                  }}
-                >
-                  <img
-                    src={activeClipAtPlayhead.posterUrl}
-                    alt={activeClipAtPlayhead.fileName}
-                    className="w-full h-full object-cover block transition-transform duration-150 ease-linear"
-                    style={{
-                      transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/35 pointer-events-none" />
-                </div>
               ) : (
                 /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
                 <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-6 text-center">
