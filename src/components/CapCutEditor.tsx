@@ -7655,7 +7655,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
           </div>
         ) : (
-          <div className="w-[185px] lg:w-[195px] xl:w-[210px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 overflow-hidden">
+          <div className="w-[210px] lg:w-[230px] xl:w-[245px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 overflow-hidden">
             {/* CapCut Top Category Icon Strip (Media, Audio, Text, Transitions, Captions) */}
             <div className="px-1.5 py-1 bg-[#100d0a] border-b border-slate-800/90 flex items-center justify-between gap-0.5 shrink-0">
               {(
@@ -7699,8 +7699,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
 
             {/* Sub-bar: + Import & Reload Folder */}
-            <div className="px-2 py-1.5 border-b border-slate-800/70 flex items-center justify-between gap-1.5 shrink-0">
-              <label className="px-2 py-1 rounded-md bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-[10px] cursor-pointer flex items-center gap-1 shadow">
+            <div className="px-2.5 py-1.5 border-b border-slate-800/70 flex items-center justify-between gap-1.5 shrink-0">
+              <label className="px-2.5 py-1 rounded-md bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-[11px] cursor-pointer flex items-center gap-1 shadow">
                 <span>＋</span>
                 <span>Import</span>
                 <input
@@ -7711,28 +7711,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   className="hidden"
                 />
               </label>
-              <span className="text-[10px] text-slate-400 font-semibold truncate">
+              <span className="text-[11px] text-slate-300 font-bold truncate">
                 All ({timelineClips.length + musicTracks.length + (effectiveVoiceoverUrl ? 2 : 1)})
               </span>
             </div>
 
-            {/* Compact 2-Column CapCut Media Library Grid */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 grid grid-cols-2 gap-1.5 content-start">
+            {/* Large CapCut Media Library Vertical Scroll List */}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-2.5">
               {/* Asset 1: Official Channel Logo */}
               <div
                 onClick={() => {
                   setSelectedCanvasObject('logo');
                   setActiveInspectorTab('branding');
                 }}
-                className={`group relative rounded-lg border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
+                className={`w-full shrink-0 group relative rounded-xl border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
                   selectedCanvasObject === 'logo'
                     ? 'border-amber-400 ring-1 ring-amber-400'
-                    : 'border-slate-800 hover:border-amber-500/50'
+                    : 'border-slate-800 hover:border-amber-500/60'
                 }`}
                 title="Seleccionar Logo Oficial en el Visor"
               >
-                <div className="h-14 w-full flex items-center justify-center p-1.5 bg-gradient-to-b from-amber-950/30 to-black relative">
-                  <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200">
+                <div className="h-24 lg:h-28 w-full flex items-center justify-center p-2.5 bg-gradient-to-b from-amber-950/30 to-black relative">
+                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-bold text-slate-100 shadow">
                     Added
                   </span>
                   {officialLogoUrl ? (
@@ -7742,12 +7742,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="max-h-full max-w-full object-contain"
                     />
                   ) : (
-                    <span className="text-[9px] text-amber-300 font-bold text-center">
-                      🏷️ LOGO
+                    <span className="text-xs text-amber-300 font-bold text-center">
+                      🏷️ LOGO OFICIAL
                     </span>
                   )}
                 </div>
-                <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 truncate bg-[#120f0c]">
                   LOGO DEFINITIVO.png
                 </div>
               </div>
@@ -7759,25 +7759,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     seekToTime(voiceStartOffsetSec);
                     setActiveInspectorTab('audio');
                   }}
-                  className="group relative rounded-lg border border-slate-800 hover:border-sky-400/60 overflow-hidden cursor-pointer bg-[#0b0907] transition"
+                  className="w-full shrink-0 group relative rounded-xl border border-slate-800 hover:border-sky-400/70 overflow-hidden cursor-pointer bg-[#0b0907] transition"
                   title="Ir a la Voz Narrativa Maestro"
                 >
-                  <div className="h-14 w-full bg-[#101824] relative flex items-end px-1 pt-4 pb-1 gap-[2px] overflow-hidden">
-                    <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200 z-10">
+                  <div className="h-24 lg:h-28 w-full bg-[#101824] relative flex items-end px-2 pt-7 pb-1.5 gap-[2px] overflow-hidden">
+                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-bold text-slate-100 z-10 shadow">
                       Added
                     </span>
-                    <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/70 text-[8px] font-mono text-sky-200 z-10">
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-sky-200 z-10 shadow">
                       {formatTimeMMSS(effectiveVoiceDurationSec)}
                     </span>
-                    {[55, 80, 65, 92, 74, 88, 60, 95, 78, 85, 70, 90, 62, 84].map((h, i) => (
+                    {[55, 80, 65, 92, 74, 88, 60, 95, 78, 85, 70, 90, 62, 84, 72, 91, 66, 83, 77, 89].map((h, i) => (
                       <div
                         key={i}
                         style={{ height: `${h}%` }}
-                        className="flex-1 bg-sky-400/80 rounded-t-[1px]"
+                        className="flex-1 bg-sky-400/85 rounded-t-[2px]"
                       />
                     ))}
                   </div>
-                  <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                  <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 truncate bg-[#120f0c]">
                     🎙️ Voz_Narrativa.mp3
                   </div>
                 </div>
@@ -7791,33 +7791,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     seekToTime(mt.start);
                     setActiveInspectorTab('audio');
                   }}
-                  className="group relative rounded-lg border border-slate-800 hover:border-purple-400/60 overflow-hidden cursor-pointer bg-[#0b0907] transition"
+                  className="w-full shrink-0 group relative rounded-xl border border-slate-800 hover:border-purple-400/70 overflow-hidden cursor-pointer bg-[#0b0907] transition"
                   title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(mt.start + mt.duration)})`}
                 >
-                  <div className="h-14 w-full bg-[#131c2b] relative flex items-end px-1 pt-4 pb-1 gap-[2px] overflow-hidden">
-                    <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200 z-10">
+                  <div className="h-24 lg:h-28 w-full bg-[#131c2b] relative flex items-end px-2 pt-7 pb-1.5 gap-[2px] overflow-hidden">
+                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-bold text-slate-100 z-10 shadow">
                       Added
                     </span>
-                    <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/70 text-[8px] font-mono text-sky-200 z-10">
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-sky-200 z-10 shadow">
                       {formatTimeMMSS(mt.duration)}
                     </span>
-                    {[45, 70, 88, 62, 75, 94, 82, 58, 72, 90, 68, 52, 78, 64].map((h, i) => (
+                    {[45, 70, 88, 62, 75, 94, 82, 58, 72, 90, 68, 52, 78, 64, 85, 73, 91, 60, 79, 86].map((h, i) => (
                       <div
                         key={i}
                         style={{ height: `${h}%` }}
-                        className="flex-1 bg-sky-500/75 rounded-t-[1px]"
+                        className="flex-1 bg-sky-500/80 rounded-t-[2px]"
                       />
                     ))}
                   </div>
-                  <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                  <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 truncate bg-[#120f0c]">
                     Pista {mt.trackNumber} {mt.title}
                   </div>
                 </div>
               ))}
 
-              {/* Assets: Timeline Video Clips */}
+              {/* Assets: Timeline Video Clips (Large 16:9 Preview Cards with Vertical Scroll) */}
               {clipsWithTimelineBounds.map((clip) => {
                 const isCurr = currentTime >= clip.start && currentTime < clip.end;
+                const isSelected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id;
                 const thumb = firstFrameByClip[clip.clipNumber] || clip.posterUrl;
                 return (
                   <div
@@ -7839,38 +7840,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         showSepararSubmenu: true,
                       });
                     }}
-                    className={`group relative rounded-lg border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
-                      isCurr
-                        ? 'border-amber-400 ring-1 ring-amber-400'
-                        : 'border-slate-800 hover:border-amber-500/50'
+                    className={`w-full shrink-0 group relative rounded-xl border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
+                      isCurr || isSelected
+                        ? 'border-amber-400 ring-1 ring-amber-400 shadow-lg shadow-amber-500/15'
+                        : 'border-slate-800 hover:border-amber-500/60'
                     }`}
                     title={`Clip ${String(clip.clipNumber).padStart(2, '0')} (${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(clip.end)})`}
                   >
-                    <div className="h-14 w-full bg-black relative overflow-hidden flex items-center justify-center">
+                    <div className="h-24 lg:h-28 w-full bg-black relative overflow-hidden flex items-center justify-center">
                       {thumb ? (
                         <img
                           src={thumb}
                           alt={clip.fileName}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
-                        <span className="text-[9px] text-amber-300/80 font-bold">
-                          🎬 C{String(clip.clipNumber).padStart(2, '0')}
+                        <span className="text-xs text-amber-300/90 font-bold">
+                          🎬 CLIP {String(clip.clipNumber).padStart(2, '0')}
                         </span>
                       )}
-                      <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200">
+                      <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-bold text-slate-100 shadow">
                         Added
                       </span>
-                      <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/75 text-[8px] font-mono text-amber-200">
-                        {clip.duration}s
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-mono font-bold text-amber-200 shadow">
+                        {formatTimeMMSS(clip.duration)}
+                      </span>
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500/90 text-slate-950 text-[10px] font-black shadow">
+                        {clip.clipNumber === 0
+                          ? 'INTRO'
+                          : clip.clipNumber === 999
+                          ? 'OUTRO'
+                          : `#${String(clip.clipNumber).padStart(2, '0')}`}
                       </span>
                     </div>
-                    <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                    <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 truncate bg-[#120f0c]">
                       {clip.clipNumber === 0
                         ? 'INTRO 8K.mp4'
                         : clip.clipNumber === 999
                         ? 'OUTRO 8K.mp4'
-                        : `Clip ${String(clip.clipNumber).padStart(2, '0')}.mp4`}
+                        : `Clip ${String(clip.clipNumber).padStart(2, '0')}${clip.partLabel ? ` (${clip.partLabel})` : ''} • ${clip.fileName}`}
                     </div>
                   </div>
                 );
