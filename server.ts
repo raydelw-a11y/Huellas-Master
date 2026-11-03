@@ -335,6 +335,12 @@ function writeDocumentaries(list: any[], skipCloudPush = false) {
     fs.writeFileSync(DOCS_FILE, jsonStr, 'utf8');
   }
   try {
+    if (fs.existsSync(DOCS_FILE)) {
+      lastServerWriteDocsMtimeMs = Math.floor(fs.statSync(DOCS_FILE).mtimeMs);
+      serverDocsRevisionCounter = Math.max(serverDocsRevisionCounter + 1, lastServerWriteDocsMtimeMs);
+    }
+  } catch {}
+  try {
     const docsDataDir = path.join(process.cwd(), 'docs', 'data');
     if (fs.existsSync(docsDataDir)) {
       const docsTarget = path.join(docsDataDir, 'documentaries.json');
@@ -584,7 +590,58 @@ app.post('/api/cloud/sync', async (req, res) => {
   });
 });
 
+let lastServerWriteDocsMtimeMs = 0;
+let serverDocsRevisionCounter = Date.now();
+
+function getServerVersionInfo(): {
+  codeMtimeMs: number;
+  docsMtimeMs: number;
+  docsRevision: number;
+} {
+  const codeCandidates = [
+    path.join(process.cwd(), 'src', 'App.tsx'),
+    path.join(process.cwd(), 'src', 'components', 'CapCutEditor.tsx'),
+    path.join(process.cwd(), 'src', 'components', 'PromptGenerator.jsx'),
+    path.join(process.cwd(), 'src', 'utils', 'cloudSync.ts'),
+    path.join(process.cwd(), 'server.ts'),
+    path.join(process.cwd(), 'docs', 'index.html'),
+  ];
+  let codeMtimeMs = 0;
+  for (const p of codeCandidates) {
+    try {
+      if (fs.existsSync(p)) {
+        const st = fs.statSync(p);
+        if (st.mtimeMs > codeMtimeMs) codeMtimeMs = Math.floor(st.mtimeMs);
+      }
+    } catch {}
+  }
+  let docsMtimeMs = 0;
+  try {
+    if (fs.existsSync(DOCS_FILE)) {
+      const st = fs.statSync(DOCS_FILE);
+      docsMtimeMs = Math.floor(st.mtimeMs);
+      if (docsMtimeMs > lastServerWriteDocsMtimeMs + 50) {
+        // External/disk modification detected (e.g. code update or git pull); advance revision so disk always wins over stale tabs
+        lastServerWriteDocsMtimeMs = docsMtimeMs;
+        serverDocsRevisionCounter = Math.max(serverDocsRevisionCounter + 1, docsMtimeMs);
+      }
+    }
+  } catch {}
+  return {
+    codeMtimeMs,
+    docsMtimeMs,
+    docsRevision: serverDocsRevisionCounter,
+  };
+}
+
+app.get('/api/version', (_req, res) => {
+  res.json(getServerVersionInfo());
+});
+
 app.get('/api/documentaries', (req, res) => {
+  const v = getServerVersionInfo();
+  res.setHeader('X-Server-Code-Version', String(v.codeMtimeMs));
+  res.setHeader('X-Server-Docs-Version', String(v.docsRevision));
   res.json(readDocumentaries());
 });
 
@@ -595,6 +652,9 @@ app.get('/api/documentaries/:id', (req, res) => {
     res.status(404).json({ error: 'Documental no encontrado.' });
     return;
   }
+  const v = getServerVersionInfo();
+  res.setHeader('X-Server-Code-Version', String(v.codeMtimeMs));
+  res.setHeader('X-Server-Docs-Version', String(v.docsRevision));
   res.json(doc);
 });
 
@@ -619,6 +679,7 @@ app.post('/api/documentaries', (req, res) => {
       DURACION_CLIP_1: '6',
       DURACION_CLIPS: '10_SEGUNDOS',
       VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+      UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
     },
     compiledMasterPrompt: body.compiledMasterPrompt || '',
     topic: body.topic || '',
@@ -698,30 +759,106 @@ app.post('/api/documentaries', (req, res) => {
 });
 
 app.put('/api/documentaries/:id', (req, res) => {
+  const vBefore = getServerVersionInfo();
   const list = readDocumentaries();
   const idx = list.findIndex((d) => d.id === req.params.id);
+  const incomingBody = { ...(req.body || {}) };
+  const patchKeys: string[] | undefined = Array.isArray(incomingBody._patchKeys)
+    ? incomingBody._patchKeys
+    : undefined;
+  const clientDocsVersion = Number(incomingBody._clientDocsVersion || 0);
+  const clientCodeVersion = Number(incomingBody._clientCodeVersion || 0);
+  const isBackgroundCacheSync = Boolean(incomingBody._isBackgroundCacheSync);
+  delete incomingBody._patchKeys;
+  delete incomingBody._clientDocsVersion;
+  delete incomingBody._clientCodeVersion;
+  delete incomingBody._isBackgroundCacheSync;
+
   if (idx === -1) {
     // Upsert documentary if it existed in browser cache or another device but wasn't in local data/documentaries.json yet
     const now = new Date().toISOString();
     const upserted = {
-      ...req.body,
+      ...incomingBody,
       id: req.params.id,
-      createdAt: req.body?.createdAt || now,
+      createdAt: incomingBody?.createdAt || now,
       updatedAt: now,
     };
     list.unshift(upserted);
     writeDocumentaries(list);
+    const vAfter = getServerVersionInfo();
+    res.setHeader('X-Server-Code-Version', String(vAfter.codeMtimeMs));
+    res.setHeader('X-Server-Docs-Version', String(vAfter.docsRevision));
     res.json(upserted);
     return;
   }
-  const updated = {
-    ...list[idx],
-    ...req.body,
-    id: list[idx].id,
-    updatedAt: new Date().toISOString(),
-  };
+
+  const currentDiskDoc = list[idx];
+
+  // VERSION LOCK: If an un-refreshed tab attempts a background/cache sync (no explicit _patchKeys)
+  // or carries an older clientDocsVersion/clientCodeVersion without explicit field patchKeys,
+  // NEVER let it overwrite the newer disk documentary! Return the authoritative disk documentary instead.
+  if (
+    isBackgroundCacheSync ||
+    (!patchKeys &&
+      ((clientDocsVersion > 0 && clientDocsVersion < vBefore.docsRevision) ||
+        (clientCodeVersion > 0 && clientCodeVersion < vBefore.codeMtimeMs)))
+  ) {
+    res.setHeader('X-Server-Code-Version', String(vBefore.codeMtimeMs));
+    res.setHeader('X-Server-Docs-Version', String(vBefore.docsRevision));
+    res.setHeader('X-Server-Version-Locked', 'true');
+    res.json(currentDiskDoc);
+    return;
+  }
+
+  // SMART FIELD-LEVEL MERGE: When _patchKeys is provided by updateActiveDoc(patch),
+  // apply ONLY the explicitly edited fields onto currentDiskDoc so stale fields in an un-refreshed tab's memory never overwrite disk changes!
+  let updated: any;
+  if (patchKeys && patchKeys.length > 0) {
+    const surgicalPatch: Record<string, any> = {};
+    for (const key of patchKeys) {
+      if (key === 'id' || key === 'createdAt') continue;
+      if (key === 'promptConfig' && incomingBody.promptConfig && typeof incomingBody.promptConfig === 'object') {
+        surgicalPatch.promptConfig = {
+          ...(currentDiskDoc.promptConfig || {}),
+          ...incomingBody.promptConfig,
+        };
+      } else if (
+        key === 'timelineSettings' &&
+        incomingBody.timelineSettings &&
+        typeof incomingBody.timelineSettings === 'object'
+      ) {
+        surgicalPatch.timelineSettings = {
+          ...(currentDiskDoc.timelineSettings || {}),
+          ...incomingBody.timelineSettings,
+        };
+      } else if (key in incomingBody) {
+        surgicalPatch[key] = incomingBody[key];
+      }
+    }
+    updated = {
+      ...currentDiskDoc,
+      ...surgicalPatch,
+      id: currentDiskDoc.id,
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    updated = {
+      ...currentDiskDoc,
+      ...incomingBody,
+      promptConfig: {
+        ...(currentDiskDoc.promptConfig || {}),
+        ...(incomingBody.promptConfig || {}),
+      },
+      id: currentDiskDoc.id,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   list[idx] = updated;
   writeDocumentaries(list);
+  const vAfter = getServerVersionInfo();
+  res.setHeader('X-Server-Code-Version', String(vAfter.codeMtimeMs));
+  res.setHeader('X-Server-Docs-Version', String(vAfter.docsRevision));
   res.json(updated);
 });
 
@@ -1774,11 +1911,13 @@ Genera la ETAPA 3 completa:
           : ''
       }.`;
     } else if (stageNumber === 4) {
-      const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_POST_SLOGAN';
+      const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+      const FIXED_INTRO_SEC = 8;
+      const FIXED_OUTRO_SEC = 8;
       const effectiveVoiceEntrySec =
-        introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 4 : voiceEntrySec;
+        introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + FIXED_INTRO_SEC : voiceEntrySec;
       const targetChars = Math.round(
-        ((doc.targetDurationSeconds || 120) - effectiveVoiceEntrySec) * 13.5
+        Math.max(10, (doc.targetDurationSeconds || 120) - FIXED_OUTRO_SEC - effectiveVoiceEntrySec) * 13.5
       );
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
@@ -1789,7 +1928,7 @@ ${doc.deepResearchResult || ''}
 Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Sincronización de Entrada de Voz: ${
         introPlacement === 'INTRO_INICIO_00'
-          ? `El documental abre en 00:00 - 00:04 con el Intro Oficial de Marca de 4s, seguido por la ventana sin voz del Hook (${c1Dur + 2}s); por lo tanto, la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.`
+          ? `El documental abre en 00:00 - 00:08 con el Intro Oficial de Marca de 8s (Intro.mp4), seguido por la ventana sin voz del Hook (${voiceEntrySec}s); por lo tanto, la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.`
           : doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
           ? `El Clip 1 dura ${c1Dur}s (00:00 - 00:0${c1Dur}) sin voz y los primeros 2s del Clip 2 (00:0${c1Dur} - 00:0${voiceEntrySec}) tampoco llevan voz; por lo tanto, los primeros ${voiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${voiceEntrySec} del video (que es el segundo 2 del segundo clip).`
           : `El Clip 1 de ${c1Dur}s se ralentiza en edición a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec}) sin voz; la voz narrativa entra en el segundo ${voiceEntrySec} del video (al inicio del Clip 2).`
@@ -1800,7 +1939,7 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
 - Si es documental largo, incluye antes del segundo 30 el slogan en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
         introPlacement === 'INTRO_POST_SLOGAN'
-          ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 4s] para que durante esos 4 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 4s ("Minimalismo en Piedra y Oro") antes del Párrafo 3'
+          ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
           : ''
       }, y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
 - Extensión aproximada calibrada: ~${targetChars} caracteres.`;

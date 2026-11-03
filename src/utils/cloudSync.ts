@@ -811,6 +811,13 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   const nextRawReferencePrompts = normalizeEngineRefs(doc.rawReferencePrompts);
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
   const nextFlowVideoEngine = 'VEO_3_1_LITE_LOWER_PRIORITY' as const;
+  const hasIntroMarca = Boolean(doc.promptConfig && doc.promptConfig.UBICACION_INTRO_MARCA);
+  const nextPromptConfig = hasIntroMarca
+    ? doc.promptConfig
+    : {
+        ...(doc.promptConfig || {}),
+        UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
+      };
 
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
@@ -821,6 +828,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextRawReferencePrompts !== (doc.rawReferencePrompts || '') ||
     nextCompiledMasterPrompt !== (doc.compiledMasterPrompt || '') ||
     nextFlowVideoEngine !== doc.flowVideoEngine ||
+    !hasIntroMarca ||
     nextClip1Line1 !== (doc.clip1Line1LocationTime || '') ||
     nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
     nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '') ||
@@ -830,6 +838,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   ) {
     return {
       ...doc,
+      promptConfig: nextPromptConfig,
       masterAudioUrl,
       audioTracks,
       clips: nextClips,
@@ -1392,11 +1401,13 @@ Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en esta
 4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS):
    - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).`;
   } else if (stageNumber === 4) {
-    const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_POST_SLOGAN';
+    const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+    const FIXED_INTRO_SEC = 8;
+    const FIXED_OUTRO_SEC = 8;
     const effectiveVoiceEntrySec =
-      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 4 : voiceEntrySec;
+      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + FIXED_INTRO_SEC : voiceEntrySec;
     const targetChars = Math.round(
-      ((doc.targetDurationSeconds || 120) - effectiveVoiceEntrySec) * 13.5
+      Math.max(10, (doc.targetDurationSeconds || 120) - FIXED_OUTRO_SEC - effectiveVoiceEntrySec) * 13.5
     );
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
@@ -1411,7 +1422,7 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
 - Si es documental largo, incluye antes del segundo 30 el Slogan Completo en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
       introPlacement === 'INTRO_POST_SLOGAN'
-        ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 4s] para que durante esos 4 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 4s ("Minimalismo en Piedra y Oro") antes del Párrafo 3'
+        ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
         : ''
     }.
 - Cierra con el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."

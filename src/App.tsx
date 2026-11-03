@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:35 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:56 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -1389,6 +1389,8 @@ export default function App() {
 
   const cloudPushTimerRef = React.useRef<any>(null);
   const lastLocalEditAtRef = React.useRef<number>(0);
+  const serverCodeVersionRef = React.useRef<number>(0);
+  const serverDocsVersionRef = React.useRef<number>(0);
 
   const triggerDebouncedCloudPush = (nextDocs: DocumentaryProject[]) => {
     lastLocalEditAtRef.current = Date.now();
@@ -1410,20 +1412,78 @@ export default function App() {
     }
     try {
       if (!isCloudMode) {
+        const vRes = await fetch('/api/version', { cache: 'no-store' }).catch(() => null);
+        if (vRes && vRes.ok && (vRes.headers.get('content-type') || '').includes('application/json')) {
+          const vData = await vRes.json();
+          const nextCodeVer = Number(vData?.codeMtimeMs || 0);
+          const nextDocsVer = Number(vData?.docsRevision || 0);
+
+          // 1. If server docs changed on disk (e.g. modified by code/agent), pull authoritative server list immediately without letting localStorage overwrite it
+          if (
+            nextDocsVer > 0 &&
+            serverDocsVersionRef.current > 0 &&
+            nextDocsVer !== serverDocsVersionRef.current
+          ) {
+            serverDocsVersionRef.current = nextDocsVer;
+            const docsRes = await fetch('/api/documentaries', { cache: 'no-store' }).catch(() => null);
+            if (docsRes && docsRes.ok) {
+              const srvList: DocumentaryProject[] = await docsRes.json();
+              if (Array.isArray(srvList) && srvList.length > 0) {
+                const normalizedSrv = srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d));
+                setDocumentaries(normalizedSrv);
+                saveLocalCachedDocumentaries(normalizedSrv);
+              }
+            }
+          } else if (nextDocsVer > 0 && serverDocsVersionRef.current === 0) {
+            serverDocsVersionRef.current = nextDocsVer;
+          }
+
+          // 2. If server code version changed on disk, sync latest docs to localStorage and auto-refresh cleanly when user is not typing
+          if (
+            nextCodeVer > 0 &&
+            serverCodeVersionRef.current > 0 &&
+            nextCodeVer > serverCodeVersionRef.current
+          ) {
+            const activeEl = document.activeElement;
+            const isTypingInField =
+              activeEl &&
+              (activeEl.tagName === 'INPUT' ||
+                activeEl.tagName === 'TEXTAREA' ||
+                (activeEl as HTMLElement).isContentEditable) &&
+              Date.now() - lastLocalEditAtRef.current < 5000;
+            if (!isTypingInField) {
+              serverCodeVersionRef.current = nextCodeVer;
+              try {
+                const docsRes = await fetch('/api/documentaries', { cache: 'no-store' }).catch(
+                  () => null
+                );
+                if (docsRes && docsRes.ok) {
+                  const srvList: DocumentaryProject[] = await docsRes.json();
+                  if (Array.isArray(srvList) && srvList.length > 0) {
+                    saveLocalCachedDocumentaries(
+                      srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d))
+                    );
+                  }
+                }
+              } catch {}
+              window.location.reload();
+              return;
+            }
+          } else if (nextCodeVer > 0 && serverCodeVersionRef.current === 0) {
+            serverCodeVersionRef.current = nextCodeVer;
+          }
+        }
+
         const res = await fetch('/api/cloud/sync', { method: 'POST' });
         if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
           const data = await res.json();
           if (Array.isArray(data.documentaries) && data.documentaries.length > 0) {
             if (Date.now() - lastLocalEditAtRef.current >= 3000) {
-              setDocumentaries((prev) => {
-                const merged = mergeDocumentariesLists(
-                  prev,
-                  data.documentaries,
-                  getLocalDeletedDocIds()
-                );
-                saveLocalCachedDocumentaries(merged);
-                return merged;
-              });
+              const normalizedFromDisk = data.documentaries.map((d: DocumentaryProject) =>
+                normalizeDocumentaryVoiceoverAudio(d)
+              );
+              setDocumentaries(normalizedFromDisk);
+              saveLocalCachedDocumentaries(normalizedFromDisk);
             }
           }
           return;
@@ -1448,8 +1508,8 @@ export default function App() {
 
     try {
       const [docsRes, statusRes] = await Promise.all([
-        fetch('/api/documentaries').catch(() => null),
-        fetch('/api/status').catch(() => null),
+        fetch('/api/documentaries', { cache: 'no-store' }).catch(() => null),
+        fetch('/api/status', { cache: 'no-store' }).catch(() => null),
       ]);
 
       const isLocalApiOk =
@@ -1459,6 +1519,11 @@ export default function App() {
 
       if (isLocalApiOk && docsRes && docsRes.ok) {
         setIsCloudMode(false);
+        const hdrCodeVer = Number(docsRes.headers.get('X-Server-Code-Version') || 0);
+        const hdrDocsVer = Number(docsRes.headers.get('X-Server-Docs-Version') || 0);
+        if (hdrCodeVer > 0) serverCodeVersionRef.current = hdrCodeVer;
+        if (hdrDocsVer > 0) serverDocsVersionRef.current = hdrDocsVer;
+
         const list: DocumentaryProject[] = await docsRes.json();
         const normalizedList = list.map((d) => {
           const withAudio = normalizeDocumentaryVoiceoverAudio(d);
@@ -1473,28 +1538,28 @@ export default function App() {
           }
           return withAudio;
         });
-        const mergedInitial = mergeDocumentariesLists(
-          cached,
-          normalizedList,
-          getLocalDeletedDocIds()
+        // Server disk is authoritative for all existing documentaries; only merge brand-new offline docs that do not exist on server yet
+        const serverIds = new Set(normalizedList.map((d) => d.id));
+        const deletedIds = new Set(getLocalDeletedDocIds());
+        const offlineOnlyDocs = cached.filter(
+          (c) => c && c.id && !serverIds.has(c.id) && !deletedIds.has(c.id)
         );
-        setDocumentaries(mergedInitial);
-        saveLocalCachedDocumentaries(mergedInitial);
+        const authoritativeList = [...normalizedList, ...offlineOnlyDocs];
+        setDocumentaries(authoritativeList);
+        saveLocalCachedDocumentaries(authoritativeList);
 
-        // If browser cache had any documentary or clip review state newer than local server, sync it to local server
-        for (const doc of mergedInitial) {
-          const onServer = normalizedList.find((s) => s.id === doc.id);
-          const docTime = Date.parse(doc.updatedAt || doc.createdAt || '') || 0;
-          const srvTime = onServer ? Date.parse(onServer.updatedAt || onServer.createdAt || '') || 0 : -1;
-          const docReviewedCount = (doc.clips || []).filter((c) => c.reviewedForEditor).length;
-          const srvReviewedCount = (onServer?.clips || []).filter((c) => c.reviewedForEditor).length;
-          if (!onServer || docTime > srvTime || docReviewedCount !== srvReviewedCount) {
-            fetch(`/api/documentaries/${doc.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(doc),
-            }).catch(() => {});
-          }
+        // Only push brand-new offline-created documentaries that didn't exist on the server yet
+        for (const doc of offlineOnlyDocs) {
+          fetch(`/api/documentaries/${doc.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...doc,
+              _isBackgroundCacheSync: true,
+              _clientCodeVersion: serverCodeVersionRef.current,
+              _clientDocsVersion: serverDocsVersionRef.current,
+            }),
+          }).catch(() => {});
         }
 
         const st = await statusRes.json();
@@ -1510,15 +1575,11 @@ export default function App() {
               syncData.documentaries.length > 0 &&
               Date.now() - lastLocalEditAtRef.current >= 3000
             ) {
-              setDocumentaries((prev) => {
-                const merged = mergeDocumentariesLists(
-                  prev,
-                  syncData.documentaries,
-                  getLocalDeletedDocIds()
-                );
-                saveLocalCachedDocumentaries(merged);
-                return merged;
-              });
+              const normalizedSynced = syncData.documentaries.map((d: DocumentaryProject) =>
+                normalizeDocumentaryVoiceoverAudio(d)
+              );
+              setDocumentaries(normalizedSynced);
+              saveLocalCachedDocumentaries(normalizedSynced);
             }
           })
           .catch(() => {});
@@ -1554,7 +1615,7 @@ export default function App() {
 
     const intervalId = setInterval(() => {
       silentRealtimeSync();
-    }, 12000);
+    }, 4500);
 
     const onFocusOrVisible = () => {
       if (document.visibilityState === 'visible') {
@@ -1582,6 +1643,8 @@ export default function App() {
   const updateActiveDoc = async (patch: Partial<DocumentaryProject>) => {
     const currentBaseDoc = activeDocRef.current || activeDoc;
     if (!currentBaseDoc) return;
+    const patchKeys = Object.keys(patch || {});
+    if (patchKeys.length === 0) return;
     const nowMs = Date.now();
     lastLocalEditAtRef.current = nowMs;
     const updated: DocumentaryProject = {
@@ -1620,9 +1683,27 @@ export default function App() {
       const res = await fetch(`/api/documentaries/${updated.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
+        body: JSON.stringify({
+          ...updated,
+          _patchKeys: patchKeys,
+          _clientCodeVersion: serverCodeVersionRef.current,
+          _clientDocsVersion: serverDocsVersionRef.current,
+        }),
       });
       if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+        const hdrCodeVer = Number(res.headers.get('X-Server-Code-Version') || 0);
+        const hdrDocsVer = Number(res.headers.get('X-Server-Docs-Version') || 0);
+        if (hdrCodeVer > 0) serverCodeVersionRef.current = hdrCodeVer;
+        if (hdrDocsVer > 0) serverDocsVersionRef.current = hdrDocsVer;
+        const serverSavedDoc = normalizeDocumentaryVoiceoverAudio(await res.json());
+        if (serverSavedDoc && serverSavedDoc.id === updated.id) {
+          activeDocRef.current = serverSavedDoc;
+          setDocumentaries((prev) => {
+            const nextList = prev.map((d) => (d.id === serverSavedDoc.id ? serverSavedDoc : d));
+            saveLocalCachedDocumentaries(nextList);
+            return nextList;
+          });
+        }
         setSavingStatus('saved');
       } else {
         if (computedNextList.length > 0) {
@@ -1657,6 +1738,7 @@ export default function App() {
         DURACION_CLIP_1: '6',
         DURACION_CLIPS: '10_SEGUNDOS',
         VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+        UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       },
       compiledMasterPrompt: '',
       topic: '',
@@ -8206,6 +8288,104 @@ export default function App() {
                       </span>
                     </div>
 
+                    {/* SELECTOR DE UBICACIÓN DEL INTRO OFICIAL DE MARCA (8s — Intro.mp4) + CAJA DE PROMPTS MINIMALISMO EN PIEDRA Y ORO */}
+                    <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5 space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-300 mb-1.5">
+                          🎬 Ubicación del Intro Oficial de Marca (8s — Intro.mp4 • Minimalismo de Estudio en Piedra y Oro)
+                        </label>
+                        <select
+                          value={activeDoc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00'}
+                          onChange={(e) => {
+                            const nextIntroMode = e.target.value;
+                            updateActiveDoc({
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                UBICACION_INTRO_MARCA: nextIntroMode,
+                              },
+                            });
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-2 text-xs font-semibold text-amber-100 outline-none"
+                        >
+                          <option value="INTRO_INICIO_00">
+                            Opción A (Por defecto — Intro 8s Inicial en 00:00 - 00:08 [Intro.mp4]): Abre en 00:00 - 00:08 con el Intro Oficial de 8s y desplaza +8s el Hook y la voz
+                          </option>
+                          <option value="INTRO_POST_SLOGAN">
+                            Opción B (Intro 8s Post-Slogan [~00:25 - 00:35 tras Párrafo 2]): Abre con el Hook en 00:00 y el mismo Intro 8s (Intro.mp4) entra tras el Slogan Completo con [pausa: 8s]
+                          </option>
+                        </select>
+                      </div>
+
+                      {/* CAJA DORADA CON LOS PROMPTS MAESTROS DE MINIMALISMO EN PIEDRA Y ORO A LA VISTA */}
+                      <div className="bg-[#18130c] border border-amber-500/35 rounded-xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-amber-300">
+                            🏛️ Prompts Maestros Opción 3: Minimalismo de Estudio en Piedra y Oro (8s)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyText(
+                                `Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.\n\nClip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.`,
+                                'stage1-intro-both'
+                              )
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer transition"
+                          >
+                            {copiedId === 'stage1-intro-both'
+                              ? '✓ Image + Clip Intro Copiados'
+                              : '📋 Copiar Ambos Prompts (Image + Clip Intro)'}
+                          </button>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-semibold text-slate-200">
+                              1. Imagen Inicial (Nano Banana 2.1):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copyText(
+                                  "Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.",
+                                  'stage1-intro-img'
+                                )
+                              }
+                              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
+                            >
+                              {copiedId === 'stage1-intro-img' ? '✓ Copiado' : '📋 Copiar Image Intro'}
+                            </button>
+                          </div>
+                          <div className="text-[10.5px] font-mono text-slate-300 bg-black/40 border border-slate-800/80 rounded-lg p-2 leading-relaxed select-all">
+                            Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text &apos;HUELLAS DE LA HUMANIDAD&apos; deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-semibold text-slate-200">
+                              2. Clip de Video (Veo 3.1 - Lite [Lower Priority] — 8 Segundos):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copyText(
+                                  "Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.",
+                                  'stage1-intro-clip'
+                                )
+                              }
+                              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
+                            >
+                              {copiedId === 'stage1-intro-clip' ? '✓ Copiado' : '📋 Copiar Clip Intro (8s)'}
+                            </button>
+                          </div>
+                          <div className="text-[10.5px] font-mono text-slate-300 bg-black/40 border border-slate-800/80 rounded-lg p-2 leading-relaxed select-all">
+                            Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo &apos;HUELLAS DE LA HUMANIDAD&apos; gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -8333,6 +8513,10 @@ export default function App() {
                       {(() => {
                         const FIXED_INTRO_SEC = 8;
                         const FIXED_OUTRO_SEC = 8;
+                        const introMode =
+                          activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+                            ? 'INTRO_POST_SLOGAN'
+                            : 'INTRO_INICIO_00';
                         const totalSec = activeDoc.targetDurationSeconds || 120;
                         const c1Dur =
                           activeDoc.clip1DurationSeconds ||
@@ -8343,7 +8527,10 @@ export default function App() {
                           activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
                             ? c1Dur + 2
                             : clip1TimelineSec;
-                        const voiceEntryMasterSec = FIXED_INTRO_SEC + voiceEntryInClipsSec;
+                        const voiceEntryMasterSec =
+                          introMode === 'INTRO_INICIO_00'
+                            ? FIXED_INTRO_SEC + voiceEntryInClipsSec
+                            : voiceEntryInClipsSec;
                         const step = activeDoc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
                         const bodySec = Math.max(
                           step,
@@ -8356,7 +8543,9 @@ export default function App() {
                         const approxFinalDuration = outroStartSec + FIXED_OUTRO_SEC;
                         const spokenTargetSec = Math.max(
                           10,
-                          approxFinalDuration - FIXED_OUTRO_SEC - voiceEntryMasterSec
+                          approxFinalDuration -
+                            FIXED_OUTRO_SEC -
+                            (FIXED_INTRO_SEC + voiceEntryInClipsSec)
                         );
                         const estChars = Math.round(spokenTargetSec * 13.5);
                         const fmtMMSS = (s: number) =>
@@ -8365,35 +8554,63 @@ export default function App() {
                           ).padStart(2, '0')}`;
                         return (
                           <ul className="text-xs text-slate-300 space-y-1.5">
-                            <li>
-                              • <strong>Intro Oficial de Marca (8s fijos):</strong>{' '}
-                              <span className="text-amber-300 font-mono">00:00 - 00:08</span> (
-                              <code>Intro.mp4</code> con transición Crossfade de 1.0s hacia el Clip 1)
-                            </li>
-                            <li>
-                              • <strong>Clip 1 (Hook visual sin voz):</strong>{' '}
-                              <span className="text-amber-300 font-mono">
-                                00:08 - {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)}
-                              </span>{' '}
-                              (
-                              {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                                ? `${c1Dur}s sin ralentizar`
-                                : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
-                              )
-                            </li>
+                            {introMode === 'INTRO_INICIO_00' ? (
+                              <>
+                                <li>
+                                  • <strong>Intro Oficial de Marca (8s Inicial por defecto):</strong>{' '}
+                                  <span className="text-amber-300 font-mono">00:00 - 00:08</span> (
+                                  <code>Intro.mp4</code> con Audio Fade In/Out y entrada de Clip 1 con Fade In)
+                                </li>
+                                <li>
+                                  • <strong>Clip 1 (Hook visual sin voz):</strong>{' '}
+                                  <span className="text-amber-300 font-mono">
+                                    00:08 - {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)}
+                                  </span>{' '}
+                                  (
+                                  {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+                                    ? `${c1Dur}s sin ralentizar`
+                                    : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
+                                  )
+                                </li>
+                              </>
+                            ) : (
+                              <>
+                                <li>
+                                  • <strong>Clip 1 (Hook visual sin voz al inicio):</strong>{' '}
+                                  <span className="text-amber-300 font-mono">
+                                    00:00 - {fmtMMSS(clip1TimelineSec)}
+                                  </span>{' '}
+                                  (
+                                  {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+                                    ? `${c1Dur}s sin ralentizar`
+                                    : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
+                                  )
+                                </li>
+                                <li>
+                                  • <strong>Intro Oficial de Marca (8s Post-Slogan):</strong>{' '}
+                                  <span className="text-amber-300 font-mono">~00:26 - 00:34</span> (
+                                  <code>Intro.mp4</code> de 8s insertado tras el Párrafo 2 / Slogan Completo con{' '}
+                                  <code>[pausa: 8s]</code> en la voz narrativa)
+                                </li>
+                              </>
+                            )}
                             <li>
                               • <strong>Entrada de la Voz Narrativa:</strong>{' '}
                               <span className="text-emerald-400 font-semibold">
                                 Segundo {voiceEntryMasterSec} ({fmtMMSS(voiceEntryMasterSec)} del
-                                Master / {fmtMMSS(voiceEntryInClipsSec)} tras la Intro)
+                                Master)
                               </span>
                             </li>
                             <li>
                               • <strong>Clips de desarrollo narrado ({step}s c/u):</strong> ~
                               {devClipsCount} clips completos de {step}s (
                               <span className="font-mono text-slate-200">
-                                {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)} -{' '}
-                                {fmtMMSS(outroStartSec)}
+                                {fmtMMSS(
+                                  introMode === 'INTRO_INICIO_00'
+                                    ? FIXED_INTRO_SEC + clip1TimelineSec
+                                    : clip1TimelineSec
+                                )}{' '}
+                                - {fmtMMSS(outroStartSec)}
                               </span>
                               )
                             </li>
@@ -8402,14 +8619,14 @@ export default function App() {
                               <span className="text-purple-300 font-mono">
                                 {fmtMMSS(outroStartSec)} - {fmtMMSS(approxFinalDuration)}
                               </span>{' '}
-                              (<code>Outro.mp4</code> con Crossfade de 1.0s tras concluir la voz en{' '}
+                              (<code>Outro.mp4</code> con Fade In/Out tras concluir la voz en{' '}
                               {fmtMMSS(outroStartSec)})
                             </li>
                             <li>
                               • <strong>Total de Clips IA a generar + Extensión de Guion:</strong>{' '}
                               <span className="text-amber-300 font-bold">
                                 ~{totalGeneratedClipsCount} clips IA (~{approxFinalDuration}s totales con
-                                Intro y Outro)
+                                Intro 8s y Outro 8s)
                               </span>{' '}
                               · Guion sugerido: <strong>~{estChars} caracteres</strong> (~
                               {spokenTargetSec}s de locución pura)

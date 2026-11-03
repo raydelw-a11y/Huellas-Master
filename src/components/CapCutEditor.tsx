@@ -545,9 +545,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
   const [officialIntroFileName, setOfficialIntroFileName] = useState<string>('');
   const [introPlacementMode, setIntroPlacementMode] = useState<'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00'>(() => {
-    return activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_INICIO_00'
-      ? 'INTRO_INICIO_00'
-      : 'INTRO_POST_SLOGAN';
+    return activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+      ? 'INTRO_POST_SLOGAN'
+      : 'INTRO_INICIO_00';
   });
 
   // 3. Clip 1 Hook Overlay Text (00:08 - 00:16, right after the 8s Intro) + Typography, Size, Shadow, Background, Position & Animations
@@ -1564,33 +1564,50 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Insert the 4-second Official Intro Stinger into Track 3 (either at 00:00 or Post-Slogan ~00:28)
+  // Insert the 8-second Official Intro (Intro.mp4) into Track 3 (either at 00:00 - 00:08 by default, or Post-Slogan ~00:28)
   const handleInsertOfficialIntroInTimeline = (
     mode: 'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00' = introPlacementMode
   ) => {
-    if (!officialIntroUrl) {
-      setStatusMessage('⚠️ Primero sube tu video .MP4 del Intro Oficial (4s) una sola vez.');
-      return;
-    }
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const introOutroBasePath =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
+    const defaultIntro8kUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+      `${introOutroBasePath}/Intro.mp4`
+    )}&v=8k_audio_fade`;
+    const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
+
     const introClipItem: TimelineClipItem = {
-      id: `official_intro_${Date.now()}`,
+      id: 'fixed-doc-intro',
       clipNumber: 0,
-      fileName: '00_Intro_Oficial_Huellas_4s.mp4',
-      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:04' : 'Intro Oficial (4s)',
-      duration: 4,
-      originalDuration: 4,
+      fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
+      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:08' : 'Intro Oficial (8s)',
+      duration: 8,
+      sourceDuration: 8,
+      originalDuration: 8,
+      originalSlotDuration: 8,
       speed: 1,
       foleyVolume: 100,
-      transition: 'fade_black',
-      videoUrl: officialIntroUrl,
+      transition: 'crossfade',
+      videoUrl: effectiveIntroUrl,
       posterUrl: officialLogoUrl || undefined,
-      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (4s — Minimalismo en Piedra y Oro)',
+      narrationSegment:
+        mode === 'INTRO_INICIO_00'
+          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL POST-SLOGAN (8s • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
+      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (8s — Minimalismo en Piedra y Oro)',
       trimStart: 0,
-      trimEnd: 0,
+      trimEnd: 8,
+      smoothSlowMo: false,
+      reviewedForEditor: true,
     };
 
     setTimelineClips((prev) => {
-      const withoutExistingIntro = prev.filter((c) => !c.id.startsWith('official_intro_'));
+      const withoutExistingIntro = prev.filter(
+        (c) => c.id !== 'fixed-doc-intro' && !c.id.startsWith('official_intro_') && c.clipNumber !== 0
+      );
       if (mode === 'INTRO_INICIO_00') {
         return [introClipItem, ...withoutExistingIntro];
       }
@@ -1603,19 +1620,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ];
     });
 
+    const { clip1Sec } = getStage1ClipDurations(activeDoc);
+    const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
     if (mode === 'INTRO_INICIO_00') {
-      const { clip1Sec } = getStage1ClipDurations(activeDoc);
-      const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
-      setVoiceStartOffsetSec(baseHookSec + 4);
-      setHookLine1StartSec(4);
-      setHookLine2StartSec(6);
-      setClip1OverlayEndSec(baseHookSec + 4);
+      setVoiceStartOffsetSec(baseHookSec + 8);
+      setHookLine1StartSec(8);
+      setHookLine2StartSec(10);
+      setClip1OverlayEndSec(baseHookSec + 8);
       setStatusMessage(
-        '✅ Intro Oficial (4s) insertado en 00:00 - 00:04 (Opción A) y tiempos desplazados +4s automáticamente.'
+        '✅ Intro Oficial (8s — Intro.mp4) ubicado en 00:00 - 00:08 (Opción A por defecto) y tiempos desplazados +8s automáticamente.'
       );
     } else {
+      setVoiceStartOffsetSec(baseHookSec);
+      setHookLine1StartSec(0);
+      setHookLine2StartSec(2);
+      setClip1OverlayEndSec(baseHookSec);
       setStatusMessage(
-        '✅ Intro Oficial (4s) insertado después del Clip 3 / Slogan Completo (~00:28, Opción B).'
+        '✅ Intro Oficial (8s — Intro.mp4) ubicado después del Clip 3 / Slogan Completo (~00:28, Opción B Post-Slogan).'
       );
     }
   };
@@ -1662,10 +1683,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     const FIXED_INTRO_SEC = 8;
     const FIXED_OUTRO_SEC = 8;
+    const docIntroPlacement =
+      activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+        ? 'INTRO_POST_SLOGAN'
+        : 'INTRO_INICIO_00';
     const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !c1BaseDur || c1BaseDur <= 6 ? 8 : c1BaseDur;
-    // Fixed 8s Intro (00:00 - 00:08) -> Clip 1 with Hook Text (00:08 - 00:16) -> Voiceover & Captions start at 16s (00:16)
-    const entrySec = FIXED_INTRO_SEC + clip1HookDur;
+    // Opción A (default INTRO_INICIO_00): Fixed 8s Intro (00:00 - 00:08) -> Clip 1 Hook (00:08 - 00:16) -> Voiceover at 16s
+    // Opción B (INTRO_POST_SLOGAN): Clip 1 Hook (00:00 - 00:08) -> Voiceover at 8s, and 8s Intro enters Post-Slogan after Clip 3
+    const entrySec =
+      docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1HookDur : FIXED_INTRO_SEC + clip1HookDur;
 
     if (savedDocOverlays?.userEditedHook) {
       userEditedHookDocIdRef.current = docId;
@@ -1688,8 +1715,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     if (isDocSwitch) {
-      setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
-      setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
+      setIntroPlacementMode(docIntroPlacement);
+      if (docIntroPlacement === 'INTRO_POST_SLOGAN') {
+        setHookLine1StartSec(0);
+        setHookLine2StartSec(2);
+      } else {
+        setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
+        setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
+      }
       setClip1OverlayEndSec(entrySec);
       setVoiceStartOffsetSec(entrySec);
     }
@@ -1872,7 +1905,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       reviewedForEditor: true,
     };
 
-    let builtClips: TimelineClipItem[] = [fixedIntroClip, ...bodyClips, fixedOutroClip];
+    let builtClips: TimelineClipItem[] =
+      docIntroPlacement === 'INTRO_POST_SLOGAN'
+        ? [
+            ...bodyClips.slice(0, Math.min(3, bodyClips.length)),
+            fixedIntroClip,
+            ...bodyClips.slice(Math.min(3, bodyClips.length)),
+            fixedOutroClip,
+          ]
+        : [fixedIntroClip, ...bodyClips, fixedOutroClip];
 
     // If the user has custom cuts/splits/deletions/speed adjustments saved for this documentary, preserve them while keeping fresh videoUrl/posterUrl!
     if (
@@ -7296,21 +7337,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </label>
                 </div>
 
-                {/* PERMANENT OFFICIAL 4-SECOND INTRO STINGER ("MINIMALISMO EN PIEDRA Y ORO") */}
+                {/* PERMANENT OFFICIAL 8-SECOND INTRO ("MINIMALISMO EN PIEDRA Y ORO" — Intro.mp4) */}
                 <div className="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 space-y-2 mt-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div>
                       <div className="font-bold text-amber-300 text-[11px]">
-                        🎬 Intro Oficial de Marca (4s — Minimalismo en Piedra y Oro • Subir 1 Sola Vez)
+                        🎬 Intro Oficial de Marca (8s — Intro.mp4 • Minimalismo en Piedra y Oro)
                       </div>
                       <div className="text-[10px] text-slate-400">
                         {officialIntroUrl
-                          ? `✅ Guardado permanente: ${officialIntroFileName || 'Intro_Oficial_Huellas_4s.mp4'}`
-                          : 'Sube una sola vez el clip .MP4 de 4 segundos para insertarlo en tus documentales.'}
+                          ? `✅ Guardado permanente: ${officialIntroFileName || 'Intro.mp4 (8s)'}`
+                          : 'Vinculado automáticamente a Intro.mp4 (8s, 8K) con Fade In/Out de audio.'}
                       </div>
                     </div>
                     <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0">
-                      {officialIntroUrl ? '🔄 Cambiar Intro (.MP4)' : '📤 Subir Intro Oficial (.MP4 4s)'}
+                      {officialIntroUrl ? '🔄 Cambiar Intro (.MP4)' : '📤 Subir Intro Oficial (.MP4 8s)'}
                       <input
                         type="file"
                         accept="video/mp4,video/webm,video/quicktime,video/*"
@@ -7329,18 +7370,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       value={introPlacementMode}
                       onChange={(e) =>
                         setIntroPlacementMode(
-                          e.target.value === 'INTRO_INICIO_00'
-                            ? 'INTRO_INICIO_00'
-                            : 'INTRO_POST_SLOGAN'
+                          e.target.value === 'INTRO_POST_SLOGAN'
+                            ? 'INTRO_POST_SLOGAN'
+                            : 'INTRO_INICIO_00'
                         )
                       }
                       className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 font-semibold"
                     >
-                      <option value="INTRO_POST_SLOGAN">
-                        Opción B (Recomendada): Post-Promesa / Slogan (~00:28 tras Clip 3)
-                      </option>
                       <option value="INTRO_INICIO_00">
-                        Opción A: Inicio Absoluto (00:00 - 00:04 • desplaza +4s)
+                        Opción A (Por defecto): Intro 8s Inicial (00:00 - 00:08 • Intro.mp4)
+                      </option>
+                      <option value="INTRO_POST_SLOGAN">
+                        Opción B: Intro 8s Post-Slogan (~00:28 tras Clip 3 • Intro.mp4)
                       </option>
                     </select>
                     <button
@@ -7348,7 +7389,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       onClick={() => handleInsertOfficialIntroInTimeline(introPlacementMode)}
                       className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0"
                     >
-                      ➕ Insertar Intro (4s) en Línea de Tiempo
+                      ➕ Ubicar Intro (8s) en Línea de Tiempo
                     </button>
                   </div>
 
@@ -7369,13 +7410,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(
-                          "Clip Intro (00:00 - 00:04): Create a video 16:9 horizontal cinematic documentary sequence, 4 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
+                          "Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
                         );
-                        setStatusMessage('📋 Prompt de Video del Intro Oficial 4s (Veo 3.1 - Lite [Lower Priority]) copiado.');
+                        setStatusMessage('📋 Prompt de Video del Intro Oficial 8s (Veo 3.1 - Lite [Lower Priority]) copiado.');
                       }}
                       className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
                     >
-                      📋 Copiar Prompt Clip Intro (4s)
+                      📋 Copiar Prompt Clip Intro (8s)
                     </button>
                   </div>
                 </div>
