@@ -1029,9 +1029,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [foleyIsolationProgress, setFoleyIsolationProgress] = useState<{ current: number; total: number } | null>(null);
   const [autoIsolateFoleyAllClips, setAutoIsolateFoleyAllClips] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('huellas_editor_auto_foley_only') === 'true';
+      return localStorage.getItem('huellas_editor_auto_foley_only_v2') !== 'false';
     } catch {
-      return false;
+      return true;
     }
   });
   const autoAttemptedFoleyClipIdsRef = useRef<Set<string>>(new Set());
@@ -5368,6 +5368,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         prev.map((c) => {
           const info = isolatedMap[c.id];
           if (!info) return c;
+          const hasClean = Boolean(
+            info.cleanFoleyVideoUrl || info.cleanOpticalFlowUrl || c.cleanFoleyOnlyVideoUrl
+          );
+          if (!hasClean) return c;
           return {
             ...c,
             foleyOnlyIsolated: true,
@@ -5407,34 +5411,47 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const next = !autoIsolateFoleyAllClips;
     setAutoIsolateFoleyAllClips(next);
     try {
-      localStorage.setItem('huellas_editor_auto_foley_only', next ? 'true' : 'false');
+      localStorage.setItem('huellas_editor_auto_foley_only_v2', next ? 'true' : 'false');
     } catch {}
     if (next) {
       autoAttemptedFoleyClipIdsRef.current.clear();
       await handleIsolateFoleyForAllClips();
     } else {
-      setStatusMessage('ℹ️ Modo automático de Solo Foley desactivado.');
+      const allBodyIds = timelineClips
+        .filter((c) => c.clipNumber > 0 && c.clipNumber !== 999)
+        .map((c) => c.id);
+      commitTimelineClipsUpdate((prev) =>
+        prev.map((c) => {
+          if (!allBodyIds.includes(c.id)) return c;
+          return {
+            ...c,
+            foleyOnlyIsolated: false,
+            videoUrl: c.originalVideoUrlBeforeSeparation || c.videoUrl,
+            opticalFlowUrl: c.originalOpticalFlowUrlBeforeSeparation || c.opticalFlowUrl,
+          };
+        })
+      );
+      setStatusMessage('ℹ️ Opción "Solo Foley en Todos los Clips" desmarcada: audio original restaurado.');
     }
   };
 
-  // When Auto Solo Foley is enabled, automatically process any newly loaded/synced body clips that aren't isolated yet
+  // When "Solo Foley en Todos los Clips (Sin Música ni Voces)" is selected, automatically process each clip
   useEffect(() => {
     if (!autoIsolateFoleyAllClips || isIsolatingFoley) return;
-    const pendingClipIds = timelineClips
-      .filter(
-        (c) =>
-          c.clipNumber > 0 &&
-          c.clipNumber !== 999 &&
-          !c.foleyOnlyIsolated &&
-          Boolean(c.videoUrl || c.fileName) &&
-          !autoAttemptedFoleyClipIdsRef.current.has(`${activeDoc?.id || 'doc'}_${c.id}`)
-      )
-      .map((c) => c.id);
-    if (pendingClipIds.length === 0) return;
-    pendingClipIds.forEach((id) =>
-      autoAttemptedFoleyClipIdsRef.current.add(`${activeDoc?.id || 'doc'}_${id}`)
-    );
-    handleIsolateFoleyOnlyFromClips(pendingClipIds);
+    const docId = activeDoc?.id || 'doc';
+    const pendingClips = timelineClips.filter((c) => {
+      if (c.clipNumber <= 0 || c.clipNumber === 999) return false;
+      if (c.foleyOnlyIsolated) return false;
+      if (!c.videoUrl && !c.fileName) return false;
+      const attemptKey = `${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
+      return !autoAttemptedFoleyClipIdsRef.current.has(attemptKey);
+    });
+    if (pendingClips.length === 0) return;
+    pendingClips.forEach((c) => {
+      const attemptKey = `${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
+      autoAttemptedFoleyClipIdsRef.current.add(attemptKey);
+    });
+    handleIsolateFoleyOnlyFromClips(pendingClips.map((c) => c.id));
   }, [autoIsolateFoleyAllClips, timelineClips, isIsolatingFoley, activeDoc?.id]);
 
   // Restore original uncleaned audio to clip(s)
@@ -5445,7 +5462,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (autoIsolateFoleyAllClips) {
       setAutoIsolateFoleyAllClips(false);
       try {
-        localStorage.setItem('huellas_editor_auto_foley_only', 'false');
+        localStorage.setItem('huellas_editor_auto_foley_only_v2', 'false');
       } catch {}
     }
     commitTimelineClipsUpdate((prev) =>
@@ -7185,35 +7202,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             Sincronizar Todo + Carpeta
           </button>
 
-          {/* Prominent Top-Bar Action: Isolate Ambient Foley Across ALL Clips Automatically */}
-          <div className="flex items-center bg-slate-950 border border-teal-500/50 rounded-xl p-0.5 text-xs gap-0.5">
-            <button
-              type="button"
-              disabled={isIsolatingFoley}
-              onClick={handleIsolateFoleyForAllClips}
-              className="px-2.5 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer transition shadow"
-              title="Detecta, separa y elimina automáticamente la música y las voces en TODOS los clips del video, dejando solo el audio de Foley ambiente en cada clip"
-            >
-              <span>🌿</span>
-              <span>
-                {isIsolatingFoley
-                  ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                  : 'Solo Foley en TODOS los Clips'}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleAutoIsolateFoleyAllClips}
-              className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition flex items-center gap-1 ${
-                autoIsolateFoleyAllClips
-                  ? 'bg-emerald-500/25 border border-emerald-400/60 text-emerald-200'
-                  : 'text-slate-400 hover:text-teal-200'
-              }`}
-              title="Activar/Desactivar modo automático: limpia automáticamente la música y las voces de todos los clips del video al cargarlos o sincronizarlos"
-            >
-              <span>⚡ Auto: {autoIsolateFoleyAllClips ? 'ON' : 'OFF'}</span>
-            </button>
-          </div>
+          {/* Selectable Option (Checked by Default): Isolate Ambient Foley Across ALL Clips Automatically */}
+          <label
+            className={`px-2.5 py-1 rounded-xl border text-xs font-black flex items-center gap-2 cursor-pointer transition select-none shadow ${
+              autoIsolateFoleyAllClips
+                ? 'bg-teal-500/20 border-teal-400 text-teal-200 shadow-teal-500/15'
+                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Opción seleccionable (activa por defecto): mientras está seleccionada, detecta, separa y elimina automáticamente la música y las voces de cada clip dejando solo el audio de Foley ambiente"
+          >
+            <input
+              type="checkbox"
+              checked={autoIsolateFoleyAllClips}
+              onChange={handleToggleAutoIsolateFoleyAllClips}
+              className="w-3.5 h-3.5 accent-teal-400 cursor-pointer rounded"
+            />
+            <span>🌿</span>
+            <span>
+              {isIsolatingFoley
+                ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
+                : 'Solo Foley en Todos los Clips (Sin Música ni Voces)'}
+            </span>
+          </label>
 
           {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
             <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-xl p-0.5 text-xs">
@@ -9290,30 +9300,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    disabled={isIsolatingFoley}
-                    onClick={handleIsolateFoleyForAllClips}
-                    className="px-3 py-1.5 rounded-lg bg-teal-600/30 hover:bg-teal-600/50 border border-teal-400/60 disabled:opacity-50 text-teal-100 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                  <label
+                    className={`px-3 py-1.5 rounded-lg border font-black text-xs flex items-center gap-2 cursor-pointer transition select-none shadow ${
+                      autoIsolateFoleyAllClips
+                        ? 'bg-teal-500/25 border-teal-400 text-teal-100'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-teal-200'
+                    }`}
+                    title="Mientras está seleccionada, aplica automáticamente Solo Foley (sin música ni voces) a cada clip del video"
                   >
-                    <span>🌿⚡</span>
+                    <input
+                      type="checkbox"
+                      checked={autoIsolateFoleyAllClips}
+                      onChange={handleToggleAutoIsolateFoleyAllClips}
+                      className="w-3.5 h-3.5 accent-teal-400 cursor-pointer rounded"
+                    />
+                    <span>🌿</span>
                     <span>
                       {isIsolatingFoley
                         ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                        : 'Eliminar Música y Voces en TODOS los Clips Automáticamente'}
+                        : 'Solo Foley en Todos los Clips (Sin Música ni Voces)'}
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleToggleAutoIsolateFoleyAllClips}
-                    className={`px-2.5 py-1.5 rounded-lg border font-bold text-xs cursor-pointer transition ${
-                      autoIsolateFoleyAllClips
-                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-teal-200'
-                    }`}
-                  >
-                    ⚡ Auto Solo Foley al Cargar: {autoIsolateFoleyAllClips ? 'ACTIVO' : 'OFF'}
-                  </button>
+                  </label>
                   {timelineClips.some((c) => c.foleyOnlyIsolated || c.vocalsSeparated || c.musicSeparated) && (
                     <button
                       type="button"
@@ -10326,21 +10333,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 )}
               </div>
             )}
-            {/* Global One-Click Button: Eliminate Music & Voices across All Clips (Keep Only Foley) */}
-            <button
-              type="button"
-              disabled={isIsolatingFoley}
-              onClick={handleIsolateFoleyForAllClips}
-              className="px-2.5 py-1 rounded-lg bg-teal-950/90 hover:bg-teal-900 border border-teal-400/60 disabled:opacity-50 text-teal-200 font-black text-[10px] flex items-center gap-1.5 shadow cursor-pointer transition"
-              title="Detecta, separa y elimina el audio de música y voces en todos los clips de la línea de tiempo, dejando únicamente el sonido de Foley ambiente en cada clip"
+            {/* Global Selectable Option (Checked by Default): Eliminate Music & Voices across All Clips Automatically */}
+            <label
+              className={`px-2.5 py-1 rounded-lg border font-black text-[10px] flex items-center gap-1.5 shadow cursor-pointer transition select-none ${
+                autoIsolateFoleyAllClips
+                  ? 'bg-teal-500/25 hover:bg-teal-500/35 border-teal-400 text-teal-100 shadow-teal-500/15'
+                  : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+              title="Opción seleccionable (seleccionada por defecto): mientras está activa, detecta, separa y elimina automáticamente el audio de música y voces en cada clip de la línea de tiempo, dejando únicamente el sonido de Foley ambiente"
             >
+              <input
+                type="checkbox"
+                checked={autoIsolateFoleyAllClips}
+                onChange={handleToggleAutoIsolateFoleyAllClips}
+                className="w-3.5 h-3.5 accent-teal-400 cursor-pointer rounded"
+              />
               <span>🌿</span>
               <span>
                 {isIsolatingFoley
                   ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
                   : 'Solo Foley en Todos los Clips (Sin Música ni Voces)'}
               </span>
-            </button>
+            </label>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>Zoom de Pistas ({timelineRulerData.scaleUnitLabel}):</span>
@@ -10763,20 +10777,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className="w-44 shrink-0 px-2.5 py-3 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300 flex flex-col gap-1.5">
                 <span>3. 🎬 Clips + Foley ({timelineClips.length})</span>
-                <button
-                  type="button"
-                  disabled={isIsolatingFoley}
-                  onClick={handleIsolateFoleyForAllClips}
-                  className="w-full px-2 py-1 rounded-md bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-black text-[10px] flex items-center justify-center gap-1 shadow cursor-pointer transition"
-                  title="Detecta, separa y elimina automáticamente la música y las voces de TODOS los clips del video, dejando solo el Foley ambiente"
+                <label
+                  className={`w-full px-2 py-1 rounded-md border font-black text-[10px] flex items-center gap-1.5 shadow cursor-pointer transition select-none ${
+                    autoIsolateFoleyAllClips
+                      ? 'bg-teal-500/25 border-teal-400 text-teal-100'
+                      : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Opción seleccionable (activa por defecto): mientras está seleccionada, aplica Solo Foley (sin música ni voces) automáticamente a cada clip"
                 >
-                  <span>🌿⚡</span>
+                  <input
+                    type="checkbox"
+                    checked={autoIsolateFoleyAllClips}
+                    onChange={handleToggleAutoIsolateFoleyAllClips}
+                    className="w-3 h-3 accent-teal-400 cursor-pointer rounded shrink-0"
+                  />
+                  <span>🌿</span>
                   <span className="truncate">
                     {isIsolatingFoley
                       ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
                       : 'Solo Foley en Todos'}
                   </span>
-                </button>
+                </label>
               </div>
               <div
                 style={
