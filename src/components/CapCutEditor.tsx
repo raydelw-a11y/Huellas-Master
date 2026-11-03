@@ -756,6 +756,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => Number(initialOverlayStyles.hookBoxWidthPct) || 82
   );
   const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
+  const [leftPanelTab, setLeftPanelTab] = useState<
+    'media' | 'audio' | 'text' | 'transitions' | 'captions'
+  >('media');
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState<boolean>(false);
+  const [isTimelineDockExpanded, setIsTimelineDockExpanded] = useState<boolean>(false);
+  const viewerStageRef = useRef<HTMLDivElement | null>(null);
+  const [viewerStageSize, setViewerStageSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
   const viewerCanvasRef = useRef<HTMLDivElement | null>(null);
   const viewerContainerRef = useRef<HTMLDivElement | null>(null);
   const [isViewerFullscreen, setIsViewerFullscreen] = useState<boolean>(false);
@@ -772,6 +783,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     viewerCanvasSize.width > 0 ? viewerCanvasSize.width / canonicalStageWidth : 1;
   const viewerScaleY =
     viewerCanvasSize.height > 0 ? viewerCanvasSize.height / CANONICAL_STAGE_HEIGHT : 1;
+
+  useEffect(() => {
+    const stageEl = viewerStageRef.current;
+    if (!stageEl) return;
+    const syncStageSize = () => {
+      const rect = stageEl.getBoundingClientRect();
+      const availW = Math.max(0, rect.width - 8);
+      const availH = Math.max(0, rect.height - 8);
+      if (availW > 0 && availH > 0) {
+        setViewerStageSize((prev) =>
+          Math.abs(prev.width - availW) < 0.5 && Math.abs(prev.height - availH) < 0.5
+            ? prev
+            : { width: availW, height: availH }
+        );
+      }
+    };
+    syncStageSize();
+    const ro =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncStageSize()) : null;
+    if (ro) ro.observe(stageEl);
+    window.addEventListener('resize', syncStageSize);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', syncStageSize);
+    };
+  }, [
+    isViewerFullscreen,
+    aspectRatio,
+    isEditorActive,
+    isLeftPanelCollapsed,
+    isRightPanelCollapsed,
+    isTimelineDockExpanded,
+    selectedCanvasObject,
+  ]);
 
   useEffect(() => {
     const el = viewerCanvasRef.current;
@@ -795,7 +840,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (ro) ro.disconnect();
       window.removeEventListener('resize', syncViewerSize);
     };
-  }, [isViewerFullscreen, aspectRatio, isEditorActive]);
+  }, [isViewerFullscreen, aspectRatio, isEditorActive, viewerStageSize]);
 
   useEffect(() => {
     const onFsChange = () => {
@@ -1316,6 +1361,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
   const [masterMusicVolume, setMasterMusicVolume] = useState<number>(24);
+  const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(null);
+
+  const handleUpdateMusicTrack = (
+    trackId: string,
+    patch: Partial<Pick<TimelineMusicItem, 'volume' | 'fadeInSec' | 'fadeOutSec'>>,
+    applyToAll: boolean = false
+  ) => {
+    const docId = activeDoc?.id || 'default';
+    setMusicTracks((prev) => {
+      const updated = prev.map((mt) =>
+        applyToAll || mt.id === trackId ? { ...mt, ...patch } : mt
+      );
+      try {
+        const docKey = `huellas_editor_doc_overlays_${docId}`;
+        const existingRaw = localStorage.getItem(docKey);
+        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+        const prevEdits =
+          existing && typeof existing.musicTrackEdits === 'object'
+            ? { ...existing.musicTrackEdits }
+            : {};
+        for (const item of updated) {
+          if (applyToAll || item.id === trackId) {
+            const cur = prevEdits[String(item.trackNumber)] || {};
+            prevEdits[String(item.trackNumber)] = {
+              ...cur,
+              volume: item.volume,
+              fadeInSec: item.fadeInSec ?? 2.5,
+              fadeOutSec: item.fadeOutSec ?? 3.0,
+            };
+          }
+        }
+        persistDocOverlaysPatch({ musicTrackEdits: prevEdits }, docId);
+      } catch {}
+      return updated;
+    });
+    if (applyToAll && typeof patch.volume === 'number') {
+      setMasterMusicVolume(patch.volume);
+    }
+  };
 
   // Playback & Rendering State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -2537,9 +2621,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
     const sunoList = activeDoc.sunoTracks || [];
     if (sunoList.length > 0) {
+      const savedMusicEdits: Record<
+        string,
+        { volume?: number; fadeInSec?: number; fadeOutSec?: number }
+      > =
+        savedDocOverlays && typeof savedDocOverlays.musicTrackEdits === 'object'
+          ? savedDocOverlays.musicTrackEdits
+          : {};
       let cursorSec = FIXED_INTRO_SEC; // Music starts at 00:08 (after 8s Intro)
       const silenceGapSec = 15; // Mandatory 10-20s silence between songs
       const builtMusic: TimelineMusicItem[] = sunoList.map((st, idx) => {
+        const trackNum = idx + 1;
+        const trackId = st.id || `music-${trackNum}`;
+        const savedEdit = savedMusicEdits[String(trackNum)] || savedMusicEdits[trackId] || {};
         const isLast = idx === sunoList.length - 1;
         const parsedMinsMatch = (st.duration || '').match(/(\d+):(\d{2})/);
         let durSec = parsedMinsMatch
@@ -2578,20 +2672,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
         cursorSec = startSec + durSec + silenceGapSec;
         return {
-          id: st.id || `music-${idx + 1}`,
-          trackNumber: idx + 1,
-          title: st.title || `Canción ${idx + 1}`,
+          id: trackId,
+          trackNumber: trackNum,
+          title: st.title || `Canción ${trackNum}`,
           start: startSec,
           duration: durSec,
-          volume: masterMusicVolume,
-          audioUrl: combinedSunoAudioMap[idx + 1] || st.audioUrl,
+          volume:
+            typeof savedEdit.volume === 'number'
+              ? savedEdit.volume
+              : masterMusicVolume,
+          audioUrl: combinedSunoAudioMap[trackNum] || st.audioUrl,
           isLast90Sec: isLast,
-          fadeInSec: 2.5,
-          fadeOutSec: 3.0,
+          fadeInSec:
+            typeof savedEdit.fadeInSec === 'number' ? savedEdit.fadeInSec : 2.5,
+          fadeOutSec:
+            typeof savedEdit.fadeOutSec === 'number' ? savedEdit.fadeOutSec : 3.0,
           videoTimeRange: st.videoTimeRange,
         };
       });
-      setMusicTracks(builtMusic);
+      setMusicTracks((prev) =>
+        builtMusic.map((bm) => {
+          const prevMatch =
+            !isDocSwitch &&
+            prev.find((p) => p.trackNumber === bm.trackNumber || p.id === bm.id);
+          const savedEdit =
+            savedMusicEdits[String(bm.trackNumber)] || savedMusicEdits[bm.id] || {};
+          return {
+            ...bm,
+            volume:
+              typeof savedEdit.volume === 'number'
+                ? savedEdit.volume
+                : prevMatch && typeof prevMatch.volume === 'number'
+                ? prevMatch.volume
+                : bm.volume,
+            fadeInSec:
+              typeof savedEdit.fadeInSec === 'number'
+                ? savedEdit.fadeInSec
+                : prevMatch && typeof prevMatch.fadeInSec === 'number'
+                ? prevMatch.fadeInSec
+                : bm.fadeInSec,
+            fadeOutSec:
+              typeof savedEdit.fadeOutSec === 'number'
+                ? savedEdit.fadeOutSec
+                : prevMatch && typeof prevMatch.fadeOutSec === 'number'
+                ? prevMatch.fadeOutSec
+                : bm.fadeOutSec,
+          };
+        })
+      );
     }
   };
 
@@ -3659,7 +3787,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     currentTime,
   ]);
 
-  // Automatic Fade-In (2.5s), Fade-Out (3.0s) & Voice-Priority Ducking (Music NEVER louder than Narrator Voice, and OFF during Intro & Outro)
+  const selectedMusicTrack = useMemo(() => {
+    if (selectedMusicTrackId) {
+      const match = musicTracks.find((mt) => mt.id === selectedMusicTrackId);
+      if (match) return match;
+    }
+    return activeMusicAtPlayhead || musicTracks[0] || null;
+  }, [musicTracks, selectedMusicTrackId, activeMusicAtPlayhead]);
+
+  // Automatic & Custom Per-Song Fade-In, Fade-Out & Volume (OFF during Intro & Outro)
   const effectiveMusicVolumeAtPlayhead = useMemo(() => {
     if (
       !activeMusicAtPlayhead ||
@@ -3670,30 +3806,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     ) {
       return 0;
     }
-    const rawBasePct = activeMusicAtPlayhead.volume || masterMusicVolume || 24;
-    // Strict ceiling: music can never exceed 42% of narrator's voiceVolume
-    const maxAllowedByVoice = Math.max(12, Math.min(45, Math.round(voiceVolume * 0.42)));
-    const duckedPct = Math.min(Math.max(rawBasePct, 20), 24, Math.round(voiceVolume * 0.25));
-    const pausePct = Math.min(Math.max(rawBasePct, 30), maxAllowedByVoice);
+    const rawBasePct =
+      typeof activeMusicAtPlayhead.volume === 'number'
+        ? activeMusicAtPlayhead.volume
+        : masterMusicVolume;
+    if (rawBasePct <= 0) return 0;
+
     const targetBasePct = autoDuckingEnabled
       ? isNarratorSpeakingAtPlayhead
-        ? duckedPct
-        : pausePct
-      : Math.min(rawBasePct, maxAllowedByVoice);
+        ? rawBasePct
+        : Math.min(100, Math.round(rawBasePct * 1.18))
+      : rawBasePct;
 
-    const fadeInSec = activeMusicAtPlayhead.fadeInSec ?? 2.5;
-    const fadeOutSec = activeMusicAtPlayhead.fadeOutSec ?? 3.0;
+    const fadeInSec = Math.max(0, activeMusicAtPlayhead.fadeInSec ?? 2.5);
+    const fadeOutSec = Math.max(0, activeMusicAtPlayhead.fadeOutSec ?? 3.0);
     const elapsedInTrack = Math.max(0, currentTime - activeMusicAtPlayhead.start);
     const remainingInTrack = Math.max(
       0,
       activeMusicAtPlayhead.start + activeMusicAtPlayhead.duration - currentTime
     );
-    const fadeInFactor =
-      fadeInSec > 0 ? 0.28 + 0.72 * Math.min(1, elapsedInTrack / fadeInSec) : 1;
+    const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInTrack / fadeInSec) : 1;
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInTrack / fadeOutSec) : 1;
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
 
-    return Number(Math.min(maxAllowedByVoice, targetBasePct * fadeEnvelope).toFixed(2));
+    return Number(Math.max(0, Math.min(100, targetBasePct * fadeEnvelope)).toFixed(2));
   }, [
     activeMusicAtPlayhead,
     activeClipAtPlayhead?.id,
@@ -3824,19 +3960,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const hasKnownVidDur =
       typeof vid.duration === 'number' && Number.isFinite(vid.duration) && vid.duration > 0.25;
 
-    // If playing a pre-baked Optical Flow MP4, it is already trimmed and stretched to slotDur at 1.0x
+    // If playing a pre-baked Optical Flow MP4, pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
       clip.opticalFlowUrl && clip.smoothSlowMo !== false && clip.speed < 0.99
     );
     if (usingOpticalFlowVideo) {
-      const rawOffset = Math.max(0, timelineSec - clip.start);
+      const optRate =
+        hasKnownVidDur && Math.abs(vid.duration - slotDur) > 0.05
+          ? Math.max(0.2, Math.min(4.0, Number((vid.duration / slotDur).toFixed(4))))
+          : 1;
+      const rawOffset = Math.max(0, timelineSec - clip.start) * optRate;
       const maxSafeOffset = hasKnownVidDur
-        ? Math.max(0, vid.duration - 0.06)
+        ? Math.max(0, vid.duration - 0.04)
         : Math.max(0, slotDur - 0.04);
       const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
-      const reachedClipMediaEnd = Boolean(rawOffset >= maxSafeOffset);
+      const reachedClipMediaEnd = Boolean(timelineSec - clip.start >= slotDur - 0.04);
       return {
-        effectiveRate: 1,
+        effectiveRate: optRate,
         clampedOffset,
         reachedClipMediaEnd,
       };
@@ -3852,21 +3992,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : fallbackEnd;
     const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
 
-    // If user specified custom speed (or if playableMediaDur is shorter/longer than slotDur), sync rate smoothly
-    const effectiveRate =
-      clip.speed && Math.abs(clip.speed - 1) > 0.01
-        ? Math.max(0.2, Math.min(4.0, clip.speed))
-        : hasKnownVidDur && Math.abs(playableMediaDur - slotDur) > 0.12
-        ? Math.max(0.25, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(3))))
-        : 1;
+    // Always pace playableMediaDur across the full slotDur when vid.duration is known so trimmed/slow-mo clips never freeze before the end of slotDur
+    const effectiveRate = hasKnownVidDur
+      ? Math.max(0.15, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
+      : clip.speed && Math.abs(clip.speed - 1) > 0.01
+      ? Math.max(0.2, Math.min(4.0, clip.speed))
+      : Math.abs(playableMediaDur - slotDur) > 0.12
+      ? Math.max(0.25, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
+      : 1;
 
     const rawOffset = Math.max(0, timelineSec - clip.start) * effectiveRate + trimStart;
     const mediaCeiling = hasKnownVidDur
-      ? Math.min(vid.duration - 0.06, trimEnd - 0.04)
+      ? Math.min(vid.duration - 0.04, trimEnd - 0.02)
       : trimEnd - 0.04;
     const maxSafeOffset = Math.max(trimStart, mediaCeiling);
     const clampedOffset = Math.max(trimStart, Math.min(maxSafeOffset, rawOffset));
-    const reachedClipMediaEnd = Boolean(rawOffset >= maxSafeOffset);
+    const reachedClipMediaEnd = Boolean(timelineSec - clip.start >= slotDur - 0.04);
 
     return {
       effectiveRate,
@@ -5552,9 +5693,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       typeof clip.trimEnd === 'number' && clip.trimEnd > safeTrimStart + 0.05
         ? Number(clip.trimEnd)
         : Number(clip.sourceDuration || 8);
-    const expectedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_s${Number(
-      clip.speed
-    ).toFixed(3)}_of1`;
+    const expectedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${Number(
+      clip.duration || 8
+    ).toFixed(2)}_of2`;
 
     if (clip.opticalFlowUrl && clip.opticalFlowBakedKey === expectedKey) {
       if (!silent) {
@@ -5619,6 +5760,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     opticalFlowUrl: finalUrl,
                     opticalFlowBakedKey: data.bakedKey || expectedKey,
                     smoothSlowMo: true,
+                    ...(Number(data.actualSourceDuration) > 0.4
+                      ? { sourceDuration: Number(data.actualSourceDuration) }
+                      : {}),
+                    ...(Number(data.trimEnd) > 0.4 ? { trimEnd: Number(data.trimEnd) } : {}),
+                    ...(Number(data.speed) > 0.1
+                      ? { speed: Number(Number(data.speed).toFixed(2)) }
+                      : {}),
                   }
                 : c
             ),
@@ -5648,6 +5796,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setOpticalFlowProcessingByClipId((prev) => ({ ...prev, [clip.id]: false }));
     }
   };
+
+  // Automatically upgrade any existing slow-mo clip whose Optical Flow cache was generated with the old _of1 key so it never freezes at the end
+  useEffect(() => {
+    const staleClip = timelineClips.find(
+      (c) =>
+        c.clipNumber > 0 &&
+        c.clipNumber !== 999 &&
+        c.speed < 0.99 &&
+        c.smoothSlowMo !== false &&
+        !opticalFlowProcessingByClipId[c.id] &&
+        (!c.opticalFlowUrl || !String(c.opticalFlowBakedKey || '').endsWith('_of2'))
+    );
+    if (staleClip) {
+      triggerOpticalFlowForClip(staleClip, true);
+    }
+  }, [timelineClips, activeDoc?.id]);
 
   const scheduleAutoOpticalFlow = (clip: TimelineClipItem) => {
     if (!clip || clip.clipNumber === 0 || clip.clipNumber === 999) return;
@@ -6295,12 +6459,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? activeDoc.masterAudioUrl
                   : '',
               sunoSilenceGapSec: 15,
-              sunoMasterVolume: Math.min(masterMusicVolume, Math.round(voiceVolume * 0.16)) / 100,
+              sunoMasterVolume: masterMusicVolume / 100,
               musicTracks: musicTracks.map((mt) => ({
                 trackNumber: mt.trackNumber,
                 title: mt.title,
                 startSec: mt.start,
                 durationSec: mt.duration,
+                volume: (typeof mt.volume === 'number' ? mt.volume : masterMusicVolume) / 100,
                 fadeInSec: mt.fadeInSec ?? 2.5,
                 fadeOutSec: mt.fadeOutSec ?? 3.0,
                 audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
@@ -6906,7 +7071,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0c0a08] text-slate-100 min-h-0">
+    <div className="flex-1 flex flex-col bg-[#0c0a08] text-slate-100 min-h-0 lg:h-[calc(100vh-52px)] lg:overflow-hidden">
       {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
       {effectiveVoiceoverUrl && (
         <audio
@@ -7146,14 +7311,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )}
 
       {/* =====================================================================
-          TOP BAR: PROJECT SELECTOR, ASPECT RATIO (16:9 / 9:16), QUALITY (HD/2K/4K/8K) & EXPORT
+          TOP BAR: CAPCUT-STYLE ULTRA-COMPACT PROJECT BAR, RATIO, QUALITY & EXPORT
       ===================================================================== */}
-      <div className="bg-[#14110d] border-b border-amber-500/25 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5">
-              <Film className="w-3.5 h-3.5" />
-              EDITOR DE VIDEO
+      <div className="bg-[#14110d] border-b border-amber-500/25 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
+              <Film className="w-3 h-3" />
+              EDITOR
             </span>
             {documentaries.length > 0 && onSelectDoc ? (
               <select
@@ -7163,7 +7328,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   setCurrentTime(0);
                   onSelectDoc(e.target.value);
                 }}
-                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2.5 py-1 text-xs font-bold text-amber-200 max-w-[300px] cursor-pointer outline-none"
+                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-amber-200 max-w-[260px] cursor-pointer outline-none"
                 title="Cambiar de documental directamente desde el Editor de Video"
               >
                 {documentaries.map((d) => (
@@ -7174,7 +7339,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 ))}
               </select>
             ) : (
-              <span className="text-sm font-bold text-amber-200 truncate max-w-[260px]">
+              <span className="text-xs font-bold text-amber-200 truncate max-w-[240px]">
                 {activeDoc?.title || 'Sin Documental Seleccionado'}
               </span>
             )}
@@ -7195,18 +7360,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 syncTracksFromDocumentary();
               }
             }}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-amber-300 font-semibold flex items-center gap-1 cursor-pointer"
             title="Sincronizar clips, voz narrativa, texto del Clip 1, captions, música de Suno y videos .MP4 desde tu carpeta"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Sincronizar Todo + Carpeta
+            <RefreshCw className="w-3 h-3" />
+            Sincronizar
           </button>
 
           {/* Selectable Option (Checked by Default): Isolate Ambient Foley Across ALL Clips Automatically */}
           <label
-            className={`px-2.5 py-1 rounded-xl border text-xs font-black flex items-center gap-2 cursor-pointer transition select-none shadow ${
+            className={`px-2 py-0.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition select-none ${
               autoIsolateFoleyAllClips
-                ? 'bg-teal-500/20 border-teal-400 text-teal-200 shadow-teal-500/15'
+                ? 'bg-teal-500/20 border-teal-400 text-teal-200'
                 : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
             }`}
             title="Opción seleccionable (activa por defecto): mientras está seleccionada, detecta, separa y elimina automáticamente la música y las voces de cada clip dejando solo el audio de Foley ambiente"
@@ -7215,22 +7380,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               type="checkbox"
               checked={autoIsolateFoleyAllClips}
               onChange={handleToggleAutoIsolateFoleyAllClips}
-              className="w-3.5 h-3.5 accent-teal-400 cursor-pointer rounded"
+              className="w-3 h-3 accent-teal-400 cursor-pointer rounded"
             />
             <span>🌿</span>
             <span>
               {isIsolatingFoley
-                ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                : 'Solo Foley en Todos los Clips (Sin Música ni Voces)'}
+                ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
+                : 'Solo Foley en Todos'}
             </span>
           </label>
 
           {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
-            <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-xl p-0.5 text-xs">
+            <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px]">
               <button
                 type="button"
                 onClick={() => setShowOnlyReviewedClips(true)}
-                className={`px-2.5 py-1 rounded-lg font-black cursor-pointer transition ${
+                className={`px-2 py-0.5 rounded font-black cursor-pointer transition ${
                   showOnlyReviewedClips
                     ? 'bg-emerald-500 text-slate-950 shadow'
                     : 'text-emerald-300 hover:text-white'
@@ -7242,7 +7407,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <button
                 type="button"
                 onClick={() => setShowOnlyReviewedClips(false)}
-                className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer transition ${
+                className={`px-2 py-0.5 rounded font-bold cursor-pointer transition ${
                   !showOnlyReviewedClips
                     ? 'bg-amber-500 text-slate-950 shadow'
                     : 'text-slate-400 hover:text-white'
@@ -7256,22 +7421,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* Aspect Ratio Selector */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
             <button
               type="button"
               onClick={() => {
                 setAspectRatio('16:9');
                 setCaptionFontSize(40);
               }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
                 aspectRatio === '16:9'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              📺 16:9 (Horizontal)
+              📺 16:9
             </button>
             <button
               type="button"
@@ -7279,18 +7444,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 setAspectRatio('9:16');
                 if (captionFontSize === 40) setCaptionFontSize(22);
               }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
                 aspectRatio === '9:16'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              📱 9:16 (Vertical)
+              📱 9:16
             </button>
           </div>
 
           {/* Quality / Resolution Selector: HD, 2K, 4K, 8K */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
             {(['HD_1080P', '2K_1440P', '4K_2160P', '8K_4320P'] as ExportResolutionPreset[]).map(
               (resKey) => {
                 const p = RESOLUTION_PRESETS[resKey];
@@ -7300,7 +7465,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     key={resKey}
                     type="button"
                     onClick={() => setExportResolution(resKey)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
                       isSel
                         ? 'bg-emerald-500 text-slate-950 shadow'
                         : 'text-slate-400 hover:text-slate-200'
@@ -7325,20 +7490,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   await onPickDownloadFolder();
                 }
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/40 text-emerald-300 cursor-pointer"
-              title="Haz clic para recargar los videos .MP4 de 05_Clips_Video y audios de 02_Audio"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/40 text-emerald-300 cursor-pointer max-w-[190px] truncate"
+              title={`Carpeta activa: ${downloadFolderName} (clic para recargar)`}
             >
-              <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
-              ✓ Carpeta: {downloadFolderName}
+              <FolderOpen className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span className="truncate">✓ {downloadFolderName}</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={onPickDownloadFolder}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer bg-slate-900 border-amber-500/40 text-amber-300 hover:bg-slate-800"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border cursor-pointer bg-slate-900 border-amber-500/40 text-amber-300 hover:bg-slate-800"
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              📂 Elegir Carpeta
+              <FolderOpen className="w-3 h-3" />
+              📂 Carpeta
             </button>
           )}
 
@@ -7347,21 +7512,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <button
               type="button"
               onClick={onExportOrganizedFolder}
-              className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
               title="Genera en tu carpeta la estructura completa lista para YouTube: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
             >
-              📦 Carpeta Final YouTube
+              📦 Paquete YT
             </button>
           )}
 
-          {/* Single Unified Download Video Button (Includes Rendering + Requires Official Logo) */}
+          {/* Single Unified Download / Export Video Button */}
           <button
             type="button"
             disabled={isRenderingVideo}
             onClick={handleExportMasterVideo}
-            className={`px-4 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg transition ${
+            className={`px-3 py-1 rounded-lg font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow-lg transition ${
               officialLogoUrl
-                ? 'bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 shadow-amber-500/20'
+                ? 'bg-teal-400 hover:bg-teal-300 disabled:opacity-50 text-slate-950 shadow-teal-500/20'
                 : 'bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200'
             }`}
             title={
@@ -7372,21 +7537,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             {isRenderingVideo
-              ? `Renderizando y Descargando ${renderProgressPct}%...`
+              ? `Exportando ${renderProgressPct}%...`
               : !officialLogoUrl
-              ? '🔒 Subir Logo Oficial para Descargar Video'
-              : `🎬 Descargar Video ${activePreset.badge} (${aspectRatio})`}
+              ? '🔒 Subir Logo'
+              : `Export (${activePreset.badge.split(' ')[0]})`}
           </button>
         </div>
       </div>
 
       {statusMessage && (
-        <div className="bg-emerald-950/70 border-b border-emerald-500/30 px-4 py-1.5 text-xs text-emerald-200 flex items-center justify-between">
-          <span>{statusMessage}</span>
+        <div className="bg-emerald-950/80 border-b border-emerald-500/30 px-3 py-1 text-[11px] text-emerald-200 flex items-center justify-between shrink-0">
+          <span className="truncate">{statusMessage}</span>
           <button
             type="button"
             onClick={() => setStatusMessage('')}
-            className="text-emerald-400 hover:text-white cursor-pointer"
+            className="text-emerald-400 hover:text-white cursor-pointer ml-2"
           >
             ✕
           </button>
@@ -7394,16 +7559,272 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )}
 
       {/* =====================================================================
-          UPPER WORKSPACE: STAGE-8 STYLE VIDEO VIEWER (LEFT/CENTER) + INSPECTOR (RIGHT)
+          UPPER 3-COLUMN CAPCUT WORKSPACE:
+          [1] COMPACT LEFT MEDIA SIDEBAR  |  [2] DOMINANT CENTER VIDEO PLAYER  |  [3] COMPACT RIGHT DETAILS/INSPECTOR
       ===================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 items-start gap-4 p-3 bg-[#100d0a] border-b border-slate-800/90">
-        {/* PREVIEW MONITOR (8 COLS — STAGE-8 STYLE FULL-WIDTH HORIZONTAL VIEWER) */}
-        <div className="lg:col-span-8 flex flex-col justify-start self-start bg-[#080705] border border-slate-800 rounded-2xl p-3 space-y-2.5">
-          {/* Top Viewer Bar + Quick Object Selection Pills */}
-          <div className="w-full flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row items-stretch gap-1.5 p-1.5 bg-[#0e0c09] overflow-hidden">
+        {/* =================================================================
+            COLUMN 1: COMPACT CAPCUT-STYLE LEFT MEDIA & ASSETS PANEL
+        ================================================================= */}
+        {isLeftPanelCollapsed ? (
+          <div className="hidden lg:flex w-8 shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+            <button
+              type="button"
+              onClick={() => setIsLeftPanelCollapsed(false)}
+              className="p-1 rounded-lg bg-slate-900 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-[10px] font-black cursor-pointer transition"
+              title="Mostrar panel izquierdo de Media / Audio / Text"
+            >
+              ▶
+            </button>
+            <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Media • Audio • Text
+            </span>
+          </div>
+        ) : (
+          <div className="w-full lg:w-[190px] xl:w-[210px] shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 max-h-[220px] lg:max-h-none overflow-hidden">
+            {/* CapCut Top Category Icon Strip (Media, Audio, Text, Transitions, Captions) */}
+            <div className="px-1.5 py-1 bg-[#100d0a] border-b border-slate-800/90 flex items-center justify-between gap-0.5 shrink-0">
+              {(
+                [
+                  { id: 'media', icon: '🎬', label: 'Media', inspector: 'clips' },
+                  { id: 'audio', icon: '🎵', label: 'Audio', inspector: 'audio' },
+                  { id: 'text', icon: '🔤', label: 'Text', inspector: 'branding' },
+                  { id: 'transitions', icon: '🔀', label: 'Trans.', inspector: 'clips' },
+                  { id: 'captions', icon: '💬', label: 'Captions', inspector: 'captions' },
+                ] as const
+              ).map((item) => {
+                const isActive = leftPanelTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setLeftPanelTab(item.id);
+                      setActiveInspectorTab(item.inspector);
+                    }}
+                    className={`px-1.5 py-1 rounded-lg flex flex-col items-center justify-center gap-0.5 text-[9px] font-bold cursor-pointer transition ${
+                      isActive
+                        ? 'text-teal-300 bg-teal-500/15 border border-teal-500/40'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title={item.label}
+                  >
+                    <span className="text-xs leading-none">{item.icon}</span>
+                    <span className="leading-none">{item.label}</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setIsLeftPanelCollapsed(true)}
+                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 text-[10px] cursor-pointer"
+                title="Ocultar panel izquierdo para dar aún más espacio al Visor de Video"
+              >
+                ◀
+              </button>
+            </div>
+
+            {/* Sub-bar: + Import & Reload Folder */}
+            <div className="px-2 py-1.5 border-b border-slate-800/70 flex items-center justify-between gap-1.5 shrink-0">
+              <label className="px-2 py-1 rounded-md bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-[10px] cursor-pointer flex items-center gap-1 shadow">
+                <span>＋</span>
+                <span>Import</span>
+                <input
+                  type="file"
+                  accept="video/mp4,video/*,audio/*"
+                  multiple
+                  onChange={(e) => handleImportMp4FilesToTimeline(e.target.files)}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold truncate">
+                All ({timelineClips.length + musicTracks.length + (effectiveVoiceoverUrl ? 2 : 1)})
+              </span>
+            </div>
+
+            {/* Compact 2-Column CapCut Media Library Grid */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 grid grid-cols-2 gap-1.5 content-start">
+              {/* Asset 1: Official Channel Logo */}
+              <div
+                onClick={() => {
+                  setSelectedCanvasObject('logo');
+                  setActiveInspectorTab('branding');
+                }}
+                className={`group relative rounded-lg border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
+                  selectedCanvasObject === 'logo'
+                    ? 'border-amber-400 ring-1 ring-amber-400'
+                    : 'border-slate-800 hover:border-amber-500/50'
+                }`}
+                title="Seleccionar Logo Oficial en el Visor"
+              >
+                <div className="h-14 w-full flex items-center justify-center p-1.5 bg-gradient-to-b from-amber-950/30 to-black relative">
+                  <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200">
+                    Added
+                  </span>
+                  {officialLogoUrl ? (
+                    <img
+                      src={officialLogoUrl}
+                      alt="Logo Oficial"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[9px] text-amber-300 font-bold text-center">
+                      🏷️ LOGO
+                    </span>
+                  )}
+                </div>
+                <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                  LOGO DEFINITIVO.png
+                </div>
+              </div>
+
+              {/* Asset 2: Master Voiceover Audio Card (CapCut Blue Waveform Style) */}
+              {effectiveVoiceoverUrl && (
+                <div
+                  onClick={() => {
+                    seekToTime(voiceStartOffsetSec);
+                    setActiveInspectorTab('audio');
+                  }}
+                  className="group relative rounded-lg border border-slate-800 hover:border-sky-400/60 overflow-hidden cursor-pointer bg-[#0b0907] transition"
+                  title="Ir a la Voz Narrativa Maestro"
+                >
+                  <div className="h-14 w-full bg-[#101824] relative flex items-end px-1 pt-4 pb-1 gap-[2px] overflow-hidden">
+                    <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200 z-10">
+                      Added
+                    </span>
+                    <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/70 text-[8px] font-mono text-sky-200 z-10">
+                      {formatTimeMMSS(effectiveVoiceDurationSec)}
+                    </span>
+                    {[55, 80, 65, 92, 74, 88, 60, 95, 78, 85, 70, 90, 62, 84].map((h, i) => (
+                      <div
+                        key={i}
+                        style={{ height: `${h}%` }}
+                        className="flex-1 bg-sky-400/80 rounded-t-[1px]"
+                      />
+                    ))}
+                  </div>
+                  <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                    🎙️ Voz_Narrativa.mp3
+                  </div>
+                </div>
+              )}
+
+              {/* Assets 3+: Flow Music Tracks (CapCut Blue Waveform Style) */}
+              {musicTracks.map((mt) => (
+                <div
+                  key={`left-mt-${mt.id}`}
+                  onClick={() => {
+                    seekToTime(mt.start);
+                    setActiveInspectorTab('audio');
+                  }}
+                  className="group relative rounded-lg border border-slate-800 hover:border-purple-400/60 overflow-hidden cursor-pointer bg-[#0b0907] transition"
+                  title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(mt.start + mt.duration)})`}
+                >
+                  <div className="h-14 w-full bg-[#131c2b] relative flex items-end px-1 pt-4 pb-1 gap-[2px] overflow-hidden">
+                    <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200 z-10">
+                      Added
+                    </span>
+                    <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/70 text-[8px] font-mono text-sky-200 z-10">
+                      {formatTimeMMSS(mt.duration)}
+                    </span>
+                    {[45, 70, 88, 62, 75, 94, 82, 58, 72, 90, 68, 52, 78, 64].map((h, i) => (
+                      <div
+                        key={i}
+                        style={{ height: `${h}%` }}
+                        className="flex-1 bg-sky-500/75 rounded-t-[1px]"
+                      />
+                    ))}
+                  </div>
+                  <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                    Pista {mt.trackNumber} {mt.title}
+                  </div>
+                </div>
+              ))}
+
+              {/* Assets: Timeline Video Clips */}
+              {clipsWithTimelineBounds.map((clip) => {
+                const isCurr = currentTime >= clip.start && currentTime < clip.end;
+                const thumb = firstFrameByClip[clip.clipNumber] || clip.posterUrl;
+                return (
+                  <div
+                    key={`left-clip-${clip.id}`}
+                    onClick={() => {
+                      setSelectedClipId(clip.id);
+                      setSelectedClipIds([clip.id]);
+                      seekToTime(clip.start);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSelectedClipId(clip.id);
+                      setSelectedClipIds([clip.id]);
+                      setClipContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        clipIds: [clip.id],
+                        showSepararSubmenu: true,
+                      });
+                    }}
+                    className={`group relative rounded-lg border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
+                      isCurr
+                        ? 'border-amber-400 ring-1 ring-amber-400'
+                        : 'border-slate-800 hover:border-amber-500/50'
+                    }`}
+                    title={`Clip ${String(clip.clipNumber).padStart(2, '0')} (${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(clip.end)})`}
+                  >
+                    <div className="h-14 w-full bg-black relative overflow-hidden flex items-center justify-center">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={clip.fileName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[9px] text-amber-300/80 font-bold">
+                          🎬 C{String(clip.clipNumber).padStart(2, '0')}
+                        </span>
+                      )}
+                      <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-slate-200">
+                        Added
+                      </span>
+                      <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-black/75 text-[8px] font-mono text-amber-200">
+                        {clip.duration}s
+                      </span>
+                    </div>
+                    <div className="px-1.5 py-0.5 text-[9px] text-slate-300 truncate bg-[#120f0c]">
+                      {clip.clipNumber === 0
+                        ? 'INTRO 8K.mp4'
+                        : clip.clipNumber === 999
+                        ? 'OUTRO 8K.mp4'
+                        : `Clip ${String(clip.clipNumber).padStart(2, '0')}.mp4`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================
+            COLUMN 2: DOMINANT CENTER VIDEO PLAYER (MAXIMIZED VIEWPORT AREA)
+        ================================================================= */}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
+          {/* Compact CapCut-Style Player Header ("Player - Timeline 01" + Quick Overlay Selection) */}
+          <div className="w-full px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-1.5 shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-amber-300 font-bold">
-                Visor • {aspectRatio} •{' '}
+              <button
+                type="button"
+                onClick={() => setIsLeftPanelCollapsed((prev) => !prev)}
+                className="hidden lg:inline-flex px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 cursor-pointer"
+                title={isLeftPanelCollapsed ? 'Mostrar panel izquierdo Media' : 'Ocultar panel izquierdo Media para ampliar aún más el visor'}
+              >
+                ◧
+              </button>
+              <span className="font-semibold text-slate-200 text-[11px]">
+                Player - Timeline 01
+              </span>
+              <span className="font-mono text-amber-300/90 text-[10px] font-bold">
+                • {aspectRatio} •{' '}
                 {aspectRatio === '16:9'
                   ? `${activePreset.width16x9}×${activePreset.height16x9}`
                   : `${activePreset.width9x16}×${activePreset.height9x16}`}
@@ -7412,7 +7833,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 data-keep-canvas-selection="true"
                 className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
               >
-                <span className="text-[10px] text-slate-400 px-1.5">Seleccionar en pantalla:</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -7439,7 +7859,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  🔤 Texto en Pantalla
+                  🔤 Texto
                 </button>
                 <button
                   type="button"
@@ -7458,7 +7878,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   effectiveVoiceoverUrl && !voiceAudioError
@@ -7467,62 +7887,92 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }`}
               >
                 {effectiveVoiceoverUrl && !voiceAudioError
-                  ? `🎙️ Voz + Captions sincronizados desde 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} (${formatTimeMMSS(totalDurationSec)})`
-                  : '🔇 Sin Audio de Voz'}
+                  ? `🎙️ Voz 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} (${formatTimeMMSS(totalDurationSec)})`
+                  : '🔇 Sin Voz'}
               </span>
+              <button
+                type="button"
+                onClick={() => setIsRightPanelCollapsed((prev) => !prev)}
+                className="hidden lg:inline-flex px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 cursor-pointer"
+                title={isRightPanelCollapsed ? 'Mostrar panel derecho Details/Inspector' : 'Ocultar panel derecho Details/Inspector para ampliar aún más el visor'}
+              >
+                ◨
+              </button>
             </div>
           </div>
 
-          {/* Aspect-Ratio Locked Video Container (Zero Side Black Bars) + Bottom Scrubber & Play/Pause Controls */}
+          {/* Aspect-Ratio Locked Video Container (Maximized to fill available center stage height & width) */}
           <div
             ref={viewerContainerRef}
             className={`${
               isViewerFullscreen
                 ? 'relative w-screen h-screen bg-black flex flex-col justify-center'
-                : aspectRatio === '16:9'
-                ? 'w-full rounded-xl'
-                : 'w-full max-w-[380px] mx-auto rounded-xl'
-            } overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col`}
+                : 'flex-1 min-h-0 w-full flex flex-col'
+            } overflow-hidden bg-black`}
           >
+            {/* Dynamic Stage Wrapper that measures exact available width/height so the 16:9 or 9:16 video is as large as possible */}
             <div
-              ref={viewerCanvasRef}
-              onMouseDown={() => {
-                if (selectedCanvasObject !== null) {
-                  if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                  }
-                }
-              }}
-              onClick={() => {
-                if (selectedCanvasObject !== null) {
-                  setSelectedCanvasObject(null);
-                }
-                handleTogglePlay();
-              }}
-              className={`relative bg-black overflow-hidden flex items-center justify-center select-none ${
-                isViewerFullscreen && !showFullscreenControls ? 'cursor-none' : 'cursor-pointer'
-              } ${
+              ref={viewerStageRef}
+              className={
                 isViewerFullscreen
-                  ? 'mx-auto'
-                  : aspectRatio === '16:9'
-                  ? 'w-full aspect-video'
-                  : 'w-full aspect-[9/16]'
-              }`}
-              style={
-                isViewerFullscreen
-                  ? {
-                      width:
-                        aspectRatio === '16:9'
-                          ? 'min(100vw, calc(100vh * 16 / 9))'
-                          : 'min(100vw, calc(100vh * 9 / 16))',
-                      height:
-                        aspectRatio === '16:9'
-                          ? 'min(100vh, calc(100vw * 9 / 16))'
-                          : 'min(100vh, calc(100vw * 16 / 9))',
-                    }
-                  : undefined
+                  ? 'w-full h-full flex items-center justify-center'
+                  : 'flex-1 min-h-[260px] w-full flex items-center justify-center p-1 bg-[#050403] overflow-hidden relative'
               }
             >
+              <div
+                ref={viewerCanvasRef}
+                onMouseDown={() => {
+                  if (selectedCanvasObject !== null) {
+                    if (document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur();
+                    }
+                  }
+                }}
+                onClick={() => {
+                  if (selectedCanvasObject !== null) {
+                    setSelectedCanvasObject(null);
+                  }
+                  handleTogglePlay();
+                }}
+                className={`relative bg-black overflow-hidden flex items-center justify-center select-none shadow-2xl border border-slate-800/80 ${
+                  isViewerFullscreen && !showFullscreenControls ? 'cursor-none' : 'cursor-pointer'
+                } ${
+                  isViewerFullscreen
+                    ? 'mx-auto'
+                    : viewerStageSize.width > 0 && viewerStageSize.height > 0
+                    ? 'rounded-lg'
+                    : aspectRatio === '16:9'
+                    ? 'w-full max-h-full aspect-video rounded-lg'
+                    : 'h-full max-w-full aspect-[9/16] rounded-lg'
+                }`}
+                style={
+                  isViewerFullscreen
+                    ? {
+                        width:
+                          aspectRatio === '16:9'
+                            ? 'min(100vw, calc(100vh * 16 / 9))'
+                            : 'min(100vw, calc(100vh * 9 / 16))',
+                        height:
+                          aspectRatio === '16:9'
+                            ? 'min(100vh, calc(100vw * 9 / 16))'
+                            : 'min(100vh, calc(100vw * 16 / 9))',
+                      }
+                    : viewerStageSize.width > 0 && viewerStageSize.height > 0
+                    ? (() => {
+                        const targetRatio = aspectRatio === '16:9' ? 16 / 9 : 9 / 16;
+                        const fitW = Math.min(
+                          viewerStageSize.width,
+                          viewerStageSize.height * targetRatio
+                        );
+                        const fitH = fitW / targetRatio;
+                        return {
+                          width: `${Math.max(180, Math.floor(fitW))}px`,
+                          height: `${Math.max(120, Math.floor(fitH))}px`,
+                        };
+                      })()
+                    : undefined
+                }
+              >
               {/* Layer 1: Active Clip Video with Seamless Last-Frame Bridge Canvas + Next-Clip Preloader (Zero Black Frames Between Direct Cuts) */}
               {activeClipAtPlayhead?.videoUrl ? (
                 <div
@@ -8075,11 +8525,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
               </div>
+              </div>
             </div>
 
-            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, -10s / +10s, Scrubber Timeline & Timecode (Auto-hides after 5s of inactivity in Fullscreen) */}
+            {/* CapCut-Style Compact Bottom Player Bar: Timecode (Left), Transport & Scrubber (Center), Ratio & Fullscreen (Right) */}
             <div
-              className={`w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-2.5 transition-all duration-300 ${
+              className={`w-full bg-[#110e0b] border-t border-slate-800/90 px-3 py-1.5 flex items-center gap-2 transition-all duration-300 shrink-0 ${
                 isViewerFullscreen
                   ? `absolute inset-x-0 bottom-0 z-30 bg-[#110e0b]/95 backdrop-blur-md ${
                       showFullscreenControls
@@ -8089,52 +8540,68 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : ''
               }`}
             >
-              <button
-                type="button"
-                onClick={() => seekToTime(0)}
-                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
-                title="Ir al inicio (00:00)"
-              >
-                <SkipBack className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => seekToTime(Math.max(0, currentTime - 10))}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
-                title="Retroceder 10 segundos (-10s • Flecha Izquierda ⬅️ en Pantalla Completa)"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>-10s</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleTogglePlay}
-                className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow shrink-0"
-                title={isPlaying ? 'Pausar reproducción (Espacio)' : 'Reproducir video y voz narrativa (Espacio)'}
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                <span>{isPlaying ? 'Pausa' : 'Play'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => seekToTime(Math.min(totalDurationSec, currentTime + 10))}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
-                title="Adelantar 10 segundos (+10s • Flecha Derecha ➡️ en Pantalla Completa)"
-              >
-                <span>+10s</span>
-                <RotateCw className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => seekToTime(voiceStartOffsetSec)}
-                className="px-2 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer shrink-0"
-                title={`Ir al segundo ${voiceStartOffsetSec}s donde entra la Voz Narrativa`}
-              >
-                🎙️ 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}
-              </button>
+              {/* Left: CapCut Cyan/Teal Timecode */}
+              <span className="font-mono tabular-nums text-[11px] text-teal-300 font-bold shrink-0">
+                00:{formatTimeMMSS(currentTime)} <span className="text-slate-500">/</span> 00:{formatTimeMMSS(totalDurationSec)}
+              </span>
 
-              {/* Full-Width Stage-8 Style Timeline Scrubber */}
-              <div className="flex-1 flex items-center gap-2 min-w-0">
+              {/* Center-Left: Compact Transport Controls */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => seekToTime(0)}
+                  className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
+                  title="Ir al inicio (00:00)"
+                >
+                  <SkipBack className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekToTime(Math.max(0, currentTime - 10))}
+                  className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer shrink-0 transition"
+                  title="Retroceder 10 segundos (-10s • Flecha Izquierda ⬅️)"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>-10s</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTogglePlay}
+                  className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 cursor-pointer shadow shrink-0"
+                  title={isPlaying ? 'Pausar reproducción (Espacio)' : 'Reproducir video y voz narrativa (Espacio)'}
+                >
+                  {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                  <span>{isPlaying ? 'Pausa' : 'Play'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekToTime(Math.min(totalDurationSec, currentTime + 10))}
+                  className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer shrink-0 transition"
+                  title="Adelantar 10 segundos (+10s • Flecha Derecha ➡️)"
+                >
+                  <span>+10s</span>
+                  <RotateCw className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekToTime(Math.max(0, totalDurationSec - 1))}
+                  className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
+                  title="Ir al final"
+                >
+                  <SkipForward className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekToTime(voiceStartOffsetSec)}
+                  className="px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer shrink-0"
+                  title={`Ir al segundo ${voiceStartOffsetSec}s donde entra la Voz Narrativa`}
+                >
+                  🎙️ 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')}
+                </button>
+              </div>
+
+              {/* Scrubber Timeline */}
+              <div className="flex-1 flex items-center min-w-[80px]">
                 <input
                   type="range"
                   min={0}
@@ -8142,33 +8609,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   step={0.05}
                   value={currentTime}
                   onChange={(e) => seekToTime(Number(e.target.value))}
-                  className="w-full h-2 accent-amber-500 cursor-pointer"
+                  className="w-full h-1.5 accent-amber-500 cursor-pointer"
                 />
               </div>
 
-              <span className="font-mono tabular-nums min-w-[96px] text-center text-xs text-emerald-300 font-bold shrink-0">
-                {formatTimeMMSS(currentTime)} / {formatTimeMMSS(totalDurationSec)}
+              {/* Right: Aspect Ratio Badge + Fullscreen Button */}
+              <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300 shrink-0">
+                {aspectRatio}
               </span>
-
-              <button
-                type="button"
-                onClick={() => seekToTime(Math.max(0, totalDurationSec - 1))}
-                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
-                title="Ir al final"
-              >
-                <SkipForward className="w-4 h-4" />
-              </button>
-
               <button
                 type="button"
                 onClick={handleToggleViewerFullscreen}
-                className="p-1.5 rounded-lg bg-slate-900 hover:bg-amber-500 text-slate-300 hover:text-slate-950 cursor-pointer shrink-0 transition"
+                className="p-1 rounded bg-slate-900 hover:bg-amber-500 text-slate-300 hover:text-slate-950 cursor-pointer shrink-0 transition"
                 title={isViewerFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
               >
                 {isViewerFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
+                  <Minimize2 className="w-3.5 h-3.5" />
                 ) : (
-                  <Maximize2 className="w-4 h-4" />
+                  <Maximize2 className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
@@ -8178,7 +8636,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {selectedCanvasObject === 'hook_text' && (
             <div
               data-keep-canvas-selection="true"
-              className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs"
+              className="w-full bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2 text-xs shrink-0"
             >
               <span className="font-black text-amber-300 text-[11px]">
                 🔤 Estilo Texto en Pantalla:
@@ -8371,7 +8829,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {selectedCanvasObject === 'logo' && (
             <div
               data-keep-canvas-selection="true"
-              className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-3 text-xs"
+              className="w-full bg-slate-950/95 border-t border-amber-500/40 px-2.5 py-1.5 flex flex-wrap items-center gap-2.5 text-xs shrink-0"
             >
               <span className="font-black text-amber-300 text-[11px]">
                 🏷️ Ajuste Rápido del Logo:
@@ -8453,53 +8911,102 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           )}
         </div>
 
-        {/* INSPECTOR & CONTROLS PANEL (4 COLS) */}
-        <div className="lg:col-span-4 bg-[#14110d] border border-slate-800 rounded-2xl p-4 flex flex-col justify-start self-start max-h-[640px] overflow-hidden space-y-3">
-          {/* Inspector Tabs */}
-          <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        {/* =================================================================
+            COLUMN 3: COMPACT RIGHT DETAILS & INSPECTOR PANEL
+        ================================================================= */}
+        {isRightPanelCollapsed && (
+          <div className="hidden lg:flex w-8 shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+            <button
+              type="button"
+              onClick={() => setIsRightPanelCollapsed(false)}
+              className="p-1 rounded-lg bg-slate-900 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-[10px] font-black cursor-pointer transition"
+              title="Mostrar panel derecho Details / Inspector"
+            >
+              ◀
+            </button>
+            <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Details • Inspector
+            </span>
+          </div>
+        )}
+
+        <div
+          className={
+            isRightPanelCollapsed
+              ? 'hidden'
+              : 'w-full lg:w-[255px] xl:w-[275px] shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl p-2 flex flex-col min-h-0 max-h-[380px] lg:max-h-none overflow-hidden space-y-2'
+          }
+        >
+          {/* CapCut-Style "Details" Header + Collapse Button */}
+          <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-800/80 shrink-0">
+            <span className="text-[11px] font-black text-teal-300 tracking-wide">
+              Details
+            </span>
+            <span className="text-[9px] font-mono text-slate-400 truncate max-w-[140px]">
+              {aspectRatio === '16:9'
+                ? `${activePreset.width16x9}×${activePreset.height16x9}`
+                : `${activePreset.width9x16}×${activePreset.height9x16}`}{' '}
+              • 60fps
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsRightPanelCollapsed(true)}
+              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 text-[10px] cursor-pointer"
+              title="Ocultar panel derecho para ampliar aún más el Visor de Video"
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Compact 4-Column Inspector Tabs */}
+          <div className="grid grid-cols-4 gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
             <button
               type="button"
               onClick={() => setActiveInspectorTab('clips')}
-              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold cursor-pointer ${
+              className={`py-1 px-1 rounded-md text-[10px] font-bold cursor-pointer truncate ${
                 activeInspectorTab === 'clips'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title="Clips, Orden, Velocidad y Transiciones"
             >
-              🎬 Clips / Orden
+              🎬 Clips
             </button>
             <button
               type="button"
               onClick={() => setActiveInspectorTab('audio')}
-              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold cursor-pointer ${
+              className={`py-1 px-1 rounded-md text-[10px] font-bold cursor-pointer truncate ${
                 activeInspectorTab === 'audio'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title="Voz Narrativa, Foley y Flow Music"
             >
-              🎙️ Voz / Foley / Flow Music
+              🎙️ Audio
             </button>
             <button
               type="button"
               onClick={() => setActiveInspectorTab('branding')}
-              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold cursor-pointer ${
+              className={`py-1 px-1 rounded-md text-[10px] font-bold cursor-pointer truncate ${
                 activeInspectorTab === 'branding'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title="Logo Oficial y Texto del Clip 1"
             >
-              🏷️ Logo / Clip 1
+              🏷️ Logo
             </button>
             <button
               type="button"
               onClick={() => setActiveInspectorTab('captions')}
-              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold cursor-pointer ${
+              className={`py-1 px-1 rounded-md text-[10px] font-bold cursor-pointer truncate ${
                 activeInspectorTab === 'captions'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title="Subtítulos dinámicos .SRT"
             >
-              💬 Captions .SRT
+              💬 SRT
             </button>
           </div>
 
@@ -9339,33 +9846,236 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+              <div className="bg-slate-950/90 border border-purple-500/40 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="font-bold text-purple-300">
-                    🎵 Pista 5: Música Flow Music (Fade-In 2.5s • Fade-Out 3.0s • Bajo Voz)
+                    🎵 Pista 5: Música Flow Music (Selecciona una canción en el timeline o aquí)
                   </span>
-                  <span className="font-mono text-purple-200">
-                    Base: {masterMusicVolume}% • Actual: {effectiveMusicVolumeAtPlayhead}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(15, Math.min(35, Math.round(voiceVolume * 0.3)))}
-                  value={Math.min(masterMusicVolume, Math.round(voiceVolume * 0.3))}
-                  onChange={(e) =>
-                    setMasterMusicVolume(
-                      Math.min(Number(e.target.value), Math.round(voiceVolume * 0.3))
-                    )
-                  }
-                  className="w-full accent-purple-500"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-purple-300/90">
-                  <span>✨ Fade-In 2.5s y Fade-Out 3.0s automáticos en cada pista</span>
-                  <span>
-                    🎙️ Ducking activo: {isNarratorSpeakingAtPlayhead ? '~14% (Narrador hablando)' : '~22% (Pausa/Intro/Cierre)'} (Voz: {voiceVolume}%)
+                  <span className="font-mono text-purple-200 text-[11px]">
+                    Actual en Aguja: {effectiveMusicVolumeAtPlayhead}%
                   </span>
                 </div>
+
+                {musicTracks.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {musicTracks.map((mt) => {
+                      const isSel = selectedMusicTrack?.id === mt.id;
+                      return (
+                        <button
+                          key={mt.id}
+                          type="button"
+                          onClick={() => setSelectedMusicTrackId(mt.id)}
+                          className={`px-2 py-1 rounded-lg border text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                            isSel
+                              ? 'bg-purple-500 text-slate-950 border-purple-300 shadow shadow-purple-500/30'
+                              : 'bg-slate-900 hover:bg-slate-800 text-purple-200 border-slate-700'
+                          }`}
+                          title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(
+                            mt.start + mt.duration
+                          )})`}
+                        >
+                          <span>#{mt.trackNumber}</span>
+                          <span className="max-w-[110px] truncate">{mt.title}</span>
+                          <span className="opacity-80">({mt.volume ?? masterMusicVolume}%)</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedMusicTrack ? (
+                  <div className="bg-purple-950/35 border border-purple-500/40 rounded-lg p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-[11px] font-bold text-purple-200 truncate">
+                        🎶 #{selectedMusicTrack.trackNumber} {selectedMusicTrack.title}{' '}
+                        <span className="text-purple-300/80 font-mono text-[10px]">
+                          ({formatTimeMMSS(selectedMusicTrack.start)} -{' '}
+                          {formatTimeMMSS(selectedMusicTrack.start + selectedMusicTrack.duration)})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => seekToTime(selectedMusicTrack.start + 0.05)}
+                          className="px-2 py-0.5 rounded bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/40 text-purple-200 text-[10px] font-bold cursor-pointer"
+                          title="Mover la aguja al inicio de esta canción para escuchar el Fade-In"
+                        >
+                          ▶ Probar Fade In
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            seekToTime(
+                              Math.max(
+                                selectedMusicTrack.start,
+                                selectedMusicTrack.start +
+                                  selectedMusicTrack.duration -
+                                  Math.max(3, (selectedMusicTrack.fadeOutSec ?? 3.0) + 1)
+                              )
+                            )
+                          }
+                          className="px-2 py-0.5 rounded bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/40 text-purple-200 text-[10px] font-bold cursor-pointer"
+                          title="Mover la aguja al final de esta canción para escuchar el Fade-Out"
+                        >
+                          🔉 Probar Fade Out
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                          <span>🔊 Volumen:</span>
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={selectedMusicTrack.volume ?? masterMusicVolume}
+                              onChange={(e) => {
+                                const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                                handleUpdateMusicTrack(selectedMusicTrack.id, { volume: v });
+                              }}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              className="w-11 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                            />
+                            <span>%</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={selectedMusicTrack.volume ?? masterMusicVolume}
+                          onChange={(e) =>
+                            handleUpdateMusicTrack(selectedMusicTrack.id, {
+                              volume: Number(e.target.value),
+                            })
+                          }
+                          className="w-full accent-purple-400 cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                          <span>📈 Fade In:</span>
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={15}
+                              step={0.5}
+                              value={selectedMusicTrack.fadeInSec ?? 2.5}
+                              onChange={(e) => {
+                                const fi = Math.max(
+                                  0,
+                                  Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
+                                );
+                                handleUpdateMusicTrack(selectedMusicTrack.id, { fadeInSec: fi });
+                              }}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              className="w-11 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                            />
+                            <span>s</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={15}
+                          step={0.5}
+                          value={selectedMusicTrack.fadeInSec ?? 2.5}
+                          onChange={(e) =>
+                            handleUpdateMusicTrack(selectedMusicTrack.id, {
+                              fadeInSec: Number(e.target.value),
+                            })
+                          }
+                          className="w-full accent-purple-400 cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                          <span>📉 Fade Out:</span>
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={15}
+                              step={0.5}
+                              value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                              onChange={(e) => {
+                                const fo = Math.max(
+                                  0,
+                                  Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
+                                );
+                                handleUpdateMusicTrack(selectedMusicTrack.id, { fadeOutSec: fo });
+                              }}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              className="w-11 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                            />
+                            <span>s</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={15}
+                          step={0.5}
+                          value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                          onChange={(e) =>
+                            handleUpdateMusicTrack(selectedMusicTrack.id, {
+                              fadeOutSec: Number(e.target.value),
+                            })
+                          }
+                          className="w-full accent-purple-400 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-purple-500/20 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUpdateMusicTrack(
+                            selectedMusicTrack.id,
+                            {
+                              volume: selectedMusicTrack.volume ?? masterMusicVolume,
+                              fadeInSec: selectedMusicTrack.fadeInSec ?? 2.5,
+                              fadeOutSec: selectedMusicTrack.fadeOutSec ?? 3.0,
+                            },
+                            true
+                          );
+                          setStatusMessage(
+                            `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 2.5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 3.0}s) aplicados a las ${musicTracks.length} canciones.`
+                          );
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer"
+                      >
+                        ✨ Aplicar Volumen y Fades a Todas las Canciones ({musicTracks.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            volume: 24,
+                            fadeInSec: 2.5,
+                            fadeOutSec: 3.0,
+                          });
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
+                      >
+                        🔄 Restaurar Canción (24% • 2.5s / 3.0s)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-400">
+                    Haz clic en cualquier canción de la Pista 5 en el timeline para ajustar su volumen, Fade-In y Fade-Out.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -11435,73 +12145,302 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             </div>
 
-            {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (WITH FADE-IN/OUT, DUCKING & SILENCE GAPS) */}
-            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300">
-                5. 🎵 Flow Music ({musicTracks.length})
-              </div>
-              <div
-                style={
-                  isFitEntireProject
-                    ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
-                }
-                className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden flex items-center ${
-                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
-                }`}
-              >
-                {musicTracks.length === 0 ? (
-                  <span className="text-[11px] text-slate-500 px-3 py-1">
-                    Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí con Fade-In (2.5s), Fade-Out (3.0s), Auto-Ducking bajo la voz, silencios de 10-20s y cierre de 1:30.
-                  </span>
-                ) : (
-                  musicTracks.map((mt, mIdx) => {
-                    const prevEnd =
-                      mIdx > 0
-                        ? musicTracks[mIdx - 1].start + musicTracks[mIdx - 1].duration
-                        : 0;
-                    const gapSec =
-                      mIdx > 0 ? Math.max(0, Math.round(mt.start - prevEnd)) : Math.max(0, mt.start);
-                    return (
-                      <React.Fragment key={mt.id}>
-                        {gapSec > 0 && (
+            {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (CLICKABLE SONGS WITH VOLUME, FADE-IN & FADE-OUT) */}
+            <div className={`flex flex-col gap-1.5 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+                <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300 flex items-center justify-between">
+                  <span>5. 🎵 Flow Music ({musicTracks.length})</span>
+                </div>
+                <div
+                  style={
+                    isFitEntireProject
+                      ? undefined
+                      : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                  }
+                  className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden flex items-center ${
+                    isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                  }`}
+                >
+                  {musicTracks.length === 0 ? (
+                    <span className="text-[11px] text-slate-500 px-3 py-1">
+                      Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí. Haz clic en cualquier canción para ajustar su volumen, Fade-In y Fade-Out.
+                    </span>
+                  ) : (
+                    musicTracks.map((mt, mIdx) => {
+                      const prevEnd =
+                        mIdx > 0
+                          ? musicTracks[mIdx - 1].start + musicTracks[mIdx - 1].duration
+                          : 0;
+                      const gapSec =
+                        mIdx > 0 ? Math.max(0, Math.round(mt.start - prevEnd)) : Math.max(0, mt.start);
+                      const isSongSelected = selectedMusicTrackId === mt.id;
+                      const songVol = mt.volume ?? masterMusicVolume;
+                      const songFadeIn = mt.fadeInSec ?? 2.5;
+                      const songFadeOut = mt.fadeOutSec ?? 3.0;
+                      const fadeInWidthPct = Math.min(
+                        45,
+                        Math.max(0, (songFadeIn / Math.max(1, mt.duration)) * 100)
+                      );
+                      const fadeOutWidthPct = Math.min(
+                        45,
+                        Math.max(0, (songFadeOut / Math.max(1, mt.duration)) * 100)
+                      );
+                      return (
+                        <React.Fragment key={mt.id}>
+                          {gapSec > 0 && (
+                            <div
+                              style={
+                                isFitEntireProject
+                                  ? { width: `${(gapSec / Math.max(1, totalDurationSec)) * 100}%` }
+                                  : { width: `${gapSec * timelineZoom}px` }
+                              }
+                              className="px-1.5 py-1 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center shrink-0"
+                              title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
+                            >
+                              🔇 Silencio {gapSec}s
+                            </div>
+                          )}
                           <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMusicTrackId(mt.id);
+                              setActiveInspectorTab('audio');
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMusicTrackId(mt.id);
+                              setActiveInspectorTab('audio');
+                              seekToTime(mt.start + 0.05);
+                            }}
                             style={
                               isFitEntireProject
-                                ? { width: `${(gapSec / Math.max(1, totalDurationSec)) * 100}%` }
-                                : { width: `${gapSec * timelineZoom}px` }
+                                ? { width: `${(mt.duration / Math.max(1, totalDurationSec)) * 100}%` }
+                                : { width: `${mt.duration * timelineZoom}px` }
                             }
-                            className="px-1.5 py-1 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center shrink-0"
-                            title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
+                            className={`relative px-2.5 py-1 h-full rounded border text-[11px] flex items-center gap-1.5 truncate shrink-0 cursor-pointer select-none transition ${
+                              isSongSelected
+                                ? 'bg-purple-900/90 border-purple-300 text-white ring-2 ring-purple-400/70 shadow-lg shadow-purple-500/25 z-10'
+                                : 'bg-purple-950/65 hover:bg-purple-900/75 border-purple-500/45 text-purple-200'
+                            }`}
+                            title={`Clic para editar volumen y fades • Doble clic para ir al inicio • ${mt.title} (${formatTimeMMSS(
+                              mt.start
+                            )} - ${formatTimeMMSS(
+                              mt.start + mt.duration
+                            )}) • Vol: ${songVol}% • Fade-In: ${songFadeIn}s • Fade-Out: ${songFadeOut}s`}
                           >
-                            🔇 Silencio {gapSec}s
+                            {/* Visual Fade-In Ramp Indicator */}
+                            {songFadeIn > 0 && (
+                              <div
+                                style={{
+                                  width: `${fadeInWidthPct}%`,
+                                  clipPath: 'polygon(0 100%, 100% 0, 100% 100%)',
+                                }}
+                                className="pointer-events-none absolute inset-y-0 left-0 bg-purple-400/25 border-l-2 border-purple-300/60"
+                              />
+                            )}
+                            {/* Visual Fade-Out Ramp Indicator */}
+                            {songFadeOut > 0 && (
+                              <div
+                                style={{
+                                  width: `${fadeOutWidthPct}%`,
+                                  clipPath: 'polygon(0 0, 100% 100%, 0 100%)',
+                                }}
+                                className="pointer-events-none absolute inset-y-0 right-0 bg-purple-400/25 border-r-2 border-purple-300/60"
+                              />
+                            )}
+                            <Music className="w-3 h-3 text-purple-300 shrink-0 relative z-10" />
+                            <span className="truncate relative z-10 font-semibold">
+                              #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
+                              {formatTimeMMSS(mt.start + mt.duration)}) • 🔊 {songVol}% • 🎚️ In{' '}
+                              {songFadeIn}s / Out {songFadeOut}s
+                              {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
+                            </span>
                           </div>
-                        )}
-                        <div
-                          style={
-                            isFitEntireProject
-                              ? { width: `${(mt.duration / Math.max(1, totalDurationSec)) * 100}%` }
-                              : { width: `${mt.duration * timelineZoom}px` }
-                          }
-                          className="px-2.5 py-1 rounded bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200 flex items-center gap-1.5 truncate shrink-0"
-                          title={`${mt.title} (${formatTimeMMSS(mt.start)} - ${formatTimeMMSS(
-                            mt.start + mt.duration
-                          )}) • Fade-In ${mt.fadeInSec ?? 2.5}s / Fade-Out ${
-                            mt.fadeOutSec ?? 3.0
-                          }s • Auto-Ducking Bajo Voz`}
-                        >
-                          <Music className="w-3 h-3 text-purple-400 shrink-0" />
-                          <span className="truncate">
-                            #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
-                            {formatTimeMMSS(mt.start + mt.duration)}) • 🎚️ Fade In/Out
-                            {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
-                          </span>
-                        </div>
-                      </React.Fragment>
-                    );
-                  })
-                )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </div>
               </div>
+
+              {/* Quick Inline Control Bar when a Song is Selected on the Timeline */}
+              {selectedMusicTrackId && selectedMusicTrack && (
+                <div className="ml-46 bg-purple-950/80 border border-purple-400/50 rounded-xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap shadow-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="px-2 py-0.5 rounded bg-purple-500 text-slate-950 font-black text-[10px] shrink-0">
+                      🎵 Canción #{selectedMusicTrack.trackNumber}
+                    </span>
+                    <span className="text-xs font-bold text-purple-100 truncate max-w-[220px]">
+                      {selectedMusicTrack.title}
+                    </span>
+                    <span className="text-[10px] font-mono text-purple-300 shrink-0">
+                      ({formatTimeMMSS(selectedMusicTrack.start)} -{' '}
+                      {formatTimeMMSS(selectedMusicTrack.start + selectedMusicTrack.duration)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => seekToTime(selectedMusicTrack.start + 0.05)}
+                      className="px-2 py-0.5 rounded bg-purple-500/30 hover:bg-purple-500/50 border border-purple-400/40 text-purple-100 text-[10px] font-bold cursor-pointer shrink-0"
+                    >
+                      ▶ Inicio
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        seekToTime(
+                          Math.max(
+                            selectedMusicTrack.start,
+                            selectedMusicTrack.start +
+                              selectedMusicTrack.duration -
+                              Math.max(3, (selectedMusicTrack.fadeOutSec ?? 3.0) + 1)
+                          )
+                        )
+                      }
+                      className="px-2 py-0.5 rounded bg-purple-500/30 hover:bg-purple-500/50 border border-purple-400/40 text-purple-100 text-[10px] font-bold cursor-pointer shrink-0"
+                    >
+                      🔉 Final (Fade Out)
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* Volume Control */}
+                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
+                      <span>🔊 Volumen:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={selectedMusicTrack.volume ?? masterMusicVolume}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            volume: Number(e.target.value),
+                          })
+                        }
+                        className="w-24 accent-purple-400 cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={selectedMusicTrack.volume ?? masterMusicVolume}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            volume: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                          })
+                        }
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
+                      />
+                      <span className="text-[10px] text-purple-300">%</span>
+                    </label>
+
+                    {/* Fade In Control */}
+                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
+                      <span>📈 Fade In:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={15}
+                        step={0.5}
+                        value={selectedMusicTrack.fadeInSec ?? 2.5}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            fadeInSec: Number(e.target.value),
+                          })
+                        }
+                        className="w-20 accent-purple-400 cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={15}
+                        step={0.5}
+                        value={selectedMusicTrack.fadeInSec ?? 2.5}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            fadeInSec: Math.max(
+                              0,
+                              Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
+                            ),
+                          })
+                        }
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
+                      />
+                      <span className="text-[10px] text-purple-300">s</span>
+                    </label>
+
+                    {/* Fade Out Control */}
+                    <label className="flex items-center gap-1.5 text-[11px] text-purple-100 font-semibold">
+                      <span>📉 Fade Out:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={15}
+                        step={0.5}
+                        value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            fadeOutSec: Number(e.target.value),
+                          })
+                        }
+                        className="w-20 accent-purple-400 cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={15}
+                        step={0.5}
+                        value={selectedMusicTrack.fadeOutSec ?? 3.0}
+                        onChange={(e) =>
+                          handleUpdateMusicTrack(selectedMusicTrack.id, {
+                            fadeOutSec: Math.max(
+                              0,
+                              Math.min(15, Number(Number(e.target.value || 0).toFixed(1)))
+                            ),
+                          })
+                        }
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="w-12 bg-slate-950 border border-purple-400/50 rounded px-1 py-0.5 text-[11px] text-white font-mono text-right"
+                      />
+                      <span className="text-[10px] text-purple-300">s</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleUpdateMusicTrack(
+                          selectedMusicTrack.id,
+                          {
+                            volume: selectedMusicTrack.volume ?? masterMusicVolume,
+                            fadeInSec: selectedMusicTrack.fadeInSec ?? 2.5,
+                            fadeOutSec: selectedMusicTrack.fadeOutSec ?? 3.0,
+                          },
+                          true
+                        );
+                        setStatusMessage(
+                          `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 2.5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 3.0}s) aplicados a todas las canciones.`
+                        );
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer shrink-0"
+                      title="Aplicar este Volumen, Fade-In y Fade-Out a todas las canciones del documental"
+                    >
+                      ✨ Aplicar a Todas
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMusicTrackId(null)}
+                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold cursor-pointer shrink-0"
+                      title="Cerrar barra rápida de canción"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
