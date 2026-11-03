@@ -2932,8 +2932,20 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const speed = Number(c.speed) > 0 ? Number(c.speed) : 1;
       const ptsFactor = (1 / speed).toFixed(3);
       const foleyVol = typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.35;
+      const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
+      const isFirstClipAfterIntro =
+        !isIntroClip &&
+        (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
 
-      const vfFilter = `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
+      const vfFadeSuffix = isFirstClipAfterIntro
+        ? ',fade=t=in:st=0:d=1.2'
+        : isIntroClip
+        ? ',fade=t=out:st=7.2:d=0.8'
+        : '';
+      const vfFilter = `setpts=${ptsFactor}*PTS,scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p${vfFadeSuffix}`;
+      const afFilter = isFirstClipAfterIntro
+        ? `afade=t=in:st=0:d=1.2,volume=${foleyVol}`
+        : `volume=${foleyVol}`;
 
       await new Promise<void>((resolve, reject) => {
         execFile(
@@ -2945,7 +2957,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '-vf',
             vfFilter,
             '-af',
-            `volume=${foleyVol}`,
+            afFilter,
             '-c:v',
             'libx264',
             '-preset',

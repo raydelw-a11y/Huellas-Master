@@ -1702,7 +1702,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         speed: existingItem ? existingItem.speed : 1,
         trimStart: existingItem ? existingItem.trimStart : 0,
         foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 35,
-        transition: existingItem ? existingItem.transition : defaultTransition,
+        transition: isClip1 ? 'fade_black' : existingItem ? existingItem.transition : defaultTransition,
         videoUrl,
         posterUrl,
         reviewedForEditor: Boolean(c.reviewedForEditor),
@@ -1728,7 +1728,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           speed: 1,
           trimStart: 0,
           foleyVolume: isClip1 ? 80 : 35,
-          transition: defaultTransition,
+          transition: isClip1 ? 'fade_black' : defaultTransition,
           videoUrl: combinedClipVideosMap[num],
           posterUrl: firstFrameByClip[num] || '',
           reviewedForEditor: true,
@@ -2744,8 +2744,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fadeOutFactor = remaining < 2.5 ? Math.max(0, remaining / 2.5) : 1;
       return Math.round(100 * fadeOutFactor);
     }
-    if (!autoDuckingEnabled) return activeClipAtPlayhead.foleyVolume;
-    return isNarratorSpeakingAtPlayhead ? foleyDuckedVolume : foleyHighVolume;
+    const baseFoleyVol = !autoDuckingEnabled
+      ? activeClipAtPlayhead.foleyVolume
+      : isNarratorSpeakingAtPlayhead
+      ? foleyDuckedVolume
+      : foleyHighVolume;
+    // Always apply a smooth 1.2s Fade In on the first clip right after the 8s Intro (00:08 -> 00:09.2)
+    if (activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1) {
+      const elapsedInClip1 = Math.max(0, currentTime - activeClipAtPlayhead.start);
+      const fadeInFactor = elapsedInClip1 < 1.2 ? Math.max(0, elapsedInClip1 / 1.2) : 1;
+      return Math.round(baseFoleyVol * fadeInFactor);
+    }
+    return baseFoleyVol;
   }, [
     activeClipAtPlayhead,
     autoDuckingEnabled,
@@ -3697,14 +3707,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             im.src = clip.posterUrl!;
           });
           if (frameImg) {
+            const isSimIntro = clip.id === 'fixed-doc-intro' || clip.clipNumber === 0;
+            const isSimOutro = clip.id === 'fixed-doc-outro' || clip.clipNumber === 999;
+            const isSimClip1AfterIntro =
+              !isSimIntro && !isSimOutro && (clip.clipNumber === 1 || clip.index === 1);
+            const isSimLastBodyClip =
+              clipsWithTimelineBounds.length >= 3 &&
+              clip.index === clipsWithTimelineBounds.length - 2;
+
             const cAnim = computeElementAnimationState(
               simTime,
               clip.start,
               clip.end,
-              clipAnimIn,
-              clipAnimDur,
-              clipAnimOut,
-              clipAnimDur
+              isSimOutro || isSimIntro || isSimClip1AfterIntro ? 'fade' : clipAnimIn,
+              isSimOutro ? 1.2 : isSimClip1AfterIntro ? 1.2 : isSimIntro ? 0.5 : clipAnimDur,
+              isSimOutro || isSimIntro || isSimLastBodyClip ? 'fade' : clipAnimOut,
+              isSimOutro ? 2.5 : isSimIntro ? 0.8 : isSimLastBodyClip ? 1.0 : clipAnimDur
             );
             ctx.save();
             ctx.globalAlpha = cAnim.opacity;
@@ -4131,6 +4149,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeClipAtPlayhead?.id === 'fixed-doc-intro' || activeClipAtPlayhead?.clipNumber === 0;
   const isOutroClipActive =
     activeClipAtPlayhead?.id === 'fixed-doc-outro' || activeClipAtPlayhead?.clipNumber === 999;
+  const isFirstClipAfterIntro =
+    Boolean(activeClipAtPlayhead) &&
+    !isIntroClipActive &&
+    !isOutroClipActive &&
+    (activeClipAtPlayhead?.clipNumber === 1 || activeClipAtPlayhead?.index === 1);
   const isLastBodyClipBeforeOutro =
     Boolean(activeClipAtPlayhead) &&
     clipsWithTimelineBounds.length >= 3 &&
@@ -4141,8 +4164,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         currentTime,
         activeClipAtPlayhead.start,
         activeClipAtPlayhead.end,
-        isOutroClipActive ? 'fade' : isIntroClipActive ? 'fade' : clipAnimIn,
-        isOutroClipActive ? 1.2 : isIntroClipActive ? 0.5 : clipAnimDur,
+        isOutroClipActive || isIntroClipActive || isFirstClipAfterIntro ? 'fade' : clipAnimIn,
+        isOutroClipActive
+          ? 1.2
+          : isFirstClipAfterIntro
+          ? 1.2
+          : isIntroClipActive
+          ? 0.5
+          : clipAnimDur,
         isOutroClipActive
           ? 'fade'
           : isIntroClipActive || isLastBodyClipBeforeOutro
@@ -5352,140 +5381,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           )}
 
-          {selectedCanvasObject === 'captions' && (
-            <div
-              data-keep-canvas-selection="true"
-              className="w-full bg-slate-950/95 border border-sky-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs"
-            >
-              <span className="font-black text-sky-300 text-[11px]">
-                💬 Estilo Captions:
-              </span>
-              {(activeCaptionAtPlayhead || nearestCaptionAtPlayhead) && (
-                <input
-                  type="text"
-                  value={(activeCaptionAtPlayhead || nearestCaptionAtPlayhead)!.text}
-                  onChange={(e) => {
-                    const targetCap = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
-                    if (!targetCap) return;
-                    handleUpdateCaptionText(targetCap.id, e.target.value);
-                  }}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  placeholder="Texto del caption actual..."
-                  className="w-56 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-sky-400"
-                  title="Editar texto del caption actual (guardado en tiempo real)"
-                />
-              )}
-              <select
-                value={captionFontFamily}
-                onChange={(e) => setCaptionFontFamily(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-sky-200 cursor-pointer"
-              >
-                {EDITOR_FONT_OPTIONS.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                Tamaño ({captionFontSize}px):
-                <input
-                  type="range"
-                  min={14}
-                  max={64}
-                  value={captionFontSize}
-                  onChange={(e) => setCaptionFontSize(Number(e.target.value))}
-                  className="w-16 accent-sky-400"
-                />
-              </label>
-              <select
-                value={captionColor}
-                onChange={(e) => setCaptionColor(e.target.value as 'white' | 'amber' | 'custom')}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white cursor-pointer"
-              >
-                <option value="white">Texto Blanco</option>
-                <option value="amber">Texto Ámbar</option>
-                <option value="custom">Color Personalizado</option>
-              </select>
-              {captionColor === 'custom' && (
-                <input
-                  type="color"
-                  value={captionCustomColor}
-                  onChange={(e) => setCaptionCustomColor(e.target.value)}
-                  className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                />
-              )}
-              <select
-                value={captionShadowStyle}
-                onChange={(e) => setCaptionShadowStyle(e.target.value as OverlayShadowStyle)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-              >
-                {EDITOR_SHADOW_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={captionBgStyle}
-                onChange={(e) => setCaptionBgStyle(e.target.value as OverlayBgStyle)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-              >
-                <option value="none">Fondo: Transparente</option>
-                <option value="word_shadow">Fondo: Sombra Ceñida a las Palabras</option>
-                <option value="semi">Fondo: Caja Semitransparente</option>
-                <option value="solid">Fondo: Caja Sólida</option>
-              </select>
-              {captionBgStyle !== 'none' && (
-                <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                  <input
-                    type="color"
-                    value={captionBgColor}
-                    onChange={(e) => setCaptionBgColor(e.target.value)}
-                    className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                  />
-                  <span>{captionBgOpacity}%</span>
-                  <input
-                    type="range"
-                    min={10}
-                    max={100}
-                    value={captionBgOpacity}
-                    onChange={(e) => setCaptionBgOpacity(Number(e.target.value))}
-                    className="w-14 accent-sky-400"
-                  />
-                </label>
-              )}
-              <label className="flex items-center gap-1 text-[11px] text-slate-300">
-                Altura ({captionBottomPct}%):
-                <input
-                  type="range"
-                  min={4}
-                  max={50}
-                  value={captionBottomPct}
-                  onChange={(e) => setCaptionBottomPct(Number(e.target.value))}
-                  className="w-16 accent-sky-400"
-                />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-sky-200 font-semibold">
-                ✨ Animación:
-                <select
-                  value={captionAnimIn}
-                  onChange={(e) => {
-                    const val = e.target.value as ElementAnimationType;
-                    setCaptionAnimIn(val);
-                    setCaptionAnimOut(val);
-                  }}
-                  className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-sky-200"
-                >
-                  {ELEMENT_ANIMATION_OPTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-
           {selectedCanvasObject === 'logo' && (
             <div
               data-keep-canvas-selection="true"
@@ -6629,8 +6524,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     type="button"
                     onClick={() => {
                       if (captions.length === 0) return;
-                      const srtOut = serializeCaptionsToSrt(captions);
-                      updateActiveDoc({ correctedSrt: srtOut });
+                      const rawSrtOut = serializeCaptionsToSrt(captions);
+                      const srtOut = serializeCaptionsToSrt(
+                        captions.map((c) => ({ ...c, text: formatCaptionTextCase(c.text) }))
+                      );
+                      updateActiveDoc({ correctedSrt: rawSrtOut });
                       const blob = new Blob([srtOut + '\n'], { type: 'text/plain;charset=utf-8' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
