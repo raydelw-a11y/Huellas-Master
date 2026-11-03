@@ -4428,14 +4428,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </span>
                 </div>
               )}
-
-              {/* Bottom-Left Live Audio Ducking Indicator */}
-              <div className="absolute bottom-2 left-2.5 flex items-center gap-1.5 pointer-events-none">
-                <span className="px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-slate-300">
-                  Foley: {effectiveFoleyVolumeAtPlayhead}%{' '}
-                  {isNarratorSpeakingAtPlayhead ? '(Auto-Ducking Voz 🎙️)' : '(Ambiente Alto 🔊)'}
-                </span>
-              </div>
             </div>
 
             {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
