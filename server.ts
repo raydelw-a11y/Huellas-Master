@@ -3273,13 +3273,38 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : slotDur > 0.3 && effectiveSpan > 0.2
         ? ((slotDur + 0.08) / effectiveSpan).toFixed(5)
         : (1 / speed).toFixed(4);
-      const foleyVol = typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.35;
+      const foleyVol = c.audioMuted
+        ? 0
+        : typeof c.foleyVolume === 'number'
+        ? c.foleyVolume
+        : 0.35;
       const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
       const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
       const isFirstClipAfterIntro =
         !isIntroClip &&
         !isOutroClip &&
         (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
+      const effectiveClipDur =
+        slotDur > 0.3
+          ? slotDur
+          : Number(c.durationSec) > 0.3
+          ? Number(c.durationSec)
+          : 8;
+      const defaultAudioFadeIn = isIntroClip || isOutroClip ? 1.5 : isFirstClipAfterIntro ? 1.2 : 0;
+      const defaultAudioFadeOut = isIntroClip ? 1.8 : isOutroClip ? 2.5 : 0;
+      const audioFadeInSec =
+        typeof c.audioFadeInSec === 'number' ? Math.max(0, c.audioFadeInSec) : defaultAudioFadeIn;
+      const audioFadeOutSec =
+        typeof c.audioFadeOutSec === 'number' ? Math.max(0, c.audioFadeOutSec) : defaultAudioFadeOut;
+      const afFades: string[] = [];
+      if (audioFadeInSec > 0.01) {
+        afFades.push(`afade=t=in:st=0:d=${audioFadeInSec.toFixed(2)}`);
+      }
+      if (audioFadeOutSec > 0.01 && effectiveClipDur > 0.1) {
+        const fadeOutStart = Math.max(0, effectiveClipDur - audioFadeOutSec);
+        afFades.push(`afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${audioFadeOutSec.toFixed(2)}`);
+      }
+      const afFadePrefix = afFades.length > 0 ? `${afFades.join(',')},` : '';
 
       const vfFadeSuffix = isFirstClipAfterIntro
         ? ',fade=t=in:st=0:d=1.2'
@@ -3317,13 +3342,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         !usingPrebakedOpticalFlow && slotDur > 0.3
           ? `,apad,atrim=duration=${slotDur.toFixed(3)},asetpts=PTS-STARTPTS`
           : '';
-      const afFilter = isIntroClip
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=6.2:d=1.8,volume=${foleyVol}${afTrimSuffix}`
-        : isOutroClip
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.5,afade=t=out:st=5.5:d=2.5,volume=${foleyVol}${afTrimSuffix}`
-        : isFirstClipAfterIntro
-        ? `${atempoPrefix}afade=t=in:st=0:d=1.2,volume=${foleyVol}${afTrimSuffix}`
-        : `${atempoPrefix}volume=${foleyVol}${afTrimSuffix}`;
+      const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol}${afTrimSuffix}`;
 
       const inputTrimArgs: string[] = [];
       if (trimStartSec > 0.01) {

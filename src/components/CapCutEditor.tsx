@@ -66,6 +66,10 @@ export interface TimelineClipItem {
   originalSlotDuration?: number; // original timeline duration (e.g. 8s) before splitting/trimming
   partLabel?: string; // e.g., "Parte A", "Parte B"
   foleyVolume: number; // 0 to 100
+  customVolumeSet?: boolean; // true when user explicitly edited this clip's volume
+  audioMuted?: boolean; // true when clip audio is muted
+  audioFadeInSec?: number; // per-clip audio fade-in duration in seconds (0 to 15s)
+  audioFadeOutSec?: number; // per-clip audio fade-out duration in seconds (0 to 15s)
   transition: ClipTransitionType;
   videoUrl?: string; // local blob URL or data URL of the MP4
   posterUrl?: string; // keyframe or preview image
@@ -3813,41 +3817,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const effectiveFoleyVolumeAtPlayhead = useMemo(() => {
     if (!activeClipAtPlayhead) return 0;
+    if (activeClipAtPlayhead.audioMuted) return 0;
     if (activeClipAtPlayhead.vocalsSeparated && !activeClipAtPlayhead.cleanNoVocalsVideoUrl) {
       return 0;
     }
-    if (
+    const isIntro =
       activeClipAtPlayhead.id === 'fixed-doc-intro' ||
-      activeClipAtPlayhead.clipNumber === 0
-    ) {
-      const baseIntroVol =
-        typeof activeClipAtPlayhead.foleyVolume === 'number'
-          ? activeClipAtPlayhead.foleyVolume
-          : 100;
-      return Math.round(baseIntroVol);
-    }
-    if (
+      activeClipAtPlayhead.clipNumber === 0;
+    const isOutro =
       activeClipAtPlayhead.id === 'fixed-doc-outro' ||
-      activeClipAtPlayhead.clipNumber === 999
-    ) {
-      const baseOutroVol =
+      activeClipAtPlayhead.clipNumber === 999;
+
+    let baseFoleyVol = 0;
+    if (isIntro || isOutro) {
+      baseFoleyVol =
         typeof activeClipAtPlayhead.foleyVolume === 'number'
           ? activeClipAtPlayhead.foleyVolume
           : 100;
-      return Math.round(baseOutroVol);
+    } else if (activeClipAtPlayhead.customVolumeSet || !autoDuckingEnabled) {
+      baseFoleyVol =
+        typeof activeClipAtPlayhead.foleyVolume === 'number'
+          ? activeClipAtPlayhead.foleyVolume
+          : 40;
+    } else {
+      baseFoleyVol = isNarratorSpeakingAtPlayhead ? foleyDuckedVolume : foleyHighVolume;
     }
-    const baseFoleyVol = !autoDuckingEnabled
-      ? activeClipAtPlayhead.foleyVolume
-      : isNarratorSpeakingAtPlayhead
-      ? foleyDuckedVolume
-      : foleyHighVolume;
-    // Always apply a smooth 1.2s Fade In on the first clip right after the 8s Intro (00:08 -> 00:09.2)
-    if (activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1) {
-      const elapsedInClip1 = Math.max(0, currentTime - activeClipAtPlayhead.start);
-      const fadeInFactor = elapsedInClip1 < 1.2 ? Math.max(0, elapsedInClip1 / 1.2) : 1;
-      return Math.round(baseFoleyVol * fadeInFactor);
-    }
-    return baseFoleyVol;
+
+    if (baseFoleyVol <= 0) return 0;
+
+    const defaultFadeIn = isIntro
+      ? 1.5
+      : isOutro
+      ? 1.5
+      : activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1
+      ? 1.2
+      : 0;
+    const defaultFadeOut = isIntro ? 1.8 : isOutro ? 2.5 : 0;
+
+    const fadeInSec =
+      typeof activeClipAtPlayhead.audioFadeInSec === 'number'
+        ? Math.max(0, activeClipAtPlayhead.audioFadeInSec)
+        : defaultFadeIn;
+    const fadeOutSec =
+      typeof activeClipAtPlayhead.audioFadeOutSec === 'number'
+        ? Math.max(0, activeClipAtPlayhead.audioFadeOutSec)
+        : defaultFadeOut;
+
+    const elapsedInClip = Math.max(0, currentTime - activeClipAtPlayhead.start);
+    const remainingInClip = Math.max(0, activeClipAtPlayhead.end - currentTime);
+    const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInClip / fadeInSec) : 1;
+    const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInClip / fadeOutSec) : 1;
+    const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
+
+    return Math.round(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)));
   }, [
     activeClipAtPlayhead,
     autoDuckingEnabled,
@@ -4448,12 +4470,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [isPlaying, totalDurationSec]);
 
-  // Keep the selected clip automatically synchronized with the clip at the real-time playhead
+  // Keep the selected clip automatically synchronized with the clip at the real-time playhead while playing
   useEffect(() => {
-    if (activeClipAtPlayhead?.id && selectedClipId !== activeClipAtPlayhead.id) {
+    if (isPlaying && activeClipAtPlayhead?.id && selectedClipId !== activeClipAtPlayhead.id) {
       setSelectedClipId(activeClipAtPlayhead.id);
     }
-  }, [activeClipAtPlayhead?.id, selectedClipId]);
+  }, [activeClipAtPlayhead?.id, isPlaying]);
 
   // Auto-scroll the multitrack timeline horizontally as playback advances so the vertical playhead & active clip stay in view
   useEffect(() => {
@@ -5858,6 +5880,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   };
 
+  // Active target clip IDs for editing 1 selected clip or multiple selected clips simultaneously
+  const activeTargetClipIds = useMemo(() => {
+    if (selectedClipIds.length > 0) return selectedClipIds;
+    if (selectedClip?.id) return [selectedClip.id];
+    return [];
+  }, [selectedClipIds, selectedClip?.id]);
+
+  // Update Audio Volume, Fade In, Fade Out, or Mute across 1 selected clip, multiple selected clips, or all clips
+  const handleUpdateClipsAudio = (
+    patch: {
+      foleyVolume?: number;
+      audioFadeInSec?: number | undefined;
+      audioFadeOutSec?: number | undefined;
+      audioMuted?: boolean;
+      customVolumeSet?: boolean;
+    },
+    applyToAllClips: boolean = false
+  ) => {
+    const targetSet = new Set(activeTargetClipIds);
+    commitTimelineClipsUpdate(
+      (prev) =>
+        prev.map((c) => {
+          if (!applyToAllClips && !targetSet.has(c.id)) return c;
+          const next: TimelineClipItem = { ...c };
+          if (typeof patch.foleyVolume === 'number') {
+            next.foleyVolume = Math.max(0, Math.min(100, Math.round(patch.foleyVolume)));
+            next.customVolumeSet = patch.customVolumeSet ?? true;
+            next.audioMuted = next.foleyVolume <= 0;
+          }
+          if ('audioFadeInSec' in patch) {
+            next.audioFadeInSec =
+              typeof patch.audioFadeInSec === 'number'
+                ? Math.max(0, Math.min(15, Number(patch.audioFadeInSec.toFixed(1))))
+                : undefined;
+          }
+          if ('audioFadeOutSec' in patch) {
+            next.audioFadeOutSec =
+              typeof patch.audioFadeOutSec === 'number'
+                ? Math.max(0, Math.min(15, Number(patch.audioFadeOutSec.toFixed(1))))
+                : undefined;
+          }
+          if (typeof patch.audioMuted === 'boolean') {
+            next.audioMuted = patch.audioMuted;
+          }
+          if (typeof patch.customVolumeSet === 'boolean') {
+            next.customVolumeSet = patch.customVolumeSet;
+          }
+          return next;
+        }),
+      false
+    );
+  };
+
   // Trigger server-side FFmpeg Optical Flow (minterpolate MCI) for a slowed/trimmed clip
   const triggerOpticalFlowForClip = async (clip: TimelineClipItem, silent = false) => {
     if (!clip || clip.clipNumber === 0 || clip.clipNumber === 999) return;
@@ -6622,7 +6697,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
                 opticalFlowUrl: c.opticalFlowUrl || '',
                 videoUrl: c.videoUrl || '',
-                foleyVolume: c.foleyVolume / 100,
+                foleyVolume: c.audioMuted ? 0 : c.foleyVolume / 100,
+                audioMuted: Boolean(c.audioMuted),
+                audioFadeInSec: c.audioFadeInSec,
+                audioFadeOutSec: c.audioFadeOutSec,
                 transition: c.transition,
                 videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
               })),
@@ -7346,6 +7424,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <span className="text-[9px] text-slate-400 font-mono">Clic derecho</span>
           </div>
 
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedClipIds(clipContextMenu.clipIds);
+              if (clipContextMenu.clipIds[0]) {
+                setSelectedClipId(clipContextMenu.clipIds[0]);
+              }
+              setActiveInspectorTab('clips');
+              setIsRightPanelCollapsed(false);
+              setClipContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 font-black flex items-center justify-between gap-2 border-b border-slate-800/80 cursor-pointer transition"
+          >
+            <span className="flex items-center gap-2">
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Editar Audio, Volumen y Fades</span>
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-mono text-emerald-200">
+              {clipContextMenu.clipIds.length} clip{clipContextMenu.clipIds.length > 1 ? 's' : ''}
+            </span>
+          </button>
+
           {/* Submenu Trigger: Separar ▸ */}
           <div
             onMouseEnter={() =>
@@ -7942,37 +8043,72 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               ))}
 
-              {/* Assets: Timeline Video Clips (Large 16:9 Preview Cards with Vertical Scroll) */}
-              {clipsWithTimelineBounds.map((clip) => {
+              {/* Assets: Timeline Video Clips (Large 16:9 Preview Cards with Vertical Scroll & Multi-Select) */}
+              {clipsWithTimelineBounds.map((clip, clipIdx) => {
                 const isCurr = currentTime >= clip.start && currentTime < clip.end;
-                const isSelected = selectedClipIds.includes(clip.id) || selectedClipId === clip.id;
+                const isMultiSel = selectedClipIds.includes(clip.id);
+                const isSelected = isMultiSel || selectedClipId === clip.id;
                 const thumb = firstFrameByClip[clip.clipNumber] || clip.posterUrl;
                 return (
                   <div
                     key={`left-clip-${clip.id}`}
-                    onClick={() => {
-                      setSelectedClipId(clip.id);
-                      setSelectedClipIds([clip.id]);
-                      seekToTime(clip.start);
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) {
+                        setSelectedClipIds((prev) => {
+                          const base = prev.length > 0 ? prev : selectedClipId ? [selectedClipId] : [];
+                          const exists = base.includes(clip.id);
+                          const next = exists
+                            ? base.filter((id) => id !== clip.id)
+                            : [...base, clip.id];
+                          return next.length > 0 ? next : [clip.id];
+                        });
+                        setSelectedClipId(clip.id);
+                      } else if (e.shiftKey && selectedClipId) {
+                        const anchorIdx = clipsWithTimelineBounds.findIndex(
+                          (c) => c.id === selectedClipId
+                        );
+                        if (anchorIdx >= 0) {
+                          const sIdx = Math.min(anchorIdx, clipIdx);
+                          const eIdx = Math.max(anchorIdx, clipIdx);
+                          setSelectedClipIds(
+                            clipsWithTimelineBounds.slice(sIdx, eIdx + 1).map((c) => c.id)
+                          );
+                        } else {
+                          setSelectedClipIds([clip.id]);
+                        }
+                        setSelectedClipId(clip.id);
+                      } else {
+                        setSelectedClipId(clip.id);
+                        setSelectedClipIds([clip.id]);
+                        seekToTime(clip.start);
+                      }
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setSelectedClipId(clip.id);
-                      setSelectedClipIds([clip.id]);
+                      const targetIds =
+                        selectedClipIds.length > 0 && selectedClipIds.includes(clip.id)
+                          ? selectedClipIds
+                          : [clip.id];
+                      if (!selectedClipIds.includes(clip.id)) {
+                        setSelectedClipId(clip.id);
+                        setSelectedClipIds([clip.id]);
+                      }
                       setClipContextMenu({
                         x: e.clientX,
                         y: e.clientY,
-                        clipIds: [clip.id],
+                        clipIds: targetIds,
                         showSepararSubmenu: true,
                       });
                     }}
                     className={`w-full shrink-0 group relative rounded-xl border overflow-hidden cursor-pointer bg-[#0b0907] transition ${
-                      isCurr || isSelected
+                      isMultiSel && selectedClipIds.length > 1
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/70 shadow-lg shadow-emerald-500/20'
+                        : isCurr || isSelected
                         ? 'border-amber-400 ring-1 ring-amber-400 shadow-lg shadow-amber-500/15'
                         : 'border-slate-800 hover:border-amber-500/60'
                     }`}
-                    title={`Clip ${String(clip.clipNumber).padStart(2, '0')} (${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(clip.end)})`}
+                    title={`Clip ${String(clip.clipNumber).padStart(2, '0')} (${formatTimeMMSS(clip.start)} - ${formatTimeMMSS(clip.end)}) • Cmd/Ctrl+Clic o Shift+Clic para seleccionar varios clips`}
                   >
                     <div className="h-24 lg:h-28 w-full bg-black relative overflow-hidden flex items-center justify-center">
                       {thumb ? (
@@ -9061,6 +9197,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         Editando: CLIP {String(selectedClip.clipNumber).padStart(2, '0')}
                         {selectedClip.partLabel ? ` (${selectedClip.partLabel})` : ''}
                       </span>
+                      {activeTargetClipIds.length > 1 && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black">
+                          +{activeTargetClipIds.length - 1} más ({activeTargetClipIds.length} seleccionados)
+                        </span>
+                      )}
                       <span className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">
                         ({selectedClip.fileName})
                       </span>
@@ -9097,6 +9238,243 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         title="Mover este clip una posición después"
                       >
                         Después ➡️
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* AUDIO DE CLIP(S) SELECCIONADO(S): VOLUMEN + FADE IN + FADE OUT (INDIVIDUAL O MÚLTIPLES CLIPS) */}
+                  <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-lg p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[11px] font-black text-emerald-300 flex items-center gap-1.5">
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                        {activeTargetClipIds.length > 1
+                          ? `🔊 Audio de ${activeTargetClipIds.length} Clips Seleccionados`
+                          : `🔊 Audio del Clip ${
+                              selectedClip.clipNumber === 0
+                                ? 'INTRO'
+                                : selectedClip.clipNumber === 999
+                                ? 'OUTRO'
+                                : String(selectedClip.clipNumber).padStart(2, '0')
+                            }`}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allIds = timelineClips.map((c) => c.id);
+                            if (selectedClipIds.length === allIds.length) {
+                              setSelectedClipIds([selectedClip.id]);
+                            } else {
+                              setSelectedClipIds(allIds);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-200 text-[10px] font-bold cursor-pointer"
+                          title="Seleccionar todos los clips para editar su volumen y fades al mismo tiempo (o usa Cmd/Ctrl+Clic y Shift+Clic en el timeline)"
+                        >
+                          {selectedClipIds.length === timelineClips.length
+                            ? '✓ Todos Seleccionados (1 solo)'
+                            : `☑ Seleccionar Todos (${timelineClips.length})`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateClipsAudio({
+                              audioMuted: !selectedClip.audioMuted,
+                            })
+                          }
+                          className={`px-2 py-0.5 rounded border text-[10px] font-black cursor-pointer ${
+                            selectedClip.audioMuted
+                              ? 'bg-rose-500 text-white border-rose-400'
+                              : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-slate-700'
+                          }`}
+                          title="Silenciar o activar el audio de los clips seleccionados"
+                        >
+                          {selectedClip.audioMuted ? '🔇 Silenciado' : '🔊 Activo'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Volume Slider + Numeric Input (0% - 100%) */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-[10px] text-slate-300 font-semibold">
+                          Volumen del Audio:
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
+                            onChange={(e) =>
+                              handleUpdateClipsAudio({
+                                foleyVolume: Number(e.target.value),
+                                customVolumeSet: true,
+                              })
+                            }
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="w-14 bg-slate-950 border border-emerald-500/40 rounded px-1.5 py-0.5 text-[11px] font-mono text-emerald-200 text-right"
+                          />
+                          <span className="text-[10px] text-emerald-300 font-bold">%</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
+                        onChange={(e) =>
+                          handleUpdateClipsAudio({
+                            foleyVolume: Number(e.target.value),
+                            customVolumeSet: true,
+                          })
+                        }
+                        className="w-full accent-emerald-400 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Both Fades: Fade In (s) & Fade Out (s) */}
+                    {(() => {
+                      const isIntroClip =
+                        selectedClip.id === 'fixed-doc-intro' || selectedClip.clipNumber === 0;
+                      const isOutroClip =
+                        selectedClip.id === 'fixed-doc-outro' || selectedClip.clipNumber === 999;
+                      const effFadeIn =
+                        typeof selectedClip.audioFadeInSec === 'number'
+                          ? selectedClip.audioFadeInSec
+                          : isIntroClip || isOutroClip
+                          ? 1.5
+                          : selectedClip.clipNumber === 1
+                          ? 1.2
+                          : 0;
+                      const effFadeOut =
+                        typeof selectedClip.audioFadeOutSec === 'number'
+                          ? selectedClip.audioFadeOutSec
+                          : isIntroClip
+                          ? 1.8
+                          : isOutroClip
+                          ? 2.5
+                          : 0;
+                      const maxFadeSec = Math.max(2, Math.min(15, Number((selectedClip.duration || 8).toFixed(1))));
+                      return (
+                        <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-emerald-500/20">
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] text-emerald-200 mb-0.5">
+                              <span className="font-semibold">📈 Fade In:</span>
+                              <div className="flex items-center gap-0.5">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={15}
+                                  step={0.1}
+                                  value={effFadeIn}
+                                  onChange={(e) =>
+                                    handleUpdateClipsAudio({
+                                      audioFadeInSec: Math.max(0, Number(e.target.value || 0)),
+                                    })
+                                  }
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  className="w-12 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                                />
+                                <span>s</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={maxFadeSec}
+                              step={0.1}
+                              value={Math.min(maxFadeSec, effFadeIn)}
+                              onChange={(e) =>
+                                handleUpdateClipsAudio({
+                                  audioFadeInSec: Number(e.target.value),
+                                })
+                              }
+                              className="w-full accent-emerald-400 cursor-pointer"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] text-emerald-200 mb-0.5">
+                              <span className="font-semibold">📉 Fade Out:</span>
+                              <div className="flex items-center gap-0.5">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={15}
+                                  step={0.1}
+                                  value={effFadeOut}
+                                  onChange={(e) =>
+                                    handleUpdateClipsAudio({
+                                      audioFadeOutSec: Math.max(0, Number(e.target.value || 0)),
+                                    })
+                                  }
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  className="w-12 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                                />
+                                <span>s</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={maxFadeSec}
+                              step={0.1}
+                              value={Math.min(maxFadeSec, effFadeOut)}
+                              onChange={(e) =>
+                                handleUpdateClipsAudio({
+                                  audioFadeOutSec: Number(e.target.value),
+                                })
+                              }
+                              className="w-full accent-emerald-400 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-emerald-500/20 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fi = selectedClip.audioFadeInSec ?? 0;
+                          const fo = selectedClip.audioFadeOutSec ?? 0;
+                          handleUpdateClipsAudio(
+                            {
+                              foleyVolume: selectedClip.foleyVolume,
+                              audioFadeInSec: fi,
+                              audioFadeOutSec: fo,
+                              audioMuted: Boolean(selectedClip.audioMuted),
+                              customVolumeSet: true,
+                            },
+                            true
+                          );
+                          setStatusMessage(
+                            `🔊 Volumen (${selectedClip.foleyVolume}%), Fade-In (${fi}s) y Fade-Out (${fo}s) aplicados a los ${timelineClips.length} clips.`
+                          );
+                        }}
+                        className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] cursor-pointer"
+                        title="Aplicar este mismo Volumen, Fade-In y Fade-Out a todos los clips del timeline"
+                      >
+                        ✨ Aplicar Audio y Fades a Todos los Clips
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUpdateClipsAudio({
+                            foleyVolume: selectedClip.clipNumber === 1 ? 80 : 35,
+                            audioFadeInSec: undefined,
+                            audioFadeOutSec: undefined,
+                            audioMuted: false,
+                            customVolumeSet: false,
+                          });
+                          setStatusMessage('🔄 Volumen y Fades del clip restaurados.');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
+                      >
+                        🔄 Restaurar
                       </button>
                     </div>
                   </div>
@@ -9566,6 +9944,96 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {/* TAB 2: AUDIO MIXING, VOICE OFFSET, AUTO-DUCKING & SUNO */}
           {activeInspectorTab === 'audio' && (
             <div className="flex flex-col gap-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
+              {selectedClip && (
+                <div className="bg-emerald-950/35 border border-emerald-500/50 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-black text-emerald-300 text-xs flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                      {activeTargetClipIds.length > 1
+                        ? `🎬 Audio de ${activeTargetClipIds.length} Clips Seleccionados`
+                        : `🎬 Audio de Clip ${
+                            selectedClip.clipNumber === 0
+                              ? 'INTRO'
+                              : selectedClip.clipNumber === 999
+                              ? 'OUTRO'
+                              : String(selectedClip.clipNumber).padStart(2, '0')
+                          }`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allIds = timelineClips.map((c) => c.id);
+                        setSelectedClipIds(
+                          selectedClipIds.length === allIds.length ? [selectedClip.id] : allIds
+                        );
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-200 text-[10px] font-bold cursor-pointer"
+                    >
+                      {selectedClipIds.length === timelineClips.length
+                        ? '✓ Todos Seleccionados'
+                        : `☑ Seleccionar Todos (${timelineClips.length})`}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-300 font-semibold">
+                        🔊 Volumen ({selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}%)
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
+                        onChange={(e) =>
+                          handleUpdateClipsAudio({
+                            foleyVolume: Number(e.target.value),
+                            customVolumeSet: true,
+                          })
+                        }
+                        className="w-full accent-emerald-400 cursor-pointer mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-300 font-semibold">
+                        📈 Fade In ({selectedClip.audioFadeInSec ?? 0}s)
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={10}
+                        step={0.1}
+                        value={selectedClip.audioFadeInSec ?? 0}
+                        onChange={(e) =>
+                          handleUpdateClipsAudio({
+                            audioFadeInSec: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-emerald-400 cursor-pointer mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-300 font-semibold">
+                        📉 Fade Out ({selectedClip.audioFadeOutSec ?? 0}s)
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={10}
+                        step={0.1}
+                        value={selectedClip.audioFadeOutSec ?? 0}
+                        onChange={(e) =>
+                          handleUpdateClipsAudio({
+                            audioFadeOutSec: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-emerald-400 cursor-pointer mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-300">
@@ -11776,7 +12244,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
                               </span>
                               <span>
-                                {clip.foleyOnlyIsolated
+                                {clip.audioMuted
+                                  ? '🔇 Silenciado (0%)'
+                                  : clip.foleyOnlyIsolated
                                   ? `🌿 Solo Foley • ${clip.foleyVolume}%`
                                   : clip.vocalsSeparated && clip.musicSeparated
                                   ? '🔇 Voz y Música Extraídas'
@@ -11786,7 +12256,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   ? '🔇 Música Extraída'
                                   : clip.clipNumber === 0 || clip.clipNumber === 999
                                   ? `Audio Fade In/Out • ${clip.foleyVolume}%`
-                                  : `Foley ${clip.foleyVolume}%`}
+                                  : `🔊 ${clip.foleyVolume}%`}
+                                {(clip.audioFadeInSec || clip.audioFadeOutSec)
+                                  ? ` • 📈${clip.audioFadeInSec || 0}s 📉${clip.audioFadeOutSec || 0}s`
+                                  : ''}
                               </span>
                             </div>
                           </>
