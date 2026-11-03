@@ -3887,14 +3887,13 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         }
       } catch {}
 
-      // Auto-upscale any manually regenerated / newly added non-4K clip in 05_Clips_Video BEFORE serving it
-      if (fs.existsSync(clipsDir) && fs.statSync(clipsDir).isDirectory()) {
+      // Auto-upscale any non-4K or newly regenerated clip in 05_Clips_Video BEFORE serving it
+      if (!activeClipsPipelineStatus.running && fs.existsSync(clipsDir) && fs.statSync(clipsDir).isDirectory()) {
         try {
           const allDirEntries = fs.readdirSync(clipsDir);
-          const nowMs = Date.now();
-          const has4kOrFrameByClip = new Set<number>();
+          const mtime4kByClip = new Map<number, number>();
           const canonicalBaseByClip = new Map<number, string>();
-          const non4kVideos: Array<{
+          const rawNon4kVideos: Array<{
             entry: string;
             full: string;
             clipNum: number;
@@ -3917,7 +3916,6 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             if (mFrame) {
               const cNum = parseInt(mFrame[1], 10);
               if (cNum > 0) {
-                has4kOrFrameByClip.add(cNum);
                 const padded = String(cNum).padStart(2, '0');
                 if (!canonicalBaseByClip.has(cNum)) {
                   canonicalBaseByClip.set(cNum, `${padded}_${mFrame[2]}`);
@@ -3943,9 +3941,12 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
                 canonicalBaseByClip.set(cNum, cleanBase);
               }
               if (isReal4k) {
-                has4kOrFrameByClip.add(cNum);
+                const prevMtime = mtime4kByClip.get(cNum) || 0;
+                if (st.mtimeMs > prevMtime) {
+                  mtime4kByClip.set(cNum, st.mtimeMs);
+                }
               } else if (st.size > 10000) {
-                non4kVideos.push({
+                rawNon4kVideos.push({
                   entry,
                   full,
                   clipNum: cNum,
@@ -3956,15 +3957,20 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             }
           }
 
-          // Identify recent non-4K videos (added/modified in the last 3 hours, or replacing an existing 4K/regenerated clip)
-          // Exclude bulk batch dumps where >6 files share the exact same minute timestamp
-          const recentWindowNon4k = non4kVideos.filter(
-            (v) => nowMs - v.mtimeMs <= 3 * 3600 * 1000
-          );
-          const isSmallManualBatch = recentWindowNon4k.length > 0 && recentWindowNon4k.length <= 6;
+          const non4kVideos = rawNon4kVideos.filter((v) => {
+            const existing4kMtime = mtime4kByClip.get(v.clipNum) || 0;
+            if (existing4kMtime > 0 && v.mtimeMs <= existing4kMtime) {
+              // Stale non-4K leftover older than the existing 4K file: remove leftover
+              try {
+                fs.unlinkSync(v.full);
+              } catch {}
+              return false;
+            }
+            return true;
+          });
 
+          // Automatically upscale any non-4K or newly regenerated clip in 05_Clips_Video (up to 4 per cycle)
           const toAutoUpscale = non4kVideos
-            .filter((v) => has4kOrFrameByClip.has(v.clipNum) || (isSmallManualBatch && nowMs - v.mtimeMs <= 3 * 3600 * 1000))
             .sort((a, b) => b.mtimeMs - a.mtimeMs)
             .slice(0, 4);
 
@@ -4008,6 +4014,19 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
                     try {
                       fs.unlinkSync(fullExisting);
                     } catch {}
+                  }
+                }
+                // Clean stale optical-flow and foley caches for this clip number so Timeline plays the new 4K clip immediately
+                for (const subCache of ['.optical_flow_cache', '.foley_only_cache']) {
+                  const cacheDir = path.join(clipsDir, subCache);
+                  if (fs.existsSync(cacheDir) && fs.statSync(cacheDir).isDirectory()) {
+                    for (const cFile of fs.readdirSync(cacheDir)) {
+                      if (cFile.startsWith(prefix)) {
+                        try {
+                          fs.unlinkSync(path.join(cacheDir, cFile));
+                        } catch {}
+                      }
+                    }
                   }
                 }
                 // Extract/update initial frame .jpg
@@ -4702,13 +4721,44 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
           )
       : [];
 
-    // Separate files that already have _4K vs files that need 4K conversion
-    const pendingUpscaleFiles: string[] = [];
+    // Separate files that already have real _4K (>=12MB) vs files that need 4K conversion
+    const mtimeReal4kByClip = new Map<number, number>();
     for (const entry of allVideoEntries) {
       if (/[_\-]4k\.(mp4|mov|webm)$/i.test(entry)) {
+        try {
+          const st = fs.statSync(path.join(clipsDir, entry));
+          if (st.size >= 12 * 1024 * 1024) {
+            const cNum = inferClipNumberFromFileName(entry, clipsList);
+            if (cNum > 0) {
+              const prev = mtimeReal4kByClip.get(cNum) || 0;
+              if (st.mtimeMs > prev) mtimeReal4kByClip.set(cNum, st.mtimeMs);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    const pendingUpscaleFiles: string[] = [];
+    for (const entry of allVideoEntries) {
+      const fullPath = path.join(clipsDir, entry);
+      let st: fs.Stats | null = null;
+      try {
+        st = fs.statSync(fullPath);
+      } catch {}
+      const isReal4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(entry) && !!st && st.size >= 12 * 1024 * 1024;
+      if (isReal4k) {
         activeClipsPipelineStatus.already4kCount++;
-      } else {
-        pendingUpscaleFiles.push(entry);
+      } else if (st && st.size > 10000) {
+        const cNum = inferClipNumberFromFileName(entry, clipsList);
+        const existing4kMtime = cNum > 0 ? mtimeReal4kByClip.get(cNum) || 0 : 0;
+        if (existing4kMtime > 0 && st.mtimeMs <= existing4kMtime) {
+          // Leftover non-4K file older than an already-upscaled 4K file for the same clip
+          try {
+            fs.unlinkSync(fullPath);
+          } catch {}
+        } else {
+          pendingUpscaleFiles.push(entry);
+        }
       }
     }
 
@@ -4747,29 +4797,59 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
         try {
           await upscaleFileTo4KOnDisk(srcFull, tmp4kFull, aspectRatio);
           if (fs.existsSync(tmp4kFull) && fs.statSync(tmp4kFull).size > 10000) {
-            // Remove any older 4K file for the same clip number before placing the new _4K.mp4
             const clipNum = inferClipNumberFromFileName(entry, clipsList);
-            if (clipNum > 0) {
-              const prefix = `${String(clipNum).padStart(2, '0')}_`;
-              for (const existing of fs.readdirSync(clipsDir)) {
-                if (
-                  existing.startsWith(prefix) &&
-                  /[_\-]4k\.(mp4|mov|webm)$/i.test(existing) &&
-                  existing !== path.basename(tmp4kFull)
-                ) {
-                  try {
-                    fs.unlinkSync(path.join(clipsDir, existing));
-                  } catch {}
-                }
-              }
-            }
+            const paddedNum = clipNum > 0 ? String(clipNum).padStart(2, '0') : '';
+            const prefix = paddedNum ? `${paddedNum}_` : '';
             fs.copyFileSync(tmp4kFull, final4kFull);
             try {
               execSync(`chflags nohidden "${final4kFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
             } catch {}
-            // Delete the original non-4K video file so only the _4K.mp4 remains
-            if (fs.existsSync(srcFull) && path.resolve(srcFull) !== path.resolve(final4kFull)) {
-              fs.unlinkSync(srcFull);
+            // Remove the original non-4K video file and any older video files for the same clip number
+            for (const existing of fs.readdirSync(clipsDir)) {
+              const fullExisting = path.join(clipsDir, existing);
+              if (
+                path.resolve(fullExisting) !== path.resolve(final4kFull) &&
+                /\.(mp4|mov|webm)$/i.test(existing) &&
+                ((prefix && existing.startsWith(prefix)) || existing === entry)
+              ) {
+                try {
+                  fs.unlinkSync(fullExisting);
+                } catch {}
+              }
+            }
+            // Clean stale optical-flow and foley caches for this clip number
+            if (prefix) {
+              for (const subCache of ['.optical_flow_cache', '.foley_only_cache']) {
+                const cacheDir = path.join(clipsDir, subCache);
+                if (fs.existsSync(cacheDir) && fs.statSync(cacheDir).isDirectory()) {
+                  for (const cFile of fs.readdirSync(cacheDir)) {
+                    if (cFile.startsWith(prefix)) {
+                      try {
+                        fs.unlinkSync(path.join(cacheDir, cFile));
+                      } catch {}
+                    }
+                  }
+                }
+              }
+              // Extract/update initial frame .jpg
+              const suffixWithoutNum = baseNoExt.replace(/^0*\d+_/, '');
+              const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+              const frameFullPath = path.join(clipsDir, frameFileName);
+              try {
+                const ffmpegBin = resolveFfmpegBin();
+                await new Promise<void>((resolve) => {
+                  const proc = spawn(
+                    ffmpegBin,
+                    ['-y', '-i', final4kFull, '-frames:v', '1', '-q:v', '2', frameFullPath],
+                    { stdio: 'ignore' }
+                  );
+                  proc.on('error', () => resolve());
+                  proc.on('close', () => resolve());
+                });
+                if (fs.existsSync(frameFullPath)) {
+                  execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+                }
+              } catch {}
             }
             activeClipsPipelineStatus.upscaled4kCount++;
           }
@@ -5042,8 +5122,11 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     const final4kName = `${canonicalBase}_4K.mp4`;
     const final4kFull = path.join(clipsDir, final4kName);
 
-    // Check if the newest file is ALREADY a 4K file in clipsDir
-    const isNewestAlready4KName = /[_\-]4k\.(mp4|mov|webm)$/i.test(newest.fileName);
+    // Check if the newest file is ALREADY a real 4K file (>=12MB) in clipsDir
+    const isNewestAlready4KName =
+      /[_\-]4k\.(mp4|mov|webm)$/i.test(newest.fileName) &&
+      fs.existsSync(newest.fullPath) &&
+      fs.statSync(newest.fullPath).size >= 12 * 1024 * 1024;
     let wasUpscaled = false;
 
     if (isNewestAlready4KName && path.resolve(newest.fullPath) === path.resolve(final4kFull)) {
