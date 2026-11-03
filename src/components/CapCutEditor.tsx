@@ -1360,7 +1360,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
-  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(24);
+  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(10);
   const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(null);
 
   const handleUpdateMusicTrack = (
@@ -1387,6 +1387,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             prevEdits[String(item.trackNumber)] = {
               ...cur,
               volume: item.volume,
+              userSetVolumeV10: true,
               fadeInSec: item.fadeInSec ?? 2.5,
               fadeOutSec: item.fadeOutSec ?? 3.0,
             };
@@ -2623,7 +2624,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (sunoList.length > 0) {
       const savedMusicEdits: Record<
         string,
-        { volume?: number; fadeInSec?: number; fadeOutSec?: number }
+        { volume?: number; userSetVolumeV10?: boolean; fadeInSec?: number; fadeOutSec?: number }
       > =
         savedDocOverlays && typeof savedDocOverlays.musicTrackEdits === 'object'
           ? savedDocOverlays.musicTrackEdits
@@ -2678,9 +2679,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           start: startSec,
           duration: durSec,
           volume:
-            typeof savedEdit.volume === 'number'
+            savedEdit.userSetVolumeV10 && typeof savedEdit.volume === 'number'
               ? savedEdit.volume
-              : masterMusicVolume,
+              : 10,
           audioUrl: combinedSunoAudioMap[trackNum] || st.audioUrl,
           isLast90Sec: isLast,
           fadeInSec:
@@ -2700,11 +2701,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           return {
             ...bm,
             volume:
-              typeof savedEdit.volume === 'number'
+              savedEdit.userSetVolumeV10 && typeof savedEdit.volume === 'number'
                 ? savedEdit.volume
-                : prevMatch && typeof prevMatch.volume === 'number'
+                : prevMatch && typeof prevMatch.volume === 'number' && prevMatch.volume !== 24
                 ? prevMatch.volume
-                : bm.volume,
+                : 10,
             fadeInSec:
               typeof savedEdit.fadeInSec === 'number'
                 ? savedEdit.fadeInSec
@@ -10060,14 +10061,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         type="button"
                         onClick={() => {
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            volume: 24,
+                            volume: 10,
                             fadeInSec: 2.5,
                             fadeOutSec: 3.0,
                           });
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
                       >
-                        🔄 Restaurar Canción (24% • 2.5s / 3.0s)
+                        🔄 Restaurar Canción (10% • 2.5s / 3.0s)
                       </button>
                     </div>
                   </div>

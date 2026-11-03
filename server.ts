@@ -3465,7 +3465,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         nextInputIdx++;
       }
 
-      const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.24)));
+      const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.1)));
       for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
         const mItem = resolvedMusicInputs[mIdx];
         ffmpegArgs.push('-i', mItem.filePath);
