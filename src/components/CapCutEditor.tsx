@@ -8877,7 +8877,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </h3>
                   <p className="text-[10px] text-slate-400">
                     {clipsWithTimelineBounds.length} segmentos • Duración total:{' '}
-                    {formatTimecode(totalDurationSec)}
+                    {formatTimeMMSS(totalDurationSec)}
                   </p>
                 </div>
               </div>
