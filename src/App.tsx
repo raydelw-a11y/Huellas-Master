@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:44 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:51 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -8498,11 +8498,11 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* SELECTOR DE UBICACIÓN DEL INTRO OFICIAL DE MARCA (8s — Intro.mp4) + CAJA DE PROMPTS MINIMALISMO EN PIEDRA Y ORO */}
-                    <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5 space-y-3">
+                    {/* SELECTOR DE UBICACIÓN DEL INTRO OFICIAL DE MARCA (8s — Intro.mp4) */}
+                    <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5">
                       <div>
                         <label className="block text-xs font-bold text-amber-300 mb-1.5">
-                          🎬 Ubicación del Intro Oficial de Marca (8s — Intro.mp4 • Minimalismo de Estudio en Piedra y Oro)
+                          🎬 Ubicación del Intro Oficial de Marca (8s — Intro.mp4)
                         </label>
                         <select
                           value={activeDoc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00'}
@@ -8524,75 +8524,6 @@ export default function App() {
                             Opción B (Intro 8s Post-Slogan tras "Aquí seguimos sus rastros."): Abre con el Hook en 00:00 y el mismo Intro 8s (Intro.mp4) entra exactamente después del Slogan Completo sin cortar ningún clip
                           </option>
                         </select>
-                      </div>
-
-                      {/* CAJA DORADA CON LOS PROMPTS MAESTROS DE MINIMALISMO EN PIEDRA Y ORO A LA VISTA */}
-                      <div className="bg-[#18130c] border border-amber-500/35 rounded-xl p-3 space-y-2.5">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold text-amber-300">
-                            🏛️ Prompts Maestros Opción 3: Minimalismo de Estudio en Piedra y Oro (8s)
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              copyText(
-                                `Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.\n\nClip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.`,
-                                'stage1-intro-both'
-                              )
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer transition"
-                          >
-                            {copiedId === 'stage1-intro-both'
-                              ? '✓ Image + Clip Intro Copiados'
-                              : '📋 Copiar Ambos Prompts (Image + Clip Intro)'}
-                          </button>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[11px] font-semibold text-slate-200">
-                              1. Imagen Inicial (Nano Banana 2.1):
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                copyText(
-                                  "Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.",
-                                  'stage1-intro-img'
-                                )
-                              }
-                              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
-                            >
-                              {copiedId === 'stage1-intro-img' ? '✓ Copiado' : '📋 Copiar Image Intro'}
-                            </button>
-                          </div>
-                          <div className="text-[10.5px] font-mono text-slate-300 bg-black/40 border border-slate-800/80 rounded-lg p-2 leading-relaxed select-all">
-                            Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text &apos;HUELLAS DE LA HUMANIDAD&apos; deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[11px] font-semibold text-slate-200">
-                              2. Clip de Video (Veo 3.1 - Lite [Lower Priority] — 8 Segundos):
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                copyText(
-                                  "Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.",
-                                  'stage1-intro-clip'
-                                )
-                              }
-                              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-amber-200 font-semibold cursor-pointer"
-                            >
-                              {copiedId === 'stage1-intro-clip' ? '✓ Copiado' : '📋 Copiar Clip Intro (8s)'}
-                            </button>
-                          </div>
-                          <div className="text-[10.5px] font-mono text-slate-300 bg-black/40 border border-slate-800/80 rounded-lg p-2 leading-relaxed select-all">
-                            Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo &apos;HUELLAS DE LA HUMANIDAD&apos; gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
-                          </div>
-                        </div>
                       </div>
                     </div>
 

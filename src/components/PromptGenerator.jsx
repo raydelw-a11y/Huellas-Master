@@ -3657,64 +3657,6 @@ const PromptGenerator = ({
                           );
                         })}
                       </div>
-
-                      {group === 'UBICACION_INTRO_MARCA' && formData.UBICACION_INTRO_MARCA !== 'SIN_INTRO' && (
-                        <div
-                          style={{
-                            marginTop: '0.75rem',
-                            padding: '0.85rem 1rem',
-                            backgroundColor: 'var(--box-bg)',
-                            borderRadius: '6px',
-                            border: '1.5px solid var(--accent-gold)',
-                            boxShadow: '0 2px 8px var(--shadow-color)',
-                            fontSize: '0.8rem',
-                          }}
-                        >
-                          <div style={{ fontWeight: 700, color: 'var(--accent-gold)', marginBottom: '0.45rem' }}>
-                            🏛️ Prompts Maestros de la Opción 3 (Activo Fijo de 8s — Minimalismo de Estudio en Piedra y Oro)
-                          </div>
-                          <div style={{ marginBottom: '0.55rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                              <strong style={{ color: 'var(--text-primary)' }}>1. Imagen Inicial (Nano Banana 2.1):</strong>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                                onClick={() => {
-                                  navigator.clipboard.writeText(
-                                    "Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music."
-                                  );
-                                }}
-                              >
-                                📋 Copiar Image Intro
-                              </button>
-                            </div>
-                            <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.4rem 0.55rem', borderRadius: '4px' }}>
-                              Image Intro: Create an image 16:9 horizontal, studio minimal dark aesthetic, ancient weathered limestone wall in pitch-black darkness, a subtle warm torchlight glow from off-camera left grazing the rough damp stone surface to reveal the official 3D aged gold emblem and text 'HUELLAS DE LA HUMANIDAD' deeply carved into the center of the rock and dusted with fine ancient gold powder, chiaroscuro lighting, 35mm film grain, center-weighted safe framing for 2.35:1, cinematic documentary realism, no modern objects, no CGI look, no speech, no music.
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                              <strong style={{ color: 'var(--text-primary)' }}>2. Clip de Video (Veo 3.1 - Lite [Lower Priority] - 8 Segundos):</strong>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}
-                                onClick={() => {
-                                  navigator.clipboard.writeText(
-                                    "Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music."
-                                  );
-                                }}
-                              >
-                                📋 Copiar Clip Intro (8s)
-                              </button>
-                            </div>
-                            <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.4rem 0.55rem', borderRadius: '4px' }}>
-                              Clip Intro (00:00 - 00:08): Create a video 16:9 horizontal cinematic documentary sequence, 8 seconds, single continuous shot, in pitch-black darkness, a warm volumetric torchlight beam sweeps slowly across a damp ancient limestone wall, revealing the carved 3D aged gold logo 'HUELLAS DE LA HUMANIDAD' gleaming subtly in the center frame before the light fades to absolute black at the final second, synchronized foley of a low atmospheric sub-bass drone, crackling torch fire movement, and a deep resonant stone and metallic sub-bass slam echoing into complete dead silence, strictly no music, strictly no speech, cinematic documentary realism, safe framing for 2.35:1, no modern objects, no CGI look except the carved logo reveal, no speech, no music.
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
