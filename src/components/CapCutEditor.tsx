@@ -662,8 +662,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return activeDoc?.clip1Line2Hook || '';
   });
   const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
-    if (initialDocOverlays && Number(initialDocOverlays.clip1OverlayEndSec) >= 8) {
+    if (initialDocOverlays && typeof initialDocOverlays.clip1OverlayEndSec === 'number' && initialDocOverlays.clip1OverlayEndSec > 0) {
       return Number(initialDocOverlays.clip1OverlayEndSec);
+    }
+    if (typeof initialOverlayStyles.clip1OverlayEndSec === 'number' && initialOverlayStyles.clip1OverlayEndSec > 0) {
+      return Number(initialOverlayStyles.clip1OverlayEndSec);
     }
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
@@ -673,39 +676,43 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Line 1: starts at 8s (Clip 1), Fade In 1s (8s->9s), Fade Out 1s toward 16s (15s->16s)
   // Line 2: appears at 10s (2s into Clip 1), Fade In 1s (10s->11s), Fade Out 1s toward 16s (15s->16s)
   const [hookLine1StartSec, setHookLine1StartSec] = useState<number>(() =>
-    typeof initialOverlayStyles.hookLine1StartSec === 'number'
+    typeof initialDocOverlays?.hookLine1StartSec === 'number'
+      ? initialDocOverlays.hookLine1StartSec
+      : typeof initialOverlayStyles.hookLine1StartSec === 'number'
       ? initialOverlayStyles.hookLine1StartSec
       : 8
   );
   const [hookLine1AnimIn, setHookLine1AnimIn] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.hookLine1AnimIn || 'fade'
+    () => initialDocOverlays?.hookLine1AnimIn || initialOverlayStyles.hookLine1AnimIn || 'fade'
   );
   const [hookLine1AnimInDur, setHookLine1AnimInDur] = useState<number>(
-    () => Number(initialOverlayStyles.hookLine1AnimInDur) || 1
+    () => Number(initialDocOverlays?.hookLine1AnimInDur ?? initialOverlayStyles.hookLine1AnimInDur) || 1
   );
   const [hookLine1AnimOut, setHookLine1AnimOut] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.hookLine1AnimOut || 'fade'
+    () => initialDocOverlays?.hookLine1AnimOut || initialOverlayStyles.hookLine1AnimOut || 'fade'
   );
   const [hookLine1AnimOutDur, setHookLine1AnimOutDur] = useState<number>(
-    () => Number(initialOverlayStyles.hookLine1AnimOutDur) || 1
+    () => Number(initialDocOverlays?.hookLine1AnimOutDur ?? initialOverlayStyles.hookLine1AnimOutDur) || 1
   );
 
   const [hookLine2StartSec, setHookLine2StartSec] = useState<number>(() =>
-    typeof initialOverlayStyles.hookLine2StartSec === 'number'
+    typeof initialDocOverlays?.hookLine2StartSec === 'number'
+      ? initialDocOverlays.hookLine2StartSec
+      : typeof initialOverlayStyles.hookLine2StartSec === 'number'
       ? initialOverlayStyles.hookLine2StartSec
       : 10
   );
   const [hookLine2AnimIn, setHookLine2AnimIn] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.hookLine2AnimIn || 'fade'
+    () => initialDocOverlays?.hookLine2AnimIn || initialOverlayStyles.hookLine2AnimIn || 'fade'
   );
   const [hookLine2AnimInDur, setHookLine2AnimInDur] = useState<number>(
-    () => Number(initialOverlayStyles.hookLine2AnimInDur) || 1
+    () => Number(initialDocOverlays?.hookLine2AnimInDur ?? initialOverlayStyles.hookLine2AnimInDur) || 1
   );
   const [hookLine2AnimOut, setHookLine2AnimOut] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.hookLine2AnimOut || 'fade'
+    () => initialDocOverlays?.hookLine2AnimOut || initialOverlayStyles.hookLine2AnimOut || 'fade'
   );
   const [hookLine2AnimOutDur, setHookLine2AnimOutDur] = useState<number>(
-    () => Number(initialOverlayStyles.hookLine2AnimOutDur) || 1
+    () => Number(initialDocOverlays?.hookLine2AnimOutDur ?? initialOverlayStyles.hookLine2AnimOutDur) || 1
   );
 
   // Animations for Captions & Video Clips / Images
@@ -1179,7 +1186,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     initialDocOverlays?.userEditedCaptions ? activeDoc?.id || 'default' : ''
   );
   const lastSyncedDocIdRef = useRef<string>('');
-  const lastSyncedIntroPlacementRef = useRef<string>('');
+  const lastSyncedIntroPlacementRef = useRef<string>(
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+      ? 'INTRO_POST_SLOGAN'
+      : 'INTRO_INICIO_00'
+  );
 
   const persistDocOverlaysPatch = (patch: Record<string, any>, targetDocId?: string) => {
     const docKey = `huellas_editor_doc_overlays_${targetDocId || activeDoc?.id || 'default'}`;
@@ -1226,6 +1237,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           hookLine2AnimInDur,
           hookLine2AnimOut,
           hookLine2AnimOutDur,
+          clip1OverlayEndSec,
           captionFontFamily,
           captionFontSize,
           captionFontSizeV25: true,
@@ -1242,6 +1254,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           captionAnimDur,
         })
       );
+      persistDocOverlaysPatch({
+        hookLine1StartSec,
+        hookLine1AnimIn,
+        hookLine1AnimInDur,
+        hookLine1AnimOut,
+        hookLine1AnimOutDur,
+        hookLine2StartSec,
+        hookLine2AnimIn,
+        hookLine2AnimInDur,
+        hookLine2AnimOut,
+        hookLine2AnimOutDur,
+        clip1OverlayEndSec,
+      });
     } catch {}
   }, [
     logoScalePct,
@@ -1274,6 +1299,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     hookLine2AnimInDur,
     hookLine2AnimOut,
     hookLine2AnimOutDur,
+    clip1OverlayEndSec,
     captionFontFamily,
     captionFontSize,
     captionBottomPct,
@@ -2328,14 +2354,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     if (isDocSwitch || isIntroPlacementSwitch) {
       setIntroPlacementMode(docIntroPlacement);
-      if (docIntroPlacement === 'INTRO_POST_SLOGAN') {
-        setHookLine1StartSec(0);
-        setHookLine2StartSec(2);
-      } else {
-        setHookLine1StartSec(FIXED_INTRO_SEC);
-        setHookLine2StartSec(FIXED_INTRO_SEC + 2);
-      }
-      setClip1OverlayEndSec(entrySec);
+      let savedGlobalStyles: Record<string, any> = {};
+      try {
+        const rawGlobal = localStorage.getItem('huellas_editor_overlay_styles_v1');
+        if (rawGlobal) savedGlobalStyles = JSON.parse(rawGlobal);
+      } catch {}
+
+      const defaultL1Start = docIntroPlacement === 'INTRO_POST_SLOGAN' ? 0 : FIXED_INTRO_SEC;
+      const defaultL2Start = docIntroPlacement === 'INTRO_POST_SLOGAN' ? 2 : FIXED_INTRO_SEC + 2;
+
+      const resolvedL1Start =
+        typeof savedDocOverlays?.hookLine1StartSec === 'number'
+          ? savedDocOverlays.hookLine1StartSec
+          : !isIntroPlacementSwitch && typeof savedGlobalStyles.hookLine1StartSec === 'number'
+          ? savedGlobalStyles.hookLine1StartSec
+          : defaultL1Start;
+
+      const resolvedL2Start =
+        typeof savedDocOverlays?.hookLine2StartSec === 'number'
+          ? savedDocOverlays.hookLine2StartSec
+          : !isIntroPlacementSwitch && typeof savedGlobalStyles.hookLine2StartSec === 'number'
+          ? savedGlobalStyles.hookLine2StartSec
+          : defaultL2Start;
+
+      const resolvedOverlayEnd =
+        typeof savedDocOverlays?.clip1OverlayEndSec === 'number' &&
+        savedDocOverlays.clip1OverlayEndSec > 0
+          ? savedDocOverlays.clip1OverlayEndSec
+          : !isIntroPlacementSwitch &&
+            typeof savedGlobalStyles.clip1OverlayEndSec === 'number' &&
+            savedGlobalStyles.clip1OverlayEndSec > 0
+          ? savedGlobalStyles.clip1OverlayEndSec
+          : entrySec;
+
+      setHookLine1StartSec(resolvedL1Start);
+      setHookLine2StartSec(resolvedL2Start);
+      setClip1OverlayEndSec(resolvedOverlayEnd);
       setVoiceStartOffsetSec(entrySec);
     }
 
@@ -8636,7 +8690,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               )}
 
               {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16 in Opción A, or 00:00 - 00:08 in Opción B — 100% Real-Time WYSIWYG; non-selectable in fullscreen) */}
-              {((currentTime >= hookLine1StartSec && currentTime <= clip1OverlayEndSec) ||
+              {((currentTime >= Math.min(hookLine1StartSec, hookLine2StartSec) &&
+                currentTime <= clip1OverlayEndSec) ||
                 (!isViewerFullscreen && selectedCanvasObject === 'hook_text')) &&
                 (clip1Line1 ||
                   clip1Line2 ||
@@ -10770,7 +10825,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-bold text-amber-300">
-                    🔤 Texto Gancho en Pantalla (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
+                    🔤 Texto Gancho en Pantalla ({hookLine1StartSec}s - {clip1OverlayEndSec}s)
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-emerald-400 font-semibold">
@@ -10952,28 +11007,52 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <div className="pt-2 border-t border-slate-800 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-amber-300 text-[11px]">
-                      ✨ Animaciones del Texto Inicial (Por defecto: L1 en 8s, L2 en 10s, Fade 1s)
+                      ✨ Tiempos y Animaciones del Texto Inicial
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHookLine1StartSec(8);
-                        setHookLine1AnimIn('fade');
-                        setHookLine1AnimInDur(1);
-                        setHookLine1AnimOut('fade');
-                        setHookLine1AnimOutDur(1);
-                        setHookLine2StartSec(10);
-                        setHookLine2AnimIn('fade');
-                        setHookLine2AnimInDur(1);
-                        setHookLine2AnimOut('fade');
-                        setHookLine2AnimOutDur(1);
-                        setClip1OverlayEndSec(16);
-                      }}
-                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer shrink-0"
-                      title="Restaurar configuración por defecto: Fade In 1s (L1 en 8s, L2 en 10s) y Fade Out 1s hacia el segundo 16"
-                    >
-                      🔄 Por Defecto
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                        Salida (s):
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={2}
+                          max={40}
+                          value={clip1OverlayEndSec}
+                          onChange={(e) => {
+                            const nextEnd = Math.max(2, Number(e.target.value));
+                            setClip1OverlayEndSec(nextEnd);
+                            persistDocOverlaysPatch({ clip1OverlayEndSec: nextEnd, userEditedHook: true });
+                          }}
+                          className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          title="Segundo en el que termina de mostrarse el Texto Inicial"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHookLine1StartSec(8);
+                          setHookLine1AnimIn('fade');
+                          setHookLine1AnimInDur(1);
+                          setHookLine1AnimOut('fade');
+                          setHookLine1AnimOutDur(1);
+                          setHookLine2StartSec(10);
+                          setHookLine2AnimIn('fade');
+                          setHookLine2AnimInDur(1);
+                          setHookLine2AnimOut('fade');
+                          setHookLine2AnimOutDur(1);
+                          setClip1OverlayEndSec(16);
+                          persistDocOverlaysPatch({
+                            hookLine1StartSec: 8,
+                            hookLine2StartSec: 10,
+                            clip1OverlayEndSec: 16,
+                          });
+                        }}
+                        className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer shrink-0"
+                        title="Restaurar configuración por defecto: Fade In 1s (L1 en 8s, L2 en 10s) y Fade Out 1s hacia el segundo 16"
+                      >
+                        🔄 Por Defecto
+                      </button>
+                    </div>
                   </div>
 
                   {/* Line 1 Animation Row */}
@@ -10986,12 +11065,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         Inicio (s):
                         <input
                           type="number"
-                          step={0.5}
+                          step={0.1}
                           min={0}
-                          max={16}
+                          max={30}
                           value={hookLine1StartSec}
-                          onChange={(e) => setHookLine1StartSec(Math.max(0, Number(e.target.value)))}
-                          className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          onChange={(e) => {
+                            const nextVal = Math.max(0, Number(e.target.value));
+                            setHookLine1StartSec(nextVal);
+                            persistDocOverlaysPatch({ hookLine1StartSec: nextVal, userEditedHook: true });
+                          }}
+                          className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
                         />
                       </label>
                     </div>
@@ -11063,12 +11146,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         Inicio (s):
                         <input
                           type="number"
-                          step={0.5}
+                          step={0.1}
                           min={0}
-                          max={16}
+                          max={30}
                           value={hookLine2StartSec}
-                          onChange={(e) => setHookLine2StartSec(Math.max(0, Number(e.target.value)))}
-                          className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
+                          onChange={(e) => {
+                            const nextVal = Math.max(0, Number(e.target.value));
+                            setHookLine2StartSec(nextVal);
+                            persistDocOverlaysPatch({ hookLine2StartSec: nextVal, userEditedHook: true });
+                          }}
+                          className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-white"
                         />
                       </label>
                     </div>
@@ -11854,7 +11941,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        seekToTime(8);
+                        seekToTime(hookLine1StartSec);
                         setSelectedCanvasObject('hook_text');
                         setActiveInspectorTab('branding');
                       }}
@@ -11867,7 +11954,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       }
                       className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[10px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
                     >
-                      🔤 Texto Gancho Clip 1 (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
+                      🔤 Texto Gancho Clip 1 ({hookLine1StartSec}s - {clip1OverlayEndSec}s)
                     </button>
                     <button
                       type="button"
