@@ -9058,52 +9058,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               </div>
 
-              {/* 4. Capas Visuales Incrustadas (Burn-in) */}
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
-                <div className="text-[10px] font-black text-amber-300 uppercase tracking-wider mb-1">
-                  4. Capas Incrustadas en el Video Final
-                </div>
-                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
-                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
-                    <input
-                      type="checkbox"
-                      disabled={isRenderingVideo}
-                      checked={burnInLogo}
-                      onChange={(e) => setBurnInLogo(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
-                    />
-                    <span>Logo Oficial (Huellas de la Humanidad)</span>
-                  </span>
-                  <span className="text-[9px] font-mono text-emerald-400">Incrustado</span>
-                </label>
-                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
-                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
-                    <input
-                      type="checkbox"
-                      disabled={isRenderingVideo}
-                      checked={burnInHook}
-                      onChange={(e) => setBurnInHook(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
-                    />
-                    <span>Gancho Inicial en Clip 1 (Línea 1 y Línea 2)</span>
-                  </span>
-                  <span className="text-[9px] font-mono text-emerald-400">Incrustado</span>
-                </label>
-                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
-                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
-                    <input
-                      type="checkbox"
-                      disabled={isRenderingVideo}
-                      checked={burnInCaptions}
-                      onChange={(e) => setBurnInCaptions(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
-                    />
-                    <span>Subtítulos Quemados en Pantalla ({captions.length} bloques)</span>
-                  </span>
-                  <span className="text-[9px] font-mono text-emerald-400">+ .SRT aparte</span>
-                </label>
-              </div>
-
               {/* Live Render Progress Bar */}
               {(isRenderingVideo || renderStageLabel) && (
                 <div className="bg-slate-950 border border-teal-500/40 rounded-xl p-2.5 space-y-1.5">
