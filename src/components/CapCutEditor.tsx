@@ -24,6 +24,8 @@ import {
   Layers,
   Maximize2,
   Minimize2,
+  RotateCcw,
+  RotateCw,
 } from 'lucide-react';
 import { DocumentaryProject, DocumentaryClip } from '../types';
 import {
@@ -5118,8 +5120,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             </div>
 
-            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, Scrubber Timeline & Timecode */}
-            <div className="w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-3">
+            {/* Stage-8 Style Integrated Bottom Player Bar: Play/Pause, -10s / +10s, Scrubber Timeline & Timecode (Also visible in Fullscreen) */}
+            <div className="w-full bg-[#110e0b] border-t border-slate-800 px-3.5 py-2.5 flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => seekToTime(0)}
@@ -5130,12 +5132,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => seekToTime(Math.max(0, currentTime - 10))}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
+                title="Retroceder 10 segundos (-10s)"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>-10s</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleTogglePlay}
                 className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow shrink-0"
                 title={isPlaying ? 'Pausar reproducción' : 'Reproducir video y voz narrativa'}
               >
                 {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 <span>{isPlaying ? 'Pausa' : 'Play'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => seekToTime(Math.min(totalDurationSec, currentTime + 10))}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0 transition"
+                title="Adelantar 10 segundos (+10s)"
+              >
+                <span>+10s</span>
+                <RotateCw className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
