@@ -1208,6 +1208,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [localServerSunoMap, setLocalServerSunoMap] = useState<Record<number, string>>({});
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const seamlessBridgeCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const preloadNextVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const playIntervalRef = useRef<any>(null);
@@ -2775,6 +2777,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [clipsWithTimelineBounds, currentTime]);
 
+  const nextClipAtPlayhead = useMemo(() => {
+    if (!activeClipAtPlayhead) return null;
+    const idx = clipsWithTimelineBounds.findIndex((c) => c.id === activeClipAtPlayhead.id);
+    if (idx >= 0 && idx < clipsWithTimelineBounds.length - 1) {
+      return clipsWithTimelineBounds[idx + 1];
+    }
+    return null;
+  }, [clipsWithTimelineBounds, activeClipAtPlayhead?.id]);
+
   const activeCaptionAtPlayhead = useMemo(() => {
     return (
       captions.find((cap) => currentTime >= cap.start && currentTime <= cap.end) || null
@@ -3560,6 +3571,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
         clipEndedHoldRef.current = reachedClipMediaEnd;
+        if (isClipSwitch) {
+          const isFadeInClip =
+            activeClipAtPlayhead.id === 'fixed-doc-intro' ||
+            activeClipAtPlayhead.id === 'fixed-doc-outro' ||
+            activeClipAtPlayhead.clipNumber === 0 ||
+            activeClipAtPlayhead.clipNumber === 999 ||
+            activeClipAtPlayhead.clipNumber === 1 ||
+            activeClipAtPlayhead.index === 1;
+          const bridgeCanvas = seamlessBridgeCanvasRef.current;
+          if (isFadeInClip && bridgeCanvas) {
+            const bCtx = bridgeCanvas.getContext('2d');
+            if (bCtx) {
+              bCtx.fillStyle = '#000000';
+              bCtx.fillRect(0, 0, bridgeCanvas.width || 1920, bridgeCanvas.height || 1080);
+            }
+          }
+          // Hide transient blank <video> surface while new src decodes its first frame; seamlessBridgeCanvasRef holds the outgoing clip's last frame
+          if (vid.readyState < 2) {
+            vid.style.opacity = '0';
+          } else {
+            vid.style.opacity = '1';
+          }
+        }
         const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.22 : 0.08;
         if (vid.readyState >= 1 && Math.abs(vid.currentTime - clampedOffset) > seekThreshold) {
           try {
@@ -3571,6 +3605,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       } else {
         // Continuous playback inside the same clip: NEVER force-seek vid.currentTime (prevents keyframe rewind jumps!)
+        if (vid.readyState >= 2) {
+          vid.style.opacity = '1';
+          const bridgeCanvas = seamlessBridgeCanvasRef.current;
+          if (bridgeCanvas && vid.videoWidth > 0 && vid.videoHeight > 0) {
+            if (
+              bridgeCanvas.width !== vid.videoWidth ||
+              bridgeCanvas.height !== vid.videoHeight
+            ) {
+              bridgeCanvas.width = vid.videoWidth;
+              bridgeCanvas.height = vid.videoHeight;
+            }
+            const bCtx = bridgeCanvas.getContext('2d');
+            if (bCtx) {
+              try {
+                bCtx.drawImage(vid, 0, 0, bridgeCanvas.width, bridgeCanvas.height);
+              } catch {}
+            }
+          }
+        }
         const vidDur = vid.duration;
         const isAtEndOfMedia =
           vid.ended ||
@@ -5489,74 +5542,131 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
               title="Haz clic fuera del elemento seleccionado para deseleccionarlo, o haz clic en el video para Reproducir / Pausar"
             >
-              {/* Layer 1: Active Clip Video or Cinematic Storyboard (Never render timeline card thumbnails inside the video viewer to prevent frame jumps) */}
+              {/* Layer 1: Active Clip Video with Seamless Last-Frame Bridge Canvas + Next-Clip Preloader (Zero Black Frames Between Direct Cuts) */}
               {activeClipAtPlayhead?.videoUrl ? (
-                <video
-                  ref={previewVideoRef}
-                  src={
-                    activeClipAtPlayhead.opticalFlowUrl &&
-                    activeClipAtPlayhead.smoothSlowMo !== false &&
-                    activeClipAtPlayhead.speed < 0.99
-                      ? activeClipAtPlayhead.opticalFlowUrl
-                      : activeClipAtPlayhead.videoUrl
-                  }
-                  className="w-full h-full object-cover block bg-black"
+                <div
+                  className="relative w-full h-full overflow-hidden bg-black"
                   style={{
                     opacity: liveClipAnim.opacity,
                     transform: `translate3d(${liveClipAnim.translateX}px, ${liveClipAnim.translateY}px, 0) scale(${liveClipAnim.scale})`,
                     filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
                   }}
-                  playsInline
-                  preload={isEditorActive ? 'auto' : 'none'}
-                  onLoadedMetadata={(e) => {
-                    const vid = e.currentTarget;
-                    try {
-                      const { effectiveRate, clampedOffset, reachedClipMediaEnd } =
-                        computeClipVideoSyncParams(
-                          vid,
-                          activeClipAtPlayhead,
-                          currentTimeRef.current
-                        );
-                      activePlayingClipIdRef.current = activeClipAtPlayhead.id;
-                      appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
-                      clipEndedHoldRef.current = reachedClipMediaEnd;
-                      vid.playbackRate = effectiveRate;
-                      // Avoid redundant seek to ~0s on natural clip transition so frame 0 never jumps
-                      if (
-                        Math.abs(vid.currentTime - clampedOffset) >
-                        (isPlaying && clampedOffset < 0.2 ? 0.22 : 0.08)
-                      ) {
-                        vid.currentTime = clampedOffset;
-                      }
-                      vid.muted = false;
-                      vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-                      if (isPlaying && !reachedClipMediaEnd) {
-                        vid.play().catch(() => {});
-                      }
-                    } catch {}
-                  }}
-                  onEnded={(e) => {
-                    clipEndedHoldRef.current = true;
-                    try {
-                      e.currentTarget.pause();
-                    } catch {}
-                  }}
-                  onError={() => {
-                    const clipNum = activeClipAtPlayhead?.clipNumber;
-                    const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
-                    if (
-                      clipNum &&
-                      fallbackUrl &&
-                      activeClipAtPlayhead?.videoUrl !== fallbackUrl
-                    ) {
-                      setTimelineClips((prev) =>
-                        prev.map((tc) =>
-                          tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
-                        )
-                      );
+                >
+                  {/* Seamless Last-Frame Bridge Canvas: holds the outgoing clip's final frame during the ~20ms decoder swap so there is NEVER a black frame between clips */}
+                  <canvas
+                    ref={seamlessBridgeCanvasRef}
+                    className="absolute inset-0 w-full h-full object-cover block pointer-events-none"
+                  />
+                  <video
+                    ref={previewVideoRef}
+                    src={
+                      activeClipAtPlayhead.opticalFlowUrl &&
+                      activeClipAtPlayhead.smoothSlowMo !== false &&
+                      activeClipAtPlayhead.speed < 0.99
+                        ? activeClipAtPlayhead.opticalFlowUrl
+                        : activeClipAtPlayhead.videoUrl
                     }
-                  }}
-                />
+                    className="relative z-10 w-full h-full object-cover block bg-transparent"
+                    playsInline
+                    preload={isEditorActive ? 'auto' : 'none'}
+                    onLoadedMetadata={(e) => {
+                      const vid = e.currentTarget;
+                      try {
+                        const { effectiveRate, clampedOffset, reachedClipMediaEnd } =
+                          computeClipVideoSyncParams(
+                            vid,
+                            activeClipAtPlayhead,
+                            currentTimeRef.current
+                          );
+                        activePlayingClipIdRef.current = activeClipAtPlayhead.id;
+                        appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
+                        clipEndedHoldRef.current = reachedClipMediaEnd;
+                        vid.playbackRate = effectiveRate;
+                        // Avoid redundant seek to ~0s on natural clip transition so frame 0 never jumps
+                        if (
+                          Math.abs(vid.currentTime - clampedOffset) >
+                          (isPlaying && clampedOffset < 0.2 ? 0.22 : 0.08)
+                        ) {
+                          vid.currentTime = clampedOffset;
+                        }
+                        vid.muted = false;
+                        vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+                        if (isPlaying && !reachedClipMediaEnd) {
+                          vid.play().catch(() => {});
+                        }
+                      } catch {}
+                    }}
+                    onLoadedData={(e) => {
+                      const vid = e.currentTarget;
+                      vid.style.opacity = '1';
+                      const bridgeCanvas = seamlessBridgeCanvasRef.current;
+                      if (bridgeCanvas && vid.videoWidth > 0 && vid.videoHeight > 0) {
+                        if (
+                          bridgeCanvas.width !== vid.videoWidth ||
+                          bridgeCanvas.height !== vid.videoHeight
+                        ) {
+                          bridgeCanvas.width = vid.videoWidth;
+                          bridgeCanvas.height = vid.videoHeight;
+                        }
+                        const bCtx = bridgeCanvas.getContext('2d');
+                        if (bCtx) {
+                          try {
+                            bCtx.drawImage(vid, 0, 0, bridgeCanvas.width, bridgeCanvas.height);
+                          } catch {}
+                        }
+                      }
+                    }}
+                    onCanPlay={(e) => {
+                      e.currentTarget.style.opacity = '1';
+                    }}
+                    onEnded={(e) => {
+                      clipEndedHoldRef.current = true;
+                      try {
+                        e.currentTarget.pause();
+                      } catch {}
+                    }}
+                    onError={() => {
+                      const clipNum = activeClipAtPlayhead?.clipNumber;
+                      const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                      if (
+                        clipNum &&
+                        fallbackUrl &&
+                        activeClipAtPlayhead?.videoUrl !== fallbackUrl
+                      ) {
+                        setTimelineClips((prev) =>
+                          prev.map((tc) =>
+                            tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
+                          )
+                        );
+                      }
+                    }}
+                  />
+                  {/* Hidden Next-Clip Preloader: keeps the upcoming clip's MP4 header and first frame warm in browser memory before the cut */}
+                  {isEditorActive && nextClipAtPlayhead?.videoUrl && (
+                    <video
+                      ref={preloadNextVideoRef}
+                      src={
+                        nextClipAtPlayhead.opticalFlowUrl &&
+                        nextClipAtPlayhead.smoothSlowMo !== false &&
+                        nextClipAtPlayhead.speed < 0.99
+                          ? nextClipAtPlayhead.opticalFlowUrl
+                          : nextClipAtPlayhead.videoUrl
+                      }
+                      preload="auto"
+                      muted
+                      playsInline
+                      className="hidden"
+                      onLoadedMetadata={(e) => {
+                        try {
+                          const tStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
+                          if (tStart > 0.05 && Math.abs(e.currentTarget.currentTime - tStart) > 0.05) {
+                            e.currentTarget.currentTime = tStart;
+                          }
+                        } catch {}
+                      }}
+                    />
+                  )}
+                </div>
               ) : (
                 /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
                 <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-6 text-center">
