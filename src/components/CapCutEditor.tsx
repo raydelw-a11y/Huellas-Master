@@ -1502,6 +1502,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const activePlayingSeparatedMusicIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const timelineRulerScrollRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
   const isScrubbingRulerRef = useRef<boolean>(false);
   const prevDocIdForPlayheadRef = useRef<string | undefined>(activeDoc?.id);
@@ -2484,6 +2485,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
         partLabel: existingItem?.partLabel,
         foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 35,
+        customVolumeSet: existingItem?.customVolumeSet,
+        audioMuted: existingItem?.audioMuted,
+        audioFadeInSec: existingItem?.audioFadeInSec,
+        audioFadeOutSec: existingItem?.audioFadeOutSec,
         transition: isClip1 ? 'fade_black' : existingItem ? existingItem.transition : defaultTransition,
         videoUrl,
         posterUrl,
@@ -2528,6 +2533,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
     }
 
+    const savedCustomClipsList: TimelineClipItem[] = Array.isArray(
+      savedDocOverlays?.customTimelineClips
+    )
+      ? savedDocOverlays.customTimelineClips
+      : [];
+    const savedOrExistingIntro =
+      savedCustomClipsList.find((c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0) ||
+      (!isDocSwitch
+        ? timelineClips.find((c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0)
+        : undefined);
+    const savedOrExistingOutro =
+      savedCustomClipsList.find((c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999) ||
+      (!isDocSwitch
+        ? timelineClips.find((c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999)
+        : undefined);
+
     const fixedIntroClip: TimelineClipItem = {
       id: 'fixed-doc-intro',
       clipNumber: 0,
@@ -2543,9 +2564,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       trimEnd: FIXED_INTRO_SEC,
       smoothSlowMo: false,
       originalSlotDuration: FIXED_INTRO_SEC,
-      foleyVolume: 100,
-      audioFadeInSec: 1.5,
-      audioFadeOutSec: 2.5,
+      foleyVolume:
+        typeof savedOrExistingIntro?.foleyVolume === 'number'
+          ? savedOrExistingIntro.foleyVolume
+          : 100,
+      customVolumeSet: savedOrExistingIntro?.customVolumeSet,
+      audioMuted: savedOrExistingIntro?.audioMuted,
+      audioFadeInSec:
+        typeof savedOrExistingIntro?.audioFadeInSec === 'number'
+          ? savedOrExistingIntro.audioFadeInSec
+          : 1.5,
+      audioFadeOutSec:
+        typeof savedOrExistingIntro?.audioFadeOutSec === 'number'
+          ? savedOrExistingIntro.audioFadeOutSec
+          : 2.5,
       transition: 'crossfade',
       videoUrl: introVideoUrl,
       posterUrl: introPosterUrl,
@@ -2565,9 +2597,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       trimEnd: FIXED_OUTRO_SEC,
       smoothSlowMo: false,
       originalSlotDuration: FIXED_OUTRO_SEC,
-      foleyVolume: 100,
-      audioFadeInSec: 1.5,
-      audioFadeOutSec: 2.5,
+      foleyVolume:
+        typeof savedOrExistingOutro?.foleyVolume === 'number'
+          ? savedOrExistingOutro.foleyVolume
+          : 100,
+      customVolumeSet: savedOrExistingOutro?.customVolumeSet,
+      audioMuted: savedOrExistingOutro?.audioMuted,
+      audioFadeInSec:
+        typeof savedOrExistingOutro?.audioFadeInSec === 'number'
+          ? savedOrExistingOutro.audioFadeInSec
+          : 1.5,
+      audioFadeOutSec:
+        typeof savedOrExistingOutro?.audioFadeOutSec === 'number'
+          ? savedOrExistingOutro.audioFadeOutSec
+          : 2.5,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
       posterUrl: outroPosterUrl,
@@ -4563,6 +4606,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     if (isPlaying && activeClipAtPlayhead?.id && selectedClipId !== activeClipAtPlayhead.id) {
       setSelectedClipId(activeClipAtPlayhead.id);
+      setSelectedClipIds((prev) => (prev.length > 1 ? prev : [activeClipAtPlayhead.id]));
     }
   }, [activeClipAtPlayhead?.id, isPlaying]);
 
@@ -4627,7 +4671,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Synchronously adjust scrollLeft before browser paint whenever zoom changes so the playhead stays right where it was
   useLayoutEffect(() => {
-    if (isFitEntireProject) return;
+    if (isFitEntireProject) {
+      if (timelineRulerScrollRef.current) {
+        timelineRulerScrollRef.current.scrollLeft = 0;
+      }
+      return;
+    }
     const container = timelineScrollContainerRef.current;
     if (!container) return;
     const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
@@ -4640,7 +4689,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             Math.max(trackHeaderOffsetPx + 96, viewWidth * 0.42),
             Math.max(trackHeaderOffsetPx + 96, viewWidth - 64)
           );
-    container.scrollLeft = Math.max(0, newPlayheadX - targetViewportOffset);
+    const nextScrollLeft = Math.max(0, newPlayheadX - targetViewportOffset);
+    container.scrollLeft = nextScrollLeft;
+    if (timelineRulerScrollRef.current) {
+      timelineRulerScrollRef.current.scrollLeft = nextScrollLeft;
+    }
     zoomPlayheadViewportOffsetRef.current = null;
   }, [timelineZoom, isFitEntireProject]);
 
@@ -5971,8 +6024,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Active target clip IDs for editing 1 selected clip or multiple selected clips simultaneously
   const activeTargetClipIds = useMemo(() => {
-    if (selectedClipIds.length > 0) return selectedClipIds;
+    if (
+      selectedClipIds.length > 1 &&
+      (!selectedClipId || selectedClipIds.includes(selectedClipId))
+    ) {
+      return selectedClipIds;
+    }
     if (selectedClipId) return [selectedClipId];
+    if (selectedClipIds.length > 0) return selectedClipIds;
     return timelineClips[0]?.id ? [timelineClips[0].id] : [];
   }, [selectedClipIds, selectedClipId, timelineClips]);
 
@@ -5987,11 +6046,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     },
     applyToAllClips: boolean = false
   ) => {
-    const targetSet = new Set(activeTargetClipIds);
+    const targetIds =
+      activeTargetClipIds.length > 0
+        ? activeTargetClipIds
+        : selectedClip?.id
+        ? [selectedClip.id]
+        : [];
+    const targetSet = new Set(targetIds);
+    const singleSelectedClipNum =
+      targetIds.length <= 1 && selectedClip && !selectedClip.partLabel
+        ? selectedClip.clipNumber
+        : null;
     commitTimelineClipsUpdate(
       (prev) =>
         prev.map((c) => {
-          if (!applyToAllClips && !targetSet.has(c.id)) return c;
+          const isMatched =
+            applyToAllClips ||
+            targetSet.has(c.id) ||
+            (singleSelectedClipNum !== null &&
+              c.clipNumber === singleSelectedClipNum &&
+              !c.partLabel);
+          if (!isMatched) return c;
           const next: TimelineClipItem = { ...c };
           if (typeof patch.foleyVolume === 'number') {
             next.foleyVolume = Math.max(0, Math.min(100, Math.round(patch.foleyVolume)));
@@ -6012,6 +6087,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           if (typeof patch.audioMuted === 'boolean') {
             next.audioMuted = patch.audioMuted;
+            if (!patch.audioMuted && (next.foleyVolume ?? 0) <= 0) {
+              next.foleyVolume = c.clipNumber === 0 || c.clipNumber === 999 ? 100 : c.clipNumber === 1 ? 80 : 40;
+            }
           }
           if (typeof patch.customVolumeSet === 'boolean') {
             next.customVolumeSet = patch.customVolumeSet;
@@ -9829,17 +9907,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           type="number"
                           min={0}
                           max={100}
-                          value={selectedClip.foleyVolume}
+                          value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
                           onChange={(e) => {
                             const val = Math.min(100, Math.max(0, Number(e.target.value)));
-                            commitTimelineClipsUpdate(
-                              (prev) =>
-                                prev.map((c) =>
-                                  c.id === selectedClip.id ? { ...c, foleyVolume: val } : c
-                                ),
-                              false
-                            );
+                            handleUpdateClipsAudio({
+                              foleyVolume: val,
+                              customVolumeSet: true,
+                            });
                           }}
+                          onKeyDown={(e) => e.stopPropagation()}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white mt-0.5"
                         />
                       </div>
@@ -10063,9 +10139,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-[10px] text-slate-300 font-semibold">
-                        🔊 Volumen ({selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}%)
-                      </label>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                        <span>🔊 Vol:</span>
+                        <div className="flex items-center gap-0.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
+                            onChange={(e) =>
+                              handleUpdateClipsAudio({
+                                foleyVolume: Number(e.target.value),
+                                customVolumeSet: true,
+                              })
+                            }
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="w-11 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
+                          />
+                          <span>%</span>
+                        </div>
+                      </div>
                       <input
                         type="range"
                         min={0}
@@ -10082,15 +10176,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-300 font-semibold">
-                        📈 Fade In ({selectedClip.audioFadeInSec ?? 0}s)
-                      </label>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                        <span>📈 In:</span>
+                        <div className="flex items-center gap-0.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={15}
+                            step={0.1}
+                            value={selectedClip.audioFadeInSec ?? 0}
+                            onChange={(e) =>
+                              handleUpdateClipsAudio({
+                                audioFadeInSec: Math.max(0, Number(e.target.value || 0)),
+                              })
+                            }
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="w-11 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                          />
+                          <span>s</span>
+                        </div>
+                      </div>
                       <input
                         type="range"
                         min={0}
                         max={10}
                         step={0.1}
-                        value={selectedClip.audioFadeInSec ?? 0}
+                        value={Math.min(10, selectedClip.audioFadeInSec ?? 0)}
                         onChange={(e) =>
                           handleUpdateClipsAudio({
                             audioFadeInSec: Number(e.target.value),
@@ -10100,15 +10211,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-300 font-semibold">
-                        📉 Fade Out ({selectedClip.audioFadeOutSec ?? 0}s)
-                      </label>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                        <span>📉 Out:</span>
+                        <div className="flex items-center gap-0.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={15}
+                            step={0.1}
+                            value={selectedClip.audioFadeOutSec ?? 0}
+                            onChange={(e) =>
+                              handleUpdateClipsAudio({
+                                audioFadeOutSec: Math.max(0, Number(e.target.value || 0)),
+                              })
+                            }
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="w-11 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                          />
+                          <span>s</span>
+                        </div>
+                      </div>
                       <input
                         type="range"
                         min={0}
                         max={10}
                         step={0.1}
-                        value={selectedClip.audioFadeOutSec ?? 0}
+                        value={Math.min(10, selectedClip.audioFadeOutSec ?? 0)}
                         onChange={(e) =>
                           handleUpdateClipsAudio({
                             audioFadeOutSec: Number(e.target.value),
@@ -11691,17 +11819,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Multi-Track Container */}
+        {/* Fixed Numerical Time Ruler Header (Outside Vertical Scroll Container) */}
         <div
-          ref={timelineScrollContainerRef}
-          className={`flex-1 min-h-0 bg-[#0e0c09] px-2 py-1.5 overflow-y-auto ${
-            isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
-          }`}
+          ref={timelineRulerScrollRef}
+          onWheel={(e) => {
+            if (!isFitEntireProject && timelineScrollContainerRef.current && Math.abs(e.deltaX) > 0) {
+              timelineScrollContainerRef.current.scrollLeft += e.deltaX;
+            }
+          }}
+          className="shrink-0 bg-[#0b0907] border-b border-slate-800/90 px-2 py-1 overflow-hidden z-20"
         >
-          <div className={`relative space-y-1 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
-            {/* =================================================================
-                GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
-            ================================================================= */}
+          <div className={`relative ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
+            {/* Playhead Top Handle / Time Badge on Fixed Ruler */}
             <div
               style={{
                 left: isFitEntireProject
@@ -11713,7 +11842,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }}
               className="pointer-events-none absolute top-0 bottom-0 z-30"
             >
-              {/* Playhead Top Handle / Time Badge on Ruler */}
               <div
                 onMouseDown={handleStartRulerScrub}
                 title="Arrastra el guion vertical para moverte por la línea de tiempo"
@@ -11724,13 +11852,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
                 <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-amber-300" />
               </div>
-              {/* Continuous Vertical Playhead Line across all tracks */}
-              <div className="w-[2.5px] -translate-x-1/2 h-full bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
+              <div className="w-[2.5px] -translate-x-1/2 h-full bg-amber-300 shadow-[0_0_10px_rgba(244,63,94,0.95)]" />
             </div>
 
-            {/* =================================================================
-                TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM)
-            ================================================================= */}
+            {/* TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between">
                 <span>⏱️ Regla</span>
@@ -11815,6 +11940,39 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   );
                 })}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scrollable Multi-Track Container */}
+        <div
+          ref={timelineScrollContainerRef}
+          onScroll={(e) => {
+            if (timelineRulerScrollRef.current) {
+              timelineRulerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+            }
+          }}
+          className={`flex-1 min-h-0 bg-[#0e0c09] px-2 py-1.5 overflow-y-auto ${
+            isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
+          }`}
+        >
+          <div className={`relative space-y-1 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
+            {/* =================================================================
+                GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
+            ================================================================= */}
+            <div
+              style={{
+                left: isFitEntireProject
+                  ? `calc(9.5rem + (100% - 9.5rem) * ${Math.min(
+                      1,
+                      Math.max(0, currentTime / Math.max(1, totalDurationSec))
+                    ).toFixed(6)})`
+                  : `calc(9.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
+              }}
+              className="pointer-events-none absolute top-0 bottom-0 z-30"
+            >
+              {/* Continuous Vertical Playhead Line across all tracks */}
+              <div className="w-[2.5px] -translate-x-1/2 h-full bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
             </div>
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
