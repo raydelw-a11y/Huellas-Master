@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:27 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:34 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -8518,10 +8518,10 @@ export default function App() {
                           className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-2 text-xs font-semibold text-amber-100 outline-none"
                         >
                           <option value="INTRO_INICIO_00">
-                            Opción A (Por defecto — Intro 8s Inicial en 00:00 - 00:08 [Intro.mp4]): Abre en 00:00 - 00:08 con el Intro Oficial de 8s y desplaza +8s el Hook y la voz
+                            Opción A (Por defecto — Intro 8s Inicial en 00:00 - 00:08 [Intro.mp4]): Abre en 00:00 - 00:08 con el Intro Oficial de 8s y desplaza +8s el Hook y la voz (entra en 00:16)
                           </option>
                           <option value="INTRO_POST_SLOGAN">
-                            Opción B (Intro 8s Post-Slogan [~00:25 - 00:35 tras Párrafo 2]): Abre con el Hook en 00:00 y el mismo Intro 8s (Intro.mp4) entra tras el Slogan Completo con [pausa: 8s]
+                            Opción B (Intro 8s Post-Slogan tras "Aquí seguimos sus rastros."): Abre con el Hook en 00:00 y el mismo Intro 8s (Intro.mp4) entra exactamente después del Slogan Completo sin cortar ningún clip
                           </option>
                         </select>
                       </div>

@@ -2128,10 +2128,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
         ? 'INTRO_POST_SLOGAN'
         : 'INTRO_INICIO_00';
+    const isIntroPlacementSwitch = lastSyncedIntroPlacementRef.current !== docIntroPlacement;
+    lastSyncedIntroPlacementRef.current = docIntroPlacement;
+
     const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
     const clip1HookDur = !c1BaseDur || c1BaseDur <= 6 ? 8 : c1BaseDur;
     // Opción A (default INTRO_INICIO_00): Fixed 8s Intro (00:00 - 00:08) -> Clip 1 Hook (00:08 - 00:16) -> Voiceover at 16s
-    // Opción B (INTRO_POST_SLOGAN): Clip 1 Hook (00:00 - 00:08) -> Voiceover at 8s, and 8s Intro enters Post-Slogan after Clip 3
+    // Opción B (INTRO_POST_SLOGAN): Clip 1 Hook (00:00 - 00:08) -> Voiceover at 8s, and 8s Intro enters Post-Slogan right after "Aquí seguimos sus rastros."
     const entrySec =
       docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1HookDur : FIXED_INTRO_SEC + clip1HookDur;
 
@@ -2155,14 +2158,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setClip1Line2((prev) => (isDocSwitch || !prev ? defaultLine2 : prev));
     }
 
-    if (isDocSwitch) {
+    if (isDocSwitch || isIntroPlacementSwitch) {
       setIntroPlacementMode(docIntroPlacement);
       if (docIntroPlacement === 'INTRO_POST_SLOGAN') {
         setHookLine1StartSec(0);
         setHookLine2StartSec(2);
       } else {
-        setHookLine1StartSec((prev) => (prev < FIXED_INTRO_SEC ? FIXED_INTRO_SEC : prev));
-        setHookLine2StartSec((prev) => (prev < FIXED_INTRO_SEC + 1 ? FIXED_INTRO_SEC + 2 : prev));
+        setHookLine1StartSec(FIXED_INTRO_SEC);
+        setHookLine2StartSec(FIXED_INTRO_SEC + 2);
       }
       setClip1OverlayEndSec(entrySec);
       setVoiceStartOffsetSec(entrySec);
@@ -2224,7 +2227,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         (tc) =>
           tc.clipNumber === c.clipNumber &&
           tc.id !== 'fixed-doc-intro' &&
-          tc.id !== 'fixed-doc-outro'
+          tc.id !== 'fixed-doc-outro' &&
+          !tc.id.endsWith('-slogan-partB')
       );
       const videoUrl =
         combinedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
@@ -2274,10 +2278,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sortedNums.forEach((num, idx) => {
         const isClip1 = num === 1 || idx === 0;
         const srcDur = isClip1 ? clip1HookDur : standardDur;
+        const rawVidUrl = combinedClipVideosMap[num] || '';
+        let extractedFileName = `${String(num).padStart(2, '0')}_Clip_Documental.mp4`;
+        try {
+          const decoded = decodeURIComponent(rawVidUrl);
+          const m = decoded.match(/\/([^/?#]+\.(?:mp4|webm|mov))/i);
+          if (m && m[1]) extractedFileName = m[1];
+        } catch {}
         bodyClips.push({
           id: `folder-clip-${num}`,
           clipNumber: num,
-          fileName: `${String(num).padStart(2, '0')}_Clip_Documental.mp4`,
+          fileName: extractedFileName,
           narrationSegment: '',
           duration: srcDur,
           sourceDuration: srcDur,
@@ -2288,32 +2299,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           originalSlotDuration: srcDur,
           foleyVolume: isClip1 ? 80 : 35,
           transition: isClip1 ? 'fade_black' : defaultTransition,
-          videoUrl: combinedClipVideosMap[num],
+          videoUrl: rawVidUrl,
           posterUrl: firstFrameByClip[num] || '',
           reviewedForEditor: true,
         });
       });
-    }
-
-    // Align narrated clips (Clip 2..N) so their total duration matches effectiveVoiceDurationSec, ensuring the final narrated clip (e.g. Clip 82) ends right when the Voiceover ends before the 8s Outro enters
-    if (effectiveVoiceDurationSec > 10 && bodyClips.length > 1) {
-      const narratedClips = bodyClips.slice(1);
-      const rawNarratedSum = narratedClips.reduce((acc, item) => acc + item.duration, 0);
-      if (rawNarratedSum > 0 && Math.abs(effectiveVoiceDurationSec - rawNarratedSum) > 1.5) {
-        let runningSec = 0;
-        narratedClips.forEach((nc, idx) => {
-          if (idx === narratedClips.length - 1) {
-            nc.duration = Number(Math.max(2, effectiveVoiceDurationSec - runningSec).toFixed(2));
-          } else {
-            const scaled = Number(
-              ((nc.duration / rawNarratedSum) * effectiveVoiceDurationSec).toFixed(2)
-            );
-            nc.duration = Math.max(2, scaled);
-            runningSec += nc.duration;
-          }
-          nc.originalSlotDuration = nc.duration;
-        });
-      }
     }
 
     const fixedIntroClip: TimelineClipItem = {
@@ -2321,7 +2311,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       clipNumber: 0,
       fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
       narrationSegment:
-        '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
+        docIntroPlacement === 'INTRO_POST_SLOGAN'
+          ? '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 1.8s) — Huellas de la Humanidad (8K)',
       duration: FIXED_INTRO_SEC,
       sourceDuration: FIXED_INTRO_SEC,
       speed: 1,
@@ -2356,73 +2348,95 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       reviewedForEditor: true,
     };
 
-    let builtClips: TimelineClipItem[] =
-      docIntroPlacement === 'INTRO_POST_SLOGAN'
-        ? [
-            ...bodyClips.slice(0, Math.min(3, bodyClips.length)),
-            fixedIntroClip,
-            ...bodyClips.slice(Math.min(3, bodyClips.length)),
-            fixedOutroClip,
-          ]
-        : [fixedIntroClip, ...bodyClips, fixedOutroClip];
-
-    // If the user has custom cuts/splits/deletions/speed adjustments saved for this documentary, preserve them while keeping fresh videoUrl/posterUrl!
+    let sourceClipsForBuild: TimelineClipItem[] = bodyClips;
     if (
       savedDocOverlays?.userEditedClips &&
       Array.isArray(savedDocOverlays.customTimelineClips) &&
       savedDocOverlays.customTimelineClips.length > 0
     ) {
-      builtClips = (savedDocOverlays.customTimelineClips as TimelineClipItem[]).map((tc) => {
-        if (tc.id === 'fixed-doc-intro' || tc.clipNumber === 0) {
-          return { ...fixedIntroClip, ...tc, videoUrl: introVideoUrl, posterUrl: introPosterUrl };
+      sourceClipsForBuild = (savedDocOverlays.customTimelineClips as TimelineClipItem[]).map(
+        (tc) => {
+          const freshVideoUrl = combinedClipVideosMap[tc.clipNumber] || tc.videoUrl || '';
+          const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
+          return {
+            ...tc,
+            videoUrl: freshVideoUrl,
+            posterUrl: freshPosterUrl,
+            smoothSlowMo:
+              tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
+          };
         }
-        if (tc.id === 'fixed-doc-outro' || tc.clipNumber === 999) {
-          return { ...fixedOutroClip, ...tc, videoUrl: outroVideoUrl, posterUrl: outroPosterUrl };
-        }
-        const freshVideoUrl = combinedClipVideosMap[tc.clipNumber] || tc.videoUrl || '';
-        const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
-        return {
-          ...tc,
-          videoUrl: freshVideoUrl,
-          posterUrl: freshPosterUrl,
-          smoothSlowMo:
-            tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
-        };
-      });
+      );
     }
+
+    const builtClips = buildAlignedTimelineClipsForIntroMode(
+      sourceClipsForBuild,
+      docIntroPlacement,
+      fixedIntroClip,
+      fixedOutroClip
+    );
 
     setTimelineClips(builtClips);
     if (builtClips.length > 0 && !selectedClipId) {
       setSelectedClipId(builtClips[0].id);
     }
 
-    // 2. Build Captions Track (Track 2) aligned to entrySec (16s) and real Voiceover audio (never overwrite user-edited captions!)
+    // 2. Build Captions Track (Track 2) aligned to docIntroPlacement and real Voiceover audio
     if (
       savedDocOverlays?.userEditedCaptions &&
       Array.isArray(savedDocOverlays.captions) &&
       savedDocOverlays.captions.length > 0
     ) {
       userEditedCaptionsDocIdRef.current = docId;
-      if (isDocSwitch || captions.length === 0) {
-        setCaptions(savedDocOverlays.captions);
+      if (isDocSwitch || isIntroPlacementSwitch || captions.length === 0) {
+        const alignedSaved = alignCaptionsToIntroPlacement(
+          savedDocOverlays.captions,
+          docIntroPlacement,
+          clip1HookDur,
+          FIXED_INTRO_SEC,
+          sloganSplitAudioSec
+        );
+        setCaptions(alignedSaved);
+        persistDocOverlaysPatch(
+          { captions: alignedSaved, voiceStartOffsetSec: entrySec },
+          docId
+        );
       }
-    } else if (userEditedCaptionsDocIdRef.current !== docId) {
-      if (
+    } else if (userEditedCaptionsDocIdRef.current !== docId || isIntroPlacementSwitch) {
+      if (isVideo76Doc && prealignedVideo76SrtRef.current) {
+        const parsed76 = alignCaptionsToIntroPlacement(
+          parseSrtToCaptionItems(prealignedVideo76SrtRef.current, entrySec),
+          docIntroPlacement,
+          clip1HookDur,
+          FIXED_INTRO_SEC,
+          sloganSplitAudioSec
+        );
+        setCaptions(parsed76);
+        persistDocOverlaysPatch({ captions: parsed76, voiceStartOffsetSec: entrySec }, docId);
+      } else if (
         activeDoc.voiceoverScript &&
         activeDoc.voiceoverScript.trim() &&
         effectiveVoiceDurationSec > 1
       ) {
         handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
       } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
-        setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec));
+        const alignedSrt = alignCaptionsToIntroPlacement(
+          parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec),
+          docIntroPlacement,
+          clip1HookDur,
+          FIXED_INTRO_SEC,
+          sloganSplitAudioSec
+        );
+        setCaptions(alignedSrt);
+        persistDocOverlaysPatch({ captions: alignedSrt, voiceStartOffsetSec: entrySec }, docId);
       } else {
         handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
       }
     }
 
-    // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) — OFF during 8s Intro (00:00-00:08) and OFF during 8s Outro at the end
+    // 3. Build Flow Music / Suno Multi-Scene Track (Track 5) — OFF during 8s Intro and OFF during 8s Outro at the end
     const fullVoiceSpanSec =
-      effectiveVoiceDurationSec > 0 ? entrySec + effectiveVoiceDurationSec : 0;
+      effectiveVoiceDurationSec > 0 ? FIXED_INTRO_SEC + clip1HookDur + effectiveVoiceDurationSec : 0;
     const bodySpanEndSec = Math.max(
       FIXED_INTRO_SEC + bodyClips.reduce((acc, item) => acc + item.duration, 0),
       fullVoiceSpanSec,
@@ -2516,6 +2530,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     syncTracksFromDocumentary();
   }, [
     activeDoc?.id,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
     reviewedClipsSignature,
     showOnlyReviewedClips,
     capturedClipVideosSignature,
@@ -2523,6 +2538,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     capturedSunoSignature,
     folderVoiceoverUrl,
     effectiveVoiceDurationSec,
+    sloganSplitAudioSec,
   ]);
 
   const prealignedVideo76SrtRef = useRef<string>('');
@@ -2560,8 +2576,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const maxCharsPerCaption = 34;
 
     const isVideo76 = isVideo76Doc;
+    const effectiveMode =
+      activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN' ||
+      introPlacementMode === 'INTRO_POST_SLOGAN'
+        ? 'INTRO_POST_SLOGAN'
+        : 'INTRO_INICIO_00';
+    const { clip1Sec: c1DurForCap } = getStage1ClipDurations(activeDoc);
+    const baseHookForCap = !c1DurForCap || c1DurForCap <= 6 ? 8 : c1DurForCap;
+
     if (isVideo76 && prealignedVideo76SrtRef.current) {
-      const parsed76 = parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset);
+      const parsed76 = alignCaptionsToIntroPlacement(
+        parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset),
+        effectiveMode,
+        baseHookForCap,
+        8,
+        sloganSplitAudioSec
+      );
       if (parsed76.length > 0) {
         setCaptions(parsed76);
         persistDocOverlaysPatch(
@@ -3054,9 +3084,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
-    setCaptions(generated);
+    const finalGenerated = alignCaptionsToIntroPlacement(
+      generated,
+      effectiveMode,
+      baseHookForCap,
+      8,
+      sloganSplitAudioSec
+    );
+    setCaptions(finalGenerated);
     persistDocOverlaysPatch(
-      { captions: generated, ...(forceOverwrite ? { userEditedCaptions: false } : {}) },
+      { captions: finalGenerated, ...(forceOverwrite ? { userEditedCaptions: false } : {}) },
       docId
     );
   };
@@ -3065,6 +3102,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     if (!isVideo76Doc) return;
     const docId = activeDoc?.id || 'default';
+    const effectiveMode =
+      activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN' ||
+      introPlacementMode === 'INTRO_POST_SLOGAN'
+        ? 'INTRO_POST_SLOGAN'
+        : 'INTRO_INICIO_00';
+    const { clip1Sec: c1Dur76 } = getStage1ClipDurations(activeDoc);
+    const baseHook76 = !c1Dur76 || c1Dur76 <= 6 ? 8 : c1Dur76;
+
     const savedDocOverlays = readSavedDocOverlays(docId);
     if (
       userEditedCaptionsDocIdRef.current === docId ||
@@ -3073,10 +3118,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         savedDocOverlays.captions.length > 0)
     ) {
       userEditedCaptionsDocIdRef.current = docId;
+      setCaptions((prevCaps) => {
+        const src = prevCaps.length > 0 ? prevCaps : savedDocOverlays?.captions || [];
+        if (src.length === 0) return prevCaps;
+        const aligned = alignCaptionsToIntroPlacement(
+          src,
+          effectiveMode,
+          baseHook76,
+          8,
+          sloganSplitAudioSec
+        );
+        persistDocOverlaysPatch({ captions: aligned }, docId);
+        return aligned;
+      });
       return;
     }
     if (prealignedVideo76SrtRef.current) {
-      const parsed = parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec);
+      const parsed = alignCaptionsToIntroPlacement(
+        parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec),
+        effectiveMode,
+        baseHook76,
+        8,
+        sloganSplitAudioSec
+      );
       setCaptions(parsed);
       persistDocOverlaysPatch({ captions: parsed }, docId);
       return;
@@ -3088,7 +3152,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (cancelled || !txt || !txt.includes('-->')) return;
         prealignedVideo76SrtRef.current = txt;
         if (userEditedCaptionsDocIdRef.current === docId) return;
-        const parsed = parseSrtToCaptionItems(txt, voiceStartOffsetSec);
+        const parsed = alignCaptionsToIntroPlacement(
+          parseSrtToCaptionItems(txt, voiceStartOffsetSec),
+          effectiveMode,
+          baseHook76,
+          8,
+          sloganSplitAudioSec
+        );
         setCaptions(parsed);
         persistDocOverlaysPatch({ captions: parsed }, docId);
       })
@@ -3096,7 +3166,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isVideo76Doc, voiceStartOffsetSec, activeDoc?.id]);
+  }, [
+    isVideo76Doc,
+    voiceStartOffsetSec,
+    introPlacementMode,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
+    sloganSplitAudioSec,
+    activeDoc?.id,
+  ]);
 
   // Decode actual Voiceover MP3/WAV waveform via Web Audio API to extract exact acoustic silences & speech islands
   useEffect(() => {
@@ -3190,10 +3267,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [effectiveVoiceoverUrl, activeDoc?.id]);
 
-  // Re-align captions automatically whenever voiceStartOffsetSec or effectiveVoiceDurationSec updates (unless user edited captions)
+  // Re-align captions automatically whenever voiceStartOffsetSec or introPlacementMode updates
   useEffect(() => {
     if (!activeDoc) return;
     const docId = activeDoc.id || 'default';
+    const effectiveMode =
+      activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN' ||
+      introPlacementMode === 'INTRO_POST_SLOGAN'
+        ? 'INTRO_POST_SLOGAN'
+        : 'INTRO_INICIO_00';
+    const { clip1Sec: c1Dur } = getStage1ClipDurations(activeDoc);
+    const baseHookSec = !c1Dur || c1Dur <= 6 ? 8 : c1Dur;
+
     const savedDocOverlays = readSavedDocOverlays(docId);
     if (
       userEditedCaptionsDocIdRef.current === docId ||
@@ -3202,6 +3287,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         savedDocOverlays.captions.length > 0)
     ) {
       userEditedCaptionsDocIdRef.current = docId;
+      setCaptions((prevCaps) => {
+        const src = prevCaps.length > 0 ? prevCaps : savedDocOverlays?.captions || [];
+        if (src.length === 0) return prevCaps;
+        const aligned = alignCaptionsToIntroPlacement(
+          src,
+          effectiveMode,
+          baseHookSec,
+          8,
+          sloganSplitAudioSec
+        );
+        persistDocOverlaysPatch({ captions: aligned }, docId);
+        return aligned;
+      });
       return;
     }
     if (
@@ -3215,11 +3313,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         detectedAudioSilencesRef.current
       );
     } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
-      setCaptions(parseSrtToCaptionItems(activeDoc.correctedSrt, voiceStartOffsetSec));
+      const aligned = alignCaptionsToIntroPlacement(
+        parseSrtToCaptionItems(activeDoc.correctedSrt, voiceStartOffsetSec),
+        effectiveMode,
+        baseHookSec,
+        8,
+        sloganSplitAudioSec
+      );
+      setCaptions(aligned);
+      persistDocOverlaysPatch({ captions: aligned }, docId);
     } else {
       handleGenerateAutoCaptionsFromVoice(voiceStartOffsetSec, effectiveVoiceDurationSec);
     }
-  }, [voiceStartOffsetSec, effectiveVoiceDurationSec, activeDoc?.id]);
+  }, [
+    voiceStartOffsetSec,
+    effectiveVoiceDurationSec,
+    introPlacementMode,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
+    sloganSplitAudioSec,
+    activeDoc?.id,
+  ]);
 
   // Compute each clip's start & end time on the master timeline
   const clipsWithTimelineBounds = useMemo(() => {
@@ -3237,14 +3350,47 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   }, [timelineClips]);
 
+  // Detect if the 8s Official Intro (fixed-doc-intro) is placed Post-Slogan in the middle of the timeline (Opción B)
+  const postSloganIntroBounds = useMemo(() => {
+    const introClip = clipsWithTimelineBounds.find(
+      (c) => (c.id === 'fixed-doc-intro' || c.clipNumber === 0) && c.start > 2
+    );
+    if (!introClip) return null;
+    return {
+      start: introClip.start,
+      end: introClip.end,
+      duration: introClip.duration,
+    };
+  }, [clipsWithTimelineBounds]);
+
+  // Map any master timeline second to the corresponding second inside the Voiceover MP3 (accounting for the 8s Post-Slogan Intro pause in Opción B)
+  const getVoiceAudioTimeForTimelineSec = (timelineSec: number): number => {
+    if (!postSloganIntroBounds) {
+      return Math.max(0, timelineSec - voiceStartOffsetSec);
+    }
+    if (timelineSec >= postSloganIntroBounds.end) {
+      return Math.max(
+        0,
+        timelineSec - voiceStartOffsetSec - postSloganIntroBounds.duration
+      );
+    }
+    if (timelineSec >= postSloganIntroBounds.start) {
+      return Math.max(0, postSloganIntroBounds.start - voiceStartOffsetSec);
+    }
+    return Math.max(0, timelineSec - voiceStartOffsetSec);
+  };
+
   // Total timeline duration ALWAYS spans 8s Intro + 8s Clip 1 + Voiceover Narration + 8s Outro
   const totalDurationSec = useMemo(() => {
     const clipsEnd =
       clipsWithTimelineBounds.length > 0
         ? clipsWithTimelineBounds[clipsWithTimelineBounds.length - 1].end
         : 60;
+    const postSloganExtraSec = postSloganIntroBounds ? postSloganIntroBounds.duration : 0;
     const voicePlusOutroEnd =
-      effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec + 8 : 0;
+      effectiveVoiceDurationSec > 0
+        ? voiceStartOffsetSec + effectiveVoiceDurationSec + postSloganExtraSec + 8
+        : 0;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
     const allScriptClipsEnd =
       activeDoc?.clips && activeDoc.clips.length > 0
@@ -3255,6 +3401,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     clipsWithTimelineBounds,
     effectiveVoiceDurationSec,
     voiceStartOffsetSec,
+    postSloganIntroBounds,
     activeDoc?.clips?.length,
     activeDoc?.clipDurationMode,
   ]);
@@ -3664,9 +3811,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       try {
         appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
         applyVoiceoverAudioGain(vo, voiceVolume, voiceGainDb);
-        if (startSec >= voiceStartOffsetSec) {
+        const startClip = clipsWithTimelineBounds.find(
+          (c) => startSec >= c.start && startSec < c.end
+        );
+        const isStartOnIntroOrOutro =
+          startClip?.id === 'fixed-doc-intro' ||
+          startClip?.id === 'fixed-doc-outro' ||
+          startClip?.clipNumber === 0 ||
+          startClip?.clipNumber === 999;
+        if (!isStartOnIntroOrOutro && startSec >= voiceStartOffsetSec) {
           vo.muted = false;
-          vo.currentTime = Math.max(0, startSec - voiceStartOffsetSec);
+          vo.currentTime = getVoiceAudioTimeForTimelineSec(startSec);
           vo.play().catch(() => {});
         } else {
           // Unlock autoplay permission now so deferred play at voiceStartOffsetSec never gets blocked
@@ -3675,7 +3830,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             .then(() => {
               vo.pause();
               vo.muted = false;
-              vo.currentTime = 0;
+              vo.currentTime = getVoiceAudioTimeForTimelineSec(startSec);
             })
             .catch(() => {});
         }
@@ -4172,14 +4327,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const hasWorkingVoiceFile = Boolean(vo && effectiveVoiceoverUrl && !voiceAudioError);
     if (hasWorkingVoiceFile && vo) {
       const voiceEndSec =
-        effectiveVoiceDurationSec > 0 ? voiceStartOffsetSec + effectiveVoiceDurationSec : Infinity;
+        effectiveVoiceDurationSec > 0
+          ? voiceStartOffsetSec +
+            effectiveVoiceDurationSec +
+            (postSloganIntroBounds ? postSloganIntroBounds.duration : 0)
+          : Infinity;
       const isIntroOrOutro =
         activeClipAtPlayhead?.id === 'fixed-doc-intro' ||
         activeClipAtPlayhead?.id === 'fixed-doc-outro' ||
         activeClipAtPlayhead?.clipNumber === 0 ||
         activeClipAtPlayhead?.clipNumber === 999;
       if (!isIntroOrOutro && currentTime >= voiceStartOffsetSec && currentTime < voiceEndSec - 0.05) {
-        const voTime = Math.max(0, currentTime - voiceStartOffsetSec);
+        const voTime = getVoiceAudioTimeForTimelineSec(currentTime);
         const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
         if (isManualVoSeek || !isPlaying || (vo.paused && Math.abs(vo.currentTime - voTime) > 0.35) || Math.abs(vo.currentTime - voTime) > 1.8) {
           appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
@@ -6342,8 +6501,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </div>
               )}
 
-              {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16, after the 8s Intro — 100% Real-Time WYSIWYG; non-selectable in fullscreen) */}
-              {((currentTime >= 8 && currentTime <= clip1OverlayEndSec) ||
+              {/* Layer 3: Clip 1 Hook Text Overlay (00:08 - 00:16 in Opción A, or 00:00 - 00:08 in Opción B — 100% Real-Time WYSIWYG; non-selectable in fullscreen) */}
+              {((currentTime >= hookLine1StartSec && currentTime <= clip1OverlayEndSec) ||
                 (!isViewerFullscreen && selectedCanvasObject === 'hook_text')) &&
                 (clip1Line1 ||
                   clip1Line2 ||
@@ -6447,7 +6606,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           className="leading-snug"
                           style={
                             !isPlaying &&
-                            (selectedCanvasObject === 'hook_text' || currentTime === 8)
+                            (selectedCanvasObject === 'hook_text' || currentTime === hookLine1StartSec)
                               ? { opacity: 1, visibility: 'visible' }
                               : {
                                   opacity: liveHookLine1Anim.visible ? liveHookLine1Anim.opacity : 0,
@@ -6489,7 +6648,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           className="leading-snug"
                           style={
                             !isPlaying &&
-                            (selectedCanvasObject === 'hook_text' || currentTime === 8)
+                            (selectedCanvasObject === 'hook_text' || currentTime === hookLine1StartSec)
                               ? { opacity: 1, visibility: 'visible' }
                               : {
                                   opacity: liveHookLine2Anim.visible ? liveHookLine2Anim.opacity : 0,
@@ -7847,20 +8006,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
                       value={introPlacementMode}
-                      onChange={(e) =>
-                        setIntroPlacementMode(
+                      onChange={(e) => {
+                        const nextMode =
                           e.target.value === 'INTRO_POST_SLOGAN'
                             ? 'INTRO_POST_SLOGAN'
-                            : 'INTRO_INICIO_00'
-                        )
-                      }
+                            : 'INTRO_INICIO_00';
+                        handleInsertOfficialIntroInTimeline(nextMode);
+                      }}
                       className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 font-semibold"
                     >
                       <option value="INTRO_INICIO_00">
                         Opción A (Por defecto): Intro 8s Inicial (00:00 - 00:08 • Intro.mp4)
                       </option>
                       <option value="INTRO_POST_SLOGAN">
-                        Opción B: Intro 8s Post-Slogan (~00:28 tras Clip 3 • Intro.mp4)
+                        Opción B: Intro 8s Post-Slogan (Tras Slogan Completo "Aquí seguimos sus rastros." • Intro.mp4)
                       </option>
                     </select>
                     <button
@@ -8907,66 +9066,156 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    seekToTime(0);
-                    setSelectedClipId('fixed-doc-intro');
-                  }}
-                  style={
-                    isFitEntireProject
-                      ? {
-                          width: `${(8 / Math.max(1, totalDurationSec)) * 100}%`,
-                        }
-                      : { width: `${8 * timelineZoom}px` }
-                  }
-                  className="px-2 py-1.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
-                  title="Ir al Intro Oficial de Huellas de la Humanidad (00:00 - 00:08)"
-                >
-                  🎬 Intro 8K (00:00 - 00:08)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    seekToTime(8);
-                    setSelectedCanvasObject('hook_text');
-                    setActiveInspectorTab('branding');
-                  }}
-                  style={
-                    isFitEntireProject
-                      ? {
-                          width: `${(Math.max(1, clip1OverlayEndSec - 8) / Math.max(1, totalDurationSec)) * 100}%`,
-                        }
-                      : { width: `${Math.max(1, clip1OverlayEndSec - 8) * timelineZoom}px` }
-                  }
-                  className="px-2 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
-                >
-                  🔤 Texto Gancho Clip 1 (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCanvasObject('logo');
-                    setActiveInspectorTab('branding');
-                  }}
-                  style={
-                    isFitEntireProject
-                      ? {
-                          width: `${
-                            (Math.max(0, totalDurationSec - clip1OverlayEndSec) /
-                              Math.max(1, totalDurationSec)) *
-                            100
-                          }%`,
-                        }
-                      : {
-                          width: `${Math.max(0, totalDurationSec - clip1OverlayEndSec) * timelineZoom}px`,
-                        }
-                  }
-                  className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
-                >
-                  🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 -{' '}
-                  {formatTimeMMSS(totalDurationSec)})
-                </button>
+                {postSloganIntroBounds ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        seekToTime(0);
+                        setSelectedCanvasObject('hook_text');
+                        setActiveInspectorTab('branding');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${(Math.max(1, clip1OverlayEndSec) / Math.max(1, totalDurationSec)) * 100}%`,
+                            }
+                          : { width: `${Math.max(1, clip1OverlayEndSec) * timelineZoom}px` }
+                      }
+                      className="px-2 py-1.5 rounded-l bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                    >
+                      🔤 Texto Gancho Clip 1 (00:00 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCanvasObject('logo');
+                        setActiveInspectorTab('branding');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${
+                                (Math.max(0, postSloganIntroBounds.start - clip1OverlayEndSec) /
+                                  Math.max(1, totalDurationSec)) *
+                                100
+                              }%`,
+                            }
+                          : {
+                              width: `${Math.max(0, postSloganIntroBounds.start - clip1OverlayEndSec) * timelineZoom}px`,
+                            }
+                      }
+                      className="px-2.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border-r border-amber-500/40 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                    >
+                      🖼️ Logo ({formatTimeMMSS(clip1OverlayEndSec)} - {formatTimeMMSS(postSloganIntroBounds.start)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        seekToTime(postSloganIntroBounds.start);
+                        setSelectedClipId('fixed-doc-intro');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${(postSloganIntroBounds.duration / Math.max(1, totalDurationSec)) * 100}%`,
+                            }
+                          : { width: `${postSloganIntroBounds.duration * timelineZoom}px` }
+                      }
+                      className="px-2 py-1.5 bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
+                      title={`Ir al Intro Oficial Post-Slogan (${formatTimeMMSS(postSloganIntroBounds.start)} - ${formatTimeMMSS(postSloganIntroBounds.end)})`}
+                    >
+                      🎬 Intro 8K Post-Slogan ({formatTimeMMSS(postSloganIntroBounds.start)} - {formatTimeMMSS(postSloganIntroBounds.end)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCanvasObject('logo');
+                        setActiveInspectorTab('branding');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${
+                                (Math.max(0, totalDurationSec - postSloganIntroBounds.end) /
+                                  Math.max(1, totalDurationSec)) *
+                                100
+                              }%`,
+                            }
+                          : {
+                              width: `${Math.max(0, totalDurationSec - postSloganIntroBounds.end) * timelineZoom}px`,
+                            }
+                      }
+                      className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                    >
+                      🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • {formatTimeMMSS(postSloganIntroBounds.end)} -{' '}
+                      {formatTimeMMSS(totalDurationSec)})
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        seekToTime(0);
+                        setSelectedClipId('fixed-doc-intro');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${(8 / Math.max(1, totalDurationSec)) * 100}%`,
+                            }
+                          : { width: `${8 * timelineZoom}px` }
+                      }
+                      className="px-2 py-1.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
+                      title="Ir al Intro Oficial de Huellas de la Humanidad (00:00 - 00:08)"
+                    >
+                      🎬 Intro 8K (00:00 - 00:08)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        seekToTime(8);
+                        setSelectedCanvasObject('hook_text');
+                        setActiveInspectorTab('branding');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${(Math.max(1, clip1OverlayEndSec - 8) / Math.max(1, totalDurationSec)) * 100}%`,
+                            }
+                          : { width: `${Math.max(1, clip1OverlayEndSec - 8) * timelineZoom}px` }
+                      }
+                      className="px-2 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                    >
+                      🔤 Texto Gancho Clip 1 (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCanvasObject('logo');
+                        setActiveInspectorTab('branding');
+                      }}
+                      style={
+                        isFitEntireProject
+                          ? {
+                              width: `${
+                                (Math.max(0, totalDurationSec - clip1OverlayEndSec) /
+                                  Math.max(1, totalDurationSec)) *
+                                100
+                              }%`,
+                            }
+                          : {
+                              width: `${Math.max(0, totalDurationSec - clip1OverlayEndSec) * timelineZoom}px`,
+                            }
+                      }
+                      className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                    >
+                      🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 -{' '}
+                      {formatTimeMMSS(totalDurationSec)})
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
