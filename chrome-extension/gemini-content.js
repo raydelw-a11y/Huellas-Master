@@ -193,6 +193,152 @@
     inputEl.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function findDeepResearchStartPlanButton() {
+    const allButtons = Array.from(
+      document.querySelectorAll('button, [role="button"], a.mat-mdc-button-base')
+    );
+    const startPlanRegex =
+      /\b(iniciar\s+investigaci[oó]n|empezar\s+a\s+investigar|comenzar\s+investigaci[oó]n|start\s+research|begin\s+research|confirmar\s+plan|confirm\s+plan)\b/i;
+
+    for (const btn of allButtons) {
+      if (!btn || btn.disabled || btn.offsetParent === null) continue;
+      const text = (btn.innerText || btn.textContent || '').replace(/\s+/g, ' ').trim();
+      const aria = (btn.getAttribute('aria-label') || '').trim();
+      const testId = (btn.getAttribute('data-test-id') || '').trim();
+      if (
+        startPlanRegex.test(text) ||
+        startPlanRegex.test(aria) ||
+        /start-research|confirm-research/i.test(testId)
+      ) {
+        return btn;
+      }
+    }
+    return null;
+  }
+
+  function isDeepResearchActivelyBrowsing() {
+    const progressCandidates = document.querySelectorAll(
+      'deep-research-progress, [class*="deep-research" i], [class*="research-progress" i], mat-progress-bar, mat-spinner'
+    );
+    for (const el of Array.from(progressCandidates)) {
+      if (el && el.offsetParent !== null) {
+        const txt = (el.innerText || el.textContent || '').toLowerCase();
+        if (
+          txt.includes('analizando') ||
+          txt.includes('buscando') ||
+          txt.includes('investigando') ||
+          txt.includes('researching') ||
+          txt.includes('browsing') ||
+          txt.includes('sitios web') ||
+          txt.includes('websites')
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  async function configureGeminiModelAndDeepResearch(enableHighModel, enableDeepResearch) {
+    if (!enableHighModel && !enableDeepResearch) return;
+
+    try {
+      // 1. Try switching the model selector to Pro / High (or Deep Research if inside model selector)
+      const switcherSelectors = [
+        '[data-test-id="bard-mode-menu-button"]',
+        'bard-mode-switcher button',
+        'button.input-area-switch',
+        'button[aria-label*="mode" i]',
+        'button[aria-label*="modelo" i]',
+        'button[aria-label*="selector" i]',
+      ];
+      let switcherBtn = null;
+      for (const sel of switcherSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          switcherBtn = el;
+          break;
+        }
+      }
+
+      if (switcherBtn) {
+        const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '').toLowerCase();
+        const needsModelClick =
+          (enableHighModel && !/pro|high|thinking|avanzado|ultra/i.test(currentLabel)) ||
+          (enableDeepResearch && !/deep\s*research|investigaci[oó]n\s+profunda/i.test(currentLabel));
+
+        if (needsModelClick) {
+          switcherBtn.click();
+          await sleep(280);
+
+          const menuItems = Array.from(
+            document.querySelectorAll(
+              '[role="menuitem"], [role="option"], [ role="menuitemradio" ], .mat-mdc-menu-item, button.bard-mode-list-button'
+            )
+          ).filter((el) => el && el.offsetParent !== null);
+
+          let chosenItem = null;
+          if (enableDeepResearch) {
+            chosenItem = menuItems.find((el) =>
+              /deep\s*research|investigaci[oó]n\s+profunda/i.test(
+                (el.innerText || el.textContent || '').trim()
+              )
+            );
+          }
+          if (!chosenItem && enableHighModel) {
+            chosenItem =
+              menuItems.find((el) =>
+                /\b(3\.1\s*pro|2\.5\s*pro|pro|high|avanzado|thinking|razonamiento)\b/i.test(
+                  (el.innerText || el.textContent || '').trim()
+                )
+              ) || null;
+          }
+
+          if (chosenItem) {
+            chosenItem.click();
+            await sleep(260);
+          } else {
+            // Close menu if nothing matched
+            document.body.click();
+            await sleep(120);
+          }
+        }
+      }
+
+      // 2. If Deep Research is enabled, look for the Deep Research chip/button in the prompt input toolbar
+      if (enableDeepResearch) {
+        const toolbarCandidates = Array.from(
+          document.querySelectorAll('button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]')
+        ).filter((el) => el && el.offsetParent !== null);
+
+        const deepResearchBtn = toolbarCandidates.find((el) => {
+          const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          const a = (el.getAttribute('aria-label') || '').trim();
+          return (
+            /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
+            /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a)
+          );
+        });
+
+        if (deepResearchBtn) {
+          const isAlreadyPressed =
+            deepResearchBtn.getAttribute('aria-pressed') === 'true' ||
+            deepResearchBtn.getAttribute('aria-checked') === 'true' ||
+            deepResearchBtn.classList.contains('selected') ||
+            deepResearchBtn.classList.contains('active') ||
+            deepResearchBtn.classList.contains('mdc-evolution-chip--selected');
+
+          if (!isAlreadyPressed) {
+            deepResearchBtn.click();
+            await sleep(260);
+          }
+        }
+      }
+    } catch {}
+  }
+
   function watchForNewResponse(initialCount, initialLastText, meta) {
     if (activeWatchTimer) clearInterval(activeWatchTimer);
 
@@ -200,15 +346,47 @@
     let stableTicks = 0;
     let lastObservedText = '';
     let hasStarted = false;
+    let hasClickedStartResearchPlan = false;
+    let planClickedAtMs = 0;
+    let textAtPlanClick = '';
+    const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
+    const maxTimeoutMs = isDeepResearch ? 1200000 : 180000; // 20 min for Deep Research, 3 min normal
 
-    reportStatus('GENERATING', 'Gemini Web está redactando la respuesta...', meta);
+    reportStatus(
+      'GENERATING',
+      isDeepResearch
+        ? '🔬 Gemini Web (High + Deep Research) preparando el Plan de Investigación...'
+        : 'Gemini Web está redactando la respuesta...',
+      meta
+    );
 
     activeWatchTimer = setInterval(() => {
       elapsedMs += 800;
+
+      // Auto-click "Iniciar investigación" / "Start research" when Deep Research presents its research plan!
+      if (isDeepResearch && !hasClickedStartResearchPlan) {
+        const startPlanBtn = findDeepResearchStartPlanButton();
+        if (startPlanBtn) {
+          hasClickedStartResearchPlan = true;
+          planClickedAtMs = elapsedMs;
+          textAtPlanClick = extractLatestGeminiResponse().text || '';
+          stableTicks = 0;
+          try {
+            startPlanBtn.click();
+          } catch {}
+          reportStatus(
+            'GENERATING',
+            '🚀 ¡Botón "Iniciar investigación" presionado automáticamente! Gemini Deep Research está investigando múltiples fuentes...',
+            meta
+          );
+          return;
+        }
+      }
+
       const responses = getModelResponseElements();
       const currentCount = responses.length;
       const latest = extractLatestGeminiResponse();
-      const stillStreaming = isGeminiStillGenerating();
+      const stillStreaming = isGeminiStillGenerating() || (isDeepResearch && isDeepResearchActivelyBrowsing());
 
       if (
         stillStreaming ||
@@ -219,6 +397,28 @@
       }
 
       if (hasStarted && (latest.text || latest.images.length > 0)) {
+        // If Deep Research just clicked "Start research", wait until the final report replaces/expands the plan
+        if (
+          isDeepResearch &&
+          hasClickedStartResearchPlan &&
+          elapsedMs - planClickedAtMs < 15000 &&
+          latest.text === textAtPlanClick
+        ) {
+          stableTicks = 0;
+          return;
+        }
+
+        // Also if Deep Research is enabled and the "Start research" button is about to appear on the plan card, give it a few ticks before concluding
+        if (
+          isDeepResearch &&
+          !hasClickedStartResearchPlan &&
+          elapsedMs < 25000 &&
+          latest.text.length < 2500
+        ) {
+          const maybePlanBtn = findDeepResearchStartPlanButton();
+          if (maybePlanBtn) return;
+        }
+
         if (!stillStreaming && latest.text === lastObservedText && latest.text.length > 10) {
           stableTicks++;
         } else if (!stillStreaming && latest.images.length > 0 && latest.text === lastObservedText) {
@@ -236,7 +436,8 @@
           );
         }
 
-        if (stableTicks >= 3) {
+        const requiredStableTicks = isDeepResearch ? 5 : 3;
+        if (stableTicks >= requiredStableTicks) {
           clearInterval(activeWatchTimer);
           activeWatchTimer = null;
           chrome.runtime.sendMessage({
@@ -251,8 +452,7 @@
         }
       }
 
-      // Timeout after 180 seconds
-      if (elapsedMs >= 180000) {
+      if (elapsedMs >= maxTimeoutMs) {
         clearInterval(activeWatchTimer);
         activeWatchTimer = null;
         if (latest.text && latest.text !== initialLastText) {
@@ -269,46 +469,64 @@
   }
 
   function handleSendPrompt(payload) {
-    const inputEl = findPromptInput();
-    if (!inputEl) {
-      reportStatus(
-        'ERROR',
-        'No se encontró la caja de texto en Gemini Web. Asegúrate de haber iniciado sesión en gemini.google.com.'
-      );
-      return false;
-    }
+    (async () => {
+      if (payload.enableHighModel || payload.enableDeepResearch) {
+        reportStatus(
+          'WORKING',
+          `⚙️ Configurando Gemini Web en modo ${
+            payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
+          }...`,
+          { stageNumber: payload.stageNumber }
+        );
+        await configureGeminiModelAndDeepResearch(
+          Boolean(payload.enableHighModel),
+          Boolean(payload.enableDeepResearch)
+        );
+      }
 
-    const initialResponses = getModelResponseElements();
-    const initialCount = initialResponses.length;
-    const initialLastText = extractLatestGeminiResponse().text;
+      const inputEl = findPromptInput();
+      if (!inputEl) {
+        reportStatus(
+          'ERROR',
+          'No se encontró la caja de texto en Gemini Web. Asegúrate de haber iniciado sesión en gemini.google.com.'
+        );
+        return;
+      }
 
-    setInputText(inputEl, payload.prompt || '');
-    reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web...', {
-      stageNumber: payload.stageNumber,
-    });
+      const initialResponses = getModelResponseElements();
+      const initialCount = initialResponses.length;
+      const initialLastText = extractLatestGeminiResponse().text;
 
-    if (payload.autoSubmit !== false) {
-      setTimeout(() => {
-        const sendBtn = findSendButton();
-        if (sendBtn) {
-          sendBtn.click();
-        } else {
-          inputEl.dispatchEvent(
-            new KeyboardEvent('keydown', {
-              key: 'Enter',
-              code: 'Enter',
-              keyCode: 13,
-              which: 13,
-              bubbles: true,
-            })
-          );
-        }
-        watchForNewResponse(initialCount, initialLastText, {
-          stageNumber: payload.stageNumber,
-          taskType: payload.taskType || 'STAGE_GENERATION',
-        });
-      }, 450);
-    }
+      setInputText(inputEl, payload.prompt || '');
+      reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web...', {
+        stageNumber: payload.stageNumber,
+      });
+
+      if (payload.autoSubmit !== false) {
+        setTimeout(() => {
+          const sendBtn = findSendButton();
+          if (sendBtn) {
+            sendBtn.click();
+          } else {
+            inputEl.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+              })
+            );
+          }
+          watchForNewResponse(initialCount, initialLastText, {
+            stageNumber: payload.stageNumber,
+            taskType: payload.taskType || 'STAGE_GENERATION',
+            enableHighModel: Boolean(payload.enableHighModel),
+            enableDeepResearch: Boolean(payload.enableDeepResearch),
+          });
+        }, 450);
+      }
+    })();
 
     return true;
   }

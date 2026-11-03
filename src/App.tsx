@@ -107,6 +107,7 @@ import {
   synthesizeTtsClientSide,
   normalizeDocumentaryVoiceoverAudio,
   normalizeVoiceoverUrlString,
+  confirmPaidGeminiApiUsage,
   PUBLIC_GITHUB_PAGES_URL,
 } from './utils/cloudSync';
 import {
@@ -118,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:36 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:23 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -508,18 +509,76 @@ function buildPsychologicalThumbnailVariantPrompt(
 }
 
 const STAGES_LIST = [
-  { num: 1, title: '1. Prompt Maestro', subtitle: 'Configuración y plantilla', icon: Sliders },
-  { num: 2, title: '2. Tema y Duración', subtitle: 'Tipología, época y tiempos', icon: BookOpen },
-  { num: 3, title: '3. Investigación', subtitle: 'Estructura y Deep Research', icon: Search },
-  { num: 4, title: '4. Guion + VoxFlow + Timeline', subtitle: 'Voz en off, TTS y timestamps', icon: Volume2 },
-  { num: 5, title: '5. Miniatura Oficial', subtitle: 'Nano Banana 2.1 (8K / HD)', icon: ImageIcon },
-  { num: 6, title: '6. Referencias (@)', subtitle: '@Personas y Lugares en Banana 2.1', icon: ImageIcon },
-  { num: 7, title: '7. Texto Clip 1 (6s)', subtitle: 'Ciudad, País, Año y Gancho', icon: Film },
-  { num: 8, title: '8. Producción', subtitle: 'Voz Raw, Timestamps, Clips y Timeline', icon: Layers },
-  { num: 9, title: '9. Subtítulos .SRT', subtitle: 'Corrector automático para CapCut', icon: Subtitles },
-  { num: 10, title: '10. Música (Suno)', subtitle: 'Prompts de 6 campos y pistas MP3', icon: Music },
-  { num: 11, title: '11. Metadata y Subida', subtitle: 'Todo Corrido, Capítulos y Tags', icon: Share2 },
-  { num: 12, title: '12. Comentarios Audiencia', subtitle: 'Capturas y respuestas certeras', icon: FileText },
+  {
+    num: 1,
+    displayNum: 1,
+    title: '1. Prompt Maestro',
+    subtitle: 'Tema, Duración, Videos, Comentarios e Investigación',
+    icon: Sliders,
+  },
+  {
+    num: 4,
+    displayNum: 2,
+    title: '2. Guion + VoxFlow + Timeline',
+    subtitle: 'Voz en off, TTS y timestamps',
+    icon: Volume2,
+  },
+  {
+    num: 5,
+    displayNum: 3,
+    title: '3. Miniatura Oficial',
+    subtitle: 'Nano Banana 2.1 (8K / HD)',
+    icon: ImageIcon,
+  },
+  {
+    num: 6,
+    displayNum: 4,
+    title: '4. Referencias (@)',
+    subtitle: '@Personas y Lugares en Banana 2.1',
+    icon: ImageIcon,
+  },
+  {
+    num: 7,
+    displayNum: 5,
+    title: '5. Texto Clip 1 (6s)',
+    subtitle: 'Ciudad, País, Año y Gancho',
+    icon: Film,
+  },
+  {
+    num: 8,
+    displayNum: 6,
+    title: '6. Producción',
+    subtitle: 'Voz Raw, Timestamps, Clips y Timeline',
+    icon: Layers,
+  },
+  {
+    num: 9,
+    displayNum: 7,
+    title: '7. Subtítulos .SRT',
+    subtitle: 'Corrector automático para CapCut',
+    icon: Subtitles,
+  },
+  {
+    num: 10,
+    displayNum: 8,
+    title: '8. Música (Suno)',
+    subtitle: 'Prompts de 6 campos y pistas MP3',
+    icon: Music,
+  },
+  {
+    num: 11,
+    displayNum: 9,
+    title: '9. Metadata y Subida',
+    subtitle: 'Todo Corrido, Capítulos y Tags',
+    icon: Share2,
+  },
+  {
+    num: 12,
+    displayNum: 10,
+    title: '10. Comentarios Audiencia',
+    subtitle: 'Capturas y respuestas certeras',
+    icon: FileText,
+  },
 ];
 
 const PRODUCTION_TYPES: { value: ProductionFormatType; label: string; badge: string }[] = [
@@ -577,6 +636,7 @@ export default function App() {
   });
   const [activeStage, setActiveStage] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('huellas_master_active_stage') || '1', 10);
+    if (saved === 2 || saved === 3) return 1;
     return saved >= 1 && saved <= 12 ? saved : 1;
   });
   const [isStagesBarCompact, setIsStagesBarCompact] = useState<boolean>(false);
@@ -792,6 +852,72 @@ export default function App() {
   const [loadingSingleClipMap, setLoadingSingleClipMap] = useState<
     Record<number, 'loading' | 'done'>
   >({});
+
+  // Stage 1 Unified ("Prompt Maestro"): Analyzed Videos Library, Deduplicated Comments & Deep Research Mode
+  const [analyzedVideosLibrary, setAnalyzedVideosLibrary] = useState<any[]>([]);
+  const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>('');
+  const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>([]);
+  const [analyzedVideosDeduplicatedComments, setAnalyzedVideosDeduplicatedComments] = useState<any[]>([]);
+  const [commentsSourceFilter, setCommentsSourceFilter] = useState<'ALL' | 'CHANNEL' | 'ANALYZED'>('ALL');
+  const [commentsTypeFilter, setCommentsTypeFilter] = useState<'ALL' | 'question' | 'suggestion'>('ALL');
+  const [selectedCommentIdsForResearch, setSelectedCommentIdsForResearch] = useState<string[]>([]);
+  const [commentsLoadingStage1, setCommentsLoadingStage1] = useState<boolean>(false);
+  const [geminiHighModelEnabled, setGeminiHighModelEnabled] = useState<boolean>(true);
+  const [geminiDeepResearchEnabled, setGeminiDeepResearchEnabled] = useState<boolean>(true);
+  const [suggestedViralAngles, setSuggestedViralAngles] = useState<string[]>([]);
+
+  const loadStage1AnalyzedVideosAndComments = async (forceRefresh = false, customVideoUrl = '') => {
+    setCommentsLoadingStage1(true);
+    try {
+      if (forceRefresh || customVideoUrl) {
+        const res = await fetch('/api/youtube/analyze-comments-research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoUrl: customVideoUrl,
+            forceRefreshChannel: forceRefresh,
+            allowPaidApi: false,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          if (Array.isArray(data.analyzedVideosLibrary)) {
+            setAnalyzedVideosLibrary(data.analyzedVideosLibrary);
+          }
+          if (Array.isArray(data.deduplicatedChannelComments)) {
+            setChannelDeduplicatedComments(data.deduplicatedChannelComments);
+          }
+          if (Array.isArray(data.deduplicatedTargetComments) && data.deduplicatedTargetComments.length > 0) {
+            setAnalyzedVideosDeduplicatedComments((prev) => {
+              const merged = [...data.deduplicatedTargetComments, ...prev];
+              return merged;
+            });
+          }
+          if (data.matchedLibraryEntry?.id) {
+            setSelectedAnalyzedVideoId(data.matchedLibraryEntry.id);
+          }
+          return;
+        }
+      }
+      const resLib = await fetch('/api/youtube/analyzed-videos');
+      const dataLib = await resLib.json();
+      if (resLib.ok && dataLib.ok) {
+        if (Array.isArray(dataLib.videos)) setAnalyzedVideosLibrary(dataLib.videos);
+        if (Array.isArray(dataLib.channelComments)) setChannelDeduplicatedComments(dataLib.channelComments);
+        if (Array.isArray(dataLib.analyzedVideosComments)) {
+          setAnalyzedVideosDeduplicatedComments(dataLib.analyzedVideosComments);
+        }
+      }
+    } catch {} finally {
+      setCommentsLoadingStage1(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mainView === 'studio' && activeStage === 1) {
+      loadStage1AnalyzedVideosAndComments(false);
+    }
+  }, [mainView, activeStage]);
 
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
@@ -1641,11 +1767,14 @@ export default function App() {
   const isStageDone = (doc: DocumentaryProject, stageNum: number): boolean => {
     switch (stageNum) {
       case 1:
-        return !!doc.compiledMasterPrompt;
       case 2:
-        return !!(doc.topic && doc.targetDurationSeconds > 0);
       case 3:
-        return !!(doc.sectionsStructure || doc.deepResearchResult);
+        return !!(
+          doc.compiledMasterPrompt ||
+          doc.sectionsStructure ||
+          doc.deepResearchResult ||
+          (doc.topic && doc.targetDurationSeconds > 0)
+        );
       case 4:
         return !!(doc.voiceoverScript && (doc.audioTracks?.length > 0 || doc.timelineSentences?.length > 0));
       case 5:
@@ -1698,8 +1827,39 @@ export default function App() {
     if (!activeDoc) return;
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
 
-    if (stageNum === 2 || stageNum === 3) {
-      updateActiveDoc({ sectionsStructure: text });
+    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+      // Save Gemini's Deep Research output into deepResearchResult (while keeping the auto-pasted Research Prompt in sectionsStructure)
+      const parsedRefs = parseReferencesFromRawText(text);
+      const patch: Partial<DocumentaryProject> = {
+        deepResearchResult: text,
+      };
+      if (parsedRefs.length > 0 && (!activeDoc.references || activeDoc.references.length === 0)) {
+        patch.references = parsedRefs;
+        patch.rawReferencePrompts = parsedRefs.map((r) => `${r.tag}: ${r.prompt}`).join('\n\n');
+      }
+      updateActiveDoc(patch);
+
+      // If a YouTube viral link was analyzed during this research, persist its structure explanation in the Analyzed Videos Library
+      const ytLink = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+      if (ytLink && text.length > 120) {
+        fetch('/api/youtube/analyzed-videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: ytLink,
+            title: activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || activeDoc.topic || ytLink,
+            structureSummary: text.slice(0, 4500),
+          }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.ok && Array.isArray(d.videos)) {
+              setAnalyzedVideosLibrary(d.videos);
+              if (d.entry?.id) setSelectedAnalyzedVideoId(d.entry.id);
+            }
+          })
+          .catch(() => {});
+      }
     } else if (stageNum === 4) {
       const normalizedScript = normalizeQuantitiesToMil(text);
       const autoTl = buildSmartClientTimeline(normalizedScript, activeDoc);
@@ -5661,11 +5821,15 @@ export default function App() {
     return () => window.removeEventListener('message', handleBridgeMessage);
   }, [activeDoc, activeStage, flowServerFolderPath]);
 
-  const handleSendStageToGeminiWeb = (stageNum: number, preferredTabId?: number) => {
+  const handleSendStageToGeminiWeb = (
+    stageNum: number,
+    preferredTabId?: number,
+    options?: { enableHighModel?: boolean; enableDeepResearch?: boolean }
+  ) => {
     if (!activeDoc) return;
     if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
       alert(
-        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 5.'
+        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 3 (Miniatura Oficial).'
       );
       return;
     }
@@ -5691,26 +5855,49 @@ export default function App() {
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
+    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box!
+    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+      updateActiveDoc({
+        sectionsStructure: promptText,
+      });
+    }
+
     if (!extensionInstalled && !isHuellasExtensionDetected()) {
       setBridgeStatusType('WORKING');
       setBridgeStatusMsg(
-        '📋 Prompt copiado al portapapeles. Activa la Extensión Puente en la pestaña ⚙️ para envío 100% automático a tu cuenta de Gemini Web.'
+        '📋 Prompt de Investigación pegado en su cuadro de texto y copiado al portapapeles. Activa la Extensión Puente para envío 100% automático a Gemini Web.'
       );
       return;
     }
 
+    const isResearchStage = stageNum === 1 || stageNum === 2 || stageNum === 3;
+    const useHighModel =
+      options?.enableHighModel !== undefined ? options.enableHighModel : geminiHighModelEnabled;
+    const useDeepResearch =
+      options?.enableDeepResearch !== undefined
+        ? options.enableDeepResearch
+        : isResearchStage
+        ? geminiDeepResearchEnabled
+        : false;
+
     setAiGenerating(true);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🚀 Enviando prompt de Etapa ${
-        stageNum === 101 ? 5 : stageNum
-      } a tu cuenta de Gemini Web (sin usar API)...`
+      isResearchStage
+        ? `🔬 Prompt de Investigación pegado en su cuadro y enviado a Gemini Web (${
+            useHighModel ? 'Modelo High/Pro' : 'Estándar'
+          }${
+            useDeepResearch ? ' + Modo Deep Research con Auto-Iniciar Plan' : ''
+          })...`
+        : `🚀 Enviando prompt a tu cuenta de Gemini Web (100% gratis, sin usar API)...`
     );
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
       prompt: promptText,
       stageNumber: stageNum,
       taskType: 'STAGE_GENERATION',
+      enableHighModel: useHighModel,
+      enableDeepResearch: useDeepResearch,
       autoSubmit: true,
       focusTab: false,
       tabId: preferredTabId || selectedGeminiTabId,
@@ -5874,6 +6061,11 @@ export default function App() {
         alert(
           'Primero pega o genera la Voz con Timestamps o los Prompts de Clips para poder armar y revisar el timeline.'
         );
+        return;
+      }
+
+      if (!confirmPaidGeminiApiUsage('Auditoría de Clips con API Directa de Gemini')) {
+        updateActiveDoc({ clips: baseClips });
         return;
       }
 
@@ -6957,7 +7149,7 @@ export default function App() {
                       : 'bg-slate-900/80 hover:bg-slate-800 text-amber-300/90 border-slate-700/80 cursor-pointer'
                   }`}
                 >
-                  <span className="text-[11px] leading-none font-black">{st.num}</span>
+                  <span className="text-[11px] leading-none font-black">{st.displayNum}</span>
                   <IconComp
                     className={`w-3.5 h-3.5 shrink-0 ${
                       isLocked
@@ -7500,10 +7692,10 @@ export default function App() {
               </select>
             </div>
 
-            {/* Row 2: 12 Stages Horizontal Navigation Bar (Desktop & Tablet — Full Title & Full Description When Page Is At Top) */}
+            {/* Row 2: 10 Stages Horizontal Navigation Bar (Desktop & Tablet — Full Title & Full Description When Page Is At Top) */}
             <nav
               data-stages-full-nav="true"
-              className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-2"
+              className="hidden md:grid md:grid-cols-3 lg:grid-cols-5 gap-2"
             >
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
@@ -7541,7 +7733,7 @@ export default function App() {
                               : 'bg-amber-500/15 text-amber-300'
                           }`}
                         >
-                          <span>{st.num}</span>
+                          <span>{st.displayNum}</span>
                           <IconComp
                             className={`w-3.5 h-3.5 shrink-0 ${
                               isLocked
@@ -7593,53 +7785,69 @@ export default function App() {
             className="flex-1 p-3 sm:p-5 space-y-4 overflow-y-auto"
           >
             {/* Stage Header Banner */}
-            <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                  Etapa {activeStage} de 12 — {activeDoc.title}
-                </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-100 mt-0.5">
-                  {STAGES_LIST[activeStage - 1]?.title} — {STAGES_LIST[activeStage - 1]?.subtitle}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                {activeStage > 1 && (
-                  <button
-                    onClick={() => handleTrySelectStage(activeStage - 1)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 cursor-pointer"
-                  >
-                    ← Etapa Anterior
-                  </button>
-                )}
-                {activeStage < 12 && (
-                  <button
-                    onClick={() => handleTrySelectStage(activeStage + 1)}
-                    className={`px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 ${
-                      !hasSelectedDocFolder
-                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer'
-                    }`}
-                  >
-                    {!hasSelectedDocFolder ? (
-                      <>
-                        <Lock className="w-3.5 h-3.5" /> Elige Carpeta Abajo Primero
-                      </>
-                    ) : (
-                      <>
-                        Siguiente Etapa <ChevronRight className="w-3.5 h-3.5" />
-                      </>
+            {(() => {
+              const currentStageIdx = Math.max(
+                0,
+                STAGES_LIST.findIndex((s) => s.num === activeStage)
+              );
+              const currentStageMeta = STAGES_LIST[currentStageIdx] || STAGES_LIST[0];
+              const prevStageMeta =
+                currentStageIdx > 0 ? STAGES_LIST[currentStageIdx - 1] : null;
+              const nextStageMeta =
+                currentStageIdx < STAGES_LIST.length - 1
+                  ? STAGES_LIST[currentStageIdx + 1]
+                  : null;
+              return (
+                <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
+                      Etapa {currentStageMeta.displayNum} de {STAGES_LIST.length} —{' '}
+                      {activeDoc.title}
+                    </span>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 mt-0.5">
+                      {currentStageMeta.title} — {currentStageMeta.subtitle}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {prevStageMeta && (
+                      <button
+                        onClick={() => handleTrySelectStage(prevStageMeta.num)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 cursor-pointer"
+                      >
+                        ← Etapa Anterior
+                      </button>
                     )}
-                  </button>
-                )}
-              </div>
-            </div>
+                    {nextStageMeta && (
+                      <button
+                        onClick={() => handleTrySelectStage(nextStageMeta.num)}
+                        className={`px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 ${
+                          !hasSelectedDocFolder
+                            ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer'
+                        }`}
+                      >
+                        {!hasSelectedDocFolder ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5" /> Elige Carpeta Abajo Primero
+                          </>
+                        ) : (
+                          <>
+                            Siguiente Etapa <ChevronRight className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ===============================================================
-                ETAPA 1: CARPETA DE DESCARGA OBLIGATORIA + PROMPT MAESTRO INTEGRADO
+                ETAPA 1 UNIFICADA: PROMPT MAESTRO (CARPETA + TEMA Y DURACIÓN + VIDEOS ANALIZADOS + COMENTARIOS ×N + DEEP RESEARCH + PERGAMINO)
             =============================================================== */}
-            {activeStage === 1 && (
-              <div className="space-y-4">
-                {/* MANDATORY STEP IN STAGE 1: SELECT DOCUMENTARY DOWNLOAD FOLDER */}
+            {(activeStage === 1 || activeStage === 2 || activeStage === 3) && (
+              <div className="space-y-6">
+                {/* BLOQUE 1: CARPETA DE DESCARGA OBLIGATORIA */}
                 <div
                   className={`rounded-2xl p-5 border-2 transition-all shadow-lg ${
                     hasSelectedDocFolder
@@ -7659,7 +7867,7 @@ export default function App() {
                         >
                           {hasSelectedDocFolder
                             ? '✓ Paso Obligatorio Completado'
-                            : '🔒 Paso 1 Obligatorio para Desbloquear Etapas 2 a 12'}
+                            : '🔒 Paso 1 Obligatorio para Desbloquear Etapas 2 a 10'}
                         </span>
                         <h3 className="text-sm sm:text-base font-black text-slate-100">
                           📂 Carpeta de Descarga del Documental
@@ -7669,13 +7877,13 @@ export default function App() {
                         {hasSelectedDocFolder ? (
                           <>
                             Todos los archivos generados en este documental (Clips aprobados{' '}
-                            <code className="text-amber-300">01_primeras_seis_palabras.mp4</code>,
+                            <code className="text-amber-300">01_primeras_seis_palabras_4K.mp4</code>,
                             Miniaturas A/B, Audio VoxFlow, Música Suno, <code className="text-amber-300">.SRT</code> y
                             el Video Final) se guardarán automáticamente en:{' '}
                             <strong className="text-emerald-300 font-mono underline">
                               {effectiveDocFolderName}
                             </strong>
-                            . ¡Las Etapas 2 a 12 ya están desbloqueadas!
+                            . ¡Las Etapas 2 a 10 ya están desbloqueadas!
                           </>
                         ) : (
                           <>
@@ -7683,7 +7891,7 @@ export default function App() {
                             computadora donde se descargarán automáticamente todos los clips,
                             miniaturas, audios y el video final de este documental.{' '}
                             <strong className="text-amber-300">
-                              Las Etapas 2 a 12 permanecerán bloqueadas hasta que elijas la carpeta.
+                              Las Etapas 2 a 10 permanecerán bloqueadas hasta que elijas la carpeta.
                             </strong>
                           </>
                         )}
@@ -7699,10 +7907,10 @@ export default function App() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => setActiveStage(2)}
+                            onClick={() => setActiveStage(4)}
                             className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
                           >
-                            Continuar a Etapa 2 <ChevronRight className="w-4 h-4" />
+                            Continuar a Etapa 2 (Guion) <ChevronRight className="w-4 h-4" />
                           </button>
                         </>
                       ) : (
@@ -7718,11 +7926,1105 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* BLOQUE 2: DEFINICIÓN HISTÓRICA + ÁNGULO / CONTINUIDAD + CALIBRACIÓN MATEMÁTICA CON INTRO (8s) Y OUTRO (8s) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h3 className="font-bold text-amber-300 text-base">
+                        🏛️ Definición Histórica, Paradoja Central y Continuidad
+                      </h3>
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+                        Sincronizado con el Prompt Maestro
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Tipología del Video (Etapa 1 del Protocolo)
+                      </label>
+                      <select
+                        value={activeDoc.typology}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateActiveDoc({
+                            typology: val,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TIPOLOGIA_VIDEO: val,
+                            },
+                          });
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                      >
+                        {TYPOLOGIES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Tema Central del Documental / Episodio
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={activeDoc.topic}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateActiveDoc({
+                            topic: val,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TEMA_VIDEO: val,
+                            },
+                          });
+                        }}
+                        placeholder="Ej. El misterio de la Biblioteca de Alejandría y los rollos sobrevivientes..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-100"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Tiempo / Época (Años en dígitos o Siglo en romanos)
+                        </label>
+                        <input
+                          type="text"
+                          value={activeDoc.historicalTime}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateActiveDoc({
+                              historicalTime: val,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                TIEMPO_EPOCA: val,
+                              },
+                            });
+                          }}
+                          placeholder="Ej. Año 1888 / Siglo XII"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Lugar Histórico (Ciudad, País)
+                        </label>
+                        <input
+                          type="text"
+                          value={activeDoc.historicalLocation}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateActiveDoc({
+                              historicalLocation: val,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                LUGAR_HISTORICO: val,
+                              },
+                            });
+                          }}
+                          placeholder="Ej. Whitechapel, Londres, Inglaterra"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                        />
+                      </div>
+                    </div>
+
+                    {/* PARADOJA CENTRAL / ÁNGULO VIRAL + 3 SUGERENCIAS */}
+                    <div className="pt-1 border-t border-slate-800/80 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="block text-xs font-semibold text-amber-300">
+                          ⚡ Ángulo / Contradicción Central del Episodio (Fuerza el Gancho y la Investigación)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const baseTopic = (activeDoc.topic || activeDoc.title || 'este suceso histórico').trim();
+                            const loc = (activeDoc.historicalLocation || 'aquel territorio').trim();
+                            const time = (activeDoc.historicalTime || 'aquella época').trim();
+                            const angles = [
+                              `La gran paradoja de ${baseTopic} (${time}): lo que comenzó como una promesa de salvación en ${loc} ocultaba un mecanismo implacable que nadie vio venir hasta que fue demasiado tarde.`,
+                              `El archivo silenciado de ${baseTopic}: por qué la versión oficial de ${loc} omitió el detalle material y humano más decisivo de ${time}.`,
+                              `Sobrevivir a ${baseTopic} en ${loc} (${time}): la contradicción extrema entre la riqueza prometida y la cruda realidad cotidiana de quienes lo vivieron en carne propia.`,
+                            ];
+                            setSuggestedViralAngles(angles);
+                            if (!activeDoc.promptConfig?.CONTRADICCION_CENTRAL) {
+                              updateActiveDoc({
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  CONTRADICCION_CENTRAL: angles[0],
+                                },
+                              });
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[11px] font-bold cursor-pointer transition"
+                        >
+                          🎲 Sugerir 3 Ángulos Virales
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={activeDoc.promptConfig?.CONTRADICCION_CENTRAL || ''}
+                        onChange={(e) =>
+                          updateActiveDoc({
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              CONTRADICCION_CENTRAL: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Ej. Viajaban buscando riqueza y libertad, pero el pasaje a crédito los ataba a una deuda más dura que la tierra que dejaron atrás..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"
+                      />
+                      {suggestedViralAngles.length > 0 && (
+                        <div className="space-y-1.5 bg-slate-950/80 border border-amber-500/25 rounded-xl p-2.5">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                            Haz clic en un ángulo para aplicarlo:
+                          </div>
+                          {suggestedViralAngles.map((ang, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() =>
+                                updateActiveDoc({
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    CONTRADICCION_CENTRAL: ang,
+                                  },
+                                })
+                              }
+                              className="w-full text-left text-[11px] text-slate-300 hover:text-amber-200 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
+                            >
+                              <strong>Opción {i + 1}:</strong> {ang}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CONTINUIDAD / NO REPETIR ELEMENTOS DE PARTES ANTERIORES */}
+                    <div className="pt-1 border-t border-slate-800/80 space-y-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        🚫 Continuidad / Elementos Ya Usados en Partes Anteriores (Prohibido repetir en secuelas)
+                      </label>
+                      <input
+                        type="text"
+                        value={activeDoc.promptConfig?.EXCLUIR_PARTES_ANTERIORES || ''}
+                        onChange={(e) =>
+                          updateActiveDoc({
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              EXCLUIR_PARTES_ANTERIORES: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Ej. Si es Parte II: No repetir el naufragio del Valbanera ni el puerto de Santander..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* CALIBRACIÓN MATEMÁTICA CON INTRO OFICIAL (8s) + CLIP 1 + CUERPO + OUTRO OFICIAL (8s) */}
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h3 className="font-bold text-amber-300 text-base">
+                        ⏱️ Calibración Matemática (Intro 8s + Clips + Outro 8s)
+                      </h3>
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                        Incluye Intro 8s y Outro 8s
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Duración Total Aproximada (Segundos)
+                        </label>
+                        <input
+                          type="number"
+                          min={20}
+                          max={7200}
+                          value={activeDoc.targetDurationSeconds}
+                          onChange={(e) => {
+                            const nextSec = parseInt(e.target.value || '120', 10);
+                            updateActiveDoc({
+                              targetDurationSeconds: nextSec,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                DURACION_TOTAL_SEGUNDOS: String(nextSec),
+                              },
+                            });
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
+                        />
+                        <span className="text-[11px] text-slate-500">
+                          ~{(activeDoc.targetDurationSeconds / 60).toFixed(1)} min (duración total con Intro y Outro)
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Duración de cada Clip (desde Clip 2)
+                        </label>
+                        <select
+                          value={activeDoc.clipDurationMode}
+                          onChange={(e) => {
+                            const nextMode = e.target.value as '10_SEGUNDOS' | '8_SEGUNDOS';
+                            updateActiveDoc({
+                              clipDurationMode: nextMode,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                DURACION_CLIPS: nextMode,
+                              },
+                            });
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                        >
+                          <option value="10_SEGUNDOS">10 segundos por clip (1 shot de 10s)</option>
+                          <option value="8_SEGUNDOS">8 segundos por clip (1 shot de 8s)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Clip 1 Sync & Voiceover Entry Configuration */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Duración del Clip 1 (Segundos)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          value={
+                            activeDoc.clip1DurationSeconds ||
+                            (activeDoc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? 4 : 6)
+                          }
+                          onChange={(e) => {
+                            const nextC1 = Math.max(1, parseInt(e.target.value || '6', 10) || 6);
+                            updateActiveDoc({
+                              clip1DurationSeconds: nextC1,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                DURACION_CLIP_1: String(nextC1),
+                              },
+                            });
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Sincronización de Clip 1 y Comienzo de Voz Narrativa
+                        </label>
+                        <select
+                          value={activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2'}
+                          onChange={(e) => {
+                            const mode = e.target.value as 'RALENTIZAR_CAPCUT' | 'VOZ_EN_CLIP_2';
+                            const currentC1 = activeDoc.clip1DurationSeconds || 6;
+                            const nextC1 =
+                              mode === 'VOZ_EN_CLIP_2' && currentC1 === 4
+                                ? 6
+                                : mode === 'RALENTIZAR_CAPCUT' && currentC1 === 6
+                                ? 4
+                                : currentC1;
+                            updateActiveDoc({
+                              clip1SyncMode: mode,
+                              clip1DurationSeconds: nextC1,
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                SINCRONIZACION_CLIP_1: mode,
+                                DURACION_CLIP_1: String(nextC1),
+                              },
+                            });
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100"
+                        >
+                          <option value="VOZ_EN_CLIP_2">
+                            El primer clip sin voz narrativa se creará de{' '}
+                            {activeDoc.clip1DurationSeconds || 6} segundos y la voz narrativa
+                            comenzará a los 2s del Clip 2
+                          </option>
+                          <option value="RALENTIZAR_CAPCUT">
+                            El primer clip sin voz narrativa se creará de{' '}
+                            {activeDoc.clip1DurationSeconds || 4} segundos y en edición se ralentiza a{' '}
+                            {(activeDoc.clip1DurationSeconds || 4) + 2} segundos
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Automatic Clip Math Preview WITH 8s Intro and 8s Outro */}
+                    <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-2">
+                      <div className="text-xs font-bold text-amber-300">
+                        📐 Cuadre Exacto del Timeline (Contemplando Intro Oficial 8s + Outro Oficial 8s):
+                      </div>
+                      {(() => {
+                        const FIXED_INTRO_SEC = 8;
+                        const FIXED_OUTRO_SEC = 8;
+                        const totalSec = activeDoc.targetDurationSeconds || 120;
+                        const c1Dur =
+                          activeDoc.clip1DurationSeconds ||
+                          (activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4);
+                        const clip1TimelineSec =
+                          activeDoc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
+                        const voiceEntryInClipsSec =
+                          activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+                            ? c1Dur + 2
+                            : clip1TimelineSec;
+                        const voiceEntryMasterSec = FIXED_INTRO_SEC + voiceEntryInClipsSec;
+                        const step = activeDoc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
+                        const bodySec = Math.max(
+                          step,
+                          totalSec - FIXED_INTRO_SEC - FIXED_OUTRO_SEC - clip1TimelineSec
+                        );
+                        const devClipsCount = Math.max(1, Math.round(bodySec / step));
+                        const totalGeneratedClipsCount = 1 + devClipsCount;
+                        const outroStartSec =
+                          FIXED_INTRO_SEC + clip1TimelineSec + devClipsCount * step;
+                        const approxFinalDuration = outroStartSec + FIXED_OUTRO_SEC;
+                        const spokenTargetSec = Math.max(
+                          10,
+                          approxFinalDuration - FIXED_OUTRO_SEC - voiceEntryMasterSec
+                        );
+                        const estChars = Math.round(spokenTargetSec * 13.5);
+                        const fmtMMSS = (s: number) =>
+                          `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
+                            Math.floor(s % 60)
+                          ).padStart(2, '0')}`;
+                        return (
+                          <ul className="text-xs text-slate-300 space-y-1.5">
+                            <li>
+                              • <strong>Intro Oficial de Marca (8s fijos):</strong>{' '}
+                              <span className="text-amber-300 font-mono">00:00 - 00:08</span> (
+                              <code>Intro.mp4</code> con transición Crossfade de 1.0s hacia el Clip 1)
+                            </li>
+                            <li>
+                              • <strong>Clip 1 (Hook visual sin voz):</strong>{' '}
+                              <span className="text-amber-300 font-mono">
+                                00:08 - {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)}
+                              </span>{' '}
+                              (
+                              {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
+                                ? `${c1Dur}s sin ralentizar`
+                                : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
+                              )
+                            </li>
+                            <li>
+                              • <strong>Entrada de la Voz Narrativa:</strong>{' '}
+                              <span className="text-emerald-400 font-semibold">
+                                Segundo {voiceEntryMasterSec} ({fmtMMSS(voiceEntryMasterSec)} del
+                                Master / {fmtMMSS(voiceEntryInClipsSec)} tras la Intro)
+                              </span>
+                            </li>
+                            <li>
+                              • <strong>Clips de desarrollo narrado ({step}s c/u):</strong> ~
+                              {devClipsCount} clips completos de {step}s (
+                              <span className="font-mono text-slate-200">
+                                {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)} -{' '}
+                                {fmtMMSS(outroStartSec)}
+                              </span>
+                              )
+                            </li>
+                            <li>
+                              • <strong>Outro Oficial de Marca (8s fijos al cierre):</strong>{' '}
+                              <span className="text-purple-300 font-mono">
+                                {fmtMMSS(outroStartSec)} - {fmtMMSS(approxFinalDuration)}
+                              </span>{' '}
+                              (<code>Outro.mp4</code> con Crossfade de 1.0s tras concluir la voz en{' '}
+                              {fmtMMSS(outroStartSec)})
+                            </li>
+                            <li>
+                              • <strong>Total de Clips IA a generar + Extensión de Guion:</strong>{' '}
+                              <span className="text-amber-300 font-bold">
+                                ~{totalGeneratedClipsCount} clips IA (~{approxFinalDuration}s totales con
+                                Intro y Outro)
+                              </span>{' '}
+                              · Guion sugerido: <strong>~{estChars} caracteres</strong> (~
+                              {spokenTargetSec}s de locución pura)
+                            </li>
+                          </ul>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* BLOQUE 3: ESTRUCTURA DE VIDEOS ANALIZADOS PREVIAMENTE + LISTADO DE COMENTARIOS AGRUPADOS (×N) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* COLUMNA IZQUIERDA: SELECTOR DE ESTRUCTURA DE VIDEOS ANALIZADOS + EXPLICACIÓN E INVESTIGACIÓN */}
+                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h3 className="font-bold text-amber-300 text-base flex items-center gap-2">
+                          📊 Estructura de Videos Analizados Previamente
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Selecciona un video ya investigado para ver su explicación estructural y usar su
+                          esqueleto de retención (incluyendo Intro 8s y Outro 8s), o pega un link nuevo.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={stage1LoadingLibrary}
+                        onClick={() =>
+                          loadStage1AnalyzedVideosAndComments(
+                            activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '',
+                            activeDoc.topic || activeDoc.title || ''
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${stage1LoadingLibrary ? 'animate-spin' : ''}`}
+                        />
+                        {stage1LoadingLibrary ? 'Actualizando...' : 'Actualizar Biblioteca'}
+                      </button>
+                    </div>
+
+                    {/* Dropdown de Videos Analizados Previamente */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Seleccionar Estructura de Video Analizado Previamente ({analyzedVideosLibrary.length}{' '}
+                        en biblioteca)
+                      </label>
+                      <select
+                        value={selectedAnalyzedVideoId}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setSelectedAnalyzedVideoId(nextId);
+                          const found = analyzedVideosLibrary.find((v) => v.videoId === nextId);
+                          if (found) {
+                            updateActiveDoc({
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                YOUTUBE_VIRAL_LINK: found.url || found.videoId,
+                                ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
+                                ESTRUCTURA_VIRAL_TITULO: found.title,
+                              },
+                            });
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
+                      >
+                        <option value="">
+                          -- Selecciona un video analizado previamente de la lista --
+                        </option>
+                        {analyzedVideosLibrary.map((v) => (
+                          <option key={v.videoId} value={v.videoId}>
+                            🎬 {v.title} ({v.channelTitle})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Input para pegar un Link de YouTube adicional o nuevo */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        O pega el Link de un Video Viral de Referencia (Si no está analizado aún, se
+                        investigará junto con el documental al pulsar "✨ Comenzar Investigación")
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || ''}
+                          onChange={(e) => {
+                            const urlVal = e.target.value;
+                            const matched = analyzedVideosLibrary.find(
+                              (v) =>
+                                v.url === urlVal.trim() ||
+                                (v.videoId && urlVal.includes(v.videoId))
+                            );
+                            if (matched) {
+                              setSelectedAnalyzedVideoId(matched.videoId);
+                            }
+                            updateActiveDoc({
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                YOUTUBE_VIRAL_LINK: urlVal,
+                                ESTRUCTURA_VIRAL_RESUMEN: matched
+                                  ? matched.structureSummary
+                                  : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
+                                ESTRUCTURA_VIRAL_TITULO: matched
+                                  ? matched.title
+                                  : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                              },
+                            });
+                          }}
+                          placeholder="https://www.youtube.com/watch?v=... (opcional)"
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        />
+                        <button
+                          type="button"
+                          disabled={
+                            stage1LoadingLibrary ||
+                            !(activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim()
+                          }
+                          onClick={() =>
+                            loadStage1AnalyzedVideosAndComments(
+                              activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '',
+                              activeDoc.topic || activeDoc.title || ''
+                            )
+                          }
+                          className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer whitespace-nowrap"
+                        >
+                          🔍 Extraer Datos y Comentarios
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* EXPLICACIÓN DE LA INVESTIGACIÓN DEL VIDEO SELECCIONADO + BARRA VISUAL DE TIEMPOS */}
+                    {(() => {
+                      const activeVideo =
+                        analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
+                        analyzedVideosLibrary[0];
+                      if (!activeVideo) return null;
+                      const totalSec = activeDoc.targetDurationSeconds || 120;
+                      const FIXED_INTRO_SEC = 8;
+                      const FIXED_OUTRO_SEC = 8;
+                      const narrativeBodySec = Math.max(
+                        20,
+                        totalSec - FIXED_INTRO_SEC - FIXED_OUTRO_SEC
+                      );
+                      const fmtTime = (s: number) =>
+                        `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
+                          Math.floor(s % 60)
+                        ).padStart(2, '0')}`;
+                      return (
+                        <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
+                                ✓ Explicación de la Investigación del Video Seleccionado
+                              </span>
+                              <h4 className="text-xs sm:text-sm font-bold text-amber-200 mt-1">
+                                {activeVideo.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-400">
+                                Canal: {activeVideo.channelTitle} · Analizado:{' '}
+                                {new Date(activeVideo.analyzedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Barra Visual Recalibrada a la Duración del Documental Actual (incluyendo Intro 8s y Outro 8s) */}
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] font-semibold text-slate-300">
+                              📐 Mapa Estructural Recalibrado a tus {totalSec}s (Intro 8s + Bloques +
+                              Outro 8s):
+                            </div>
+                            <div className="w-full h-6 rounded-lg overflow-hidden flex border border-slate-800 text-[9px] font-black">
+                              <div
+                                style={{ width: '9%' }}
+                                className="bg-amber-500 text-slate-950 flex items-center justify-center truncate px-1"
+                                title="Intro Oficial (00:00 - 00:08)"
+                              >
+                                Intro 8s
+                              </div>
+                              <div
+                                style={{ width: '14%' }}
+                                className="bg-rose-500/90 text-white flex items-center justify-center truncate px-1"
+                                title={`Hook / Paradoja (00:08 - ${fmtTime(
+                                  FIXED_INTRO_SEC + Math.round(narrativeBodySec * 0.14)
+                                )})`}
+                              >
+                                Hook 14%
+                              </div>
+                              <div
+                                style={{ width: '24%' }}
+                                className="bg-blue-500/85 text-white flex items-center justify-center truncate px-1"
+                                title="Contexto Material e Inmersión Sensorial (24%)"
+                              >
+                                Contexto 24%
+                              </div>
+                              <div
+                                style={{ width: '28%' }}
+                                className="bg-emerald-500/85 text-slate-950 flex items-center justify-center truncate px-1"
+                                title="Giro Documental y Evidencia Física (28%)"
+                              >
+                                Giro 28%
+                              </div>
+                              <div
+                                style={{ width: '16%' }}
+                                className="bg-indigo-500/85 text-white flex items-center justify-center truncate px-1"
+                                title="Clímax y Legado Histórico (16%)"
+                              >
+                                Clímax 16%
+                              </div>
+                              <div
+                                style={{ width: '9%' }}
+                                className="bg-purple-500 text-white flex items-center justify-center truncate px-1"
+                                title={`Outro Oficial (${fmtTime(
+                                  totalSec - FIXED_OUTRO_SEC
+                                )} - ${fmtTime(totalSec)})`}
+                              >
+                                Outro 8s
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 max-h-56 overflow-y-auto">
+                            <pre className="text-[11px] text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
+                              {activeVideo.structureSummary}
+                            </pre>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* COLUMNA DERECHA: LISTADO DE COMENTARIOS DE MIS VIDEOS Y OTROS VIDEOS ANALIZADOS (AGRUPADOS POR REPETICIÓN ×N) */}
+                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h3 className="font-bold text-amber-300 text-base flex items-center gap-2">
+                          💬 Comentarios de Mis Videos y Videos Analizados (Agrupados ×N)
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Si varios comentarios dicen o preguntan lo mismo, se muestra una sola vez con el
+                          contador <strong className="text-amber-300">×N</strong> de repeticiones.
+                        </p>
+                      </div>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold">
+                        {selectedResearchCommentIds.length} seleccionados para Investigación
+                      </span>
+                    </div>
+
+                    {/* Filtros de Fuente, Tipo y Búsqueda */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentSourceFilter('ALL')}
+                          className={`px-2.5 py-1 rounded-md font-bold cursor-pointer ${
+                            stage1CommentSourceFilter === 'ALL'
+                              ? 'bg-amber-500 text-slate-950'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Todos ({deduplicatedCommentsList.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentSourceFilter('OWN')}
+                          className={`px-2.5 py-1 rounded-md font-bold cursor-pointer ${
+                            stage1CommentSourceFilter === 'OWN'
+                              ? 'bg-amber-500 text-slate-950'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Mis Videos (@huellas)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentSourceFilter('EXTERNAL')}
+                          className={`px-2.5 py-1 rounded-md font-bold cursor-pointer ${
+                            stage1CommentSourceFilter === 'EXTERNAL'
+                              ? 'bg-amber-500 text-slate-950'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Otros Analizados
+                        </button>
+                      </div>
+
+                      <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentKindFilter('ALL')}
+                          className={`px-2 py-1 rounded-md font-semibold cursor-pointer ${
+                            stage1CommentKindFilter === 'ALL'
+                              ? 'bg-slate-800 text-amber-300'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentKindFilter('question')}
+                          className={`px-2 py-1 rounded-md font-semibold cursor-pointer ${
+                            stage1CommentKindFilter === 'question'
+                              ? 'bg-slate-800 text-amber-300'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          ❓ Dudas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStage1CommentKindFilter('suggestion')}
+                          className={`px-2 py-1 rounded-md font-semibold cursor-pointer ${
+                            stage1CommentKindFilter === 'suggestion'
+                              ? 'bg-slate-800 text-amber-300'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          💡 Peticiones
+                        </button>
+                      </div>
+
+                      <input
+                        type="text"
+                        value={stage1CommentSearch}
+                        onChange={(e) => setStage1CommentSearch(e.target.value)}
+                        placeholder="Filtrar comentarios..."
+                        className="flex-1 min-w-[140px] bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
+                      />
+                    </div>
+
+                    {/* Lista de Comentarios Deduplicados Ordenados por ×N */}
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {deduplicatedCommentsList
+                        .filter((c) => {
+                          if (stage1CommentSourceFilter === 'OWN' && c.source !== 'OWN_CHANNEL')
+                            return false;
+                          if (
+                            stage1CommentSourceFilter === 'EXTERNAL' &&
+                            c.source !== 'ANALYZED_VIDEO'
+                          )
+                            return false;
+                          if (
+                            stage1CommentKindFilter !== 'ALL' &&
+                            c.kind !== stage1CommentKindFilter
+                          )
+                            return false;
+                          if (
+                            stage1CommentSearch.trim() &&
+                            !c.text.toLowerCase().includes(stage1CommentSearch.toLowerCase()) &&
+                            !c.videoTitle
+                              .toLowerCase()
+                              .includes(stage1CommentSearch.toLowerCase())
+                          )
+                            return false;
+                          return true;
+                        })
+                        .map((item) => {
+                          const isSelected = selectedResearchCommentIds.includes(item.id);
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-3 rounded-xl border transition ${
+                                isSelected
+                                  ? 'bg-amber-500/15 border-amber-500/60'
+                                  : 'bg-slate-950/90 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {/* Badge de cantidad de veces repetido (×N) */}
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[11px] font-black tracking-wide ${
+                                      item.repeatCount >= 4
+                                        ? 'bg-amber-500 text-slate-950 shadow shadow-amber-500/30'
+                                        : 'bg-slate-800 text-amber-300 border border-amber-500/30'
+                                    }`}
+                                    title={`Repetido ${item.repeatCount} veces por los espectadores`}
+                                  >
+                                    🔥 ×{item.repeatCount}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                                      item.source === 'OWN_CHANNEL'
+                                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                                    }`}
+                                  >
+                                    {item.source === 'OWN_CHANNEL'
+                                      ? 'Mi Canal (@huellas)'
+                                      : 'Video Analizado'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                                    {item.videoTitle}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                                  👍 {item.totalLikes}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-slate-100 mt-1.5 leading-relaxed">
+                                "{item.text}"
+                              </p>
+
+                              <div className="flex items-center justify-end gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateActiveDoc({
+                                      topic: item.text,
+                                      promptConfig: {
+                                        ...(activeDoc.promptConfig || {}),
+                                        TEMA_VIDEO: item.text,
+                                      },
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-amber-300 font-semibold cursor-pointer"
+                                >
+                                  🎬 Usar como Tema
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextIds = isSelected
+                                      ? selectedResearchCommentIds.filter((id) => id !== item.id)
+                                      : [...selectedResearchCommentIds, item.id];
+                                    setSelectedResearchCommentIds(nextIds);
+                                    const selectedLines = deduplicatedCommentsList
+                                      .filter((c) => nextIds.includes(c.id))
+                                      .map(
+                                        (c) =>
+                                          `- [Repetido ×${c.repeatCount} veces | 👍 ${c.totalLikes}] "${c.text}" (${c.videoTitle})`
+                                      )
+                                      .join('\n');
+                                    updateActiveDoc({
+                                      promptConfig: {
+                                        ...(activeDoc.promptConfig || {}),
+                                        COMENTARIOS_AUDIENCIA_SELECCIONADOS: selectedLines,
+                                      },
+                                    });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${
+                                    isSelected
+                                      ? 'bg-emerald-500 text-slate-950'
+                                      : 'bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200'
+                                  }`}
+                                >
+                                  {isSelected
+                                    ? '✓ Incluido en Investigación'
+                                    : '➕ Responder en Investigación'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* BLOQUE 4: CENTRO DE INVESTIGACIÓN PROFUNDA (BOTÓN "✨ COMENZAR INVESTIGACIÓN" + MODELO HIGH + DEEP RESEARCH AUTO-CLICK) */}
+                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-6 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                          100% Gratis vía Extensión Gemini Web
+                        </span>
+                        <h3 className="font-black text-amber-300 text-base sm:text-lg">
+                          🔬 Centro de Investigación Profunda y Estructura (Deep Research)
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        Al pulsar <strong>"✨ Comenzar Investigación"</strong>, el Prompt de
+                        Investigación completo (con la estructura del video seleccionado, dudas repetidas{' '}
+                        <code className="text-amber-300">×N</code>, Intro 8s y Outro 8s) se pega
+                        automáticamente en su caja abajo y la Extensión activa{' '}
+                        <strong className="text-emerald-300">Modelo High/Pro</strong> +{' '}
+                        <strong className="text-emerald-300">
+                          Deep Research (con auto-clic en "Iniciar investigación")
+                        </strong>
+                        .
+                      </p>
+                    </div>
+
+                    {/* Controles de Modelo High + Deep Research + Botón ✨ Comenzar Investigación */}
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setGeminiHighModelEnabled((v) => !v)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition ${
+                          geminiHighModelEnabled
+                            ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
+                            : 'bg-slate-900 border-slate-700 text-slate-400'
+                        }`}
+                        title="Cambia automáticamente el selector de Gemini Web a High / Pro / 2.5 Pro"
+                      >
+                        🧠 Modelo: High / Pro {geminiHighModelEnabled ? '✓' : 'Off'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGeminiDeepResearchEnabled((v) => !v)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition ${
+                          geminiDeepResearchEnabled
+                            ? 'bg-purple-950/80 border-purple-400/60 text-purple-200'
+                            : 'bg-slate-900 border-slate-700 text-slate-400'
+                        }`}
+                        title="Activa Deep Research en Gemini Web y hace auto-clic en el botón 'Iniciar investigación' cuando aparece el plan"
+                      >
+                        🔬 Modo: Deep Research (Auto-Iniciar Plan){' '}
+                        {geminiDeepResearchEnabled ? '✓' : 'Off'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={aiGenerating}
+                        onClick={() => handleGenerateWithGemini(1)}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-500/25"
+                      >
+                        <Wand2 className="w-4 h-4" />
+                        {aiGenerating
+                          ? 'Investigando en Gemini Deep Research...'
+                          : '✨ Comenzar Investigación'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dos Cajas de Texto: 1. Prompt de Investigación (Auto-pegado) y 2. Resultado de la Investigación Profunda */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="text-xs sm:text-sm font-bold text-amber-300">
+                          1. Prompt de Investigación (Se pega automáticamente al pulsar "✨ Comenzar Investigación")
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const selectedVideoObj = analyzedVideosLibrary.find(
+                                (v) => v.videoId === selectedAnalyzedVideoId
+                              );
+                              const selectedCommentsText = deduplicatedCommentsList
+                                .filter((c) => selectedResearchCommentIds.includes(c.id))
+                                .map(
+                                  (c) =>
+                                    `- [Repetido ×${c.repeatCount} veces | 👍 ${c.totalLikes} likes] "${c.text}" (Fuente: ${c.videoTitle})`
+                                )
+                                .join('\n');
+                              const docForResearch = {
+                                ...activeDoc,
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  ESTRUCTURA_VIRAL_RESUMEN:
+                                    selectedVideoObj?.structureSummary ||
+                                    activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN ||
+                                    '',
+                                  ESTRUCTURA_VIRAL_TITULO:
+                                    selectedVideoObj?.title ||
+                                    activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+                                    '',
+                                  COMENTARIOS_AUDIENCIA_SELECCIONADOS:
+                                    selectedCommentsText ||
+                                    activeDoc.promptConfig?.COMENTARIOS_AUDIENCIA_SELECCIONADOS ||
+                                    '',
+                                },
+                              };
+                              const compiled = buildStagePromptText(
+                                1,
+                                docForResearch,
+                                aiCustomInstruction
+                              );
+                              updateActiveDoc({ sectionsStructure: compiled });
+                            }}
+                            className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-semibold cursor-pointer"
+                          >
+                            🔄 Actualizar Prompt en Caja
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyText(activeDoc.sectionsStructure, 'stage1-research-prompt')}
+                            className="text-xs text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedId === 'stage1-research-prompt' ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                            Copiar
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        rows={14}
+                        value={activeDoc.sectionsStructure}
+                        onChange={(e) => updateActiveDoc({ sectionsStructure: e.target.value })}
+                        placeholder="Al hacer clic en '✨ Comenzar Investigación', aquí se pegará automáticamente todo el Prompt de Investigación compilado (incluyendo la estructura del video seleccionado, dudas ×N de la audiencia, Intro 8s y Outro 8s) por si lo necesitas para NotebookLM o cualquier otra herramienta..."
+                        className="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 font-mono leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="text-xs sm:text-sm font-bold text-emerald-300">
+                          2. Resultado de la Investigación Profunda y Estructura (Deep Research / NotebookLM)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => copyText(activeDoc.deepResearchResult, 'stage1-research-result')}
+                          className="text-xs text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedId === 'stage1-research-result' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          Copiar
+                        </button>
+                      </div>
+                      <textarea
+                        rows={14}
+                        value={activeDoc.deepResearchResult}
+                        onChange={(e) => updateActiveDoc({ deepResearchResult: e.target.value })}
+                        placeholder="Aquí se recibirá automáticamente el informe completo de Gemini Deep Research (o puedes pegarlo manualmente) para nutrir el Guion de la Voz en Off en la Etapa 2..."
+                        className="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 font-mono leading-relaxed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES PARA ETAPA 4 (REFERENCIAS @) */}
+                  {(() => {
+                    const detectedRefs = parseReferencesFromRawText(
+                      `${activeDoc.deepResearchResult || ''}\n${activeDoc.sectionsStructure || ''}`
+                    );
+                    if (detectedRefs.length === 0) return null;
+                    return (
+                      <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+                        <div className="space-y-1">
+                          <div className="text-xs font-bold text-emerald-300">
+                            🎭 Pre-detección Temprana de @Personajes y Lugares ({detectedRefs.length}{' '}
+                            detectados en la Investigación):
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {detectedRefs.map((r, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-slate-950 border border-emerald-500/40 text-[11px] font-mono text-emerald-200"
+                              >
+                                {r.tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateActiveDoc({
+                              references: detectedRefs,
+                              rawReferencePrompts: detectedRefs
+                                .map((r) => `${r.tag}: ${r.prompt}`)
+                                .join('\n\n'),
+                            });
+                            alert(
+                              `✅ ${detectedRefs.length} @Referencias enviadas a la Etapa 4 (Referencias @).`
+                            );
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
+                        >
+                          ➕ Enviar a Etapa 4 (Referencias @)
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* BLOQUE 5: GENERADOR INTERACTIVO DE PROMPT MAESTRO (PERGAMINO FINAL) */}
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
                   <p className="text-xs text-amber-200">
-                    💡 Configura las opciones de tu episodio abajo y presiona{' '}
+                    💡 Ajusta cualquier directiva técnica adicional abajo y presiona{' '}
                     <strong>"📌 Guardar Prompt Maestro y Configuración en este Documental"</strong> en el
-                    panel derecho para dejarlo vinculado a este expediente, o cópialo para tu chat externo.
+                    panel derecho para dejar el pergamino compilado en este expediente.
                   </p>
                   {activeDoc.compiledMasterPrompt && (
                     <span className="text-xs bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 px-3 py-1 rounded-full font-semibold">
@@ -7830,316 +9132,6 @@ export default function App() {
                     });
                   }}
                 />
-              </div>
-            )}
-
-            {/* ===============================================================
-                ETAPA 2: SELECCIÓN DEL TEMA, TIPOLOGÍA Y DURACIÓN
-            =============================================================== */}
-            {activeStage === 2 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <h3 className="font-bold text-amber-300 text-base">
-                    Definición Histórica del Episodio
-                  </h3>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Tipología del Video (Etapa 1 del Protocolo)
-                    </label>
-                    <select
-                      value={activeDoc.typology}
-                      onChange={(e) => updateActiveDoc({ typology: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                    >
-                      {TYPOLOGIES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Tema Central del Documental / Episodio
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={activeDoc.topic}
-                      onChange={(e) => updateActiveDoc({ topic: e.target.value })}
-                      placeholder="Ej. El misterio de la Biblioteca de Alejandría y los rollos sobrevivientes..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-100"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Tiempo / Época (Años en dígitos o Siglo en romanos)
-                      </label>
-                      <input
-                        type="text"
-                        value={activeDoc.historicalTime}
-                        onChange={(e) => updateActiveDoc({ historicalTime: e.target.value })}
-                        placeholder="Ej. Año 1888 / Siglo XII"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Lugar Histórico (Ciudad, País)
-                      </label>
-                      <input
-                        type="text"
-                        value={activeDoc.historicalLocation}
-                        onChange={(e) => updateActiveDoc({ historicalLocation: e.target.value })}
-                        placeholder="Ej. Whitechapel, Londres, Inglaterra"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <h3 className="font-bold text-amber-300 text-base">
-                    Calibración Matemática de Duración y Clips
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Duración Total Aproximada (Segundos)
-                      </label>
-                      <input
-                        type="number"
-                        min={20}
-                        max={7200}
-                        value={activeDoc.targetDurationSeconds}
-                        onChange={(e) =>
-                          updateActiveDoc({
-                            targetDurationSeconds: parseInt(e.target.value || '120', 10),
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
-                      />
-                      <span className="text-[11px] text-slate-500">
-                        ~{(activeDoc.targetDurationSeconds / 60).toFixed(1)} min (duración aproximada, no rígida al segundo)
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Duración de cada Clip (desde Clip 2)
-                      </label>
-                      <select
-                        value={activeDoc.clipDurationMode}
-                        onChange={(e) =>
-                          updateActiveDoc({
-                            clipDurationMode: e.target.value as '10_SEGUNDOS' | '8_SEGUNDOS',
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                      >
-                        <option value="10_SEGUNDOS">10 segundos por clip (1 shot de 10s)</option>
-                        <option value="8_SEGUNDOS">8 segundos por clip (1 shot de 8s)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Clip 1 Sync & Voiceover Entry Configuration */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Duración del Clip 1 (Segundos)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={30}
-                        value={activeDoc.clip1DurationSeconds || (activeDoc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? 4 : 6)}
-                        onChange={(e) =>
-                          updateActiveDoc({
-                            clip1DurationSeconds: Math.max(1, parseInt(e.target.value || '6', 10) || 6),
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Sincronización de Clip 1 y Comienzo de Voz Narrativa
-                      </label>
-                      <select
-                        value={activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2'}
-                        onChange={(e) => {
-                          const mode = e.target.value as 'RALENTIZAR_CAPCUT' | 'VOZ_EN_CLIP_2';
-                          const currentC1 = activeDoc.clip1DurationSeconds || 6;
-                          const nextC1 =
-                            mode === 'VOZ_EN_CLIP_2' && currentC1 === 4
-                              ? 6
-                              : mode === 'RALENTIZAR_CAPCUT' && currentC1 === 6
-                              ? 4
-                              : currentC1;
-                          updateActiveDoc({
-                            clip1SyncMode: mode,
-                            clip1DurationSeconds: nextC1,
-                          });
-                        }}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100"
-                      >
-                        <option value="VOZ_EN_CLIP_2">
-                          El primer clip sin voz narrativa se creará de {activeDoc.clip1DurationSeconds || 6} segundos y la voz narrativa comenzará a partir de los primeros 2 segundos del segundo clip (entra en el segundo {(activeDoc.clip1DurationSeconds || 6) + 2} del video)
-                        </option>
-                        <option value="RALENTIZAR_CAPCUT">
-                          El primer clip sin voz narrativa se creará de {activeDoc.clip1DurationSeconds || 4} segundos pero en ediciones CapCut yo le bajaré la velocidad y lo llevaré a {(activeDoc.clip1DurationSeconds || 4) + 2} segundos
-                        </option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Automatic Clip Math Preview */}
-                  <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-2">
-                    <div className="text-xs font-bold text-amber-300">
-                      📐 Cuadre Aproximado de Clips y Entrada de Voz:
-                    </div>
-                    {(() => {
-                      const totalSec = activeDoc.targetDurationSeconds || 120;
-                      const c1Dur =
-                        activeDoc.clip1DurationSeconds ||
-                        (activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4);
-                      const voiceEntrySec = c1Dur + 2;
-                      const clip1TimelineSec =
-                        activeDoc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
-                      const step = activeDoc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
-                      const rem = Math.max(step, totalSec - clip1TimelineSec);
-                      const devClipsCount = Math.max(1, Math.round(rem / step));
-                      const totalClipsCount = 1 + devClipsCount;
-                      const approxFinalDuration = clip1TimelineSec + devClipsCount * step;
-                      const spokenTargetSec = Math.max(10, totalSec - voiceEntrySec);
-                      const estChars = Math.round(spokenTargetSec * 13.5);
-                      return (
-                        <ul className="text-xs text-slate-300 space-y-1">
-                          <li>
-                            • <strong>Clip 1 (Hook sin voz):</strong> 00:00 - 00:
-                            {String(clip1TimelineSec).padStart(2, '0')} (
-                            {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                              ? `${c1Dur}s sin ralentizar`
-                              : `${c1Dur}s ralentizado a ${clip1TimelineSec}s en CapCut`}
-                            )
-                          </li>
-                          <li>
-                            • <strong>Entrada de la Voz Narrativa:</strong>{' '}
-                            <span className="text-emerald-400 font-semibold">
-                              Segundo {voiceEntrySec} (00:{String(voiceEntrySec).padStart(2, '0')})
-                            </span>{' '}
-                            {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                              ? `(a los 2 segundos de iniciar el Clip 2 [00:${String(c1Dur).padStart(2, '0')} - 00:${String(c1Dur + step).padStart(2, '0')}])`
-                              : `(justo al iniciar el Clip 2 [00:${String(clip1TimelineSec).padStart(2, '0')} - 00:${String(clip1TimelineSec + step).padStart(2, '0')}])`}
-                          </li>
-                          <li>
-                            • <strong>Clips de desarrollo ({step}s c/u):</strong> ~{devClipsCount} clips completos de {step}s (sin forzar micro-clips de relleno)
-                          </li>
-                          <li>
-                            • <strong>Total aproximado:</strong>{' '}
-                            <span className="text-amber-300 font-bold">
-                              ~{totalClipsCount} clips (~{approxFinalDuration}s — aproximado a los {totalSec}s pedidos)
-                            </span>
-                          </li>
-                          <li>
-                            • <strong>Extensión sugerida de Guion (Voz en Off):</strong> ~{estChars}{' '}
-                            caracteres (a 900 car/min + pausas)
-                          </li>
-                        </ul>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ===============================================================
-                ETAPA 3: ESTRUCTURA DE SECCIONES E INVESTIGACIÓN PROFUNDA
-            =============================================================== */}
-            {activeStage === 3 && (
-              <div className="space-y-5">
-                <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <h3 className="font-bold text-amber-300 text-base">
-                        Copiloto IA Híbrido (Opcional) o Pegado de tu Chat Externo
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        Puedes pegar directamente lo que te dio tu chat externo abajo, o pedirle a Gemini que
-                        genere la estructura y el Prompt de Investigación Profunda ahora mismo.
-                      </p>
-                    </div>
-                    <button
-                      disabled={aiGenerating}
-                      onClick={() => handleGenerateWithGemini(3)}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-2 cursor-pointer"
-                    >
-                      <Wand2 className="w-4 h-4" />
-                      {aiGenerating
-                        ? 'Generando Etapa 3 con Gemini...'
-                        : '✨ Generar Estructura e Investigación con Gemini'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-bold text-amber-300">
-                        1. Recuento Estructural, Curiosidades y Contradicciones
-                      </label>
-                      <button
-                        onClick={() => copyText(activeDoc.sectionsStructure, 'stage3-struct')}
-                        className="text-xs text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedId === 'stage3-struct' ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        Copiar
-                      </button>
-                    </div>
-                    <textarea
-                      rows={14}
-                      value={activeDoc.sectionsStructure}
-                      onChange={(e) => updateActiveDoc({ sectionsStructure: e.target.value })}
-                      placeholder="Pega o genera aquí las secciones del documental, datos insólitos, contradicciones históricas y el Prompt Maestro para NotebookLM / Deep Research..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 font-mono leading-relaxed"
-                    />
-                  </div>
-
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-bold text-amber-300">
-                        2. Resultado de la Investigación Profunda Externa (Deep Research / NotebookLM)
-                      </label>
-                      <button
-                        onClick={() => copyText(activeDoc.deepResearchResult, 'stage3-research')}
-                        className="text-xs text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedId === 'stage3-research' ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        Copiar
-                      </button>
-                    </div>
-                    <textarea
-                      rows={14}
-                      value={activeDoc.deepResearchResult}
-                      onChange={(e) => updateActiveDoc({ deepResearchResult: e.target.value })}
-                      placeholder="Guarda aquí toda la investigación profunda recolectada por fuera para nutrir el Guion de la Voz en Off en la Etapa 4..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 font-mono leading-relaxed"
-                    />
-                  </div>
-                </div>
               </div>
             )}
 
@@ -12427,6 +13419,13 @@ export default function App() {
                         disabled={commentReplying || (!commentImageBase64 && !commentInputText.trim())}
                         onClick={async () => {
                           if (!commentImageBase64 && !commentInputText.trim()) return;
+                          if (
+                            !confirmPaidGeminiApiUsage(
+                              'Generar respuestas a comentarios con API Directa de Gemini'
+                            )
+                          ) {
+                            return;
+                          }
                           setCommentReplying(true);
                           try {
                             let data: any = null;

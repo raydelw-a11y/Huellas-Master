@@ -1250,10 +1250,25 @@ export async function pushDocumentariesToGitHub(
 // ============================================================================
 // CLIENT-SIDE GEMINI FALLBACKS FOR MOBILE / GITHUB PAGES MODE
 // ============================================================================
+export function confirmPaidGeminiApiUsage(actionDescription: string = 'generar contenido'): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.confirm(
+    `⚠️ ADVERTENCIA DE USO DE API DIRECTA (CON COSTO):\n\n` +
+      `Estás a punto de usar la API directa de Gemini para "${actionDescription}", la cual NO es gratuita.\n\n` +
+      `• Presiona CANCELAR para denegar el uso de la API y usar gratis tu cuenta de Gemini Web mediante la Extensión de Chrome.\n` +
+      `• Presiona ACEPTAR únicamente si autorizas expresamente usar la API directa en este momento.`
+  );
+}
+
 async function callGeminiGenerateContentClientSide(
   parts: any[],
   jsonMode = false
 ): Promise<string> {
+  if (!confirmPaidGeminiApiUsage('consulta a Gemini vía API directa')) {
+    throw new Error(
+      'Uso de API directa denegado por el usuario. Utiliza Gemini Web gratis con la Extensión de Chrome.'
+    );
+  }
   const apiKey = getBrowserGeminiKey();
   if (!apiKey) {
     throw new Error(
@@ -1317,8 +1332,25 @@ export function buildStagePromptText(
   const youtubeCommentsResearchBlock = (
     doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
   ).trim();
-  const viralContextBlock = youtubeViralLink
-    ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n${
+  const selectedStructureTitle = (doc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || '').trim();
+  const selectedStructureSummary = (doc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY || '').trim();
+  const centralParadox = (doc.promptConfig?.CONTRADICCION_CENTRAL || '').trim();
+  const excludePreviousParts = (doc.promptConfig?.EXCLUIR_PARTES_ANTERIORES || '').trim();
+  const selectedAudienceQuestions = (doc.promptConfig?.SELECTED_AUDIENCE_COMMENTS_BLOCK || '').trim();
+
+  const fixedIntroSec = 8;
+  const fixedOutroSec = 8;
+  const clip1TimelineSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : Math.max(8, c1Dur);
+  const fullEntrySec = fixedIntroSec + clip1TimelineSec;
+  const totalTargetSec = doc.targetDurationSeconds || 120;
+  const effectiveNarratedSec = Math.max(20, totalTargetSec - fullEntrySec - fixedOutroSec);
+
+  const viralContextBlock = selectedStructureSummary
+    ? `\n================================================================================\n🏛️ ESTRUCTURA SELECCIONADA DE VIDEO ANALIZADO PREVIAMENTE: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nINVESTIGACIÓN Y ESTRUCTURA GANADORA YA REALIZADA DE ESTE VIDEO:\n${selectedStructureSummary}\n\nINSTRUCCIÓN OBLIGATORIA: Clona y adapta exactamente las proporciones, la cadencia de micro-ganchos y la progresión dramática de esta estructura ganadora para nuestro documental actual.\n${
+        youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
+      }`
+    : youtubeViralLink
+    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR Y CLONAR ESTRUCTURALMENTE (AÚN NO ANALIZADO): ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA DE DOBLE INVESTIGACIÓN (VIDEO DE REFERENCIA + DOCUMENTAL EN PROCESO):\nComo este video de referencia (${youtubeViralLink}) aún no tiene su investigación estructural guardada, DEBES realizar en esta misma investigación:\n1) La radiografía profunda de los 8 ejes virales del video (${youtubeViralLink}): Hook (0-30s), Escaleta bloque por bloque con porcentajes, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral y Mapa Maestro de Recreación.\n2) La Investigación Profunda (Deep Research) de nuestro documental en proceso aplicando exactamente esa misma estructura.\n${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : youtubeCommentsResearchBlock
@@ -1326,22 +1358,39 @@ export function buildStagePromptText(
     : '';
 
   let stagePrompt = '';
-  if (stageNumber === 2 || stageNumber === 3) {
-    stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".${viralContextBlock}
-Tema del documental: ${doc.topic || doc.title || 'Por definir'}
-Tipología: ${doc.typology || 'Suceso histórico'}
-Tiempo histórico: ${doc.historicalTime || 'Por definir'}
-Lugar histórico: ${doc.historicalLocation || 'Por definir'}
-Duración aproximada objetivo: ~${doc.targetDurationSeconds || 120} segundos.
+  if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+    stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".${viralContextBlock}
 
-Genera la ETAPA 3 completa:
-1. Recuento estructural de secciones cronológicas del documental.
-2. Datos insólitos, curiosidades verificadas y contradicciones históricas centrales.
-3. Prompt Maestro detallado para desarrollar Investigación Profunda (Deep Research / NotebookLM)${
-      youtubeCommentsResearchBlock
-        ? ' — INCLUYENDO OBLIGATORIAMENTE DENTRO DE ESTE PROMPT DE INVESTIGACIÓN todas las preguntas, dudas, debates y sugerencias detectadas en los comentarios del video de referencia y del canal @huellas_de_la_humanidad para que la investigación profunda las responda exhaustivamente'
+================================================================================
+📋 DATOS MAESTROS DEL DOCUMENTAL EN PROCESO (ETAPA 1 UNIFICADA — PROMPT MAESTRO)
+================================================================================
+- Tema central del documental: ${doc.topic || doc.title || 'Por definir'}
+- Tipología del protocolo: ${doc.typology || '1. Un suceso histórico'}
+- Tiempo / Época histórica (años en dígitos, siglos en romanos): ${doc.historicalTime || 'Por definir'}
+- Lugar histórico (Ciudad, País): ${doc.historicalLocation || 'Por definir'}
+${centralParadox ? `- Ángulo / Paradoja o Contradicción Central obligatoria: ${centralParadox}\n` : ''}${
+      excludePreviousParts
+        ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
         : ''
-    }.`;
+    }- Arquitectura Matemática Completa del Video (con Intro y Outro Oficiales de 8s):
+  • Duración Total Objetivo del Proyecto: ~${totalTargetSec} segundos (~${(totalTargetSec / 60).toFixed(1)} min)
+  • Intro Oficial de Marca: 00:00 - 00:08 (${fixedIntroSec}s fijos — sin voz ni música de fondo)
+  • Clip 1 (Hook visual con Texto en Pantalla sin voz): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
+  • Entrada de la Voz Narrativa y Cuerpo de Clips (${clipDurationLabel} c/u): Segundo ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) durante ~${effectiveNarratedSec}s de narración efectiva
+  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos (entra con crossfade justo cuando terminan la voz narrativa y la música del último clip narrado)
+${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS PARA RESPONDER EN LA INVESTIGACIÓN:\n${selectedAudienceQuestions}\n` : ''}
+================================================================================
+🔬 TAREA DE INVESTIGACIÓN PROFUNDA (MODO HIGH + DEEP RESEARCH)
+================================================================================
+Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en estas 4 secciones claras:
+1. EXPLICACIÓN DE LA ESTRUCTURA VIRAL APLICADA (Y ANÁLISIS DEL VIDEO DE REFERENCIA SI SE PROPORCIONÓ):
+   - Desglose de los bloques narrativos con su porcentaje (%) y rango de tiempo exacto contemplando el Intro de 8s al inicio y el Outro de 8s al final.
+2. RECUENTO ESTRUCTURAL CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES HISTÓRICAS:
+   - Escaleta detallada acto por acto, datos sensoriales verificados (olores, sonidos, dimensiones, cifras reales, leyes, nombres propios con números romanos) y respuestas históricas a las dudas de los comentarios de la audiencia.
+3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (DEEP RESEARCH):
+   - Hechos documentados, crónicas de época, hallazgos arqueológicos/forenses y micro-historias humanas listas para nutrir el Guion de Voz en Off.
+4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS):
+   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_POST_SLOGAN';
     const effectiveVoiceEntrySec =
@@ -1635,6 +1684,11 @@ export async function generateThumbnailImageClientSide(
   prompt: string,
   logoDataUrl?: string
 ): Promise<string> {
+  if (!confirmPaidGeminiApiUsage('generar imagen de miniatura vía API directa')) {
+    throw new Error(
+      'Uso de API directa denegado por el usuario. Utiliza Google Flow gratis con la Extensión de Chrome.'
+    );
+  }
   const apiKey = getBrowserGeminiKey();
   if (!apiKey) {
     throw new Error('Configura tu Gemini API Key para generar la miniatura directamente.');

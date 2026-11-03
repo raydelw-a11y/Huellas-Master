@@ -4913,46 +4913,444 @@ async function fetchHuellasChannelCommentsCached(forceRefresh: boolean = false):
   return payload;
 }
 
+interface DeduplicatedAudienceComment {
+  id: string;
+  text: string;
+  author: string;
+  likes: number;
+  repeatCount: number;
+  category: 'question' | 'suggestion' | 'comment';
+  sourceType: 'channel' | 'analyzed_video';
+  videoTitle: string;
+  videoId: string;
+}
+
+interface AnalyzedVideoStructuralBlock {
+  name: string;
+  pct: number;
+  description: string;
+}
+
+interface AnalyzedVideoLibraryEntry {
+  id: string;
+  videoId: string;
+  url: string;
+  title: string;
+  channelName: string;
+  analyzedAt: string;
+  commentsCount: number;
+  structureSummary: string;
+  structuralBlocks: AnalyzedVideoStructuralBlock[];
+  comments: DeduplicatedAudienceComment[];
+}
+
+const ANALYZED_VIDEOS_LIBRARY_FILE = path.join(DATA_DIR, 'analyzed_videos_library.json');
+
+const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
+  {
+    id: 'seed_louvre_medieval',
+    videoId: 'louvre_medieval_p1',
+    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+    title: 'Castillo del Louvre Medieval (Estructura de Fortaleza Oculta bajo Monumento Famoso)',
+    channelName: '@huellas_de_la_humanidad',
+    analyzedAt: new Date().toISOString(),
+    commentsCount: 42,
+    structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Arranca con el Intro Oficial (8s) seguido del Clip 1 (8s) mostrando el monumento actual frente a su pasado subterráneo oscuro. En el segundo 16 entra la voz con Año y Lugar cerrados con punto ("Año 1190, París, Francia."), planteando la paradoja central: millones caminan sobre una fortaleza de guerra sin saberlo. Antes del segundo 30 cierra con el Slogan Oficial sobre la mesa del historiador.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Hook + Promesa, 8%): Choque visual entre el palacio actual y la mazmorra medieval original.
+   - Bloque 2 (El Miedo que dio Origen al Muro, 20%): Por qué Felipe II Augusto ordenó levantar una fortaleza inexpugnable antes de ir a las Cruzadas.
+   - Bloque 3 (Ingeniería Secreta y Foso Sumergido, 24%): Dimensiones reales del torreón (Grosse Tour), muros de piedra caliza y trampas defensivas.
+   - Bloque 4 (Vida Cotidiana, Prisioneros y Tesoro Real, 22%): El olor, la humedad, las bóvedas acorazadas y los prisioneros de Estado.
+   - Bloque 5 (Demolición, Transformación y Redescubrimiento, 18%): Cómo quedó sepultado bajo el Renacimiento y cómo las excavaciones del siglo XX sacaron a la luz sus cimientos intactos.
+   - Bloque 6 (Reflexión Final + Outro Oficial de 8s, 8%): Qué nos revela esa piedra oculta hoy + cierre limpio antes del Outro de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.`,
+    structuralBlocks: [
+      { name: 'Intro (8s) + Hook y Promesa', pct: 8, description: 'Contraste monumento actual vs. fortaleza subterránea oculta y Slogan.' },
+      { name: 'Acto I: La Amenaza Original', pct: 20, description: 'El peligro militar que obligó a construir la fortaleza.' },
+      { name: 'Acto II: Ingeniería y Secretos', pct: 24, description: 'Anatomía arquitectónica, fosos, muros y mecanismos ocultos.' },
+      { name: 'Acto III: Vida y Sombras Dentro', pct: 22, description: 'Cárceles, tesoros, traiciones y vida real tras los muros.' },
+      { name: 'Acto IV: Sepultura y Hallazgo', pct: 18, description: 'Cómo desapareció y cómo la arqueología lo redescubrió.' },
+      { name: 'Clímax Reflexivo + Outro (8s)', pct: 8, description: 'Legado histórico, pregunta a la audiencia y Outro Oficial de 8s.' },
+    ],
+    comments: [
+      {
+        id: 'seed-c1',
+        text: '¿Qué pasó con los túneles subterráneos que conectaban el torreón con el río Sena?',
+        author: 'Suscriptor Huellas',
+        likes: 34,
+        repeatCount: 6,
+        category: 'question',
+        sourceType: 'channel',
+        videoTitle: 'Castillo del Louvre Parte I',
+        videoId: 'louvre_medieval_p1',
+      },
+      {
+        id: 'seed-c2',
+        text: 'Deberían hacer la continuación contando cómo Carlos V transformó la fortaleza militar en residencia real y biblioteca.',
+        author: 'Suscriptor Huellas',
+        likes: 29,
+        repeatCount: 5,
+        category: 'suggestion',
+        sourceType: 'channel',
+        videoTitle: 'Castillo del Louvre Parte I',
+        videoId: 'louvre_medieval_p1',
+      },
+    ],
+  },
+  {
+    id: 'seed_princesas_edad_media',
+    videoId: 'princesas_edad_media',
+    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+    title: 'Las Princesas de la Edad Media (Estructura de Desmitificación de Vida Cotidiana e Intimidad Histórica)',
+    channelName: '@huellas_de_la_humanidad',
+    analyzedAt: new Date().toISOString(),
+    commentsCount: 58,
+    structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Desmonta en los primeros 20 segundos el cuento de hadas moderno: frente al lujo imaginado, muestra el frío glacial de los castillos, los matrimonios políticos en la infancia y la falta total de privacidad.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Intro 8s + Hook de Desmitificación, 9%): El contraste brutal entre el mito romántico y la realidad física medieval.
+   - Bloque 2 (Infancia como Moneda de Alianza, 21%): Educación rígida, despedida de su familia a los 12 años y viaje a un reino extranjero.
+   - Bloque 3 (Higiene, Vestimenta Pesada y Frío en el Castillo, 24%): Detalles sensoriales hiperrealistas (capas de lana, parásitos, chimeneas humeantes, comida y protocolo).
+   - Bloque 4 (El Peligro de la Noche de Bodas y el Parto, 23%): La presión dinástica por dar un heredero varón y la altísima mortalidad materna.
+   - Bloque 5 (Poder Oculto, Regencias y Conspiraciones, 15%): Cómo las mujeres que sobrevivían lograban gobernar imperios desde la sombra.
+   - Bloque 6 (Cierre Reflexivo + Outro 8s, 8%): Reflexión humana final y entrada limpia del Outro Oficial de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.`,
+    structuralBlocks: [
+      { name: 'Intro (8s) + Choque Mito vs Realidad', pct: 9, description: 'Destruye el cliché de cuento de hadas en los primeros segundos.' },
+      { name: 'Acto I: Peones de Alianza', pct: 21, description: 'Infancia, contratos matrimoniales y destierro diplomático.' },
+      { name: 'Acto II: Intimidad y Supervivencia', pct: 24, description: 'Frío, higiene, banquetes, vestimenta y vida diaria real.' },
+      { name: 'Acto III: El Precio de la Corona', pct: 23, description: 'Presión por el heredero, medicina medieval y peligros mortales.' },
+      { name: 'Acto IV: El Poder tras el Trono', pct: 15, description: 'Intriga política, regencias y legado histórico.' },
+      { name: 'Cierre Humano + Outro (8s)', pct: 8, description: 'Pregunta reflexiva a la comunidad y Outro Oficial de 8s.' },
+    ],
+    comments: [
+      {
+        id: 'seed-c3',
+        text: '¿Cómo era realmente la higiene y los baños dentro de los palacios europeos antes del siglo XVIII?',
+        author: 'Comunidad Huellas',
+        likes: 51,
+        repeatCount: 8,
+        category: 'question',
+        sourceType: 'channel',
+        videoTitle: 'Las Princesas de la Edad Media',
+        videoId: 'princesas_edad_media',
+      },
+      {
+        id: 'seed-c4',
+        text: 'Hagan un documental sobre cómo vivían los sirvientes y guardias invisibles dentro de los grandes castillos.',
+        author: 'Comunidad Huellas',
+        likes: 41,
+        repeatCount: 4,
+        category: 'suggestion',
+        sourceType: 'channel',
+        videoTitle: 'Las Princesas de la Edad Media',
+        videoId: 'princesas_edad_media',
+      },
+    ],
+  },
+  {
+    id: 'seed_misterio_investigativo',
+    videoId: 'misterio_cronologico_viral',
+    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+    title: 'Misterio Histórico / True Crime Antiguo (Estructura de Investigación Forense en 5 Pistas)',
+    channelName: 'Plantilla Viral Analizada',
+    analyzedAt: new Date().toISOString(),
+    commentsCount: 31,
+    structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Abre con la escena del hallazgo o el instante exacto de la desaparición/crimen histórico, presentando una prueba física que contradice la versión oficial de los libros.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Intro 8s + Escena del Enigma, 8%): Fecha exacta, lugar y el hallazgo inexplicable que abre la investigación.
+   - Bloque 2 (La Versión Oficial y su Grieta, 19%): Qué se creyó durante siglos y cuál es el documento o rastro que no encaja.
+   - Bloque 3 (Reconstrucción Minuto a Minuto, 25%): Seguimiento cronológico de las últimas horas de los protagonistas como un thriller documental.
+   - Bloque 4 (Los Sospechosos y el Motivo Oculto, 22%): Intereses políticos, religiosos o económicos detrás del encubrimiento.
+   - Bloque 5 (La Evidencia Forense / Arqueológica Moderna, 18%): Qué reveló la ciencia moderna al analizar los restos o archivos secretos.
+   - Bloque 6 (Veredicto Abierto + Outro 8s, 8%): Presentación de la conclusión más sólida + pregunta de debate + Outro Oficial de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.`,
+    structuralBlocks: [
+      { name: 'Intro (8s) + El Hallazgo Inexplicable', pct: 8, description: 'Presenta el enigma central y la contradicción histórica.' },
+      { name: 'Acto I: La Versión Oficial rota', pct: 19, description: 'Expone la historia oficial y la pista que la desmiente.' },
+      { name: 'Acto II: Cronología del Suceso', pct: 25, description: 'Reconstrucción inmersiva hora por hora de los hechos.' },
+      { name: 'Acto III: Conspiración y Motivos', pct: 22, description: 'Quién ganaba con el silencio y cómo se ocultó la verdad.' },
+      { name: 'Acto IV: Ciencia vs. Mito', pct: 18, description: 'Descubrimientos arqueológicos o forenses recientes.' },
+      { name: 'Veredicto + Outro (8s)', pct: 8, description: 'Cierre reflexivo con la huella histórica y Outro de 8s.' },
+    ],
+    comments: [],
+  },
+];
+
+function deduplicateAndClusterComments(
+  rawComments: YoutubeExtractedComment[],
+  sourceType: 'channel' | 'analyzed_video',
+  fallbackVideoTitle: string = ''
+): DeduplicatedAudienceComment[] {
+  const questionRx =
+    /\?|¿|\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] pas[oó]|es verdad|ser[aá] cierto|alguien sabe|duda|pregunta)\b/i;
+  const suggestionRx =
+    /\b(deber[ií]as|deber[ií]an|podr[ií]as|podr[ií]an|haz un video|hagan un video|habla sobre|hablen sobre|falta hablar|falt[oó] mencionar|sugiero|recomiendo|ser[ií]a bueno|me gustar[ií]a ver|para cu[aá]ndo un video|siguiente video|parte 2|parte ii|segunda parte)\b/i;
+
+  const stopWords = new Set([
+    'para', 'como', 'este', 'esta', 'estos', 'estas', 'pero', 'porque', 'cuando', 'donde',
+    'quien', 'sobre', 'entre', 'hasta', 'desde', 'todo', 'toda', 'todos', 'todas', 'muy',
+    'mas', 'tambien', 'solo', 'hacer', 'hace', 'hizo', 'video', 'videos', 'canal', 'hola',
+    'saludos', 'gracias', 'buen', 'bueno', 'buena', 'excelente', 'encanta', 'gustaria',
+    'puedes', 'podrias', 'deberian', 'deberias', 'hablar', 'hacerlo', 'favor', 'amigo',
+  ]);
+
+  const extractSignificantTokens = (text: string): string[] => {
+    const norm = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 4 && !stopWords.has(w));
+    return Array.from(new Set(norm));
+  };
+
+  interface Cluster {
+    item: DeduplicatedAudienceComment;
+    tokens: Set<string>;
+    normKey: string;
+  }
+
+  const clusters: Cluster[] = [];
+
+  for (const c of rawComments) {
+    const clean = String(c.text || '').replace(/\s+/g, ' ').trim();
+    if (clean.length < 8) continue;
+
+    const category: 'question' | 'suggestion' | 'comment' = questionRx.test(clean)
+      ? 'question'
+      : suggestionRx.test(clean)
+      ? 'suggestion'
+      : 'comment';
+
+    const tokensArr = extractSignificantTokens(clean);
+    const normKey = tokensArr.slice(0, 8).sort().join('_');
+    const tokenSet = new Set(tokensArr);
+    const numericLikes = parseInt(String(c.likes || '0').replace(/[^0-9]/g, ''), 10) || 0;
+
+    let matchedCluster: Cluster | null = null;
+    for (const cl of clusters) {
+      if (cl.item.category !== category) continue;
+      if (normKey && cl.normKey === normKey) {
+        matchedCluster = cl;
+        break;
+      }
+      if (tokenSet.size >= 2 && cl.tokens.size >= 2) {
+        let overlap = 0;
+        for (const t of tokenSet) {
+          if (cl.tokens.has(t)) overlap++;
+        }
+        const minSize = Math.min(tokenSet.size, cl.tokens.size);
+        const maxSize = Math.max(tokenSet.size, cl.tokens.size);
+        if (overlap >= 2 && (overlap / minSize >= 0.65 || overlap / maxSize >= 0.5)) {
+          matchedCluster = cl;
+          break;
+        }
+      }
+    }
+
+    if (matchedCluster) {
+      matchedCluster.item.repeatCount += 1;
+      matchedCluster.item.likes += numericLikes;
+      // Keep the clearer/more complete phrasing if the new one is slightly more detailed (up to 220 chars)
+      if (clean.length > matchedCluster.item.text.length && clean.length <= 220) {
+        matchedCluster.item.text = clean;
+      }
+      for (const t of tokenSet) matchedCluster.tokens.add(t);
+    } else {
+      clusters.push({
+        normKey,
+        tokens: tokenSet,
+        item: {
+          id: `${sourceType}-${clusters.length + 1}-${Date.now().toString(36)}`,
+          text: clean,
+          author: c.author || 'Espectador',
+          likes: numericLikes,
+          repeatCount: 1,
+          category,
+          sourceType,
+          videoTitle: c.videoTitle || fallbackVideoTitle || 'Video analizado',
+          videoId: c.videoId || '',
+        },
+      });
+    }
+  }
+
+  return clusters
+    .map((c) => c.item)
+    .sort((a, b) => {
+      if (b.repeatCount !== a.repeatCount) return b.repeatCount - a.repeatCount;
+      if (a.category !== b.category) {
+        const order = { question: 0, suggestion: 1, comment: 2 };
+        return order[a.category] - order[b.category];
+      }
+      return b.likes - a.likes;
+    });
+}
+
+function loadAnalyzedVideosLibrary(): AnalyzedVideoLibraryEntry[] {
+  try {
+    if (fs.existsSync(ANALYZED_VIDEOS_LIBRARY_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(ANALYZED_VIDEOS_LIBRARY_FILE, 'utf8'));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  try {
+    fs.writeFileSync(
+      ANALYZED_VIDEOS_LIBRARY_FILE,
+      JSON.stringify(DEFAULT_ANALYZED_VIDEOS_SEED, null, 2),
+      'utf8'
+    );
+  } catch {}
+  return [...DEFAULT_ANALYZED_VIDEOS_SEED];
+}
+
+function saveAnalyzedVideosLibrary(list: AnalyzedVideoLibraryEntry[]): void {
+  try {
+    fs.writeFileSync(ANALYZED_VIDEOS_LIBRARY_FILE, JSON.stringify(list, null, 2), 'utf8');
+  } catch {}
+}
+
 function classifyQuestionsAndSuggestionsHeuristic(comments: YoutubeExtractedComment[]): {
   questions: string[];
   suggestions: string[];
   notableComments: string[];
 } {
-  const questions: string[] = [];
-  const suggestions: string[] = [];
-  const notableComments: string[] = [];
-
-  const questionRx =
-    /\?|¿|\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] pas[oó]|es verdad|ser[aá] cierto|alguien sabe|duda|pregunta)\b/i;
-  const suggestionRx =
-    /\b(deber[ií]as|deber[ií]an|podr[ií]as|podr[ií]an|haz un video|hagan un video|habla sobre|hablen sobre|falta hablar|falt[oó] mencionar|sugiero|recomiendo|ser[ií]a bueno|me gustar[ií]a ver|para cu[aá]ndo un video|siguiente video)\b/i;
-
-  for (const c of comments) {
-    const clean = c.text.replace(/\s+/g, ' ').trim();
-    if (clean.length < 6) continue;
-    const prefix = c.videoTitle ? `[${c.author || 'Espectador'}]: ` : `[${c.author || 'Espectador'}]: `;
-    const formatted = `${prefix}"${clean}"`;
-
-    if (questionRx.test(clean) && questions.length < 15) {
-      questions.push(formatted);
-    } else if (suggestionRx.test(clean) && suggestions.length < 15) {
-      suggestions.push(formatted);
-    } else if (notableComments.length < 12) {
-      notableComments.push(formatted);
-    }
-  }
+  const deduped = deduplicateAndClusterComments(comments, 'analyzed_video');
+  const questions = deduped
+    .filter((c) => c.category === 'question')
+    .slice(0, 15)
+    .map(
+      (c) =>
+        `${c.repeatCount > 1 ? `[Repetido ×${c.repeatCount}] ` : ''}[${c.author}]: "${c.text}"`
+    );
+  const suggestions = deduped
+    .filter((c) => c.category === 'suggestion')
+    .slice(0, 15)
+    .map(
+      (c) =>
+        `${c.repeatCount > 1 ? `[Repetido ×${c.repeatCount}] ` : ''}[${c.author}]: "${c.text}"`
+    );
+  const notableComments = deduped
+    .filter((c) => c.category === 'comment')
+    .slice(0, 12)
+    .map(
+      (c) =>
+        `${c.repeatCount > 1 ? `[Repetido ×${c.repeatCount}] ` : ''}[${c.author}]: "${c.text}"`
+    );
 
   return { questions, suggestions, notableComments };
 }
 
+app.get('/api/youtube/analyzed-videos', async (_req, res) => {
+  try {
+    const library = loadAnalyzedVideosLibrary();
+    const channelData = await fetchHuellasChannelCommentsCached(false);
+    const deduplicatedChannelComments = deduplicateAndClusterComments(
+      channelData.comments,
+      'channel',
+      '@huellas_de_la_humanidad'
+    );
+    // Merge seed channel comments if live channel scrape returned 0 comments (e.g. offline)
+    const effectiveChannelComments =
+      deduplicatedChannelComments.length > 0
+        ? deduplicatedChannelComments
+        : library
+            .flatMap((v) => v.comments || [])
+            .filter((c) => c.sourceType === 'channel');
+
+    const analyzedVideosComments = library.flatMap((v) =>
+      (v.comments || []).map((c) => ({
+        ...c,
+        videoTitle: c.videoTitle || v.title,
+        videoId: c.videoId || v.videoId,
+      }))
+    );
+
+    res.json({
+      ok: true,
+      videos: library,
+      channelComments: effectiveChannelComments,
+      analyzedVideosComments,
+      channelVideosScanned: channelData.videoCount,
+      channelUpdatedAt: channelData.updatedAt,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Error cargando biblioteca de videos analizados.' });
+  }
+});
+
+app.post('/api/youtube/analyzed-videos', (req, res) => {
+  try {
+    const body = req.body || {};
+    const library = loadAnalyzedVideosLibrary();
+    const rawUrl = String(body.url || '').trim();
+    const extractedId = extractYoutubeVideoId(rawUrl) || String(body.videoId || body.id || `vid_${Date.now()}`);
+    const existingIdx = library.findIndex(
+      (v) => v.id === body.id || v.videoId === extractedId || (rawUrl && v.url === rawUrl)
+    );
+
+    const entry: AnalyzedVideoLibraryEntry = {
+      id: existingIdx >= 0 ? library[existingIdx].id : String(body.id || `vid_${extractedId}`),
+      videoId: extractedId,
+      url: rawUrl || (existingIdx >= 0 ? library[existingIdx].url : ''),
+      title: String(body.title || (existingIdx >= 0 ? library[existingIdx].title : `Video Analizado (${extractedId})`)).trim(),
+      channelName: String(body.channelName || (existingIdx >= 0 ? library[existingIdx].channelName : 'YouTube')).trim(),
+      analyzedAt: new Date().toISOString(),
+      commentsCount: Number(body.commentsCount ?? (existingIdx >= 0 ? library[existingIdx].commentsCount : 0)),
+      structureSummary: String(
+        body.structureSummary ||
+          (existingIdx >= 0 ? library[existingIdx].structureSummary : '')
+      ).trim(),
+      structuralBlocks:
+        Array.isArray(body.structuralBlocks) && body.structuralBlocks.length > 0
+          ? body.structuralBlocks
+          : existingIdx >= 0
+          ? library[existingIdx].structuralBlocks
+          : [
+              { name: 'Intro (8s) + Hook Sensorial', pct: 8, description: 'Apertura de alto impacto y promesa narrativa antes del segundo 30.' },
+              { name: 'Acto I: Contexto y Paradoja', pct: 20, description: 'Planteamiento del escenario histórico y la contradicción central.' },
+              { name: 'Acto II: Escalada y Revelaciones', pct: 25, description: 'Desarrollo cronológico con micro-ganchos de retención.' },
+              { name: 'Acto III: Giro Dramático', pct: 22, description: 'Punto de inflexión histórico y consecuencias humanas.' },
+              { name: 'Acto IV: Desenlace y Huella', pct: 17, description: 'Resolución del misterio y conexión con el presente.' },
+              { name: 'Cierre Reflexivo + Outro (8s)', pct: 8, description: 'Slogan final, pregunta a la audiencia y Outro Oficial de 8s.' },
+            ],
+      comments:
+        Array.isArray(body.comments) && body.comments.length > 0
+          ? body.comments
+          : existingIdx >= 0
+          ? library[existingIdx].comments
+          : [],
+    };
+
+    if (existingIdx >= 0) {
+      library[existingIdx] = entry;
+    } else {
+      library.unshift(entry);
+    }
+    saveAnalyzedVideosLibrary(library);
+    res.json({ ok: true, entry, videos: library });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Error guardando video analizado.' });
+  }
+});
+
 app.post('/api/youtube/analyze-comments-research', async (req, res) => {
   try {
-    const { videoUrl = '', forceRefreshChannel = false } = req.body || {};
+    const { videoUrl = '', forceRefreshChannel = false, allowPaidApi = false } = req.body || {};
     const targetVideoId = extractYoutubeVideoId(videoUrl);
 
     const [targetData, channelData] = await Promise.all([
       targetVideoId
-        ? fetchYoutubeVideoCommentsDataOnly(targetVideoId, 2)
+        ? fetchYoutubeVideoCommentsDataOnly(targetVideoId, 3)
         : Promise.resolve({ videoId: '', title: '', comments: [] as YoutubeExtractedComment[] }),
       fetchHuellasChannelCommentsCached(Boolean(forceRefreshChannel)),
     ]);
@@ -4962,6 +5360,17 @@ app.post('/api/youtube/analyze-comments-research', async (req, res) => {
       (c) => !c.author.toLowerCase().includes('huellas_de_la_humanidad')
     );
 
+    const deduplicatedTargetComments = deduplicateAndClusterComments(
+      targetViewerComments,
+      'analyzed_video',
+      targetData.title || videoUrl
+    );
+    const deduplicatedChannelComments = deduplicateAndClusterComments(
+      channelData.comments,
+      'channel',
+      '@huellas_de_la_humanidad'
+    );
+
     const targetClassified = classifyQuestionsAndSuggestionsHeuristic(targetViewerComments);
     const channelClassified = classifyQuestionsAndSuggestionsHeuristic(channelData.comments);
 
@@ -4969,7 +5378,8 @@ app.post('/api/youtube/analyze-comments-research', async (req, res) => {
     let aiSynthesizedSuggestions: string[] = [];
     let aiResearchDirectives: string[] = [];
 
-    const ai = getGeminiClient();
+    // NEVER use paid Gemini API unless explicitly authorized by user (allowPaidApi === true)
+    const ai = allowPaidApi ? getGeminiClient() : null;
     if (ai && (targetViewerComments.length > 0 || channelData.comments.length > 0)) {
       try {
         const sampleTarget = targetViewerComments
@@ -4998,18 +5408,18 @@ TU TAREA:
 Analiza todos estos comentarios buscando específicamente:
 - Preguntas, dudas históricas, vacíos de información o inquietudes que las personas dejaron en los comentarios.
 - Sugerencias de temas, enfoques, personajes, épocas o ángulos que las personas piden o debaten.
-- Qué puntos específicos DEBE incluir el PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA (Etapa 3) para que la investigación responda con rigor histórico a esas preguntas y aproveche esas sugerencias de la audiencia.
+- Qué puntos específicos DEBE incluir el PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA para que la investigación responda con rigor histórico a esas preguntas y aproveche esas sugerencias de la audiencia.
 
 Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
 {
   "questionsDetected": [
-    "Pregunta o duda real detectada en los comentarios (indicando si viene del video analizado o de la comunidad de @huellas_de_la_humanidad)"
+    "Pregunta o duda real detectada en los comentarios"
   ],
   "suggestionsDetected": [
     "Sugerencia, petición o debate real detectado en los comentarios"
   ],
   "researchPromptDirectives": [
-    "Directriz concreta de investigación para incluir dentro del Prompt de Investigación Profunda de la Etapa 3 para responder a estas preguntas/sugerencias"
+    "Directriz concreta de investigación para incluir dentro del Prompt de Investigación Profunda"
   ]
 }`;
 
@@ -5045,7 +5455,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
         : [
             ...targetClassified.questions.map((q) => `(Video analizado) ${q}`),
             ...channelClassified.questions.map((q) => `(@huellas_de_la_humanidad) ${q}`),
-          ].slice(0, 12);
+          ].slice(0, 15);
 
     const finalSuggestions =
       aiSynthesizedSuggestions.length > 0
@@ -5057,23 +5467,68 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
             ...channelClassified.notableComments
               .slice(0, 4)
               .map((n) => `(Reacción en @huellas_de_la_humanidad) ${n}`),
-          ].slice(0, 12);
+          ].slice(0, 15);
+
+    // Save or update target video in the persistent Analyzed Videos Library if a valid YouTube link was provided
+    const library = loadAnalyzedVideosLibrary();
+    let matchedLibraryEntry: AnalyzedVideoLibraryEntry | null = null;
+    if (targetVideoId) {
+      const existingIdx = library.findIndex((v) => v.videoId === targetVideoId || v.url === videoUrl);
+      const defaultSummary = `Análisis de "${targetData.title || videoUrl}":\n- Comentarios públicos extraídos y agrupados: ${targetViewerComments.length} (${deduplicatedTargetComments.length} únicos agrupados por repetición).\n- Al ejecutar "✨ Comenzar Investigación", Gemini Web (en modo High + Deep Research) realizará la radiografía completa de los 8 ejes virales de este video junto con la investigación del documental en curso y actualizará esta ficha automáticamente.`;
+      const entry: AnalyzedVideoLibraryEntry = {
+        id: existingIdx >= 0 ? library[existingIdx].id : `vid_${targetVideoId}`,
+        videoId: targetVideoId,
+        url: videoUrl,
+        title:
+          targetData.title && targetData.title !== targetVideoId
+            ? targetData.title
+            : existingIdx >= 0
+            ? library[existingIdx].title
+            : `Video de YouTube (${targetVideoId})`,
+        channelName: existingIdx >= 0 ? library[existingIdx].channelName : 'YouTube Referencia Viral',
+        analyzedAt: new Date().toISOString(),
+        commentsCount: targetViewerComments.length,
+        structureSummary:
+          existingIdx >= 0 && library[existingIdx].structureSummary
+            ? library[existingIdx].structureSummary
+            : defaultSummary,
+        structuralBlocks:
+          existingIdx >= 0 && library[existingIdx].structuralBlocks?.length > 0
+            ? library[existingIdx].structuralBlocks
+            : [
+                { name: 'Intro (8s) + Hook Viral', pct: 8, description: 'Apertura magnética en los primerossegundos y promesa narrativa.' },
+                { name: 'Acto I: Planteamiento Histórico', pct: 20, description: 'Contexto de época, lugar y contradicción inicial.' },
+                { name: 'Acto II: Desarrollo y Tensión', pct: 25, description: 'Progresión narrativa con micro-ganchos de retención.' },
+                { name: 'Acto III: Revelación Central', pct: 22, description: 'Giro dramático y hallazgos documentales.' },
+                { name: 'Acto IV: Impacto y Legado', pct: 17, description: 'Resolución histórica de las preguntas planteadas.' },
+                { name: 'Cierre + Outro Oficial (8s)', pct: 8, description: 'Reflexión final, Slogan y Outro Oficial de 8s.' },
+              ],
+        comments: deduplicatedTargetComments,
+      };
+      if (existingIdx >= 0) {
+        library[existingIdx] = entry;
+      } else {
+        library.unshift(entry);
+      }
+      saveAnalyzedVideosLibrary(library);
+      matchedLibraryEntry = entry;
+    }
 
     const lines: string[] = [
       `================================================================================`,
       `💬 MINERÍA REAL DE COMENTARIOS DE LA AUDIENCIA (VIDEO ANALIZADO + CANAL ${HUELLAS_OFFICIAL_CHANNEL_HANDLE})`,
       `================================================================================`,
-      `- Video de referencia analizado: ${targetData.title || videoUrl} (${targetViewerComments.length} comentarios leídos)`,
+      `- Video de referencia analizado: ${targetData.title || videoUrl || 'Canal General'} (${targetViewerComments.length} comentarios leídos, agrupados por frecuencia)`,
       `- Canal propio escaneado (${HUELLAS_OFFICIAL_CHANNEL_URL}): ${channelData.videoCount} videos revisados (${channelData.comments.length} comentarios de suscriptores leídos)`,
       ``,
-      `❓ PREGUNTAS, DUDAS E INQUIETUDES DE LAS PERSONAS EN LOS COMENTARIOS:`,
+      `❓ PREGUNTAS, DUDAS E INQUIETUDES DE LAS PERSONAS EN LOS COMENTARIOS (CON FRECUENCIA DE REPETICIÓN):`,
       ...(finalQuestions.length > 0
         ? finalQuestions.map((q, i) => `   ${i + 1}. ${q}`)
         : [
             `   - No se detectaron preguntas literales con signo de interrogación; analiza las reacciones de la audiencia para anticipar sus dudas históricas sobre "${targetData.title || 'este tema'}".`,
           ]),
       ``,
-      `💡 SUGERENCIAS, PETICIONES Y DEBATES DE LA AUDIENCIA EN LOS COMENTARIOS:`,
+      `💡 SUGERENCIAS, PETICIONES Y DEBATES DE LA AUDIENCIA EN LOS COMENTARIOS (CON FRECUENCIA DE REPETICIÓN):`,
       ...(finalSuggestions.length > 0
         ? finalSuggestions.map((s, i) => `   ${i + 1}. ${s}`)
         : [
@@ -5082,13 +5537,13 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
       ...(aiResearchDirectives.length > 0
         ? [
             ``,
-            `🎯 ÁNGULOS OBLIGATORIOS A INCLUIR EN EL PROMPT PARA REALIZAR LA INVESTIGACIÓN (ETAPA 3):`,
+            `🎯 ÁNGULOS OBLIGATORIOS A INCLUIR EN EL PROMPT PARA REALIZAR LA INVESTIGACIÓN:`,
             ...aiResearchDirectives.map((d, i) => `   ${i + 1}. ${d}`),
           ]
         : []),
       ``,
       `-> REGLA INQUEBRANTABLE SOBRE ESTOS COMENTARIOS (SOLO EN EL PROMPT DE INVESTIGACIÓN):`,
-      `   NO insertes estas preguntas ni sugerencias directamente como texto suelto en el resultado final, SINO INCLÚYELAS OBLIGATORIAMENTE DENTRO DEL PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA (Etapa 3, bloque del Prompt Maestro de Investigación) para que al ejecutar dicho prompt de investigación se investiguen y respondan a fondo todas las dudas, preguntas y sugerencias reales de la audiencia.`,
+      `   NO insertes estas preguntas ni sugerencias directamente como texto suelto en el resultado final, SINO INCLÚYELAS OBLIGATORIAMENTE DENTRO DEL PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA para que al ejecutar dicho prompt de investigación se investiguen y respondan a fondo todas las dudas, preguntas y sugerencias reales de la audiencia.`,
       `================================================================================`,
     ];
 
@@ -5106,6 +5561,10 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
       suggestionsDetected: finalSuggestions,
       researchDirectives: aiResearchDirectives,
       researchPromptBlock,
+      deduplicatedTargetComments,
+      deduplicatedChannelComments,
+      analyzedVideosLibrary: library,
+      matchedLibraryEntry,
     });
   } catch (err: any) {
     console.error('Error en /api/youtube/analyze-comments-research:', err);

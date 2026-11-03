@@ -2692,7 +2692,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 },
               })
               .catch(() => {});
-          }, 420);
+          }, payload.enableHighModel || payload.enableDeepResearch ? 1650 : 420);
         }
 
         // MAIN-world network hook + React Fiber scanner + prompt submitter for Flow Music (flowmusic.app)
