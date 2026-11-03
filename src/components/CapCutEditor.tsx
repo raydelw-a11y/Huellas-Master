@@ -4766,7 +4766,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!isPlaying || isFitEntireProject || isScrubbingRulerRef.current) return;
     const container = timelineScrollContainerRef.current;
     if (!container) return;
-    const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+    const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
     const playheadX = trackHeaderOffsetPx + currentTime * timelineZoom;
     const viewLeft = container.scrollLeft;
     const viewWidth = container.clientWidth;
@@ -4788,10 +4788,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   ) => {
     const container = timelineScrollContainerRef.current;
     if (container && !nextFitEntireProject) {
-      const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+      const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
       const viewWidth = container.clientWidth;
       if (isFitEntireProject) {
-        const fitTrackWidth = Math.max(100, viewWidth - trackHeaderOffsetPx - 24);
+        const fitTrackWidth = Math.max(100, viewWidth - trackHeaderOffsetPx - 16);
         const progress = Math.min(
           1,
           Math.max(0, currentTimeRef.current / Math.max(1, totalDurationSec))
@@ -4830,7 +4830,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     const container = timelineScrollContainerRef.current;
     if (!container) return;
-    const trackHeaderOffsetPx = 184; // w-44 (176px) + gap-2 (8px)
+    const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
     const viewWidth = container.clientWidth;
     const newPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
     const targetViewportOffset =
@@ -12001,18 +12001,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           </div>
         </div>
 
-        {/* Fixed Numerical Time Ruler Header (Outside Vertical Scroll Container) */}
+        {/* Unified Scrollable Multi-Track + Sticky Ruler Container (Single Unbroken Playhead Needle) */}
         <div
-          ref={timelineRulerScrollRef}
-          onWheel={(e) => {
-            if (!isFitEntireProject && timelineScrollContainerRef.current && Math.abs(e.deltaX) > 0) {
-              timelineScrollContainerRef.current.scrollLeft += e.deltaX;
-            }
-          }}
-          className="shrink-0 bg-[#0b0907] border-b border-slate-800/90 px-2 py-1 overflow-hidden z-20"
+          ref={timelineScrollContainerRef}
+          className={`flex-1 min-h-0 bg-[#0e0c09] px-2 pb-1.5 overflow-y-auto ${
+            isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
+          }`}
         >
-          <div className={`relative ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
-            {/* Playhead Top Handle / Time Badge on Fixed Ruler */}
+          <div className={`relative space-y-1 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
+            {/* =================================================================
+                SINGLE UNIFIED VERTICAL PLAYHEAD NEEDLE (RULER + ALL TRACKS)
+            ================================================================= */}
             <div
               style={{
                 left: isFitEntireProject
@@ -12022,23 +12021,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ).toFixed(6)})`
                   : `calc(9.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
               }}
-              className="pointer-events-none absolute top-0 bottom-0 z-30"
+              className="pointer-events-none absolute top-0 bottom-0 z-40 w-0"
             >
+              {/* Single Unbroken Vertical Playhead Line from Top of Ruler through Bottom of Track 5 */}
+              <div className="absolute top-0 bottom-0 left-0 -translate-x-1/2 w-[2.5px] bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
+              {/* Sticky Top Playhead Handle & Time Badge */}
               <div
                 onMouseDown={handleStartRulerScrub}
-                title="Arrastra el guion vertical para moverte por la línea de tiempo"
-                className="pointer-events-auto cursor-ew-resize -translate-x-1/2 flex flex-col items-center select-none"
+                title="Arrastra la aguja para moverte por la línea de tiempo"
+                className="sticky top-0 z-50 pointer-events-auto cursor-ew-resize w-max -translate-x-1/2 flex flex-col items-center select-none pt-0.5"
               >
                 <div className="px-1.5 py-0.5 rounded bg-rose-600 border border-amber-300 text-[9px] font-mono font-black text-white shadow-md whitespace-nowrap leading-none">
                   {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
                 </div>
                 <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-amber-300" />
               </div>
-              <div className="w-[2.5px] -translate-x-1/2 h-full bg-amber-300 shadow-[0_0_10px_rgba(244,63,94,0.95)]" />
             </div>
 
-            {/* TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM) */}
-            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+            {/* STICKY TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM) */}
+            <div
+              ref={timelineRulerScrollRef}
+              className={`sticky top-0 z-30 bg-[#0b0907] py-1 border-b border-slate-800/90 flex items-center gap-2 ${
+                isFitEntireProject ? 'w-full' : 'min-w-max'
+              }`}
+            >
               <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between">
                 <span>⏱️ Regla</span>
                 <span className="px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
@@ -12122,39 +12128,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   );
                 })}
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Scrollable Multi-Track Container */}
-        <div
-          ref={timelineScrollContainerRef}
-          onScroll={(e) => {
-            if (timelineRulerScrollRef.current) {
-              timelineRulerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
-            }
-          }}
-          className={`flex-1 min-h-0 bg-[#0e0c09] px-2 py-1.5 overflow-y-auto ${
-            isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
-          }`}
-        >
-          <div className={`relative space-y-1 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
-            {/* =================================================================
-                GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
-            ================================================================= */}
-            <div
-              style={{
-                left: isFitEntireProject
-                  ? `calc(9.5rem + (100% - 9.5rem) * ${Math.min(
-                      1,
-                      Math.max(0, currentTime / Math.max(1, totalDurationSec))
-                    ).toFixed(6)})`
-                  : `calc(9.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
-              }}
-              className="pointer-events-none absolute top-0 bottom-0 z-30"
-            >
-              {/* Continuous Vertical Playhead Line across all tracks */}
-              <div className="w-[2.5px] -translate-x-1/2 h-full bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
             </div>
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
