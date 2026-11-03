@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:23 PM - 11/02/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:35 PM - 11/02/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -858,16 +858,71 @@ export default function App() {
   const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>('');
   const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>([]);
   const [analyzedVideosDeduplicatedComments, setAnalyzedVideosDeduplicatedComments] = useState<any[]>([]);
-  const [commentsSourceFilter, setCommentsSourceFilter] = useState<'ALL' | 'CHANNEL' | 'ANALYZED'>('ALL');
-  const [commentsTypeFilter, setCommentsTypeFilter] = useState<'ALL' | 'question' | 'suggestion'>('ALL');
-  const [selectedCommentIdsForResearch, setSelectedCommentIdsForResearch] = useState<string[]>([]);
-  const [commentsLoadingStage1, setCommentsLoadingStage1] = useState<boolean>(false);
+  const [stage1CommentSourceFilter, setStage1CommentSourceFilter] = useState<'ALL' | 'OWN' | 'EXTERNAL'>('ALL');
+  const [stage1CommentKindFilter, setStage1CommentKindFilter] = useState<'ALL' | 'question' | 'suggestion'>('ALL');
+  const [stage1CommentSearch, setStage1CommentSearch] = useState<string>('');
+  const [selectedResearchCommentIds, setSelectedResearchCommentIds] = useState<string[]>([]);
+  const [stage1LoadingLibrary, setStage1LoadingLibrary] = useState<boolean>(false);
   const [geminiHighModelEnabled, setGeminiHighModelEnabled] = useState<boolean>(true);
   const [geminiDeepResearchEnabled, setGeminiDeepResearchEnabled] = useState<boolean>(true);
   const [suggestedViralAngles, setSuggestedViralAngles] = useState<string[]>([]);
 
-  const loadStage1AnalyzedVideosAndComments = async (forceRefresh = false, customVideoUrl = '') => {
-    setCommentsLoadingStage1(true);
+  const deduplicatedCommentsList = useMemo(() => {
+    const mapComment = (c: any, defaultSource: 'OWN_CHANNEL' | 'ANALYZED_VIDEO') => ({
+      id: String(c.id || `${defaultSource}-${c.text || ''}`),
+      text: String(c.text || ''),
+      repeatCount: Math.max(1, Number(c.repeatCount) || 1),
+      totalLikes: Number(c.totalLikes ?? c.likes ?? 0) || 0,
+      source:
+        c.source === 'OWN_CHANNEL' || c.sourceType === 'channel'
+          ? ('OWN_CHANNEL' as const)
+          : c.source === 'ANALYZED_VIDEO' || c.sourceType === 'analyzed_video'
+          ? ('ANALYZED_VIDEO' as const)
+          : defaultSource,
+      kind: (c.kind || c.category || 'comment') as 'question' | 'suggestion' | 'comment',
+      videoTitle: String(c.videoTitle || 'Video analizado'),
+    });
+
+    const combined = [
+      ...channelDeduplicatedComments.map((c) => mapComment(c, 'OWN_CHANNEL')),
+      ...analyzedVideosDeduplicatedComments.map((c) => mapComment(c, 'ANALYZED_VIDEO')),
+    ];
+    const seen = new Set<string>();
+    const unique: typeof combined = [];
+    for (const item of combined) {
+      if (!item.text.trim()) continue;
+      const key = item.text.toLowerCase().trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(item);
+    }
+    return unique.sort((a, b) => {
+      if (b.repeatCount !== a.repeatCount) return b.repeatCount - a.repeatCount;
+      return b.totalLikes - a.totalLikes;
+    });
+  }, [channelDeduplicatedComments, analyzedVideosDeduplicatedComments]);
+
+  const normalizeAnalyzedVideoEntries = (rawList: any[]) =>
+    (Array.isArray(rawList) ? rawList : []).map((v: any) => ({
+      ...v,
+      id: String(v.id || v.videoId || ''),
+      videoId: String(v.videoId || v.id || ''),
+      title: String(v.title || 'Video Analizado'),
+      channelTitle: String(v.channelTitle || v.channelName || '@huellas_de_la_humanidad'),
+      url: String(v.url || ''),
+      analyzedAt: String(v.analyzedAt || new Date().toISOString()),
+      structureSummary: String(v.structureSummary || ''),
+      structuralBlocks: Array.isArray(v.structuralBlocks) ? v.structuralBlocks : [],
+    }));
+
+  const loadStage1AnalyzedVideosAndComments = async (
+    customVideoUrlOrForce: string | boolean = false,
+    _topicHint = ''
+  ) => {
+    const forceRefresh = customVideoUrlOrForce === true;
+    const customVideoUrl =
+      typeof customVideoUrlOrForce === 'string' ? customVideoUrlOrForce.trim() : '';
+    setStage1LoadingLibrary(true);
     try {
       if (forceRefresh || customVideoUrl) {
         const res = await fetch('/api/youtube/analyze-comments-research', {
@@ -882,19 +937,25 @@ export default function App() {
         const data = await res.json();
         if (res.ok && data.ok) {
           if (Array.isArray(data.analyzedVideosLibrary)) {
-            setAnalyzedVideosLibrary(data.analyzedVideosLibrary);
+            const normVids = normalizeAnalyzedVideoEntries(data.analyzedVideosLibrary);
+            setAnalyzedVideosLibrary(normVids);
+            if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
+              setSelectedAnalyzedVideoId(normVids[0].videoId);
+            }
           }
           if (Array.isArray(data.deduplicatedChannelComments)) {
             setChannelDeduplicatedComments(data.deduplicatedChannelComments);
           }
           if (Array.isArray(data.deduplicatedTargetComments) && data.deduplicatedTargetComments.length > 0) {
-            setAnalyzedVideosDeduplicatedComments((prev) => {
-              const merged = [...data.deduplicatedTargetComments, ...prev];
-              return merged;
-            });
+            setAnalyzedVideosDeduplicatedComments((prev) => [
+              ...data.deduplicatedTargetComments,
+              ...prev,
+            ]);
           }
-          if (data.matchedLibraryEntry?.id) {
-            setSelectedAnalyzedVideoId(data.matchedLibraryEntry.id);
+          if (data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id) {
+            setSelectedAnalyzedVideoId(
+              String(data.matchedLibraryEntry.videoId || data.matchedLibraryEntry.id)
+            );
           }
           return;
         }
@@ -902,19 +963,27 @@ export default function App() {
       const resLib = await fetch('/api/youtube/analyzed-videos');
       const dataLib = await resLib.json();
       if (resLib.ok && dataLib.ok) {
-        if (Array.isArray(dataLib.videos)) setAnalyzedVideosLibrary(dataLib.videos);
-        if (Array.isArray(dataLib.channelComments)) setChannelDeduplicatedComments(dataLib.channelComments);
+        if (Array.isArray(dataLib.videos)) {
+          const normVids = normalizeAnalyzedVideoEntries(dataLib.videos);
+          setAnalyzedVideosLibrary(normVids);
+          if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
+            setSelectedAnalyzedVideoId(normVids[0].videoId);
+          }
+        }
+        if (Array.isArray(dataLib.channelComments)) {
+          setChannelDeduplicatedComments(dataLib.channelComments);
+        }
         if (Array.isArray(dataLib.analyzedVideosComments)) {
           setAnalyzedVideosDeduplicatedComments(dataLib.analyzedVideosComments);
         }
       }
     } catch {} finally {
-      setCommentsLoadingStage1(false);
+      setStage1LoadingLibrary(false);
     }
   };
 
   useEffect(() => {
-    if (mainView === 'studio' && activeStage === 1) {
+    if (mainView === 'studio' && (activeStage === 1 || activeStage === 2 || activeStage === 3)) {
       loadStage1AnalyzedVideosAndComments(false);
     }
   }, [mainView, activeStage]);
