@@ -209,6 +209,11 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const newClip2 =
       "Clip 2 (00:06 - 00:16): Create a video in a steady medium two-shot on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the dark wool beret reaches his right arm forward across the wooden table and places the single white rectangular paper steamship ticket directly into the waiting hand of the port clerk sitting on the wooden chair at the table, who closes his fingers around the paper ticket, pulls it toward himself over the tabletop, and looks down to inspect it, strictly no voiceover. The paper ticket stays a single flat rectangular paper ticket as it passes smoothly from the farmer's hand into the seated clerk's hand without morphing or transforming into coins or any other object. Both men keep their mouths closed in silent action with zero spoken words, zero narration, and zero voiceover. Ambient Foley: steady rain pattering on wet stone, crisp paper ticket rustle as it changes hands, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. Año 1885, muelle de Maliaño, Santander, España. La rampa de piedra húmeda donde miles de campesinos del norte entregaban los ahorros de toda una vida para cruzar. fix the name";
 
+    const newImg5 =
+      'Image 5: Create an image of a massive black-hulled 1885 transatlantic steamship sailing away into a dark stormy Atlantic night, illuminated by a sweeping golden beam of light from a stone harbor lighthouse in the foreground as waves crash against the wet breakwater, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
+    const newClip5 =
+      'Clip 5 (00:36 - 00:46): Create a video showing a slow cinematic push-in along the wet stone breakwater in Santander, Spain, 1885, as the golden lighthouse beam sweeps through the mist over the dark Atlantic waves and the distant black-hulled steamship sails deeper into the night horizon. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Sustained, unhurried continuous action across the full 10 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 10s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 10s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 10s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: deep distant foghorn echoing, heavy Atlantic waves breaking against stone, wind whistling, single continuous shot, strictly no shot changes, no music, no speech, no text. de hacer la América, desde las bodegas asfixiantes de tercera clase y los campamentos de cuarentena hasta la servidumbre silenciosa de quienes dormían sobre mostradores de madera. fix the name';
+
     const newImg19 =
       'Image 19: Create an image of a bright sunlit outdoor harbor pier in Santander, Spain, 1885, a weathered peasant hand holding a printed third-class steamship ticket and silver peseta coins in the foreground while a massive black-hulled transatlantic steamship vents white steam in the background, 16:9 horizontal, cinematic daylight, historical accuracy, no text.';
     const newClip19 =
@@ -289,6 +294,21 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             ...c,
             imagePrompt: newImg2,
             videoPrompt: newClip2,
+          };
+        }
+        if (
+          c &&
+          c.clipNumber === 5 &&
+          (/antique historian's|parchment scrolls|feather quill/i.test(c.imagePrompt || '') ||
+            /antique historian's|parchment scrolls|inkpot/i.test(c.videoPrompt || '') ||
+            !/stone harbor lighthouse/i.test(c.imagePrompt || '') ||
+            !/^Image\s+5\s*:/i.test((c.imagePrompt || '').trim()))
+        ) {
+          clipsChanged = true;
+          return {
+            ...c,
+            imagePrompt: newImg5,
+            videoPrompt: newClip5,
           };
         }
         if (
@@ -534,6 +554,14 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
         rawText = rawText
           .replace(/Image 2:[^\n]*/i, newImg2)
           .replace(/Clip 2\s*\([^)]*\):[^\n]*/i, newClip2);
+      }
+      if (
+        /Image 5:[^\n]*(?:antique historian's|parchment scrolls)/i.test(rawText) ||
+        (/Image 5:[^\n]*/i.test(rawText) && !/Image 5:[^\n]*stone harbor lighthouse/i.test(rawText))
+      ) {
+        rawText = rawText
+          .replace(/Image 5:[^\n]*/i, newImg5)
+          .replace(/Clip 5\s*\([^)]*\):[^\n]*/i, newClip5);
       }
       if (/Image 19:[^\n]*shipping agent's counter/i.test(rawText)) {
         rawText = rawText
