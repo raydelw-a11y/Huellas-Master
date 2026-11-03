@@ -3660,11 +3660,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       );
       const hasAssHook =
         overlays?.burnInHook !== false &&
-        hookOverlayFiles.length === 0 &&
-        hookTextConfig &&
-        (hookTextConfig.line1 || hookTextConfig.line2) &&
-        Number(hookTextConfig.endSec || 16) > segStartSec + 0.03 &&
-        Number(hookTextConfig.line1StartSec || 8) < segEndSec - 0.03;
+        Boolean(isFirstClipAfterIntro) &&
+        Boolean(hookTextConfig && (hookTextConfig.line1 || hookTextConfig.line2));
 
       if (overlappingCaptions.length > 0 || hasAssHook) {
         const assEvents: string[] = [];
@@ -3678,9 +3675,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const hook2TightBlur = Number((2.2 * blurScale).toFixed(1));
 
         if (hasAssHook && hookTextConfig) {
-          const h1Start = Math.max(0, Number(hookTextConfig.line1StartSec ?? 8) - segStartSec);
-          const h2Start = Math.max(0, Number(hookTextConfig.line2StartSec ?? 10) - segStartSec);
-          const hEnd = Math.min(effectiveClipDur, Number(hookTextConfig.endSec ?? 16) - segStartSec);
+          const rawL1 = Number(hookTextConfig.line1StartSec ?? 9);
+          const rawL2 = Number(hookTextConfig.line2StartSec ?? 10);
+          const h1Start = Math.max(0, Math.min(effectiveClipDur - 1.5, rawL1 >= 7.5 ? rawL1 - 8 : rawL1));
+          const h2Start = Math.max(h1Start + 0.5, Math.min(effectiveClipDur - 1.0, rawL2 >= 7.5 ? rawL2 - 8 : rawL2));
+          const hEnd = effectiveClipDur;
           const line1Txt = escapeAssText(String(hookTextConfig.line1 || '').toUpperCase());
           const line2Txt = escapeAssText(String(hookTextConfig.line2 || '').toUpperCase());
           if (line1Txt && hEnd > h1Start + 0.05) {
@@ -3735,6 +3734,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const capWideOutline = Math.max(1, Math.round(outH * 0.0018));
           const hook1WideOutline = Math.max(1, Math.round(outH * 0.002));
           const hook2WideOutline = Math.max(2, Math.round(outH * 0.0026));
+          const capSpacing = Number((0.5 * blurScale).toFixed(1));
           const hook1Spacing = Number((3.5 * blurScale).toFixed(1));
           const hook2Spacing = Number((1.5 * blurScale).toFixed(1));
 
@@ -3748,16 +3748,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '',
             '[V4+ Styles]',
             'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-            `Style: CaptionWordShadow,Helvetica Neue,${capFontSizeAss},&HFF000000,&HFF000000,&H64000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWordOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
-            `Style: CaptionCinemaWide,Helvetica Neue,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
-            `Style: CaptionCinemaTight,Helvetica Neue,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
-            `Style: CaptionCrisp,Helvetica Neue,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
-            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
-            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
-            `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1MarginV},1`,
-            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2WideMarginV},1`,
-            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2TightMarginV},1`,
-            `Style: Hook2Crisp,Georgia,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2MarginV},1`,
+            `Style: CaptionWordShadow,Cinzel,${capFontSizeAss},&HFF000000,&HFF000000,&H64000000,&HFF000000,-1,0,0,0,100,100,${capSpacing},0,1,${capWordOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
+            `Style: CaptionCinemaWide,Cinzel,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,${capSpacing},0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
+            `Style: CaptionCinemaTight,Cinzel,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${capSpacing},0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
+            `Style: CaptionCrisp,Cinzel,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${capSpacing},0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
+            `Style: Hook1CinemaWide,Cinzel,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
+            `Style: Hook1CinemaTight,Cinzel,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
+            `Style: Hook1Crisp,Cinzel,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1MarginV},1`,
+            `Style: Hook2CinemaWide,Cinzel,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2WideMarginV},1`,
+            `Style: Hook2CinemaTight,Cinzel,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2TightMarginV},1`,
+            `Style: Hook2Crisp,Cinzel,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2MarginV},1`,
             '',
             '[Events]',
             'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -3769,7 +3769,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             .replace(/\\/g, '/')
             .replace(/:/g, '\\:')
             .replace(/'/g, "\\'");
-          assFilterSuffix = `,ass='${escapedAssPath}'`;
+          const fontsDirPath = path.join(process.cwd(), 'data', 'fonts');
+          const escapedFontsDir = fontsDirPath
+            .replace(/\\/g, '/')
+            .replace(/:/g, '\\:')
+            .replace(/'/g, "\\'");
+          assFilterSuffix = fs.existsSync(fontsDirPath)
+            ? `,subtitles=filename='${escapedAssPath}':fontsdir='${escapedFontsDir}'`
+            : `,ass='${escapedAssPath}'`;
         }
       }
 
@@ -3822,19 +3829,21 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         currentVLabel = nextVLbl;
       }
 
-      // 2) Hook Text overlays (Clip 1 Line 1 & Line 2 PNGs if passed)
-      for (const hk of hookOverlayFiles) {
-        if (hk.endSec > segStartSec + 0.02 && hk.startSec < segEndSec - 0.02) {
-          const localStart = Math.max(0, hk.startSec - segStartSec);
-          const localEnd = Math.min(effectiveClipDur, hk.endSec - segStartSec);
-          if (localEnd > localStart + 0.02) {
-            extraOverlayInputs.push('-i', hk.filePath);
-            const inpIdx = extraOverlayInputs.length / 2;
-            const nextVLbl = `vb_${++ovrCounter}`;
-            overlayFilterSteps.push(
-              `[__INP_${inpIdx}__:v]scale=${outW}:${hk.hPx}:flags=fast_bilinear[hk_${ovrCounter}];[${currentVLabel}][hk_${ovrCounter}]overlay=0:${hk.yPx}:format=auto:enable='between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})'[${nextVLbl}]`
-            );
-            currentVLabel = nextVLbl;
+      // 2) Hook Text overlays (Clip 1 Line 1 & Line 2 PNGs if passed and not already rendered via libass)
+      if (!hasAssHook) {
+        for (const hk of hookOverlayFiles) {
+          if (hk.endSec > segStartSec + 0.02 && hk.startSec < segEndSec - 0.02) {
+            const localStart = Math.max(0, hk.startSec - segStartSec);
+            const localEnd = Math.min(effectiveClipDur, hk.endSec - segStartSec);
+            if (localEnd > localStart + 0.02) {
+              extraOverlayInputs.push('-i', hk.filePath);
+              const inpIdx = extraOverlayInputs.length / 2;
+              const nextVLbl = `vb_${++ovrCounter}`;
+              overlayFilterSteps.push(
+                `[__INP_${inpIdx}__:v]scale=${outW}:${hk.hPx}:flags=fast_bilinear[hk_${ovrCounter}];[${currentVLabel}][hk_${ovrCounter}]overlay=0:${hk.yPx}:format=auto:enable='between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})'[${nextVLbl}]`
+              );
+              currentVLabel = nextVLbl;
+            }
           }
         }
       }
