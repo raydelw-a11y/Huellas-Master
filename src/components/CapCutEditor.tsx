@@ -10982,17 +10982,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       </div>
 
       {/* =====================================================================
-          LOWER WORKSPACE: 5-TRACK INTERACTIVE TIMELINE (DRAG & DROP REORDERING)
+          LOWER WORKSPACE: COMPACT MULTI-TRACK TIMELINE DOCK (LESS HEIGHT AT BOTTOM)
       ===================================================================== */}
-      <div className="flex-1 bg-[#0b0907] p-4 overflow-y-auto space-y-2.5">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <Layers className="w-4 h-4" /> Línea de Tiempo Multipista (Arrastra o Corta Clips)
+      <div
+        className={`shrink-0 bg-[#0b0907] border-t border-slate-800/90 flex flex-col overflow-hidden transition-all ${
+          isTimelineDockExpanded ? 'lg:h-[310px]' : 'lg:h-[195px] xl:h-[210px]'
+        }`}
+      >
+        {/* CapCut Slim Middle Action Toolbar */}
+        <div className="px-2.5 py-1 bg-[#120f0c] border-b border-slate-800/90 flex items-center justify-between flex-wrap gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5" /> Timeline
             </span>
-            <span className="w-[236px] shrink-0 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[11px] font-mono tabular-nums font-bold text-amber-200 flex items-center justify-between gap-1.5 whitespace-nowrap overflow-hidden">
-              <span className="flex items-center gap-1.5 truncate">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            <span className="w-[228px] shrink-0 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[10px] font-mono tabular-nums font-bold text-amber-200 flex items-center justify-between gap-1 whitespace-nowrap overflow-hidden">
+              <span className="flex items-center gap-1 truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
                 {activeClipAtPlayhead ? (
                   <span className="truncate">
                     #{String((activeClipAtPlayhead.index ?? 0) + 1).padStart(2, '0')} (Clip{' '}
@@ -11009,48 +11014,48 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
             {/* Quick Timeline Cut / Split / Delete Toolbar */}
             {selectedClip && (
-              <div className="flex items-center gap-1.5 flex-wrap pl-1 border-l border-slate-800">
+              <div className="flex items-center gap-1 flex-wrap pl-1 border-l border-slate-800">
                 <button
                   type="button"
                   onClick={() => handleSplitClipAtPlayhead(selectedClip.id)}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow shadow-amber-500/20 cursor-pointer transition"
+                  className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] flex items-center gap-1 shadow shadow-amber-500/20 cursor-pointer transition"
                   title="Divide el clip actual en 2 partes (Parte A y Parte B) exactamente donde está la aguja roja"
                 >
-                  <Scissors className="w-3.5 h-3.5" /> Dividir en Aguja
+                  <Scissors className="w-3 h-3" /> Dividir en Aguja
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCutFromStartToPlayhead(selectedClip.id)}
-                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
+                  className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[9px] cursor-pointer transition"
                   title="Corta desde el inicio del clip hasta la aguja y estira el resto con Smooth Slow Motion (Optical Flow)"
                 >
-                  ⏪ Cortar Inicio→Aguja
+                  ⏪ Inicio→Aguja
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCutFromPlayheadToEnd(selectedClip.id)}
-                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer transition"
+                  className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-200 font-bold text-[9px] cursor-pointer transition"
                   title="Corta desde la aguja hasta el final del clip y estira el inicio con Smooth Slow Motion (Optical Flow)"
                 >
-                  ⏩ Cortar Aguja→Fin
+                  ⏩ Aguja→Fin
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteClipOrStretchSibling(selectedClip.id, false)}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600/25 hover:bg-rose-600/40 border border-rose-500/50 text-rose-200 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition"
+                  className="px-2 py-0.5 rounded bg-rose-600/25 hover:bg-rose-600/40 border border-rose-500/50 text-rose-200 font-bold text-[9px] flex items-center gap-1 cursor-pointer transition"
                   title="Elimina el pedazo seleccionado; si pertenece a un clip dividido, la otra parte se estira automáticamente con Smooth Slow Motion (Optical Flow) para cubrir sus segundos originales"
                 >
                   <Trash2 className="w-3 h-3" />{' '}
-                  {selectedClip.parentGroupId ? 'Borrar Pedazo (Auto Slow-Mo)' : 'Eliminar Clip'}
+                  {selectedClip.parentGroupId ? 'Borrar Pedazo' : 'Eliminar'}
                 </button>
                 {clipUndoStack.length > 0 && (
                   <button
                     type="button"
                     onClick={handleUndoClipEdit}
-                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[10px] cursor-pointer transition"
+                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[9px] cursor-pointer transition"
                     title="Deshacer último corte, eliminación o cambio de velocidad"
                   >
-                    ↩️ Deshacer ({clipUndoStack.length})
+                    ↩️ ({clipUndoStack.length})
                   </button>
                 )}
                 {selectedClip.clipNumber !== 0 && selectedClip.clipNumber !== 999 && (
@@ -11058,14 +11063,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     type="button"
                     disabled={isIsolatingFoley}
                     onClick={() => handleIsolateFoleyOnlyFromClips([selectedClip.id])}
-                    className="px-2.5 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-black text-[10px] flex items-center gap-1 shadow shadow-teal-500/20 cursor-pointer transition"
+                    className="px-2 py-0.5 rounded bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 font-black text-[9px] flex items-center gap-1 cursor-pointer transition"
                     title="Detecta, separa y elimina la música y las voces de este clip, dejando solo el audio de Foley ambiente"
                   >
                     <span>🌿</span>
                     <span>
                       {isIsolatingFoley
-                        ? `Solo Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                        : 'Dejar Solo Foley (Este Clip)'}
+                        ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
+                        : 'Solo Foley Clip'}
                     </span>
                   </button>
                 )}
@@ -11075,43 +11080,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRestoreOriginalAudioToClip([selectedClip.id])}
-                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-teal-500/40 text-teal-200 font-bold text-[10px] cursor-pointer transition"
+                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-teal-500/40 text-teal-200 font-bold text-[9px] cursor-pointer transition"
                     title="Restaurar el audio original completo de este clip"
                   >
-                    ↩️ Audio Original
+                    ↩️ Audio Orig.
                   </button>
                 )}
               </div>
             )}
-            {/* Global Selectable Option (Checked by Default): Eliminate Music & Voices across All Clips Automatically */}
-            <label
-              className={`px-2.5 py-1 rounded-lg border font-black text-[10px] flex items-center gap-1.5 shadow cursor-pointer transition select-none ${
-                autoIsolateFoleyAllClips
-                  ? 'bg-teal-500/25 hover:bg-teal-500/35 border-teal-400 text-teal-100 shadow-teal-500/15'
-                  : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-              }`}
-              title="Opción seleccionable (seleccionada por defecto): mientras está activa, detecta, separa y elimina automáticamente el audio de música y voces en cada clip de la línea de tiempo, dejando únicamente el sonido de Foley ambiente"
-            >
-              <input
-                type="checkbox"
-                checked={autoIsolateFoleyAllClips}
-                onChange={handleToggleAutoIsolateFoleyAllClips}
-                className="w-3.5 h-3.5 accent-teal-400 cursor-pointer rounded"
-              />
-              <span>🌿</span>
-              <span>
-                {isIsolatingFoley
-                  ? `Aislando Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                  : 'Solo Foley en Todos los Clips (Sin Música ni Voces)'}
-              </span>
-            </label>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span>Zoom de Pistas ({timelineRulerData.scaleUnitLabel}):</span>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <button
+              type="button"
+              onClick={() => setIsTimelineDockExpanded((v) => !v)}
+              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
+              title="Alternar altura de la línea de tiempo (Compacta para dar máximo espacio al Visor vs Ampliada)"
+            >
+              {isTimelineDockExpanded ? '⬇️ Compactar Pistas' : '⬆️ Ampliar Pistas'}
+            </button>
+            <span className="hidden sm:inline">Zoom ({timelineRulerData.scaleUnitLabel}):</span>
             <button
               type="button"
               onClick={() => handleChangeTimelineZoom((z) => Math.max(1, z - 3), false)}
-              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
+              className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Alejar línea de tiempo (ver minutos / horas)"
             >
               −
@@ -11122,12 +11113,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               max={50}
               value={isFitEntireProject ? 1 : timelineZoom}
               onChange={(e) => handleChangeTimelineZoom(Number(e.target.value), false)}
-              className="w-28 accent-amber-500 cursor-pointer"
+              className="w-20 accent-amber-500 cursor-pointer"
             />
             <button
               type="button"
               onClick={() => handleChangeTimelineZoom((z) => Math.min(50, z + 3), false)}
-              className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
+              className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Acercar línea de tiempo (ver segundos detallados)"
             >
               +
@@ -11135,14 +11126,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <button
               type="button"
               onClick={() => handleChangeTimelineZoom(timelineZoom, !isFitEntireProject)}
-              className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`px-2 py-0.5 rounded border text-[10px] font-bold flex items-center gap-1 transition cursor-pointer ${
                 isFitEntireProject
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow shadow-amber-500/20'
                   : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
               }`}
-              title="Ajusta automáticamente toda la línea de tiempo (00:00 hasta el final) al ancho de la pantalla para ver todo el proyecto entero de un vistazo"
+              title="Ajusta automáticamente toda la línea de tiempo (00:00 hasta el final) al ancho de la pantalla"
             >
-              📐 {isFitEntireProject ? 'Viendo Proyecto Entero (Volver a Zoom)' : 'Ver Todo el Proyecto'}
+              📐 {isFitEntireProject ? 'Proyecto Entero' : 'Ver Todo'}
             </button>
           </div>
         </div>
@@ -11150,22 +11141,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         {/* Scrollable Multi-Track Container */}
         <div
           ref={timelineScrollContainerRef}
-          className={`bg-[#120f0c] border border-slate-800 rounded-2xl p-3 ${
+          className={`flex-1 min-h-0 bg-[#0e0c09] px-2 py-1.5 overflow-y-auto ${
             isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
           }`}
         >
-          <div className={`relative space-y-2 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
+          <div className={`relative space-y-1 ${isFitEntireProject ? 'w-full' : 'min-w-max pr-64'}`}>
             {/* =================================================================
                 GLOBAL VERTICAL PLAYHEAD LINE ("GUION VERTICAL" CORRIENDO EN TIEMPO REAL)
             ================================================================= */}
             <div
               style={{
                 left: isFitEntireProject
-                  ? `calc(11.5rem + (100% - 11.5rem) * ${Math.min(
+                  ? `calc(9.5rem + (100% - 9.5rem) * ${Math.min(
                       1,
                       Math.max(0, currentTime / Math.max(1, totalDurationSec))
                     ).toFixed(6)})`
-                  : `calc(11.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
+                  : `calc(9.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
               }}
               className="pointer-events-none absolute top-0 bottom-0 z-30"
             >
@@ -11188,9 +11179,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 TOP TIME RULER (SEGUNDOS, MINUTOS U HORAS SEGÚN EL ZOOM)
             ================================================================= */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-amber-500/30 text-[10px] font-bold text-amber-300 flex items-center justify-between">
-                <span>⏱️ Regla de Tiempo</span>
-                <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-[9px] font-mono text-amber-200">
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between">
+                <span>⏱️ Regla</span>
+                <span className="px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
                   {timelineRulerData.scaleUnitLabel}
                 </span>
               </div>
@@ -11203,7 +11194,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
                 title="Haz clic o arrastra sobre la regla para mover el guion vertical al segundo exacto"
-                className={`relative h-9 bg-[#090806] border border-slate-800 rounded-lg cursor-ew-resize select-none overflow-hidden ${
+                className={`relative h-6 bg-[#090806] border border-slate-800 rounded cursor-ew-resize select-none overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
@@ -11275,8 +11266,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-amber-300">
-                1. 🏷️ Logo + Texto Clip 1
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-amber-300 truncate">
+                1. 🏷️ Logo + Texto
               </div>
               <div
                 style={
@@ -11284,7 +11275,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded-lg py-1 px-0 overflow-hidden ${
+                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded py-0.5 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
@@ -11304,7 +11295,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                           : { width: `${Math.max(1, clip1OverlayEndSec) * timelineZoom}px` }
                       }
-                      className="px-2 py-1.5 rounded-l bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                      className="px-2 py-0.5 rounded-l bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[10px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
                     >
                       🔤 Texto Gancho Clip 1 (00:00 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
                     </button>
@@ -11327,7 +11318,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               width: `${Math.max(0, postSloganIntroBounds.start - clip1OverlayEndSec) * timelineZoom}px`,
                             }
                       }
-                      className="px-2.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border-r border-amber-500/40 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                      className="px-2 py-0.5 bg-emerald-500/15 hover:bg-emerald-500/25 border-r border-amber-500/40 text-[10px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
                     >
                       🖼️ Logo ({formatTimeMMSS(clip1OverlayEndSec)} - {formatTimeMMSS(postSloganIntroBounds.start)})
                     </button>
@@ -11344,7 +11335,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                           : { width: `${postSloganIntroBounds.duration * timelineZoom}px` }
                       }
-                      className="px-2 py-1.5 bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
+                      className="px-2 py-0.5 bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[10px] text-amber-300 font-black truncate cursor-pointer shrink-0"
                       title={`Ir al Intro Oficial Post-Slogan (${formatTimeMMSS(postSloganIntroBounds.start)} - ${formatTimeMMSS(postSloganIntroBounds.end)})`}
                     >
                       🎬 Intro 8K Post-Slogan ({formatTimeMMSS(postSloganIntroBounds.start)} - {formatTimeMMSS(postSloganIntroBounds.end)})
@@ -11368,7 +11359,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               width: `${Math.max(0, totalDurationSec - postSloganIntroBounds.end) * timelineZoom}px`,
                             }
                       }
-                      className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                      className="px-2.5 py-0.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[10px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
                     >
                       🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • {formatTimeMMSS(postSloganIntroBounds.end)} -{' '}
                       {formatTimeMMSS(totalDurationSec)})
@@ -11389,7 +11380,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                           : { width: `${8 * timelineZoom}px` }
                       }
-                      className="px-2 py-1.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[11px] text-amber-300 font-black truncate cursor-pointer shrink-0"
+                      className="px-2 py-0.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[10px] text-amber-300 font-black truncate cursor-pointer shrink-0"
                       title="Ir al Intro Oficial de Huellas de la Humanidad (00:00 - 00:08)"
                     >
                       🎬 Intro 8K (00:00 - 00:08)
@@ -11408,7 +11399,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                           : { width: `${Math.max(1, clip1OverlayEndSec - 8) * timelineZoom}px` }
                       }
-                      className="px-2 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[11px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
+                      className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border-r border-amber-500/40 text-[10px] text-amber-200 font-semibold truncate cursor-pointer shrink-0"
                     >
                       🔤 Texto Gancho Clip 1 (00:08 - 00:{String(Math.floor(clip1OverlayEndSec)).padStart(2, '0')})
                     </button>
@@ -11431,7 +11422,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               width: `${Math.max(0, totalDurationSec - clip1OverlayEndSec) * timelineZoom}px`,
                             }
                       }
-                      className="px-3 py-1.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
+                      className="px-2.5 py-0.5 rounded-r bg-emerald-500/15 hover:bg-emerald-500/25 text-[10px] text-emerald-300 font-semibold truncate cursor-pointer shrink-0 text-left"
                     >
                       🖼️ Logo Oficial "Huellas de la Humanidad" ({logoScalePct}% • Todo el Video: 00:00 -{' '}
                       {formatTimeMMSS(totalDurationSec)})
@@ -11443,7 +11434,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 2: CAPTIONS (.SRT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-sky-300">
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-sky-300 truncate">
                 2. 💬 Captions ({captions.length})
               </div>
               <div
@@ -11452,13 +11443,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden ${
+                className={`relative h-6 bg-slate-950/80 border border-slate-800/80 rounded overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
                 {captions.length === 0 ? (
-                  <span className="text-[11px] text-slate-500 px-3 leading-9">
-                    Haz clic en "✨ Resincronizar Captions" en la pestaña 💬 Captions para crear los subtítulos desde la voz.
+                  <span className="text-[10px] text-slate-500 px-2 leading-6">
+                    Haz clic en "✨ Resincronizar Captions" en la pestaña 💬 SRT.
                   </span>
                 ) : (
                   <>
@@ -11476,7 +11467,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 width: `${voiceStartOffsetSec * timelineZoom}px`,
                               }
                         }
-                        className="absolute top-1 bottom-1 px-1.5 rounded bg-slate-900 border border-dashed border-slate-700 text-[9px] text-slate-400 flex items-center justify-center truncate"
+                        className="absolute top-0.5 bottom-0.5 px-1 rounded bg-slate-900 border border-dashed border-slate-700 text-[8px] text-slate-400 flex items-center justify-center truncate"
                       >
                         00:00-00:0{voiceStartOffsetSec} (Hook)
                       </div>
@@ -11504,11 +11495,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   width: `${Math.max(18, capDur * timelineZoom)}px`,
                                 }
                           }
-                          className={`absolute top-1 bottom-1 rounded border truncate cursor-pointer transition ${
+                          className={`absolute top-0.5 bottom-0.5 rounded border truncate cursor-pointer transition ${
                             isCapActive
                               ? 'bg-sky-500/35 border-amber-300 text-white font-bold z-10'
                               : 'bg-sky-950/60 hover:bg-sky-900/70 border-sky-500/30 text-sky-200'
-                          } ${isFitEntireProject ? 'px-0.5 text-[8px]' : 'px-1.5 text-[10px]'}`}
+                          } ${isFitEntireProject ? 'px-0.5 text-[8px]' : 'px-1 text-[9px]'}`}
                           title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${formatCaptionTextCase(cap.text)}`}
                         >
                           {!isFitEntireProject && timelineZoom >= 12 && (
@@ -11525,10 +11516,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING + REAL-TIME PLAYHEAD SELECTION) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-3 rounded-lg bg-amber-500/15 border border-amber-500/40 text-xs font-black text-amber-300 flex flex-col gap-1.5">
-                <span>3. 🎬 Clips + Foley ({timelineClips.length})</span>
+              <div className="w-36 shrink-0 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-[10px] font-black text-amber-300 flex flex-col gap-1">
+                <span className="truncate">3. 🎬 Clips ({timelineClips.length})</span>
                 <label
-                  className={`w-full px-2 py-1 rounded-md border font-black text-[10px] flex items-center gap-1.5 shadow cursor-pointer transition select-none ${
+                  className={`w-full px-1.5 py-0.5 rounded border font-black text-[9px] flex items-center gap-1 cursor-pointer transition select-none ${
                     autoIsolateFoleyAllClips
                       ? 'bg-teal-500/25 border-teal-400 text-teal-100'
                       : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-slate-200'
@@ -11539,13 +11530,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     type="checkbox"
                     checked={autoIsolateFoleyAllClips}
                     onChange={handleToggleAutoIsolateFoleyAllClips}
-                    className="w-3 h-3 accent-teal-400 cursor-pointer rounded shrink-0"
+                    className="w-2.5 h-2.5 accent-teal-400 cursor-pointer rounded shrink-0"
                   />
                   <span>🌿</span>
                   <span className="truncate">
                     {isIsolatingFoley
-                      ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                      : 'Solo Foley en Todos'}
+                      ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})`
+                      : 'Solo Foley'}
                   </span>
                 </label>
               </div>
@@ -11555,7 +11546,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-0 overflow-hidden ${
+                className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-lg py-1 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
@@ -11654,11 +11645,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                           : { width: `${slotWidthPx}px` }
                       }
-                      className="shrink-0 px-[1.5px] select-none"
+                      className="shrink-0 px-[1px] select-none"
                     >
                       <div
-                        className={`group relative h-full rounded-lg border flex flex-col justify-between cursor-grab active:cursor-grabbing transition overflow-hidden ${
-                          useCompactCard ? 'p-1 min-h-[82px]' : 'rounded-xl p-2 gap-1.5'
+                        className={`group relative h-full rounded border flex flex-col justify-between cursor-grab active:cursor-grabbing transition overflow-hidden ${
+                          useCompactCard ? 'p-0.5 min-h-[54px]' : 'rounded-lg p-1.5 gap-1'
                         } ${
                           isMultiSelected && selectedClipIds.length > 1
                             ? 'border-2 border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-400/50 z-10'
@@ -11755,7 +11746,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             </div>
 
                             {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
-                              <div className="relative z-10 h-20 w-full rounded-lg overflow-hidden bg-black border border-slate-800">
+                              <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-black border border-slate-800">
                                 <img
                                   src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
                                   alt={clip.fileName}
@@ -11788,7 +11779,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 </span>
                               </div>
                             ) : (
-                              <div className="relative z-10 h-20 w-full rounded-lg overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-2 text-center">
+                              <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-1 text-center">
                                 <span className="text-[10px] font-bold text-amber-300/90">
                                   🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
                                 </span>
@@ -11813,14 +11804,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               </div>
                             )}
 
-                            <div
-                              className="relative z-10 text-[10px] font-mono text-emerald-300 truncate"
-                              title={clip.fileName}
-                            >
-                              {clip.fileName}
-                            </div>
-
-                            <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+                            <div className="relative z-10 flex items-center justify-between text-[9px] text-slate-400 pt-0.5 border-t border-slate-800/80">
                               <span className={clip.speed < 1.0 ? 'text-sky-300 font-bold' : ''}>
                                 {clip.duration}s • {clip.speed}x
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
@@ -11850,8 +11834,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3B: SEPARATED VOCALS FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-teal-950/70 border border-teal-500/40 text-[11px] font-black text-teal-300 flex items-center justify-between">
-                <span>3B. 🗣️ Voces Clips ({separatedVocalSegments.length})</span>
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-teal-950/70 border border-teal-500/40 text-[10px] font-black text-teal-300 flex items-center justify-between truncate">
+                <span>3B. 🗣️ Voces ({separatedVocalSegments.length})</span>
               </div>
               <div
                 style={
@@ -11859,14 +11843,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`relative h-10 bg-slate-950/90 border border-teal-500/30 rounded-lg overflow-hidden flex items-center ${
+                className={`relative h-7 bg-slate-950/90 border border-teal-500/30 rounded overflow-hidden flex items-center ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
                 {separatedVocalSegments.length === 0 ? (
-                  <span className="text-[11px] text-slate-500 px-3 truncate">
-                    Haz clic derecho sobre uno o varios clips de la Pista 3 y elige{' '}
-                    <strong className="text-amber-300">Separar ▸ 🗣️ Voces</strong> para extraer sus voces aquí, moverlas por el timeline o borrarlas.
+                  <span className="text-[10px] text-slate-500 px-2 truncate">
+                    Clic derecho sobre clips de Pista 3 ▸{' '}
+                    <strong className="text-amber-300">Separar ▸ 🗣️ Voces</strong>
                   </span>
                 ) : (
                   separatedVocalSegments.map((seg) => {
@@ -11967,8 +11951,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3C: EXTRACTED MUSIC FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-purple-950/70 border border-purple-500/40 text-[11px] font-black text-purple-300 flex items-center justify-between">
-                <span>3C. 🎵 Música Clips ({separatedMusicSegments.length})</span>
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-purple-950/70 border border-purple-500/40 text-[10px] font-black text-purple-300 flex items-center justify-between truncate">
+                <span>3C. 🎵 Música ({separatedMusicSegments.length})</span>
               </div>
               <div
                 style={
@@ -11976,14 +11960,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`relative h-10 bg-slate-950/90 border border-purple-500/30 rounded-lg overflow-hidden flex items-center ${
+                className={`relative h-7 bg-slate-950/90 border border-purple-500/30 rounded overflow-hidden flex items-center ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
                 {separatedMusicSegments.length === 0 ? (
-                  <span className="text-[11px] text-slate-500 px-3 truncate">
-                    Haz clic derecho sobre uno o varios clips de la Pista 3 y elige{' '}
-                    <strong className="text-purple-300">Separar ▸ 🎵 Extraer Música</strong> para separar la música de fondo aquí, moverla o borrarla.
+                  <span className="text-[10px] text-slate-500 px-2 truncate">
+                    Clic derecho sobre clips de Pista 3 ▸{' '}
+                    <strong className="text-purple-300">Separar ▸ 🎵 Extraer Música</strong>
                   </span>
                 ) : (
                   separatedMusicSegments.map((seg) => {
@@ -12084,7 +12068,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-emerald-300">
+              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-emerald-300 truncate">
                 4. 🎙️ Voz Narrativa
               </div>
               <div
@@ -12093,7 +12077,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? undefined
                     : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
                 }
-                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded-lg py-1 px-0 overflow-hidden ${
+                className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded py-0.5 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
@@ -12106,7 +12090,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         }
                       : { width: `${voiceStartOffsetSec * timelineZoom}px` }
                   }
-                  className="px-1.5 py-1.5 rounded-l bg-slate-900 border-r border-dashed border-slate-700 text-[10px] text-slate-400 text-center truncate shrink-0"
+                  className="px-1 py-0.5 rounded-l bg-slate-900 border-r border-dashed border-slate-700 text-[9px] text-slate-400 text-center truncate shrink-0"
                 >
                   🔇 {voiceStartOffsetSec}s Hook
                 </div>
@@ -12125,32 +12109,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           width: `${Math.max(0, totalDurationSec - voiceStartOffsetSec) * timelineZoom}px`,
                         }
                   }
-                  className="px-3 py-1.5 rounded-r bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center justify-between gap-3 truncate shrink-0"
+                  className="px-2 py-0.5 rounded-r bg-emerald-500/20 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold flex items-center justify-between gap-2 truncate shrink-0"
                 >
                   <span className="truncate">
-                    🎙️ Voz Narrativa Completa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
+                    🎙️ Voz Narrativa ({formatTimeMMSS(voiceStartOffsetSec)} →{' '}
                     {formatTimeMMSS(
                       voiceStartOffsetSec +
                         Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
                     )}{' '}
-                    • Duración Voz: {formatTimeMMSS(effectiveVoiceDurationSec)}) • Vol: {voiceVolume}% ({voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb} dB)
+                    • Vol: {voiceVolume}% / {voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb}dB)
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     {effectiveVoiceoverUrl && (
                       <a
                         href={effectiveVoiceoverUrl}
                         download={`Voz_Narrativa_${(activeDoc?.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.mp3`}
-                        className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-[10px] font-black cursor-pointer"
+                        className="px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-[9px] font-black cursor-pointer"
                         title="Descargar Audio Maestro de Voz Narrativa (.MP3)"
                       >
-                        ⬇️ Descargar Voz (.MP3)
+                        ⬇️ MP3
                       </a>
                     )}
                     <label
-                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-emerald-300 font-bold cursor-pointer"
+                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[9px] text-emerald-300 font-bold cursor-pointer"
                       title="Subir archivo de Voz Narrativa (.MP3 o .WAV)"
                     >
-                      📤 Subir Voz
+                      📤 Subir
                       <input
                         type="file"
                         accept="audio/*,.mp3,.wav,.m4a"
@@ -12169,14 +12153,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => setVoiceStartOffsetSec((s) => Math.max(0, s - 0.5))}
-                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
+                      className="px-1 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
                     >
                       -0.5s
                     </button>
                     <button
                       type="button"
                       onClick={() => setVoiceStartOffsetSec((s) => s + 0.5)}
-                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 cursor-pointer"
+                      className="px-1 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
                     >
                       +0.5s
                     </button>
@@ -12186,9 +12170,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
 
             {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (CLICKABLE SONGS WITH VOLUME, FADE-IN & FADE-OUT) */}
-            <div className={`flex flex-col gap-1.5 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+            <div className={`flex flex-col gap-1 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-                <div className="w-44 shrink-0 px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-purple-300 flex items-center justify-between">
+                <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
                   <span>5. 🎵 Flow Music ({musicTracks.length})</span>
                 </div>
                 <div
@@ -12196,13 +12180,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     isFitEntireProject
                       ? undefined
                       : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
-                  }
-                  className={`relative h-9 bg-slate-950/80 border border-slate-800/80 rounded-lg overflow-hidden flex items-center ${
+                }
+                  className={`relative h-7 bg-slate-950/80 border border-slate-800/80 rounded overflow-hidden flex items-center ${
                     isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                   }`}
                 >
                   {musicTracks.length === 0 ? (
-                    <span className="text-[11px] text-slate-500 px-3 py-1">
+                    <span className="text-[10px] text-slate-500 px-2 py-0.5">
                       Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí. Haz clic en cualquier canción para ajustar su volumen, Fade-In y Fade-Out.
                     </span>
                   ) : (
@@ -12234,7 +12218,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   ? { width: `${(gapSec / Math.max(1, totalDurationSec)) * 100}%` }
                                   : { width: `${gapSec * timelineZoom}px` }
                               }
-                              className="px-1.5 py-1 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[10px] text-slate-400 truncate text-center shrink-0"
+                              className="px-1.5 py-0.5 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[9px] text-slate-400 truncate text-center shrink-0"
                               title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
                             >
                               🔇 Silencio {gapSec}s
@@ -12257,7 +12241,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 ? { width: `${(mt.duration / Math.max(1, totalDurationSec)) * 100}%` }
                                 : { width: `${mt.duration * timelineZoom}px` }
                             }
-                            className={`relative px-2.5 py-1 h-full rounded border text-[11px] flex items-center gap-1.5 truncate shrink-0 cursor-pointer select-none transition ${
+                            className={`relative px-2 py-0.5 h-full rounded border text-[10px] flex items-center gap-1.5 truncate shrink-0 cursor-pointer select-none transition ${
                               isSongSelected
                                 ? 'bg-purple-900/90 border-purple-300 text-white ring-2 ring-purple-400/70 shadow-lg shadow-purple-500/25 z-10'
                                 : 'bg-purple-950/65 hover:bg-purple-900/75 border-purple-500/45 text-purple-200'
@@ -12305,7 +12289,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
               {/* Quick Inline Control Bar when a Song is Selected on the Timeline */}
               {selectedMusicTrackId && selectedMusicTrack && (
-                <div className="ml-46 bg-purple-950/80 border border-purple-400/50 rounded-xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap shadow-lg">
+                <div className="ml-38 bg-purple-950/80 border border-purple-400/50 rounded-xl px-3 py-1.5 flex items-center justify-between gap-3 flex-wrap shadow-lg">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="px-2 py-0.5 rounded bg-purple-500 text-slate-950 font-black text-[10px] shrink-0">
                       🎵 Canción #{selectedMusicTrack.trackNumber}
