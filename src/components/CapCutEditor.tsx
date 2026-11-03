@@ -1429,6 +1429,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [localServerSunoMap, setLocalServerSunoMap] = useState<Record<number, string>>({});
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const deckAVideoRef = useRef<HTMLVideoElement | null>(null);
+  const deckBVideoRef = useRef<HTMLVideoElement | null>(null);
+  const deckAssignRef = useRef<{
+    activeSlot: 0 | 1;
+    slotClipIds: [string | null, string | null];
+    slotUrls: [string, string];
+  }>({
+    activeSlot: 0,
+    slotClipIds: [null, null],
+    slotUrls: ['', ''],
+  });
   const seamlessBridgeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const preloadNextVideoRef = useRef<HTMLVideoElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -3662,6 +3673,61 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return null;
   }, [clipsWithTimelineBounds, activeClipAtPlayhead?.id]);
 
+  const getClipEffectiveVideoUrl = (
+    clip?: {
+      videoUrl?: string;
+      opticalFlowUrl?: string;
+      smoothSlowMo?: boolean;
+      speed?: number;
+    } | null
+  ): string => {
+    if (!clip?.videoUrl) return '';
+    if (clip.opticalFlowUrl && clip.smoothSlowMo !== false && Number(clip.speed ?? 1) < 0.99) {
+      return clip.opticalFlowUrl;
+    }
+    return clip.videoUrl;
+  };
+
+  // Synchronous Dual-Deck (A/B Ping-Pong) assignment: when activeClipAtPlayhead advances to nextClipAtPlayhead,
+  // flip activeSlot to the already-decoded standby deck without mutating its src attribute (0ms decoder swap, 0 freeze)
+  const activeClipEffectiveUrl = getClipEffectiveVideoUrl(activeClipAtPlayhead);
+  const nextClipEffectiveUrl = getClipEffectiveVideoUrl(nextClipAtPlayhead);
+  {
+    const da = deckAssignRef.current;
+    const curSlot = da.activeSlot;
+    const otherSlot: 0 | 1 = curSlot === 0 ? 1 : 0;
+    const activeId = activeClipAtPlayhead?.id || null;
+    const nextId = nextClipAtPlayhead?.id || null;
+
+    if (da.slotClipIds[curSlot] === activeId && da.slotUrls[curSlot] === activeClipEffectiveUrl) {
+      // Same clip remains on curSlot
+    } else if (
+      activeClipEffectiveUrl &&
+      activeId !== da.slotClipIds[curSlot] &&
+      (da.slotClipIds[otherSlot] === activeId || da.slotUrls[otherSlot] === activeClipEffectiveUrl)
+    ) {
+      // Instant A/B flip to the preloaded standby deck!
+      da.activeSlot = otherSlot;
+      da.slotClipIds[otherSlot] = activeId;
+      da.slotUrls[otherSlot] = activeClipEffectiveUrl;
+    } else {
+      da.slotClipIds[curSlot] = activeId;
+      da.slotUrls[curSlot] = activeClipEffectiveUrl;
+    }
+
+    const standbySlot: 0 | 1 = da.activeSlot === 0 ? 1 : 0;
+    da.slotClipIds[standbySlot] = nextId;
+    da.slotUrls[standbySlot] = nextClipEffectiveUrl;
+
+    previewVideoRef.current =
+      da.activeSlot === 0 ? deckAVideoRef.current : deckBVideoRef.current;
+    preloadNextVideoRef.current =
+      da.activeSlot === 0 ? deckBVideoRef.current : deckAVideoRef.current;
+  }
+  const activeDeckSlot = deckAssignRef.current.activeSlot;
+  const deckAUrl = deckAssignRef.current.slotUrls[0];
+  const deckBUrl = deckAssignRef.current.slotUrls[1];
+
   const activeCaptionAtPlayhead = useMemo(() => {
     return (
       captions.find((cap) => currentTime >= cap.start && currentTime <= cap.end) || null
@@ -3975,10 +4041,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const slotDur = Math.max(0.4, clip.duration || 8);
     const hasKnownVidDur =
       typeof vid.duration === 'number' && Number.isFinite(vid.duration) && vid.duration > 0.25;
-    // Flow 24fps MP4s often have audio container duration 7.85s while last video frame is at ~7.79s; reserve 0.07s margin so video frames never run out before audio/container end
+    // Flow 24fps MP4s often have audio container duration 7.85s while last video frame is at ~7.79s; reserve 0.14s cushion so video frames never hit EOF before the cut to the next clip
     const safeVidStreamEnd = hasKnownVidDur
-      ? Math.max(0.25, vid.duration - 0.07)
-      : Math.max(0.4, (clip.sourceDuration || 8) - 0.07);
+      ? Math.max(0.25, vid.duration - 0.14)
+      : Math.max(0.4, (clip.sourceDuration || 8) - 0.14);
     const elapsedInSlot = Math.max(0, timelineSec - clip.start);
     const remainingSlotSec = Math.max(0.03, slotDur - elapsedInSlot);
 
@@ -3999,16 +4065,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         hasKnownVidDur &&
         !vid.paused &&
         vid.readyState >= 2 &&
-        remainingSlotSec > 0.12 &&
-        vid.currentTime > 0.05 &&
-        safeVidStreamEnd - vid.currentTime > 0.06
+        remainingSlotSec > 0.25 &&
+        vid.currentTime + remainingSlotSec * optRate > safeVidStreamEnd + 0.04 &&
+        safeVidStreamEnd - vid.currentTime > 0.08
       ) {
         optRate = Math.max(
           0.15,
           Math.min(4.0, Number(((safeVidStreamEnd - vid.currentTime) / remainingSlotSec).toFixed(4)))
         );
       }
-      const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur - 0.02);
+      const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur);
       return {
         effectiveRate: optRate,
         clampedOffset,
@@ -4025,7 +4091,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : safeVidStreamEnd;
     const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
 
-    // Always pace playableMediaDur across the full slotDur; during active playback, dynamically pace remaining frames across remainingSlotSec so the clip never runs out of frames early
+    // Steady constant rate across slotDur so playbackRate never jitters mid-clip
     let effectiveRate = hasKnownVidDur
       ? Math.max(0.15, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
       : clip.speed && Math.abs(clip.speed - 1) > 0.01
@@ -4042,9 +4108,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hasKnownVidDur &&
       !vid.paused &&
       vid.readyState >= 2 &&
-      remainingSlotSec > 0.12 &&
+      remainingSlotSec > 0.25 &&
       vid.currentTime >= trimStart &&
-      trimEnd - vid.currentTime > 0.06
+      vid.currentTime + remainingSlotSec * effectiveRate > trimEnd + 0.04 &&
+      trimEnd - vid.currentTime > 0.08
     ) {
       effectiveRate = Math.max(
         0.15,
@@ -4052,7 +4119,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       );
     }
 
-    const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur - 0.02);
+    const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur);
 
     return {
       effectiveRate,
@@ -4067,6 +4134,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!nextPlaying) {
       setIsPlaying(false);
       setCinemaAmbienceActive(false);
+      if (deckAVideoRef.current) {
+        try {
+          deckAVideoRef.current.pause();
+        } catch {}
+      }
+      if (deckBVideoRef.current) {
+        try {
+          deckBVideoRef.current.pause();
+        } catch {}
+      }
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -4084,8 +4161,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setCurrentTime(startSec);
     }
 
-    // 1. Unlock & play preview <video> if active clip has videoUrl
+    // 1. Unlock & play active deck <video> and unlock standby deck <video> on user gesture
     const vid = previewVideoRef.current;
+    const standbyVid = preloadNextVideoRef.current;
+    if (standbyVid) {
+      try {
+        standbyVid.muted = true;
+        standbyVid.pause();
+      } catch {}
+    }
     if (vid && activeClipAtPlayhead?.videoUrl) {
       try {
         if (vid.readyState === 0 || vid.error) {
@@ -4099,6 +4183,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
         clipEndedHoldRef.current = reachedClipMediaEnd;
+        vid.defaultPlaybackRate = effectiveRate;
         vid.playbackRate = effectiveRate;
         if (vid.readyState >= 1) {
           vid.currentTime = clampedOffset;
@@ -4297,9 +4382,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     if (!isPlaying) {
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
-      if (previewVideoRef.current) {
+      if (deckAVideoRef.current) {
         try {
-          previewVideoRef.current.pause();
+          deckAVideoRef.current.pause();
+        } catch {}
+      }
+      if (deckBVideoRef.current) {
+        try {
+          deckBVideoRef.current.pause();
         } catch {}
       }
       if (voiceAudioRef.current) {
@@ -4322,7 +4412,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     playTimelineStartSecRef.current = currentTimeRef.current;
     playWallStartMsRef.current = performance.now();
 
-    const stepMs = 45;
+    const stepMs = 20;
     playIntervalRef.current = setInterval(() => {
       const elapsedSec = (performance.now() - playWallStartMsRef.current) / 1000;
       const next = playTimelineStartSecRef.current + elapsedSec;
@@ -4582,10 +4672,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     window.addEventListener('mouseup', onUp);
   };
 
-  // Sync preview <video>, voice <audio>, Suno music <audio>, and Ambience fallback WITHOUT seeking backwards during continuous playback
+  // Sync Dual-Deck (A/B Ping-Pong) preview <video>, voice <audio>, Suno music <audio>, and Ambience fallback with 85ms Pre-Roll for 0ms seamless cuts
   useEffect(() => {
     currentTimeRef.current = currentTime;
     const vid = previewVideoRef.current;
+    const standbyVid = preloadNextVideoRef.current;
     if (vid && activeClipAtPlayhead?.videoUrl) {
       const { effectiveRate, clampedOffset, reachedClipMediaEnd } = computeClipVideoSyncParams(
         vid,
@@ -4595,7 +4686,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const isClipSwitch = activeClipAtPlayhead.id !== activePlayingClipIdRef.current;
       const isManualSeek = appliedVideoSeekVersionRef.current !== lastSeekVersionRef.current;
 
-      if (Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.002) {
+      if (
+        isClipSwitch ||
+        isManualSeek ||
+        Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.015
+      ) {
         try {
           vid.defaultPlaybackRate = effectiveRate;
           vid.playbackRate = effectiveRate;
@@ -4603,35 +4698,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
       vid.muted = false;
       vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
+      vid.style.opacity = '1';
 
       if (isClipSwitch || isManualSeek || !isPlaying) {
         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
         appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
         clipEndedHoldRef.current = reachedClipMediaEnd;
-        if (isClipSwitch) {
-          const isFadeInClip =
-            activeClipAtPlayhead.id === 'fixed-doc-intro' ||
-            activeClipAtPlayhead.id === 'fixed-doc-outro' ||
-            activeClipAtPlayhead.clipNumber === 0 ||
-            activeClipAtPlayhead.clipNumber === 999 ||
-            activeClipAtPlayhead.clipNumber === 1 ||
-            activeClipAtPlayhead.index === 1;
-          const bridgeCanvas = seamlessBridgeCanvasRef.current;
-          if (isFadeInClip && bridgeCanvas) {
-            const bCtx = bridgeCanvas.getContext('2d');
-            if (bCtx) {
-              bCtx.fillStyle = '#000000';
-              bCtx.fillRect(0, 0, bridgeCanvas.width || 1920, bridgeCanvas.height || 1080);
+        if (isClipSwitch && standbyVid && standbyVid !== vid) {
+          try {
+            standbyVid.style.opacity = '0';
+            standbyVid.muted = true;
+            if (!standbyVid.paused) {
+              standbyVid.pause();
             }
-          }
-          // Hide transient blank <video> surface while new src decodes its first frame; seamlessBridgeCanvasRef holds the outgoing clip's last frame
-          if (vid.readyState < 2) {
-            vid.style.opacity = '0';
-          } else {
-            vid.style.opacity = '1';
-          }
+          } catch {}
         }
-        const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.22 : 0.08;
+        const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.28 : 0.08;
         if (vid.readyState >= 1 && Math.abs(vid.currentTime - clampedOffset) > seekThreshold) {
           try {
             vid.currentTime = clampedOffset;
@@ -4642,38 +4724,50 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       } else {
         // Continuous playback inside the same clip: NEVER force-seek vid.currentTime (prevents keyframe rewind jumps!)
-        if (vid.readyState >= 2) {
-          vid.style.opacity = '1';
-          const bridgeCanvas = seamlessBridgeCanvasRef.current;
-          if (bridgeCanvas && vid.videoWidth > 0 && vid.videoHeight > 0) {
-            if (
-              bridgeCanvas.width !== vid.videoWidth ||
-              bridgeCanvas.height !== vid.videoHeight
-            ) {
-              bridgeCanvas.width = vid.videoWidth;
-              bridgeCanvas.height = vid.videoHeight;
-            }
-            const bCtx = bridgeCanvas.getContext('2d');
-            if (bCtx) {
-              try {
-                bCtx.drawImage(vid, 0, 0, bridgeCanvas.width, bridgeCanvas.height);
-              } catch {}
-            }
-          }
-        }
-        const isAtEndOfMedia = vid.ended || reachedClipMediaEnd;
-
-        if (isAtEndOfMedia) {
+        if (vid.ended) {
           clipEndedHoldRef.current = true;
-          if (!vid.paused) {
-            try {
-              vid.pause();
-            } catch {}
-          }
         } else if (!clipEndedHoldRef.current && vid.paused && vid.readyState >= 2) {
           vid.play().catch(() => {});
         }
       }
+
+      // 85ms Pre-Roll Warm Start on the Standby Deck right before the cut so the next clip is already in motion at t=0 of the cut
+      if (standbyVid && standbyVid !== vid && nextClipAtPlayhead?.videoUrl) {
+        const timeToCut = activeClipAtPlayhead.end - currentTime;
+        const nextTrimStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
+        if (isPlaying && timeToCut > 0 && timeToCut <= 0.085) {
+          if (standbyVid.paused && standbyVid.readyState >= 2) {
+            try {
+              const nextSync = computeClipVideoSyncParams(
+                standbyVid,
+                nextClipAtPlayhead,
+                nextClipAtPlayhead.start
+              );
+              standbyVid.defaultPlaybackRate = nextSync.effectiveRate;
+              standbyVid.playbackRate = nextSync.effectiveRate;
+              standbyVid.muted = true;
+              if (Math.abs(standbyVid.currentTime - nextTrimStart) > 0.12) {
+                standbyVid.currentTime = nextTrimStart;
+              }
+              standbyVid.play().catch(() => {});
+            } catch {}
+          }
+        } else if (timeToCut > 0.12 || !isPlaying) {
+          try {
+            standbyVid.muted = true;
+            if (!standbyVid.paused) {
+              standbyVid.pause();
+            }
+            if (
+              standbyVid.readyState >= 1 &&
+              Math.abs(standbyVid.currentTime - nextTrimStart) > 0.08
+            ) {
+              standbyVid.currentTime = nextTrimStart;
+            }
+          } catch {}
+        }
+      }
+
       setCinemaAmbienceActive(false);
     } else if (isPlaying) {
       activePlayingClipIdRef.current = activeClipAtPlayhead?.id || null;
@@ -8048,7 +8142,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     : undefined
                 }
               >
-              {/* Layer 1: Active Clip Video with Seamless Last-Frame Bridge Canvas + Next-Clip Preloader (Zero Black Frames Between Direct Cuts) */}
+              {/* Layer 1: True Dual-Deck (A/B Ping-Pong) Hardware Video Engine with 85ms Pre-Roll (0ms Decoder Swap, Zero Frozen Last Frame) */}
               {activeClipAtPlayhead?.videoUrl ? (
                 <div
                   className="relative w-full h-full overflow-hidden bg-black"
@@ -8058,121 +8152,123 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
                   }}
                 >
-                  {/* Seamless Last-Frame Bridge Canvas: holds the outgoing clip's final frame during the ~20ms decoder swap so there is NEVER a black frame between clips */}
-                  <canvas
-                    ref={seamlessBridgeCanvasRef}
-                    className="absolute inset-0 w-full h-full object-cover block pointer-events-none"
-                  />
-                  <video
-                    ref={previewVideoRef}
-                    src={
-                      activeClipAtPlayhead.opticalFlowUrl &&
-                      activeClipAtPlayhead.smoothSlowMo !== false &&
-                      activeClipAtPlayhead.speed < 0.99
-                        ? activeClipAtPlayhead.opticalFlowUrl
-                        : activeClipAtPlayhead.videoUrl
-                    }
-                    className="relative z-10 w-full h-full object-cover block bg-transparent"
-                    playsInline
-                    preload={isEditorActive ? 'auto' : 'none'}
-                    onLoadedMetadata={(e) => {
-                      const vid = e.currentTarget;
-                      try {
-                        const { effectiveRate, clampedOffset, reachedClipMediaEnd } =
-                          computeClipVideoSyncParams(
-                            vid,
-                            activeClipAtPlayhead,
-                            currentTimeRef.current
-                          );
-                        activePlayingClipIdRef.current = activeClipAtPlayhead.id;
-                        appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
-                        clipEndedHoldRef.current = reachedClipMediaEnd;
-                        vid.defaultPlaybackRate = effectiveRate;
-                        vid.playbackRate = effectiveRate;
-                        // Avoid redundant seek to ~0s on natural clip transition so frame 0 never jumps
-                        if (
-                          Math.abs(vid.currentTime - clampedOffset) >
-                          (isPlaying && clampedOffset < 0.2 ? 0.22 : 0.08)
-                        ) {
-                          vid.currentTime = clampedOffset;
-                        }
-                        vid.muted = false;
-                        vid.volume = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
-                        if (isPlaying && !reachedClipMediaEnd) {
-                          vid.play().catch(() => {});
-                        }
-                      } catch {}
-                    }}
-                    onLoadedData={(e) => {
-                      const vid = e.currentTarget;
-                      vid.style.opacity = '1';
-                      const bridgeCanvas = seamlessBridgeCanvasRef.current;
-                      if (bridgeCanvas && vid.videoWidth > 0 && vid.videoHeight > 0) {
-                        if (
-                          bridgeCanvas.width !== vid.videoWidth ||
-                          bridgeCanvas.height !== vid.videoHeight
-                        ) {
-                          bridgeCanvas.width = vid.videoWidth;
-                          bridgeCanvas.height = vid.videoHeight;
-                        }
-                        const bCtx = bridgeCanvas.getContext('2d');
-                        if (bCtx) {
-                          try {
-                            bCtx.drawImage(vid, 0, 0, bridgeCanvas.width, bridgeCanvas.height);
-                          } catch {}
-                        }
-                      }
-                    }}
-                    onCanPlay={(e) => {
-                      e.currentTarget.style.opacity = '1';
-                    }}
-                    onEnded={(e) => {
-                      clipEndedHoldRef.current = true;
-                      try {
-                        e.currentTarget.pause();
-                      } catch {}
-                    }}
-                    onError={() => {
-                      const clipNum = activeClipAtPlayhead?.clipNumber;
-                      const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
-                      if (
-                        clipNum &&
-                        fallbackUrl &&
-                        activeClipAtPlayhead?.videoUrl !== fallbackUrl
-                      ) {
-                        setTimelineClips((prev) =>
-                          prev.map((tc) =>
-                            tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
-                          )
-                        );
-                      }
-                    }}
-                  />
-                  {/* Hidden Next-Clip Preloader: keeps the upcoming clip's MP4 header and first frame warm in browser memory before the cut */}
-                  {isEditorActive && nextClipAtPlayhead?.videoUrl && (
-                    <video
-                      ref={preloadNextVideoRef}
-                      src={
-                        nextClipAtPlayhead.opticalFlowUrl &&
-                        nextClipAtPlayhead.smoothSlowMo !== false &&
-                        nextClipAtPlayhead.speed < 0.99
-                          ? nextClipAtPlayhead.opticalFlowUrl
-                          : nextClipAtPlayhead.videoUrl
-                      }
-                      preload="auto"
-                      muted
-                      playsInline
-                      className="hidden"
-                      onLoadedMetadata={(e) => {
-                        try {
-                          const tStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
-                          if (tStart > 0.05 && Math.abs(e.currentTarget.currentTime - tStart) > 0.05) {
-                            e.currentTarget.currentTime = tStart;
+                  {([0, 1] as const).map((slotIdx) => {
+                    const isDeckActive = activeDeckSlot === slotIdx;
+                    const slotSrc = slotIdx === 0 ? deckAUrl : deckBUrl;
+                    return (
+                      <video
+                        key={`dual-deck-${slotIdx}`}
+                        ref={(el) => {
+                          if (slotIdx === 0) {
+                            deckAVideoRef.current = el;
+                          } else {
+                            deckBVideoRef.current = el;
                           }
-                        } catch {}
-                      }}
-                    />
-                  )}
+                          if (isDeckActive) {
+                            previewVideoRef.current = el;
+                          } else {
+                            preloadNextVideoRef.current = el;
+                          }
+                        }}
+                        src={slotSrc || undefined}
+                        className="absolute inset-0 w-full h-full object-cover block bg-transparent"
+                        style={{
+                          opacity: isDeckActive ? 1 : 0,
+                          zIndex: isDeckActive ? 20 : 10,
+                          pointerEvents: isDeckActive ? 'auto' : 'none',
+                        }}
+                        playsInline
+                        muted={!isDeckActive}
+                        preload={isEditorActive ? 'auto' : 'none'}
+                        onLoadedMetadata={(e) => {
+                          const vid = e.currentTarget;
+                          try {
+                            if (deckAssignRef.current.activeSlot === slotIdx && activeClipAtPlayhead) {
+                              const { effectiveRate, clampedOffset, reachedClipMediaEnd } =
+                                computeClipVideoSyncParams(
+                                  vid,
+                                  activeClipAtPlayhead,
+                                  currentTimeRef.current
+                                );
+                              activePlayingClipIdRef.current = activeClipAtPlayhead.id;
+                              appliedVideoSeekVersionRef.current = lastSeekVersionRef.current;
+                              clipEndedHoldRef.current = reachedClipMediaEnd;
+                              vid.defaultPlaybackRate = effectiveRate;
+                              vid.playbackRate = effectiveRate;
+                              if (
+                                Math.abs(vid.currentTime - clampedOffset) >
+                                (isPlaying && clampedOffset < 0.2 ? 0.28 : 0.08)
+                              ) {
+                                vid.currentTime = clampedOffset;
+                              }
+                              vid.muted = false;
+                              vid.volume = Math.min(
+                                1,
+                                Math.max(0, effectiveFoleyVolumeAtPlayhead / 100)
+                              );
+                              if (isPlaying && !reachedClipMediaEnd) {
+                                vid.play().catch(() => {});
+                              }
+                            } else if (nextClipAtPlayhead) {
+                              const { effectiveRate } = computeClipVideoSyncParams(
+                                vid,
+                                nextClipAtPlayhead,
+                                nextClipAtPlayhead.start
+                              );
+                              vid.defaultPlaybackRate = effectiveRate;
+                              vid.playbackRate = effectiveRate;
+                              vid.muted = true;
+                              const tStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
+                              if (Math.abs(vid.currentTime - tStart) > 0.05) {
+                                vid.currentTime = tStart;
+                              }
+                              if (!vid.paused) {
+                                vid.pause();
+                              }
+                            }
+                          } catch {}
+                        }}
+                        onLoadedData={(e) => {
+                          const vid = e.currentTarget;
+                          if (deckAssignRef.current.activeSlot === slotIdx) {
+                            vid.style.opacity = '1';
+                          } else {
+                            vid.style.opacity = '0';
+                          }
+                        }}
+                        onCanPlay={(e) => {
+                          const vid = e.currentTarget;
+                          if (deckAssignRef.current.activeSlot === slotIdx) {
+                            vid.style.opacity = '1';
+                          }
+                        }}
+                        onEnded={(e) => {
+                          if (deckAssignRef.current.activeSlot === slotIdx) {
+                            clipEndedHoldRef.current = true;
+                          }
+                          try {
+                            e.currentTarget.pause();
+                          } catch {}
+                        }}
+                        onError={() => {
+                          if (deckAssignRef.current.activeSlot !== slotIdx) return;
+                          const clipNum = activeClipAtPlayhead?.clipNumber;
+                          const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                          if (
+                            clipNum &&
+                            fallbackUrl &&
+                            activeClipAtPlayhead?.videoUrl !== fallbackUrl
+                          ) {
+                            setTimelineClips((prev) =>
+                              prev.map((tc) =>
+                                tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
                 /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
