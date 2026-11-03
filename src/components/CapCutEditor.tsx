@@ -571,12 +571,43 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onOfficialLogoChange,
   isEditorActive = true,
 }) => {
-  // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K)
+  // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K), FPS, Bitrate & Burn-in Options
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
     activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9'
   );
   const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('8K_4320P');
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportFps, setExportFps] = useState<24 | 30 | 60>(30);
+  const [exportBitrateTier, setExportBitrateTier] = useState<'standard' | 'recommended' | 'ultra' | 'custom'>('recommended');
+  const [exportBitrateMbps, setExportBitrateMbps] = useState<number>(140);
+  const [burnInLogo, setBurnInLogo] = useState<boolean>(true);
+  const [burnInHook, setBurnInHook] = useState<boolean>(true);
+  const [burnInCaptions, setBurnInCaptions] = useState<boolean>(true);
+  const [renderStageLabel, setRenderStageLabel] = useState<string>('');
+  const [lastExportedOutputPath, setLastExportedOutputPath] = useState<string>('');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
+
+  const getRecommendedBitratesForRes = (res: ExportResolutionPreset) => {
+    switch (res) {
+      case 'HD_1080P':
+        return { standard: 12, recommended: 18, ultra: 28 };
+      case '2K_1440P':
+        return { standard: 24, recommended: 35, ultra: 50 };
+      case '4K_2160P':
+        return { standard: 45, recommended: 65, ultra: 95 };
+      case '8K_4320P':
+      default:
+        return { standard: 100, recommended: 140, ultra: 200 };
+    }
+  };
+
+  const handleSelectExportResolution = (resKey: ExportResolutionPreset) => {
+    setExportResolution(resKey);
+    const tiers = getRecommendedBitratesForRes(resKey);
+    if (exportBitrateTier === 'standard') setExportBitrateMbps(tiers.standard);
+    else if (exportBitrateTier === 'ultra') setExportBitrateMbps(tiers.ultra);
+    else setExportBitrateMbps(tiers.recommended);
+  };
 
   // Interactive Selection of Objects inside the Video Viewer ('logo' | 'hook_text' | 'captions' | null)
   const [selectedCanvasObject, setSelectedCanvasObject] = useState<
@@ -7148,7 +7179,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const height = aspectRatio === '16:9' ? preset.height16x9 : preset.height9x16;
 
     // 2. Ask user where to save first if no folder is selected yet
-    if (!downloadFolderName) {
+    const effectiveFolderPath = downloadFolderPath || activeDoc?.downloadFolderPath || '';
+    const effectiveFolderName = downloadFolderName || activeDoc?.downloadFolderName || '';
+    if (!effectiveFolderName && !effectiveFolderPath) {
       const picked = await onPickDownloadFolder();
       if (!picked) {
         alert(
@@ -7159,15 +7192,423 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     setIsRenderingVideo(true);
-    setRenderProgressPct(5);
+    setRenderProgressPct(2);
+    setLastExportedOutputPath('');
+    setRenderStageLabel(
+      `Preparando capas visuales (Logo, Gancho y Subtítulos) en ${preset.badge} • ${exportFps} FPS • ${exportBitrateMbps} Mbps...`
+    );
     setStatusMessage(
-      `🎬 Renderizando y preparando descarga del video en ${preset.badge} (${width}×${height}, ${aspectRatio})...`
+      `🎬 Renderizando y preparando descarga del video en ${preset.badge} (${width}×${height}, ${exportFps} FPS, ${exportBitrateMbps} Mbps)...`
     );
 
     try {
-      // 3. Try Ultra-Fast Native FFmpeg Render first if local server & folderPath are available
-      if (downloadFolderPath && activeDoc) {
+      // Load permanent official logo image if available
+      let logoImg: HTMLImageElement | null = null;
+      if (officialLogoUrl) {
+        logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = officialLogoUrl;
+        });
+      }
+
+      // Helper to word-wrap text identically to the 520p canonical WYSIWYG visor stage
+      const wrapOverlayTextLines = (
+        context: CanvasRenderingContext2D,
+        rawText: string,
+        maxLineWidth: number
+      ): string[] => {
+        const paragraphs = String(rawText || '').split('\n');
+        const wrapped: string[] = [];
+        for (const para of paragraphs) {
+          const words = para.trim().split(/\s+/).filter(Boolean);
+          if (words.length === 0) {
+            wrapped.push('');
+            continue;
+          }
+          let currentLine = words[0];
+          for (let wi = 1; wi < words.length; wi++) {
+            const candidate = `${currentLine} ${words[wi]}`;
+            if (context.measureText(candidate).width <= maxLineWidth) {
+              currentLine = candidate;
+            } else {
+              wrapped.push(currentLine);
+              currentLine = words[wi];
+            }
+          }
+          wrapped.push(currentLine);
+        }
+        return wrapped;
+      };
+
+      // 3. Try Ultra-Fast Native FFmpeg Render first if activeDoc is available
+      if (activeDoc) {
+        let pollTimer: number | null = null;
         try {
+          // A) Generate Logo PNG with opacity baked in
+          let logoPngDataUrl = '';
+          if (burnInLogo && logoImg) {
+            const lw = Math.max(64, Math.min(800, logoImg.naturalWidth || logoImg.width || 300));
+            const lh = Math.max(
+              32,
+              Math.round(((logoImg.naturalHeight || logoImg.height || 300) / lw) * lw)
+            );
+            const lCanvas = document.createElement('canvas');
+            lCanvas.width = lw;
+            lCanvas.height = lh;
+            const lCtx = lCanvas.getContext('2d');
+            if (lCtx) {
+              lCtx.globalAlpha = Math.max(0.05, Math.min(1, logoOpacity / 100));
+              lCtx.drawImage(logoImg, 0, 0, lw, lh);
+              logoPngDataUrl = lCanvas.toDataURL('image/png');
+            }
+          }
+
+          // B) Generate Hook Text transparent overlay PNGs (Line 1 phase & Line 1+2 phase)
+          const refW = aspectRatio === '16:9' ? 1920 : 1080;
+          const refH = aspectRatio === '16:9' ? 1080 : 1920;
+          const refScaleRatio = refH / 520;
+          const hookSegmentsPayload: Array<{
+            pngDataUrl: string;
+            startSec: number;
+            endSec: number;
+            yPct: number;
+            hPct: number;
+          }> = [];
+
+          const renderHookOverlayFrame = (showLine1: boolean, showLine2: boolean): string => {
+            const hCanvas = document.createElement('canvas');
+            hCanvas.width = refW;
+            hCanvas.height = refH;
+            const hCtx = hCanvas.getContext('2d');
+            if (!hCtx) return '';
+
+            hCtx.textAlign = 'center';
+            const f1 = Math.round(hookLine1FontSize * refScaleRatio);
+            const f2 = Math.round(hookLine2FontSize * refScaleRatio);
+            const xCenter = Math.round(refW * (hookLeftPct / 100));
+            const yCenter = Math.round(refH * (hookTopPct / 100));
+            const boxW = Math.round(refW * (hookBoxWidthPct / 100));
+            const maxHookTextWidth = Math.max(80, boxW - Math.round(40 * refScaleRatio));
+
+            hCtx.font = `700 ${f1}px ${hookFontFamily}`;
+            if ('letterSpacing' in hCtx) {
+              (hCtx as any).letterSpacing = `${(f1 * 0.1).toFixed(2)}px`;
+            }
+            const line1Rows =
+              showLine1 && clip1Line1
+                ? wrapOverlayTextLines(hCtx, clip1Line1.toUpperCase(), maxHookTextWidth)
+                : [];
+
+            hCtx.font = `900 ${f2}px ${hookFontFamily}`;
+            if ('letterSpacing' in hCtx) {
+              (hCtx as any).letterSpacing = `${(f2 * 0.025).toFixed(2)}px`;
+            }
+            const line2Rows =
+              showLine2 && clip1Line2
+                ? wrapOverlayTextLines(hCtx, clip1Line2.toUpperCase(), maxHookTextWidth)
+                : [];
+            if ('letterSpacing' in hCtx) {
+              (hCtx as any).letterSpacing = '0px';
+            }
+
+            const line1RowH = Math.round(f1 * 1.375);
+            const line2RowH = Math.round(f2 * 1.375);
+            const interBlockGap =
+              line1Rows.length > 0 && line2Rows.length > 0 ? Math.round(6 * refScaleRatio) : 0;
+            const totalH1 = line1Rows.length * line1RowH;
+            const totalH2 = line2Rows.length * line2RowH;
+            const totalContentH = totalH1 + interBlockGap + totalH2;
+
+            if (
+              (hookBgStyle === 'semi' || hookBgStyle === 'solid') &&
+              (line1Rows.length > 0 || line2Rows.length > 0)
+            ) {
+              hCtx.save();
+              hCtx.fillStyle = hexToRgba(
+                hookBgColor,
+                hookBgStyle === 'solid' ? 95 : hookBgOpacity
+              );
+              const padBox = Math.round(10 * refScaleRatio);
+              const boxH = Math.round(totalContentH + padBox * 2);
+              hCtx.beginPath();
+              hCtx.roundRect(
+                Math.round(xCenter - boxW / 2),
+                Math.round(yCenter - boxH / 2),
+                boxW,
+                boxH,
+                Math.round(12 * refScaleRatio)
+              );
+              hCtx.fill();
+              hCtx.restore();
+            }
+
+            let cursorY = Math.round(yCenter - totalContentH / 2 + f1 * 0.85);
+            if (line1Rows.length > 0) {
+              hCtx.save();
+              hCtx.font = `700 ${f1}px ${hookFontFamily}`;
+              if ('letterSpacing' in hCtx) {
+                (hCtx as any).letterSpacing = `${(f1 * 0.1).toFixed(2)}px`;
+              }
+              let rowY1 = cursorY;
+              for (const rowText of line1Rows) {
+                if (hookBgStyle === 'word_shadow' && rowText.trim()) {
+                  hCtx.save();
+                  const m1 = hCtx.measureText(rowText);
+                  const padX1 = Math.round(10 * refScaleRatio);
+                  const padY1 = Math.round(2 * refScaleRatio);
+                  const w1 = Math.min(boxW, m1.width + padX1 * 2);
+                  const h1 = Math.round(f1 * 1.22) + padY1 * 2;
+                  hCtx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
+                  hCtx.shadowColor = hexToRgba(hookBgColor, Math.round(hookBgOpacity * 0.85));
+                  hCtx.shadowBlur = Math.round(12 * refScaleRatio);
+                  hCtx.beginPath();
+                  hCtx.roundRect(
+                    Math.round(xCenter - w1 / 2),
+                    Math.round(rowY1 - f1 * 0.88 - padY1),
+                    Math.round(w1),
+                    Math.round(h1),
+                    Math.round(6 * refScaleRatio)
+                  );
+                  hCtx.fill();
+                  hCtx.restore();
+                }
+                if (hookShadowStyle !== 'none') {
+                  hCtx.shadowColor =
+                    hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+                  hCtx.shadowBlur = (hookShadowStyle === 'soft' ? 8 : 18) * refScaleRatio;
+                  hCtx.shadowOffsetY = 3 * refScaleRatio;
+                }
+                if (hookShadowStyle === 'outline') {
+                  hCtx.lineWidth = Math.max(3, Math.round(f1 * 0.16));
+                  hCtx.strokeStyle = '#000000';
+                  hCtx.strokeText(rowText, xCenter, rowY1);
+                }
+                hCtx.fillStyle = hookLine1Color;
+                hCtx.fillText(rowText, xCenter, rowY1);
+                rowY1 += line1RowH;
+              }
+              hCtx.restore();
+              cursorY += totalH1 + interBlockGap + Math.round((f2 - f1) * 0.85);
+            }
+            if (line2Rows.length > 0) {
+              if (line1Rows.length === 0) {
+                cursorY = Math.round(yCenter - totalH2 / 2 + f2 * 0.85);
+              }
+              hCtx.save();
+              hCtx.font = `900 ${f2}px ${hookFontFamily}`;
+              if ('letterSpacing' in hCtx) {
+                (hCtx as any).letterSpacing = `${(f2 * 0.025).toFixed(2)}px`;
+              }
+              for (const rowText of line2Rows) {
+                if (hookBgStyle === 'word_shadow' && rowText.trim()) {
+                  hCtx.save();
+                  const m2 = hCtx.measureText(rowText);
+                  const padX2 = Math.round(10 * refScaleRatio);
+                  const padY2 = Math.round(2 * refScaleRatio);
+                  const w2 = Math.min(boxW, m2.width + padX2 * 2);
+                  const h2 = Math.round(f2 * 1.22) + padY2 * 2;
+                  hCtx.fillStyle = hexToRgba(hookBgColor, hookBgOpacity);
+                  hCtx.shadowColor = hexToRgba(hookBgColor, Math.round(hookBgOpacity * 0.85));
+                  hCtx.shadowBlur = Math.round(14 * refScaleRatio);
+                  hCtx.beginPath();
+                  hCtx.roundRect(
+                    Math.round(xCenter - w2 / 2),
+                    Math.round(cursorY - f2 * 0.88 - padY2),
+                    Math.round(w2),
+                    Math.round(h2),
+                    Math.round(6 * refScaleRatio)
+                  );
+                  hCtx.fill();
+                  hCtx.restore();
+                }
+                if (hookShadowStyle !== 'none') {
+                  hCtx.shadowColor =
+                    hookShadowStyle === 'gold_glow' ? 'rgba(245,158,11,0.85)' : 'rgba(0,0,0,0.95)';
+                  hCtx.shadowBlur = (hookShadowStyle === 'soft' ? 8 : 18) * refScaleRatio;
+                  hCtx.shadowOffsetY = 3 * refScaleRatio;
+                }
+                if (hookShadowStyle === 'outline') {
+                  hCtx.lineWidth = Math.max(4, Math.round(f2 * 0.16));
+                  hCtx.strokeStyle = '#000000';
+                  hCtx.strokeText(rowText, xCenter, cursorY);
+                }
+                hCtx.fillStyle = hookLine2Color;
+                hCtx.fillText(rowText, xCenter, cursorY);
+                cursorY += line2RowH;
+              }
+              hCtx.restore();
+            }
+
+            return hCanvas.toDataURL('image/png');
+          };
+
+          if (burnInHook && (clip1Line1 || clip1Line2)) {
+            const s1 = Math.max(0, Number(hookLine1StartSec || 8));
+            const s2 = Math.max(s1, Number(hookLine2StartSec || 10));
+            const endHook = Math.max(s2 + 0.5, Number(clip1OverlayEndSec || 16));
+            if (clip1Line1 && s2 > s1 + 0.05) {
+              const png1 = renderHookOverlayFrame(true, false);
+              if (png1) {
+                hookSegmentsPayload.push({
+                  pngDataUrl: png1,
+                  startSec: s1,
+                  endSec: Math.min(s2, endHook),
+                  yPct: 0,
+                  hPct: 100,
+                });
+              }
+            }
+            if (endHook > s2 + 0.05) {
+              const png12 = renderHookOverlayFrame(Boolean(clip1Line1), Boolean(clip1Line2));
+              if (png12) {
+                hookSegmentsPayload.push({
+                  pngDataUrl: png12,
+                  startSec: s2,
+                  endSec: endHook,
+                  yPct: 0,
+                  hPct: 100,
+                });
+              }
+            }
+          }
+
+          // C) Generate Burned-In Subtitle strips (cropped to bottom caption band for ultra-fast encoding)
+          const captionSegmentsPayload: Array<{
+            pngDataUrl: string;
+            startSec: number;
+            endSec: number;
+            yPct: number;
+            hPct: number;
+          }> = [];
+
+          if (burnInCaptions && captions.length > 0) {
+            const stripH = Math.round(refH * 0.24);
+            const yBottomRef = Math.round(refH * (1 - captionBottomPct / 100));
+            const stripTopPx = Math.max(
+              0,
+              Math.min(refH - stripH, yBottomRef - Math.round(stripH * 0.82))
+            );
+            const stripYPct = Number(((stripTopPx / refH) * 100).toFixed(3));
+            const stripHPct = Number(((stripH / refH) * 100).toFixed(3));
+
+            const cCanvas = document.createElement('canvas');
+            cCanvas.width = refW;
+            cCanvas.height = stripH;
+            const cCtx = cCanvas.getContext('2d');
+
+            if (cCtx) {
+              const effectiveCapPx = Math.max(13, captionFontSize * 0.76);
+              const capFontPx = Math.round(effectiveCapPx * refScaleRatio);
+              const capLineH = Math.round(capFontPx * 1.35);
+              const maxCapTextW = Math.max(100, refW - Math.round(52 * refScaleRatio));
+
+              for (const cap of captions) {
+                if (!cap.text || !cap.text.trim() || cap.end <= cap.start + 0.04) continue;
+                cCtx.clearRect(0, 0, refW, stripH);
+                cCtx.save();
+                cCtx.translate(0, -stripTopPx);
+                cCtx.font = `800 ${capFontPx}px ${captionFontFamily}`;
+                cCtx.textAlign = 'center';
+
+                const capRows = wrapOverlayTextLines(
+                  cCtx,
+                  formatCaptionTextCase(cap.text),
+                  maxCapTextW
+                );
+
+                if (captionBgStyle === 'semi' || captionBgStyle === 'solid') {
+                  let maxRowW = 0;
+                  for (const r of capRows) {
+                    maxRowW = Math.max(maxRowW, cCtx.measureText(r).width);
+                  }
+                  const padX = Math.round(14 * refScaleRatio);
+                  const padY = Math.round(4 * refScaleRatio);
+                  const boxW = Math.min(refW - Math.round(32 * refScaleRatio), maxRowW + padX * 2);
+                  const boxH = capRows.length * capLineH + padY * 2;
+                  cCtx.fillStyle = hexToRgba(
+                    captionBgColor,
+                    captionBgStyle === 'solid' ? 95 : captionBgOpacity
+                  );
+                  cCtx.beginPath();
+                  cCtx.roundRect(
+                    Math.round((refW - boxW) / 2),
+                    Math.round(yBottomRef - boxH),
+                    Math.round(boxW),
+                    Math.round(boxH),
+                    Math.round(8 * refScaleRatio)
+                  );
+                  cCtx.fill();
+                }
+
+                for (let ri = 0; ri < capRows.length; ri++) {
+                  const rowText = capRows[ri];
+                  const rowY =
+                    yBottomRef -
+                    (capRows.length - 1 - ri) * capLineH -
+                    Math.round(capFontPx * 0.28);
+
+                  if (captionBgStyle === 'word_shadow' && rowText.trim()) {
+                    cCtx.save();
+                    const mCap = cCtx.measureText(rowText);
+                    const padX = Math.round(10 * refScaleRatio);
+                    const padY = Math.round(2 * refScaleRatio);
+                    const wCap = Math.min(
+                      refW - Math.round(32 * refScaleRatio),
+                      mCap.width + padX * 2
+                    );
+                    const hCap = Math.round(capFontPx * 1.22) + padY * 2;
+                    cCtx.fillStyle = hexToRgba(captionBgColor, captionBgOpacity);
+                    cCtx.shadowColor = hexToRgba(captionBgColor, Math.round(captionBgOpacity * 0.85));
+                    cCtx.shadowBlur = Math.round(12 * refScaleRatio);
+                    cCtx.beginPath();
+                    cCtx.roundRect(
+                      Math.round((refW - wCap) / 2),
+                      Math.round(rowY - capFontPx * 0.88 - padY),
+                      Math.round(wCap),
+                      Math.round(hCap),
+                      Math.round(6 * refScaleRatio)
+                    );
+                    cCtx.fill();
+                    cCtx.restore();
+                  }
+
+                  if (captionShadowStyle === 'outline') {
+                    cCtx.lineWidth = Math.max(4, Math.round(capFontPx * 0.18));
+                    cCtx.strokeStyle = '#000000';
+                    cCtx.strokeText(rowText, refW / 2, rowY);
+                  } else if (captionShadowStyle !== 'none') {
+                    cCtx.shadowColor =
+                      captionShadowStyle === 'gold_glow'
+                        ? 'rgba(245,158,11,0.85)'
+                        : 'rgba(0,0,0,0.95)';
+                    cCtx.shadowBlur = (captionShadowStyle === 'soft' ? 6 : 14) * refScaleRatio;
+                    cCtx.shadowOffsetY = 3 * refScaleRatio;
+                  }
+
+                  cCtx.fillStyle =
+                    captionColor === 'amber'
+                      ? '#fde047'
+                      : captionColor === 'custom'
+                      ? captionCustomColor
+                      : '#ffffff';
+                  cCtx.fillText(rowText, refW / 2, rowY);
+                }
+
+                cCtx.restore();
+                captionSegmentsPayload.push({
+                  pngDataUrl: cCanvas.toDataURL('image/png'),
+                  startSec: cap.start,
+                  endSec: cap.end,
+                  yPct: stripYPct,
+                  hPct: stripHPct,
+                });
+              }
+            }
+          }
+
           const srtText = captions
             .map((c, idx) => {
               const fmt = (sec: number) => {
@@ -7183,17 +7624,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             })
             .join('\n\n');
 
+          // Poll live render progress from server
+          pollTimer = window.setInterval(async () => {
+            try {
+              const stResp = await fetch('/api/editor/render-status');
+              if (stResp.ok) {
+                const stData = await stResp.json();
+                if (stData && stData.running) {
+                  if (typeof stData.progressPct === 'number' && stData.progressPct > 0) {
+                    setRenderProgressPct(stData.progressPct);
+                  }
+                  if (stData.stageLabel) {
+                    setRenderStageLabel(stData.stageLabel);
+                    setStatusMessage(`🎬 ${stData.stageLabel}`);
+                  }
+                }
+              }
+            } catch {}
+          }, 1200);
+
           const resp = await fetch('/api/editor/render-ffmpeg', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              folderPath: downloadFolderPath,
+              folderPath: effectiveFolderPath,
+              folderName: effectiveFolderName,
               docTitle: activeDoc.title,
               aspectRatio,
               resolution: exportResolution,
-              clips: timelineClips.map((c) => ({
+              fps: exportFps,
+              bitrateMbps: exportBitrateMbps,
+              clips: clipsWithTimelineBounds.map((c) => ({
                 clipNumber: c.clipNumber,
                 fileName: c.fileName,
+                start: c.start,
+                end: c.end,
                 durationSec: c.duration,
                 sourceDuration: c.sourceDuration,
                 trimStart: c.trimStart || 0,
@@ -7203,6 +7668,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
                 opticalFlowUrl: c.opticalFlowUrl || '',
                 videoUrl: c.videoUrl || '',
+                foleyOnlyIsolated: Boolean(c.foleyOnlyIsolated),
+                foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
+                vocalsSeparated: Boolean(c.vocalsSeparated),
+                musicSeparated: Boolean(c.musicSeparated),
                 foleyVolume: c.audioMuted ? 0 : c.foleyVolume / 100,
                 audioMuted: Boolean(c.audioMuted),
                 audioFadeInSec: c.audioFadeInSec,
@@ -7230,20 +7699,56 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
               })),
               srtContent: srtText,
+              overlays: {
+                burnInLogo,
+                logo: {
+                  pngDataUrl: logoPngDataUrl,
+                  xPct: logoPosX,
+                  yPct: logoPosY,
+                  wPct: logoScalePct,
+                },
+                burnInHook,
+                hookSegments: hookSegmentsPayload,
+                burnInCaptions,
+                captionSegments: captionSegmentsPayload,
+              },
             }),
           });
+          if (pollTimer) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+          }
           if (resp.ok && (resp.headers.get('content-type') || '').includes('application/json')) {
             const data = await resp.json();
             if (data.ok) {
               setRenderProgressPct(100);
+              setLastExportedOutputPath(data.outputPath || '');
+              setRenderStageLabel(
+                `✅ ¡Exportado en ${data.elapsedSec}s! Archivo: ${data.fileName}`
+              );
               setStatusMessage(
-                `✅ ¡Video renderizado y descargado en ${data.elapsedSec}s! Guardado en: ${data.outputPath}`
+                `✅ ¡Video renderizado y exportado en ${data.elapsedSec}s! Guardado en: ${data.outputPath}`
               );
               setIsRenderingVideo(false);
               return;
             }
+          } else {
+            const errJson = await resp.json().catch(() => null);
+            if (errJson?.error) {
+              throw new Error(errJson.error);
+            }
           }
-        } catch {}
+        } catch (ffErr: any) {
+          if (pollTimer) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+          }
+          console.error('Error en renderizado nativo FFmpeg:', ffErr);
+          setRenderStageLabel(`⚠️ ${ffErr?.message || 'Error en FFmpeg'}`);
+          setStatusMessage(`⚠️ Error en renderizado FFmpeg: ${ffErr?.message || ffErr}`);
+          setIsRenderingVideo(false);
+          return;
+        }
       }
 
       const canvas = document.createElement('canvas');
@@ -7251,18 +7756,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('No se pudo inicializar el motor gráfico de renderizado.');
-
-      // Load permanent official logo image if available
-      let logoImg: HTMLImageElement | null = null;
-      if (officialLogoUrl) {
-        logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = officialLogoUrl;
-        });
-      }
 
       const stream = canvas.captureStream(30);
       const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')
@@ -8269,7 +8762,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <button
                     key={resKey}
                     type="button"
-                    onClick={() => setExportResolution(resKey)}
+                    onClick={() => handleSelectExportResolution(resKey)}
                     className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
                       isSel
                         ? 'bg-emerald-500 text-slate-950 shadow'
@@ -8324,19 +8817,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
           )}
 
-          {/* Single Unified Download / Export Video Button */}
+          {/* Single Unified Download / Export Video Button -> Opens Export Settings Modal */}
           <button
             type="button"
-            disabled={isRenderingVideo}
-            onClick={handleExportMasterVideo}
+            onClick={() => {
+              if (!officialLogoUrl || !officialLogoUrl.trim()) {
+                setActiveInspectorTab('branding');
+                alert(
+                  '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" en la pestaña "Logo y Textos" o en la Etapa 5 antes de renderizar y exportar el video.'
+                );
+                return;
+              }
+              setShowExportModal(true);
+            }}
             className={`px-3 py-1 rounded-lg font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow-lg transition ${
               officialLogoUrl
-                ? 'bg-teal-400 hover:bg-teal-300 disabled:opacity-50 text-slate-950 shadow-teal-500/20'
+                ? 'bg-teal-400 hover:bg-teal-300 text-slate-950 shadow-teal-500/20'
                 : 'bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200'
             }`}
             title={
               officialLogoUrl
-                ? 'Renderiza y descarga el video final en la calidad y formato seleccionados'
+                ? 'Abrir ventana de configuración de calidad, FPS, bitrate y capas incrustadas para exportar el video'
                 : '🔒 Obligatorio: Primero debes subir el Logo Oficial del canal antes de renderizar y descargar el video'
             }
           >
@@ -8345,10 +8846,327 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? `Exportando ${renderProgressPct}%...`
               : !officialLogoUrl
               ? '🔒 Subir Logo'
-              : `Export (${activePreset.badge.split(' ')[0]})`}
+              : `Export (${activePreset.badge.split(' ')[0]} • ${exportFps}fps)`}
           </button>
         </div>
       </div>
+
+      {/* =====================================================================
+          EXPORT CONFIGURATION MODAL (QUALITY, FPS, BITRATE & BURNED-IN OVERLAYS)
+      ===================================================================== */}
+      {showExportModal && (
+        <div
+          onClick={() => {
+            if (!isRenderingVideo) setShowExportModal(false);
+          }}
+          className="fixed inset-0 z-[280] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-[#14110d] border border-amber-500/40 shadow-2xl shadow-black/90 overflow-hidden text-slate-100"
+          >
+            {/* Header */}
+            <div className="px-4 py-3 bg-gradient-to-r from-amber-500/20 via-teal-500/15 to-slate-900 border-b border-amber-500/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-teal-400 text-slate-950 font-black">
+                  <Download className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-amber-200 leading-tight">
+                    Configuración de Exportación Master
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    {clipsWithTimelineBounds.length} segmentos • Duración total:{' '}
+                    {formatTimecode(totalDurationSec)}
+                  </p>
+                </div>
+              </div>
+              {!isRenderingVideo && (
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(false)}
+                  className="w-6 h-6 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold cursor-pointer flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-3.5 text-xs">
+              {/* 1. Calidad / Resolución */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
+                    1. Calidad / Resolución ({aspectRatio})
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-300">
+                    {aspectRatio === '16:9'
+                      ? `${activePreset.width16x9} × ${activePreset.height16x9}`
+                      : `${activePreset.width9x16} × ${activePreset.height9x16}`}{' '}
+                    px
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(
+                    ['HD_1080P', '2K_1440P', '4K_2160P', '8K_4320P'] as ExportResolutionPreset[]
+                  ).map((resKey) => {
+                    const p = RESOLUTION_PRESETS[resKey];
+                    const isSel = exportResolution === resKey;
+                    const dimLabel =
+                      aspectRatio === '16:9'
+                        ? `${p.width16x9}×${p.height16x9}`
+                        : `${p.width9x16}×${p.height9x16}`;
+                    return (
+                      <button
+                        key={resKey}
+                        type="button"
+                        disabled={isRenderingVideo}
+                        onClick={() => handleSelectExportResolution(resKey)}
+                        className={`py-2 px-1.5 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${
+                          isSel
+                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-500/10'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="font-black text-xs text-white">
+                          {p.badge.split(' ')[0]}
+                        </div>
+                        <div className="text-[9px] font-mono opacity-80 mt-0.5">{dimLabel}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Fotogramas por segundo (FPS) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
+                    2. Fotogramas por Segundo (FPS)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {exportFps === 24
+                      ? 'Look Cinematográfico'
+                      : exportFps === 30
+                      ? 'Estándar YouTube'
+                      : 'Ultra Fluido 60Hz'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { fps: 24 as const, label: '24 FPS', sub: 'Cine Clásico' },
+                      { fps: 30 as const, label: '30 FPS', sub: 'Recomendado YT' },
+                      { fps: 60 as const, label: '60 FPS', sub: 'Ultra Fluido' },
+                    ]
+                  ).map((item) => {
+                    const isSel = exportFps === item.fps;
+                    return (
+                      <button
+                        key={item.fps}
+                        type="button"
+                        disabled={isRenderingVideo}
+                        onClick={() => setExportFps(item.fps)}
+                        className={`py-1.5 px-2 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${
+                          isSel
+                            ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="font-black text-xs text-white">{item.label}</div>
+                        <div className="text-[9px] opacity-80">{item.sub}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Bitrate (Tasa de Bits en Mbps) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
+                    3. Bitrate de Video (Mbps)
+                  </span>
+                  <span className="text-[10px] font-mono text-teal-300 font-bold">
+                    {exportBitrateMbps} Mbps • Peso est.: ~
+                    {(((exportBitrateMbps + 0.25) * Math.max(60, totalDurationSec)) / 8 / 1024).toFixed(
+                      2
+                    )}{' '}
+                    GB
+                  </span>
+                </div>
+                {(() => {
+                  const tiers = getRecommendedBitratesForRes(exportResolution);
+                  return (
+                    <div className="grid grid-cols-3 gap-1.5 mb-2">
+                      {(
+                        [
+                          { key: 'standard' as const, label: 'Estándar', val: tiers.standard },
+                          {
+                            key: 'recommended' as const,
+                            label: 'Recomendado',
+                            val: tiers.recommended,
+                          },
+                          { key: 'ultra' as const, label: 'Máxima Calidad', val: tiers.ultra },
+                        ]
+                      ).map((t) => {
+                        const isSel =
+                          exportBitrateTier === t.key && exportBitrateMbps === t.val;
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            disabled={isRenderingVideo}
+                            onClick={() => {
+                              setExportBitrateTier(t.key);
+                              setExportBitrateMbps(t.val);
+                            }}
+                            className={`py-1 px-2 rounded-lg border text-center transition cursor-pointer disabled:opacity-50 ${
+                              isSel
+                                ? 'bg-teal-500/20 border-teal-400 text-teal-200 font-black'
+                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <div className="text-[10px] font-bold">{t.label}</div>
+                            <div className="text-[9px] font-mono text-slate-300">{t.val} Mbps</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+                  <input
+                    type="range"
+                    min={6}
+                    max={240}
+                    step={1}
+                    disabled={isRenderingVideo}
+                    value={exportBitrateMbps}
+                    onChange={(e) => {
+                      setExportBitrateTier('custom');
+                      setExportBitrateMbps(Number(e.target.value));
+                    }}
+                    className="flex-1 accent-teal-400 cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={4}
+                      max={300}
+                      disabled={isRenderingVideo}
+                      value={exportBitrateMbps}
+                      onChange={(e) => {
+                        setExportBitrateTier('custom');
+                        setExportBitrateMbps(
+                          Math.max(4, Math.min(300, Number(e.target.value) || 18))
+                        );
+                      }}
+                      className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-mono text-xs font-bold text-teal-300 outline-none"
+                    />
+                    <span className="text-[10px] font-mono text-slate-400">Mbps</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Capas Visuales Incrustadas (Burn-in) */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                <div className="text-[10px] font-black text-amber-300 uppercase tracking-wider mb-1">
+                  4. Capas Incrustadas en el Video Final
+                </div>
+                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
+                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
+                    <input
+                      type="checkbox"
+                      disabled={isRenderingVideo}
+                      checked={burnInLogo}
+                      onChange={(e) => setBurnInLogo(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
+                    />
+                    <span>Logo Oficial (Huellas de la Humanidad)</span>
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-400">Incrustado</span>
+                </label>
+                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
+                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
+                    <input
+                      type="checkbox"
+                      disabled={isRenderingVideo}
+                      checked={burnInHook}
+                      onChange={(e) => setBurnInHook(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
+                    />
+                    <span>Gancho Inicial en Clip 1 (Línea 1 y Línea 2)</span>
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-400">Incrustado</span>
+                </label>
+                <label className="flex items-center justify-between gap-2 cursor-pointer select-none py-0.5">
+                  <span className="flex items-center gap-2 text-[11px] font-bold text-slate-200">
+                    <input
+                      type="checkbox"
+                      disabled={isRenderingVideo}
+                      checked={burnInCaptions}
+                      onChange={(e) => setBurnInCaptions(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-teal-400 rounded cursor-pointer"
+                    />
+                    <span>Subtítulos Quemados en Pantalla ({captions.length} bloques)</span>
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-400">+ .SRT aparte</span>
+                </label>
+              </div>
+
+              {/* Live Render Progress Bar */}
+              {(isRenderingVideo || renderStageLabel) && (
+                <div className="bg-slate-950 border border-teal-500/40 rounded-xl p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-teal-200 truncate pr-2">
+                      {renderStageLabel || 'Procesando video...'}
+                    </span>
+                    <span className="font-mono font-black text-teal-300 shrink-0">
+                      {renderProgressPct}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden">
+                    <div
+                      style={{ width: `${Math.max(2, Math.min(100, renderProgressPct))}%` }}
+                      className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 transition-all duration-300"
+                    />
+                  </div>
+                  {lastExportedOutputPath && !isRenderingVideo && (
+                    <div className="text-[10px] font-mono text-emerald-300 break-all pt-1">
+                      📂 Guardado en: {lastExportedOutputPath}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isRenderingVideo}
+                onClick={() => setShowExportModal(false)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs cursor-pointer transition"
+              >
+                {lastExportedOutputPath && !isRenderingVideo ? 'Cerrar' : 'Cancelar'}
+              </button>
+              <button
+                type="button"
+                disabled={isRenderingVideo}
+                onClick={handleExportMasterVideo}
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-teal-500/20 cursor-pointer transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {isRenderingVideo
+                  ? `Renderizando (${renderProgressPct}%)...`
+                  : `🚀 Renderizar y Exportar (${activePreset.badge.split(' ')[0]} • ${exportFps} FPS)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {statusMessage && (
         <div className="fixed top-10 right-3 z-[220] max-w-md bg-emerald-950/95 backdrop-blur border border-emerald-500/40 rounded-lg px-3 py-1 text-[11px] text-emerald-200 flex items-center justify-between shadow-2xl">

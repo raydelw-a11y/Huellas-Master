@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { exec, execSync, spawn, ChildProcess } from 'child_process';
+import { exec, execFile, execSync, spawn, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -3114,13 +3114,41 @@ app.post('/api/project/export-organized-package', async (req, res) => {
 // ============================================================================
 // ITEM 3: ULTRA-FAST NATIVE FFMPEG MULTI-TRACK RENDERER (HD / 2K / 4K / 8K)
 // ============================================================================
+let activeRenderJobState: {
+  running: boolean;
+  progressPct: number;
+  currentStep: number;
+  totalSteps: number;
+  stageLabel: string;
+  startedAt: number;
+  outputPath?: string;
+  fileName?: string;
+  error?: string;
+} = {
+  running: false,
+  progressPct: 0,
+  currentStep: 0,
+  totalSteps: 0,
+  stageLabel: '',
+  startedAt: 0,
+};
+
+app.get('/api/editor/render-status', (_req, res) => {
+  res.json({ ok: true, ...activeRenderJobState });
+});
+
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
+  const startedAt = Date.now();
+  const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
   try {
     const {
       folderPath,
+      folderName = '',
       docTitle,
       aspectRatio = '16:9',
       resolution = 'HD_1080P',
+      fps = 30,
+      bitrateMbps = 0,
       clips = [],
       voiceoverStartSec = 6,
       voiceoverVolume = 1.0,
@@ -3130,9 +3158,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       sunoMasterVolume = 0.14,
       musicTracks = [],
       srtContent = '',
+      overlays = {},
     } = req.body;
 
-    const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, '', docTitle);
+    const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
     const targetRoot =
       resolvedDocFolder ||
       (folderPath && String(folderPath).trim()
@@ -3142,45 +3171,152 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     if (!fs.existsSync(targetRoot)) {
       fs.mkdirSync(targetRoot, { recursive: true });
     }
-
-    const workDir = path.join(targetRoot, '.huellas_ffmpeg_temp');
     if (!fs.existsSync(workDir)) {
       fs.mkdirSync(workDir, { recursive: true });
     }
 
-    // Resolution dimensions
-    const resMap: Record<string, { w169: number; h169: number; label: string }> = {
-      HD_1080P: { w169: 1920, h169: 1080, label: 'HD_1080p' },
-      '2K_1440P': { w169: 2560, h169: 1440, label: '2K_1440p' },
-      '4K_2160P': { w169: 3840, h169: 2160, label: '4K_2160p' },
-      '8K_4320P': { w169: 7680, h169: 4320, label: '8K_4320p' },
+    // Resolution dimensions & default bitrates
+    const resMap: Record<
+      string,
+      { w169: number; h169: number; label: string; defaultBitrateMbps: number }
+    > = {
+      HD_1080P: { w169: 1920, h169: 1080, label: 'HD_1080p', defaultBitrateMbps: 18 },
+      '2K_1440P': { w169: 2560, h169: 1440, label: '2K_1440p', defaultBitrateMbps: 35 },
+      '4K_2160P': { w169: 3840, h169: 2160, label: '4K_2160p', defaultBitrateMbps: 65 },
+      '8K_4320P': { w169: 7680, h169: 4320, label: '8K_4320p', defaultBitrateMbps: 140 },
     };
     const preset = resMap[resolution] || resMap.HD_1080P;
     const outW = aspectRatio === '9:16' ? preset.h169 : preset.w169;
     const outH = aspectRatio === '9:16' ? preset.w169 : preset.h169;
+    const safeFps = [24, 25, 30, 50, 60].includes(Number(fps)) ? Number(fps) : 30;
+    const safeBitrateMbps = Math.max(
+      4,
+      Math.min(350, Number(bitrateMbps) > 0 ? Number(bitrateMbps) : preset.defaultBitrateMbps)
+    );
+    const is8K = resolution === '8K_4320P' || outW > 4096 || outH > 4096;
+
+    const ffmpegBin = resolveFfmpegBin();
+
+    activeRenderJobState = {
+      running: true,
+      progressPct: 2,
+      currentStep: 0,
+      totalSteps: Math.max(1, clips.length),
+      stageLabel: `Preparando capas visuales y ${clips.length} segmentos en ${preset.label} (${safeFps} FPS • ${safeBitrateMbps} Mbps)...`,
+      startedAt,
+    };
+
+    // Prepare burned-in overlay PNG files in local SSD temp dir (Logo, Hook Line 1/2, Captions)
+    let logoOverlayInfo: {
+      filePath: string;
+      xPx: number;
+      yPx: number;
+      wPx: number;
+    } | null = null;
+    if (overlays?.burnInLogo !== false) {
+      let logoDataUrl = overlays?.logo?.pngDataUrl || '';
+      if (!logoDataUrl && fs.existsSync(OFFICIAL_LOGO_FILE)) {
+        try {
+          const parsedLogo = JSON.parse(fs.readFileSync(OFFICIAL_LOGO_FILE, 'utf8'));
+          logoDataUrl = parsedLogo.logoDataUrl || '';
+        } catch {}
+      }
+      if (logoDataUrl && String(logoDataUrl).startsWith('data:')) {
+        const cleanB64 = String(logoDataUrl).replace(/^data:[^;]+;base64,/, '');
+        const logoFile = path.join(workDir, 'overlay_logo.png');
+        fs.writeFileSync(logoFile, Buffer.from(cleanB64, 'base64'));
+        const wPct = Math.max(1, Math.min(45, Number(overlays?.logo?.wPct ?? 6)));
+        const xPct = Math.max(0, Math.min(95, Number(overlays?.logo?.xPct ?? 3)));
+        const yPct = Math.max(0, Math.min(95, Number(overlays?.logo?.yPct ?? 3)));
+        logoOverlayInfo = {
+          filePath: logoFile,
+          wPx: Math.max(24, Math.round((outW * wPct) / 100)),
+          xPx: Math.round((outW * xPct) / 100),
+          yPx: Math.round((outH * yPct) / 100),
+        };
+      }
+    }
+
+    const hookOverlayFiles: Array<{
+      filePath: string;
+      startSec: number;
+      endSec: number;
+      yPx: number;
+      hPx: number;
+    }> = [];
+    if (overlays?.burnInHook !== false && Array.isArray(overlays?.hookSegments)) {
+      for (let hi = 0; hi < overlays.hookSegments.length; hi++) {
+        const hs = overlays.hookSegments[hi];
+        if (!hs || !hs.pngDataUrl || !String(hs.pngDataUrl).startsWith('data:')) continue;
+        const cleanB64 = String(hs.pngDataUrl).replace(/^data:[^;]+;base64,/, '');
+        const hf = path.join(workDir, `overlay_hook_${hi}.png`);
+        fs.writeFileSync(hf, Buffer.from(cleanB64, 'base64'));
+        const yPct = Math.max(0, Math.min(95, Number(hs.yPct ?? 30)));
+        const hPct = Math.max(4, Math.min(100, Number(hs.hPct ?? 40)));
+        hookOverlayFiles.push({
+          filePath: hf,
+          startSec: Number(hs.startSec || 0),
+          endSec: Number(hs.endSec || 0),
+          yPx: Math.round((outH * yPct) / 100),
+          hPx: Math.max(24, Math.round((outH * hPct) / 100)),
+        });
+      }
+    }
+
+    const captionOverlayFiles: Array<{
+      filePath: string;
+      startSec: number;
+      endSec: number;
+      yPx: number;
+      hPx: number;
+    }> = [];
+    if (overlays?.burnInCaptions !== false && Array.isArray(overlays?.captionSegments)) {
+      for (let ci = 0; ci < overlays.captionSegments.length; ci++) {
+        const cs = overlays.captionSegments[ci];
+        if (!cs || !cs.pngDataUrl || !String(cs.pngDataUrl).startsWith('data:')) continue;
+        const cleanB64 = String(cs.pngDataUrl).replace(/^data:[^;]+;base64,/, '');
+        const cf = path.join(workDir, `overlay_cap_${String(ci).padStart(4, '0')}.png`);
+        fs.writeFileSync(cf, Buffer.from(cleanB64, 'base64'));
+        const yPct = Math.max(0, Math.min(96, Number(cs.yPct ?? 72)));
+        const hPct = Math.max(4, Math.min(60, Number(cs.hPct ?? 22)));
+        captionOverlayFiles.push({
+          filePath: cf,
+          startSec: Number(cs.startSec || 0),
+          endSec: Number(cs.endSec || 0),
+          yPx: Math.round((outH * yPct) / 100),
+          hPx: Math.max(24, Math.round((outH * hPct) / 100)),
+        });
+      }
+    }
 
     // 1. Collect all available MP4 clips on disk (from 05_Clips_Video, Clips_Aprobados, or targetRoot)
     const normalizedClipPaths: string[] = [];
     const clipsVideoSubdir = path.join(targetRoot, '05_Clips_Video');
     const clipsSubdir = path.join(targetRoot, 'Clips_Aprobados');
+    const foleyCacheSubdir = path.join(clipsVideoSubdir, '.foley_only_cache');
 
     const introOutroDir = path.join(
       process.env.HOME || '/Users/raydelsantana',
       'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro'
     );
 
+    let runningTimelineSec = 0;
+
     for (let i = 0; i < clips.length; i++) {
       const c = clips[i];
       const fileName = c.fileName || `${String(c.clipNumber || i + 1).padStart(2, '0')}_Clip.mp4`;
       let sourceMp4 = '';
 
+      const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
+      const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
+
       const candidate0 = path.join(clipsVideoSubdir, fileName);
       const candidate1 = path.join(targetRoot, fileName);
       const candidate2 = path.join(clipsSubdir, fileName);
-      if (Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName)) {
+      if (isIntroClip) {
         const introPath = path.join(introOutroDir, 'Intro.mp4');
         if (fs.existsSync(introPath)) sourceMp4 = introPath;
-      } else if (Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName)) {
+      } else if (isOutroClip) {
         const outroPath = path.join(introOutroDir, 'Outro.mp4');
         if (fs.existsSync(outroPath)) sourceMp4 = outroPath;
       }
@@ -3194,7 +3330,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         sourceMp4 = candidate2;
       } else if (c.videoDataUrl && String(c.videoDataUrl).startsWith('data:')) {
         const cleanB64 = String(c.videoDataUrl).replace(/^data:[^;]+;base64,/, '');
-        sourceMp4 = candidate1;
+        sourceMp4 = path.join(workDir, `raw_input_${i + 1}.mp4`);
         fs.writeFileSync(sourceMp4, Buffer.from(cleanB64, 'base64'));
       } else {
         // Fallback: match by prefix number (e.g. "01_") in 05_Clips_Video, targetRoot, or Clips_Aprobados (prioritizing _4K.mp4)
@@ -3226,7 +3362,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      // Prefer cleaned audio MP4 (.foley_only_cache / .vocals_cache / .music_cache) if present on c.videoUrl
+      // Prefer cleaned audio MP4 (.foley_only_cache / .vocals_cache / .music_cache) if present on c.videoUrl or on disk
       if (c.videoUrl && typeof c.videoUrl === 'string') {
         try {
           const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
@@ -3245,6 +3381,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             sourceMp4 = vidFile;
           }
         } catch {}
+      } else if (!isIntroClip && !isOutroClip && !c.foleyOnlyDisabled && fs.existsSync(foleyCacheSubdir)) {
+        const num = Number(c.clipNumber || i + 1);
+        const foleyRegex = new RegExp(`^0*${num}[_\\-\\s.].*foley_only\\.mp4$`, 'i');
+        const foleyMatches = fs.readdirSync(foleyCacheSubdir).filter((f) => foleyRegex.test(f));
+        if (foleyMatches.length > 0) {
+          sourceMp4 = path.join(foleyCacheSubdir, foleyMatches[0]);
+        }
       }
 
       // Check if an Optical Flow baked file already exists for this clip segment
@@ -3260,15 +3403,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       if (!sourceMp4 || !fs.existsSync(sourceMp4)) continue;
 
-      // Normalize each segment with FFmpeg so concat is 100% glitch-free
-      const ffmpegBin = resolveFfmpegBin();
       const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.mp4`);
       const usingPrebakedOpticalFlow =
         Boolean(c.opticalFlowUrl) && sourceMp4.includes('.optical_flow_cache');
       const slotDur =
-        Number(c.end) > Number(c.start) + 0.2
+        Number(c.durationSec) > 0.3
+          ? Number(c.durationSec)
+          : Number(c.end) > Number(c.start) + 0.2
           ? Math.max(0.4, Number(c.end) - Number(c.start))
           : 0;
+
       const probedSegDur = !usingPrebakedOpticalFlow
         ? await new Promise<number>((resolve) => {
             const p = spawn(ffmpegBin, ['-i', sourceMp4], {
@@ -3286,7 +3430,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
                   parseInt(m[2], 10) * 60 +
                   parseFloat(m[3]);
                 if (Number.isFinite(sec) && sec > 0.3) {
-                  resolve(Math.max(0.3, sec - 0.06));
+                  resolve(Math.max(0.3, sec - 0.04));
                   return;
                 }
               }
@@ -3295,6 +3439,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             p.on('error', () => resolve(0));
           })
         : 0;
+
       const trimStartSec = usingPrebakedOpticalFlow
         ? 0
         : Math.max(0, Number(c.trimStart || 0));
@@ -3307,7 +3452,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         !usingPrebakedOpticalFlow && probedSegDur > 0.4
           ? rawTrimEnd > trimStartSec + 0.1 && rawTrimEnd < probedSegDur - 0.05
             ? rawTrimEnd
-            : Math.max(trimStartSec + 0.2, probedSegDur - 0.05)
+            : Math.max(trimStartSec + 0.2, probedSegDur - 0.04)
           : rawTrimEnd;
       const effectiveSpan =
         trimEndSec > trimStartSec + 0.1
@@ -3322,20 +3467,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : Number(c.speed) > 0
         ? Number(c.speed)
         : 1;
-      const smoothSlowMo =
-        c.smoothSlowMo !== undefined ? Boolean(c.smoothSlowMo) : speed < 0.99;
       const ptsFactor = usingPrebakedOpticalFlow
         ? '1.0000'
         : slotDur > 0.3 && effectiveSpan > 0.2
-        ? ((slotDur + 0.08) / effectiveSpan).toFixed(5)
+        ? ((slotDur + 0.06) / effectiveSpan).toFixed(5)
         : (1 / speed).toFixed(4);
       const foleyVol = c.audioMuted
         ? 0
         : typeof c.foleyVolume === 'number'
         ? c.foleyVolume
         : 0.35;
-      const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
-      const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
       const isFirstClipAfterIntro =
         !isIntroClip &&
         !isOutroClip &&
@@ -3343,9 +3484,27 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const effectiveClipDur =
         slotDur > 0.3
           ? slotDur
-          : Number(c.durationSec) > 0.3
-          ? Number(c.durationSec)
+          : probedSegDur > 0.3
+          ? probedSegDur
           : 8;
+
+      const segStartSec =
+        Number.isFinite(Number(c.start)) && Number(c.start) >= 0
+          ? Number(c.start)
+          : runningTimelineSec;
+      const segEndSec = segStartSec + effectiveClipDur;
+      runningTimelineSec = segEndSec;
+
+      activeRenderJobState = {
+        ...activeRenderJobState,
+        progressPct: Math.min(88, Math.max(3, Math.round(((i + 1) / Math.max(1, clips.length)) * 85))),
+        currentStep: i + 1,
+        totalSteps: clips.length,
+        stageLabel: `Renderizando segmento ${i + 1}/${clips.length} (${
+          isIntroClip ? 'Intro' : isOutroClip ? 'Outro' : `Clip ${c.clipNumber || i}`
+        }) en ${preset.label} • ${safeFps} FPS...`,
+      };
+
       const defaultAudioFadeIn = isIntroClip || isOutroClip ? 1.5 : isFirstClipAfterIntro ? 1.2 : 0;
       const defaultAudioFadeOut = isIntroClip || isOutroClip ? 2.5 : 0;
       const audioFadeInSec =
@@ -3369,15 +3528,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : isOutroClip
         ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
         : '';
-      const slowMoInterpFilter =
-        !usingPrebakedOpticalFlow && speed < 0.96 && smoothSlowMo
-          ? ',minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none'
-          : ',fps=30';
       const vfTrimSuffix =
         !usingPrebakedOpticalFlow && slotDur > 0.3
           ? `,trim=duration=${slotDur.toFixed(3)},setpts=PTS-STARTPTS`
           : '';
-      const vfFilter = `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black${slowMoInterpFilter},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}`;
+      const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=${safeFps},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}`;
+
       const buildAtempoChain = (spd: number): string => {
         if (Math.abs(spd - 1) < 0.003) return '';
         const stages: string[] = [];
@@ -3408,24 +3564,111 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         inputTrimArgs.push('-to', trimEndSec.toFixed(3));
       }
 
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          ffmpegBin,
-          [
-            '-y',
-            ...inputTrimArgs,
-            '-i',
-            sourceMp4,
-            '-vf',
-            vfFilter,
-            '-af',
-            afFilter,
+      // Collect burned-in overlays that overlap this segment [segStartSec, segEndSec]
+      const extraOverlayInputs: string[] = [];
+      const overlayFilterSteps: string[] = [];
+      let currentVLabel = 'vb0';
+      let ovrCounter = 0;
+
+      // 1) Official Logo overlay (burned in across the documentary)
+      if (logoOverlayInfo && fs.existsSync(logoOverlayInfo.filePath)) {
+        extraOverlayInputs.push('-i', logoOverlayInfo.filePath);
+        const inpIdx = extraOverlayInputs.length / 2; // 1-based after input 0 (adjusted when anullsrc is inserted)
+        const nextVLbl = `vb_${++ovrCounter}`;
+        overlayFilterSteps.push(
+          `[__INP_${inpIdx}__:v]scale=${logoOverlayInfo.wPx}:-1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+        );
+        currentVLabel = nextVLbl;
+      }
+
+      // 2) Hook Text overlays (Clip 1 Line 1 & Line 2)
+      for (const hk of hookOverlayFiles) {
+        if (hk.endSec > segStartSec + 0.02 && hk.startSec < segEndSec - 0.02) {
+          const localStart = Math.max(0, hk.startSec - segStartSec);
+          const localEnd = Math.min(effectiveClipDur, hk.endSec - segStartSec);
+          if (localEnd > localStart + 0.02) {
+            extraOverlayInputs.push('-i', hk.filePath);
+            const inpIdx = extraOverlayInputs.length / 2;
+            const nextVLbl = `vb_${++ovrCounter}`;
+            overlayFilterSteps.push(
+              `[__INP_${inpIdx}__:v]scale=${outW}:${hk.hPx}[hk_${ovrCounter}];[${currentVLabel}][hk_${ovrCounter}]overlay=0:${hk.yPx}:format=auto:enable='between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})'[${nextVLbl}]`
+            );
+            currentVLabel = nextVLbl;
+          }
+        }
+      }
+
+      // 3) Burned-in Subtitle strips overlapping [segStartSec, segEndSec]
+      for (const cs of captionOverlayFiles) {
+        if (cs.endSec > segStartSec + 0.02 && cs.startSec < segEndSec - 0.02) {
+          const localStart = Math.max(0, cs.startSec - segStartSec);
+          const localEnd = Math.min(effectiveClipDur, cs.endSec - segStartSec);
+          if (localEnd > localStart + 0.02) {
+            extraOverlayInputs.push('-i', cs.filePath);
+            const inpIdx = extraOverlayInputs.length / 2;
+            const nextVLbl = `vb_${++ovrCounter}`;
+            overlayFilterSteps.push(
+              `[__INP_${inpIdx}__:v]scale=${outW}:${cs.hPx}[cp_${ovrCounter}];[${currentVLabel}][cp_${ovrCounter}]overlay=0:${cs.yPx}:format=auto:enable='between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})'[${nextVLbl}]`
+            );
+            currentVLabel = nextVLbl;
+          }
+        }
+      }
+
+      const hwEncoderArgs = is8K
+        ? ['-c:v', 'hevc_videotoolbox', '-b:v', `${safeBitrateMbps}M`, '-tag:v', 'hvc1']
+        : ['-c:v', 'h264_videotoolbox', '-b:v', `${safeBitrateMbps}M`, '-profile:v', 'high'];
+
+      const swEncoderArgs = is8K
+        ? [
+            '-c:v',
+            'libx265',
+            '-preset',
+            'ultrafast',
+            '-b:v',
+            `${safeBitrateMbps}M`,
+            '-tag:v',
+            'hvc1',
+          ]
+        : [
             '-c:v',
             'libx264',
             '-preset',
             'ultrafast',
-            '-crf',
-            '18',
+            '-b:v',
+            `${safeBitrateMbps}M`,
+            '-maxrate',
+            `${Math.round(safeBitrateMbps * 1.25)}M`,
+            '-bufsize',
+            `${Math.round(safeBitrateMbps * 2)}M`,
+          ];
+
+      const buildSegmentArgs = (useSilentAudioInput: boolean, vCodecArgs: string[]): string[] => {
+        const inputOffset = useSilentAudioInput ? 1 : 0;
+        const resolvedOverlaySteps = overlayFilterSteps.map((step) =>
+          step.replace(/__INP_(\d+)__/g, (_m, d) => String(parseInt(d, 10) + inputOffset))
+        );
+        const fullComplex =
+          resolvedOverlaySteps.length > 0
+            ? `[0:v]${baseVfChain}[vb0];${resolvedOverlaySteps.join(';')};[${currentVLabel}]format=yuv420p[vout]`
+            : `[0:v]${baseVfChain}[vout]`;
+
+        if (!useSilentAudioInput) {
+          return [
+            '-y',
+            ...inputTrimArgs,
+            '-i',
+            sourceMp4,
+            ...extraOverlayInputs,
+            '-filter_complex',
+            `${fullComplex};[0:a]${afFilter}[aout]`,
+            '-map',
+            '[vout]',
+            '-map',
+            '[aout]',
+            '-r',
+            String(safeFps),
+            ...vCodecArgs,
             '-c:a',
             'aac',
             '-ar',
@@ -3433,49 +3676,71 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '-ac',
             '2',
             segOut,
-          ],
-          { timeout: 180000 },
-          (err) => {
-            if (err) {
-              // Retry without audio filter if source clip had no audio stream
-              execFile(
-                ffmpegBin,
-                [
-                  '-y',
-                  ...inputTrimArgs,
-                  '-i',
-                  sourceMp4,
-                  '-f',
-                  'lavfi',
-                  '-i',
-                  'anullsrc=channel_layout=stereo:sample_rate=44100',
-                  '-vf',
-                  vfFilter,
-                  '-c:v',
-                  'libx264',
-                  '-preset',
-                  'ultrafast',
-                  '-crf',
-                  '18',
-                  '-c:a',
-                  'aac',
-                  '-shortest',
-                  segOut,
-                ],
-                { timeout: 180000 },
-                (err2) => (err2 ? reject(err2) : resolve())
-              );
-            } else {
-              resolve();
-            }
+          ];
+        } else {
+          return [
+            '-y',
+            ...inputTrimArgs,
+            '-i',
+            sourceMp4,
+            '-f',
+            'lavfi',
+            '-i',
+            `anullsrc=channel_layout=stereo:sample_rate=44100:d=${effectiveClipDur.toFixed(3)}`,
+            ...extraOverlayInputs,
+            '-filter_complex',
+            fullComplex,
+            '-map',
+            '[vout]',
+            '-map',
+            '1:a',
+            '-r',
+            String(safeFps),
+            ...vCodecArgs,
+            '-c:a',
+            'aac',
+            '-ar',
+            '44100',
+            '-ac',
+            '2',
+            '-shortest',
+            segOut,
+          ];
+        }
+      };
+
+      const runSegmentEncode = (args: string[]) =>
+        new Promise<void>((resolve, reject) => {
+          execFile(ffmpegBin, args, { timeout: 600000 }, (err) => (err ? reject(err) : resolve()));
+        });
+
+      try {
+        await runSegmentEncode(buildSegmentArgs(false, hwEncoderArgs));
+      } catch {
+        try {
+          await runSegmentEncode(buildSegmentArgs(true, hwEncoderArgs));
+        } catch {
+          try {
+            await runSegmentEncode(buildSegmentArgs(false, swEncoderArgs));
+          } catch {
+            await runSegmentEncode(buildSegmentArgs(true, swEncoderArgs));
           }
-        );
-      });
+        }
+      }
 
       normalizedClipPaths.push(segOut);
     }
 
     if (normalizedClipPaths.length === 0) {
+      activeRenderJobState = {
+        running: false,
+        progressPct: 0,
+        currentStep: 0,
+        totalSteps: 0,
+        stageLabel: '',
+        startedAt: 0,
+        error: 'No se encontraron archivos MP4 en la carpeta elegida ni en memoria.',
+      };
       res.status(400).json({
         error:
           'No se encontraron archivos MP4 en la carpeta elegida ni en memoria. Asegúrate de haber descargado o importado al menos un clip MP4.',
@@ -3483,7 +3748,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       return;
     }
 
-    const startedAt = Date.now();
+    activeRenderJobState = {
+      ...activeRenderJobState,
+      progressPct: 90,
+      stageLabel: `Uniendo ${normalizedClipPaths.length} segmentos masterizados...`,
+    };
 
     // 2. Concatenate all normalized segments
     const concatListPath = path.join(workDir, 'concat_list.txt');
@@ -3495,12 +3764,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const concatVideoPath = path.join(workDir, 'concat_video.mp4');
     await new Promise<void>((resolve, reject) => {
       execFile(
-        'ffmpeg',
+        ffmpegBin,
         ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', concatVideoPath],
-        { timeout: 300000 },
+        { timeout: 600000 },
         (err) => (err ? reject(err) : resolve())
       );
     });
+
+    activeRenderJobState = {
+      ...activeRenderJobState,
+      progressPct: 95,
+      stageLabel: 'Mezclando Voz Narrativa (+5 dB), pistas FlowMusic y Foley ambiente...',
+    };
 
     // 3. Check for Voiceover MP3 and Flow Music / Suno tracks to mix in final pass
     let voPath = path.join(targetRoot, '02_Audio', 'Voz_Narrativa.mp3');
@@ -3569,11 +3844,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const safeDocName = String(docTitle || 'Huellas_Documental')
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 45);
-    const finalFileName = `${safeDocName}_${preset.label}_${aspectRatio.replace(':', 'x')}.mp4`;
+    const finalFileName = `${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps_${aspectRatio.replace(':', 'x')}.mp4`;
     const finalOutputPath = path.join(targetRoot, finalFileName);
 
     if (srtContent) {
       fs.writeFileSync(path.join(targetRoot, 'Subtitulos.srt'), String(srtContent), 'utf8');
+      const seoDir = path.join(targetRoot, '01_Guion_y_SEO');
+      if (fs.existsSync(seoDir)) {
+        fs.writeFileSync(path.join(seoDir, 'Subtitulos.srt'), String(srtContent), 'utf8');
+      }
     }
 
     const hasVo = fs.existsSync(voPath);
@@ -3637,16 +3916,24 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         '-c:a',
         'aac',
         '-b:a',
-        '192k',
+        '256k',
+        '-movflags',
+        '+faststart',
         finalOutputPath
       );
 
       await new Promise<void>((resolve, reject) => {
-        execFile('ffmpeg', ffmpegArgs, { timeout: 300000 }, (err) => (err ? reject(err) : resolve()));
+        execFile(ffmpegBin, ffmpegArgs, { timeout: 600000 }, (err) =>
+          err ? reject(err) : resolve()
+        );
       });
     } else {
       fs.copyFileSync(concatVideoPath, finalOutputPath);
     }
+
+    try {
+      execSync(`chflags nohidden "${finalOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+    } catch {}
 
     // Cleanup temp folder
     try {
@@ -3654,6 +3941,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     } catch {}
 
     const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    activeRenderJobState = {
+      running: false,
+      progressPct: 100,
+      currentStep: clips.length,
+      totalSteps: clips.length,
+      stageLabel: `✅ ¡Exportación completada en ${elapsedSec}s!`,
+      startedAt,
+      outputPath: finalOutputPath,
+      fileName: finalFileName,
+    };
+
     res.json({
       ok: true,
       outputPath: finalOutputPath,
@@ -3662,6 +3960,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       elapsedSec,
     });
   } catch (err: any) {
+    try {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    } catch {}
+    activeRenderJobState = {
+      running: false,
+      progressPct: 0,
+      currentStep: 0,
+      totalSteps: 0,
+      stageLabel: '',
+      startedAt: 0,
+      error: err?.message || 'Error ejecutando FFmpeg para renderizar el documental.',
+    };
     console.error('Error en renderizado nativo FFmpeg:', err);
     res.status(500).json({
       error: err.message || 'Error ejecutando FFmpeg para renderizar el documental.',
