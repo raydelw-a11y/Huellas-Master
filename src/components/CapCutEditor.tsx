@@ -26,6 +26,7 @@ import {
   Minimize2,
   RotateCcw,
   RotateCw,
+  Scissors,
 } from 'lucide-react';
 import { DocumentaryProject, DocumentaryClip } from '../types';
 import {
@@ -57,6 +58,13 @@ export interface TimelineClipItem {
   sourceDuration: number;
   speed: number; // e.g., 0.75x for slowed Clip 1, 1.0x default
   trimStart: number;
+  trimEnd?: number; // end offset in source video in seconds (defaults to sourceDuration)
+  smoothSlowMo?: boolean; // CapCut-style Smooth Slow Motion (Optical Flow), auto-enabled when speed < 1.0x
+  opticalFlowUrl?: string; // server-rendered 60fps Optical Flow MP4 URL
+  opticalFlowBakedKey?: string;
+  parentGroupId?: string; // links split parts of the same original clip so deleting a piece stretches the sibling
+  originalSlotDuration?: number; // original timeline duration (e.g. 8s) before splitting/trimming
+  partLabel?: string; // e.g., "Parte A", "Parte B"
   foleyVolume: number; // 0 to 100
   transition: ClipTransitionType;
   videoUrl?: string; // local blob URL or data URL of the MP4
@@ -934,8 +942,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => initialOverlayStyles.captionFontFamily || EDITOR_FONT_OPTIONS[0].value
   );
   const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
-    Number(initialOverlayStyles.captionFontSize) ||
-    (activeDoc?.productionType === 'REEL_9X16' ? 22 : 40)
+    initialOverlayStyles.captionFontSizeV25
+      ? Number(initialOverlayStyles.captionFontSize) || 25
+      : activeDoc?.productionType === 'REEL_9X16'
+      ? 22
+      : 25
   );
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(() =>
     typeof initialOverlayStyles.captionBottomPct === 'number'
@@ -1033,6 +1044,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           hookLine2AnimOutDur,
           captionFontFamily,
           captionFontSize,
+          captionFontSizeV25: true,
           captionBottomPct,
           captionColor,
           captionCustomColor,
