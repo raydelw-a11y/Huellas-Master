@@ -710,6 +710,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!selectedCanvasObject) return;
+    const handleOutsideVisorMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (viewerCanvasRef.current && viewerCanvasRef.current.contains(target)) {
+        return;
+      }
+      if (
+        target.closest('[data-keep-canvas-selection="true"]') ||
+        target.closest('input, select, textarea, option')
+      ) {
+        return;
+      }
+      setSelectedCanvasObject(null);
+      setIsDraggingOrResizingHook(false);
+    };
+    document.addEventListener('mousedown', handleOutsideVisorMouseDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideVisorMouseDown);
+    };
+  }, [selectedCanvasObject]);
+
   const handleToggleViewerFullscreen = async () => {
     const el = viewerContainerRef.current;
     if (!el) return;
@@ -892,6 +915,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ? initialOverlayStyles.captionBgOpacity
       : 25
   );
+  const [captionTextCase, setCaptionTextCase] = useState<'original' | 'uppercase' | 'lowercase'>(
+    () =>
+      initialOverlayStyles.captionTextCase === 'uppercase' ||
+      initialOverlayStyles.captionTextCase === 'lowercase'
+        ? initialOverlayStyles.captionTextCase
+        : 'original'
+  );
+
+  const formatCaptionTextCase = (text: string): string => {
+    const raw = String(text || '');
+    if (captionTextCase === 'uppercase') return raw.toLocaleUpperCase('es-ES');
+    if (captionTextCase === 'lowercase') return raw.toLocaleLowerCase('es-ES');
+    return raw;
+  };
 
   // Track whether the user has edited Hook Text or Captions on the active documentary so background effects NEVER reset them
   const userEditedHookDocIdRef = useRef<string>(
@@ -956,6 +993,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           captionBgStyle,
           captionBgColor,
           captionBgOpacity,
+          captionTextCase,
           captionAnimIn,
           captionAnimOut,
           captionAnimDur,
@@ -1002,6 +1040,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captionBgStyle,
     captionBgColor,
     captionBgOpacity,
+    captionTextCase,
     captionAnimIn,
     captionAnimOut,
     captionAnimDur,
@@ -3541,7 +3580,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   s
                 ).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
               };
-              return `${idx + 1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${c.text}`;
+              return `${idx + 1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${formatCaptionTextCase(c.text)}`;
             })
             .join('\n\n');
 
@@ -3951,7 +3990,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ctx.font = `800 ${capFontPx}px ${captionFontFamily}`;
             ctx.textAlign = 'center';
             const maxCapTextW = Math.max(100, width - Math.round(52 * scaleRatio));
-            const capRows = wrapCanvasTextLines(ctx, cap.text, maxCapTextW);
+            const capRows = wrapCanvasTextLines(ctx, formatCaptionTextCase(cap.text), maxCapTextW);
             const capLineH = Math.round(capFontPx * 1.35);
             const yBottom = Math.round(height * (1 - captionBottomPct / 100));
             ctx.globalAlpha = capAnim.opacity;
@@ -4431,7 +4470,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? `${activePreset.width16x9}×${activePreset.height16x9}`
                   : `${activePreset.width9x16}×${activePreset.height9x16}`}
               </span>
-              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+              <div
+                data-keep-canvas-selection="true"
+                className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
+              >
                 <span className="text-[10px] text-slate-400 px-1.5">Seleccionar en pantalla:</span>
                 <button
                   type="button"
@@ -5038,7 +5080,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         : {}),
                     }}
                   >
-                    {activeCaptionAtPlayhead?.text || nearestCaptionAtPlayhead?.text || ''}
+                    {formatCaptionTextCase(
+                      activeCaptionAtPlayhead?.text || nearestCaptionAtPlayhead?.text || ''
+                    )}
                   </span>
                 </div>
               )}
@@ -5116,7 +5160,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* Contextual Quick-Edit Toolbar when an Overlay Object (Logo, Hook Text, or Captions) is Selected */}
           {selectedCanvasObject === 'hook_text' && (
-            <div className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs">
+            <div
+              data-keep-canvas-selection="true"
+              className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs"
+            >
               <span className="font-black text-amber-300 text-[11px]">
                 🔤 Estilo Texto en Pantalla:
               </span>
@@ -5306,7 +5353,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           )}
 
           {selectedCanvasObject === 'captions' && (
-            <div className="w-full bg-slate-950/95 border border-sky-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs">
+            <div
+              data-keep-canvas-selection="true"
+              className="w-full bg-slate-950/95 border border-sky-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-2.5 text-xs"
+            >
               <span className="font-black text-sky-300 text-[11px]">
                 💬 Estilo Captions:
               </span>
@@ -5437,7 +5487,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           )}
 
           {selectedCanvasObject === 'logo' && (
-            <div className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-3 text-xs">
+            <div
+              data-keep-canvas-selection="true"
+              className="w-full bg-slate-950/95 border border-amber-500/40 rounded-xl p-2.5 flex flex-wrap items-center gap-3 text-xs"
+            >
               <span className="font-black text-amber-300 text-[11px]">
                 🏷️ Ajuste Rápido del Logo:
               </span>
@@ -6672,6 +6725,44 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ))}
                   </select>
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-[10px] text-slate-400 mb-1">Capitalización de Subtítulos:</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCaptionTextCase('original')}
+                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                        captionTextCase === 'original'
+                          ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      Aa Original (Por defecto)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaptionTextCase('uppercase')}
+                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                        captionTextCase === 'uppercase'
+                          ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      AA TODO MAYÚSCULAS
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaptionTextCase('lowercase')}
+                      className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                        captionTextCase === 'lowercase'
+                          ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      aa todo minúsculas
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <label className="block text-[10px] text-slate-400">Tamaño ({captionFontSize}px)</label>
                   <input
@@ -7136,6 +7227,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           onClick={() => {
                             seekToTime(cap.start);
                             setSelectedCanvasObject('captions');
+                            setActiveInspectorTab('captions');
                           }}
                           style={
                             isFitEntireProject
@@ -7153,12 +7245,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               ? 'bg-sky-500/35 border-amber-300 text-white font-bold z-10'
                               : 'bg-sky-950/60 hover:bg-sky-900/70 border-sky-500/30 text-sky-200'
                           } ${isFitEntireProject ? 'px-0.5 text-[8px]' : 'px-1.5 text-[10px]'}`}
-                          title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${cap.text}`}
+                          title={`${formatTimeMMSS(cap.start)} - ${formatTimeMMSS(cap.end)}: ${formatCaptionTextCase(cap.text)}`}
                         >
                           {!isFitEntireProject && timelineZoom >= 12 && (
                             <span className="font-mono text-sky-300 mr-1">{formatTimeMMSS(cap.start)}</span>
                           )}
-                          {cap.text}
+                          {formatCaptionTextCase(cap.text)}
                         </button>
                       );
                     })}
