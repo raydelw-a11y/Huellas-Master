@@ -698,76 +698,80 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     if (!nextConfirmedFinalDuration || nextConfirmedFinalDuration === '02:00') {
       nextConfirmedFinalDuration = '13:26';
     }
-    if (!Array.isArray(nextSunoTracks) || nextSunoTracks.length <= 3) {
+    if (
+      !Array.isArray(nextSunoTracks) ||
+      nextSunoTracks.length <= 3 ||
+      nextSunoTracks.some((t: any) => String(t?.videoTimeRange || '').includes('13:26'))
+    ) {
       nextSunoTracks = [
         {
           id: 'flowmusic-v76-track-1',
           trackNumber: 1,
           title: 'El Muelle de la Despedida (Santander y Asturias, 1885)',
-          duration: '02:16',
-          videoTimeRange: '00:00 - 02:16 (Clip 1 al Clip 15)',
+          duration: '02:28',
+          videoTimeRange: '00:08 - 02:36 (Clip 1 al Clip 16)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Melancholic Spanish Acoustic Guitar & Cello Underscore Below Narrator Voice]\n[Subtle Atlantic Fog Tension]\n[Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Cinematic historical documentary score, 19th century northern Spain farewell atmosphere, solo nylon-string Spanish guitar, mournful cello, soft distant Galician-Asturian woodwind drone, slow tempo 62 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words',
           explanation:
-            'Acompaña el Hook en el muelle de Santander y el desgarro de las aldeas del norte ante la redención en metálico de 2 mil pesetas. Se apaga con Fade-Out en 02:16 dejando un silencio dramático de 20s (02:16 - 02:36).',
+            'Acompaña el Hook en el muelle de Santander y el desgarro de las aldeas del norte ante la redención en metálico de 2 mil pesetas. Se apaga con Fade-Out dejando un silencio dramático de 16s.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-2',
           trackNumber: 2,
           title: 'Las Entrañas del Vapor Transatlántico',
-          duration: '02:10',
-          videoTimeRange: '02:36 - 04:46 (Clip 18 al Clip 30)',
+          duration: '02:28',
+          videoTimeRange: '02:52 - 05:20 (Clip 18 al Clip 32)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Dark Low Strings & Subdued Maritime Pulse Below Voice]\n[Deep Ocean Crossing Suspense]\n[Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Dark cinematic orchestral documentary underscore, late 19th century transatlantic steamship crossing in steerage, deep double bass, tremolo violas, muted French horn, subtle deep heartbeat percussion, slow-mid tempo 66 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary mix sitting softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing, no lyrics',
           explanation:
-            'Entra tras 20s de silencio para acompañar el pasaje de tercera clase, las literas de hierro del entrepuente y la travesía oceánica. Cierra en 04:46 con 20s de silencio dramático (04:46 - 05:06).',
+            'Entra tras 16s de silencio para acompañar el pasaje de tercera clase, las literas de hierro del entrepuente y la travesía oceánica.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-3',
           trackNumber: 3,
           title: 'Cuarentena en Triscornia y Muelles de Veracruz',
-          duration: '02:10',
-          videoTimeRange: '05:06 - 07:16 (Clip 33 al Clip 45)',
+          duration: '02:28',
+          videoTimeRange: '05:36 - 08:04 (Clip 34 al Clip 47)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Tropical Noir Strings & Subtle Harp Underscore]\n[solemn Arrival & Uncertainty]\n[Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Atmospheric historical documentary film score, turn-of-the-century Havana and Veracruz harbor arrival, chamber strings, solo classical guitar, warm bassoon, delicate harp harmonics, slow contemplative tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore below narrator voice without vocal range clash, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Acompaña la llegada al trópico, el campamento de cuarentena de Triscornia y el desembarco en Veracruz. Se desvanece en 07:16 dejando 20s de silencio (07:16 - 07:36).',
+            'Acompaña la llegada al trópico, el campamento de cuarentena de Triscornia y el desembarco en Veracruz.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-4',
           trackNumber: 4,
           title: 'Dieciséis Horas Detrás del Mostrador',
-          duration: '02:00',
-          videoTimeRange: '07:36 - 09:36 (Clip 48 al Clip 59)',
+          duration: '02:24',
+          videoTimeRange: '08:20 - 10:44 (Clip 49 al Clip 61)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Intimate Piano & Solo Cello Documentary Underscore]\n[Quiet Perseverance & Solitude]\n[Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Intimate minimalist historical documentary score, early 20th century immigrant clerk working in dim wooden store, felt piano, warm solo cello, soft upright bass pizzicato, slow reflective tempo 60 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore mixed softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Retrata la dura realidad del dependiente durmiendo sobre el mostrador de cedro y las jornadas de 16 horas. Termina en 09:36 dejando 20s de silencio dramático (09:36 - 09:56).',
+            'Retrata la dura realidad del dependiente durmiendo sobre el mostrador de cedro y las jornadas de 16 horas.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-5',
           trackNumber: 5,
           title: 'Palacios de Piedra y Escuelas de Indianos',
-          duration: '01:40',
-          videoTimeRange: '09:56 - 11:36 (Clip 62 al Clip 71)',
+          duration: '02:28',
+          videoTimeRange: '11:00 - 13:28 (Clip 63 al Clip 74)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Noble Chamber Orchestra & Classical Guitar Underscore]\n[Dignified Historical Transformation]\n[Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Noble cinematic documentary orchestral score, early 20th century mutual aid palaces and rural schools in Spain, warm string ensemble, classical Spanish guitar arpeggios, soft oboe, dignified tempo 68 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore sitting softly below narrator voice, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Acompaña el auge de los centros regionales, hospitales, remesas y las 500 escuelas financiadas en el norte de España. Cierra en 11:36 antes del silencio dramático del exilio en el Sinaia (11:36 - 11:56).',
+            'Acompaña el auge de los centros regionales, hospitales, remesas y las 500 escuelas financiadas en el norte de España.',
           isGenerated: false,
         },
         {
@@ -775,13 +779,13 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
           trackNumber: 6,
           title: 'La Sangre de Dos Orillas (Cierre Documental)',
           duration: '01:30',
-          videoTimeRange: '11:56 - 13:26 (Clip 74 al Clip 81)',
+          videoTimeRange: '13:44 - 15:14 (Clip 75 hasta el final del Clip 82 antes del Outro)',
           lyricsPrompt:
             '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Emotional Cello & Spanish Guitar Finale Below Narrator Voice]\n[01:05 Sweeping Cinematic Resolution]\n[01:25 Gentle 3s Fade-Out Outro]',
           stylePrompt:
             'Sweeping emotional historical documentary finale score, 1 minute 30 seconds duration, poignant solo cello, expressive Spanish acoustic guitar, warm orchestral strings, timeless Atlantic horizon atmosphere, slow noble tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore below narrator voice rising gently in the final seconds, 100% instrumental, strictly no vocals, no singing, no spoken words',
           explanation:
-            'Última canción obligatoria de 1:30 (11:56 - 13:26) que acompaña el legado de los tres millones de emigrantes y el cierre con el lema oficial de Huellas de la Humanidad.',
+            'Última canción obligatoria de 1:30 que llega exactamente hasta el final del Clip 82 justo antes del Outro oficial de 8s.',
           isGenerated: false,
         },
       ];
