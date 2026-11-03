@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:14 AM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:27 AM - 11/03/2026';
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -854,10 +854,402 @@ export default function App() {
   >({});
 
   // Stage 1 Unified ("Prompt Maestro"): Analyzed Videos Library, Deduplicated Comments & Deep Research Mode
-  const [analyzedVideosLibrary, setAnalyzedVideosLibrary] = useState<any[]>([]);
-  const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>('');
-  const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>([]);
-  const [analyzedVideosDeduplicatedComments, setAnalyzedVideosDeduplicatedComments] = useState<any[]>([]);
+  const STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK = useMemo(
+    () => [
+      {
+        id: 'seed_exodo_espanol_1880_1940',
+        videoId: 'exodo_espanol_1880_1940_v76',
+        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        title:
+          'Éxodo Español Transatlántico (1880–1940): De Asturias, Galicia, Cantabria y Canarias a América (Video 76)',
+        channelTitle: '@huellas_de_la_humanidad',
+        channelName: '@huellas_de_la_humanidad',
+        analyzedAt: '2026-11-03T15:20:00.000Z',
+        commentsCount: 84,
+        structureSummary: `1. DECONSTRUCCIÓN DEL HOOK Y PARADOJA CENTRAL (00:00 - 00:30):
+   - Arranca con el Intro Oficial (8s, 00:00 - 00:08) seguido del Clip 1 (6s con fade-in visual y Foley puro en el muelle de piedra húmeda de Maliaño, Santander, 1885). En el segundo 16 entra la voz narrativa con Año y Lugar cerrados con punto ("Año 1885, muelle de Maliaño, Santander, España."), planteando la contradicción central del éxodo: para escapar de la servidumbre agraria del minifundio y de las 2.000 pesetas de la redención militar a Ultramar («impuesto de sangre»), una generación de adolescentes de 14 a 18 años se entregó voluntariamente a un régimen de servidumbre laboral intrafamiliar de 16 horas diarias al otro lado del océano. Antes del segundo 30 cierra con el Slogan Oficial sobre la mesa del historiador antiguo.
+
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE (ESCALETA NARRATIVA Y TÉCNICA DE 10 MINUTOS):
+   - Bloque I (00:00 – 01:45 | 18%) — La Piedra, el Humo y la Quinta (Escenario A, c. 1885):
+     Interior en penumbra de una aldea de Asturias/Galicia (Lué, Colunga); humo de la lareira, lluvia (orbayu) sobre pizarra, claqueteo seco de madreñas de tres tacos y minifundios donde el 83,5% de las parcelas no alcanza media hectárea. El dilema matemático implacable: un jornal agrícola estancado en 1,00–1,50 pesetas diarias (Instituto de Reformas Sociales, 1904–1909) frente al billete de tercera clase de 205–235 pesetas (135 a 200 días íntegros de trabajo) y las 1.500–2.000 pesetas de la redención militar en metálico para librarse de las guerras de Ultramar (Ley de Reclutamiento de 11 de julio de 1885 e ilustración «A Cuba, por no tener seis mil reales»).
+   - Bloque II (01:45 – 03:30 | 18%) — El Entrepuente de Hierro y las Cartas de Llamada (Escenario B, c. 1895–1910):
+     Muelles de La Coruña (480.000–520.000 pasajeros), Vigo (410.000–450.000), Santander (140.000–165.000), Santa Cruz de Tenerife/Las Palmas (160.000–190.000), Gijón/El Musel (95.000–115.000) y Cádiz (85.000–110.000). Estadísticas del Instituto Geográfico y Estadístico y Consejo Superior de Emigración: 5.009.756 salidas hacia América entre 1860 y 1988 (2.747.290 retornos; saldo neto 2.053.929) y 3.297.312 salidas entre 1882 y 1930, de las cuales Cuba absorbió 1.118.968 (33,93%), tras Argentina (1.594.822, 48,36%) y por delante de Brasil (233.432, 7,07%) y México/Puerto Rico/Venezuela (268.740, 8,15%), más un 25% de emigración clandestina y 146.683 soldados españoles no retornados tras 1898. Descenso a las literas de hierro galvanizado de tres niveles bajo la línea de flotación en los vapores de la Compañía Trasatlántica Española y Pinillos; cartas de llamada y Ley de Emigración de 1907.
+   - Bloque III (03:30 – 05:30 | 20%) — El Embudo Sanitario: Triscornia (La Habana) y San Juan de Ulúa (Veracruz) (Escenario C, c. 1900–1920):
+     Choque violento de luz tropical cegadora en la bahía de La Habana y el Lazareto de San Juan de Ulúa en Veracruz (inaugurado el 20 de junio de 1894 contra el «vómito negro» tras la epidemia de 1889). El Dr. Frank E. Menocal (39 años en 1905, Comisionado de Inmigración y compadre del presidente Mario García Menocal) inspeccionando el tracoma invirtiendo los párpados con varilla de vidrio en el Campamento de Triscornia (fundado en noviembre de 1900; desbordado en 1905–1906 con 1.800 españoles para 800 camas tras arribar 10.230 en tres meses). Autoclaves de vapor de la Brigada de Desinfección, denuncias del Dr. Pedro Becerra en el Diario de la Marina (8/09/1903: «La oficina de Triscornia es campamento de facturas de inmigrantes»), intento de suicidio de José Linares Moré, fugas hacia Casablanca y la carta real del joven asturiano Ricardo Ruiz Balbín (18 años) escrita el 13 de diciembre de 1920 desde Ciego de Ávila a su madre Bernarda en Lué (Colunga).
+   - Bloque IV (05:30 – 07:45 | 22%) — La Esclavitud del Mostrador, el Horno y la Comandita (Escenario D, c. 1910–1925):
+     Interior de un almacén de abarrotes con panadería en Ciudad de México y Puebla (El Águila de Oro) y una bodega esquinera en La Habana. Régimen cuasi monástico de los «dependientes»: jornadas de 16 horas (de 5:00 AM a 10:00 PM), prohibición estricta de casarse, dormir sobre el mostrador de madera/zinc o sobre los sacos de harina y frijol en la trastienda, sueldo retenido sin efectivo en una «cuenta corriente» de los libros mayores y paso tras 8–12 años a socio industrial («habilitación» en sociedad en comandita). Contraste con los grandes sanatorios mutualistas (Quinta Covadonga del Centro Asturiano, La Benéfica del Centro Gallego, Beneficencia Española en México) y las escuelas de indianos que elevaron la alfabetización del norte al 80–89%.
+   - Bloque V (07:45 – 10:00 | 22%) — Del Crac de 1929 al Vapor Sinaia y el Legado Presente + Outro Oficial (8s):
+     El desplome azucarero de 1920–1921 y el Crac de 1929–1933: crónicas del Diario de la Marina (9 y 12 de junio de 1921 y julio de 1931) sobre indigentes hacinados en Triscornia, repatriaciones por limosna y el silencio de los fracasados que dejaron de escribir por vergüenza ante la aldea. Giro histórico el 13 de junio de 1939: atraca en Veracruz el vapor Sinaia con el exilio republicano y el poeta Pedro Garfias Zurita (38 años, sienes plateadas, boina negra, chamarra de pastor zamorano y gafas de concha). Cierre sobre el legado gastronómico (pan bolillo y telera en hornos de ladrillo, bodegas, sidra), arquitectónico y familiar presente + Outro Oficial de 8s.
+
+3. FICHAS BIOGRÁFICAS DOCUMENTADAS (@PERSONAS) Y DISEÑO FOLEY DE ARCHIVO:
+   - @Ricardo_Ruiz_Balbin (18 años, Lué, Colunga, Asturias, 1920): Traje de pana oscura y boina negra al embarcar; guayabera de dril blanco y alpargatas en Cuba.
+   - @Dr_Frank_E_Menocal (39 años, Triscornia, La Habana, 1905): Uniforme blanco inmaculado de hilo almidonado con cuello alto y botones dorados, lentes de montura fina y varilla de vidrio para inspección de tracoma.
+   - @Pedro_Garfias_Zurita (38 años, Vapor Sinaia, Veracruz, 13/06/1939): Sienes plateadas, gafas de concha, boina negra, traje oscuro gastado / chamarra de pastor zamorano y bastón de nudos.
+
+4. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - Aritmética de la Supervivencia (1,50 pesetas de jornal vs. 205 pesetas de pasaje vs. 2.000 pesetas para no morir en la guerra) + Desmitificación del «Indiano Rico» (jóvenes durmiendo 10 años sobre el mostrador) + Activación de Memoria Genealógica Hispanoamericana en comentarios.`,
+        structuralBlocks: [
+          {
+            name: 'Intro (8s) + Hook y Quinta (1885)',
+            pct: 10,
+            description:
+              'Muelle de Santander, jornal de 1,50 pesetas vs. 2.000 pesetas de redención militar y Slogan.',
+          },
+          {
+            name: 'Acto I: La Piedra, el Humo y el Desarraigo',
+            pct: 16,
+            description:
+              'Aldeas de Asturias/Galicia, minifundios de <0,5 ha, Ley de Reclutamiento de 1885 y despedida.',
+          },
+          {
+            name: 'Acto II: El Entrepuente de Hierro',
+            pct: 18,
+            description:
+              'Seis puertos de salida, 3,29 millones de emigrantes, literas de hierro y cartas de llamada.',
+          },
+          {
+            name: 'Acto III: Triscornia y San Juan de Ulúa',
+            pct: 20,
+            description:
+              'Filtro sanitario del Dr. Menocal, autoclaves, tracoma y carta de Ricardo Ruiz Balbín (1920).',
+          },
+          {
+            name: 'Acto IV: Esclavitud del Mostrador e Indianos',
+            pct: 20,
+            description:
+              'Jornadas de 16h, dormir sobre el mostrador, comandita vs. Quinta Covadonga y escuelas.',
+          },
+          {
+            name: 'Acto V: Crac del 29, Vapor Sinaia + Outro (8s)',
+            pct: 16,
+            description:
+              'El silencio de los fracasados (1921/1931), arribo del Sinaia (1939), legado y Outro de 8s.',
+          },
+        ],
+        comments: [
+          {
+            id: 'seed-v76-c1',
+            text: '¿Por qué los jóvenes españoles preferían embarcarse casi adolescentes a los 14 o 16 años hacia Cuba y México antes de cumplir la edad del sorteo militar?',
+            author: 'Comunidad Huellas',
+            likes: 94,
+            repeatCount: 14,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c2',
+            text: 'Hagan un documental sobre qué pasó con los miles de emigrantes españoles que NO se hicieron ricos ("los indianos fracasados") tras el desplome azucarero de 1921 y el Crac de 1929.',
+            author: 'Comunidad Huellas',
+            likes: 82,
+            repeatCount: 12,
+            category: 'suggestion',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c3',
+            text: '¿Cómo era realmente el campamento de cuarentena de Triscornia en La Habana y qué les hacían a los inmigrantes de tercera clase al bajar del barco?',
+            author: 'Suscriptor Huellas',
+            likes: 76,
+            repeatCount: 11,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c4',
+            text: '¿Es verdad que los dependientes españoles en las bodegas de La Habana y tiendas de abarrotes y panaderías de México tenían prohibido casarse y dormían sobre el mostrador?',
+            author: 'Comunidad Huellas',
+            likes: 68,
+            repeatCount: 9,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c5',
+            text: 'Deberían contar la historia de los grandes hospitales y palacios que construyeron los inmigrantes con sus cuotas: la Quinta Covadonga, La Benéfica en La Habana y la Beneficencia Española en México.',
+            author: 'Suscriptor Huellas',
+            likes: 59,
+            repeatCount: 8,
+            category: 'suggestion',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c6',
+            text: 'Hagan la continuación sobre el viaje del vapor Sinaia a Veracruz en junio de 1939 y cómo los refugiados republicanos transformaron la ciencia y la cultura en México.',
+            author: 'Comunidad Huellas',
+            likes: 53,
+            repeatCount: 7,
+            category: 'suggestion',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c7',
+            text: '¿Cómo funcionaban las "cartas de llamada" y las redes de emigración clandestina desde las rías de Galicia, Asturias y Canarias hacia América?',
+            author: 'Suscriptor Huellas',
+            likes: 47,
+            repeatCount: 6,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle: 'Éxodo Español Transatlántico (1880–1940)',
+            videoId: 'exodo_espanol_1880_1940_v76',
+          },
+          {
+            id: 'seed-v76-c8',
+            text: 'Cuba en esa época fue receptor de migrantes españoles buscando oportunidades trabajando duro; traían tanta sed de trabajo y emprender que muchos terminaron dueños de bodegas, panaderías y pequeños negocios de la época.',
+            author: '@esmiroperez9022',
+            likes: 39,
+            repeatCount: 5,
+            category: 'comment',
+            sourceType: 'channel',
+            videoTitle: "Así era La Habana de los 50's | Huellas de la Humanidad",
+            videoId: 'rOfrwwANg9k',
+          },
+        ],
+      },
+      {
+        id: 'seed_louvre_medieval',
+        videoId: 'louvre_medieval_p1',
+        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        title:
+          'Castillo del Louvre Medieval (Estructura de Fortaleza Oculta bajo Monumento Famoso)',
+        channelTitle: '@huellas_de_la_humanidad',
+        channelName: '@huellas_de_la_humanidad',
+        analyzedAt: '2026-11-03T14:59:02.462Z',
+        commentsCount: 42,
+        structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Arranca con el Intro Oficial (8s) seguido del Clip 1 (8s) mostrando el monumento actual frente a su pasado subterráneo oscuro. En el segundo 16 entra la voz con Año y Lugar cerrados con punto ("Año 1190, París, Francia."), planteando la paradoja central: millones caminan sobre una fortaleza de guerra sin saberlo. Antes del segundo 30 cierra con el Slogan Oficial sobre la mesa del historiador.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Hook + Promesa, 8%): Choque visual entre el palacio actual y la mazmorra medieval original.
+   - Bloque 2 (El Miedo que dio Origen al Muro, 20%): Por qué Felipe II Augusto ordenó levantar una fortaleza inexpugnable antes de ir a las Cruzadas.
+   - Bloque 3 (Ingeniería Secreta y Foso Sumergido, 24%): Dimensiones reales del torreón (Grosse Tour), muros de piedra caliza y trampas defensivas.
+   - Bloque 4 (Vida Cotidiana, Prisioneros y Tesoro Real, 22%): El olor, la humedad, las bóvedas acorazadas y los prisioneros de Estado.
+   - Bloque 5 (Demolición, Transformación y Redescubrimiento, 18%): Cómo quedó sepultado bajo el Renacimiento y cómo las excavaciones del siglo XX sacaron a la luz sus cimientos intactos.
+   - Bloque 6 (Reflexión Final + Outro Oficial de 8s, 8%): Qué nos revela esa piedra oculta hoy + cierre limpio antes del Outro de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.`,
+        structuralBlocks: [
+          {
+            name: 'Intro (8s) + Hook y Promesa',
+            pct: 8,
+            description: 'Contraste monumento actual vs. fortaleza subterránea oculta y Slogan.',
+          },
+          {
+            name: 'Acto I: La Amenaza Original',
+            pct: 20,
+            description: 'El peligro militar que obligó a construir la fortaleza.',
+          },
+          {
+            name: 'Acto II: Ingeniería y Secretos',
+            pct: 24,
+            description: 'Anatomía arquitectónica, fosos, muros y mecanismos ocultos.',
+          },
+          {
+            name: 'Acto III: Vida y Sombras Dentro',
+            pct: 22,
+            description: 'Cárceles, tesoros, traiciones y vida real tras los muros.',
+          },
+          {
+            name: 'Acto IV: Sepultura y Hallazgo',
+            pct: 18,
+            description: 'Cómo desapareció y cómo la arqueología lo redescubrió.',
+          },
+          {
+            name: 'Clímax Reflexivo + Outro (8s)',
+            pct: 8,
+            description: 'Legado histórico, pregunta a la audiencia y Outro Oficial de 8s.',
+          },
+        ],
+        comments: [
+          {
+            id: 'seed-c1',
+            text: '¿Qué pasó con los túneles subterráneos que conectaban el torreón con el río Sena?',
+            author: 'Suscriptor Huellas',
+            likes: 34,
+            repeatCount: 6,
+            category: 'question',
+            sourceType: 'channel',
+            videoTitle: 'Castillo del Louvre Parte I',
+            videoId: 'louvre_medieval_p1',
+          },
+          {
+            id: 'seed-c2',
+            text: 'Deberían hacer la continuación contando cómo Carlos V transformó la fortaleza militar en residencia real y biblioteca.',
+            author: 'Suscriptor Huellas',
+            likes: 29,
+            repeatCount: 5,
+            category: 'suggestion',
+            sourceType: 'channel',
+            videoTitle: 'Castillo del Louvre Parte I',
+            videoId: 'louvre_medieval_p1',
+          },
+        ],
+      },
+      {
+        id: 'seed_princesas_edad_media',
+        videoId: 'princesas_edad_media',
+        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        title:
+          'Las Princesas de la Edad Media (Estructura de Desmitificación de Vida Cotidiana e Intimidad Histórica)',
+        channelTitle: '@huellas_de_la_humanidad',
+        channelName: '@huellas_de_la_humanidad',
+        analyzedAt: '2026-11-03T14:59:02.463Z',
+        commentsCount: 58,
+        structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Desmonta en los primeros 20 segundos el cuento de hadas moderno: frente al lujo imaginado, muestra el frío glacial de los castillos, los matrimonios políticos en la infancia y la falta total de privacidad.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Intro 8s + Hook de Desmitificación, 9%): El contraste brutal entre el mito romántico y la realidad física medieval.
+   - Bloque 2 (Infancia como Moneda de Alianza, 21%): Educación rígida, despedida de su familia a los 12 años y viaje a un reino extranjero.
+   - Bloque 3 (Higiene, Vestimenta Pesada y Frío en el Castillo, 24%): Detalles sensoriales hiperrealistas (capas de lana, parásitos, chimeneas humeantes, comida y protocolo).
+   - Bloque 4 (El Peligro de la Noche de Bodas y el Parto, 23%): La presión dinástica por dar un heredero varón y la altísima mortalidad materna.
+   - Bloque 5 (Poder Oculto, Regencias y Conspiraciones, 15%): Cómo las mujeres que sobrevivían lograban gobernar imperios desde la sombra.
+   - Bloque 6 (Cierre Reflexivo + Outro 8s, 8%): Reflexión humana final y entrada limpia del Outro Oficial de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.`,
+        structuralBlocks: [
+          {
+            name: 'Intro (8s) + Choque Mito vs Realidad',
+            pct: 9,
+            description: 'Destruye el cliché de cuento de hadas en los primeros segundos.',
+          },
+          {
+            name: 'Acto I: Peones de Alianza',
+            pct: 21,
+            description: 'Infancia, contratos matrimoniales y destierro diplomático.',
+          },
+          {
+            name: 'Acto II: Intimidad y Supervivencia',
+            pct: 24,
+            description: 'Frío, higiene, banquetes, vestimenta y vida diaria real.',
+          },
+          {
+            name: 'Acto III: El Precio de la Corona',
+            pct: 23,
+            description: 'Presión por el heredero, medicina medieval y peligros mortales.',
+          },
+          {
+            name: 'Acto IV: El Poder tras el Trono',
+            pct: 15,
+            description: 'Intriga política, regencias y legado histórico.',
+          },
+          {
+            name: 'Cierre Humano + Outro (8s)',
+            pct: 8,
+            description: 'Pregunta reflexiva a la comunidad y Outro Oficial de 8s.',
+          },
+        ],
+        comments: [
+          {
+            id: 'seed-c3',
+            text: '¿Cómo era realmente la higiene y los baños dentro de los palacios europeos antes del siglo XVIII?',
+            author: 'Comunidad Huellas',
+            likes: 51,
+            repeatCount: 8,
+            category: 'question',
+            sourceType: 'channel',
+            videoTitle: 'Las Princesas de la Edad Media',
+            videoId: 'princesas_edad_media',
+          },
+          {
+            id: 'seed-c4',
+            text: 'Hagan un documental sobre cómo vivían los sirvientes y guardias invisibles dentro de los grandes castillos.',
+            author: 'Comunidad Huellas',
+            likes: 41,
+            repeatCount: 4,
+            category: 'suggestion',
+            sourceType: 'channel',
+            videoTitle: 'Las Princesas de la Edad Media',
+            videoId: 'princesas_edad_media',
+          },
+        ],
+      },
+      {
+        id: 'seed_misterio_investigativo',
+        videoId: 'misterio_cronologico_viral',
+        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        title:
+          'Misterio Histórico / True Crime Antiguo (Estructura de Investigación Forense en 5 Pistas)',
+        channelTitle: 'Plantilla Viral Analizada',
+        channelName: 'Plantilla Viral Analizada',
+        analyzedAt: '2026-11-03T14:59:02.463Z',
+        commentsCount: 31,
+        structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
+   - Abre con la escena del hallazgo o el instante exacto de la desaparición/crimen histórico, presentando una prueba física que contradice la versión oficial de los libros.
+2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE:
+   - Bloque 1 (Intro 8s + Escena del Enigma, 8%): Fecha exacta, lugar y el hallazgo inexplicable que abre la investigación.
+   - Bloque 2 (La Versión Oficial y su Grieta, 19%): Qué se creyó durante siglos y cuál es el documento o rastro que no encaja.
+   - Bloque 3 (Reconstrucción Minuto a Minuto, 25%): Seguimiento cronológico de las últimas horas de los protagonistas como un thriller documental.
+   - Bloque 4 (Los Sospechosos y el Motivo Oculto, 22%): Intereses políticos, religiosos o económicos detrás del encubrimiento.
+   - Bloque 5 (La Evidencia Forense / Arqueológica Moderna, 18%): Qué reveló la ciencia moderna al analizar los restos o archivos secretos.
+   - Bloque 6 (Veredicto Abierto + Outro 8s, 8%): Presentación de la conclusión más sólida + pregunta de debate + Outro Oficial de 8s.
+3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
+   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.`,
+        structuralBlocks: [
+          {
+            name: 'Intro (8s) + El Hallazgo Inexplicable',
+            pct: 8,
+            description: 'Presenta el enigma central y la contradicción histórica.',
+          },
+          {
+            name: 'Acto I: La Versión Oficial rota',
+            pct: 19,
+            description: 'Expone la historia oficial y la pista que la desmiente.',
+          },
+          {
+            name: 'Acto II: Cronología del Suceso',
+            pct: 25,
+            description: 'Reconstrucción inmersiva hora por hora de los hechos.',
+          },
+          {
+            name: 'Acto III: Conspiración y Motivos',
+            pct: 22,
+            description: 'Quién ganaba con el silencio y cómo se ocultó la verdad.',
+          },
+          {
+            name: 'Acto IV: Ciencia vs. Mito',
+            pct: 18,
+            description: 'Descubrimientos arqueológicos o forenses recientes.',
+          },
+          {
+            name: 'Veredicto + Outro (8s)',
+            pct: 8,
+            description: 'Cierre reflexivo con la huella histórica y Outro de 8s.',
+          },
+        ],
+        comments: [],
+      },
+    ],
+    []
+  );
+
+  const [analyzedVideosLibrary, setAnalyzedVideosLibrary] = useState<any[]>(
+    () => STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK
+  );
+  const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>(
+    'exodo_espanol_1880_1940_v76'
+  );
+  const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>(() =>
+    STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.flatMap((v) => v.comments || []).filter(
+      (c) => c.sourceType === 'channel'
+    )
+  );
+  const [analyzedVideosDeduplicatedComments, setAnalyzedVideosDeduplicatedComments] = useState<
+    any[]
+  >(() =>
+    STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.flatMap((v) => v.comments || []).filter(
+      (c) => c.sourceType === 'analyzed_video'
+    )
+  );
   const [stage1CommentSourceFilter, setStage1CommentSourceFilter] = useState<'ALL' | 'OWN' | 'EXTERNAL'>('ALL');
   const [stage1CommentKindFilter, setStage1CommentKindFilter] = useState<'ALL' | 'question' | 'suggestion'>('ALL');
   const [stage1CommentSearch, setStage1CommentSearch] = useState<string>('');
@@ -883,9 +1275,19 @@ export default function App() {
       videoTitle: String(c.videoTitle || 'Video analizado'),
     });
 
+    const libraryEmbeddedComments = analyzedVideosLibrary.flatMap((v: any) =>
+      (Array.isArray(v?.comments) ? v.comments : []).map((c: any) =>
+        mapComment(
+          { ...c, videoTitle: c.videoTitle || v.title, videoId: c.videoId || v.videoId },
+          c.sourceType === 'channel' ? 'OWN_CHANNEL' : 'ANALYZED_VIDEO'
+        )
+      )
+    );
+
     const combined = [
       ...channelDeduplicatedComments.map((c) => mapComment(c, 'OWN_CHANNEL')),
       ...analyzedVideosDeduplicatedComments.map((c) => mapComment(c, 'ANALYZED_VIDEO')),
+      ...libraryEmbeddedComments,
     ];
     const seen = new Set<string>();
     const unique: typeof combined = [];
@@ -900,10 +1302,10 @@ export default function App() {
       if (b.repeatCount !== a.repeatCount) return b.repeatCount - a.repeatCount;
       return b.totalLikes - a.totalLikes;
     });
-  }, [channelDeduplicatedComments, analyzedVideosDeduplicatedComments]);
+  }, [channelDeduplicatedComments, analyzedVideosDeduplicatedComments, analyzedVideosLibrary]);
 
-  const normalizeAnalyzedVideoEntries = (rawList: any[]) =>
-    (Array.isArray(rawList) ? rawList : []).map((v: any) => ({
+  const normalizeAnalyzedVideoEntries = (rawList: any[]) => {
+    const normalized = (Array.isArray(rawList) ? rawList : []).map((v: any) => ({
       ...v,
       id: String(v.id || v.videoId || ''),
       videoId: String(v.videoId || v.id || ''),
@@ -913,7 +1315,14 @@ export default function App() {
       analyzedAt: String(v.analyzedAt || new Date().toISOString()),
       structureSummary: String(v.structureSummary || ''),
       structuralBlocks: Array.isArray(v.structuralBlocks) ? v.structuralBlocks : [],
+      comments: Array.isArray(v.comments) ? v.comments : [],
     }));
+    const seenIds = new Set(normalized.flatMap((v) => [v.id, v.videoId].filter(Boolean)));
+    const missingSeeds = STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.filter(
+      (s) => !seenIds.has(s.id) && !seenIds.has(s.videoId)
+    );
+    return [...missingSeeds, ...normalized];
+  };
 
   const loadStage1AnalyzedVideosAndComments = async (
     customVideoUrlOrForce: string | boolean = false,
@@ -922,60 +1331,80 @@ export default function App() {
     const forceRefresh = customVideoUrlOrForce === true;
     const customVideoUrl =
       typeof customVideoUrlOrForce === 'string' ? customVideoUrlOrForce.trim() : '';
+    const isLocalOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiBases = isLocalOrigin ? [''] : ['http://localhost:4200', ''];
+
     setStage1LoadingLibrary(true);
     try {
       if (forceRefresh || customVideoUrl) {
-        const res = await fetch('/api/youtube/analyze-comments-research', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            videoUrl: customVideoUrl,
-            forceRefreshChannel: forceRefresh,
-            allowPaidApi: false,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          if (Array.isArray(data.analyzedVideosLibrary)) {
-            const normVids = normalizeAnalyzedVideoEntries(data.analyzedVideosLibrary);
-            setAnalyzedVideosLibrary(normVids);
-            if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
-              setSelectedAnalyzedVideoId(normVids[0].videoId);
+        for (const base of apiBases) {
+          try {
+            const res = await fetch(`${base}/api/youtube/analyze-comments-research`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                videoUrl: customVideoUrl,
+                forceRefreshChannel: forceRefresh,
+                allowPaidApi: false,
+              }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+              if (Array.isArray(data.analyzedVideosLibrary)) {
+                const normVids = normalizeAnalyzedVideoEntries(data.analyzedVideosLibrary);
+                setAnalyzedVideosLibrary(normVids);
+                if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
+                  setSelectedAnalyzedVideoId(normVids[0].videoId);
+                }
+              }
+              if (Array.isArray(data.deduplicatedChannelComments)) {
+                setChannelDeduplicatedComments(data.deduplicatedChannelComments);
+              }
+              if (
+                Array.isArray(data.deduplicatedTargetComments) &&
+                data.deduplicatedTargetComments.length > 0
+              ) {
+                setAnalyzedVideosDeduplicatedComments((prev) => [
+                  ...data.deduplicatedTargetComments,
+                  ...prev,
+                ]);
+              }
+              if (data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id) {
+                setSelectedAnalyzedVideoId(
+                  String(data.matchedLibraryEntry.videoId || data.matchedLibraryEntry.id)
+                );
+              }
+              return;
             }
-          }
-          if (Array.isArray(data.deduplicatedChannelComments)) {
-            setChannelDeduplicatedComments(data.deduplicatedChannelComments);
-          }
-          if (Array.isArray(data.deduplicatedTargetComments) && data.deduplicatedTargetComments.length > 0) {
-            setAnalyzedVideosDeduplicatedComments((prev) => [
-              ...data.deduplicatedTargetComments,
-              ...prev,
-            ]);
-          }
-          if (data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id) {
-            setSelectedAnalyzedVideoId(
-              String(data.matchedLibraryEntry.videoId || data.matchedLibraryEntry.id)
-            );
-          }
-          return;
+          } catch {}
         }
       }
-      const resLib = await fetch('/api/youtube/analyzed-videos');
-      const dataLib = await resLib.json();
-      if (resLib.ok && dataLib.ok) {
-        if (Array.isArray(dataLib.videos)) {
-          const normVids = normalizeAnalyzedVideoEntries(dataLib.videos);
-          setAnalyzedVideosLibrary(normVids);
-          if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
-            setSelectedAnalyzedVideoId(normVids[0].videoId);
+      for (const base of apiBases) {
+        try {
+          const resLib = await fetch(`${base}/api/youtube/analyzed-videos`);
+          const dataLib = await resLib.json();
+          if (resLib.ok && dataLib.ok) {
+            if (Array.isArray(dataLib.videos)) {
+              const normVids = normalizeAnalyzedVideoEntries(dataLib.videos);
+              setAnalyzedVideosLibrary(normVids);
+              if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
+                setSelectedAnalyzedVideoId(normVids[0].videoId);
+              }
+            }
+            if (Array.isArray(dataLib.channelComments) && dataLib.channelComments.length > 0) {
+              setChannelDeduplicatedComments(dataLib.channelComments);
+            }
+            if (
+              Array.isArray(dataLib.analyzedVideosComments) &&
+              dataLib.analyzedVideosComments.length > 0
+            ) {
+              setAnalyzedVideosDeduplicatedComments(dataLib.analyzedVideosComments);
+            }
+            break;
           }
-        }
-        if (Array.isArray(dataLib.channelComments)) {
-          setChannelDeduplicatedComments(dataLib.channelComments);
-        }
-        if (Array.isArray(dataLib.analyzedVideosComments)) {
-          setAnalyzedVideosDeduplicatedComments(dataLib.analyzedVideosComments);
-        }
+        } catch {}
       }
     } catch {} finally {
       setStage1LoadingLibrary(false);
