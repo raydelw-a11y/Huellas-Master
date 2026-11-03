@@ -4197,6 +4197,17 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
         }
       }
     }
+    // Serve 1080p H.264 web-preview for 8K HEVC Intro.mp4 / Outro.mp4 so browser live playback never stutters or distorts audio
+    if (/(?:^|[\/\\])(Intro|Outro)\.mp4$/i.test(filePath)) {
+      const baseName = path.basename(filePath, '.mp4');
+      const webPreviewCandidate = path.join(
+        path.dirname(filePath),
+        `.${baseName}_WebPreview.mp4`
+      );
+      if (fs.existsSync(webPreviewCandidate) && fs.statSync(webPreviewCandidate).isFile()) {
+        filePath = webPreviewCandidate;
+      }
+    }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
       // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4, serve the _4K.mp4 file seamlessly
       const ext = path.extname(filePath);

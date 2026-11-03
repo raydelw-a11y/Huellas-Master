@@ -2163,16 +2163,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
     const defaultIntro8kUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Intro.mp4`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Intro_Poster.jpg`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Outro.mp4`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Outro_Poster.jpg`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
 
     const introClipItem: TimelineClipItem = {
@@ -2339,16 +2339,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
     const introVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Intro.mp4`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Intro_Poster.jpg`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/Outro.mp4`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
     const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
       `${introOutroBasePath}/.Outro_Poster.jpg`
-    )}&v=8k_audio_fade`;
+    )}&v=clean_native_audio_v2`;
 
     // 1. Build Clips Track (Track 3)
     const allDocClips = activeDoc.clips || [];
@@ -3824,13 +3824,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         typeof activeClipAtPlayhead.foleyVolume === 'number'
           ? activeClipAtPlayhead.foleyVolume
           : 100;
-      const elapsed = Math.max(0, currentTime - activeClipAtPlayhead.start);
-      const remaining = Math.max(0, activeClipAtPlayhead.end - currentTime);
-      const fadeInSec = 1.5;
-      const fadeOutSec = 1.8;
-      const fadeInFactor = elapsed < fadeInSec ? Math.max(0, elapsed / fadeInSec) : 1;
-      const fadeOutFactor = remaining < fadeOutSec ? Math.max(0, remaining / fadeOutSec) : 1;
-      return Math.round(baseIntroVol * Math.min(fadeInFactor, fadeOutFactor));
+      return Math.round(baseIntroVol);
     }
     if (
       activeClipAtPlayhead.id === 'fixed-doc-outro' ||
@@ -3840,13 +3834,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         typeof activeClipAtPlayhead.foleyVolume === 'number'
           ? activeClipAtPlayhead.foleyVolume
           : 100;
-      const elapsed = Math.max(0, currentTime - activeClipAtPlayhead.start);
-      const remaining = Math.max(0, activeClipAtPlayhead.end - currentTime);
-      const fadeInSec = 1.5;
-      const fadeOutSec = 2.5;
-      const fadeInFactor = elapsed < fadeInSec ? Math.max(0, elapsed / fadeInSec) : 1;
-      const fadeOutFactor = remaining < fadeOutSec ? Math.max(0, remaining / fadeOutSec) : 1;
-      return Math.round(baseOutroVol * Math.min(fadeInFactor, fadeOutFactor));
+      return Math.round(baseOutroVol);
     }
     const baseFoleyVol = !autoDuckingEnabled
       ? activeClipAtPlayhead.foleyVolume
@@ -4027,6 +4015,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const computeClipVideoSyncParams = (
     vid: HTMLVideoElement,
     clip: {
+      id?: string;
+      clipNumber?: number;
       start: number;
       duration: number;
       speed: number;
@@ -4048,14 +4038,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const elapsedInSlot = Math.max(0, timelineSec - clip.start);
     const remainingSlotSec = Math.max(0.03, slotDur - elapsedInSlot);
 
+    // Official Intro (0) and Outro (999) always play at exact 1.0x native speed so Chrome WSOLA time-stretching never warbles or distorts their sound design
+    const isFixedIntroOrOutro =
+      clip.id === 'fixed-doc-intro' ||
+      clip.id === 'fixed-doc-outro' ||
+      clip.clipNumber === 0 ||
+      clip.clipNumber === 999;
+    if (isFixedIntroOrOutro) {
+      const maxIntroOffset = hasKnownVidDur
+        ? Math.max(0, vid.duration - 0.03)
+        : Math.max(0, slotDur - 0.03);
+      return {
+        effectiveRate: 1,
+        clampedOffset: Math.max(0, Math.min(maxIntroOffset, elapsedInSlot)),
+        reachedClipMediaEnd: Boolean(elapsedInSlot >= slotDur),
+      };
+    }
+
     // If playing a pre-baked Optical Flow MP4, pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
       clip.opticalFlowUrl && clip.smoothSlowMo !== false && clip.speed < 0.99
     );
     if (usingOpticalFlowVideo) {
-      let optRate = hasKnownVidDur
-        ? Math.max(0.15, Math.min(4.0, Number((safeVidStreamEnd / slotDur).toFixed(4))))
-        : 1;
+      const rawOptRatio = hasKnownVidDur ? safeVidStreamEnd / slotDur : 1;
+      let optRate =
+        Math.abs(rawOptRatio - 1) <= 0.04
+          ? 1
+          : Math.max(0.15, Math.min(4.0, Number(rawOptRatio.toFixed(4))));
       const rawOffset = elapsedInSlot * optRate;
       const maxSafeOffset = hasKnownVidDur
         ? Math.max(0, safeVidStreamEnd - 0.02)
@@ -4091,13 +4100,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : safeVidStreamEnd;
     const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
 
-    // Steady constant rate across slotDur so playbackRate never jitters mid-clip
-    let effectiveRate = hasKnownVidDur
+    // Keep effectiveRate at exact 1.0x for untrimmed clips whose duration matches slotDur within 0.30s (avoids unnecessary WSOLA audio time-stretching)
+    const isTrimmedOrSpeedAdjusted =
+      trimStart > 0.04 ||
+      Math.abs((clip.speed || 1) - 1) > 0.02 ||
+      Math.abs(playableMediaDur - slotDur) > 0.3;
+
+    let effectiveRate = !isTrimmedOrSpeedAdjusted
+      ? 1
+      : hasKnownVidDur
       ? Math.max(0.15, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
       : clip.speed && Math.abs(clip.speed - 1) > 0.01
       ? Math.max(0.2, Math.min(4.0, clip.speed))
-      : Math.abs(playableMediaDur - slotDur) > 0.04
-      ? Math.max(0.2, Math.min(4.0, Number((playableMediaDur / slotDur).toFixed(4))))
       : 1;
 
     const rawOffset = elapsedInSlot * effectiveRate + trimStart;
@@ -4105,6 +4119,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const clampedOffset = Math.max(trimStart, Math.min(maxSafeOffset, rawOffset));
 
     if (
+      isTrimmedOrSpeedAdjusted &&
       hasKnownVidDur &&
       !vid.paused &&
       vid.readyState >= 2 &&
