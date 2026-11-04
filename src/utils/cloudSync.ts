@@ -1809,7 +1809,8 @@ Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corri
 5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
 6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.`;
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
+9. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
     } else if (stageNumber === 112) {
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
@@ -1827,7 +1828,8 @@ Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corr
 5. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
 6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.`;
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
+9. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
     } else if (stageNumber === 113) {
       stagePrompt = `Actúa como estratega de comunidad y retención de "Huellas de la Humanidad".
 Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})

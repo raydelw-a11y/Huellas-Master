@@ -119,11 +119,23 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:42 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:46 PM - 11/03/2026';
+
+function stripStage12ClosingChatter(raw: string): string {
+  let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!clean) return '';
+  clean = clean
+    .replace(
+      /(?:^|\n)[⠀\s]*(?:[-—*]+\s*\n)?[⠀\s]*(?:¡?Metadata\s+completada!?|Una\s+vez\s+publicado\s+el\s+video|entramos\s+en\s+la\s+Etapa\s+12|Etapa\s+12\s*\(?Post-Producci[oó]n|A\s+medida\s+que\s+tu\s+audiencia\s+comente|ve\s+envi[aá]ndome\s+capturas\s+de\s+pantalla)[\s\S]*$/i,
+      ''
+    )
+    .replace(/[⠀\s]+$/g, '')
+    .trim();
+  return clean;
+}
 
 function cleanStage11SingleMetadataText(raw: string): string {
-  let clean = String(raw || '')
-    .replace(/\r\n/g, '\n')
+  let clean = stripStage12ClosingChatter(raw)
     .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
     .replace(/\n?```\s*$/i, '')
     .trim();
@@ -139,7 +151,29 @@ function cleanStage11SingleMetadataText(raw: string): string {
       ''
     )
     .trim();
-  return clean;
+
+  // In YouTube (111) and Facebook (112) metadata, the description strictly ends at the 5 #Hashtags line.
+  // If there is a line with >= 3 #Hashtags, remove any non-hashtag conversational text after it.
+  const lines = clean.split('\n');
+  let lastHashtagLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const matches = lines[i].match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g);
+    if (matches && matches.length >= 3) {
+      lastHashtagLineIdx = i;
+    }
+  }
+  if (lastHashtagLineIdx !== -1) {
+    lines[lastHashtagLineIdx] = lines[lastHashtagLineIdx]
+      .replace(/((?:#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+\s*){3,}).*$/, '$1')
+      .trim();
+    clean = lines
+      .slice(0, lastHashtagLineIdx + 1)
+      .join('\n')
+      .replace(/[⠀\s]+$/g, '')
+      .trim();
+  }
+
+  return stripStage12ClosingChatter(clean);
 }
 
 function parseStage11FourSections(rawText: string): {
@@ -150,10 +184,12 @@ function parseStage11FourSections(rawText: string): {
   foundCount: number;
 } {
   const cleanSectionBody = (val: string) =>
-    String(val || '')
-      .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-      .replace(/\n?```\s*$/i, '')
-      .trim();
+    stripStage12ClosingChatter(
+      String(val || '')
+        .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim()
+    );
 
   const text = String(rawText || '').trim();
   if (!text) return { foundCount: 0 };
@@ -203,17 +239,19 @@ function parseStage11FourSections(rawText: string): {
     const cleaned = cleanSectionBody(rawSlice);
     if (!cleaned) continue;
     if (cur.key === 'pinnedComment') {
-      out.pinnedComment = cleaned.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim();
+      out.pinnedComment = stripStage12ClosingChatter(
+        cleaned.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim()
+      );
     } else if (cur.key === 'youtubeTags') {
-      out.youtubeTags = cleaned
+      out.youtubeTags = stripStage12ClosingChatter(cleaned)
         .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
         .replace(/\r?\n+/g, ', ')
         .replace(/,\s*,+/g, ', ')
         .trim();
     } else if (cur.key === 'youtube') {
-      out.youtube = cleaned;
+      out.youtube = cleanStage11SingleMetadataText(cleaned);
     } else if (cur.key === 'facebook') {
-      out.facebook = cleaned;
+      out.facebook = cleanStage11SingleMetadataText(cleaned);
     }
   }
 
@@ -2804,13 +2842,13 @@ export default function App() {
       }
     } else if (stageNum === 113) {
       const parsed4 = parseStage11FourSections(text);
-      const pinnedClean = (
+      const pinnedClean = stripStage12ClosingChatter(
         parsed4.pinnedComment ||
-        text
-          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-          .replace(/\n?```\s*$/i, '')
-          .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '')
-          .trim()
+          text
+            .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+            .replace(/\n?```\s*$/i, '')
+            .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '')
+            .trim()
       );
       updateActiveDoc({ pinnedComment: pinnedClean });
       if (pendingStage11QueueRef.current.length > 0) {
@@ -2827,15 +2865,15 @@ export default function App() {
       }
     } else if (stageNum === 114) {
       const parsed4 = parseStage11FourSections(text);
-      const tagsClean = (
+      const tagsClean = stripStage12ClosingChatter(
         parsed4.youtubeTags ||
-        text
-          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-          .replace(/\n?```\s*$/i, '')
-          .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
-          .replace(/\r?\n+/g, ', ')
-          .replace(/,\s*,+/g, ', ')
-          .trim()
+          text
+            .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+            .replace(/\n?```\s*$/i, '')
+            .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
+            .replace(/\r?\n+/g, ', ')
+            .replace(/,\s*,+/g, ', ')
+            .trim()
       );
       updateActiveDoc({ youtubeTags: tagsClean });
       if (pendingStage11QueueRef.current.length > 0) {
@@ -2857,10 +2895,39 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
-  // Automatically recover complete YouTube Metadata from the active Gemini tab when Stage 9 is open and YouTube metadata is incomplete
+  // Automatically strip any unwanted Stage 12 closing chatter ("¡Metadata completada!...") and recover complete YouTube Metadata from the active Gemini tab
   useEffect(() => {
-    if (activeStage !== 11 || !activeDoc) return;
-    const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
+    if (!activeDoc) return;
+    const rawYt = activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '';
+    const rawFb = activeDoc.rawFacebookMetadata ?? '';
+    const rawPinned = activeDoc.pinnedComment ?? '';
+    const rawTags = activeDoc.youtubeTags ?? '';
+
+    const cleanedYt = rawYt ? cleanStage11SingleMetadataText(rawYt) : '';
+    const cleanedFb = rawFb ? cleanStage11SingleMetadataText(rawFb) : '';
+    const cleanedPinned = rawPinned ? stripStage12ClosingChatter(rawPinned) : '';
+    const cleanedTags = rawTags ? stripStage12ClosingChatter(rawTags) : '';
+
+    const cleanupPatch: Partial<DocumentaryProject> = {};
+    if (rawYt && cleanedYt !== rawYt) {
+      cleanupPatch.rawYoutubeMetadata = cleanedYt;
+      cleanupPatch.rawMetadataText = cleanedYt;
+    }
+    if (rawFb && cleanedFb !== rawFb) {
+      cleanupPatch.rawFacebookMetadata = cleanedFb;
+    }
+    if (rawPinned && cleanedPinned !== rawPinned) {
+      cleanupPatch.pinnedComment = cleanedPinned;
+    }
+    if (rawTags && cleanedTags !== rawTags) {
+      cleanupPatch.youtubeTags = cleanedTags;
+    }
+    if (Object.keys(cleanupPatch).length > 0) {
+      updateActiveDoc(cleanupPatch);
+    }
+
+    if (activeStage !== 11) return;
+    const currentYt = cleanedYt.trim();
     const hashtags = currentYt.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
     const isYtIncomplete = currentYt.length < 2200 || hashtags.length < 3;
     if (isYtIncomplete && (extensionInstalled || isHuellasExtensionDetected())) {
@@ -2874,7 +2941,13 @@ export default function App() {
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [activeStage, activeDoc?.id, extensionInstalled]);
+  }, [
+    activeStage,
+    activeDoc?.id,
+    activeDoc?.rawFacebookMetadata,
+    activeDoc?.rawYoutubeMetadata,
+    extensionInstalled,
+  ]);
 
   const extractDocVideoNumber = (text?: string): string => {
     const t = String(text || '').toLowerCase();

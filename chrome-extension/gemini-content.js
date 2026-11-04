@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 5) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 5;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 6) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 6;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -248,6 +248,11 @@
       .replace(/\r\n/g, '\n')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
+      .replace(
+        /(?:^|\n)[⠀\s]*(?:[-—*]+\s*\n)?[⠀\s]*(?:¡?Metadata\s+completada!?|Una\s+vez\s+publicado\s+el\s+video|entramos\s+en\s+la\s+Etapa\s+12|Etapa\s+12\s*\(?Post-Producci[oó]n|A\s+medida\s+que\s+tu\s+audiencia\s+comente)[\s\S]*$/i,
+        ''
+      )
+      .replace(/[⠀\s]+$/g, '')
       .trim();
   }
 
