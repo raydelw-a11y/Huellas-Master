@@ -119,7 +119,28 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:59 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:42 PM - 11/03/2026';
+
+function cleanStage11SingleMetadataText(raw: string): string {
+  let clean = String(raw || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim();
+  // Remove internal markdown code fences if Gemini wrapped only a subsection (like Capítulos:) in ```
+  clean = clean
+    .replace(/\n```(?:text|plaintext|markdown)?\s*\n/gi, '\n')
+    .replace(/\n```\s*(?:\n|$)/g, '\n')
+    .trim();
+  // Strip single-line conversational preamble if Gemini added one before the Title
+  clean = clean
+    .replace(
+      /^(?:¡?claro[^:\n]*:|aqu[ií]\s+tienes\s+la\s+metadata[^:\n]*:|por\s+supuesto[^:\n]*:|a\s+continuaci[oó]n\s+te\s+(?:presento|entrego)[^:\n]*:)\s*\n+/i,
+      ''
+    )
+    .trim();
+  return clean;
+}
 
 function parseStage11FourSections(rawText: string): {
   youtube?: string;
@@ -2709,7 +2730,13 @@ export default function App() {
         }, 900);
       }
     } else if (stageNum === 11 || stageNum === 111) {
-      const parsed4 = parseStage11FourSections(text);
+      const hasExplicitSectionMarkers = /===\s*SECCI[OÓ]N_(?:YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===/i.test(
+        text
+      );
+      const parsed4 =
+        stageNum === 11 || hasExplicitSectionMarkers
+          ? parseStage11FourSections(text)
+          : { foundCount: 0 };
       if (parsed4.foundCount >= 1) {
         const patch: Partial<DocumentaryProject> = {};
         if (parsed4.youtube) {
@@ -2737,10 +2764,7 @@ export default function App() {
           pendingStage11QueueRef.current = missingStages;
         }
       } else {
-        const cleanSingle = text
-          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-          .replace(/\n?```\s*$/i, '')
-          .trim();
+        const cleanSingle = cleanStage11SingleMetadataText(text);
         updateActiveDoc({ rawYoutubeMetadata: cleanSingle, rawMetadataText: cleanSingle });
         if (stageNum === 11) {
           pendingStage11QueueRef.current = [112, 113, 114];
@@ -2760,13 +2784,11 @@ export default function App() {
         }, 900);
       }
     } else if (stageNum === 112) {
-      const parsed4 = parseStage11FourSections(text);
-      const fbClean =
-        parsed4.facebook ||
+      const hasExplicitSectionMarkers = /===\s*SECCI[OÓ]N_(?:YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===/i.test(
         text
-          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-          .replace(/\n?```\s*$/i, '')
-          .trim();
+      );
+      const parsed4 = hasExplicitSectionMarkers ? parseStage11FourSections(text) : { foundCount: 0 };
+      const fbClean = parsed4.facebook || cleanStage11SingleMetadataText(text);
       updateActiveDoc({ rawFacebookMetadata: fbClean });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
@@ -2834,6 +2856,25 @@ export default function App() {
   useEffect(() => {
     pingHuellasExtension();
   }, []);
+
+  // Automatically recover complete YouTube Metadata from the active Gemini tab when Stage 9 is open and YouTube metadata is incomplete
+  useEffect(() => {
+    if (activeStage !== 11 || !activeDoc) return;
+    const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
+    const hashtags = currentYt.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
+    const isYtIncomplete = currentYt.length < 2200 || hashtags.length < 3;
+    if (isYtIncomplete && (extensionInstalled || isHuellasExtensionDetected())) {
+      const timer = setTimeout(() => {
+        sendCommandToWebBridge('GEMINI', {
+          action: 'SYNC_STAGE11_FROM_GEMINI',
+          stageNumber: 111,
+          taskType: 'AUTO_RECOVER_STAGE11',
+          tabId: selectedGeminiTabId,
+        });
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [activeStage, activeDoc?.id, extensionInstalled]);
 
   const extractDocVideoNumber = (text?: string): string => {
     const t = String(text || '').toLowerCase();
@@ -6571,10 +6612,93 @@ export default function App() {
         const targetStage = Number(msg.stageNumber) || activeStage;
         const text = String(msg.text || '');
         const images = Array.isArray(msg.images) ? msg.images : [];
+        const bundle = msg.stage11Bundle as
+          | {
+              youtube?: string;
+              facebook?: string;
+              pinnedComment?: string;
+              youtubeTags?: string;
+            }
+          | undefined;
+
+        if (msg.taskType === 'AUTO_RECOVER_STAGE11' && bundle && activeDoc) {
+          const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
+          const candidateYt = bundle.youtube ? cleanStage11SingleMetadataText(bundle.youtube) : '';
+          if (candidateYt && candidateYt.length > currentYt.length) {
+            const currentPrefix = currentYt.slice(0, 28).trim().toLowerCase();
+            const candidatePrefix = candidateYt.slice(0, 28).trim().toLowerCase();
+            const isSameDocResponse =
+              !currentYt ||
+              candidatePrefix === currentPrefix ||
+              candidateYt.toLowerCase().includes(currentPrefix);
+            if (isSameDocResponse && (activeStage === 11 || currentYt.length > 0)) {
+              updateActiveDoc({
+                rawYoutubeMetadata: candidateYt,
+                rawMetadataText: candidateYt,
+              });
+              setBridgeStatusType('SUCCESS');
+              setBridgeStatusMsg(
+                `✅ Metadata de YouTube recuperada completa desde Gemini Web (${candidateYt.length} caract.)`
+              );
+            }
+          }
+          return;
+        }
+
+        if (msg.taskType === 'MANUAL_GRAB_STAGE11' && bundle && activeDoc) {
+          const patch: Partial<DocumentaryProject> = {};
+          if (bundle.youtube && (targetStage === 11 || targetStage === 111)) {
+            const cleanYt = cleanStage11SingleMetadataText(bundle.youtube);
+            patch.rawYoutubeMetadata = cleanYt;
+            patch.rawMetadataText = cleanYt;
+          }
+          if (bundle.facebook && (targetStage === 11 || targetStage === 112)) {
+            patch.rawFacebookMetadata = cleanStage11SingleMetadataText(bundle.facebook);
+          }
+          if (bundle.pinnedComment && (targetStage === 11 || targetStage === 113)) {
+            patch.pinnedComment = bundle.pinnedComment.trim();
+          }
+          if (bundle.youtubeTags && (targetStage === 11 || targetStage === 114)) {
+            patch.youtubeTags = bundle.youtubeTags.trim();
+          }
+          if (Object.keys(patch).length > 0) {
+            updateActiveDoc(patch);
+            setBridgeStatusType('SUCCESS');
+            setBridgeStatusMsg(
+              `✅ Metadata recuperada completa desde el historial de Gemini Web (${
+                (patch.rawYoutubeMetadata || text).length
+              } caract.)`
+            );
+            return;
+          }
+        }
+
         if (text) setLastMirroredGeminiText(text);
         if (images.length > 0) setLastMirroredGeminiImages(images);
         if (text || images.length > 0) {
           applyGeneratedStageText(targetStage, text, images);
+          // Also if this was sub-stage 112, 113, or 114 and stage11Bundle has a longer completed version of 111 (YouTube Metadata), upgrade it automatically
+          if (
+            bundle?.youtube &&
+            activeDoc &&
+            (targetStage === 112 || targetStage === 113 || targetStage === 114)
+          ) {
+            const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
+            const fullYt = cleanStage11SingleMetadataText(bundle.youtube);
+            if (
+              fullYt.length > currentYt.length &&
+              (!currentYt ||
+                fullYt
+                  .slice(0, 25)
+                  .toLowerCase()
+                  .includes(currentYt.slice(0, 25).toLowerCase()))
+            ) {
+              updateActiveDoc({
+                rawYoutubeMetadata: fullYt,
+                rawMetadataText: fullYt,
+              });
+            }
+          }
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
             `✅ Respuesta de Gemini Web recibida y guardada en Etapa ${
@@ -14228,6 +14352,25 @@ export default function App() {
                           <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
                             {youtubeMeta.length} chars
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBridgeStatusType('WORKING');
+                              setBridgeStatusMsg(
+                                '📥 Recuperando Metadata completa de YouTube desde el historial de tu pestaña de Gemini Web...'
+                              );
+                              sendCommandToWebBridge('GEMINI', {
+                                action: 'GRAB_LAST_RESPONSE',
+                                stageNumber: 111,
+                                taskType: 'MANUAL_GRAB_STAGE11',
+                                tabId: selectedGeminiTabId,
+                              });
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                            title="Busca el turno de Metadata de YouTube en tu pestaña abierta de Gemini Web (incluso si ya se generaron después Facebook, Comentario y Tags) y lo copia completo sin cortes"
+                          >
+                            📥 Traer Completo de Gemini
+                          </button>
                           <button
                             type="button"
                             disabled={aiGenerating}

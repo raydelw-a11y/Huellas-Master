@@ -1802,14 +1802,14 @@ Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip
 Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 ${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental:\n${chaptersTimelineGuide}\n` : ''}
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
-1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
-2. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
+1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias ("Aquí tienes..."), con la ÚNICA excepción obligatoria del encabezado "Capítulos:". Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales sin cortar ninguna sección.
+2. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
 3. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
 4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
 5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
 6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.`;
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.`;
     } else if (stageNumber === 112) {
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
@@ -1820,14 +1820,14 @@ Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip
 Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
-1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:").
+1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias. Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales.
 2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
-3. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
+3. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
 4. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
 5. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
 6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.`;
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.`;
     } else if (stageNumber === 113) {
       stagePrompt = `Actúa como estratega de comunidad y retención de "Huellas de la Humanidad".
 Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})

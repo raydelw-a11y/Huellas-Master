@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 4) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 4;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 5) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 5;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -104,36 +104,176 @@
     return null;
   }
 
+  function isElementVisibleInDom(el) {
+    if (!el) return false;
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+    if (el.offsetParent !== null) return true;
+    try {
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return false;
+      }
+      const rects = el.getClientRects ? el.getClientRects() : [];
+      return rects.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   function isGeminiStillGenerating() {
     const stopSelectors = [
       'button[aria-label*="Stop" i]',
       'button[aria-label*="Detener" i]',
+      'button[aria-label*="Interrumpir" i]',
+      'button[mattooltip*="Stop" i]',
+      'button[mattooltip*="Detener" i]',
+      'button[mattooltip*="Interrumpir" i]',
+      'button.stop-button',
+      'button.send-button.stop',
+      '.send-button-container.stop button',
       '.stop-icon',
-      'mat-icon[data-mat-icon-name="stop"]',
+      'mat-icon[data-mat-icon-name*="stop" i]',
+      'mat-icon[fonticon*="stop" i]',
     ];
     for (const sel of stopSelectors) {
       const el = document.querySelector(sel);
-      if (el && el.offsetParent !== null) return true;
+      if (isElementVisibleInDom(el)) return true;
     }
+    const streamingIndicators = document.querySelectorAll(
+      'model-response[is-streaming="true"], message-content[is-streaming="true"], .markdown.streaming, model-response mat-progress-bar, model-response mat-spinner'
+    );
+    if (streamingIndicators.length > 0) return true;
     return false;
   }
 
   function getModelResponseElements() {
-    const candidates = document.querySelectorAll(
-      'model-response, message-content, .model-response-text, .response-container-content, [data-message-author-role="model"]'
-    );
+    const topLevelModelResponses = document.querySelectorAll('model-response');
+    if (topLevelModelResponses.length > 0) {
+      return Array.from(topLevelModelResponses);
+    }
+    const roleResponses = document.querySelectorAll('[data-message-author-role="model"]');
+    if (roleResponses.length > 0) {
+      return Array.from(roleResponses);
+    }
+    const candidates = document.querySelectorAll('.response-container-content, message-content');
     return Array.from(candidates);
+  }
+
+  function cleanDomFragmentToText(rootNode) {
+    if (!rootNode) return '';
+    const clone = rootNode.cloneNode(true);
+
+    // Strip internal thinking blocks, UI chrome, code-block headers, citations, and buttons
+    const junkSelectors = [
+      'model-thoughts',
+      '.thoughts-container',
+      '.thoughts-content',
+      '[data-test-id*="thought" i]',
+      'message-actions',
+      '.message-actions',
+      '.response-container-footer',
+      '.response-container-header',
+      '.code-block-decoration',
+      '.code-block-header',
+      '.buttons-container',
+      '.action-buttons',
+      'sources-carousel',
+      'sources-list',
+      '.citation-marker',
+      'sup.citation',
+      'button',
+      'mat-icon',
+      'script',
+      'style',
+      'svg',
+    ];
+    for (const sel of junkSelectors) {
+      try {
+        clone.querySelectorAll(sel).forEach((n) => n.remove());
+      } catch {}
+    }
+
+    const blockTags = new Set([
+      'P',
+      'DIV',
+      'LI',
+      'UL',
+      'OL',
+      'PRE',
+      'CODE-BLOCK',
+      'BLOCKQUOTE',
+      'H1',
+      'H2',
+      'H3',
+      'H4',
+      'H5',
+      'H6',
+      'TR',
+      'HR',
+      'SECTION',
+      'ARTICLE',
+      'MESSAGE-CONTENT',
+    ]);
+
+    const pieces = [];
+    function walk(node) {
+      if (!node) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        pieces.push(node.nodeValue || '');
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.tagName ? node.tagName.toUpperCase() : '';
+      if (tag === 'BR') {
+        pieces.push('\n');
+        return;
+      }
+      const isBlock = blockTags.has(tag);
+      if (isBlock && pieces.length > 0 && !pieces[pieces.length - 1].endsWith('\n')) {
+        pieces.push('\n');
+      }
+      const children = node.childNodes;
+      for (let i = 0; i < children.length; i++) {
+        walk(children[i]);
+      }
+      if (isBlock && pieces.length > 0 && !pieces[pieces.length - 1].endsWith('\n')) {
+        pieces.push('\n');
+      }
+    }
+
+    walk(clone);
+
+    return pieces
+      .join('')
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   function extractCleanResponseFromElement(el) {
     if (!el) return { text: '', images: [] };
 
-    // Prefer message-content or .markdown inside model-response if present
-    const markdownContainer =
-      el.querySelector('message-content, .markdown, .model-response-text') || el;
+    // Extract ALL message-content blocks outside model-thoughts so multi-block / code-block responses are never truncated
+    const msgContents = Array.from(
+      el.querySelectorAll('message-content, .model-response-text')
+    ).filter(
+      (node, idx, arr) =>
+        !node.closest('model-thoughts, .thoughts-container, [data-test-id*="thought" i]') &&
+        !arr.some((other) => other !== node && other.contains(node))
+    );
 
-    // Extract text preserving paragraphs & code blocks
-    const text = (markdownContainer.innerText || markdownContainer.textContent || '').trim();
+    let text = '';
+    if (msgContents.length > 0) {
+      text = msgContents
+        .map((mc) => cleanDomFragmentToText(mc))
+        .filter(Boolean)
+        .join('\n\n')
+        .trim();
+    }
+    if (!text) {
+      text = cleanDomFragmentToText(el);
+    }
 
     // Extract any generated images inside this response
     const imgs = Array.from(el.querySelectorAll('img'))
@@ -148,11 +288,101 @@
     return { text, images: imgs };
   }
 
+  function hasResponseFooterActionBar(el) {
+    if (!el) return false;
+    return Boolean(
+      el.querySelector(
+        'message-actions, .message-actions, button[aria-label*="Copiar" i], button[aria-label*="Copy" i], mat-icon[fonticon*="thumb_up" i], mat-icon[data-mat-icon-name*="thumb_up" i], mat-icon[fonticon*="content_copy" i], mat-icon[data-mat-icon-name*="content_copy" i]'
+      )
+    );
+  }
+
+  function isStageResponseSemanticallyComplete(stageNum, text) {
+    const clean = String(text || '').trim();
+    if (!clean) return false;
+    const num = Number(stageNum) || 0;
+    const hashtags = clean.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
+    const hasSlogan = /Cada historia deja una huella/i.test(clean);
+    const hasAiNote = /inteligencia artificial generativa|incongruencias o errores visuales/i.test(clean);
+
+    if (num === 111 || num === 11) {
+      const hasChapters =
+        /Cap[ií]tulos\s*:/i.test(clean) || (clean.match(/\b\d{2}:\d{2}\b/g) || []).length >= 3;
+      const hasEnding = hashtags.length >= 3 || (hasSlogan && hashtags.length >= 1);
+      return clean.length >= 1200 && hasChapters && hasEnding;
+    }
+    if (num === 112) {
+      const hasEnding = hashtags.length >= 3 || (hasSlogan && hashtags.length >= 1) || (hasAiNote && hasSlogan);
+      return clean.length >= 1000 && hasEnding;
+    }
+    return true;
+  }
+
+  function scanAllStage11ResponsesFromChat() {
+    const responses = getModelResponseElements();
+    const bundle = {
+      youtube: '',
+      facebook: '',
+      pinnedComment: '',
+      youtubeTags: '',
+    };
+
+    for (const el of responses) {
+      const { text } = extractCleanResponseFromElement(el);
+      const clean = String(text || '').trim();
+      if (!clean || clean.length < 40) continue;
+      if (/^Act[uú]a como (?:estratega|especialista)/i.test(clean)) continue;
+
+      const hasChapters =
+        /Cap[ií]tulos\s*:/i.test(clean) || (clean.match(/\b\d{2}:\d{2}\s*[-–—:]/g) || []).length >= 3;
+      const hashtags = clean.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
+      const hasSlogan = /Cada historia deja una huella/i.test(clean);
+      const hasAiNote = /inteligencia artificial generativa|incongruencias o errores visuales/i.test(clean);
+      const commaCount = (clean.match(/,/g) || []).length;
+
+      if (hasChapters && clean.length >= 500) {
+        // Prefer the most complete / latest YouTube metadata turn
+        if (!bundle.youtube || clean.length >= bundle.youtube.length - 100 || hashtags.length >= 3) {
+          bundle.youtube = clean;
+        }
+      } else if (
+        !hasChapters &&
+        clean.length >= 500 &&
+        (hasSlogan || hasAiNote || hashtags.length >= 3)
+      ) {
+        if (!bundle.facebook || clean.length >= bundle.facebook.length - 100 || hashtags.length >= 3) {
+          bundle.facebook = clean;
+        }
+      } else if (
+        !hasChapters &&
+        clean.length >= 60 &&
+        clean.length <= 1300 &&
+        !hasSlogan &&
+        (clean.includes('¿') || clean.includes('?') || commaCount < 8)
+      ) {
+        if (commaCount < 10) {
+          bundle.pinnedComment = clean;
+        }
+      } else if (
+        !hasChapters &&
+        clean.length >= 70 &&
+        clean.length <= 950 &&
+        commaCount >= 6 &&
+        !clean.includes('¿')
+      ) {
+        bundle.youtubeTags = clean;
+      }
+    }
+
+    return bundle;
+  }
+
   function extractLatestGeminiResponse() {
     const responses = getModelResponseElements();
-    if (responses.length === 0) return { text: '', images: [] };
+    if (responses.length === 0) return { text: '', images: [], element: null };
     const lastEl = responses[responses.length - 1];
-    return extractCleanResponseFromElement(lastEl);
+    const extracted = extractCleanResponseFromElement(lastEl);
+    return { ...extracted, element: lastEl };
   }
 
   function setInputText(inputEl, text) {
@@ -598,6 +828,11 @@
           if (maybePlanBtn) return;
         }
 
+        const stageNum = Number(meta && meta.stageNumber) || 0;
+        const isLongMetadataStage = stageNum === 111 || stageNum === 112 || stageNum === 11;
+        const semanticallyComplete = isStageResponseSemanticallyComplete(stageNum, latest.text);
+        const hasFooterActions = hasResponseFooterActionBar(latest.element);
+
         if (!stillStreaming && latest.text === lastObservedText && latest.text.length > 10) {
           stableTicks++;
         } else if (!stillStreaming && latest.images.length > 0 && latest.text === lastObservedText) {
@@ -615,21 +850,50 @@
           );
         }
 
-        const requiredStableTicks = isDeepResearch ? 5 : 3;
+        // For Stage 9 YouTube/Facebook metadata (~3000 chars), do not cut off mid-stream in background tabs before the closing #Hashtags / Slogan arrive
+        let requiredStableTicks = isDeepResearch ? 5 : 4;
+        if (isLongMetadataStage && !semanticallyComplete && elapsedMs < 65000) {
+          requiredStableTicks = hasFooterActions ? 10 : 18;
+        }
+
         if (stableTicks >= requiredStableTicks) {
           clearInterval(activeWatchTimer);
           activeWatchTimer = null;
           window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
-          isBusyWithOrder = false;
-          chrome.runtime.sendMessage({
-            type: 'GEMINI_RESPONSE_READY',
-            stageNumber: meta.stageNumber,
-            taskType: meta.taskType,
-            text: latest.text,
-            images: latest.images,
-          }).catch(() => {});
-          reportStatus('COMPLETED', '¡Respuesta de Gemini Web capturada y enviada a Huellas Master!', meta);
-          processNextQueuedPrompt();
+          setTimeout(() => {
+            const finalLatest = extractLatestGeminiResponse();
+            const isStage11Family =
+              stageNum === 11 ||
+              stageNum === 111 ||
+              stageNum === 112 ||
+              stageNum === 113 ||
+              stageNum === 114;
+            const stage11Bundle = isStage11Family ? scanAllStage11ResponsesFromChat() : undefined;
+            const resolvedText =
+              stageNum === 111 && stage11Bundle?.youtube && stage11Bundle.youtube.length > finalLatest.text.length
+                ? stage11Bundle.youtube
+                : stageNum === 112 && stage11Bundle?.facebook && stage11Bundle.facebook.length > finalLatest.text.length
+                ? stage11Bundle.facebook
+                : finalLatest.text || latest.text;
+
+            isBusyWithOrder = false;
+            chrome.runtime
+              .sendMessage({
+                type: 'GEMINI_RESPONSE_READY',
+                stageNumber: meta.stageNumber,
+                taskType: meta.taskType,
+                text: resolvedText,
+                images: finalLatest.images.length > 0 ? finalLatest.images : latest.images,
+                ...(stage11Bundle ? { stage11Bundle } : {}),
+              })
+              .catch(() => {});
+            reportStatus(
+              'COMPLETED',
+              `¡Respuesta completa de Gemini Web capturada (${resolvedText.length} caracteres) y enviada a Huellas Master!`,
+              meta
+            );
+            processNextQueuedPrompt();
+          }, 450);
           return;
         }
       }
@@ -639,14 +903,26 @@
         activeWatchTimer = null;
         window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
         isBusyWithOrder = false;
-        if (latest.text && latest.text !== initialLastText) {
-          chrome.runtime.sendMessage({
-            type: 'GEMINI_RESPONSE_READY',
-            stageNumber: meta.stageNumber,
-            taskType: meta.taskType,
-            text: latest.text,
-            images: latest.images,
-          }).catch(() => {});
+        const finalLatest = extractLatestGeminiResponse();
+        if (finalLatest.text && finalLatest.text !== initialLastText) {
+          const stageNum = Number(meta && meta.stageNumber) || 0;
+          const isStage11Family =
+            stageNum === 11 ||
+            stageNum === 111 ||
+            stageNum === 112 ||
+            stageNum === 113 ||
+            stageNum === 114;
+          const stage11Bundle = isStage11Family ? scanAllStage11ResponsesFromChat() : undefined;
+          chrome.runtime
+            .sendMessage({
+              type: 'GEMINI_RESPONSE_READY',
+              stageNumber: meta.stageNumber,
+              taskType: meta.taskType,
+              text: finalLatest.text,
+              images: finalLatest.images,
+              ...(stage11Bundle ? { stage11Bundle } : {}),
+            })
+            .catch(() => {});
         }
         processNextQueuedPrompt();
       }
@@ -833,16 +1109,34 @@
       return false;
     }
 
-    if (msg.action === 'GRAB_LAST_RESPONSE') {
+    if (msg.action === 'GRAB_LAST_RESPONSE' || msg.action === 'SYNC_STAGE11_FROM_GEMINI') {
       const latest = extractLatestGeminiResponse();
+      const stageNum = Number(msg.stageNumber) || 0;
+      const isStage11Family =
+        msg.action === 'SYNC_STAGE11_FROM_GEMINI' ||
+        stageNum === 11 ||
+        stageNum === 111 ||
+        stageNum === 112 ||
+        stageNum === 113 ||
+        stageNum === 114;
+      const stage11Bundle = isStage11Family ? scanAllStage11ResponsesFromChat() : undefined;
+      let resolvedText = latest.text;
+      if (stage11Bundle) {
+        if (stageNum === 111 && stage11Bundle.youtube) resolvedText = stage11Bundle.youtube;
+        else if (stageNum === 112 && stage11Bundle.facebook) resolvedText = stage11Bundle.facebook;
+        else if (stageNum === 113 && stage11Bundle.pinnedComment) resolvedText = stage11Bundle.pinnedComment;
+        else if (stageNum === 114 && stage11Bundle.youtubeTags) resolvedText = stage11Bundle.youtubeTags;
+        else if (stageNum === 11 && stage11Bundle.youtube) resolvedText = stage11Bundle.youtube;
+      }
       chrome.runtime.sendMessage({
         type: 'GEMINI_RESPONSE_READY',
         stageNumber: msg.stageNumber,
-        taskType: msg.taskType || 'MANUAL_GRAB',
-        text: latest.text,
+        taskType: msg.taskType || (msg.action === 'SYNC_STAGE11_FROM_GEMINI' ? 'AUTO_RECOVER_STAGE11' : 'MANUAL_GRAB'),
+        text: resolvedText,
         images: latest.images,
+        ...(stage11Bundle ? { stage11Bundle } : {}),
       }).catch(() => {});
-      sendResponse({ handled: true, textLength: latest.text.length });
+      sendResponse({ handled: true, textLength: (resolvedText || '').length, stage11Bundle });
       return false;
     }
 
@@ -855,4 +1149,23 @@
     type: 'CONTENT_SCRIPT_READY',
     service: 'GEMINI',
   }).catch(() => {});
+
+  // Immediately scan existing chat turns on script load in case Stage 11 YouTube metadata finished streaming in this tab
+  setTimeout(() => {
+    try {
+      const bundle = scanAllStage11ResponsesFromChat();
+      if (bundle.youtube && bundle.youtube.length >= 800) {
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_RESPONSE_READY',
+            stageNumber: 111,
+            taskType: 'AUTO_RECOVER_STAGE11',
+            text: bundle.youtube,
+            images: [],
+            stage11Bundle: bundle,
+          })
+          .catch(() => {});
+      }
+    } catch {}
+  }, 350);
 })();
