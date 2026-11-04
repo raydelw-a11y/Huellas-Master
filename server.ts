@@ -3175,7 +3175,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fs.mkdirSync(workDir, { recursive: true });
     }
 
-    // Automatic macOS iCloud Drive storage guard: if free SSD space < 45 GB, evict local cache of older sibling episodes already uploaded to iCloud
+    // Automatic macOS iCloud Drive storage guard: if free SSD space < 45 GB, evict local cache of older sibling episodes in both Videos/ and Reels/ already uploaded to iCloud
     if (process.platform === 'darwin' && targetRoot.includes('com~apple~CloudDocs')) {
       try {
         const dfOut = execSync('df -k /', { encoding: 'utf8' });
@@ -3184,14 +3184,23 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const availKb = parseInt(cols[3] || '0', 10);
         const availGb = availKb / (1024 * 1024);
         if (availGb > 0 && availGb < 45) {
-          const parentVideosDir = path.dirname(targetRoot);
-          const currentBase = path.basename(targetRoot).normalize('NFC');
-          if (fs.existsSync(parentVideosDir)) {
-            const siblings = fs.readdirSync(parentVideosDir, { withFileTypes: true });
+          const parentDir = path.dirname(targetRoot);
+          const channelRootDir = path.dirname(parentDir);
+          const candidateParentDirs = Array.from(
+            new Set([
+              parentDir,
+              path.join(channelRootDir, 'Videos'),
+              path.join(channelRootDir, 'Reels'),
+            ])
+          );
+          const currentResolved = path.resolve(targetRoot).normalize('NFC');
+          for (const dirToScan of candidateParentDirs) {
+            if (!fs.existsSync(dirToScan)) continue;
+            const siblings = fs.readdirSync(dirToScan, { withFileTypes: true });
             for (const sib of siblings) {
               if (!sib.isDirectory()) continue;
-              if (sib.name.normalize('NFC') === currentBase) continue;
-              const sibPath = path.join(parentVideosDir, sib.name);
+              const sibPath = path.join(dirToScan, sib.name);
+              if (path.resolve(sibPath).normalize('NFC') === currentResolved) continue;
               try {
                 execSync(`brctl evict "${sibPath.replace(/"/g, '\\"')}"`, {
                   stdio: 'ignore',
