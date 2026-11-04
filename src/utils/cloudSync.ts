@@ -1689,19 +1689,165 @@ Genera EXACTAMENTE 3 opciones magnéticas de TEXTO EN PANTALLA para la miniatura
 2. Trabajen en equipo con el título del video pero SIN REPETIR ninguna frase del título ni del Texto del Clip 1.
 3. Sean legibles en 13 milisegundos en la pantalla de un teléfono móvil.
 Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`;
-  } else if (stageNumber === 11 || stageNumber === 111) {
-    stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
+  } else if (
+    stageNumber === 11 ||
+    stageNumber === 111 ||
+    stageNumber === 112 ||
+    stageNumber === 113 ||
+    stageNumber === 114
+  ) {
+    const parseMmSsToSec11 = (str?: string): number => {
+      if (!str) return 0;
+      const parts = String(str)
+        .trim()
+        .split(':')
+        .map((n) => parseInt(n, 10));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return parts[0] * 60 + parts[1];
+      }
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      return 0;
+    };
+    const formatSecToMmSs11 = (sec: number): string => {
+      const s = Math.max(0, Math.round(sec));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+    };
+    let lastClipEndSec11 = 0;
+    if (Array.isArray(doc.clips) && doc.clips.length > 0) {
+      for (const c of doc.clips) {
+        const rangeParts = String(c.timeRange || '').split('-');
+        const endPart = rangeParts[1] || rangeParts[0] || '';
+        const endSec = parseMmSsToSec11(endPart);
+        if (endSec > lastClipEndSec11) lastClipEndSec11 = endSec;
+      }
+      if (!lastClipEndSec11) {
+        lastClipEndSec11 = clip2StartSec + Math.max(0, doc.clips.length - 1) * standardClipSec;
+      }
+    }
+    const voiceDurSec11 =
+      Array.isArray(doc.audioTracks) && doc.audioTracks[0]?.duration
+        ? Math.round(clip2StartSec + Number(doc.audioTracks[0].duration))
+        : 0;
+    const confirmedSec11 = parseMmSsToSec11(doc.confirmedFinalDuration);
+    const totalDocSec11 = Math.max(
+      lastClipEndSec11,
+      voiceDurSec11,
+      confirmedSec11 > 125 ? confirmedSec11 : 0,
+      doc.targetDurationSeconds || 120
+    );
+    const resolvedFinalDuration11 = formatSecToMmSs11(totalDocSec11);
+    const chaptersTimelineGuide =
+      Array.isArray(doc.clips) && doc.clips.length > 0
+        ? doc.clips
+            .filter(
+              (_, idx, arr) =>
+                idx === 0 ||
+                idx === arr.length - 1 ||
+                idx % Math.max(1, Math.floor(arr.length / 12)) === 0
+            )
+            .map(
+              (c) =>
+                `${String(c.timeRange || '').split('-')[0]?.trim() || '00:00'} -> "${(c.narrationSegment || c.imagePrompt || '').slice(0, 100)}"`
+            )
+            .join('\n')
+        : '';
+
+    if (stageNumber === 11) {
+      stagePrompt = `Actúa como estratega jefe de publicación y SEO de "Huellas de la Humanidad".
+Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Duración final confirmada del documental: ${resolvedFinalDuration11}
+Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1 Hook): "${doc.clip1Line2Hook || ''}"
+Guion de referencia:
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2200)}
+"""
+${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental para los 10 capítulos:\n${chaptersTimelineGuide}\n` : ''}
+TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PUBLICACIÓN** separadas EXACTAMENTE por estas 4 etiquetas en mayúsculas (escribe las etiquetas tal cual):
+
+===SECCION_YOUTUBE===
+[Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
+1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
+2. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
+3. REGLA INQUEBRANTABLE: El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la frase de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto en pantalla de los primeros ${voiceEntrySec}s ("${doc.clip1Line2Hook || ''}").
+4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
+5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos desde 00:00 hasta antes de ${resolvedFinalDuration11} (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
+6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.]
+
+===SECCION_FACEBOOK===
+[Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
+1. CERO encabezados de sección en toda la entrega.
+2. SIN sección de Capítulos y SIN bloque de Tags SEO.
+3. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
+4. Título directo magnético (sin repetir Miniatura ni Hook del Clip 1) + línea braille (⠀) + EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀) + línea braille (⠀) + Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales). + línea braille (⠀) + Slogan: Cada historia deja una huella. Aquí seguimos sus rastros. + línea braille (⠀) + 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+
+===SECCION_COMENTARIO===
+[Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin ningún encabezado ni comillas: una reflexión histórica magnética seguida de una pregunta o llamado a la acción (CTA) natural que invite a la audiencia a debatir o compartir una vivencia relacionada con el hecho histórico. Prohibido decir "dale like" o "suscríbete", prohibido usar signos de exclamación (!), años en dígitos y siglos/monarcas en números romanos.]
+
+===SECCION_TAGS===
+[Entrega aquí EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas en una sola línea continua (~460 a 500 caracteres máximo, sin encabezado "Tags:").]`;
+    } else if (stageNumber === 111) {
+      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final: ${doc.confirmedFinalDuration || '02:00'}
-Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada por líneas braille (⠀), sin encabezados excepto "Capítulos:" (con 10 capítulos cronológicos), 3 párrafos de descripción, Nota IA, Slogan y 5 hashtags #CamelCase de dos palabras.`;
-  } else if (stageNumber === 112) {
-    stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
+Duración final confirmada: ${resolvedFinalDuration11}
+Plataforma: YOUTUBE
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental:\n${chaptersTimelineGuide}\n` : ''}
+Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
+1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
+2. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
+3. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
+4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
+5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
+6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.`;
+    } else if (stageNumber === 112) {
+      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada por líneas braille (⠀), sin encabezados, sin capítulos ni tags, con título, 3 párrafos de descripción, Nota IA, Slogan y 5 hashtags #CamelCase de dos palabras.`;
-  } else if (stageNumber === 113) {
-    stagePrompt = `Actúa como estratega de comunidad de "Huellas de la Humanidad" para "${doc.topic || doc.title}". Genera EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin encabezado, sin signos de exclamación, con años en dígitos y siglos/monarcas en romanos.`;
-  } else if (stageNumber === 114) {
-    stagePrompt = `Actúa como especialista en SEO de YouTube para "${doc.topic || doc.title}". Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas (~460-500 caracteres) sin encabezado.`;
+Duración final confirmada: ${resolvedFinalDuration11}
+Plataforma: FACEBOOK
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
+Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+
+Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
+1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:").
+2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
+3. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
+4. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
+5. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
+6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.`;
+    } else if (stageNumber === 113) {
+      stagePrompt = `Actúa como estratega de comunidad y retención de "Huellas de la Humanidad".
+Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+
+Genera EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO cumpliendo estas reglas inquebrantables:
+1. Entrega el texto directo sin ningún encabezado ni etiqueta (prohibido poner "Comentario Fijado:" o comillas).
+2. Formula una reflexión histórica magnética seguida de un llamado a la acción (CTA) natural que invite a la audiencia a debatir, opinar o compartir una experiencia/vivencia vinculada al hecho histórico.
+3. Queda terminantemente prohibido pedir genéricamente "dale like" o "suscríbete", y prohibido usar signos de exclamación (!).
+4. Escribe todos los años en dígitos y los siglos/nombres con número en números romanos.`;
+    } else if (stageNumber === 114) {
+      stagePrompt = `Actúa como especialista en SEO de YouTube para "Huellas de la Humanidad".
+Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+
+Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas inquebrantables:
+1. Entrega ÚNICAMENTE las etiquetas separadas por comas, en un solo bloque continuo, sin ningún encabezado (prohibido poner "Tags:" o "Tags SEO:").
+2. La longitud total del bloque debe ser de aproximadamente 460 a 500 caracteres contando espacios y comas (nunca superar los 500 caracteres).
+3. Incluye palabras clave de alto volumen de búsqueda en español sobre el tema histórico, personajes, época, lugar y documentales de historia.`;
+    }
   }
 
   if (customInstruction) {
