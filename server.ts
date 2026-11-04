@@ -3738,9 +3738,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         Boolean(isFirstClipAfterIntro) &&
         Boolean(hookTextConfig && (hookTextConfig.line1 || hookTextConfig.line2));
 
+      const isVertical916 = aspectRatio === '9:16' || outH > outW;
+      const refShortSide = Math.min(outW, outH);
+
       if (overlappingCaptions.length > 0 || hasAssHook) {
         const assEvents: string[] = [];
-        const blurScale = Math.max(1, outH / 1080);
+        const blurScale = Math.max(1, refShortSide / 1080);
         const capWordBlur = Math.round(14 * blurScale);
         const capWideBlur = Math.round(8 * blurScale);
         const capTightBlur = Number((2 * blurScale).toFixed(1));
@@ -3790,25 +3793,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
         if (assEvents.length > 0) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
-          const capFontSizeAss = Math.round(outH * 0.039);
-          const capMarginV = Math.round(outH * 0.11);
-          const capWideMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0045));
-          const capTightMarginV = Math.max(0, capMarginV - Math.round(outH * 0.0025));
+          const capFontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.043 : 0.039));
+          const capMarginV = Math.round(outH * (isVertical916 ? 0.155 : 0.11));
+          const capWideMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0045));
+          const capTightMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0025));
 
-          const hook1FontSizeAss = Math.round(outH * 0.036);
-          const hook2FontSizeAss = Math.round(outH * 0.0574);
+          const hook1FontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.035 : 0.036));
+          const hook2FontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.052 : 0.0574));
           const hook1MarginV = Math.round(outH * 0.555);
-          const hook1WideMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0045));
-          const hook1TightMarginV = Math.max(0, hook1MarginV - Math.round(outH * 0.0025));
+          const hook1WideMarginV = Math.max(0, hook1MarginV - Math.round(refShortSide * 0.0045));
+          const hook1TightMarginV = Math.max(0, hook1MarginV - Math.round(refShortSide * 0.0025));
           // Alignment=8 (top-center): MarginV is measured from the top of the frame, so downward shadow offsets add to MarginV
           const hook2MarginV = Math.round(outH * 0.463);
-          const hook2WideMarginV = hook2MarginV + Math.round(outH * 0.0055);
-          const hook2TightMarginV = hook2MarginV + Math.round(outH * 0.0028);
+          const hook2WideMarginV = hook2MarginV + Math.round(refShortSide * 0.0055);
+          const hook2TightMarginV = hook2MarginV + Math.round(refShortSide * 0.0028);
 
-          const capWordOutline = Math.max(12, Math.round(outH * 0.0185));
-          const capWideOutline = Math.max(1, Math.round(outH * 0.0018));
-          const hook1WideOutline = Math.max(1, Math.round(outH * 0.002));
-          const hook2WideOutline = Math.max(2, Math.round(outH * 0.0026));
+          const capWordOutline = Math.max(12, Math.round(refShortSide * 0.0185));
+          const capWideOutline = Math.max(1, Math.round(refShortSide * 0.0018));
+          const hook1WideOutline = Math.max(1, Math.round(refShortSide * 0.002));
+          const hook2WideOutline = Math.max(2, Math.round(refShortSide * 0.0026));
           const hook1Spacing = Number((3.5 * blurScale).toFixed(1));
           const hook2Spacing = Number((1.5 * blurScale).toFixed(1));
 
@@ -3854,7 +3857,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=${safeFps},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
+      let scaleAndCropVf: string;
+      if (isVertical916 && c.reframe9x16Mode !== 'fit_blur') {
+        const fStart = Math.max(0, Math.min(1, Number(c.reframeFocusXStart ?? 50) / 100));
+        const fEnd = Math.max(0, Math.min(1, Number(c.reframeFocusXEnd ?? c.reframeFocusXStart ?? 50) / 100));
+        const fY = Math.max(0, Math.min(1, Number(c.reframeFocusY ?? 50) / 100));
+        const isDynamicPan = Math.abs(fEnd - fStart) >= 0.015;
+        const cropXExpr = isDynamicPan
+          ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${Math.max(0.5, effectiveClipDur).toFixed(3)})))))'`
+          : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
+        const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
+        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
+      } else {
+        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+      }
+
+      const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},fps=${safeFps},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
 
       const buildAtempoChain = (spd: number): string => {
         if (Math.abs(spd - 1) < 0.003) return '';
@@ -4479,6 +4497,469 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     res.status(500).json({
       error: err.message || 'Error ejecutando FFmpeg para renderizar el documental.',
     });
+  }
+});
+
+// ============================================================================
+// SMART AUTO-REFRAME 9:16 ENGINE (100% LOCAL COMPUTER VISION + CACHE)
+// ============================================================================
+interface SmartReframeClipResult {
+  clipNumber: number;
+  fileName: string;
+  reframe9x16Mode: 'auto_center' | 'auto_focus' | 'auto_pan';
+  focusXStart: number; // 0 to 100 (50 = center)
+  focusXEnd: number;   // 0 to 100 (50 = center)
+  focusY: number;      // 0 to 100 (50 = center)
+  confidence: number;  // 0 to 1
+  reason: string;
+  mtimeMs?: number;
+  sizeBytes?: number;
+}
+
+async function analyzeClipSmartReframe9x16(
+  ffmpegBin: string,
+  mp4Path: string,
+  clipNumber: number,
+  fileName: string
+): Promise<SmartReframeClipResult> {
+  const W = 160;
+  const H = 90;
+  const winW = 51; // 9:16 vertical window width inside a 160x90 (16:9) frame
+  const maxLeftX = W - winW; // 109
+  const frameByteSize = W * H * 3;
+
+  const rawBuffer = await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = [];
+    // Sample ~4 keyframes across the clip (approx every 1.8s on an 8s clip)
+    const proc = spawn(
+      ffmpegBin,
+      [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        mp4Path,
+        '-vf',
+        `fps=0.55,scale=${W}:${H}:flags=fast_bilinear`,
+        '-frames:v',
+        '5',
+        '-f',
+        'rawvideo',
+        '-pix_fmt',
+        'rgb24',
+        'pipe:1',
+      ],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    proc.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk));
+    proc.on('close', () => resolve(Buffer.concat(chunks)));
+    proc.on('error', () => resolve(Buffer.alloc(0)));
+  });
+
+  const numFrames = Math.floor(rawBuffer.length / frameByteSize);
+  if (numFrames <= 0) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_center',
+      focusXStart: 50,
+      focusXEnd: 50,
+      focusY: 50,
+      confidence: 0.5,
+      reason: 'Encuadre central estándar (50%)',
+    };
+  }
+
+  const perFrameBestNormX: number[] = [];
+  const perFrameConfidence: number[] = [];
+  const globalColScores = new Float64Array(W);
+
+  for (let f = 0; f < numFrames; f++) {
+    const baseOffset = f * frameByteSize;
+    const prevOffset = f > 0 ? (f - 1) * frameByteSize : -1;
+    const colScores = new Float64Array(W);
+
+    // Compute mean luma first for chiaroscuro key-light detection
+    let sumLuma = 0;
+    for (let i = 0; i < frameByteSize; i += 3) {
+      const r = rawBuffer[baseOffset + i];
+      const g = rawBuffer[baseOffset + i + 1];
+      const b = rawBuffer[baseOffset + i + 2];
+      sumLuma += 0.299 * r + 0.587 * g + 0.114 * b;
+    }
+    const meanLuma = sumLuma / (W * H);
+
+    for (let y = 7; y < H - 7; y++) {
+      // Upper-middle rows (y = 12..58) carry faces/eyes/head-and-shoulders in documentary shots
+      const rowFaceWeight = y >= 11 && y <= 58 ? 2.4 : 1.0;
+      for (let x = 2; x < W - 2; x++) {
+        const idx = baseOffset + (y * W + x) * 3;
+        const r = rawBuffer[idx];
+        const g = rawBuffer[idx + 1];
+        const b = rawBuffer[idx + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        // 1. Face / Skin / Warm Torchlight Chromaticity Saliency
+        let skinWarmScore = 0;
+        if (r > 48 && r > g && g >= b * 0.85 && r - b >= 16 && luma > 32 && luma < 238) {
+          skinWarmScore = Math.min(45, (r - b) * 0.85) * rowFaceWeight;
+        }
+
+        // 2. High-Frequency Edge / Sharpness Saliency (in-focus subject vs blurred bokeh)
+        const idxLeft = idx - 3;
+        const idxRight = idx + 3;
+        const idxUp = idx - W * 3;
+        const idxDown = idx + W * 3;
+        const gx =
+          Math.abs(rawBuffer[idxRight] - rawBuffer[idxLeft]) +
+          Math.abs(rawBuffer[idxRight + 1] - rawBuffer[idxLeft + 1]);
+        const gy =
+          Math.abs(rawBuffer[idxDown] - rawBuffer[idxUp]) +
+          Math.abs(rawBuffer[idxDown + 1] - rawBuffer[idxUp + 1]);
+        const edgeScore = Math.min(60, (gx + gy) * 0.35) * (y >= 12 && y <= 68 ? 1.45 : 0.9);
+
+        // 3. Temporal Motion Energy between consecutive keyframes
+        let motionScore = 0;
+        if (prevOffset >= 0) {
+          const pIdx = prevOffset + (y * W + x) * 3;
+          const diff =
+            Math.abs(r - rawBuffer[pIdx]) +
+            Math.abs(g - rawBuffer[pIdx + 1]) +
+            Math.abs(b - rawBuffer[pIdx + 2]);
+          if (diff > 18) {
+            motionScore = Math.min(55, (diff - 18) * 0.55) * rowFaceWeight;
+          }
+        }
+
+        // 4. Chiaroscuro Key-Light Contrast
+        let keyLightScore = 0;
+        if (luma > meanLuma * 1.25 && luma < 245) {
+          keyLightScore = Math.min(25, (luma - meanLuma) * 0.28);
+        }
+
+        const totalPixelSaliency = skinWarmScore + edgeScore + motionScore + keyLightScore;
+        colScores[x] += totalPixelSaliency;
+        globalColScores[x] += totalPixelSaliency;
+      }
+    }
+
+    // Slide the 9:16 window across x0 = 0 .. maxLeftX
+    let bestX0 = Math.round(maxLeftX * 0.5);
+    let bestWinScore = -1;
+    let centerWinScore = 1;
+
+    for (let x0 = 0; x0 <= maxLeftX; x0++) {
+      let winSum = 0;
+      for (let dx = 0; dx < winW; dx++) {
+        // Weight center of the 9:16 window higher so the protagonist isn't clipped on the border
+        const normDx = (dx - winW * 0.5) / (winW * 0.5);
+        const kernelW = Math.max(0.25, 1.0 - 0.55 * normDx * normDx);
+        winSum += colScores[x0 + dx] * kernelW;
+      }
+      const u = x0 / maxLeftX; // 0..1
+      // Mild center stability prior so symmetric scenes prefer 50%
+      const prior = 1.0 - 0.065 * Math.pow((u - 0.5) * 2, 2);
+      const weightedScore = winSum * prior;
+      if (x0 === Math.round(maxLeftX * 0.5)) {
+        centerWinScore = Math.max(1, weightedScore);
+      }
+      if (weightedScore > bestWinScore) {
+        bestWinScore = weightedScore;
+        bestX0 = x0;
+      }
+    }
+
+    const ratioVsCenter = bestWinScore / Math.max(1, centerWinScore);
+    const normPct = ratioVsCenter >= 1.065 ? (bestX0 / maxLeftX) * 100 : 50;
+    perFrameBestNormX.push(Math.max(10, Math.min(90, normPct)));
+    perFrameConfidence.push(Math.min(0.99, Math.max(0.55, (ratioVsCenter - 0.9) * 1.8)));
+  }
+
+  // Evaluate overall static best window from globalColScores
+  let globalBestX0 = Math.round(maxLeftX * 0.5);
+  let globalBestScore = -1;
+  let globalCenterScore = 1;
+  for (let x0 = 0; x0 <= maxLeftX; x0++) {
+    let winSum = 0;
+    for (let dx = 0; dx < winW; dx++) {
+      const normDx = (dx - winW * 0.5) / (winW * 0.5);
+      const kernelW = Math.max(0.25, 1.0 - 0.55 * normDx * normDx);
+      winSum += globalColScores[x0 + dx] * kernelW;
+    }
+    const u = x0 / maxLeftX;
+    const prior = 1.0 - 0.065 * Math.pow((u - 0.5) * 2, 2);
+    const weightedScore = winSum * prior;
+    if (x0 === Math.round(maxLeftX * 0.5)) {
+      globalCenterScore = Math.max(1, weightedScore);
+    }
+    if (weightedScore > globalBestScore) {
+      globalBestScore = weightedScore;
+      globalBestX0 = x0;
+    }
+  }
+
+  const globalRatioVsCenter = globalBestScore / Math.max(1, globalCenterScore);
+  const overallFocusX =
+    globalRatioVsCenter >= 1.06
+      ? Math.round(Math.max(12, Math.min(88, (globalBestX0 / maxLeftX) * 100)))
+      : 50;
+
+  // Compare first half vs second half to detect horizontal subject movement / camera pan
+  const halfIdx = Math.max(1, Math.floor(perFrameBestNormX.length / 2));
+  const firstHalf = perFrameBestNormX.slice(0, halfIdx);
+  const secondHalf = perFrameBestNormX.slice(halfIdx);
+  const avgStart =
+    firstHalf.reduce((acc, v) => acc + v, 0) / Math.max(1, firstHalf.length);
+  const avgEnd =
+    secondHalf.length > 0
+      ? secondHalf.reduce((acc, v) => acc + v, 0) / secondHalf.length
+      : avgStart;
+
+  const panDelta = Math.abs(avgEnd - avgStart);
+  const avgConf =
+    perFrameConfidence.reduce((a, b) => a + b, 0) / Math.max(1, perFrameConfidence.length);
+
+  if (numFrames >= 2 && panDelta >= 12) {
+    const fStart = Math.round(Math.max(12, Math.min(88, avgStart)));
+    const fEnd = Math.round(Math.max(12, Math.min(88, avgEnd)));
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: fStart,
+      focusXEnd: fEnd,
+      focusY: 50,
+      confidence: Number(avgConf.toFixed(2)),
+      reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) siguiendo acción/sujeto`,
+    };
+  }
+
+  if (Math.abs(overallFocusX - 50) >= 6) {
+    const sideLabel = overallFocusX < 50 ? 'izquierdo' : 'derecho';
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_focus',
+      focusXStart: overallFocusX,
+      focusXEnd: overallFocusX,
+      focusY: 50,
+      confidence: Number(avgConf.toFixed(2)),
+      reason: `Enfoque inteligente IA en tercio ${sideLabel} (${overallFocusX}%)`,
+    };
+  }
+
+  return {
+    clipNumber,
+    fileName,
+    reframe9x16Mode: 'auto_center',
+    focusXStart: 50,
+    focusXEnd: 50,
+    focusY: 50,
+    confidence: Number(avgConf.toFixed(2)),
+    reason: 'Encuadre central simétrico IA (50%)',
+  };
+}
+
+app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
+  try {
+    const { folderPath, forceRefresh } = req.body || {};
+    const ffmpegBin = getFfmpegPath();
+    if (!ffmpegBin) {
+      res.status(500).json({ error: 'FFmpeg no disponible en este servidor.' });
+      return;
+    }
+
+    const rawFolder = String(folderPath || '').trim();
+    const targetRoot = resolveLocalFlowProjectFolder(rawFolder);
+    if (!targetRoot || !fs.existsSync(targetRoot)) {
+      res.status(404).json({ error: 'No se encontró la carpeta del proyecto para analizar 9:16.' });
+      return;
+    }
+
+    const clipsVideoSubdir = path.join(targetRoot, '05_Clips_Video');
+    const clipsApprovedSubdir = path.join(targetRoot, 'Clips_Aprobados');
+    const searchDirs = [clipsVideoSubdir, targetRoot, clipsApprovedSubdir].filter((d) =>
+      fs.existsSync(d)
+    );
+    const cacheFilePath = path.join(
+      fs.existsSync(clipsVideoSubdir) ? clipsVideoSubdir : targetRoot,
+      '.reframe_9x16_cache.json'
+    );
+
+    let cachedMap: Record<string, SmartReframeClipResult> = {};
+    if (!forceRefresh && fs.existsSync(cacheFilePath)) {
+      try {
+        cachedMap = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8')) || {};
+      } catch {
+        cachedMap = {};
+      }
+    }
+
+    // Discover numbered clips in searchDirs (prioritizing 05_Clips_Video and _4K.mp4)
+    const clipFilesByNum = new Map<number, { filePath: string; fileName: string }>();
+    for (const dir of searchDirs) {
+      let entries: string[] = [];
+      try {
+        entries = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      const mp4Files = entries
+        .filter((f) => !f.startsWith('.') && /\.(mp4|mov|webm)$/i.test(f))
+        .sort((a, b) => {
+          const a4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(a) ? 1 : 0;
+          const b4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(b) ? 1 : 0;
+          return b4k - a4k;
+        });
+      for (const f of mp4Files) {
+        const m = f.match(/^(?:clip[_\-\s.]*)?0*(\d+)[_\-\s.]/i);
+        if (!m) continue;
+        const num = parseInt(m[1], 10);
+        if (!Number.isFinite(num) || num <= 0 || num === 999) continue;
+        if (!clipFilesByNum.has(num)) {
+          clipFilesByNum.set(num, { filePath: path.join(dir, f), fileName: f });
+        }
+      }
+    }
+
+    const sortedNums = Array.from(clipFilesByNum.keys()).sort((a, b) => a - b);
+    const results: SmartReframeClipResult[] = [];
+    let queueIdx = 0;
+
+    const runWorker = async () => {
+      while (queueIdx < sortedNums.length) {
+        const myIdx = queueIdx++;
+        const clipNum = sortedNums[myIdx];
+        const info = clipFilesByNum.get(clipNum)!;
+        let statMtime = 0;
+        let statSize = 0;
+        try {
+          const st = fs.statSync(info.filePath);
+          statMtime = Math.round(st.mtimeMs);
+          statSize = st.size;
+        } catch {}
+
+        const cacheKey = `${clipNum}_${info.fileName}`;
+        const existing = cachedMap[cacheKey];
+        if (
+          !forceRefresh &&
+          existing &&
+          existing.mtimeMs === statMtime &&
+          existing.sizeBytes === statSize
+        ) {
+          results.push(existing);
+          continue;
+        }
+
+        const analyzed = await analyzeClipSmartReframe9x16(
+          ffmpegBin,
+          info.filePath,
+          clipNum,
+          info.fileName
+        );
+        analyzed.mtimeMs = statMtime;
+        analyzed.sizeBytes = statSize;
+        cachedMap[cacheKey] = analyzed;
+        results.push(analyzed);
+      }
+    };
+
+    const concurrency = Math.min(4, Math.max(1, sortedNums.length));
+    await Promise.all(Array.from({ length: concurrency }, () => runWorker()));
+
+    results.sort((a, b) => a.clipNumber - b.clipNumber);
+
+    try {
+      fs.writeFileSync(cacheFilePath, JSON.stringify(cachedMap, null, 2), 'utf8');
+    } catch {}
+
+    res.json({
+      ok: true,
+      totalAnalyzed: results.length,
+      results,
+    });
+  } catch (err: any) {
+    console.error('Error en /api/editor/auto-reframe-9x16:', err);
+    res.status(500).json({
+      error: err?.message || 'Error analizando Auto-Reframe 9:16.',
+    });
+  }
+});
+
+// List exported master videos (16x9 and 9x16) inside 06_Video_Final so the user can access both at any time
+app.get('/api/editor/exported-videos', (req, res) => {
+  try {
+    const rawFolder = String(req.query.folderPath || '').trim();
+    if (!rawFolder) {
+      res.json({ ok: true, videos: { '16:9': null, '9:16': null }, allFiles: [] });
+      return;
+    }
+    const targetRoot = resolveLocalFlowProjectFolder(rawFolder);
+    if (!targetRoot || !fs.existsSync(targetRoot)) {
+      res.json({ ok: true, videos: { '16:9': null, '9:16': null }, allFiles: [] });
+      return;
+    }
+    const videoFinalSubdir = path.join(targetRoot, '06_Video_Final');
+    const searchDirs = [videoFinalSubdir, targetRoot].filter((d) => fs.existsSync(d));
+    const foundFiles: Array<{
+      fileName: string;
+      filePath: string;
+      aspectRatio: '16:9' | '9:16' | '1:1' | 'other';
+      sizeMB: string;
+      updatedAt: string;
+      mtimeMs: number;
+    }> = [];
+
+    for (const dir of searchDirs) {
+      let entries: string[] = [];
+      try {
+        entries = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      for (const f of entries) {
+        if (f.startsWith('.') || !/\.mp4$/i.test(f)) continue;
+        if (!/(?:16x9|9x16|1x1)/i.test(f) && dir === targetRoot) continue;
+        const fullPath = path.join(dir, f);
+        try {
+          const st = fs.statSync(fullPath);
+          if (!st.isFile() || st.size < 100000) continue;
+          const ar: '16:9' | '9:16' | '1:1' | 'other' = /9x16/i.test(f)
+            ? '9:16'
+            : /16x9/i.test(f)
+            ? '16:9'
+            : /1x1/i.test(f)
+            ? '1:1'
+            : 'other';
+          foundFiles.push({
+            fileName: f,
+            filePath: fullPath,
+            aspectRatio: ar,
+            sizeMB: (st.size / (1024 * 1024)).toFixed(1),
+            updatedAt: new Date(st.mtimeMs).toLocaleTimeString('es-ES', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            mtimeMs: st.mtimeMs,
+          });
+        } catch {}
+      }
+    }
+
+    foundFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const latest16x9 = foundFiles.find((f) => f.aspectRatio === '16:9') || null;
+    const latest9x16 = foundFiles.find((f) => f.aspectRatio === '9:16') || null;
+
+    res.json({
+      ok: true,
+      videos: {
+        '16:9': latest16x9,
+        '9:16': latest9x16,
+      },
+      allFiles: foundFiles,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Error consultando videos exportados.' });
   }
 });
 

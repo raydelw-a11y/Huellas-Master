@@ -84,6 +84,13 @@ export interface TimelineClipItem {
   cleanOpticalFlowOnlyUrl?: string; // 60fps Optical Flow MP4 URL with only ambient Foley preserved
   originalVideoUrlBeforeSeparation?: string;
   originalOpticalFlowUrlBeforeSeparation?: string;
+  // Smart Auto-Reframe 9:16 (Vertical Dual Format)
+  reframe9x16Mode?: 'auto_center' | 'auto_focus' | 'auto_pan' | 'manual' | 'fit_blur';
+  reframeFocusXStart?: number; // 0 to 100 (50 = center)
+  reframeFocusXEnd?: number;   // 0 to 100 (50 = center)
+  reframeFocusY?: number;      // 0 to 100 (50 = center)
+  reframeConfidence?: number;
+  reframeReason?: string;
 }
 
 export interface TimelineSeparatedVocalItem {
@@ -1405,6 +1412,332 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captionAnimDur,
   ]);
 
+  // ============================================================================
+  // DUAL-FORMAT (16:9 ⇄ 9:16) PERSISTENT OVERLAY PROFILES & SMART AUTO-REFRAME
+  // ============================================================================
+  interface FormatOverlayProfile {
+    logoScalePct: number;
+    logoPosX: number;
+    logoPosY: number;
+    hookLine1FontSize: number;
+    hookLine2FontSize: number;
+    hookLeftPct: number;
+    hookTopPct: number;
+    hookBoxWidthPct: number;
+    captionFontSize: number;
+    captionBottomPct: number;
+  }
+
+  const formatProfilesRef = useRef<Record<'16:9' | '9:16', FormatOverlayProfile>>((() => {
+    const default16x9: FormatOverlayProfile = {
+      logoScalePct: 6,
+      logoPosX: 3,
+      logoPosY: 3,
+      hookLine1FontSize: 15,
+      hookLine2FontSize: 24,
+      hookLeftPct: 50,
+      hookTopPct: 50,
+      hookBoxWidthPct: 82,
+      captionFontSize: 25,
+      captionBottomPct: 11,
+    };
+    const default9x16: FormatOverlayProfile = {
+      logoScalePct: 12,
+      logoPosX: 4,
+      logoPosY: 3,
+      hookLine1FontSize: 13,
+      hookLine2FontSize: 20,
+      hookLeftPct: 50,
+      hookTopPct: 48,
+      hookBoxWidthPct: 88,
+      captionFontSize: 21,
+      captionBottomPct: 15,
+    };
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          '16:9': { ...default16x9, ...(parsed['16:9'] || {}) },
+          '9:16': { ...default9x16, ...(parsed['9:16'] || {}) },
+        };
+      }
+    } catch {}
+    return { '16:9': default16x9, '9:16': default9x16 };
+  })());
+
+  // Keep current aspectRatio's profile updated in real time whenever overlay sliders change
+  useEffect(() => {
+    formatProfilesRef.current[aspectRatio] = {
+      logoScalePct,
+      logoPosX,
+      logoPosY,
+      hookLine1FontSize,
+      hookLine2FontSize,
+      hookLeftPct,
+      hookTopPct,
+      hookBoxWidthPct,
+      captionFontSize,
+      captionBottomPct,
+    };
+    try {
+      localStorage.setItem(
+        'huellas_editor_format_profiles_v1',
+        JSON.stringify(formatProfilesRef.current)
+      );
+    } catch {}
+  }, [
+    aspectRatio,
+    logoScalePct,
+    logoPosX,
+    logoPosY,
+    hookLine1FontSize,
+    hookLine2FontSize,
+    hookLeftPct,
+    hookTopPct,
+    hookBoxWidthPct,
+    captionFontSize,
+    captionBottomPct,
+  ]);
+
+  const [isAnalyzingReframe9x16, setIsAnalyzingReframe9x16] = useState<boolean>(false);
+  const [reframeSummary9x16, setReframeSummary9x16] = useState<string>('');
+  const autoReframedDocIdsRef = useRef<Set<string>>(new Set());
+  const [exportedMasterVideos, setExportedMasterVideos] = useState<{
+    '16:9': { fileName: string; filePath: string; sizeMB: string; updatedAt: string } | null;
+    '9:16': { fileName: string; filePath: string; sizeMB: string; updatedAt: string } | null;
+  }>({ '16:9': null, '9:16': null });
+
+  const refreshExportedMasterVideos = async () => {
+    const fPath = (
+      downloadFolderPath ||
+      activeDoc?.downloadFolderPath ||
+      downloadFolderName ||
+      activeDoc?.downloadFolderName ||
+      activeDoc?.title ||
+      ''
+    ).trim();
+    if (!fPath) return;
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    try {
+      const r = await fetch(
+        `${serverOrigin}/api/editor/exported-videos?folderPath=${encodeURIComponent(fPath)}`
+      );
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data && data.videos) {
+        setExportedMasterVideos({
+          '16:9': data.videos['16:9'] || null,
+          '9:16': data.videos['9:16'] || null,
+        });
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    refreshExportedMasterVideos();
+  }, [
+    activeDoc?.id,
+    activeDoc?.title,
+    downloadFolderPath,
+    downloadFolderName,
+    lastExportedOutputPath,
+    isRenderingVideo,
+  ]);
+
+  const handleRunSmartAutoReframe9x16 = async (forceRefresh = false) => {
+    if (isAnalyzingReframe9x16) return;
+    const fPath = (
+      downloadFolderPath ||
+      activeDoc?.downloadFolderPath ||
+      downloadFolderName ||
+      activeDoc?.downloadFolderName ||
+      activeDoc?.title ||
+      ''
+    ).trim();
+    if (!fPath) {
+      setStatusMessage('⚠️ Selecciona o conecta primero la carpeta del documental para analizar Auto-Reframe 9:16.');
+      return;
+    }
+    setIsAnalyzingReframe9x16(true);
+    setStatusMessage('🤖 Analizando cada clip en 05_Clips_Video (rostros, luz, nitidez y movimiento) para Auto-Reframe 9:16...');
+
+    const isLocalHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+
+    try {
+      const resp = await fetch(`${serverOrigin}/api/editor/auto-reframe-9x16`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: fPath,
+          forceRefresh,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok || !Array.isArray(data.results)) {
+        throw new Error(data?.error || 'No se pudo completar el análisis Auto-Reframe 9:16.');
+      }
+
+      const resultByClipNum = new Map<
+        number,
+        {
+          reframe9x16Mode: 'auto_center' | 'auto_focus' | 'auto_pan';
+          focusXStart: number;
+          focusXEnd: number;
+          focusY: number;
+          confidence: number;
+          reason: string;
+        }
+      >();
+      let countCenter = 0;
+      let countFocus = 0;
+      let countPan = 0;
+      for (const item of data.results) {
+        const cNum = Number(item.clipNumber);
+        if (!Number.isFinite(cNum) || cNum <= 0) continue;
+        resultByClipNum.set(cNum, item);
+        if (item.reframe9x16Mode === 'auto_pan') countPan++;
+        else if (item.reframe9x16Mode === 'auto_focus') countFocus++;
+        else countCenter++;
+      }
+
+      const docId = activeDoc?.id || 'default';
+      setTimelineClips((prev) => {
+        const updated = prev.map((tc) => {
+          // Preserve manual overrides unless user explicitly requested forceRefresh
+          if (!forceRefresh && tc.reframe9x16Mode === 'manual') return tc;
+          const res = resultByClipNum.get(tc.clipNumber);
+          if (!res) return tc;
+          return {
+            ...tc,
+            reframe9x16Mode: res.reframe9x16Mode,
+            reframeFocusXStart: res.focusXStart,
+            reframeFocusXEnd: res.focusXEnd,
+            reframeFocusY: res.focusY ?? 50,
+            reframeConfidence: res.confidence,
+            reframeReason: res.reason,
+          };
+        });
+        persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
+        return updated;
+      });
+
+      if (activeDoc && Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0) {
+        updateActiveDoc({
+          clips: activeDoc.clips.map((c) => {
+            if (!forceRefresh && c.reframe9x16Mode === 'manual') return c;
+            const res = resultByClipNum.get(c.clipNumber);
+            if (!res) return c;
+            return {
+              ...c,
+              reframe9x16Mode: res.reframe9x16Mode,
+              reframeFocusXStart: res.focusXStart,
+              reframeFocusXEnd: res.focusXEnd,
+              reframeFocusY: res.focusY ?? 50,
+              reframeConfidence: res.confidence,
+              reframeReason: res.reason,
+            };
+          }),
+        });
+      }
+
+      const summaryTxt = `🎯 IA 9:16: ${countFocus} Foco Lateral • ${countPan} Paneo Dinámico • ${countCenter} Centro`;
+      setReframeSummary9x16(summaryTxt);
+      setStatusMessage(
+        `✅ Auto-Reframe 9:16 completado en ${data.results.length} clips (${countFocus} con enfoque lateral de sujeto, ${countPan} con paneo dinámico y ${countCenter} centrados).`
+      );
+    } catch (err: any) {
+      setStatusMessage(`⚠️ Auto-Reframe 9:16: ${err?.message || 'Error al analizar clips.'}`);
+    } finally {
+      setIsAnalyzingReframe9x16(false);
+    }
+  };
+
+  const handleUpdateClipReframe9x16 = (
+    clipId: string,
+    patch: {
+      reframe9x16Mode?: 'auto_center' | 'auto_focus' | 'auto_pan' | 'manual' | 'fit_blur';
+      reframeFocusXStart?: number;
+      reframeFocusXEnd?: number;
+      reframeFocusY?: number;
+      reframeReason?: string;
+    }
+  ) => {
+    const docId = activeDoc?.id || 'default';
+    let targetClipNum = -1;
+    setTimelineClips((prev) => {
+      const updated = prev.map((tc) => {
+        if (tc.id !== clipId) return tc;
+        targetClipNum = tc.clipNumber;
+        return {
+          ...tc,
+          ...patch,
+        };
+      });
+      persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
+      return updated;
+    });
+    if (targetClipNum > 0 && activeDoc && Array.isArray(activeDoc.clips)) {
+      updateActiveDoc({
+        clips: activeDoc.clips.map((c) =>
+          c.clipNumber === targetClipNum ? { ...c, ...patch } : c
+        ),
+      });
+    }
+  };
+
+  const handleSwitchAspectRatio = (nextRatio: EditorAspectRatio) => {
+    if (nextRatio === aspectRatio) return;
+    // Save current format's overlay settings
+    formatProfilesRef.current[aspectRatio] = {
+      logoScalePct,
+      logoPosX,
+      logoPosY,
+      hookLine1FontSize,
+      hookLine2FontSize,
+      hookLeftPct,
+      hookTopPct,
+      hookBoxWidthPct,
+      captionFontSize,
+      captionBottomPct,
+    };
+    const targetProfile = formatProfilesRef.current[nextRatio];
+    setAspectRatio(nextRatio);
+    if (targetProfile) {
+      setLogoScalePct(targetProfile.logoScalePct);
+      setLogoPosX(targetProfile.logoPosX);
+      setLogoPosY(targetProfile.logoPosY);
+      setHookLine1FontSize(targetProfile.hookLine1FontSize);
+      setHookLine2FontSize(targetProfile.hookLine2FontSize);
+      setHookLeftPct(targetProfile.hookLeftPct);
+      setHookTopPct(targetProfile.hookTopPct);
+      setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
+      setCaptionFontSize(targetProfile.captionFontSize);
+      setCaptionBottomPct(targetProfile.captionBottomPct);
+    }
+    if (nextRatio === '9:16') {
+      const docKey = activeDoc?.id || activeDoc?.title || 'default';
+      const hasAnyReframe = timelineClips.some(
+        (tc) =>
+          tc.clipNumber > 0 &&
+          tc.clipNumber !== 999 &&
+          Boolean(tc.reframe9x16Mode)
+      );
+      if (!hasAnyReframe && !autoReframedDocIdsRef.current.has(docKey)) {
+        autoReframedDocIdsRef.current.add(docKey);
+        setTimeout(() => {
+          handleRunSmartAutoReframe9x16(false);
+        }, 120);
+      }
+    }
+  };
+
   const handleUpdateClip1Line1 = (newVal: string) => {
     const docId = activeDoc?.id || 'default';
     userEditedHookDocIdRef.current = docId;
@@ -2625,6 +2958,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         videoUrl,
         posterUrl,
         reviewedForEditor: Boolean(c.reviewedForEditor),
+        reframe9x16Mode: existingItem?.reframe9x16Mode || c.reframe9x16Mode,
+        reframeFocusXStart: existingItem?.reframeFocusXStart ?? c.reframeFocusXStart,
+        reframeFocusXEnd: existingItem?.reframeFocusXEnd ?? c.reframeFocusXEnd,
+        reframeFocusY: existingItem?.reframeFocusY ?? c.reframeFocusY,
+        reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
+        reframeReason: existingItem?.reframeReason || c.reframeReason,
       };
     });
 
@@ -7840,6 +8179,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   audioFadeInSec: c.audioFadeInSec,
                   audioFadeOutSec: c.audioFadeOutSec,
                   transition: c.transition,
+                  reframe9x16Mode: c.reframe9x16Mode || 'auto_center',
+                  reframeFocusXStart: typeof c.reframeFocusXStart === 'number' ? c.reframeFocusXStart : 50,
+                  reframeFocusXEnd:
+                    typeof c.reframeFocusXEnd === 'number'
+                      ? c.reframeFocusXEnd
+                      : typeof c.reframeFocusXStart === 'number'
+                      ? c.reframeFocusXStart
+                      : 50,
+                  reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -8744,35 +9092,49 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Aspect Ratio Selector */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+          {/* Aspect Ratio Selector (Dual-Format 16:9 ⇄ 9:16 Persistent Memory) */}
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 gap-0.5">
             <button
               type="button"
-              onClick={() => {
-                setAspectRatio('16:9');
-                setCaptionFontSize(40);
-              }}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+              onClick={() => handleSwitchAspectRatio('16:9')}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
                 aspectRatio === '16:9'
-                  ? 'bg-amber-500 text-slate-950'
+                  ? 'bg-amber-500 text-slate-950 shadow'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title={
+                exportedMasterVideos['16:9']
+                  ? `Versión 16:9 Horizontal (${exportedMasterVideos['16:9'].fileName} • ${exportedMasterVideos['16:9'].sizeMB} MB lista en 06_Video_Final)`
+                  : 'Cambiar a vista y edición 16:9 Horizontal (conservando su diseño y textos)'
+              }
             >
-              📺 16:9
+              <span>📺 16:9</span>
+              {exportedMasterVideos['16:9'] && (
+                <span className="text-[9px] px-1 rounded bg-emerald-500/30 text-emerald-200 font-black">
+                  ✓
+                </span>
+              )}
             </button>
             <button
               type="button"
-              onClick={() => {
-                setAspectRatio('9:16');
-                if (captionFontSize === 40) setCaptionFontSize(22);
-              }}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+              onClick={() => handleSwitchAspectRatio('9:16')}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
                 aspectRatio === '9:16'
-                  ? 'bg-amber-500 text-slate-950'
+                  ? 'bg-amber-500 text-slate-950 shadow'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title={
+                exportedMasterVideos['9:16']
+                  ? `Versión 9:16 Vertical (${exportedMasterVideos['9:16'].fileName} • ${exportedMasterVideos['9:16'].sizeMB} MB lista en 06_Video_Final)`
+                  : 'Cambiar a vista y edición 9:16 Vertical con Smart Auto-Reframe IA por clip'
+              }
             >
-              📱 9:16
+              <span>📱 9:16</span>
+              {exportedMasterVideos['9:16'] && (
+                <span className="text-[9px] px-1 rounded bg-emerald-500/30 text-emerald-200 font-black">
+                  ✓
+                </span>
+              )}
             </button>
           </div>
 
@@ -8906,6 +9268,65 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* Body */}
             <div className="p-4 space-y-3.5 text-xs">
+              {/* 0. Formato Dual (16:9 Horizontal ⇄ 9:16 Vertical Auto-Reframe) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
+                    Formato de Exportación (Ambos disponibles en 06_Video_Final)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isRenderingVideo}
+                    onClick={() => handleSwitchAspectRatio('16:9')}
+                    className={`py-2 px-2.5 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 ${
+                      aspectRatio === '16:9'
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-100 shadow-lg shadow-amber-500/10'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs text-white">📺 16:9 Horizontal</span>
+                      {exportedMasterVideos['16:9'] && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-bold">
+                          ✓ Exportado
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[9px] font-mono opacity-80 mt-0.5 truncate">
+                      {exportedMasterVideos['16:9']
+                        ? `${exportedMasterVideos['16:9'].fileName} (${exportedMasterVideos['16:9'].sizeMB} MB)`
+                        : 'YouTube / Facebook Panorámico'}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isRenderingVideo}
+                    onClick={() => handleSwitchAspectRatio('9:16')}
+                    className={`py-2 px-2.5 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 ${
+                      aspectRatio === '9:16'
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-100 shadow-lg shadow-amber-500/10'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs text-white">📱 9:16 Vertical IA</span>
+                      {exportedMasterVideos['9:16'] && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-bold">
+                          ✓ Exportado
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[9px] font-mono opacity-80 mt-0.5 truncate">
+                      {exportedMasterVideos['9:16']
+                        ? `${exportedMasterVideos['9:16'].fileName} (${exportedMasterVideos['9:16'].sizeMB} MB)`
+                        : 'Reels / TikTok / Shorts con Auto-Reframe'}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* 1. Calidad / Resolución */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -9545,6 +9966,217 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           </div>
 
+          {/* Smart Auto-Reframe 9:16 Control Bar (Visible when editing in 9:16 Vertical mode) */}
+          {aspectRatio === '9:16' && (
+            <div className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 font-black">
+                  📱 Encuadre 9:16{' '}
+                  {activeClipAtPlayhead
+                    ? activeClipAtPlayhead.clipNumber === 0
+                      ? '• Intro'
+                      : activeClipAtPlayhead.clipNumber === 999
+                      ? '• Outro'
+                      : `• Clip ${String(activeClipAtPlayhead.clipNumber).padStart(2, '0')}`
+                    : ''}
+                </span>
+                {activeClipAtPlayhead && (
+                  <span
+                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-teal-300 font-mono font-bold"
+                    title={
+                      activeClipAtPlayhead.reframeReason ||
+                      'Posición horizontal del recorte vertical 9:16 sobre el clip 16:9 original'
+                    }
+                  >
+                    {activeClipAtPlayhead.reframe9x16Mode === 'fit_blur'
+                      ? '🖼️ Encajar 16:9 Completo'
+                      : activeClipAtPlayhead.reframe9x16Mode === 'auto_pan'
+                      ? `↔️ Auto-Pan IA (${Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}% → ${Math.round(activeClipAtPlayhead.reframeFocusXEnd ?? 50)}%)`
+                      : activeClipAtPlayhead.reframe9x16Mode === 'auto_focus'
+                      ? `🎯 Auto-Foco IA (${Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}%)`
+                      : activeClipAtPlayhead.reframe9x16Mode === 'manual'
+                      ? `✋ Manual (${Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}%)`
+                      : `🎯 Centro (${Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}%)`}
+                  </span>
+                )}
+                {activeClipAtPlayhead && (
+                  <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode: 'manual',
+                          reframeFocusXStart: 25,
+                          reframeFocusXEnd: 25,
+                          reframeReason: 'Enfoque manual tercio izquierdo (25%)',
+                        })
+                      }
+                      className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                        activeClipAtPlayhead.reframe9x16Mode !== 'fit_blur' &&
+                        Math.abs((activeClipAtPlayhead.reframeFocusXStart ?? 50) - 25) <= 6 &&
+                        Math.abs(
+                          (activeClipAtPlayhead.reframeFocusXEnd ??
+                            activeClipAtPlayhead.reframeFocusXStart ??
+                            50) - 25
+                        ) <= 6
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Enfocar tercio izquierdo (25%) en este clip"
+                    >
+                      ⬅️ Izq
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode: 'auto_center',
+                          reframeFocusXStart: 50,
+                          reframeFocusXEnd: 50,
+                          reframeReason: 'Encuadre central (50%)',
+                        })
+                      }
+                      className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                        activeClipAtPlayhead.reframe9x16Mode !== 'fit_blur' &&
+                        Math.abs((activeClipAtPlayhead.reframeFocusXStart ?? 50) - 50) <= 5 &&
+                        Math.abs(
+                          (activeClipAtPlayhead.reframeFocusXEnd ??
+                            activeClipAtPlayhead.reframeFocusXStart ??
+                            50) - 50
+                        ) <= 5
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Centrar recorte vertical al 50% en este clip"
+                    >
+                      🎯 Centro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode: 'manual',
+                          reframeFocusXStart: 75,
+                          reframeFocusXEnd: 75,
+                          reframeReason: 'Enfoque manual tercio derecho (75%)',
+                        })
+                      }
+                      className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                        activeClipAtPlayhead.reframe9x16Mode !== 'fit_blur' &&
+                        Math.abs((activeClipAtPlayhead.reframeFocusXStart ?? 50) - 75) <= 6 &&
+                        Math.abs(
+                          (activeClipAtPlayhead.reframeFocusXEnd ??
+                            activeClipAtPlayhead.reframeFocusXStart ??
+                            50) - 75
+                        ) <= 6
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Enfocar tercio derecho (75%) en este clip"
+                    >
+                      Der ➡️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curS = activeClipAtPlayhead.reframeFocusXStart ?? 50;
+                        const curE = activeClipAtPlayhead.reframeFocusXEnd ?? curS;
+                        const isLeftToRight = curS < 40 && curE > 60;
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode: 'auto_pan',
+                          reframeFocusXStart: isLeftToRight ? 72 : 28,
+                          reframeFocusXEnd: isLeftToRight ? 28 : 72,
+                          reframeReason: isLeftToRight
+                            ? 'Paneo dinámico Derecha → Izquierda (72% → 28%)'
+                            : 'Paneo dinámico Izquierda → Derecha (28% → 72%)',
+                        });
+                      }}
+                      className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                        activeClipAtPlayhead.reframe9x16Mode === 'auto_pan'
+                          ? 'bg-teal-400 text-slate-950'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Aplicar paneo horizontal suave durante este clip (clic de nuevo para invertir dirección)"
+                    >
+                      ↔️ Paneo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode:
+                            activeClipAtPlayhead.reframe9x16Mode === 'fit_blur'
+                              ? 'auto_center'
+                              : 'fit_blur',
+                          reframeReason:
+                            activeClipAtPlayhead.reframe9x16Mode === 'fit_blur'
+                              ? 'Encuadre central (50%)'
+                              : 'Mostrar ancho 16:9 completo sin recortar',
+                        })
+                      }
+                      className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                        activeClipAtPlayhead.reframe9x16Mode === 'fit_blur'
+                          ? 'bg-purple-400 text-slate-950'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Mostrar el clip 16:9 completo dentro del marco vertical (ideal para títulos anchos)"
+                    >
+                      🖼️ Encajar
+                    </button>
+                  </div>
+                )}
+                {activeClipAtPlayhead && activeClipAtPlayhead.reframe9x16Mode !== 'fit_blur' && (
+                  <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5">
+                    <span className="text-slate-400">Foco X:</span>
+                    <input
+                      type="range"
+                      min={10}
+                      max={90}
+                      step={1}
+                      value={Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
+                          reframe9x16Mode: 'manual',
+                          reframeFocusXStart: val,
+                          reframeFocusXEnd: val,
+                          reframeReason: `Enfoque manual (${val}%)`,
+                        });
+                      }}
+                      className="w-20 accent-amber-400 cursor-pointer"
+                      title="Desliza para mover el enfoque horizontal del clip actual en 9:16"
+                    />
+                    <span className="font-mono text-amber-300 w-7 text-right">
+                      {Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {reframeSummary9x16 && (
+                  <span className="text-[10px] text-emerald-300 font-semibold hidden xl:inline">
+                    {reframeSummary9x16}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  disabled={isAnalyzingReframe9x16}
+                  onClick={() => handleRunSmartAutoReframe9x16(true)}
+                  className="px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-teal-400 hover:from-amber-400 hover:to-teal-300 disabled:opacity-50 text-slate-950 font-black cursor-pointer shadow transition flex items-center gap-1"
+                  title="Analizar automáticamente todos los clips del documental con Visión IA Local para encontrar el mejor enfoque o paneo 9:16 en cada escena"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>
+                    {isAnalyzingReframe9x16
+                      ? 'Analizando Clips IA...'
+                      : '✨ Auto-Reframe IA (Todos)'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Aspect-Ratio Locked Video Container (Maximized to fill available center stage height & width) */}
           <div
             ref={viewerContainerRef}
@@ -9630,6 +10262,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   {([0, 1] as const).map((slotIdx) => {
                     const isDeckActive = activeDeckSlot === slotIdx;
                     const slotSrc = slotIdx === 0 ? deckAUrl : deckBUrl;
+                    const slotClip = isDeckActive ? activeClipAtPlayhead : nextClipAtPlayhead;
+                    const isFitBlur =
+                      aspectRatio === '9:16' && slotClip?.reframe9x16Mode === 'fit_blur';
+                    const fStart =
+                      typeof slotClip?.reframeFocusXStart === 'number'
+                        ? slotClip.reframeFocusXStart
+                        : 50;
+                    const fEnd =
+                      typeof slotClip?.reframeFocusXEnd === 'number'
+                        ? slotClip.reframeFocusXEnd
+                        : fStart;
+                    const fY =
+                      typeof slotClip?.reframeFocusY === 'number' ? slotClip.reframeFocusY : 50;
+                    const clipProg =
+                      isDeckActive && slotClip && slotClip.duration > 0.1
+                        ? Math.max(
+                            0,
+                            Math.min(1, (currentTime - slotClip.start) / slotClip.duration)
+                          )
+                        : 0;
+                    const liveFocusX = fStart + (fEnd - fStart) * clipProg;
+                    const videoObjPos =
+                      aspectRatio === '9:16' && !isFitBlur
+                        ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`
+                        : '50% 50%';
                     return (
                       <video
                         key={`dual-deck-${slotIdx}`}
@@ -9646,11 +10303,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           }
                         }}
                         src={slotSrc || undefined}
-                        className="absolute inset-0 w-full h-full object-cover block bg-transparent"
+                        className={`absolute inset-0 w-full h-full ${
+                          isFitBlur ? 'object-contain' : 'object-cover'
+                        } block bg-transparent`}
                         style={{
                           opacity: isDeckActive ? 1 : 0,
                           zIndex: isDeckActive ? 20 : 10,
                           pointerEvents: isDeckActive ? 'auto' : 'none',
+                          objectPosition: videoObjPos,
                         }}
                         playsInline
                         muted={
