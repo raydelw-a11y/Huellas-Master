@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:50 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:59 PM - 11/03/2026';
 
 function parseStage11FourSections(rawText: string): {
   youtube?: string;
@@ -2749,9 +2749,15 @@ export default function App() {
 
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setAiGenerating(true);
         setTimeout(() => {
-          handleSendStageToGeminiWeb(nextSubStage);
-        }, 1400);
+          handleSendStageToGeminiWeb(nextSubStage, undefined, {
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableDeepResearch: false,
+            skipModelSwitch: true,
+          });
+        }, 900);
       }
     } else if (stageNum === 112) {
       const parsed4 = parseStage11FourSections(text);
@@ -2764,9 +2770,15 @@ export default function App() {
       updateActiveDoc({ rawFacebookMetadata: fbClean });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setAiGenerating(true);
         setTimeout(() => {
-          handleSendStageToGeminiWeb(nextSubStage);
-        }, 1400);
+          handleSendStageToGeminiWeb(nextSubStage, undefined, {
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableDeepResearch: false,
+            skipModelSwitch: true,
+          });
+        }, 900);
       }
     } else if (stageNum === 113) {
       const parsed4 = parseStage11FourSections(text);
@@ -2781,9 +2793,15 @@ export default function App() {
       updateActiveDoc({ pinnedComment: pinnedClean });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setAiGenerating(true);
         setTimeout(() => {
-          handleSendStageToGeminiWeb(nextSubStage);
-        }, 1400);
+          handleSendStageToGeminiWeb(nextSubStage, undefined, {
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableDeepResearch: false,
+            skipModelSwitch: true,
+          });
+        }, 900);
       }
     } else if (stageNum === 114) {
       const parsed4 = parseStage11FourSections(text);
@@ -2800,9 +2818,15 @@ export default function App() {
       updateActiveDoc({ youtubeTags: tagsClean });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setAiGenerating(true);
         setTimeout(() => {
-          handleSendStageToGeminiWeb(nextSubStage);
-        }, 1400);
+          handleSendStageToGeminiWeb(nextSubStage, undefined, {
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableDeepResearch: false,
+            skipModelSwitch: true,
+          });
+        }, 900);
       }
     }
   };
@@ -6809,7 +6833,12 @@ export default function App() {
   const handleSendStageToGeminiWeb = (
     stageNum: number,
     preferredTabId?: number,
-    options?: { enableHighModel?: boolean; enableDeepResearch?: boolean; enableArgonLow?: boolean }
+    options?: {
+      enableHighModel?: boolean;
+      enableDeepResearch?: boolean;
+      enableArgonLow?: boolean;
+      skipModelSwitch?: boolean;
+    }
   ) => {
     if (!activeDoc) return;
     if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
@@ -6891,6 +6920,7 @@ export default function App() {
       enableArgonLow: useArgonLow,
       preferredModel: useArgonLow ? 'ARGON_LOW' : 'HIGH_PRO',
       enableDeepResearch: useDeepResearch,
+      skipModelSwitch: Boolean(options?.skipModelSwitch),
       autoSubmit: true,
       focusTab: false,
       tabId: preferredTabId || selectedGeminiTabId,
@@ -14158,8 +14188,8 @@ export default function App() {
                         type="button"
                         disabled={aiGenerating}
                         onClick={async () => {
-                          pendingStage11QueueRef.current = [];
-                          handleSendStageToGeminiWeb(11, undefined, {
+                          pendingStage11QueueRef.current = [112, 113, 114];
+                          handleSendStageToGeminiWeb(111, undefined, {
                             enableHighModel: false,
                             enableArgonLow: true,
                             enableDeepResearch: false,

@@ -10,10 +10,28 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_LOADED__) return;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 4) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 4;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
+  if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
+    clearInterval(window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__);
+    window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
+  }
+  if (
+    window.__HUELLAS_GEMINI_MESSAGE_LISTENER__ &&
+    chrome.runtime &&
+    chrome.runtime.onMessage
+  ) {
+    try {
+      chrome.runtime.onMessage.removeListener(window.__HUELLAS_GEMINI_MESSAGE_LISTENER__);
+    } catch {}
+  }
+
   let activeWatchTimer = null;
+  let isBusyWithOrder = false;
+  const promptQueue = [];
+  let lastConfiguredModelMode = null;
 
   function reportStatus(status, message, extra = {}) {
     chrome.runtime.sendMessage({
@@ -45,18 +63,43 @@
 
   function findSendButton() {
     const selectors = [
-      'button.send-button:not([disabled])',
-      '.send-button-container button:not([disabled])',
-      'button[aria-label*="Send message" i]:not([disabled])',
-      'button[aria-label*="Enviar mensaje" i]:not([disabled])',
-      'button[aria-label*="Send" i]:not([disabled])',
-      'button[aria-label*="Enviar" i]:not([disabled])',
-      'button[mattooltip*="Send" i]:not([disabled])',
-      'button[mattooltip*="Enviar" i]:not([disabled])',
+      'button.send-button:not([disabled]):not([aria-disabled="true"])',
+      '.send-button-container button:not([disabled]):not([aria-disabled="true"])',
+      'button[data-test-id*="send" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[aria-label*="Send message" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[aria-label*="Enviar mensaje" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[mattooltip*="Send" i]:not([disabled]):not([aria-disabled="true"])',
+      'button[mattooltip*="Enviar" i]:not([disabled]):not([aria-disabled="true"])',
     ];
     for (const sel of selectors) {
       const btn = document.querySelector(sel);
-      if (btn) return btn;
+      if (btn && btn.offsetParent !== null) return btn;
+    }
+    // Fallback: check any button with send icon inside input area
+    const iconBtns = Array.from(
+      document.querySelectorAll(
+        '.input-buttons-wrapper-bottom button, .send-button-container button, rich-textarea ~ * button'
+      )
+    );
+    for (const btn of iconBtns) {
+      if (!btn || btn.disabled || btn.getAttribute('aria-disabled') === 'true') continue;
+      const iconTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+      const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+      const hasSendIcon = Boolean(
+        btn.querySelector('mat-icon[data-mat-icon-name="send"], mat-icon[fonticon="send"]') ||
+          iconTxt === 'send' ||
+          iconTxt === 'arrow_upward'
+      );
+      if (
+        hasSendIcon &&
+        !aria.includes('stop') &&
+        !aria.includes('detener') &&
+        !aria.includes('mic')
+      ) {
+        return btn;
+      }
     }
     return null;
   }
@@ -131,8 +174,8 @@
     }
 
     // Contenteditable (Quill / Rich-Textarea in Gemini)
-    // IMPORTANT: Never pass multi-line strings with '\n' into document.execCommand('insertText'),
-    // because Quill treats the first '\n' as an Enter keypress (insertParagraph) and submits only Line 1!
+    // IMPORTANT: Never pass multi-line strings with '\n' into document.execCommand('insertText')
+    // and DO NOT wipe inputEl.innerHTML = '' first (which breaks Quill's internal Scroll blot on subsequent orders).
     const normalizedText = String(text || '').replace(/\r\n/g, '\n').trim();
     const singleLineSafeText = normalizedText
       .split('\n')
@@ -142,32 +185,29 @@
     const minExpectedLength = Math.max(10, Math.floor(singleLineSafeText.length * 0.8));
 
     try {
-      const lines = normalizedText.split('\n');
-      inputEl.innerHTML = '';
-      for (const line of lines) {
-        const p = document.createElement('p');
-        if (line.trim().length > 0) {
-          p.textContent = line;
-        } else {
-          p.appendChild(document.createElement('br'));
-        }
-        inputEl.appendChild(p);
-      }
-
-      // Place caret at the very end and insert a single space (no '\n') so Quill/Angular enables the Send button
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(inputEl);
-      range.collapse(false);
       selection.removeAllRanges();
       selection.addRange(range);
+
+      // 1. Try ClipboardEvent('paste') first (works through Quill's Clipboard module even in background tabs)
       try {
-        document.execCommand('insertText', false, ' ');
+        const dt = new DataTransfer();
+        dt.setData('text/plain', singleLineSafeText);
+        inputEl.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clipboardData: dt,
+          })
+        );
       } catch {}
 
+      // 2. Check if paste populated the editor; if not, use execCommand('insertText')
       let afterText = (inputEl.innerText || inputEl.textContent || '').trim();
       if (afterText.length < minExpectedLength) {
-        // Fallback: select all and insert single-line safe text (zero '\n' characters)
         const fallbackRange = document.createRange();
         fallbackRange.selectNodeContents(inputEl);
         selection.removeAllRanges();
@@ -175,22 +215,52 @@
         try {
           document.execCommand('delete', false);
         } catch {}
-        document.execCommand('insertText', false, singleLineSafeText);
+        try {
+          document.execCommand('insertText', false, singleLineSafeText);
+        } catch {}
       }
+
+      // 3. If still not populated (e.g. background tab blocked execCommand), reuse existing <p> without destroying Quill root
+      afterText = (inputEl.innerText || inputEl.textContent || '').trim();
+      if (afterText.length < minExpectedLength) {
+        let p = inputEl.querySelector('p');
+        if (!p) {
+          p = document.createElement('p');
+          inputEl.appendChild(p);
+        }
+        p.textContent = singleLineSafeText;
+        Array.from(inputEl.querySelectorAll('p')).forEach((node, idx) => {
+          if (idx > 0) node.remove();
+        });
+      }
+
+      inputEl.classList.remove('ql-blank');
     } catch {
       inputEl.textContent = singleLineSafeText;
     }
 
-    inputEl.dispatchEvent(
-      new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        inputType: 'insertFromPaste',
-        data: singleLineSafeText,
-      })
-    );
-    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    const richHost = inputEl.closest('rich-textarea');
+    for (const target of [inputEl, richHost].filter(Boolean)) {
+      target.dispatchEvent(
+        new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: singleLineSafeText,
+        })
+      );
+      target.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: singleLineSafeText,
+        })
+      );
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -549,6 +619,8 @@
         if (stableTicks >= requiredStableTicks) {
           clearInterval(activeWatchTimer);
           activeWatchTimer = null;
+          window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
+          isBusyWithOrder = false;
           chrome.runtime.sendMessage({
             type: 'GEMINI_RESPONSE_READY',
             stageNumber: meta.stageNumber,
@@ -557,6 +629,7 @@
             images: latest.images,
           }).catch(() => {});
           reportStatus('COMPLETED', '¡Respuesta de Gemini Web capturada y enviada a Huellas Master!', meta);
+          processNextQueuedPrompt();
           return;
         }
       }
@@ -564,6 +637,8 @@
       if (elapsedMs >= maxTimeoutMs) {
         clearInterval(activeWatchTimer);
         activeWatchTimer = null;
+        window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
+        isBusyWithOrder = false;
         if (latest.text && latest.text !== initialLastText) {
           chrome.runtime.sendMessage({
             type: 'GEMINI_RESPONSE_READY',
@@ -573,82 +648,183 @@
             images: latest.images,
           }).catch(() => {});
         }
+        processNextQueuedPrompt();
       }
     }, 800);
+    window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = activeWatchTimer;
   }
 
-  function handleSendPrompt(payload) {
+  function processNextQueuedPrompt() {
+    if (isBusyWithOrder || promptQueue.length === 0) return;
+    const nextPayload = promptQueue.shift();
+    setTimeout(() => {
+      executeSinglePromptOrder(nextPayload);
+    }, 1100);
+  }
+
+  function executeSinglePromptOrder(payload) {
+    isBusyWithOrder = true;
     (async () => {
-      const useArgonLow =
-        Boolean(payload.enableArgonLow) ||
-        (!payload.enableHighModel && !payload.enableDeepResearch);
+      try {
+        // 1. Wait if Gemini is still finishing a previous response so the Stop button turns back into Send
+        let waitbusyLoops = 0;
+        while (isGeminiStillGenerating() && waitbusyLoops < 75) {
+          await sleep(400);
+          waitbusyLoops++;
+        }
+        if (waitbusyLoops > 0) {
+          await sleep(500);
+        }
 
-      if (payload.enableHighModel || payload.enableDeepResearch || useArgonLow) {
-        reportStatus(
-          'WORKING',
-          useArgonLow
-            ? '⚡ Configurando Gemini Argon en Low...'
-            : `⚙️ Configurando Gemini Web en modo ${
-                payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
-              }...`,
-          { stageNumber: payload.stageNumber }
-        );
-        await configureGeminiModelAndDeepResearch(
-          Boolean(payload.enableHighModel),
-          Boolean(payload.enableDeepResearch),
-          useArgonLow
-        );
-      }
+        const useArgonLow =
+          Boolean(payload.enableArgonLow) ||
+          (!payload.enableHighModel && !payload.enableDeepResearch);
+        const desiredModeKey = payload.enableDeepResearch
+          ? 'HIGH_DEEP_RESEARCH'
+          : payload.enableHighModel
+          ? 'HIGH'
+          : 'ARGON_LOW';
 
-      const inputEl = findPromptInput();
-      if (!inputEl) {
-        reportStatus(
-          'ERROR',
-          'No se encontró la caja de texto en Gemini Web. Asegúrate de haber iniciado sesión en gemini.google.com.'
-        );
-        return;
-      }
+        // 2. Configure model (skip re-clicking menu if already configured to the exact same mode in this session)
+        if (!payload.skipModelSwitch && lastConfiguredModelMode !== desiredModeKey) {
+          reportStatus(
+            'WORKING',
+            useArgonLow
+              ? '⚡ Configurando Gemini Argon en Low...'
+              : `⚙️ Configurando Gemini Web en modo ${
+                  payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
+                }...`,
+            { stageNumber: payload.stageNumber }
+          );
+          await configureGeminiModelAndDeepResearch(
+            Boolean(payload.enableHighModel),
+            Boolean(payload.enableDeepResearch),
+            useArgonLow
+          );
+          lastConfiguredModelMode = desiredModeKey;
+        }
 
-      const initialResponses = getModelResponseElements();
-      const initialCount = initialResponses.length;
-      const initialLastText = extractLatestGeminiResponse().text;
+        const inputEl = findPromptInput();
+        if (!inputEl) {
+          isBusyWithOrder = false;
+          reportStatus(
+            'ERROR',
+            'No se encontró la caja de texto en Gemini Web. Asegúrate de haber iniciado sesión en gemini.google.com.'
+          );
+          processNextQueuedPrompt();
+          return;
+        }
 
-      setInputText(inputEl, payload.prompt || '');
-      reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web...', {
-        stageNumber: payload.stageNumber,
-      });
+        const initialResponses = getModelResponseElements();
+        const initialCount = initialResponses.length;
+        const initialLastText = extractLatestGeminiResponse().text;
 
-      if (payload.autoSubmit !== false) {
-        setTimeout(() => {
-          const sendBtn = findSendButton();
-          if (sendBtn) {
-            sendBtn.click();
-          } else {
-            inputEl.dispatchEvent(
-              new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-              })
-            );
+        const rawPrompt = String(payload.prompt || '');
+        setInputText(inputEl, rawPrompt);
+        reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web, enviando orden...', {
+          stageNumber: payload.stageNumber,
+        });
+
+        // Also ask background.js to run MAIN-world Quill injection & Send click right now (after model switch is done)
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
+            prompt: rawPrompt,
+            autoSubmit: payload.autoSubmit !== false,
+          })
+          .catch(() => {});
+
+        if (payload.autoSubmit !== false) {
+          // 3. Persistent submit retry loop: keep clicking Send / waking Quill until the text box empties or Gemini starts generating
+          for (let attempt = 0; attempt < 16; attempt++) {
+            await sleep(attempt === 0 ? 350 : 400);
+
+            const currentResponsesCount = getModelResponseElements().length;
+            const currentInputEl = findPromptInput() || inputEl;
+            const remainingText = (
+              currentInputEl.value ??
+              currentInputEl.innerText ??
+              currentInputEl.textContent ??
+              ''
+            ).trim();
+
+            if (
+              isGeminiStillGenerating() ||
+              currentResponsesCount > initialCount ||
+              remainingText.length < 5
+            ) {
+              break;
+            }
+
+            let sendBtn = findSendButton();
+            if (!sendBtn) {
+              // Wake up Quill / Angular FormControl if Send button is still disabled
+              setInputText(currentInputEl, rawPrompt);
+              chrome.runtime
+                .sendMessage({
+                  type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
+                  prompt: rawPrompt,
+                  autoSubmit: true,
+                })
+                .catch(() => {});
+              await sleep(180);
+              sendBtn = findSendButton();
+            }
+
+            if (sendBtn) {
+              try {
+                sendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                sendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                sendBtn.click();
+              } catch {}
+            } else {
+              currentInputEl.focus();
+              currentInputEl.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  which: 13,
+                  bubbles: true,
+                  cancelable: true,
+                })
+              );
+            }
           }
+
           watchForNewResponse(initialCount, initialLastText, {
             stageNumber: payload.stageNumber,
             taskType: payload.taskType || 'STAGE_GENERATION',
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
           });
-        }, 450);
+        } else {
+          isBusyWithOrder = false;
+          processNextQueuedPrompt();
+        }
+      } catch {
+        isBusyWithOrder = false;
+        processNextQueuedPrompt();
       }
     })();
+  }
 
+  function handleSendPrompt(payload) {
+    if (isBusyWithOrder || activeWatchTimer !== null || isGeminiStillGenerating()) {
+      promptQueue.push(payload);
+      reportStatus(
+        'WORKING',
+        `⏳ Orden en cola (#${promptQueue.length}) — se enviará automáticamente en cuanto termine la respuesta actual...`,
+        { stageNumber: payload.stageNumber }
+      );
+      return true;
+    }
+    executeSinglePromptOrder(payload);
     return true;
   }
 
   // Listen for commands from background.js
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  const onRuntimeMessage = (msg, _sender, sendResponse) => {
     if (!msg || msg.target !== 'GEMINI') return false;
 
     if (msg.action === 'SEND_PROMPT') {
@@ -671,7 +847,9 @@
     }
 
     return false;
-  });
+  };
+  window.__HUELLAS_GEMINI_MESSAGE_LISTENER__ = onRuntimeMessage;
+  chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
   chrome.runtime.sendMessage({
     type: 'CONTENT_SCRIPT_READY',

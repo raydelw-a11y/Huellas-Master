@@ -2591,109 +2591,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
+        if (targetService === 'GEMINI') {
+          await ensureScriptInjected(targetTab.id, 'gemini-content.js');
+        }
+
         chrome.tabs
           .sendMessage(targetTab.id, {
             target: targetService,
             ...payload,
           })
           .catch(() => {});
-
-        // MAIN-world safety injection & submit for Gemini Web
-        if (targetService === 'GEMINI' && action === 'SEND_PROMPT' && payload.autoSubmit !== false) {
-          const geminiTabId = targetTab.id;
-          const geminiPromptArg = String(payload.prompt || '');
-          setTimeout(() => {
-            chrome.scripting
-              .executeScript({
-                target: { tabId: geminiTabId },
-                world: 'MAIN',
-                args: [geminiPromptArg],
-                func: (expectedPrompt) => {
-                  try {
-                    const cleanExpected = (expectedPrompt || '')
-                      .replace(/\r\n/g, '\n')
-                      .split('\n')
-                      .map((l) => l.trim())
-                      .filter(Boolean)
-                      .join('   |   ')
-                      .trim();
-                    if (!cleanExpected) return;
-                    const inputEl = document.querySelector(
-                      'rich-textarea div.ql-editor[contenteditable="true"], div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
-                    );
-                    if (!inputEl) return;
-
-                    const minExpectedLen = Math.max(10, Math.floor(cleanExpected.length * 0.8));
-                    const currentText = (
-                      inputEl.value ??
-                      inputEl.innerText ??
-                      inputEl.textContent ??
-                      ''
-                    ).trim();
-                    if (!currentText || currentText.length < minExpectedLen) {
-                      inputEl.focus();
-                      try {
-                        const selection = window.getSelection();
-                        const range = document.createRange();
-                        range.selectNodeContents(inputEl);
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        document.execCommand('delete', false);
-                        document.execCommand('insertText', false, cleanExpected);
-                      } catch {}
-                      const afterInsert = (
-                        inputEl.value ??
-                        inputEl.innerText ??
-                        inputEl.textContent ??
-                        ''
-                      ).trim();
-                      if (!afterInsert || afterInsert.length < minExpectedLen) {
-                        inputEl.innerHTML = '';
-                        const p = document.createElement('p');
-                        p.textContent = cleanExpected;
-                        inputEl.appendChild(p);
-                        inputEl.dispatchEvent(
-                          new InputEvent('input', {
-                            bubbles: true,
-                            cancelable: true,
-                            composed: true,
-                            inputType: 'insertFromPaste',
-                            data: cleanExpected,
-                          })
-                        );
-                      }
-                    }
-
-                    setTimeout(() => {
-                      const remaining = (
-                        inputEl?.value ??
-                        inputEl?.innerText ??
-                        inputEl?.textContent ??
-                        ''
-                      ).trim();
-                      if (!remaining || remaining.length < 5) return;
-                      const sendSelectors = [
-                        'button.send-button:not([disabled])',
-                        '.send-button-container button:not([disabled])',
-                        'button[aria-label*="Send message" i]:not([disabled])',
-                        'button[aria-label*="Enviar mensaje" i]:not([disabled])',
-                        'button[aria-label*="Send" i]:not([disabled])',
-                        'button[aria-label*="Enviar" i]:not([disabled])',
-                      ];
-                      for (const sel of sendSelectors) {
-                        const btn = document.querySelector(sel);
-                        if (btn) {
-                          btn.click();
-                          return;
-                        }
-                      }
-                    }, 220);
-                  } catch {}
-                },
-              })
-              .catch(() => {});
-          }, payload.enableHighModel || payload.enableDeepResearch ? 1650 : 420);
-        }
 
         // MAIN-world network hook + React Fiber scanner + prompt submitter for Flow Music (flowmusic.app)
         if (targetService === 'SUNO' && action === 'SEND_PROMPT') {
@@ -2896,6 +2803,178 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
 
+    return true;
+  }
+
+  if (message.type === 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    const geminiPromptArg = String(message.prompt || '');
+    const shouldAutoSubmit = message.autoSubmit !== false;
+    chrome.scripting
+      .executeScript({
+        target: { tabId: geminiTabId },
+        world: 'MAIN',
+        args: [geminiPromptArg, shouldAutoSubmit],
+        func: (expectedPrompt, autoSubmit) => {
+          try {
+            const cleanExpected = (expectedPrompt || '')
+              .replace(/\r\n/g, '\n')
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .join('   |   ')
+              .trim();
+            if (!cleanExpected) return;
+
+            const findSendBtn = () => {
+              const sendSelectors = [
+                'button.send-button:not([disabled]):not([aria-disabled="true"])',
+                '.send-button-container button:not([disabled]):not([aria-disabled="true"])',
+                'button[data-test-id*="send" i]:not([disabled]):not([aria-disabled="true"])',
+                'button[aria-label*="Send message" i]:not([disabled]):not([aria-disabled="true"])',
+                'button[aria-label*="Enviar mensaje" i]:not([disabled]):not([aria-disabled="true"])',
+                'button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"])',
+                'button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])',
+              ];
+              for (const sel of sendSelectors) {
+                const btn = document.querySelector(sel);
+                if (btn && btn.offsetParent !== null) return btn;
+              }
+              return null;
+            };
+
+            const inputEl = document.querySelector(
+              'rich-textarea div.ql-editor[contenteditable="true"], div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
+            );
+            if (!inputEl) return;
+
+            const minExpectedLen = Math.max(10, Math.floor(cleanExpected.length * 0.8));
+            const currentText = (
+              inputEl.value ??
+              inputEl.innerText ??
+              inputEl.textContent ??
+              ''
+            ).trim();
+            const existingSendBtn = findSendBtn();
+
+            // Even if text is visually present, if the Send button is STILL disabled, re-inject via MAIN-world Quill/Clipboard/execCommand to wake Angular FormControl!
+            if (!currentText || currentText.length < minExpectedLen || !existingSendBtn) {
+              inputEl.focus();
+
+              // 1. If Quill instance is attached on element or rich-textarea, update via Quill API
+              const richHost = inputEl.closest('rich-textarea');
+              const quillInst = inputEl.__quill || (richHost && richHost.__quill);
+              if (quillInst && typeof quillInst.setText === 'function') {
+                try {
+                  quillInst.setText(cleanExpected, 'user');
+                } catch {}
+              }
+
+              // 2. Dispatch MAIN-world ClipboardEvent('paste')
+              try {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                const dt = new DataTransfer();
+                dt.setData('text/plain', cleanExpected);
+                inputEl.dispatchEvent(
+                  new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    clipboardData: dt,
+                  })
+                );
+              } catch {}
+
+              // 3. If still not enabled, try execCommand('insertText') in MAIN world
+              if (!findSendBtn()) {
+                try {
+                  const selection = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(inputEl);
+                  selection.removeAllRanges();
+                  selection.addRange(range);
+                  document.execCommand('insertText', false, cleanExpected);
+                } catch {}
+              }
+
+              // 4. Ensure text is in existing <p> (never innerHTML = '') and fire InputEvent in MAIN world
+              const afterInsert = (
+                inputEl.value ??
+                inputEl.innerText ??
+                inputEl.textContent ??
+                ''
+              ).trim();
+              if (!afterInsert || afterInsert.length < minExpectedLen) {
+                let p = inputEl.querySelector('p');
+                if (!p) {
+                  p = document.createElement('p');
+                  inputEl.appendChild(p);
+                }
+                p.textContent = cleanExpected;
+              }
+              inputEl.classList.remove('ql-blank');
+              for (const t of [inputEl, richHost].filter(Boolean)) {
+                t.dispatchEvent(
+                  new InputEvent('beforeinput', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    inputType: 'insertText',
+                    data: cleanExpected,
+                  })
+                );
+                t.dispatchEvent(
+                  new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    inputType: 'insertText',
+                    data: cleanExpected,
+                  })
+                );
+                t.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+
+            if (autoSubmit) {
+              setTimeout(() => {
+                const remaining = (
+                  inputEl?.value ??
+                  inputEl?.innerText ??
+                  inputEl?.textContent ??
+                  ''
+                ).trim();
+                if (!remaining || remaining.length < 5) return;
+                const btn = findSendBtn();
+                if (btn) {
+                  btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                  btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                  btn.click();
+                } else {
+                  inputEl.focus();
+                  inputEl.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    })
+                  );
+                }
+              }, 160);
+            }
+          } catch {}
+        },
+      })
+      .catch(() => {});
+    sendResponse({ ok: true });
     return true;
   }
 
