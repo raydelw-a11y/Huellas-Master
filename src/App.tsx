@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:47 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:50 PM - 11/03/2026';
 
 function parseStage11FourSections(rawText: string): {
   youtube?: string;
@@ -6809,7 +6809,7 @@ export default function App() {
   const handleSendStageToGeminiWeb = (
     stageNum: number,
     preferredTabId?: number,
-    options?: { enableHighModel?: boolean; enableDeepResearch?: boolean }
+    options?: { enableHighModel?: boolean; enableDeepResearch?: boolean; enableArgonLow?: boolean }
   ) => {
     if (!activeDoc) return;
     if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
@@ -6857,7 +6857,13 @@ export default function App() {
 
     const isResearchStage = stageNum === 1 || stageNum === 2 || stageNum === 3;
     const useHighModel =
-      options?.enableHighModel !== undefined ? options.enableHighModel : geminiHighModelEnabled;
+      options?.enableHighModel !== undefined
+        ? options.enableHighModel
+        : isResearchStage
+        ? geminiHighModelEnabled
+        : false;
+    const useArgonLow =
+      options?.enableArgonLow !== undefined ? options.enableArgonLow : !useHighModel;
     const useDeepResearch =
       options?.enableDeepResearch !== undefined
         ? options.enableDeepResearch
@@ -6870,11 +6876,11 @@ export default function App() {
     setBridgeStatusMsg(
       isResearchStage
         ? `🔬 Prompt de Investigación pegado en su cuadro y enviado a Gemini Web (${
-            useHighModel ? 'Modelo High/Pro' : 'Estándar'
+            useHighModel ? 'Modelo High/Pro' : 'Gemini Argon (Low)'
           }${
             useDeepResearch ? ' + Modo Deep Research con Auto-Iniciar Plan' : ''
           })...`
-        : `🚀 Enviando prompt a tu cuenta de Gemini Web (100% gratis, sin usar API)...`
+        : `⚡ Enviando prompt a Gemini Web en modo Argon (Low)...`
     );
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
@@ -6882,6 +6888,8 @@ export default function App() {
       stageNumber: stageNum,
       taskType: 'STAGE_GENERATION',
       enableHighModel: useHighModel,
+      enableArgonLow: useArgonLow,
+      preferredModel: useArgonLow ? 'ARGON_LOW' : 'HIGH_PRO',
       enableDeepResearch: useDeepResearch,
       autoSubmit: true,
       focusTab: false,
@@ -14132,6 +14140,12 @@ export default function App() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="px-3 py-2 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5"
+                        title="La Etapa 9 selecciona automáticamente Gemini Argon en modo Low (sin Deep Research) para generar las 4 secciones de forma rápida y directa"
+                      >
+                        ⚡ Modelo: Gemini Argon (Low) ✓
+                      </span>
                       <button
                         type="button"
                         onClick={handleExtractTagsAndPinned}
@@ -14145,13 +14159,17 @@ export default function App() {
                         disabled={aiGenerating}
                         onClick={async () => {
                           pendingStage11QueueRef.current = [];
-                          await handleGenerateWithGemini(11);
+                          handleSendStageToGeminiWeb(11, undefined, {
+                            enableHighModel: false,
+                            enableArgonLow: true,
+                            enableDeepResearch: false,
+                          });
                         }}
                         className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Generando las 4 Secciones...'
+                          ? 'Generando las 4 Secciones (Argon Low)...'
                           : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
                       </button>
                     </div>

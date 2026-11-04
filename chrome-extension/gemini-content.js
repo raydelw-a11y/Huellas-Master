@@ -241,11 +241,15 @@
     return false;
   }
 
-  async function configureGeminiModelAndDeepResearch(enableHighModel, enableDeepResearch) {
-    if (!enableHighModel && !enableDeepResearch) return;
+  async function configureGeminiModelAndDeepResearch(
+    enableHighModel,
+    enableDeepResearch,
+    enableArgonLow
+  ) {
+    if (!enableHighModel && !enableDeepResearch && !enableArgonLow) return;
 
     try {
-      // 1. Try switching the model selector to Pro / High (or Deep Research if inside model selector)
+      // 1. Find the main model switcher button in Gemini Web
       const switcherSelectors = [
         '[data-test-id="bard-mode-menu-button"]',
         'bard-mode-switcher button',
@@ -265,75 +269,180 @@
 
       if (switcherBtn) {
         const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '').toLowerCase();
-        const needsModelClick =
-          (enableHighModel && !/pro|high|thinking|avanzado|ultra/i.test(currentLabel)) ||
-          (enableDeepResearch && !/deep\s*research|investigaci[oó]n\s+profunda/i.test(currentLabel));
+        const needsModelClick = enableArgonLow
+          ? !(/argon/i.test(currentLabel) && /\b(low|bajo)\b/i.test(currentLabel))
+          : (enableHighModel && !/pro|high|thinking|avanzado|ultra/i.test(currentLabel)) ||
+            (enableDeepResearch && !/deep\s*research|investigaci[oó]n\s+profunda/i.test(currentLabel));
 
         if (needsModelClick) {
           switcherBtn.click();
           await sleep(280);
 
-          const menuItems = Array.from(
-            document.querySelectorAll(
-              '[role="menuitem"], [role="option"], [ role="menuitemradio" ], .mat-mdc-menu-item, button.bard-mode-list-button'
-            )
-          ).filter((el) => el && el.offsetParent !== null);
-
-          let chosenItem = null;
-          if (enableDeepResearch) {
-            chosenItem = menuItems.find((el) =>
-              /deep\s*research|investigaci[oó]n\s+profunda/i.test(
-                (el.innerText || el.textContent || '').trim()
+          const getVisibleMenuItems = () =>
+            Array.from(
+              document.querySelectorAll(
+                '[role="menuitem"], [role="option"], [role="menuitemradio"], [role="radio"], [role="tab"], .mat-mdc-menu-item, button.bard-mode-list-button'
               )
-            );
-          }
-          if (!chosenItem && enableHighModel) {
-            chosenItem =
+            ).filter((el) => el && el.offsetParent !== null);
+
+          let menuItems = getVisibleMenuItems();
+
+          if (enableArgonLow) {
+            // 1A. Look for a combined "Argon Low" item first, then "Argon" (not High), then "Low / Flash / Fast"
+            const argonLowCombined = menuItems.find((el) => {
+              const txt = (el.innerText || el.textContent || '').trim();
+              return /argon/i.test(txt) && /\b(low|bajo)\b/i.test(txt);
+            });
+            const argonItem =
+              argonLowCombined ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon/i.test(txt) && !/\bhigh\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => /argon/i.test((el.innerText || el.textContent || '').trim()));
+
+            if (argonItem) {
+              argonItem.click();
+              await sleep(240);
+            }
+
+            // Re-query visible menu/sub-menu items in case clicking Argon revealed Low/Medium/High options
+            menuItems = getVisibleMenuItems();
+            const lowMenuItem =
               menuItems.find((el) =>
-                /\b(3\.1\s*pro|2\.5\s*pro|pro|high|avanzado|thinking|razonamiento)\b/i.test(
+                /^(?:low|bajo|argon\s*low|argon\s*\(low\))$/i.test(
+                  (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+                )
+              ) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return /\b(low|bajo|flash|fast|r[aá]pido)\b/i.test(txt) && !/\bhigh\b/i.test(txt);
+              });
+
+            if (lowMenuItem && lowMenuItem !== argonItem) {
+              lowMenuItem.click();
+              await sleep(220);
+            } else if (!argonItem) {
+              document.body.click();
+              await sleep(120);
+            }
+          } else {
+            let chosenItem = null;
+            if (enableDeepResearch) {
+              chosenItem = menuItems.find((el) =>
+                /deep\s*research|investigaci[oó]n\s+profunda/i.test(
                   (el.innerText || el.textContent || '').trim()
                 )
-              ) || null;
-          }
+              );
+            }
+            if (!chosenItem && enableHighModel) {
+              chosenItem =
+                menuItems.find((el) => {
+                  const txt = (el.innerText || el.textContent || '').trim();
+                  return /argon/i.test(txt) && /\bhigh\b/i.test(txt);
+                }) ||
+                menuItems.find((el) =>
+                  /\b(3\.1\s*pro|2\.5\s*pro|pro|high|avanzado|thinking|razonamiento)\b/i.test(
+                    (el.innerText || el.textContent || '').trim()
+                  )
+                ) ||
+                null;
+            }
 
-          if (chosenItem) {
-            chosenItem.click();
-            await sleep(260);
-          } else {
-            // Close menu if nothing matched
-            document.body.click();
-            await sleep(120);
+            if (chosenItem) {
+              chosenItem.click();
+              await sleep(260);
+            } else {
+              document.body.click();
+              await sleep(120);
+            }
           }
         }
       }
 
-      // 2. If Deep Research is enabled, look for the Deep Research chip/button in the prompt input toolbar
-      if (enableDeepResearch) {
-        const toolbarCandidates = Array.from(
-          document.querySelectorAll('button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]')
+      // 1B. If enableArgonLow is active, also check if there is a separate Thinking/Reasoning level selector or pill ("High" / "Medium" / "Low") in the toolbar or header
+      if (enableArgonLow) {
+        const allButtons = Array.from(
+          document.querySelectorAll(
+            'button, [role="button"], [role="combobox"], [role="radio"], [role="tab"], mat-select, mat-chip'
+          )
         ).filter((el) => el && el.offsetParent !== null);
 
-        const deepResearchBtn = toolbarCandidates.find((el) => {
+        // Direct "Low" pill/tab button if visible
+        const directLowBtn = allButtons.find((el) => {
           const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           const a = (el.getAttribute('aria-label') || '').trim();
-          return (
-            /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
-            /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a)
-          );
+          return /^(?:low|bajo)$/i.test(t) || /\b(?:thinking|reasoning|nivel|level|argon)\b.*\blow\b/i.test(a);
         });
 
-        if (deepResearchBtn) {
-          const isAlreadyPressed =
-            deepResearchBtn.getAttribute('aria-pressed') === 'true' ||
-            deepResearchBtn.getAttribute('aria-checked') === 'true' ||
-            deepResearchBtn.classList.contains('selected') ||
-            deepResearchBtn.classList.contains('active') ||
-            deepResearchBtn.classList.contains('mdc-evolution-chip--selected');
-
-          if (!isAlreadyPressed) {
-            deepResearchBtn.click();
-            await sleep(260);
+        if (directLowBtn) {
+          directLowBtn.click();
+          await sleep(200);
+        } else {
+          // Or if there is a level dropdown button currently showing "High" or "Medium", click it and pick "Low"
+          const levelDropdownBtn = allButtons.find((el) => {
+            if (el === switcherBtn) return false;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            const a = (el.getAttribute('aria-label') || '').trim();
+            return (
+              /^(?:high|medium|alto|medio|thinking:\s*high|argon\s*high)$/i.test(t) ||
+              /\b(thinking|reasoning|effort|level|nivel)\b/i.test(a)
+            );
+          });
+          if (levelDropdownBtn) {
+            levelDropdownBtn.click();
+            await sleep(240);
+            const opts = Array.from(
+              document.querySelectorAll(
+                '[role="menuitem"], [role="option"], [role="menuitemradio"], .mat-mdc-menu-item, mat-option, button'
+              )
+            ).filter((el) => el && el.offsetParent !== null);
+            const lowOpt =
+              opts.find((el) =>
+                /^(?:low|bajo)$/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+              ) ||
+              opts.find((el) =>
+                /\b(low|bajo)\b/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+              );
+            if (lowOpt) {
+              lowOpt.click();
+              await sleep(200);
+            } else {
+              document.body.click();
+              await sleep(100);
+            }
           }
+        }
+      }
+
+      // 2. Manage Deep Research chip/button in the prompt input toolbar (turn ON if enableDeepResearch, turn OFF if enableArgonLow)
+      const toolbarCandidates = Array.from(
+        document.querySelectorAll('button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]')
+      ).filter((el) => el && el.offsetParent !== null);
+
+      const deepResearchBtn = toolbarCandidates.find((el) => {
+        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        const a = (el.getAttribute('aria-label') || '').trim();
+        return (
+          /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
+          /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a)
+        );
+      });
+
+      if (deepResearchBtn) {
+        const isAlreadyPressed =
+          deepResearchBtn.getAttribute('aria-pressed') === 'true' ||
+          deepResearchBtn.getAttribute('aria-checked') === 'true' ||
+          deepResearchBtn.classList.contains('selected') ||
+          deepResearchBtn.classList.contains('active') ||
+          deepResearchBtn.classList.contains('mdc-evolution-chip--selected');
+
+        if (enableDeepResearch && !isAlreadyPressed) {
+          deepResearchBtn.click();
+          await sleep(260);
+        } else if (!enableDeepResearch && isAlreadyPressed) {
+          deepResearchBtn.click();
+          await sleep(220);
         }
       }
     } catch {}
@@ -470,17 +579,24 @@
 
   function handleSendPrompt(payload) {
     (async () => {
-      if (payload.enableHighModel || payload.enableDeepResearch) {
+      const useArgonLow =
+        Boolean(payload.enableArgonLow) ||
+        (!payload.enableHighModel && !payload.enableDeepResearch);
+
+      if (payload.enableHighModel || payload.enableDeepResearch || useArgonLow) {
         reportStatus(
           'WORKING',
-          `⚙️ Configurando Gemini Web en modo ${
-            payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
-          }...`,
+          useArgonLow
+            ? '⚡ Configurando Gemini Argon en Low...'
+            : `⚙️ Configurando Gemini Web en modo ${
+                payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
+              }...`,
           { stageNumber: payload.stageNumber }
         );
         await configureGeminiModelAndDeepResearch(
           Boolean(payload.enableHighModel),
-          Boolean(payload.enableDeepResearch)
+          Boolean(payload.enableDeepResearch),
+          useArgonLow
         );
       }
 
