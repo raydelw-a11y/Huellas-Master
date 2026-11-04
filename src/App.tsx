@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:38 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:43 PM - 11/03/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -2258,11 +2258,13 @@ export default function App() {
   };
 
   // Update active documentary in state + persist to local backend OR GitHub Cloud
+  const localDocMutationSeqRef = useRef(0);
   const updateActiveDoc = async (patch: Partial<DocumentaryProject>) => {
     const currentBaseDoc = activeDocRef.current || activeDoc;
     if (!currentBaseDoc) return;
     const patchKeys = Object.keys(patch || {});
     if (patchKeys.length === 0) return;
+    const mutationSeq = ++localDocMutationSeqRef.current;
     const nowMs = Date.now();
     lastLocalEditAtRef.current = nowMs;
     const updated: DocumentaryProject = {
@@ -2314,7 +2316,12 @@ export default function App() {
         if (hdrCodeVer > 0) serverCodeVersionRef.current = hdrCodeVer;
         if (hdrDocsVer > 0) serverDocsVersionRef.current = hdrDocsVer;
         const serverSavedDoc = normalizeDocumentaryVoiceoverAudio(await res.json());
-        if (serverSavedDoc && serverSavedDoc.id === updated.id) {
+        // Only apply server response if no newer local updateActiveDoc happened while this request was in flight
+        if (
+          serverSavedDoc &&
+          serverSavedDoc.id === updated.id &&
+          mutationSeq === localDocMutationSeqRef.current
+        ) {
           activeDocRef.current = serverSavedDoc;
           setDocumentaries((prev) => {
             const nextList = prev.map((d) => (d.id === serverSavedDoc.id ? serverSavedDoc : d));
@@ -2841,16 +2848,19 @@ export default function App() {
         }, 900);
       }
     } else if (stageNum === 113) {
-      const parsed4 = parseStage11FourSections(text);
+      const hasSectionMarkers = /={2,}\s*SECCION_/i.test(text);
+      const parsed4 = hasSectionMarkers ? parseStage11FourSections(text) : null;
       const pinnedClean = stripStage12ClosingChatter(
-        parsed4.pinnedComment ||
+        parsed4?.pinnedComment ||
           text
             .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
             .replace(/\n?```\s*$/i, '')
-            .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '')
+            .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
             .trim()
       );
-      updateActiveDoc({ pinnedComment: pinnedClean });
+      if (pinnedClean) {
+        updateActiveDoc({ pinnedComment: pinnedClean });
+      }
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
         setAiGenerating(true);
@@ -2864,18 +2874,21 @@ export default function App() {
         }, 900);
       }
     } else if (stageNum === 114) {
-      const parsed4 = parseStage11FourSections(text);
+      const hasSectionMarkers = /={2,}\s*SECCION_/i.test(text);
+      const parsed4 = hasSectionMarkers ? parseStage11FourSections(text) : null;
       const tagsClean = stripStage12ClosingChatter(
-        parsed4.youtubeTags ||
+        parsed4?.youtubeTags ||
           text
             .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
             .replace(/\n?```\s*$/i, '')
-            .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
+            .replace(/^(?:4\.\s*)?(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*[:—-]?\s*)/i, '')
             .replace(/\r?\n+/g, ', ')
             .replace(/,\s*,+/g, ', ')
             .trim()
       );
-      updateActiveDoc({ youtubeTags: tagsClean });
+      if (tagsClean) {
+        updateActiveDoc({ youtubeTags: tagsClean });
+      }
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
         setAiGenerating(true);
@@ -2895,7 +2908,7 @@ export default function App() {
     pingHuellasExtension();
   }, []);
 
-  // Automatically strip any unwanted Stage 12 closing chatter ("¡Metadata completada!...") and recover complete YouTube Metadata from the active Gemini tab
+  // Automatically strip any unwanted Stage 12 closing chatter ("¡Metadata completada!...") and recover complete Stage 9 sections (YouTube, Facebook, Comentario Fijado, Tags) from the active Gemini tab
   useEffect(() => {
     if (!activeDoc) return;
     const rawYt = activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '';
@@ -2930,15 +2943,21 @@ export default function App() {
     const currentYt = cleanedYt.trim();
     const hashtags = currentYt.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
     const isYtIncomplete = currentYt.length < 2200 || hashtags.length < 3;
-    if (isYtIncomplete && (extensionInstalled || isHuellasExtensionDetected())) {
+    const isPinnedMissing = !cleanedPinned.trim();
+    const isFbMissing = !cleanedFb.trim();
+    const isTagsMissing = !cleanedTags.trim();
+    if (
+      (isYtIncomplete || isPinnedMissing || isFbMissing || isTagsMissing) &&
+      (extensionInstalled || isHuellasExtensionDetected())
+    ) {
       const timer = setTimeout(() => {
         sendCommandToWebBridge('GEMINI', {
           action: 'SYNC_STAGE11_FROM_GEMINI',
-          stageNumber: 111,
+          stageNumber: 11,
           taskType: 'AUTO_RECOVER_STAGE11',
           tabId: selectedGeminiTabId,
         });
-      }, 400);
+      }, 350);
       return () => clearTimeout(timer);
     }
   }, [
@@ -2946,6 +2965,8 @@ export default function App() {
     activeDoc?.id,
     activeDoc?.rawFacebookMetadata,
     activeDoc?.rawYoutubeMetadata,
+    activeDoc?.pinnedComment,
+    activeDoc?.youtubeTags,
     extensionInstalled,
   ]);
 
@@ -6695,23 +6716,66 @@ export default function App() {
           | undefined;
 
         if (msg.taskType === 'AUTO_RECOVER_STAGE11' && bundle && activeDoc) {
-          const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
+          const latestDoc = activeDocRef.current || activeDoc;
+          const currentYt = (latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '').trim();
+          const currentFb = (latestDoc.rawFacebookMetadata ?? '').trim();
+          const currentPinned = (latestDoc.pinnedComment ?? '').trim();
+          const currentTags = (latestDoc.youtubeTags ?? '').trim();
+
           const candidateYt = bundle.youtube ? cleanStage11SingleMetadataText(bundle.youtube) : '';
-          if (candidateYt && candidateYt.length > currentYt.length) {
-            const currentPrefix = currentYt.slice(0, 28).trim().toLowerCase();
-            const candidatePrefix = candidateYt.slice(0, 28).trim().toLowerCase();
-            const isSameDocResponse =
-              !currentYt ||
-              candidatePrefix === currentPrefix ||
-              candidateYt.toLowerCase().includes(currentPrefix);
-            if (isSameDocResponse && (activeStage === 11 || currentYt.length > 0)) {
-              updateActiveDoc({
-                rawYoutubeMetadata: candidateYt,
-                rawMetadataText: candidateYt,
-              });
+          const candidateFb = bundle.facebook ? cleanStage11SingleMetadataText(bundle.facebook) : '';
+          const candidatePinned = bundle.pinnedComment
+            ? stripStage12ClosingChatter(bundle.pinnedComment)
+                .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
+                .trim()
+            : '';
+          const candidateTags = bundle.youtubeTags
+            ? stripStage12ClosingChatter(bundle.youtubeTags)
+                .replace(/^(?:4\.\s*)?(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*[:—-]?\s*)/i, '')
+                .replace(/\r?\n+/g, ', ')
+                .replace(/,\s*,+/g, ', ')
+                .trim()
+            : '';
+
+          const currentPrefix = currentYt.slice(0, 28).trim().toLowerCase();
+          const candidatePrefix = candidateYt.slice(0, 28).trim().toLowerCase();
+          const isSameDocResponse =
+            !currentYt ||
+            !candidateYt ||
+            candidatePrefix === currentPrefix ||
+            candidateYt.toLowerCase().includes(currentPrefix) ||
+            currentYt.toLowerCase().includes(candidatePrefix);
+
+          if (
+            isSameDocResponse &&
+            (activeStage === 11 || currentYt.length > 0 || currentFb.length > 0)
+          ) {
+            const recoverPatch: Partial<DocumentaryProject> = {};
+            const recoveredLabels: string[] = [];
+
+            if (candidateYt && candidateYt.length > currentYt.length) {
+              recoverPatch.rawYoutubeMetadata = candidateYt;
+              recoverPatch.rawMetadataText = candidateYt;
+              recoveredLabels.push('YouTube');
+            }
+            if (candidateFb && (!currentFb || candidateFb.length > currentFb.length + 40)) {
+              recoverPatch.rawFacebookMetadata = candidateFb;
+              recoveredLabels.push('Facebook');
+            }
+            if (candidatePinned && !currentPinned) {
+              recoverPatch.pinnedComment = candidatePinned;
+              recoveredLabels.push('Comentario Fijado');
+            }
+            if (candidateTags && !currentTags) {
+              recoverPatch.youtubeTags = candidateTags;
+              recoveredLabels.push('Tags');
+            }
+
+            if (Object.keys(recoverPatch).length > 0) {
+              updateActiveDoc(recoverPatch);
               setBridgeStatusType('SUCCESS');
               setBridgeStatusMsg(
-                `✅ Metadata de YouTube recuperada completa desde Gemini Web (${candidateYt.length} caract.)`
+                `✅ Recuperado desde Gemini Web: ${recoveredLabels.join(' + ')}`
               );
             }
           }
@@ -6729,18 +6793,22 @@ export default function App() {
             patch.rawFacebookMetadata = cleanStage11SingleMetadataText(bundle.facebook);
           }
           if (bundle.pinnedComment && (targetStage === 11 || targetStage === 113)) {
-            patch.pinnedComment = bundle.pinnedComment.trim();
+            patch.pinnedComment = stripStage12ClosingChatter(bundle.pinnedComment)
+              .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
+              .trim();
           }
           if (bundle.youtubeTags && (targetStage === 11 || targetStage === 114)) {
-            patch.youtubeTags = bundle.youtubeTags.trim();
+            patch.youtubeTags = stripStage12ClosingChatter(bundle.youtubeTags)
+              .replace(/^(?:4\.\s*)?(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*[:—-]?\s*)/i, '')
+              .replace(/\r?\n+/g, ', ')
+              .replace(/,\s*,+/g, ', ')
+              .trim();
           }
           if (Object.keys(patch).length > 0) {
             updateActiveDoc(patch);
             setBridgeStatusType('SUCCESS');
             setBridgeStatusMsg(
-              `✅ Metadata recuperada completa desde el historial de Gemini Web (${
-                (patch.rawYoutubeMetadata || text).length
-              } caract.)`
+              `✅ Contenido de Etapa 9 recuperado desde el historial de Gemini Web`
             );
             return;
           }
@@ -6750,26 +6818,56 @@ export default function App() {
         if (images.length > 0) setLastMirroredGeminiImages(images);
         if (text || images.length > 0) {
           applyGeneratedStageText(targetStage, text, images);
-          // Also if this was sub-stage 112, 113, or 114 and stage11Bundle has a longer completed version of 111 (YouTube Metadata), upgrade it automatically
+          // Backfill any missing or truncated Stage 11 sections detected in stage11Bundle in a single merged patch
           if (
-            bundle?.youtube &&
+            bundle &&
             activeDoc &&
-            (targetStage === 112 || targetStage === 113 || targetStage === 114)
+            (targetStage === 11 ||
+              targetStage === 111 ||
+              targetStage === 112 ||
+              targetStage === 113 ||
+              targetStage === 114)
           ) {
-            const currentYt = (activeDoc.rawYoutubeMetadata ?? activeDoc.rawMetadataText ?? '').trim();
-            const fullYt = cleanStage11SingleMetadataText(bundle.youtube);
-            if (
-              fullYt.length > currentYt.length &&
-              (!currentYt ||
-                fullYt
-                  .slice(0, 25)
-                  .toLowerCase()
-                  .includes(currentYt.slice(0, 25).toLowerCase()))
-            ) {
-              updateActiveDoc({
-                rawYoutubeMetadata: fullYt,
-                rawMetadataText: fullYt,
-              });
+            const latestDoc = activeDocRef.current || activeDoc;
+            const bundlePatch: Partial<DocumentaryProject> = {};
+            if (bundle.youtube) {
+              const currentYt = (latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '').trim();
+              const fullYt = cleanStage11SingleMetadataText(bundle.youtube);
+              if (
+                fullYt.length > currentYt.length &&
+                (!currentYt ||
+                  fullYt
+                    .slice(0, 25)
+                    .toLowerCase()
+                    .includes(currentYt.slice(0, 25).toLowerCase()))
+              ) {
+                bundlePatch.rawYoutubeMetadata = fullYt;
+                bundlePatch.rawMetadataText = fullYt;
+              }
+            }
+            if (bundle.facebook && !(latestDoc.rawFacebookMetadata ?? '').trim()) {
+              bundlePatch.rawFacebookMetadata = cleanStage11SingleMetadataText(bundle.facebook);
+            }
+            if (bundle.pinnedComment && !(latestDoc.pinnedComment ?? '').trim()) {
+              const cleanPinned = stripStage12ClosingChatter(bundle.pinnedComment)
+                .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
+                .trim();
+              if (cleanPinned) {
+                bundlePatch.pinnedComment = cleanPinned;
+              }
+            }
+            if (bundle.youtubeTags && !(latestDoc.youtubeTags ?? '').trim()) {
+              const cleanTags = stripStage12ClosingChatter(bundle.youtubeTags)
+                .replace(/^(?:4\.\s*)?(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*[:—-]?\s*)/i, '')
+                .replace(/\r?\n+/g, ', ')
+                .replace(/,\s*,+/g, ', ')
+                .trim();
+              if (cleanTags) {
+                bundlePatch.youtubeTags = cleanTags;
+              }
+            }
+            if (Object.keys(bundlePatch).length > 0) {
+              updateActiveDoc(bundlePatch);
             }
           }
           setBridgeStatusType('SUCCESS');
@@ -14562,6 +14660,14 @@ export default function App() {
                           >
                             <Wand2 className="w-3.5 h-3.5" />
                             {aiGenerating ? 'Generando...' : '✨ Generar Comentario'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGrabLatestGeminiForStage(113)}
+                            title="Recuperar el Comentario Fijado directamente desde el historial del chat abierto en Gemini Web"
+                            className="px-3 py-1.5 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            📥 Traer de Gemini
                           </button>
                           <button
                             type="button"
