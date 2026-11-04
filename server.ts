@@ -3175,6 +3175,35 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fs.mkdirSync(workDir, { recursive: true });
     }
 
+    // Automatic macOS iCloud Drive storage guard: if free SSD space < 45 GB, evict local cache of older sibling episodes already uploaded to iCloud
+    if (process.platform === 'darwin' && targetRoot.includes('com~apple~CloudDocs')) {
+      try {
+        const dfOut = execSync('df -k /', { encoding: 'utf8' });
+        const dfLines = dfOut.trim().split('\n');
+        const cols = (dfLines[1] || '').trim().split(/\s+/);
+        const availKb = parseInt(cols[3] || '0', 10);
+        const availGb = availKb / (1024 * 1024);
+        if (availGb > 0 && availGb < 45) {
+          const parentVideosDir = path.dirname(targetRoot);
+          const currentBase = path.basename(targetRoot).normalize('NFC');
+          if (fs.existsSync(parentVideosDir)) {
+            const siblings = fs.readdirSync(parentVideosDir, { withFileTypes: true });
+            for (const sib of siblings) {
+              if (!sib.isDirectory()) continue;
+              if (sib.name.normalize('NFC') === currentBase) continue;
+              const sibPath = path.join(parentVideosDir, sib.name);
+              try {
+                execSync(`brctl evict "${sibPath.replace(/"/g, '\\"')}"`, {
+                  stdio: 'ignore',
+                  timeout: 8000,
+                });
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    }
+
     // Resolution dimensions & default bitrates
     const resMap: Record<
       string,
