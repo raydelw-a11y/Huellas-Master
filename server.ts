@@ -4114,6 +4114,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const finalOutputPath = fs.existsSync(videoFinalSubdir)
       ? path.join(videoFinalSubdir, finalFileName)
       : path.join(targetRoot, finalFileName);
+    // Write to local /tmp workDir while FFmpeg is muxing so iCloud Drive (bird) never attempts to upload an incomplete growing file
+    const tempMuxOutputPath = path.join(workDir, `mux_master_${Date.now()}.mp4`);
 
     // Remove any existing file at finalOutputPath before starting so disk space is immediately freed
     if (fs.existsSync(finalOutputPath)) {
@@ -4208,7 +4210,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         'aac',
         '-b:a',
         '256k',
-        finalOutputPath
+        tempMuxOutputPath
       );
     } else {
       muxerArgs = [
@@ -4221,7 +4223,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         concatListPath,
         '-c',
         'copy',
-        finalOutputPath,
+        tempMuxOutputPath,
       ];
     }
 
@@ -4327,6 +4329,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     };
 
     await muxerDonePromise;
+
+    if (fs.existsSync(tempMuxOutputPath)) {
+      try {
+        fs.renameSync(tempMuxOutputPath, finalOutputPath);
+      } catch {
+        fs.copyFileSync(tempMuxOutputPath, finalOutputPath);
+        try {
+          fs.unlinkSync(tempMuxOutputPath);
+        } catch {}
+      }
+    }
 
     try {
       execSync(`chflags nohidden "${finalOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
