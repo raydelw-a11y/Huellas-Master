@@ -2178,7 +2178,28 @@ REGLAS INQUEBRANTABLES:
 1. Cada opción debe tener estrictamente de 1 a 3 palabras contundentes en ESPAÑOL y en MAYÚSCULAS (ejemplo: EL PACTO OCULTO, TRAICIÓN REAL, LA NOCHE FINAL).
 2. PROHIBICIÓN ESTRICTA DE REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS: Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura, el Título del video ("${doc.title || ''}") y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"). Cada opción debe ser completamente distinta y complementarlos psicológicamente sin repetir lo mismo.
 3. Entrega ÚNICAMENTE las 3 opciones, una por línea, sin numeración, sin viñetas, sin comillas y sin explicaciones adicionales.`;
-    } else if (stageNumber === 11 || stageNumber === 111) {
+    } else if (stageNumber === 11) {
+      stagePrompt = `Actúa como estratega jefe de publicación y SEO de "Huellas de la Humanidad".
+Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
+Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): "${doc.clip1Line2Hook || ''}"
+Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 2000)}
+
+TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PUBLICACIÓN** separadas EXACTAMENTE por estas 4 etiquetas en mayúsculas:
+
+===SECCION_YOUTUBE===
+[Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados excepto "Capítulos:", ~3000 caracteres, Título directo sin repetir Miniatura ni Hook del Clip 1 (años en dígitos, siglos/monarcas en números romanos), descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), sección "Capítulos:" con 10 capítulos cronológicos donde 00:00 es parte de la historia, Nota IA: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+
+===SECCION_FACEBOOK===
+[Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados, SIN capítulos y SIN tags SEO, ~3000 caracteres, Título directo sin repetir Miniatura ni Hook del Clip 1, descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+
+===SECCION_COMENTARIO===
+[Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin encabezado ni comillas: reflexión histórica magnética + pregunta/CTA natural para debatir, sin signos de exclamación (!), sin pedir like/suscribirse, años en dígitos y siglos/monarcas en romanos.]
+
+===SECCION_TAGS===
+[Entrega aquí EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas (~460 a 500 caracteres máximo, sin encabezado "Tags:").]`;
+    } else if (stageNumber === 111) {
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
 Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
@@ -3530,40 +3551,36 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      // Prefer cleaned audio MP4 (.foley_only_cache / .vocals_cache / .music_cache) if present on c.videoUrl or on disk
-      if (c.videoUrl && typeof c.videoUrl === 'string') {
+      // Use c.videoUrl only if sourceMp4 was not already found and it is NOT an audio-separation cache file
+      if (!sourceMp4 && c.videoUrl && typeof c.videoUrl === 'string') {
         try {
           const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
           const vidFile = parsedVid.searchParams.get('filePath');
           if (
             vidFile &&
             fs.existsSync(vidFile) &&
-            (!sourceMp4 ||
-              c.foleyOnlyIsolated ||
-              c.vocalsSeparated ||
-              c.musicSeparated ||
-              vidFile.includes('.foley_only_cache') ||
-              vidFile.includes('.vocals_cache') ||
-              vidFile.includes('.music_cache'))
+            !vidFile.includes('.foley_only_cache') &&
+            !vidFile.includes('.vocals_cache') &&
+            !vidFile.includes('.music_cache') &&
+            !vidFile.includes('.vocals_clean_cache') &&
+            !vidFile.includes('.music_clean_cache')
           ) {
             sourceMp4 = vidFile;
           }
         } catch {}
-      } else if (!isIntroClip && !isOutroClip && !c.foleyOnlyDisabled && fs.existsSync(foleyCacheSubdir)) {
-        const num = Number(c.clipNumber || i + 1);
-        const foleyRegex = new RegExp(`^0*${num}[_\\-\\s.].*foley_only\\.mp4$`, 'i');
-        const foleyMatches = fs.readdirSync(foleyCacheSubdir).filter((f) => foleyRegex.test(f));
-        if (foleyMatches.length > 0) {
-          sourceMp4 = path.join(foleyCacheSubdir, foleyMatches[0]);
-        }
       }
 
-      // Check if an Optical Flow baked file already exists for this clip segment
+      // Check if an Optical Flow baked file already exists for this clip segment (excluding foley/vocals/music separated variants)
       if (c.opticalFlowUrl && typeof c.opticalFlowUrl === 'string') {
         try {
           const parsedOpt = new URL(c.opticalFlowUrl, 'http://localhost:4200');
           const optFile = parsedOpt.searchParams.get('filePath');
-          if (optFile && fs.existsSync(optFile)) {
+          if (
+            optFile &&
+            fs.existsSync(optFile) &&
+            !optFile.includes('.foley_only_cache') &&
+            !optFile.includes('_foley_')
+          ) {
             sourceMp4 = optFile;
           }
         } catch {}

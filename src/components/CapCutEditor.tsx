@@ -1176,13 +1176,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [isSeparatingMusic, setIsSeparatingMusic] = useState<boolean>(false);
   const [isIsolatingFoley, setIsIsolatingFoley] = useState<boolean>(false);
   const [foleyIsolationProgress, setFoleyIsolationProgress] = useState<{ current: number; total: number } | null>(null);
-  const [autoIsolateFoleyAllClips, setAutoIsolateFoleyAllClips] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('huellas_editor_auto_foley_only_v3') !== 'false';
-    } catch {
-      return true;
-    }
-  });
+  const [autoIsolateFoleyAllClips, setAutoIsolateFoleyAllClips] = useState<boolean>(false);
   const autoAttemptedFoleyClipIdsRef = useRef<Set<string>>(new Set());
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
@@ -2776,47 +2770,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             !freshVideoUrl.includes('.foley_only_cache') &&
             !freshVideoUrl.includes('.optical_flow_cache');
 
-          const foleyCacheTs = getUrlTimestampMs(tc.cleanFoleyOnlyVideoUrl);
-          const vocalsCacheTs = getUrlTimestampMs(tc.cleanNoVocalsVideoUrl);
-          const musicCacheTs = getUrlTimestampMs(tc.cleanNoMusicVideoUrl);
           const opticalFlowTs = getUrlTimestampMs(tc.opticalFlowUrl);
-
-          const foleyStillValid =
-            Boolean(tc.foleyOnlyIsolated && tc.cleanFoleyOnlyVideoUrl) &&
-            !isNewerDiskVideo &&
-            (freshTs === 0 || foleyCacheTs === 0 || foleyCacheTs >= freshTs - 1000);
-          const vocalsStillValid =
-            Boolean(tc.vocalsSeparated && tc.cleanNoVocalsVideoUrl) &&
-            !isNewerDiskVideo &&
-            (freshTs === 0 || vocalsCacheTs === 0 || vocalsCacheTs >= freshTs - 1000);
-          const musicStillValid =
-            Boolean(tc.musicSeparated && tc.cleanNoMusicVideoUrl) &&
-            !isNewerDiskVideo &&
-            (freshTs === 0 || musicCacheTs === 0 || musicCacheTs >= freshTs - 1000);
           const opticalFlowStillValid =
             Boolean(tc.opticalFlowUrl) &&
             !isNewerDiskVideo &&
             (freshTs === 0 || opticalFlowTs === 0 || opticalFlowTs >= freshTs - 1000);
 
-          const effectiveVideoUrl = foleyStillValid
-            ? tc.cleanFoleyOnlyVideoUrl!
-            : vocalsStillValid
-              ? tc.cleanNoVocalsVideoUrl!
-              : musicStillValid
-                ? tc.cleanNoMusicVideoUrl!
-                : freshVideoUrl;
+          const cleanBaseVideoUrl =
+            combinedClipVideosMap[tc.clipNumber] ||
+            (tc.originalVideoUrlBeforeSeparation &&
+            !tc.originalVideoUrlBeforeSeparation.includes('.foley_only_cache') &&
+            !tc.originalVideoUrlBeforeSeparation.includes('.vocals_clean_cache') &&
+            !tc.originalVideoUrlBeforeSeparation.includes('.music_clean_cache')
+              ? tc.originalVideoUrlBeforeSeparation
+              : tc.videoUrl);
 
-          const effectiveOpticalFlowUrl = opticalFlowStillValid
-            ? foleyStillValid && tc.cleanOpticalFlowOnlyUrl
-              ? tc.cleanOpticalFlowOnlyUrl
-              : tc.opticalFlowUrl
-            : undefined;
+          const effectiveVideoUrl = cleanBaseVideoUrl || freshVideoUrl;
+          const baseOpticalFlowUrl =
+            tc.originalOpticalFlowUrlBeforeSeparation || tc.opticalFlowUrl;
+          const effectiveOpticalFlowUrl =
+            opticalFlowStillValid &&
+            baseOpticalFlowUrl &&
+            !baseOpticalFlowUrl.includes('.foley_only_cache') &&
+            !baseOpticalFlowUrl.includes('_foley_')
+              ? baseOpticalFlowUrl
+              : undefined;
 
           if (
             isNewerDiskVideo ||
             effectiveVideoUrl !== tc.videoUrl ||
             freshPosterUrl !== tc.posterUrl ||
-            effectiveOpticalFlowUrl !== tc.opticalFlowUrl
+            effectiveOpticalFlowUrl !== tc.opticalFlowUrl ||
+            tc.foleyOnlyIsolated ||
+            tc.vocalsSeparated ||
+            tc.musicSeparated
           ) {
             anyRegeneratedOrUpdated = true;
             if (isNewerDiskVideo) {
@@ -2829,21 +2816,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ...tc,
             videoUrl: effectiveVideoUrl,
             opticalFlowUrl: effectiveOpticalFlowUrl,
-            opticalFlowBakedKey: opticalFlowStillValid ? tc.opticalFlowBakedKey : undefined,
-            foleyOnlyIsolated: foleyStillValid ? tc.foleyOnlyIsolated : false,
-            cleanFoleyOnlyVideoUrl: foleyStillValid ? tc.cleanFoleyOnlyVideoUrl : undefined,
-            cleanOpticalFlowOnlyUrl:
-              foleyStillValid && opticalFlowStillValid ? tc.cleanOpticalFlowOnlyUrl : undefined,
-            vocalsSeparated: vocalsStillValid ? tc.vocalsSeparated : false,
-            cleanNoVocalsVideoUrl: vocalsStillValid ? tc.cleanNoVocalsVideoUrl : undefined,
-            musicSeparated: musicStillValid ? tc.musicSeparated : false,
-            cleanNoMusicVideoUrl: musicStillValid ? tc.cleanNoMusicVideoUrl : undefined,
-            originalVideoUrlBeforeSeparation: isNewerDiskVideo
-              ? freshVideoUrl
-              : tc.originalVideoUrlBeforeSeparation || freshVideoUrl,
-            originalOpticalFlowUrlBeforeSeparation: opticalFlowStillValid
-              ? tc.originalOpticalFlowUrlBeforeSeparation || tc.opticalFlowUrl
-              : undefined,
+            opticalFlowBakedKey: effectiveOpticalFlowUrl ? tc.opticalFlowBakedKey : undefined,
+            foleyOnlyIsolated: false,
+            cleanFoleyOnlyVideoUrl: undefined,
+            cleanOpticalFlowOnlyUrl: undefined,
+            vocalsSeparated: false,
+            cleanNoVocalsVideoUrl: undefined,
+            musicSeparated: false,
+            cleanNoMusicVideoUrl: undefined,
+            originalVideoUrlBeforeSeparation: effectiveVideoUrl,
+            originalOpticalFlowUrlBeforeSeparation: effectiveOpticalFlowUrl,
             trimStart: isNewerDiskVideo ? 0 : tc.trimStart,
             trimEnd: isNewerDiskVideo ? srcDur : tc.trimEnd,
             posterUrl: freshPosterUrl,
@@ -6279,29 +6261,49 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
-  // When "Solo Foley en Todos los Clips (Sin Música ni Voces)" is selected, automatically process each clip
+  // Automatically restore any clip that previously pointed to a foley/vocals/music separation cache back to its original untouched audio
   useEffect(() => {
-    if (!autoIsolateFoleyAllClips || isIsolatingFoley) return;
-    const docId = activeDoc?.id || 'doc';
-    const pendingClips = timelineClips.filter((c) => {
-      if (c.clipNumber <= 0 || c.clipNumber === 999) return false;
-      if (c.foleyOnlyDisabled) return false;
-      const hasLegacyV1FoleyUrl =
-        Boolean(c.videoUrl && c.videoUrl.includes('_foley_only.mp4')) ||
-        Boolean(c.cleanFoleyOnlyVideoUrl && c.cleanFoleyOnlyVideoUrl.includes('_foley_only.mp4')) ||
-        Boolean(c.opticalFlowUrl && c.opticalFlowUrl.includes('_foley_only.mp4'));
-      if (c.foleyOnlyIsolated && !hasLegacyV1FoleyUrl) return false;
-      if (!c.videoUrl) return false;
-      const attemptKey = `v3_${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
-      return !autoAttemptedFoleyClipIdsRef.current.has(attemptKey);
-    });
-    if (pendingClips.length === 0) return;
-    pendingClips.forEach((c) => {
-      const attemptKey = `v3_${docId}_${c.id}_${c.videoUrl || ''}_${c.fileName || ''}`;
-      autoAttemptedFoleyClipIdsRef.current.add(attemptKey);
-    });
-    handleIsolateFoleyOnlyFromClips(pendingClips.map((c) => c.id));
-  }, [autoIsolateFoleyAllClips, timelineClips, isIsolatingFoley, activeDoc?.id]);
+    const hasModifiedClipAudio = timelineClips.some(
+      (c) =>
+        c.foleyOnlyIsolated ||
+        c.vocalsSeparated ||
+        c.musicSeparated ||
+        Boolean(c.videoUrl && c.videoUrl.includes('.foley_only_cache')) ||
+        Boolean(c.videoUrl && c.videoUrl.includes('.vocals_clean_cache')) ||
+        Boolean(c.videoUrl && c.videoUrl.includes('.music_clean_cache')) ||
+        Boolean(c.opticalFlowUrl && c.opticalFlowUrl.includes('.foley_only_cache'))
+    );
+    if (!hasModifiedClipAudio) return;
+    commitTimelineClipsUpdate((prev) =>
+      prev.map((c) => {
+        const cleanVid =
+          localServerClipVideosMap[c.clipNumber] ||
+          capturedClipVideosMap[c.clipNumber] ||
+          c.originalVideoUrlBeforeSeparation ||
+          c.videoUrl;
+        const cleanOpt =
+          c.originalOpticalFlowUrlBeforeSeparation &&
+          !c.originalOpticalFlowUrlBeforeSeparation.includes('.foley_only_cache')
+            ? c.originalOpticalFlowUrlBeforeSeparation
+            : c.opticalFlowUrl && !c.opticalFlowUrl.includes('.foley_only_cache')
+            ? c.opticalFlowUrl
+            : undefined;
+        return {
+          ...c,
+          foleyOnlyIsolated: false,
+          cleanFoleyOnlyVideoUrl: undefined,
+          cleanOpticalFlowOnlyUrl: undefined,
+          vocalsSeparated: false,
+          cleanNoVocalsVideoUrl: undefined,
+          musicSeparated: false,
+          cleanNoMusicVideoUrl: undefined,
+          videoUrl: cleanVid,
+          opticalFlowUrl: cleanOpt,
+        };
+      }),
+      false
+    );
+  }, [timelineClips, localServerClipVideosMap, capturedClipVideosMap]);
 
   // Restore original uncleaned audio to clip(s)
   const handleRestoreOriginalAudioToClip = (targetClipIds: string[]) => {
@@ -8587,150 +8589,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
           </button>
 
-          {/* Submenu Trigger: Separar ▸ */}
-          <div
-            onMouseEnter={() =>
-              setClipContextMenu((prev) =>
-                prev ? { ...prev, showSepararSubmenu: true } : null
-              )
-            }
-            onMouseLeave={() =>
-              setClipContextMenu((prev) =>
-                prev ? { ...prev, showSepararSubmenu: false } : null
-              )
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              setClipContextMenu((prev) =>
-                prev ? { ...prev, showSepararSubmenu: !prev.showSepararSubmenu } : null
-              );
-            }}
-            className="relative px-3 py-2 hover:bg-amber-500/20 text-slate-100 hover:text-amber-200 font-bold flex items-center justify-between cursor-pointer transition"
-          >
-            <span className="flex items-center gap-2">
-              <Scissors className="w-3.5 h-3.5 text-amber-400" />
-              Separar
-            </span>
-            <span className="text-amber-400 font-black">▸</span>
-
-            {/* Submenu Panel: Voces / Extraer Música */}
-            {clipContextMenu.showSepararSubmenu && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="absolute left-full top-0 ml-1 w-60 rounded-xl bg-slate-950/95 backdrop-blur-md border border-amber-500/40 shadow-2xl shadow-black/90 py-1.5 z-[260]"
-              >
-                <div className="px-3 py-1 border-b border-slate-800/80 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Separar Audio en Pista Aparte
-                </div>
-                <button
-                  type="button"
-                  disabled={isSeparatingVocals}
-                  onClick={() => handleSeparateVocalsFromClips(clipContextMenu.clipIds)}
-                  className="w-full px-3 py-2 text-left hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 font-black flex items-center justify-between gap-2 cursor-pointer transition disabled:opacity-50"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>🗣️</span>
-                    <span>Voces</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-mono text-emerald-200">
-                    Pista 3B
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isSeparatingMusic}
-                  onClick={() => handleSeparateMusicFromClips(clipContextMenu.clipIds)}
-                  className="w-full px-3 py-2 text-left hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 font-black flex items-center justify-between gap-2 border-t border-slate-800/70 cursor-pointer transition disabled:opacity-50"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>🎵</span>
-                    <span>Extraer Música</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-[9px] font-mono text-purple-200">
-                    Pista 3C
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isIsolatingFoley}
-                  onClick={() => handleIsolateFoleyOnlyFromClips(clipContextMenu.clipIds)}
-                  className="w-full px-3 py-2 text-left hover:bg-teal-500/20 text-teal-300 hover:text-teal-200 font-black flex items-center justify-between gap-2 border-t border-slate-800/70 cursor-pointer transition disabled:opacity-50"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>🌿</span>
-                    <span>Solo Foley (Este Clip)</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[9px] font-mono text-teal-200">
-                    Limpio
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isIsolatingFoley}
-                  onClick={() => handleIsolateFoleyForAllClips()}
-                  className="w-full px-3 py-2 text-left hover:bg-teal-400/25 text-teal-200 hover:text-white font-black flex items-center justify-between gap-2 border-t border-slate-800/70 cursor-pointer transition disabled:opacity-50"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>🌿⚡</span>
-                    <span>Solo Foley en TODOS los Clips</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-teal-400/25 border border-teal-400/50 text-[9px] font-mono text-teal-100">
-                    TODOS
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            disabled={isIsolatingFoley}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleIsolateFoleyOnlyFromClips(clipContextMenu.clipIds);
-            }}
-            className="w-full px-3 py-2 text-left hover:bg-teal-500/20 text-teal-300 hover:text-teal-200 font-bold flex items-center justify-between gap-2 border-t border-slate-800/80 cursor-pointer transition disabled:opacity-50"
-            title="Detecta, separa y elimina tanto la música como las voces, dejando en el clip únicamente el sonido Foley ambiente"
-          >
-            <span className="flex items-center gap-2">
-              <span>🌿</span>
-              <span>Dejar Solo Foley (Este Clip)</span>
-            </span>
-            <span className="px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[9px] font-mono text-teal-200">
-              FOLEY
-            </span>
-          </button>
-          <button
-            type="button"
-            disabled={isIsolatingFoley}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleIsolateFoleyForAllClips();
-            }}
-            className="w-full px-3 py-2 text-left hover:bg-teal-400/25 text-teal-200 hover:text-white font-black flex items-center justify-between gap-2 border-t border-slate-800/80 cursor-pointer transition disabled:opacity-50"
-            title="Detecta, separa y elimina automáticamente la música y las voces en TODOS los clips del video, dejando solo el audio de Foley ambiente en cada clip"
-          >
-            <span className="flex items-center gap-2">
-              <span>🌿⚡</span>
-              <span>Solo Foley en TODOS los Clips del Video (Automático)</span>
-            </span>
-            <span className="px-1.5 py-0.5 rounded bg-teal-400/25 border border-teal-400/50 text-[9px] font-mono text-teal-100">
-              TODOS
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRestoreOriginalAudioToClip(clipContextMenu.clipIds);
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-800 text-slate-300 hover:text-white font-semibold flex items-center justify-between gap-2 border-t border-slate-800/80 cursor-pointer transition text-[11px]"
-            title="Restaurar el audio original completo del clip"
-          >
-            <span className="flex items-center gap-2">
-              <span>↩️</span>
-              <span>Restaurar Audio Original del Clip</span>
-            </span>
-          </button>
           <button
             type="button"
             onClick={(e) => {
@@ -8807,29 +8665,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <RefreshCw className="w-3 h-3" />
             Sincronizar
           </button>
-
-          {/* Selectable Option (Checked by Default): Isolate Ambient Foley Across ALL Clips Automatically */}
-          <label
-            className={`px-2 py-0.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition select-none ${
-              autoIsolateFoleyAllClips
-                ? 'bg-teal-500/20 border-teal-400 text-teal-200'
-                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-            title="Opción seleccionable (activa por defecto): mientras está seleccionada, detecta, separa y elimina automáticamente la música y las voces de cada clip dejando solo el audio de Foley ambiente"
-          >
-            <input
-              type="checkbox"
-              checked={autoIsolateFoleyAllClips}
-              onChange={handleToggleAutoIsolateFoleyAllClips}
-              className="w-3 h-3 accent-teal-400 cursor-pointer rounded"
-            />
-            <span>🌿</span>
-            <span>
-              {isIsolatingFoley
-                ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                : 'Solo Foley en Todos'}
-            </span>
-          </label>
 
           {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
             <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px]">
@@ -10976,44 +10811,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         </button>
                       </div>
 
-                      {/* FOLEY ISOLATION (REMOVE MUSIC & VOICES, KEEP ONLY AMBIENT FOLEY — SELECTABLE, ON BY DEFAULT) */}
-                      <div className="pt-1.5 border-t border-slate-800/80">
-                        {(() => {
-                          const isClipFoleySelected =
-                            !selectedClip.foleyOnlyDisabled &&
-                            (Boolean(selectedClip.foleyOnlyIsolated) || autoIsolateFoleyAllClips);
-                          const targetIds =
-                            selectedClipIds.length > 1 && selectedClipIds.includes(selectedClip.id)
-                              ? selectedClipIds
-                              : [selectedClip.id];
-                          return (
-                            <label
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer select-none transition ${
-                                isClipFoleySelected
-                                  ? 'bg-teal-500/20 border-teal-400/70 text-teal-100 shadow-sm'
-                                  : 'bg-slate-900/90 border-slate-700 text-slate-300 hover:border-teal-500/40'
-                              }`}
-                              title="Opción seleccionable (activa por defecto): elimina música y voces dejando únicamente el sonido de Foley ambiente"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isClipFoleySelected}
-                                disabled={isIsolatingFoley}
-                                onChange={(e) =>
-                                  handleToggleClipFoleyOnly(targetIds, e.target.checked)
-                                }
-                                className="w-4 h-4 accent-teal-400 rounded cursor-pointer shrink-0"
-                              />
-                              <span className="text-[11px] font-black text-teal-200 leading-snug">
-                                {isIsolatingFoley
-                                  ? `🌿 Limpieza de Audio (Solo Foley Ambiente) — Procesando (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                                  : '🌿 Limpieza de Audio (Solo Foley Ambiente)'}
-                              </span>
-                            </label>
-                          );
-                        })()}
-                      </div>
-
                       {/* Numeric Trim Start / Trim End Controls */}
                       <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
                         <div>
@@ -11644,44 +11441,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       className="w-full accent-emerald-500"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Aislar Solo Foley Ambiente en los Clips (Eliminar Música y Voces de los Clips) */}
-              <div className="bg-teal-950/30 border border-teal-500/40 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="font-bold text-teal-300 text-xs flex items-center gap-1.5">
-                    🌿 Aislar Solo Foley Ambiente (Eliminar Música y Voces de los Clips)
-                  </span>
-                  <span className="text-[10px] font-mono text-teal-200/80">
-                    {timelineClips.filter((c) => c.foleyOnlyIsolated).length}/
-                    {timelineClips.filter((c) => c.clipNumber > 0 && c.clipNumber !== 999).length} clips limpios
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Detecta, separa y elimina tanto las voces como la música incrustada en los clips de video, dejando únicamente los efectos físicos y el ambiente Foley en cada clip.
-                </p>
-                <div className="pt-1">
-                  <label
-                    className={`w-full px-3 py-2 rounded-lg border font-black text-xs flex items-center gap-2.5 cursor-pointer transition select-none shadow ${
-                      autoIsolateFoleyAllClips
-                        ? 'bg-teal-500/25 border-teal-400 text-teal-100'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-teal-200'
-                    }`}
-                    title="Mientras está seleccionada, aplica automáticamente Limpieza de Audio (Solo Foley Ambiente) a los clips"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={autoIsolateFoleyAllClips}
-                      onChange={handleToggleAutoIsolateFoleyAllClips}
-                      className="w-4 h-4 accent-teal-400 cursor-pointer rounded shrink-0"
-                    />
-                    <span className="leading-snug">
-                      {isIsolatingFoley
-                        ? `🌿 Limpieza de Audio (Solo Foley Ambiente) — Procesando (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                        : '🌿 Limpieza de Audio (Solo Foley Ambiente)'}
-                    </span>
-                  </label>
                 </div>
               </div>
 
@@ -12961,39 +12720,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ↩️ ({clipUndoStack.length})
                   </button>
                 )}
-                {selectedClip.clipNumber !== 0 && selectedClip.clipNumber !== 999 && (() => {
-                  const isClipFoleySelected =
-                    !selectedClip.foleyOnlyDisabled &&
-                    (Boolean(selectedClip.foleyOnlyIsolated) || autoIsolateFoleyAllClips);
-                  const targetIds =
-                    selectedClipIds.length > 1 && selectedClipIds.includes(selectedClip.id)
-                      ? selectedClipIds
-                      : [selectedClip.id];
-                  return (
-                    <label
-                      className={`px-2 py-0.5 rounded border font-black text-[9px] flex items-center gap-1 cursor-pointer select-none transition ${
-                        isClipFoleySelected
-                          ? 'bg-teal-500/25 border-teal-400 text-teal-100'
-                          : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-teal-200'
-                      }`}
-                      title="Opción seleccionable (activa por defecto): deja solo el audio de Foley ambiente en este clip"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isClipFoleySelected}
-                        disabled={isIsolatingFoley}
-                        onChange={(e) => handleToggleClipFoleyOnly(targetIds, e.target.checked)}
-                        className="w-2.5 h-2.5 accent-teal-400 rounded cursor-pointer"
-                      />
-                      <span>🌿</span>
-                      <span>
-                        {isIsolatingFoley
-                          ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})...`
-                          : 'Solo Foley Ambiente'}
-                      </span>
-                    </label>
-                  );
-                })()}
               </div>
             )}
           </div>
@@ -13429,27 +13155,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className="w-36 shrink-0 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-[10px] font-black text-amber-300 flex flex-col gap-1">
                 <span className="truncate">3. 🎬 Clips ({timelineClips.length})</span>
-                <label
-                  className={`w-full px-1.5 py-0.5 rounded border font-black text-[9px] flex items-center gap-1 cursor-pointer transition select-none ${
-                    autoIsolateFoleyAllClips
-                      ? 'bg-teal-500/25 border-teal-400 text-teal-100'
-                      : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Opción seleccionable (activa por defecto): mientras está seleccionada, aplica Solo Foley (sin música ni voces) automáticamente a cada clip"
-                >
-                  <input
-                    type="checkbox"
-                    checked={autoIsolateFoleyAllClips}
-                    onChange={handleToggleAutoIsolateFoleyAllClips}
-                    className="w-2.5 h-2.5 accent-teal-400 cursor-pointer rounded shrink-0"
-                  />
-                  <span>🌿</span>
-                  <span className="truncate">
-                    {isIsolatingFoley
-                      ? `Foley (${foleyIsolationProgress?.current || 1}/${foleyIsolationProgress?.total || 1})`
-                      : 'Solo Foley'}
-                  </span>
-                </label>
               </div>
               <div
                 style={
@@ -13548,7 +13253,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         clip.clipNumber
                       ).padStart(2, '0')}${clip.partLabel ? ` • ${clip.partLabel}` : ''}) • ${formatTimeMMSS(
                         clip.start
-                      )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Clic derecho: Separar ▸ Voces (Cmd/Ctrl+Clic o Shift+Clic para varios clips)`}
+                      )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Clic derecho para opciones del clip`}
                       style={
                         isFitEntireProject
                           ? {
@@ -13745,240 +13450,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* TRACK 3B: SEPARATED VOCALS FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
-            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-teal-950/70 border border-teal-500/40 text-[10px] font-black text-teal-300 flex items-center justify-between truncate">
-                <span>3B. 🗣️ Voces ({separatedVocalSegments.length})</span>
-              </div>
-              <div
-                style={
-                  isFitEntireProject
-                    ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
-                }
-                className={`relative h-7 bg-slate-950/90 border border-teal-500/30 rounded overflow-hidden flex items-center ${
-                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
-                }`}
-              >
-                {separatedVocalSegments.length === 0 ? (
-                  <span className="text-[10px] text-slate-500 px-2 truncate">
-                    Clic derecho sobre clips de Pista 3 ▸{' '}
-                    <strong className="text-amber-300">Separar ▸ 🗣️ Voces</strong>
-                  </span>
-                ) : (
-                  separatedVocalSegments.map((seg) => {
-                    const isSegSelected = selectedVocalSegmentId === seg.id;
-                    const isSegPlaying = activeSeparatedVocalAtPlayhead?.id === seg.id;
-                    return (
-                      <div
-                        key={seg.id}
-                        onMouseDown={(e) =>
-                          handleStartDragSeparatedVocal(
-                            e,
-                            seg,
-                            e.currentTarget.parentElement as HTMLDivElement | null
-                          )
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedVocalSegmentId(seg.id);
-                          setSelectedMusicSegmentId(null);
-                        }}
-                        style={
-                          isFitEntireProject
-                            ? {
-                                left: `${(seg.start / Math.max(1, totalDurationSec)) * 100}%`,
-                                width: `${(seg.duration / Math.max(1, totalDurationSec)) * 100}%`,
-                              }
-                            : {
-                                left: `${seg.start * timelineZoom}px`,
-                                width: `${Math.max(36, seg.duration * timelineZoom)}px`,
-                              }
-                        }
-                        title={`${seg.title} (${formatTimeMMSS(seg.start)} - ${formatTimeMMSS(
-                          seg.start + seg.duration
-                        )}) • Arrastra horizontalmente para mover por el timeline o pulsa 🗑️ / Suprimir para borrar`}
-                        className={`absolute top-1 bottom-1 rounded-md border px-2 flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing select-none transition ${
-                          seg.muted
-                            ? 'bg-slate-900/90 border-slate-700 text-slate-500 opacity-60'
-                            : isSegSelected
-                            ? 'bg-teal-500/35 border-2 border-amber-300 text-white shadow-lg shadow-teal-500/20 z-20'
-                            : isSegPlaying
-                            ? 'bg-teal-500/30 border-teal-300 text-teal-100 z-10'
-                            : 'bg-teal-950/85 hover:bg-teal-900/80 border-teal-500/50 text-teal-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1 min-w-0 truncate">
-                          <span className="text-[10px] font-black truncate">
-                            {seg.muted ? '🔇 ' : '🗣️ '}
-                            {seg.title.replace(/^🗣️\s*/, '')}
-                          </span>
-                          <span className="text-[9px] font-mono text-teal-300/90 shrink-0">
-                            ({formatTimeMMSS(seg.start)}-{formatTimeMMSS(seg.start + seg.duration)})
-                          </span>
-                        </div>
-                        <div
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 shrink-0"
-                        >
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleMuteSeparatedVocal(seg.id);
-                            }}
-                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-teal-200 cursor-pointer"
-                            title={seg.muted ? 'Activar audio de este segmento de voz' : 'Silenciar este segmento de voz'}
-                          >
-                            {seg.muted ? '🔇' : '🔊'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRestoreSeparatedVocalToClip(seg);
-                            }}
-                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
-                            title="Devolver la voz a su clip original"
-                          >
-                            ↩️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSeparatedVocalSegment(seg.id);
-                            }}
-                            className="px-1 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 text-[9px] text-white font-bold cursor-pointer"
-                            title="Borrar este segmento de voz de la línea de tiempo"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* TRACK 3C: EXTRACTED MUSIC FROM CLIPS (MOVABLE & DELETABLE TIMELINE SEGMENTS) */}
-            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-purple-950/70 border border-purple-500/40 text-[10px] font-black text-purple-300 flex items-center justify-between truncate">
-                <span>3C. 🎵 Música ({separatedMusicSegments.length})</span>
-              </div>
-              <div
-                style={
-                  isFitEntireProject
-                    ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
-                }
-                className={`relative h-7 bg-slate-950/90 border border-purple-500/30 rounded overflow-hidden flex items-center ${
-                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
-                }`}
-              >
-                {separatedMusicSegments.length === 0 ? (
-                  <span className="text-[10px] text-slate-500 px-2 truncate">
-                    Clic derecho sobre clips de Pista 3 ▸{' '}
-                    <strong className="text-purple-300">Separar ▸ 🎵 Extraer Música</strong>
-                  </span>
-                ) : (
-                  separatedMusicSegments.map((seg) => {
-                    const isSegSelected = selectedMusicSegmentId === seg.id;
-                    const isSegPlaying = activeSeparatedMusicAtPlayhead?.id === seg.id;
-                    return (
-                      <div
-                        key={seg.id}
-                        onMouseDown={(e) =>
-                          handleStartDragSeparatedMusic(
-                            e,
-                            seg,
-                            e.currentTarget.parentElement as HTMLDivElement | null
-                          )
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedMusicSegmentId(seg.id);
-                          setSelectedVocalSegmentId(null);
-                        }}
-                        style={
-                          isFitEntireProject
-                            ? {
-                                left: `${(seg.start / Math.max(1, totalDurationSec)) * 100}%`,
-                                width: `${(seg.duration / Math.max(1, totalDurationSec)) * 100}%`,
-                              }
-                            : {
-                                left: `${seg.start * timelineZoom}px`,
-                                width: `${Math.max(36, seg.duration * timelineZoom)}px`,
-                              }
-                        }
-                        title={`${seg.title} (${formatTimeMMSS(seg.start)} - ${formatTimeMMSS(
-                          seg.start + seg.duration
-                        )}) • Arrastra horizontalmente para mover por el timeline o pulsa 🗑️ / Suprimir para borrar`}
-                        className={`absolute top-1 bottom-1 rounded-md border px-2 flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing select-none transition ${
-                          seg.muted
-                            ? 'bg-slate-900/90 border-slate-700 text-slate-500 opacity-60'
-                            : isSegSelected
-                            ? 'bg-purple-500/35 border-2 border-amber-300 text-white shadow-lg shadow-purple-500/20 z-20'
-                            : isSegPlaying
-                            ? 'bg-purple-500/30 border-purple-300 text-purple-100 z-10'
-                            : 'bg-purple-950/85 hover:bg-purple-900/80 border-purple-500/50 text-purple-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1 min-w-0 truncate">
-                          <span className="text-[10px] font-black truncate">
-                            {seg.muted ? '🔇 ' : '🎵 '}
-                            {seg.title.replace(/^🎵\s*/, '')}
-                          </span>
-                          <span className="text-[9px] font-mono text-purple-300/90 shrink-0">
-                            ({formatTimeMMSS(seg.start)}-{formatTimeMMSS(seg.start + seg.duration)})
-                          </span>
-                        </div>
-                        <div
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 shrink-0"
-                        >
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleMuteSeparatedMusic(seg.id);
-                            }}
-                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-purple-200 cursor-pointer"
-                            title={seg.muted ? 'Activar audio de este segmento de música' : 'Silenciar este segmento de música'}
-                          >
-                            {seg.muted ? '🔇' : '🔊'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRestoreSeparatedMusicToClip(seg);
-                            }}
-                            className="px-1 py-0.5 rounded bg-slate-900/90 hover:bg-slate-800 text-[9px] text-amber-300 cursor-pointer"
-                            title="Devolver la música a su clip original"
-                          >
-                            ↩️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSeparatedMusicSegment(seg.id);
-                            }}
-                            className="px-1 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 text-[9px] text-white font-bold cursor-pointer"
-                            title="Borrar este segmento de música de la línea de tiempo"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
               </div>
             </div>
 

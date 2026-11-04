@@ -119,7 +119,91 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:15 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:42 PM - 11/03/2026';
+
+function parseStage11FourSections(rawText: string): {
+  youtube?: string;
+  facebook?: string;
+  pinnedComment?: string;
+  youtubeTags?: string;
+  foundCount: number;
+} {
+  const cleanSectionBody = (val: string) =>
+    String(val || '')
+      .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+      .replace(/\n?```\s*$/i, '')
+      .trim();
+
+  const text = String(rawText || '').trim();
+  if (!text) return { foundCount: 0 };
+
+  const headerRegex =
+    /(?:^|\n)\s*(?:\*\*|#+\s*)?(?:===\s*SECCI[OÓ]N_(YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===|(?:\[?\s*(?:SECCI[OÓ]N\s*)?[1-4][.)\]:\-\s]+)?(?:METADATA\s+YOUTUBE|METADATA\s+FACEBOOK|COMENTARIO\s+FIJADO(?:\s+DEL\s+VIDEO)?|TAGS\s+DE\s+YOUTUBE|YOUTUBE\s+TAGS)\s*\]?)(?:\*\*)?\s*(?:\r?\n|$)/gi;
+
+  const matches: Array<{ key: 'youtube' | 'facebook' | 'pinnedComment' | 'youtubeTags'; start: number; bodyStart: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = headerRegex.exec(text)) !== null) {
+    const rawHeader = (match[1] || match[0] || '').toUpperCase();
+    let key: 'youtube' | 'facebook' | 'pinnedComment' | 'youtubeTags' | null = null;
+    if (rawHeader.includes('YOUTUBE') && !rawHeader.includes('TAG')) {
+      key = 'youtube';
+    } else if (rawHeader.includes('FACEBOOK')) {
+      key = 'facebook';
+    } else if (rawHeader.includes('COMENTARIO')) {
+      key = 'pinnedComment';
+    } else if (rawHeader.includes('TAG')) {
+      key = 'youtubeTags';
+    }
+    if (key) {
+      matches.push({
+        key,
+        start: match.index,
+        bodyStart: match.index + match[0].length,
+      });
+    }
+  }
+
+  if (matches.length === 0) {
+    return { foundCount: 0 };
+  }
+
+  const out: {
+    youtube?: string;
+    facebook?: string;
+    pinnedComment?: string;
+    youtubeTags?: string;
+    foundCount: number;
+  } = { foundCount: 0 };
+
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const nextStart = i + 1 < matches.length ? matches[i + 1].start : text.length;
+    const rawSlice = text.slice(cur.bodyStart, nextStart);
+    const cleaned = cleanSectionBody(rawSlice);
+    if (!cleaned) continue;
+    if (cur.key === 'pinnedComment') {
+      out.pinnedComment = cleaned.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim();
+    } else if (cur.key === 'youtubeTags') {
+      out.youtubeTags = cleaned
+        .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
+        .replace(/\r?\n+/g, ', ')
+        .replace(/,\s*,+/g, ', ')
+        .trim();
+    } else if (cur.key === 'youtube') {
+      out.youtube = cleaned;
+    } else if (cur.key === 'facebook') {
+      out.facebook = cleaned;
+    }
+  }
+
+  out.foundCount =
+    (out.youtube ? 1 : 0) +
+    (out.facebook ? 1 : 0) +
+    (out.pinnedComment ? 1 : 0) +
+    (out.youtubeTags ? 1 : 0);
+
+  return out;
+}
 
 function parseClip1OptionsFromRawText(
   rawText: string
@@ -2445,6 +2529,8 @@ export default function App() {
     });
   };
 
+  const pendingStage11QueueRef = useRef<number[]>([]);
+
   const applyGeneratedStageText = (
     stageNum: number,
     text: string,
@@ -2623,13 +2709,101 @@ export default function App() {
         }, 900);
       }
     } else if (stageNum === 11 || stageNum === 111) {
-      updateActiveDoc({ rawYoutubeMetadata: text, rawMetadataText: text });
+      const parsed4 = parseStage11FourSections(text);
+      if (parsed4.foundCount >= 1) {
+        const patch: Partial<DocumentaryProject> = {};
+        if (parsed4.youtube) {
+          patch.rawYoutubeMetadata = parsed4.youtube;
+          patch.rawMetadataText = parsed4.youtube;
+        }
+        if (parsed4.facebook) {
+          patch.rawFacebookMetadata = parsed4.facebook;
+        }
+        if (parsed4.pinnedComment) {
+          patch.pinnedComment = parsed4.pinnedComment;
+        }
+        if (parsed4.youtubeTags) {
+          patch.youtubeTags = parsed4.youtubeTags;
+        }
+        updateActiveDoc(patch);
+
+        // If user clicked "Generar Todo" (stageNum === 11) and any section was omitted by Gemini, queue missing sections sequentially
+        if (stageNum === 11) {
+          const missingStages: number[] = [];
+          if (!parsed4.youtube) missingStages.push(111);
+          if (!parsed4.facebook) missingStages.push(112);
+          if (!parsed4.pinnedComment) missingStages.push(113);
+          if (!parsed4.youtubeTags) missingStages.push(114);
+          pendingStage11QueueRef.current = missingStages;
+        }
+      } else {
+        const cleanSingle = text
+          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .trim();
+        updateActiveDoc({ rawYoutubeMetadata: cleanSingle, rawMetadataText: cleanSingle });
+        if (stageNum === 11) {
+          pendingStage11QueueRef.current = [112, 113, 114];
+        }
+      }
+
+      if (pendingStage11QueueRef.current.length > 0) {
+        const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(nextSubStage);
+        }, 1400);
+      }
     } else if (stageNum === 112) {
-      updateActiveDoc({ rawFacebookMetadata: text });
+      const parsed4 = parseStage11FourSections(text);
+      const fbClean =
+        parsed4.facebook ||
+        text
+          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .trim();
+      updateActiveDoc({ rawFacebookMetadata: fbClean });
+      if (pendingStage11QueueRef.current.length > 0) {
+        const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(nextSubStage);
+        }, 1400);
+      }
     } else if (stageNum === 113) {
-      updateActiveDoc({ pinnedComment: text.trim() });
+      const parsed4 = parseStage11FourSections(text);
+      const pinnedClean = (
+        parsed4.pinnedComment ||
+        text
+          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '')
+          .trim()
+      );
+      updateActiveDoc({ pinnedComment: pinnedClean });
+      if (pendingStage11QueueRef.current.length > 0) {
+        const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(nextSubStage);
+        }, 1400);
+      }
     } else if (stageNum === 114) {
-      updateActiveDoc({ youtubeTags: text.trim() });
+      const parsed4 = parseStage11FourSections(text);
+      const tagsClean = (
+        parsed4.youtubeTags ||
+        text
+          .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
+          .replace(/\r?\n+/g, ', ')
+          .replace(/,\s*,+/g, ', ')
+          .trim()
+      );
+      updateActiveDoc({ youtubeTags: tagsClean });
+      if (pendingStage11QueueRef.current.length > 0) {
+        const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(nextSubStage);
+        }, 1400);
+      }
     }
   };
 
@@ -6303,7 +6477,7 @@ export default function App() {
     if ((activeDoc.thumbnailPrompt || '').trim()) nextStage = 6;
     if ((activeDoc.rawReferencePrompts || '').trim()) nextStage = 8;
     if ((activeDoc.rawClipsText || '').trim()) nextStage = 10;
-    if ((activeDoc.rawSunoText || '').trim()) nextStage = 111;
+    if ((activeDoc.rawSunoText || '').trim()) nextStage = 11;
 
     setFullPreprodStepMsg(
       `🚀 Enviando Etapa ${nextStage === 111 ? 11 : nextStage} a tu cuenta de Gemini Web...`
@@ -13889,6 +14063,18 @@ export default function App() {
                   alert('Primero pega o genera la metadata en YouTube o Facebook.');
                   return;
                 }
+                const parsed4 = parseStage11FourSections(sourceText);
+                if (parsed4.foundCount >= 2) {
+                  updateActiveDoc({
+                    ...(parsed4.youtube
+                      ? { rawYoutubeMetadata: parsed4.youtube, rawMetadataText: parsed4.youtube }
+                      : {}),
+                    ...(parsed4.facebook ? { rawFacebookMetadata: parsed4.facebook } : {}),
+                    ...(parsed4.pinnedComment ? { pinnedComment: parsed4.pinnedComment } : {}),
+                    ...(parsed4.youtubeTags ? { youtubeTags: parsed4.youtubeTags } : {}),
+                  });
+                  return;
+                }
                 const lines = sourceText.split(/\r?\n/);
                 let hashtagLineIdx = -1;
                 for (let i = 0; i < lines.length; i++) {
@@ -13958,10 +14144,8 @@ export default function App() {
                         type="button"
                         disabled={aiGenerating}
                         onClick={async () => {
-                          await handleGenerateWithGemini(111);
-                          await handleGenerateWithGemini(112);
-                          await handleGenerateWithGemini(113);
-                          await handleGenerateWithGemini(114);
+                          pendingStage11QueueRef.current = [];
+                          await handleGenerateWithGemini(11);
                         }}
                         className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
                       >
