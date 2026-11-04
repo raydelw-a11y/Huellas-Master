@@ -1196,7 +1196,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [voiceGainDb, setVoiceGainDb] = useState<number>(5); // Always +5 dB boost for narrative voiceover
   const [autoDuckingEnabled, setAutoDuckingEnabled] = useState<boolean>(true);
   const [foleyHighVolume, setFoleyHighVolume] = useState<number>(80); // When narrator is silent
-  const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(35); // When narrator speaks
+  const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(20); // When narrator speaks
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
   const [captions, setCaptions] = useState<TimelineCaptionItem[]>(() => {
@@ -2616,7 +2616,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         parentGroupId: existingItem?.parentGroupId,
         originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
         partLabel: existingItem?.partLabel,
-        foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 35,
+        foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 20,
         customVolumeSet: existingItem?.customVolumeSet,
         audioMuted: existingItem?.audioMuted,
         audioFadeInSec: existingItem?.audioFadeInSec,
@@ -2656,7 +2656,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           trimEnd: srcDur,
           smoothSlowMo: false,
           originalSlotDuration: srcDur,
-          foleyVolume: isClip1 ? 80 : 35,
+          foleyVolume: isClip1 ? 80 : 20,
           transition: isClip1 ? 'fade_black' : defaultTransition,
           videoUrl: rawVidUrl,
           posterUrl: firstFrameByClip[num] || '',
@@ -2796,11 +2796,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? baseOpticalFlowUrl
               : undefined;
 
+          const isIntroOrOutroRestored =
+            tc.id === 'fixed-doc-intro' ||
+            tc.id === 'fixed-doc-outro' ||
+            tc.clipNumber === 0 ||
+            tc.clipNumber === 999;
+          const isClip1Restored = tc.clipNumber === 1;
+          const repairedFoleyVolume =
+            isIntroOrOutroRestored || isClip1Restored || tc.customVolumeSet
+              ? tc.foleyVolume
+              : 20;
+
           if (
             isNewerDiskVideo ||
             effectiveVideoUrl !== tc.videoUrl ||
             freshPosterUrl !== tc.posterUrl ||
             effectiveOpticalFlowUrl !== tc.opticalFlowUrl ||
+            repairedFoleyVolume !== tc.foleyVolume ||
             tc.foleyOnlyIsolated ||
             tc.vocalsSeparated ||
             tc.musicSeparated
@@ -2814,6 +2826,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const srcDur = tc.sourceDuration || standardDur;
           return {
             ...tc,
+            foleyVolume: repairedFoleyVolume,
             videoUrl: effectiveVideoUrl,
             opticalFlowUrl: effectiveOpticalFlowUrl,
             opticalFlowBakedKey: effectiveOpticalFlowUrl ? tc.opticalFlowBakedKey : undefined,
@@ -6160,7 +6173,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     foleyVolume:
                       c.audioMuted || c.customVolumeSet
                         ? c.foleyVolume
-                        : Math.max(c.foleyVolume || 0, 80),
+                        : c.clipNumber === 1
+                        ? 80
+                        : 20,
                   }
                 : c
             )
@@ -6204,7 +6219,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             foleyVolume:
               c.audioMuted || c.customVolumeSet
                 ? c.foleyVolume
-                : Math.max(c.foleyVolume || 0, 80),
+                : c.clipNumber === 1
+                ? 80
+                : 20,
           };
         })
       );
@@ -7772,31 +7789,60 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               resolution: exportResolution,
               fps: exportFps,
               bitrateMbps: exportBitrateMbps,
-              clips: clipsWithTimelineBounds.map((c) => ({
-                clipNumber: c.clipNumber,
-                fileName: c.fileName,
-                start: c.start,
-                end: c.end,
-                durationSec: c.duration,
-                sourceDuration: c.sourceDuration,
-                trimStart: c.trimStart || 0,
-                trimEnd: c.trimEnd,
-                speed: c.speed,
-                smoothSlowMo:
-                  c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
-                opticalFlowUrl: c.opticalFlowUrl || '',
-                videoUrl: c.videoUrl || '',
-                foleyOnlyIsolated: Boolean(c.foleyOnlyIsolated),
-                foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
-                vocalsSeparated: Boolean(c.vocalsSeparated),
-                musicSeparated: Boolean(c.musicSeparated),
-                foleyVolume: c.audioMuted ? 0 : c.foleyVolume / 100,
-                audioMuted: Boolean(c.audioMuted),
-                audioFadeInSec: c.audioFadeInSec,
-                audioFadeOutSec: c.audioFadeOutSec,
-                transition: c.transition,
-                videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
-              })),
+              clips: clipsWithTimelineBounds.map((c) => {
+                const isIntroOrOutroClip =
+                  c.id === 'fixed-doc-intro' ||
+                  c.id === 'fixed-doc-outro' ||
+                  c.clipNumber === 0 ||
+                  c.clipNumber === 999;
+                const isNarratedClip =
+                  !isIntroOrOutroClip &&
+                  c.clipNumber !== 1 &&
+                  c.end > voiceStartOffsetSec + 0.5;
+                const rawClipVolPct =
+                  typeof c.foleyVolume === 'number'
+                    ? c.foleyVolume
+                    : isIntroOrOutroClip
+                    ? 100
+                    : isNarratedClip
+                    ? foleyDuckedVolume
+                    : foleyHighVolume;
+                const effectiveClipFoleyPct = c.audioMuted
+                  ? 0
+                  : isIntroOrOutroClip
+                  ? rawClipVolPct
+                  : c.customVolumeSet || !autoDuckingEnabled
+                  ? rawClipVolPct
+                  : isNarratedClip
+                  ? Math.min(rawClipVolPct, foleyDuckedVolume)
+                  : rawClipVolPct;
+                return {
+                  clipNumber: c.clipNumber,
+                  fileName: c.fileName,
+                  start: c.start,
+                  end: c.end,
+                  durationSec: c.duration,
+                  sourceDuration: c.sourceDuration,
+                  trimStart: c.trimStart || 0,
+                  trimEnd: c.trimEnd,
+                  speed: c.speed,
+                  smoothSlowMo:
+                    c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
+                  opticalFlowUrl: c.opticalFlowUrl || '',
+                  videoUrl: c.videoUrl || '',
+                  foleyOnlyIsolated: Boolean(c.foleyOnlyIsolated),
+                  foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
+                  vocalsSeparated: Boolean(c.vocalsSeparated),
+                  musicSeparated: Boolean(c.musicSeparated),
+                  foleyVolume: Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)),
+                  customVolumeSet: Boolean(c.customVolumeSet),
+                  audioMuted: Boolean(c.audioMuted),
+                  audioFadeInSec: c.audioFadeInSec,
+                  audioFadeOutSec: c.audioFadeOutSec,
+                  transition: c.transition,
+                  videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
+                };
+              }),
               voiceoverStartSec: voiceStartOffsetSec,
               voiceoverVolume: voiceVolume / 100,
               voiceoverGainDb: voiceGainDb,
@@ -10730,7 +10776,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         type="button"
                         onClick={() => {
                           handleUpdateClipsAudio({
-                            foleyVolume: selectedClip.clipNumber === 1 ? 80 : 35,
+                            foleyVolume: selectedClip.clipNumber === 1 ? 80 : 20,
                             audioFadeInSec: undefined,
                             audioFadeOutSec: undefined,
                             audioMuted: false,

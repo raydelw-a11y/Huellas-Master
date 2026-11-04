@@ -3657,15 +3657,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : slotDur > 0.3 && effectiveSpan > 0.2
         ? ((slotDur + 0.06) / effectiveSpan).toFixed(5)
         : (1 / speed).toFixed(4);
-      const foleyVol = c.audioMuted
-        ? 0
-        : typeof c.foleyVolume === 'number'
-        ? c.foleyVolume
-        : 0.35;
       const isFirstClipAfterIntro =
         !isIntroClip &&
         !isOutroClip &&
         (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
+      const foleyVol = c.audioMuted
+        ? 0
+        : isIntroClip || isOutroClip
+        ? typeof c.foleyVolume === 'number'
+          ? c.foleyVolume
+          : 1.0
+        : isFirstClipAfterIntro
+        ? typeof c.foleyVolume === 'number'
+          ? c.foleyVolume
+          : 0.8
+        : c.customVolumeSet
+        ? typeof c.foleyVolume === 'number'
+          ? c.foleyVolume
+          : 0.2
+        : Math.min(0.2, typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.2);
       const effectiveClipDur =
         slotDur > 0.3
           ? slotDur
