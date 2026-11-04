@@ -4233,26 +4233,30 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       let nextInputIdx = 1;
 
       const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
-      const voDbMultiplier = Math.pow(10, Number(voiceoverGainDb ?? 5) / 20);
+      // Match Web Audio API in CapCutEditor: mono-to-stereo without -3.01dB pan loss (pan=stereo|FL=FL+FC|FR=FR+FC) + DynamicsCompressor makeup gain
+      const voDbMultiplier = Math.pow(10, (Number(voiceoverGainDb ?? 5) + 1.5) / 20);
       const boostedVoVol = safeVoVol * voDbMultiplier;
       if (hasVo) {
         muxerArgs.push('-i', voPath);
         const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
         filterParts.push(
-          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB,adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)}[vo]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=N/SR/TB,adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)},alimiter=limit=0.89:attack=3:release=150:level=disabled[vo]`
         );
         mixLabels.push('[vo]');
         nextInputIdx++;
       }
 
       const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.1)));
+      // Calibrate exported FlowMusic (brickwall 0 dBFS stereo) by 0.45x (-7 dB) so 10% in the editor matches the exact perceived background level in the exported MP4
+      const MUSIC_EXPORT_CALIBRATION = 0.45;
       for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
         const mItem = resolvedMusicInputs[mIdx];
         muxerArgs.push('-i', mItem.filePath);
         const startMs = Math.max(0, Math.round(mItem.startSec * 1000));
         const dur = Math.max(8, mItem.durationSec);
-        const trackVol =
+        const rawTrackVol =
           typeof mItem.volume === 'number' ? mItem.volume : defaultMusicVol;
+        const trackVol = Math.max(0, Math.min(1.0, rawTrackVol * MUSIC_EXPORT_CALIBRATION));
         const fadeFilters: string[] = [];
         if (mItem.fadeInSec > 0) {
           fadeFilters.push(`afade=t=in:st=0:d=${mItem.fadeInSec}:curve=tri`);
@@ -4264,7 +4268,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const fadeChain = fadeFilters.length > 0 ? `,${fadeFilters.join(',')}` : '';
         const lbl = `mus${mIdx}`;
         filterParts.push(
-          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},volume=${trackVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},volume=${trackVol.toFixed(4)},adelay=${startMs}|${startMs}[${lbl}]`
         );
         mixLabels.push(`[${lbl}]`);
         nextInputIdx++;
