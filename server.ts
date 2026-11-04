@@ -3714,8 +3714,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
         : '';
       const vfTrimSuffix =
-        !usingPrebakedOpticalFlow && slotDur > 0.3
-          ? `,trim=duration=${slotDur.toFixed(3)},setpts=PTS-STARTPTS`
+        effectiveClipDur > 0.3
+          ? `,tpad=stop_mode=clone:stop_duration=0.08,trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS`
           : '';
 
       // Build native libass (.ass) file for any subtitles or Hook text falling inside [segStartSec, segEndSec]
@@ -3863,8 +3863,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       };
       const atempoPrefix = buildAtempoChain(speed);
       const afTrimSuffix =
-        !usingPrebakedOpticalFlow && slotDur > 0.3
-          ? `,apad,atrim=duration=${slotDur.toFixed(3)},asetpts=PTS-STARTPTS`
+        effectiveClipDur > 0.3
+          ? `,apad,atrim=duration=${effectiveClipDur.toFixed(3)},asetpts=PTS-STARTPTS`
           : '';
       const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol}${afTrimSuffix}`;
 
@@ -4216,8 +4216,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     let muxerArgs: string[] = [];
     if (hasVo || resolvedMusicInputs.length > 0) {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
-      const filterParts: string[] = [];
-      const mixLabels: string[] = ['[0:a]'];
+      const filterParts: string[] = [
+        '[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB[clip_a]',
+      ];
+      const mixLabels: string[] = ['[clip_a]'];
       let nextInputIdx = 1;
 
       const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
@@ -4227,7 +4229,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         muxerArgs.push('-i', voPath);
         const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
         filterParts.push(
-          `[${nextInputIdx}:a]adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)}[vo]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB,adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)}[vo]`
         );
         mixLabels.push('[vo]');
         nextInputIdx++;
@@ -4252,14 +4254,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const fadeChain = fadeFilters.length > 0 ? `,${fadeFilters.join(',')}` : '';
         const lbl = `mus${mIdx}`;
         filterParts.push(
-          `[${nextInputIdx}:a]atrim=0:${dur},asetpts=PTS-STARTPTS${fadeChain},volume=${trackVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},volume=${trackVol.toFixed(3)},adelay=${startMs}|${startMs}[${lbl}]`
         );
         mixLabels.push(`[${lbl}]`);
         nextInputIdx++;
       }
 
       filterParts.push(
-        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0[aout]`
+        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0,asetpts=N/SR/TB[aout]`
       );
 
       muxerArgs.push(
