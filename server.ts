@@ -4398,6 +4398,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     await muxerDonePromise;
 
     if (fs.existsSync(tempMuxOutputPath)) {
+      if (process.platform === 'darwin') {
+        try {
+          execSync(`xattr -c "${tempMuxOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+        } catch {}
+      }
+      if (fs.existsSync(finalOutputPath)) {
+        try {
+          fs.unlinkSync(finalOutputPath);
+        } catch {}
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       try {
         fs.renameSync(tempMuxOutputPath, finalOutputPath);
       } catch {
@@ -4409,6 +4420,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     try {
+      execSync(`xattr -c "${finalOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
       execSync(`chflags nohidden "${finalOutputPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
     } catch {}
 
