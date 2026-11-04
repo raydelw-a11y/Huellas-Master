@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:43 PM - 11/03/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:56 PM - 11/03/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1832,6 +1832,7 @@ export default function App() {
   const flowAutoChainBatchesRef = React.useRef<boolean>(true);
   const [isFullPreprodRunning, setIsFullPreprodRunning] = useState<boolean>(false);
   const [fullPreprodStepMsg, setFullPreprodStepMsg] = useState<string>('');
+  const [stage11TitleOptions, setStage11TitleOptions] = useState<string[]>([]);
   const activeDocRef = React.useRef<DocumentaryProject | null>(null);
 
   useEffect(() => {
@@ -2900,6 +2901,46 @@ export default function App() {
             skipModelSwitch: true,
           });
         }, 900);
+      }
+    } else if (stageNum === 115) {
+      const cleanedLines = stripStage12ClosingChatter(text)
+        .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .split(/\r?\n/)
+        .map((l) =>
+          l
+            .replace(/^\s*(?:Opci[oó]n\s*\d+\s*[:.-]?|\d+\s*[.)-]|[-•*])\s*/i, '')
+            .replace(/^["«“]+|["»”]+$/g, '')
+            .trim()
+        )
+        .filter((l) => l.length >= 25 && !/^(?:aqu[ií]\s+tienes|t[ií]tulos\s+sugeridos)/i.test(l))
+        .slice(0, 6);
+
+      if (cleanedLines.length > 0) {
+        setStage11TitleOptions(cleanedLines);
+        const bestTitle = cleanedLines[0];
+        const latestDoc = activeDocRef.current || activeDoc;
+        if (latestDoc) {
+          const replaceFirstTitleLine = (rawMeta?: string): string => {
+            const m = String(rawMeta || '').trim();
+            if (!m) return bestTitle;
+            const lines = m.split(/\r?\n/);
+            lines[0] = bestTitle;
+            return lines.join('\n');
+          };
+          const patch: Partial<DocumentaryProject> = { publishTitle: bestTitle };
+          const curYt = latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '';
+          const curFb = latestDoc.rawFacebookMetadata ?? '';
+          if (curYt.trim()) {
+            const nextYt = replaceFirstTitleLine(curYt);
+            patch.rawYoutubeMetadata = nextYt;
+            patch.rawMetadataText = nextYt;
+          }
+          if (curFb.trim()) {
+            patch.rawFacebookMetadata = replaceFirstTitleLine(curFb);
+          }
+          updateActiveDoc(patch);
+        }
       }
     }
   };
@@ -14390,6 +14431,82 @@ export default function App() {
               const pinnedCommentVal = activeDoc.pinnedComment ?? '';
               const youtubeTagsVal = activeDoc.youtubeTags ?? '';
 
+              const currentDetectedTitle =
+                (youtubeMeta || facebookMeta)
+                  .split(/\r?\n/)
+                  .map((l) => l.replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim())
+                  .find(Boolean) ||
+                activeDoc.publishTitle ||
+                '';
+
+              const applySpecificTitleToMetadata = (newTitle: string) => {
+                const cleanTitle = newTitle.trim();
+                if (!cleanTitle) return;
+                const replaceFirstLine = (rawMeta: string): string => {
+                  const trimmed = String(rawMeta || '').trim();
+                  if (!trimmed) return cleanTitle;
+                  const lines = trimmed.split(/\r?\n/);
+                  let firstNonEmptyIdx = lines.findIndex(
+                    (l) => l.replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim().length > 0
+                  );
+                  if (firstNonEmptyIdx === -1) firstNonEmptyIdx = 0;
+                  lines[firstNonEmptyIdx] = cleanTitle;
+                  return lines.join('\n');
+                };
+                const patch: Partial<DocumentaryProject> = {
+                  publishTitle: cleanTitle,
+                };
+                if (youtubeMeta.trim()) {
+                  const updatedYt = replaceFirstLine(youtubeMeta);
+                  patch.rawYoutubeMetadata = updatedYt;
+                  patch.rawMetadataText = updatedYt;
+                }
+                if (facebookMeta.trim()) {
+                  patch.rawFacebookMetadata = replaceFirstLine(facebookMeta);
+                }
+                updateActiveDoc(patch);
+              };
+
+              const combinedContextForTitles = `${activeDoc.title || ''} ${activeDoc.topic || ''} ${(
+                activeDoc.voiceoverScript || ''
+              ).slice(0, 900)}`.toLowerCase();
+              const isExodoStory =
+                combinedContextForTitles.includes('éxodo') ||
+                combinedContextForTitles.includes('exodo') ||
+                combinedContextForTitles.includes('maliaño') ||
+                combinedContextForTitles.includes('hacer la américa') ||
+                combinedContextForTitles.includes('emigrantes españoles');
+              const isLouvreStory = combinedContextForTitles.includes('louvre');
+              const isPrincesasStory =
+                combinedContextForTitles.includes('princesas de la edad media') ||
+                combinedContextForTitles.includes('inés de dinamarca');
+
+              const defaultSpecificTitleSuggestions = isExodoStory
+                ? [
+                    'El Éxodo Español a América (1885-1939): Cómo 3 Millones de Emigrantes Cruzaron el Atlántico para Hacer la América | Documental Completo',
+                    'De Dormir sobre un Mostrador a Levantar un Imperio: La Cruda Historia Real del Éxodo Español a América (Siglo XIX) | Documental Completo',
+                    '2 Mil Pesetas por tu Vida o Cruzar el Océano: Así Fue el Gran Éxodo de los Emigrantes Españoles hacia Cuba, México y Argentina | Documental Completo',
+                    'Hacer la América en 1885: El Sacrificio Oculto de los Jovenes Españoles que Cruzaron el Atlántico en Tercera Clase | Documental Completo',
+                  ]
+                : isLouvreStory
+                ? [
+                    'La Vida Secreta dentro del Castillo del Louvre: Intrigas, Lujo y Traición en la Corte Real de París | Documental Completo',
+                    'Dentro de la Fortaleza del Louvre: Así Era Realmente Vivir Tras los Muros del Palacio Real Francés | Documental Completo',
+                    'Secretos, Veneno y Poder Absoluto: Lo que Ocurría cada Noche dentro del Castillo del Louvre | Documental Completo',
+                  ]
+                : isPrincesasStory
+                ? [
+                    'Las Princesas de la Edad Media: El Oscuro Destino de las Jóvenes Entregadas como Moneda de Alianza en el Siglo XIII | Documental Completo',
+                    'Casadas a los 12 Años con Reyes Desconocidos: Así Era la Cruda Vida Real de las Princesas de la Edad Media | Documental Completo',
+                    'Princesas de la Edad Media (Siglo XIII): El Precio Oculto de Llevar una Corona en las Cortes de Europa | Documental Completo',
+                  ]
+                : [
+                    `${(activeDoc.topic || activeDoc.title || 'Historia Oculta').replace(/^Video\s*\d+\s*/i, '').trim()}: La Verdadera Historia Detrás de los Registros de la Época (${activeDoc.historicalTime || 'Siglo XIX'}) | Documental Completo`,
+                  ];
+
+              const displayedTitleSuggestions =
+                stage11TitleOptions.length > 0 ? stage11TitleOptions : defaultSpecificTitleSuggestions;
+
               const handleExtractTagsAndPinned = () => {
                 const sourceText = (youtubeMeta || facebookMeta || '').trim();
                 if (!sourceText) {
@@ -14482,6 +14599,21 @@ export default function App() {
                       <button
                         type="button"
                         disabled={aiGenerating}
+                        onClick={() =>
+                          handleSendStageToGeminiWeb(115, undefined, {
+                            enableHighModel: false,
+                            enableArgonLow: true,
+                            enableDeepResearch: false,
+                          })
+                        }
+                        className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        title="Pide a Gemini Argon (Low) 5 opciones de títulos ultra-específicos, sugerentes y directamente referentes a la historia central del guion, y aplica el mejor a YouTube y Facebook"
+                      >
+                        🎯 Generar 5 Títulos Específicos (Gemini)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aiGenerating}
                         onClick={async () => {
                           pendingStage11QueueRef.current = [112, 113, 114];
                           handleSendStageToGeminiWeb(111, undefined, {
@@ -14497,6 +14629,68 @@ export default function App() {
                           ? 'Generando las 4 Secciones (Argon Low)...'
                           : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
                       </button>
+                    </div>
+                  </div>
+
+                  {/* PANEL DE TÍTULOS ESPECÍFICOS Y SUGERENTES PARA LA HISTORIA */}
+                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs font-extrabold text-amber-300 uppercase tracking-wider">
+                          🎯 Título Específico y Sugerente de la Historia (Línea 1 de YouTube y Facebook)
+                        </span>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Haz clic en cualquiera de las opciones específicas para la historia de este documental (o edítalo abajo) y se actualizará al instante en la primera línea de YouTube y Facebook sin alterar los párrafos ni capítulos.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={currentDetectedTitle}
+                        onChange={(e) => applySpecificTitleToMetadata(e.target.value)}
+                        placeholder="Escribe o selecciona abajo un título específico y sugerente referente a la historia del documental..."
+                        className="flex-1 bg-slate-950 border border-amber-500/40 focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs font-bold text-amber-100 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => copyText(currentDetectedTitle, 'copy-specific-title')}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-slate-700 font-bold text-xs cursor-pointer shrink-0"
+                      >
+                        {copiedId === 'copy-specific-title' ? '✓ Copiado' : '📋 Copiar Título'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      {displayedTitleSuggestions.map((sugTitle, idx) => {
+                        const isSelected = currentDetectedTitle.trim() === sugTitle.trim();
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => applySpecificTitleToMetadata(sugTitle)}
+                            className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-400 text-amber-200 font-bold'
+                                : 'bg-slate-950/80 hover:bg-slate-900 border-slate-800 text-slate-200'
+                            }`}
+                          >
+                            <span className="flex-1 leading-snug">
+                              <strong className="text-amber-400 mr-1.5">Opción {idx + 1}:</strong>
+                              {sugTitle}
+                            </span>
+                            <span
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                                isSelected
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              }`}
+                            >
+                              {isSelected ? '✓ Aplicado' : 'Usar este Título'}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 

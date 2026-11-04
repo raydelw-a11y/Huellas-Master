@@ -2184,15 +2184,15 @@ Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || doc.hist
 Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
 Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): "${doc.clip1Line2Hook || ''}"
-Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 2000)}
+Guion REAL de referencia (PRIORIDAD ABSOLUTA para extraer la historia central y el Título específico): ${(doc.voiceoverScript || '').slice(0, 2000)}
 
 TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PUBLICACIÓN** separadas EXACTAMENTE por estas 4 etiquetas en mayúsculas:
 
 ===SECCION_YOUTUBE===
-[Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados excepto "Capítulos:", ~3000 caracteres, Título directo sin repetir Miniatura ni Hook del Clip 1 (años en dígitos, siglos/monarcas en números romanos), descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), sección "Capítulos:" con 10 capítulos cronológicos donde 00:00 es parte de la historia, Nota IA: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+[Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados excepto "Capítulos:", ~3000 caracteres, Título directo ULTRA-ESPECÍFICO, SUGERENTE y referente a la historia real narrada en el guion (prohibido títulos vagos o genéricos; debe nombrar explícitamente el sujeto, colectivo, lugar o hecho histórico concreto del guion unido a la revelación o drama central, con años en dígitos y siglos/monarcas en números romanos, sin repetir palabra por palabra la frase de la Miniatura ni del Hook del Clip 1), descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), sección "Capítulos:" con 10 capítulos cronológicos donde 00:00 es parte de la historia, Nota IA: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
 
 ===SECCION_FACEBOOK===
-[Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados, SIN capítulos y SIN tags SEO, ~3000 caracteres, Título directo sin repetir Miniatura ni Hook del Clip 1, descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+[Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados, SIN capítulos y SIN tags SEO, ~3000 caracteres, Título directo ULTRA-ESPECÍFICO, SUGERENTE y referente a la historia real narrada en el guion (sin repetir literalmente la Miniatura ni el Hook del Clip 1), descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
 
 ===SECCION_COMENTARIO===
 [Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin encabezado ni comillas: reflexión histórica magnética + pregunta/CTA natural para debatir, sin signos de exclamación (!), sin pedir like/suscribirse, años en dígitos y siglos/monarcas en romanos.]
@@ -2206,14 +2206,15 @@ Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
 Plataforma: YOUTUBE
 Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 1500)}
+Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || '').slice(0, 1500)}
 
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
 1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
 2. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
-3. REGLA INQUEBRANTABLE DE NO REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS:
-   - Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura ("${doc.thumbnailTextOverlay || ''}"), el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}").
-   - El Título directo (con años en dígitos y siglos/nombres con número en números romanos) debe ser completamente distinto a la Miniatura y al Texto en pantalla de los primeros ${voiceEntrySec} segundos.
+3. REGLA INQUEBRANTABLE DEL TÍTULO DEL VIDEO (ESPECÍFICO, ALTAMENTE SUGERENTE Y FIEL A LA HISTORIA REAL DEL GUION):
+   - PROHIBIDO TÍTULOS GENÉRICOS, VAGOS O POÉTICOS: Queda terminantemente prohibido usar frases abstractas o genéricas que no revelen de qué historia específica trata el video (ej. prohibido "El Precio del Destino", "Sombras entre Dos Orillas" o "Así Era Vivir en la Corte Real" sin nombrar al sujeto o suceso histórico real).
+   - FÓRMULA DE ESPECIFICIDAD HISTÓRICA + GANCHO MAGNÉTICO (ALTO CTR): El título DEBE nombrar explícitamente el sujeto, colectivo humano, lugar emblemático o hecho histórico concreto que protagoniza el Guion de referencia (con años en dígitos y siglos/monarcas en números romanos) UNIDO al conflicto, paradoja, sacrificio o revelación más impactante que transmite la historia.
+   - NO REPETICIÓN BIEN APLICADA: No copies palabra por palabra la frase exacta de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"), pero SÍ es obligatorio mencionar el tema, lugar o protagonista histórico real del guion para que el espectador entienda al instante qué historia específica va a descubrir.
 4. LIBERTAD EN EL RESTO DE LA METADATA Y DESCRIPCIÓN EN 3 PÁRRAFOS:
    - En lo demás de la metadata (los 3 párrafos de la descripción, capítulos, etc.) NO importa que se repitan algunas palabras del guion o del tema.
    - La descripción debe estar dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
@@ -2228,15 +2229,16 @@ Duración final confirmada: ${doc.confirmedFinalDuration || '02:00'}
 Plataforma: FACEBOOK
 Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion de referencia: ${(doc.voiceoverScript || '').slice(0, 1500)}
+Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || '').slice(0, 1500)}
 
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
 1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:").
 2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
 3. Extensión de 3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
-4. REGLA INQUEBRANTABLE DE NO REPETICIÓN ENTRE MINIATURA, TÍTULO Y TEXTO EN PANTALLA EN LOS PRIMEROS 8 SEGUNDOS:
-   - Lo que NO podemos hacer bajo ningún concepto es repetir lo mismo entre la Miniatura ("${doc.thumbnailTextOverlay || ''}"), el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}").
-   - El Título directo (con años en dígitos y siglos/nombres con número en números romanos) debe ser completamente distinto a la Miniatura y al Texto en pantalla de los primeros ${voiceEntrySec} segundos.
+4. REGLA INQUEBRANTABLE DEL TÍTULO DEL VIDEO (ESPECÍFICO, ALTAMENTE SUGERENTE Y FIEL A LA HISTORIA REAL DEL GUION):
+   - PROHIBIDO TÍTULOS GENÉRICOS, VAGOS O POÉTICOS: Queda terminantemente prohibido usar frases abstractas o genéricas que no revelen de qué historia específica trata el video.
+   - FÓRMULA DE ESPECIFICIDAD HISTÓRICA + GANCHO MAGNÉTICO: El título DEBE nombrar explícitamente el sujeto, colectivo humano, lugar emblemático o hecho histórico concreto que protagoniza el Guion de referencia (con años en dígitos y siglos/monarcas en números romanos) UNIDO al conflicto, paradoja, sacrificio o revelación más impactante que transmite la historia.
+   - NO REPETICIÓN BIEN APLICADA: No copies palabra por palabra la frase exacta de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto en pantalla en los primeros ${voiceEntrySec} segundos ("${doc.clip1Line2Hook || ''}"), pero SÍ menciona directamente el tema, lugar o protagonista histórico real del guion.
 5. LIBERTAD EN EL RESTO DE LA METADATA Y DESCRIPCIÓN EN 3 PÁRRAFOS:
    - En lo demás de la metadata (los 3 párrafos de la descripción, etc.) NO importa que se repitan algunas palabras del guion o del tema.
    - La descripción debe estar dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
@@ -2262,6 +2264,14 @@ Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas i
 1. Entrega ÚNICAMENTE las etiquetas separadas por comas, en un solo bloque continuo, sin ningún encabezado (prohibido poner "Tags:" o "Tags SEO:").
 2. La longitud total del bloque debe ser de aproximadamente 460 a 500 caracteres contando espacios y comas (nunca superar los 500 caracteres).
 3. Incluye palabras clave de alto volumen de búsqueda en español sobre el tema histórico, personajes, época, lugar y documentales de historia.`;
+    } else if (stageNumber === 115) {
+      stagePrompt = `Actúa como director editorial y estratega de alto CTR en YouTube y Facebook para "Huellas de la Humanidad".
+Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
+Guion REAL del documental:
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2200)}
+"""
+Genera EXACTAMENTE 5 opciones de TÍTULOS PARA EL VIDEO que sean ULTRA-ESPECÍFICOS, SUGERENTES, MAGNÉTICOS y directamente referentes a la historia central que se transmite en el guion (nombrando explícitamente el hecho histórico, colectivo o protagonista real unido a su conflicto o revelación más impactante, con años en dígitos y siglos/monarcas en números romanos). Entrega únicamente los 5 títulos, uno por línea, sin numeración ni comillas.`;
     }
 
     if (customInstruction) {

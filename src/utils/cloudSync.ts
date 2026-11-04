@@ -1694,7 +1694,8 @@ Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`
     stageNumber === 111 ||
     stageNumber === 112 ||
     stageNumber === 113 ||
-    stageNumber === 114
+    stageNumber === 114 ||
+    stageNumber === 115
   ) {
     const parseMmSsToSec11 = (str?: string): number => {
       if (!str) return 0;
@@ -1740,6 +1741,14 @@ Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`
       doc.targetDurationSeconds || 120
     );
     const resolvedFinalDuration11 = formatSecToMmSs11(totalDocSec11);
+    const isLongDoc11 = totalDocSec11 > 480;
+    const titleSuffixRule11 = isLongDoc11
+      ? 'Al durar más de 8 minutos, el título DEBE finalizar obligatoriamente con el sufijo " | Documental Completo".'
+      : 'Termina con un separador "|" y una palabra clave corta referente al tema (sin sufijo de IA ni "| Huellas de la Humanidad").';
+    const specificTitleLaw11 = `REGLA INQUEBRANTABLE DEL TÍTULO DEL VIDEO (ESPECÍFICO, ALTAMENTE SUGERENTE Y FIEL A LA HISTORIA REAL DEL GUION):
+   - PROHIBIDO TÍTULOS GENÉRICOS, VAGOS O POÉTICOS: Queda terminantemente prohibido usar frases abstractas o genéricas que no revelen de qué historia específica trata el video (ej. prohibido "El Precio del Destino", "Sombras entre Dos Orillas", "Crónicas de un Imperio" o "Así Era Vivir en la Corte Real" sin nombrar al sujeto o suceso histórico real).
+   - FÓRMULA DE ESPECIFICIDAD HISTÓRICA + GANCHO MAGNÉTICO (ALTO CTR): El título DEBE nombrar explícitamente el sujeto, colectivo humano, lugar emblemático o hecho histórico concreto que protagoniza el Guion de referencia (con años en dígitos y siglos/monarcas en números romanos) UNIDO al conflicto, paradoja, sacrificio o revelación más impactante que transmite la historia (ej. "El Éxodo Español a América (1885-1939): Cómo 3 Millones de Emigrantes Cruzaron el Atlántico para Hacer la América | Documental Completo" o "Las Princesas de la Edad Media: El Oscuro Destino de las Jóvenes Usadas como Moneda de Alianza en el Siglo XIII | Documental Completo").
+   - NO REPETICIÓN BIEN APLICADA: No copies palabra por palabra la frase exacta de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto del Clip 1 ("${doc.clip1Line2Hook || ''}"), pero SÍ es obligatorio mencionar el tema, lugar o protagonista histórico real del guion para que el espectador entienda al instante qué historia específica va a vivir. ${titleSuffixRule11}`;
     const chaptersTimelineGuide =
       Array.isArray(doc.clips) && doc.clips.length > 0
         ? doc.clips
@@ -1762,7 +1771,7 @@ Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${d
 Duración final confirmada del documental: ${resolvedFinalDuration11}
 Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1 Hook): "${doc.clip1Line2Hook || ''}"
-Guion de referencia:
+Guion REAL del documental (PRIORIDAD ABSOLUTA para extraer la historia central y el Título específico):
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2200)}
 """
@@ -1773,7 +1782,7 @@ TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PU
 [Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
 1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
 2. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
-3. REGLA INQUEBRANTABLE: El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la frase de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto en pantalla de los primeros ${voiceEntrySec}s ("${doc.clip1Line2Hook || ''}").
+3. ${specificTitleLaw11}
 4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
 5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos desde 00:00 hasta antes de ${resolvedFinalDuration11} (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
 6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
@@ -1785,7 +1794,7 @@ TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PU
 1. CERO encabezados de sección en toda la entrega.
 2. SIN sección de Capítulos y SIN bloque de Tags SEO.
 3. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
-4. Título directo magnético (sin repetir Miniatura ni Hook del Clip 1) + línea braille (⠀) + EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀) + línea braille (⠀) + Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales). + línea braille (⠀) + Slogan: Cada historia deja una huella. Aquí seguimos sus rastros. + línea braille (⠀) + 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+4. Título directo altamente específico, sugerente y referente a la historia real del guion (cumpliendo la misma Regla Inquebrantable de Especificidad Histórica + Gancho Magnético, sin repetir literalmente la frase de la Miniatura ni del Hook del Clip 1) + línea braille (⠀) + EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀) + línea braille (⠀) + Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales). + línea braille (⠀) + Slogan: Cada historia deja una huella. Aquí seguimos sus rastros. + línea braille (⠀) + 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
 
 ===SECCION_COMENTARIO===
 [Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin ningún encabezado ni comillas: una reflexión histórica magnética seguida de una pregunta o llamado a la acción (CTA) natural que invite a la audiencia a debatir o compartir una vivencia relacionada con el hecho histórico. Prohibido decir "dale like" o "suscríbete", prohibido usar signos de exclamación (!), años en dígitos y siglos/monarcas en números romanos.]
@@ -1799,12 +1808,12 @@ Duración final confirmada: ${resolvedFinalDuration11}
 Plataforma: YOUTUBE
 Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 ${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental:\n${chaptersTimelineGuide}\n` : ''}
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
 1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias ("Aquí tienes..."), con la ÚNICA excepción obligatoria del encabezado "Capítulos:". Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales sin cortar ninguna sección.
 2. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
-3. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
+3. ${specificTitleLaw11}
 4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
 5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
 6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
@@ -1818,13 +1827,13 @@ Duración final confirmada: ${resolvedFinalDuration11}
 Plataforma: FACEBOOK
 Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
 1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias. Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales.
 2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
 3. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
-4. El Título directo (con años en dígitos y siglos/monarcas en números romanos) NO puede repetir la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni el Texto del Clip 1 ("${doc.clip1Line2Hook || ''}").
+4. ${specificTitleLaw11}
 5. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
 6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
@@ -1849,6 +1858,25 @@ Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas i
 1. Entrega ÚNICAMENTE las etiquetas separadas por comas, en un solo bloque continuo, sin ningún encabezado (prohibido poner "Tags:" o "Tags SEO:").
 2. La longitud total del bloque debe ser de aproximadamente 460 a 500 caracteres contando espacios y comas (nunca superar los 500 caracteres).
 3. Incluye palabras clave de alto volumen de búsqueda en español sobre el tema histórico, personajes, época, lugar y documentales de historia.`;
+    } else if (stageNumber === 115) {
+      stagePrompt = `Actúa como director editorial y estratega de alto CTR en YouTube y Facebook para el canal documental "Huellas de la Humanidad".
+Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Duración final confirmada: ${resolvedFinalDuration11}
+Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
+Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): "${doc.clip1Line2Hook || ''}"
+Guion REAL del documental (PRIORIDAD ABSOLUTA — basa los títulos 100% en la historia real narrada aquí):
+"""
+${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
+"""
+
+TAREA OBLIGATORIA: Genera EXACTAMENTE 5 OPCIONES DE TÍTULOS PARA EL VIDEO que sean ULTRA-ESPECÍFICOS, SUGERENTES, MAGNÉTICOS y directamente referentes a la historia central que se transmite en el guion.
+
+REGLAS INQUEBRANTABLES:
+1. PROHIBIDO TÍTULOS VAGOS O GENÉRICOS: Queda terminantemente prohibido entregar títulos poéticos o abstractos que no digan de qué historia concreta trata el documental (ej. prohibido "El Precio del Destino", "Sombras del Pasado", "Crónicas de Dos Orillas" o "Así Era Vivir en la Corte Real" sin nombrar al sujeto o suceso histórico real).
+2. ESPECIFICIDAD HISTÓRICA + TENSIÓN NARRATIVA: Cada uno de los 5 títulos DEBE nombrar explícitamente el hecho histórico, grupo humano, protagonista o lugar central del guion (con años en dígitos y siglos/monarcas en números romanos) combinado con la revelación, drama humano, paradoja o misterio real que cuenta el documental.
+3. NO REPETICIÓN LITERAL: No repitas la misma frase literal de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni del Texto del Clip 1 ("${doc.clip1Line2Hook || ''}"), pero SÍ nombra directamente el tema o protagonista histórico central desde ángulos aún más sugerentes y específicos.
+4. ${titleSuffixRule11}
+5. FORMATO DE ENTREGA: Entrega ÚNICAMENTE los 5 títulos, uno por línea (5 líneas en total), sin numeración ("1.", "Opción 1:"), sin viñetas, sin comillas y sin texto introductorio ni de cierre.`;
     }
   }
 
