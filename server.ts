@@ -1095,16 +1095,18 @@ function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 240): Buffer {
 
   // Detect and silence any high-frequency static/radio interference bursts (e.g. trailing Gemini TTS artifacts)
   const winSamples = 480; // 20ms at 24kHz
-  const numWins = Math.floor(numSamples / winSamples);
+  const numWins = Math.ceil(numSamples / winSamples);
   if (numWins > 0) {
     const burstWins = new Uint8Array(numWins);
     for (let w = 0; w < numWins; w++) {
       const startSample = w * winSamples;
+      const curWinSamples = Math.min(winSamples, numSamples - startSample);
+      if (curWinSamples <= 1) continue;
       let sumSq = 0;
       let diffSq = 0;
       let maxAbs = 0;
       let prev = out.readInt16LE(startSample * 2);
-      for (let i = 0; i < winSamples; i++) {
+      for (let i = 0; i < curWinSamples; i++) {
         const s = out.readInt16LE((startSample + i) * 2);
         const a = Math.abs(s);
         if (a > maxAbs) maxAbs = a;
@@ -1113,9 +1115,9 @@ function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 240): Buffer {
         diffSq += d * d;
         prev = s;
       }
-      const rms = Math.sqrt(sumSq / winSamples) / 32768;
+      const rms = Math.sqrt(sumSq / curWinSamples) / 32768;
       const peak = maxAbs / 32768;
-      const hfRms = Math.sqrt(diffSq / winSamples) / 65536;
+      const hfRms = Math.sqrt(diffSq / curWinSamples) / 65536;
       if (hfRms > 0.13 && (peak > 0.72 || rms > 0.11)) {
         burstWins[w] = 1;
       }
@@ -4368,7 +4370,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         muxerArgs.push('-i', voPath);
         const delayMs = Math.max(0, Math.round(Number(voiceoverStartSec || 0) * 1000));
         filterParts.push(
-          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=N/SR/TB,adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)},alimiter=limit=0.89:attack=3:release=150:level=disabled[vo]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp,areverse,atrim=start=0.05,afade=t=in:st=0:d=0.04,areverse,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=N/SR/TB,adelay=${delayMs}|${delayMs},volume=${boostedVoVol.toFixed(3)},alimiter=limit=0.89:attack=3:release=150:level=disabled[vo]`
         );
         mixLabels.push('[vo]');
         nextInputIdx++;
