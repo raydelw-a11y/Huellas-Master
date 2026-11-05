@@ -3,6 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta name="app-build-version" content="11051836" />
+    <script>
+      (function () {
+        var CURRENT_BUILD = '11051836';
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              regs.forEach(function (r) { r.unregister(); });
+            });
+          }
+          if (window.caches && caches.keys) {
+            caches.keys().then(function (keys) {
+              keys.forEach(function (k) { caches.delete(k); });
+            });
+          }
+        } catch (e) {}
+
+        function checkLatestBuild() {
+          try {
+            fetch(window.location.pathname + '?_vcheck=' + Date.now(), {
+              cache: 'no-store',
+              headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+            })
+              .then(function (res) { return res.ok ? res.text() : ''; })
+              .then(function (html) {
+                if (!html) return;
+                var m = html.match(/name="app-build-version"\s+content="([^"]+)"/);
+                var remoteVer = m && m[1] ? m[1].trim() : '';
+                if (remoteVer && remoteVer !== CURRENT_BUILD) {
+                  var lastReloaded = sessionStorage.getItem('hm_reloaded_ver');
+                  if (lastReloaded !== remoteVer) {
+                    sessionStorage.setItem('hm_reloaded_ver', remoteVer);
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('v', remoteVer);
+                    window.location.replace(url.toString());
+                  }
+                } else {
+                  var curUrl = new URL(window.location.href);
+                  if (curUrl.searchParams.has('v') || curUrl.searchParams.has('_vcheck')) {
+                    curUrl.searchParams.delete('v');
+                    curUrl.searchParams.delete('_vcheck');
+                    window.history.replaceState({}, '', curUrl.pathname + curUrl.search + curUrl.hash);
+                  }
+                }
+              })
+              .catch(function () {});
+          } catch (e) {}
+        }
+
+        window.addEventListener('pageshow', function (evt) {
+          if (evt.persisted) {
+            window.location.reload();
+          } else {
+            checkLatestBuild();
+          }
+        });
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') checkLatestBuild();
+        });
+        checkLatestBuild();
+      })();
+    </script>
     <link
       rel="icon"
       type="image/svg+xml"

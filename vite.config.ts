@@ -4,7 +4,7 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   const now = new Date();
   const buildTime = now.toLocaleTimeString('en-US', {
     timeZone: 'America/New_York',
@@ -21,9 +21,11 @@ export default defineConfig(() => {
 
   return {
     plugins: [react(), tailwindcss(), viteSingleFile()],
-    define: {
-      __BUILD_TIMESTAMP__: JSON.stringify(`${buildTime} - ${buildDate}`),
-    },
+    define: command === 'build'
+      ? {
+          __BUILD_TIMESTAMP__: JSON.stringify(`${buildTime} - ${buildDate}`),
+        }
+      : {},
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

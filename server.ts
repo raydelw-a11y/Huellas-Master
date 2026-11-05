@@ -60,6 +60,11 @@ app.use((req, res, next) => {
   );
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'GET' && !req.path.startsWith('/api/flow/serve-folder-file')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
