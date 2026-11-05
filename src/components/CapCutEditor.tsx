@@ -1538,7 +1538,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
     const default9x16: FormatOverlayProfile = {
       logoScalePct: 12,
-      logoPosX: 4,
+      logoPosX: 10,
       logoPosY: 3,
       hookLine1FontSize: 13,
       hookLine2FontSize: 20,
@@ -1552,9 +1552,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
+        const saved9x16 = parsed['9:16'] || {};
+        if (!parsed._v2_9x16_logoPosX10 && (saved9x16.logoPosX === 4 || saved9x16.logoPosX === 3)) {
+          saved9x16.logoPosX = 10;
+        }
         return {
           '16:9': { ...default16x9, ...(parsed['16:9'] || {}) },
-          '9:16': { ...default9x16, ...(parsed['9:16'] || {}) },
+          '9:16': { ...default9x16, ...saved9x16 },
         };
       }
     } catch {}
@@ -1578,7 +1582,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     try {
       localStorage.setItem(
         'huellas_editor_format_profiles_v1',
-        JSON.stringify(formatProfilesRef.current)
+        JSON.stringify({ ...formatProfilesRef.current, _v2_9x16_logoPosX10: true })
       );
     } catch {}
   }, [

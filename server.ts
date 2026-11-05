@@ -3369,8 +3369,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           logoDataUrl = parsedLogo.logoDataUrl || '';
         } catch {}
       }
-      const wPct = Math.max(1, Math.min(45, Number(overlays?.logo?.wPct ?? 6)));
-      const xPct = Math.max(0, Math.min(95, Number(overlays?.logo?.xPct ?? 3)));
+      const defaultLogoW = aspectRatio === '9:16' || outH > outW ? 12 : 6;
+      const defaultLogoX = aspectRatio === '9:16' || outH > outW ? 10 : 3;
+      const wPct = Math.max(1, Math.min(45, Number(overlays?.logo?.wPct ?? defaultLogoW)));
+      const xPct = Math.max(0, Math.min(95, Number(overlays?.logo?.xPct ?? defaultLogoX)));
       const yPct = Math.max(0, Math.min(95, Number(overlays?.logo?.yPct ?? 3)));
       let rawLogoPath = '';
       if (logoDataUrl && String(logoDataUrl).startsWith('data:')) {
