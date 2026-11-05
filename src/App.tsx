@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:22 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:30 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -2810,7 +2810,13 @@ export default function App() {
           pendingStage11QueueRef.current = missingStages;
         }
       } else {
-        const cleanSingle = cleanStage11SingleMetadataText(text);
+        let cleanSingle = cleanStage11SingleMetadataText(text);
+        const lockedTitle = (activeDocRef.current?.publishTitle || '').trim();
+        if (lockedTitle && cleanSingle) {
+          const lines = cleanSingle.split(/\r?\n/);
+          lines[0] = lockedTitle;
+          cleanSingle = lines.join('\n');
+        }
         updateActiveDoc({ rawYoutubeMetadata: cleanSingle, rawMetadataText: cleanSingle });
         if (stageNum === 11) {
           pendingStage11QueueRef.current = [112, 113, 114];
@@ -2834,7 +2840,13 @@ export default function App() {
         text
       );
       const parsed4 = hasExplicitSectionMarkers ? parseStage11FourSections(text) : { foundCount: 0 };
-      const fbClean = parsed4.facebook || cleanStage11SingleMetadataText(text);
+      let fbClean = parsed4.facebook || cleanStage11SingleMetadataText(text);
+      const lockedTitle = (activeDocRef.current?.publishTitle || '').trim();
+      if (lockedTitle && fbClean) {
+        const lines = fbClean.split(/\r?\n/);
+        lines[0] = lockedTitle;
+        fbClean = lines.join('\n');
+      }
       updateActiveDoc({ rawFacebookMetadata: fbClean });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
@@ -2913,7 +2925,7 @@ export default function App() {
             .replace(/^["«“]+|["»”]+$/g, '')
             .trim()
         )
-        .filter((l) => l.length >= 25 && !/^(?:aqu[ií]\s+tienes|t[ií]tulos\s+sugeridos)/i.test(l))
+        .filter((l) => l.length >= 18 && !/^(?:aqu[ií]\s+tienes|t[ií]tulos\s+sugeridos)/i.test(l))
         .slice(0, 6);
 
       if (cleanedLines.length > 0) {
@@ -2941,6 +2953,18 @@ export default function App() {
           }
           updateActiveDoc(patch);
         }
+      }
+      if (pendingStage11QueueRef.current.length > 0) {
+        const nextSubStage = pendingStage11QueueRef.current.shift()!;
+        setAiGenerating(true);
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(nextSubStage, undefined, {
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableDeepResearch: false,
+            skipModelSwitch: true,
+          });
+        }, 900);
       }
     }
   };
@@ -6732,17 +6756,22 @@ export default function App() {
         }
         if (msg.status === 'ERROR') {
           setBridgeStatusType('ERROR');
+          pendingStage11QueueRef.current = [];
           setAiGenerating(false);
           setThumbnailGeneratingOption(null);
         } else if (msg.status === 'COMPLETED') {
           setBridgeStatusType('SUCCESS');
-          setAiGenerating(false);
+          if (pendingStage11QueueRef.current.length === 0) {
+            setAiGenerating(false);
+          }
         } else {
           setBridgeStatusType('WORKING');
         }
       } else if (msg.type === 'GEMINI_RESPONSE_READY') {
         setExtensionInstalled(true);
-        setAiGenerating(false);
+        if (pendingStage11QueueRef.current.length === 0) {
+          setAiGenerating(false);
+        }
         setThumbOptionsGenerating(false);
         const targetStage = Number(msg.stageNumber) || activeStage;
         const text = String(msg.text || '');
@@ -7176,31 +7205,32 @@ export default function App() {
       skipModelSwitch?: boolean;
     }
   ) => {
-    if (!activeDoc) return;
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc) return;
     if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 3 (Miniatura Oficial).'
       );
       return;
     }
-    let workingOverlay = (activeDoc.thumbnailTextOverlay || '').trim();
+    let workingOverlay = (currentDoc.thumbnailTextOverlay || '').trim();
     if (stageNum === 5 && !workingOverlay) {
-      const autoHooks = getDefaultCuriosityGapHooks(activeDoc);
+      const autoHooks = getDefaultCuriosityGapHooks(currentDoc);
       workingOverlay = autoHooks[0];
       updateActiveDoc({
         thumbnailTextOverlay: workingOverlay,
         thumbnailTextOptions: autoHooks,
       });
     }
-    const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
+    const orientationForThumb = getDefaultThumbnailOrientation(currentDoc);
     const docForPayload =
       stageNum === 5
         ? {
-            ...activeDoc,
+            ...currentDoc,
             thumbnailOrientation: orientationForThumb,
             thumbnailTextOverlay: workingOverlay,
           }
-        : activeDoc;
+        : currentDoc;
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
@@ -14584,15 +14614,16 @@ export default function App() {
                       <button
                         type="button"
                         disabled={aiGenerating}
-                        onClick={() =>
+                        onClick={() => {
+                          pendingStage11QueueRef.current = [111, 112, 113, 114];
                           handleSendStageToGeminiWeb(115, undefined, {
                             enableHighModel: false,
                             enableArgonLow: true,
                             enableDeepResearch: false,
-                          })
-                        }
+                          });
+                        }}
                         className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        title="Pide a Gemini Argon (Low) 5 opciones de títulos ultra-específicos, sugerentes y directamente referentes a la historia central del guion, y aplica el mejor a YouTube y Facebook"
+                        title="Pide a Gemini Argon (Low) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
                       >
                         🎯 Generar 5 Títulos Específicos (Gemini)
                       </button>
@@ -14600,8 +14631,8 @@ export default function App() {
                         type="button"
                         disabled={aiGenerating}
                         onClick={async () => {
-                          pendingStage11QueueRef.current = [112, 113, 114];
-                          handleSendStageToGeminiWeb(111, undefined, {
+                          pendingStage11QueueRef.current = [111, 112, 113, 114];
+                          handleSendStageToGeminiWeb(115, undefined, {
                             enableHighModel: false,
                             enableArgonLow: true,
                             enableDeepResearch: false,
@@ -14611,7 +14642,7 @@ export default function App() {
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Generando las 4 Secciones (Argon Low)...'
+                          ? 'Generando Títulos + 4 Secciones (Argon Low)...'
                           : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
                       </button>
                     </div>

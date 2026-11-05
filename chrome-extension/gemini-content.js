@@ -375,6 +375,10 @@
 
       const userPrompt = getPrecedingUserPromptForResponse(el);
       if (userPrompt) {
+        if (/5\s+OPCIONES\s+DE\s+T[IÍ]TULOS|director\s+editorial\s+y\s+estratega\s+de\s+alto\s+CTR/i.test(userPrompt)) {
+          bundle.titles = clean;
+          continue;
+        }
         if (/COMENTARIO\s+FIJADO\s+DEL\s+VIDEO/i.test(userPrompt) && clean.length <= 2000) {
           bundle.pinnedComment = clean.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim();
           continue;
