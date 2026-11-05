@@ -35,6 +35,7 @@ import {
   getStage1ClipDurations,
   normalizeClip1Line1Format,
   splitWordsIntoShortLines,
+  reformatCaptionItems,
 } from '../utils/smartParsers';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
@@ -419,11 +420,16 @@ function parseSrtToCaptionItems(
     const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
     if (timeLineIdx === -1) return;
     const [startStr, endStr] = lines[timeLineIdx].split('-->');
-    const rawText = lines.slice(timeLineIdx + 1).join(' ');
-    const text = normalizeQuantitiesToMil(stripPauseTags(rawText))
-      .replace(/\[pausa[^\]]*\]?/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    const text = lines
+      .slice(timeLineIdx + 1)
+      .map((line) =>
+        normalizeQuantitiesToMil(stripPauseTags(line))
+          .replace(/\[pausa[^\]]*\]?/gi, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      )
+      .filter(Boolean)
+      .join('\n');
     if (text) {
       const s = parseTime(startStr);
       const e = parseTime(endStr);
@@ -582,11 +588,39 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
     activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9'
   );
-  const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>('8K_4320P');
+  const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>(() => {
+    const initRatio = activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9';
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?._v3_res_by_ratio && parsed?.[initRatio]?.exportResolution) {
+          return parsed[initRatio].exportResolution as ExportResolutionPreset;
+        }
+      }
+    } catch {}
+    return initRatio === '9:16' ? '2K_1440P' : '8K_4320P';
+  });
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportFps, setExportFps] = useState<24 | 30 | 60>(30);
   const [exportBitrateTier, setExportBitrateTier] = useState<'standard' | 'recommended' | 'ultra' | 'custom'>('recommended');
-  const [exportBitrateMbps, setExportBitrateMbps] = useState<number>(140);
+  const [exportBitrateMbps, setExportBitrateMbps] = useState<number>(() => {
+    const initRatio = activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9';
+    let initRes: ExportResolutionPreset = initRatio === '9:16' ? '2K_1440P' : '8K_4320P';
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?._v3_res_by_ratio && parsed?.[initRatio]?.exportResolution) {
+          initRes = parsed[initRatio].exportResolution as ExportResolutionPreset;
+        }
+      }
+    } catch {}
+    if (initRes === 'HD_1080P') return 18;
+    if (initRes === '2K_1440P') return 35;
+    if (initRes === '4K_2160P') return 65;
+    return 140;
+  });
   const [burnInLogo, setBurnInLogo] = useState<boolean>(true);
   const [burnInHook, setBurnInHook] = useState<boolean>(true);
   const [burnInCaptions, setBurnInCaptions] = useState<boolean>(true);
@@ -1232,12 +1266,85 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [captionFontFamily, setCaptionFontFamily] = useState<string>(
     () => initialOverlayStyles.captionFontFamily || EDITOR_FONT_OPTIONS[0].value
   );
-  const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
-    initialOverlayStyles.captionFontSizeV25
+  const [captionMaxChars, setCaptionMaxChars] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS);
+    if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
+    const fromSaved = Number(initialOverlayStyles.captionMaxChars);
+    if (Number.isFinite(fromSaved) && fromSaved >= 0) return fromSaved;
+    return 32;
+  });
+  const [captionLineMode, setCaptionLineMode] = useState<'subdivide' | 'wrap' | 'original'>(() => {
+    const fromDoc = activeDoc?.promptConfig?.CAPTION_LINE_MODE;
+    if (fromDoc === 'subdivide' || fromDoc === 'wrap' || fromDoc === 'original') return fromDoc;
+    const fromSaved = initialOverlayStyles.captionLineMode;
+    if (fromSaved === 'subdivide' || fromSaved === 'wrap' || fromSaved === 'original') return fromSaved;
+    return 'subdivide';
+  });
+  const [captionFontSize16x9, setCaptionFontSize16x9] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9);
+    if (Number.isFinite(fromDoc) && fromDoc >= 12) return fromDoc;
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Number(parsed?.['16:9']?.captionFontSize) >= 12) {
+          return Number(parsed['16:9'].captionFontSize);
+        }
+      }
+    } catch {}
+    return initialOverlayStyles.captionFontSizeV25
       ? Number(initialOverlayStyles.captionFontSize) || 25
-      : activeDoc?.productionType === 'REEL_9X16'
-      ? 22
-      : 25
+      : 25;
+  });
+  const [captionFontSize9x16, setCaptionFontSize9x16] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16);
+    if (Number.isFinite(fromDoc) && fromDoc >= 12) return fromDoc;
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Number(parsed?.['9:16']?.captionFontSize) >= 12) {
+          return Number(parsed['9:16'].captionFontSize);
+        }
+      }
+    } catch {}
+    return 21;
+  });
+  const [captionWordsPerLine16x9, setCaptionWordsPerLine16x9] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_16X9);
+    if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.['16:9']?.captionWordsPerLine === 'number') {
+          return parsed['16:9'].captionWordsPerLine;
+        }
+      }
+    } catch {}
+    return 6;
+  });
+  const [captionWordsPerLine9x16, setCaptionWordsPerLine9x16] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_9X16);
+    if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.['9:16']?.captionWordsPerLine === 'number') {
+          return parsed['9:16'].captionWordsPerLine;
+        }
+      }
+    } catch {}
+    return 4;
+  });
+  const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
+    activeDoc?.productionType === 'REEL_9X16'
+      ? Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16) || 21
+      : Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9) ||
+        (initialOverlayStyles.captionFontSizeV25
+          ? Number(initialOverlayStyles.captionFontSize) || 25
+          : 25)
   );
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(() =>
     typeof initialOverlayStyles.captionBottomPct === 'number'
@@ -1431,6 +1538,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           clip1OverlayEndSec,
           captionFontFamily,
           captionFontSize,
+          captionFontSize16x9,
+          captionFontSize9x16,
+          captionWordsPerLine16x9,
+          captionWordsPerLine9x16,
+          captionMaxChars,
+          captionLineMode,
           captionFontSizeV25: true,
           captionBottomPct,
           captionColor,
@@ -1494,6 +1607,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     clip1OverlayEndSec,
     captionFontFamily,
     captionFontSize,
+    captionFontSize16x9,
+    captionFontSize9x16,
+    captionWordsPerLine16x9,
+    captionWordsPerLine9x16,
+    captionMaxChars,
+    captionLineMode,
     captionBottomPct,
     captionColor,
     captionCustomColor,
@@ -1511,6 +1630,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // DUAL-FORMAT (16:9 ⇄ 9:16) PERSISTENT OVERLAY PROFILES & SMART AUTO-REFRAME
   // ============================================================================
   interface FormatOverlayProfile {
+    exportResolution: ExportResolutionPreset;
     logoScalePct: number;
     logoPosX: number;
     logoPosY: number;
@@ -1520,11 +1640,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     hookTopPct: number;
     hookBoxWidthPct: number;
     captionFontSize: number;
+    captionWordsPerLine?: number;
     captionBottomPct: number;
   }
 
   const formatProfilesRef = useRef<Record<'16:9' | '9:16', FormatOverlayProfile>>((() => {
     const default16x9: FormatOverlayProfile = {
+      exportResolution: '8K_4320P',
       logoScalePct: 6,
       logoPosX: 3,
       logoPosY: 3,
@@ -1534,9 +1656,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookTopPct: 50,
       hookBoxWidthPct: 82,
       captionFontSize: 25,
+      captionWordsPerLine: 6,
       captionBottomPct: 11,
     };
     const default9x16: FormatOverlayProfile = {
+      exportResolution: '2K_1440P',
       logoScalePct: 12,
       logoPosX: 10,
       logoPosY: 3,
@@ -1546,18 +1670,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookTopPct: 48,
       hookBoxWidthPct: 88,
       captionFontSize: 21,
+      captionWordsPerLine: 4,
       captionBottomPct: 15,
     };
     try {
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
+        const saved16x9 = parsed['16:9'] || {};
         const saved9x16 = parsed['9:16'] || {};
         if (!parsed._v2_9x16_logoPosX10 && (saved9x16.logoPosX === 4 || saved9x16.logoPosX === 3)) {
           saved9x16.logoPosX = 10;
         }
+        if (!parsed._v3_res_by_ratio) {
+          saved16x9.exportResolution = '8K_4320P';
+          saved9x16.exportResolution = '2K_1440P';
+        }
         return {
-          '16:9': { ...default16x9, ...(parsed['16:9'] || {}) },
+          '16:9': { ...default16x9, ...saved16x9 },
           '9:16': { ...default9x16, ...saved9x16 },
         };
       }
@@ -1565,28 +1695,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return { '16:9': default16x9, '9:16': default9x16 };
   })());
 
-  // Keep current aspectRatio's profile updated in real time whenever overlay sliders change
+  // Keep current aspectRatio's profile updated in real time whenever overlay sliders or exportResolution change
   useEffect(() => {
-    formatProfilesRef.current[aspectRatio] = {
-      logoScalePct,
-      logoPosX,
-      logoPosY,
-      hookLine1FontSize,
-      hookLine2FontSize,
-      hookLeftPct,
-      hookTopPct,
-      hookBoxWidthPct,
-      captionFontSize,
-      captionBottomPct,
+    formatProfilesRef.current['16:9'] = {
+      ...formatProfilesRef.current['16:9'],
+      ...(aspectRatio === '16:9'
+        ? {
+            exportResolution,
+            logoScalePct,
+            logoPosX,
+            logoPosY,
+            hookLine1FontSize,
+            hookLine2FontSize,
+            hookLeftPct,
+            hookTopPct,
+            hookBoxWidthPct,
+            captionBottomPct,
+          }
+        : {}),
+      captionFontSize: captionFontSize16x9,
+      captionWordsPerLine: captionWordsPerLine16x9,
+    };
+    formatProfilesRef.current['9:16'] = {
+      ...formatProfilesRef.current['9:16'],
+      ...(aspectRatio === '9:16'
+        ? {
+            exportResolution,
+            logoScalePct,
+            logoPosX,
+            logoPosY,
+            hookLine1FontSize,
+            hookLine2FontSize,
+            hookLeftPct,
+            hookTopPct,
+            hookBoxWidthPct,
+            captionBottomPct,
+          }
+        : {}),
+      captionFontSize: captionFontSize9x16,
+      captionWordsPerLine: captionWordsPerLine9x16,
     };
     try {
       localStorage.setItem(
         'huellas_editor_format_profiles_v1',
-        JSON.stringify({ ...formatProfilesRef.current, _v2_9x16_logoPosX10: true })
+        JSON.stringify({
+          ...formatProfilesRef.current,
+          _v2_9x16_logoPosX10: true,
+          _v3_res_by_ratio: true,
+        })
       );
     } catch {}
   }, [
     aspectRatio,
+    exportResolution,
     logoScalePct,
     logoPosX,
     logoPosY,
@@ -1596,6 +1757,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     hookTopPct,
     hookBoxWidthPct,
     captionFontSize,
+    captionFontSize16x9,
+    captionFontSize9x16,
+    captionWordsPerLine16x9,
+    captionWordsPerLine9x16,
     captionBottomPct,
   ]);
 
@@ -1793,8 +1958,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const handleSwitchAspectRatio = (nextRatio: EditorAspectRatio) => {
     if (nextRatio === aspectRatio) return;
-    // Save current format's overlay settings
+    // Save current format's overlay and quality settings
     formatProfilesRef.current[aspectRatio] = {
+      exportResolution,
       logoScalePct,
       logoPosX,
       logoPosY,
@@ -1803,11 +1969,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookLeftPct,
       hookTopPct,
       hookBoxWidthPct,
-      captionFontSize,
+      captionFontSize: aspectRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9,
+      captionWordsPerLine: aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9,
       captionBottomPct,
     };
     const targetProfile = formatProfilesRef.current[nextRatio];
     setAspectRatio(nextRatio);
+    const nextRes: ExportResolutionPreset =
+      targetProfile?.exportResolution || (nextRatio === '9:16' ? '2K_1440P' : '8K_4320P');
+    handleSelectExportResolution(nextRes);
     if (targetProfile) {
       setLogoScalePct(targetProfile.logoScalePct);
       setLogoPosX(targetProfile.logoPosX);
@@ -1817,9 +1987,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setHookLeftPct(targetProfile.hookLeftPct);
       setHookTopPct(targetProfile.hookTopPct);
       setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
-      setCaptionFontSize(targetProfile.captionFontSize);
       setCaptionBottomPct(targetProfile.captionBottomPct);
     }
+    setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
     if (nextRatio === '9:16') {
       const docKey = activeDoc?.id || activeDoc?.title || 'default';
       const hasAnyReframe = timelineClips.some(
@@ -1834,6 +2004,215 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           handleRunSmartAutoReframe9x16(false);
         }, 120);
       }
+    }
+  };
+
+  // Sync caption settings from Etapa 7 (activeDoc.promptConfig) into CapCutEditor in real time
+  useEffect(() => {
+    const cfg = activeDoc?.promptConfig;
+    if (!cfg) return;
+    if (typeof cfg.CAPTION_MAX_CHARS === 'number' && cfg.CAPTION_MAX_CHARS !== captionMaxChars) {
+      setCaptionMaxChars(cfg.CAPTION_MAX_CHARS);
+    }
+    if (
+      (cfg.CAPTION_LINE_MODE === 'subdivide' ||
+        cfg.CAPTION_LINE_MODE === 'wrap' ||
+        cfg.CAPTION_LINE_MODE === 'original') &&
+      cfg.CAPTION_LINE_MODE !== captionLineMode
+    ) {
+      setCaptionLineMode(cfg.CAPTION_LINE_MODE);
+    }
+    if (
+      typeof cfg.CAPTION_FONT_SIZE_16X9 === 'number' &&
+      cfg.CAPTION_FONT_SIZE_16X9 >= 12 &&
+      cfg.CAPTION_FONT_SIZE_16X9 !== captionFontSize16x9
+    ) {
+      setCaptionFontSize16x9(cfg.CAPTION_FONT_SIZE_16X9);
+      if (aspectRatio === '16:9') setCaptionFontSize(cfg.CAPTION_FONT_SIZE_16X9);
+    }
+    if (
+      typeof cfg.CAPTION_FONT_SIZE_9X16 === 'number' &&
+      cfg.CAPTION_FONT_SIZE_9X16 >= 12 &&
+      cfg.CAPTION_FONT_SIZE_9X16 !== captionFontSize9x16
+    ) {
+      setCaptionFontSize9x16(cfg.CAPTION_FONT_SIZE_9X16);
+      if (aspectRatio === '9:16') setCaptionFontSize(cfg.CAPTION_FONT_SIZE_9X16);
+    }
+    if (
+      typeof cfg.CAPTION_WORDS_PER_LINE_16X9 === 'number' &&
+      cfg.CAPTION_WORDS_PER_LINE_16X9 !== captionWordsPerLine16x9
+    ) {
+      setCaptionWordsPerLine16x9(cfg.CAPTION_WORDS_PER_LINE_16X9);
+    }
+    if (
+      typeof cfg.CAPTION_WORDS_PER_LINE_9X16 === 'number' &&
+      cfg.CAPTION_WORDS_PER_LINE_9X16 !== captionWordsPerLine9x16
+    ) {
+      setCaptionWordsPerLine9x16(cfg.CAPTION_WORDS_PER_LINE_9X16);
+    }
+  }, [
+    activeDoc?.id,
+    activeDoc?.promptConfig?.CAPTION_MAX_CHARS,
+    activeDoc?.promptConfig?.CAPTION_LINE_MODE,
+    activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9,
+    activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16,
+    activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_16X9,
+    activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_9X16,
+  ]);
+
+  // Reformat timeline captions dynamically whenever aspectRatio, maxChars, wordsPerLine (16:9 / 9:16), or lineMode changes
+  useEffect(() => {
+    const activeWordsLimit =
+      aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
+    setCaptions((prevCaps) => {
+      if (!prevCaps || prevCaps.length === 0) return prevCaps;
+      const reformatted = reformatCaptionItems(prevCaps, {
+        maxCharsPerLine: captionMaxChars,
+        maxWordsPerLine: activeWordsLimit,
+        mode: captionLineMode,
+      });
+      if (reformatted.length === 0) return prevCaps;
+      const sameLength = reformatted.length === prevCaps.length;
+      const isIdentical =
+        sameLength &&
+        reformatted.every(
+          (rc, idx) =>
+            rc.text === prevCaps[idx].text &&
+            Math.abs(rc.start - prevCaps[idx].start) < 0.02 &&
+            Math.abs(rc.end - prevCaps[idx].end) < 0.02
+        );
+      if (isIdentical) return prevCaps;
+      const docId = activeDoc?.id || 'default';
+      persistDocOverlaysPatch({ captions: reformatted }, docId);
+      return reformatted;
+    });
+  }, [
+    aspectRatio,
+    captionMaxChars,
+    captionLineMode,
+    captionWordsPerLine16x9,
+    captionWordsPerLine9x16,
+  ]);
+
+  const handleSetCaptionFontSizeForFormat = (targetRatio: '16:9' | '9:16', newSize: number) => {
+    const clamped = Math.max(14, Math.min(64, Math.round(newSize)));
+    if (targetRatio === '16:9') {
+      setCaptionFontSize16x9(clamped);
+      formatProfilesRef.current['16:9'].captionFontSize = clamped;
+      if (aspectRatio === '16:9') setCaptionFontSize(clamped);
+      if (activeDoc) {
+        updateActiveDoc({
+          promptConfig: {
+            ...(activeDoc.promptConfig || {}),
+            CAPTION_FONT_SIZE_16X9: clamped,
+          },
+        });
+      }
+    } else {
+      setCaptionFontSize9x16(clamped);
+      formatProfilesRef.current['9:16'].captionFontSize = clamped;
+      if (aspectRatio === '9:16') setCaptionFontSize(clamped);
+      if (activeDoc) {
+        updateActiveDoc({
+          promptConfig: {
+            ...(activeDoc.promptConfig || {}),
+            CAPTION_FONT_SIZE_9X16: clamped,
+          },
+        });
+      }
+    }
+  };
+
+  const handleSetCaptionWordsForFormat = (targetRatio: '16:9' | '9:16', newWords: number) => {
+    const clamped = Math.max(0, Math.min(12, Math.round(newWords)));
+    const nextMode =
+      clamped > 0 && captionLineMode === 'original' ? 'subdivide' : captionLineMode;
+    if (nextMode !== captionLineMode) {
+      setCaptionLineMode(nextMode);
+    }
+    if (targetRatio === '16:9') {
+      setCaptionWordsPerLine16x9(clamped);
+      formatProfilesRef.current['16:9'].captionWordsPerLine = clamped;
+      if (activeDoc) {
+        updateActiveDoc({
+          promptConfig: {
+            ...(activeDoc.promptConfig || {}),
+            CAPTION_WORDS_PER_LINE_16X9: clamped,
+            CAPTION_LINE_MODE: nextMode,
+          },
+        });
+      }
+    } else {
+      setCaptionWordsPerLine9x16(clamped);
+      formatProfilesRef.current['9:16'].captionWordsPerLine = clamped;
+      if (activeDoc) {
+        updateActiveDoc({
+          promptConfig: {
+            ...(activeDoc.promptConfig || {}),
+            CAPTION_WORDS_PER_LINE_9X16: clamped,
+            CAPTION_LINE_MODE: nextMode,
+          },
+        });
+      }
+    }
+  };
+
+  const handleSetCaptionLengthPreset = (
+    val: number,
+    explicitMode?: 'subdivide' | 'wrap' | 'original'
+  ) => {
+    const nextMode =
+      explicitMode ||
+      (val === 0 ? 'original' : captionLineMode === 'original' ? 'subdivide' : captionLineMode);
+    const nextMax = val === 0 ? captionMaxChars : val;
+    const nextWords16x9 =
+      val === 0
+        ? 0
+        : val <= 24
+        ? 4
+        : val <= 34
+        ? 6
+        : val >= 40
+        ? 7
+        : captionWordsPerLine16x9;
+    const nextWords9x16 =
+      val === 0
+        ? 0
+        : val <= 24
+        ? 3
+        : val <= 34
+        ? 4
+        : val >= 40
+        ? 5
+        : captionWordsPerLine9x16;
+
+    setCaptionMaxChars(nextMax);
+    setCaptionLineMode(nextMode);
+    setCaptionWordsPerLine16x9(nextWords16x9);
+    setCaptionWordsPerLine9x16(nextWords9x16);
+
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_MAX_CHARS: nextMax,
+          CAPTION_LINE_MODE: nextMode,
+          CAPTION_WORDS_PER_LINE_16X9: nextWords16x9,
+          CAPTION_WORDS_PER_LINE_9X16: nextWords9x16,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionLineMode = (nextMode: 'subdivide' | 'wrap' | 'original') => {
+    setCaptionLineMode(nextMode);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_LINE_MODE: nextMode,
+        },
+      });
     }
   };
 
@@ -3410,6 +3789,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     // 2. Build Captions Track (Track 2) aligned to docIntroPlacement and real Voiceover audio
+    const activeWordsLimit =
+      aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
+    const formatCapList = (list: TimelineCaptionItem[]) =>
+      reformatCaptionItems(list, {
+        maxCharsPerLine: captionMaxChars,
+        maxWordsPerLine: activeWordsLimit,
+        mode: captionLineMode,
+      });
+
     if (
       savedDocOverlays?.userEditedCaptions &&
       Array.isArray(savedDocOverlays.captions) &&
@@ -3417,12 +3805,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     ) {
       userEditedCaptionsDocIdRef.current = docId;
       if (isDocSwitch || isIntroPlacementSwitch || captions.length === 0) {
-        const alignedSaved = alignCaptionsToIntroPlacement(
-          savedDocOverlays.captions,
-          docIntroPlacement,
-          clip1HookDur,
-          FIXED_INTRO_SEC,
-          sloganSplitAudioSec
+        const alignedSaved = formatCapList(
+          alignCaptionsToIntroPlacement(
+            savedDocOverlays.captions,
+            docIntroPlacement,
+            clip1HookDur,
+            FIXED_INTRO_SEC,
+            sloganSplitAudioSec
+          )
         );
         setCaptions(alignedSaved);
         persistDocOverlaysPatch(
@@ -3432,12 +3822,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     } else if (userEditedCaptionsDocIdRef.current !== docId || isIntroPlacementSwitch) {
       if (isVideo76Doc && prealignedVideo76SrtRef.current) {
-        const parsed76 = alignCaptionsToIntroPlacement(
-          parseSrtToCaptionItems(prealignedVideo76SrtRef.current, entrySec),
-          docIntroPlacement,
-          clip1HookDur,
-          FIXED_INTRO_SEC,
-          sloganSplitAudioSec
+        const parsed76 = formatCapList(
+          alignCaptionsToIntroPlacement(
+            parseSrtToCaptionItems(prealignedVideo76SrtRef.current, entrySec),
+            docIntroPlacement,
+            clip1HookDur,
+            FIXED_INTRO_SEC,
+            sloganSplitAudioSec
+          )
         );
         setCaptions(parsed76);
         persistDocOverlaysPatch({ captions: parsed76, voiceStartOffsetSec: entrySec }, docId);
@@ -3448,12 +3840,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ) {
         handleGenerateAutoCaptionsFromVoice(entrySec, effectiveVoiceDurationSec);
       } else if (activeDoc.correctedSrt && activeDoc.correctedSrt.trim()) {
-        const alignedSrt = alignCaptionsToIntroPlacement(
-          parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec),
-          docIntroPlacement,
-          clip1HookDur,
-          FIXED_INTRO_SEC,
-          sloganSplitAudioSec
+        const alignedSrt = formatCapList(
+          alignCaptionsToIntroPlacement(
+            parseSrtToCaptionItems(activeDoc.correctedSrt, entrySec),
+            docIntroPlacement,
+            clip1HookDur,
+            FIXED_INTRO_SEC,
+            sloganSplitAudioSec
+          )
         );
         setCaptions(alignedSrt);
         persistDocOverlaysPatch({ captions: alignedSrt, voiceStartOffsetSec: entrySec }, docId);
@@ -3676,7 +4070,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       typeof customVoiceDurSec === 'number' && customVoiceDurSec > 1
         ? customVoiceDurSec
         : effectiveVoiceDurationSec;
-    const maxCharsPerCaption = 34;
+    const activeWordsLimit =
+      aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
+    const maxCharsPerCaption =
+      captionLineMode === 'original' ? 46 : captionMaxChars > 0 ? captionMaxChars : 32;
 
     const isVideo76 = isVideo76Doc;
     const effectiveMode =
@@ -3688,12 +4085,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const baseHookForCap = !c1DurForCap || c1DurForCap <= 6 ? 8 : c1DurForCap;
 
     if (isVideo76 && prealignedVideo76SrtRef.current) {
-      const parsed76 = alignCaptionsToIntroPlacement(
-        parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset),
-        effectiveMode,
-        baseHookForCap,
-        8,
-        sloganSplitAudioSec
+      const parsed76 = reformatCaptionItems(
+        alignCaptionsToIntroPlacement(
+          parseSrtToCaptionItems(prealignedVideo76SrtRef.current, offset),
+          effectiveMode,
+          baseHookForCap,
+          8,
+          sloganSplitAudioSec
+        ),
+        {
+          maxCharsPerLine: captionMaxChars,
+          maxWordsPerLine: activeWordsLimit,
+          mode: captionLineMode,
+        }
       );
       if (parsed76.length > 0) {
         setCaptions(parsed76);
@@ -3737,7 +4141,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         .trim();
       if (!clean) return [];
       const words = clean.split(/\s+/).filter(Boolean);
-      return splitWordsIntoShortLines(words, maxCharsPerCaption)
+      return splitWordsIntoShortLines(words, maxCharsPerCaption, activeWordsLimit)
         .map((lineWords) => (Array.isArray(lineWords) ? lineWords.join(' ') : String(lineWords)))
         .filter(Boolean);
     };
@@ -4204,12 +4608,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
-    const finalGenerated = alignCaptionsToIntroPlacement(
-      generated,
-      effectiveMode,
-      baseHookForCap,
-      8,
-      sloganSplitAudioSec
+    const finalGenerated = reformatCaptionItems(
+      alignCaptionsToIntroPlacement(
+        generated,
+        effectiveMode,
+        baseHookForCap,
+        8,
+        sloganSplitAudioSec
+      ),
+      {
+        maxCharsPerLine: captionMaxChars,
+        maxWordsPerLine: activeWordsLimit,
+        mode: captionLineMode,
+      }
     );
     setCaptions(finalGenerated);
     persistDocOverlaysPatch(
@@ -4229,6 +4640,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : 'INTRO_INICIO_00';
     const { clip1Sec: c1Dur76 } = getStage1ClipDurations(activeDoc);
     const baseHook76 = !c1Dur76 || c1Dur76 <= 6 ? 8 : c1Dur76;
+    const activeWordsLimit =
+      aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
 
     const savedDocOverlays = readSavedDocOverlays(docId);
     const hasSyncedV3 = Boolean(savedDocOverlays?.captionsSyncV3);
@@ -4243,12 +4656,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setCaptions((prevCaps) => {
         const src = prevCaps.length > 0 ? prevCaps : savedDocOverlays?.captions || [];
         if (src.length === 0) return prevCaps;
-        const aligned = alignCaptionsToIntroPlacement(
-          src,
-          effectiveMode,
-          baseHook76,
-          8,
-          sloganSplitAudioSec
+        const aligned = reformatCaptionItems(
+          alignCaptionsToIntroPlacement(
+            src,
+            effectiveMode,
+            baseHook76,
+            8,
+            sloganSplitAudioSec
+          ),
+          {
+            maxCharsPerLine: captionMaxChars,
+            maxWordsPerLine: activeWordsLimit,
+            mode: captionLineMode,
+          }
         );
         persistDocOverlaysPatch({ captions: aligned, captionsSyncV3: true }, docId);
         return aligned;
@@ -4266,13 +4686,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const existingCaps: TimelineCaptionItem[] = Array.isArray(savedDocOverlays?.captions)
         ? savedDocOverlays.captions
         : [];
-      const merged =
+      const rawMerged =
         savedDocOverlays?.userEditedCaptions && existingCaps.length === freshParsed.length
           ? freshParsed.map((fp, idx) => ({
               ...fp,
               text: existingCaps[idx]?.text || fp.text,
             }))
           : freshParsed;
+      const merged = reformatCaptionItems(rawMerged, {
+        maxCharsPerLine: captionMaxChars,
+        maxWordsPerLine: activeWordsLimit,
+        mode: captionLineMode,
+      });
       setCaptions(merged);
       persistDocOverlaysPatch({ captions: merged, captionsSyncV3: true }, docId);
     };
@@ -8500,6 +8925,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 burnInCaptions,
                 captionSegments: [],
                 captionStyle: {
+                  fontFamily: captionFontFamily,
+                  fontSize: aspectRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9,
+                  fontSize16x9: captionFontSize16x9,
+                  fontSize9x16: captionFontSize9x16,
+                  wordsPerLine:
+                    aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9,
+                  maxCharsPerLine: captionMaxChars,
+                  lineMode: captionLineMode,
+                  color:
+                    captionColor === 'amber'
+                      ? '#fde047'
+                      : captionColor === 'custom'
+                      ? captionCustomColor
+                      : '#ffffff',
                   bgStyle: captionBgStyle,
                   shadowStyle: captionShadowStyle,
                   bgColor: captionBgColor,
@@ -13508,14 +13947,301 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </button>
                   </div>
                 </div>
+                {/* Largo Máximo de Línea en Pantalla (Caracteres por Caption) + Modo de Línea */}
+                <div className="col-span-2 bg-slate-900/80 border border-amber-500/30 rounded-xl p-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+                      📏 Largo Máximo de Línea en Pantalla (Caracteres por Caption):
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-200">
+                      {captionLineMode === 'original' ? 'Original' : `${captionMaxChars} caract.`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { val: 22, label: '⚡ Muy Corto (22 caract. / 3-4 pal.)' },
+                      { val: 32, label: '🎯 Corto Ideal (32 caract. / 4-6 pal.)' },
+                      { val: 42, label: '📐 Medio (42 caract. / 6-7 pal.)' },
+                      { val: 0, label: '📄 Original CapCut (Sin acortar)' },
+                    ].map((opt) => {
+                      const isSel =
+                        (opt.val === 0 && captionLineMode === 'original') ||
+                        (opt.val > 0 && captionLineMode !== 'original' && captionMaxChars === opt.val);
+                      return (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => handleSetCaptionLengthPreset(opt.val)}
+                          className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition cursor-pointer border text-left ${
+                            isSel
+                              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                              : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {captionLineMode !== 'original' && (
+                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>Ajuste fino de caracteres por línea:</span>
+                        <span className="font-bold text-amber-300">{captionMaxChars} caract.</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={16}
+                        max={56}
+                        value={captionMaxChars || 32}
+                        onChange={(e) => {
+                          const nextVal = Number(e.target.value);
+                          setCaptionMaxChars(nextVal);
+                          if (activeDoc) {
+                            updateActiveDoc({
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                CAPTION_MAX_CHARS: nextVal,
+                              },
+                            });
+                          }
+                        }}
+                        className="w-full accent-amber-500"
+                      />
+                      <span className="block text-[10px] font-bold text-emerald-300 uppercase tracking-wider pt-0.5">
+                        ✂️ Cómo Acortar Bloques Largos:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          {
+                            id: 'subdivide' as const,
+                            label: '1 Línea Corta Dinámica',
+                          },
+                          {
+                            id: 'wrap' as const,
+                            label: '2 Renglones por Bloque',
+                          },
+                        ].map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSetCaptionLineMode(m.id)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer border ${
+                              captionLineMode === m.id
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                                : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-700'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tamaño de Font y Palabras por Línea por separado para 16:9 y 9:16 */}
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Panel 16:9 Horizontal */}
+                  <div
+                    className={`rounded-xl p-2.5 border space-y-2 transition ${
+                      aspectRatio === '16:9'
+                        ? 'bg-sky-950/35 border-sky-500/60'
+                        : 'bg-slate-900/70 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-black text-sky-300 uppercase">
+                        🖥️ 16:9 Horizontal
+                      </span>
+                      {aspectRatio === '16:9' ? (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold border border-sky-500/40">
+                          Activo
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchAspectRatio('16:9')}
+                          className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] cursor-pointer"
+                        >
+                          Ver 16:9
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 mb-0.5">
+                        <span>Tamaño Font (16:9):</span>
+                        <span className="font-bold text-sky-300">{captionFontSize16x9}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={14}
+                        max={64}
+                        value={captionFontSize16x9}
+                        onChange={(e) =>
+                          handleSetCaptionFontSizeForFormat('16:9', Number(e.target.value))
+                        }
+                        className="w-full accent-sky-400"
+                      />
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {[20, 25, 30, 36].map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => handleSetCaptionFontSizeForFormat('16:9', sz)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                              captionFontSize16x9 === sz
+                                ? 'bg-sky-500 text-slate-950 border-sky-400'
+                                : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {sz}px
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 mb-1">
+                        <span>Palabras / Línea (16:9):</span>
+                        <span className="font-bold text-sky-300">
+                          {captionWordsPerLine16x9 > 0
+                            ? `${captionWordsPerLine16x9} pal.`
+                            : 'Auto'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { w: 3, lbl: '3' },
+                          { w: 4, lbl: '4' },
+                          { w: 5, lbl: '5' },
+                          { w: 6, lbl: '6' },
+                          { w: 7, lbl: '7' },
+                          { w: 8, lbl: '8' },
+                          { w: 0, lbl: 'Auto' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.w}
+                            type="button"
+                            onClick={() => handleSetCaptionWordsForFormat('16:9', opt.w)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                              captionWordsPerLine16x9 === opt.w
+                                ? 'bg-sky-500 text-slate-950 border-sky-400'
+                                : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {opt.lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Panel 9:16 Vertical */}
+                  <div
+                    className={`rounded-xl p-2.5 border space-y-2 transition ${
+                      aspectRatio === '9:16'
+                        ? 'bg-amber-950/35 border-amber-500/60'
+                        : 'bg-slate-900/70 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-black text-amber-300 uppercase">
+                        📱 9:16 Vertical
+                      </span>
+                      {aspectRatio === '9:16' ? (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold border border-amber-500/40">
+                          Activo
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchAspectRatio('9:16')}
+                          className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] cursor-pointer"
+                        >
+                          Ver 9:16
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 mb-0.5">
+                        <span>Tamaño Font (9:16):</span>
+                        <span className="font-bold text-amber-300">{captionFontSize9x16}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={14}
+                        max={64}
+                        value={captionFontSize9x16}
+                        onChange={(e) =>
+                          handleSetCaptionFontSizeForFormat('9:16', Number(e.target.value))
+                        }
+                        className="w-full accent-amber-500"
+                      />
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {[18, 21, 25, 30].map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => handleSetCaptionFontSizeForFormat('9:16', sz)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                              captionFontSize9x16 === sz
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {sz}px
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-300 mb-1">
+                        <span>Palabras / Línea (9:16):</span>
+                        <span className="font-bold text-amber-300">
+                          {captionWordsPerLine9x16 > 0
+                            ? `${captionWordsPerLine9x16} pal.`
+                            : 'Auto'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { w: 2, lbl: '2' },
+                          { w: 3, lbl: '3' },
+                          { w: 4, lbl: '4' },
+                          { w: 5, lbl: '5' },
+                          { w: 6, lbl: '6' },
+                          { w: 0, lbl: 'Auto' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.w}
+                            type="button"
+                            onClick={() => handleSetCaptionWordsForFormat('9:16', opt.w)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                              captionWordsPerLine9x16 === opt.w
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {opt.lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[10px] text-slate-400">Tamaño ({captionFontSize}px)</label>
+                  <label className="block text-[10px] text-slate-400">
+                    Tamaño Activo ({aspectRatio}: {captionFontSize}px)
+                  </label>
                   <input
                     type="range"
                     min={14}
                     max={64}
                     value={captionFontSize}
-                    onChange={(e) => setCaptionFontSize(Number(e.target.value))}
+                    onChange={(e) =>
+                      handleSetCaptionFontSizeForFormat(aspectRatio, Number(e.target.value))
+                    }
                     className="w-full accent-amber-500"
                   />
                 </div>

@@ -80,6 +80,7 @@ import {
   buildRawClipsTextWithHeader,
   applyAutomaticFlowPolicyShield,
   normalizeClip1Line1Format,
+  reformatSrtText,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -119,7 +120,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:34 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:43 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -14012,107 +14013,378 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Controles de Largo de Línea de Captions */}
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-4">
-                    <div className="space-y-1.5">
-                      <span className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                        📏 Largo Máximo de Línea en Pantalla (Caracteres por Caption):
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { val: 22, label: '⚡ Muy Corto (22 caract. / 3-4 pal.)' },
-                          { val: 32, label: '🎯 Corto Ideal (32 caract. / 4-6 pal.)' },
-                          { val: 42, label: '📐 Medio (42 caract. / 6-7 pal.)' },
-                          { val: 0, label: '📄 Original CapCut (Sin acortar)' },
-                        ].map((opt) => {
-                          const isSelected =
-                            (opt.val === 0 && srtLineMode === 'original') ||
-                            (opt.val > 0 && srtLineMode !== 'original' && srtMaxChars === opt.val);
-                          return (
-                            <button
-                              key={opt.val}
-                              type="button"
-                              onClick={() => {
-                                const nextMode = opt.val === 0 ? 'original' : srtLineMode === 'original' ? 'subdivide' : srtLineMode;
-                                const nextMax = opt.val === 0 ? srtMaxChars : opt.val;
-                                setSrtMaxChars(nextMax);
-                                setSrtLineMode(nextMode);
-                                if (activeDoc.capcutRawSrt?.trim() && activeDoc.voiceoverScript?.trim()) {
-                                  try {
-                                    const res = fixCapcutSrtWithVoiceover(
-                                      activeDoc.voiceoverScript,
-                                      activeDoc.capcutRawSrt,
-                                      { maxCharsPerLine: nextMax, mode: nextMode }
-                                    );
-                                    updateActiveDoc({ correctedSrt: res.fixedSrt });
-                                    const baseMsg = `✅ ¡SRT Procesado con éxito! ${res.blocksCount} bloques generados (máx. ${opt.val === 0 ? 'original' : `${nextMax} caract.`}) • ${res.capcutWordsCount} palabras de CapCut alineadas con las ${res.originalWordsCount} palabras de tu Guion de Etapa 4 (Coincidencia: ${res.similarityPct ?? 100}%).`;
-                                    setSrtStatsMsg(res.warningMsg ? `${baseMsg} ${res.warningMsg}` : baseMsg);
-                                  } catch {}
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                                isSelected
-                                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  {/* Controles de Largo de Línea de Captions + Tamaño de Font y Palabras por Línea (16:9 y 9:16 por separado) */}
+                  {(() => {
+                    const effMaxChars =
+                      typeof activeDoc.promptConfig?.CAPTION_MAX_CHARS === 'number'
+                        ? activeDoc.promptConfig.CAPTION_MAX_CHARS
+                        : srtMaxChars;
+                    const effLineMode: 'subdivide' | 'wrap' | 'original' =
+                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'subdivide' ||
+                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'wrap' ||
+                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'original'
+                        ? activeDoc.promptConfig.CAPTION_LINE_MODE
+                        : srtLineMode;
+                    const effFontSize16x9 =
+                      typeof activeDoc.promptConfig?.CAPTION_FONT_SIZE_16X9 === 'number' &&
+                      activeDoc.promptConfig.CAPTION_FONT_SIZE_16X9 >= 12
+                        ? activeDoc.promptConfig.CAPTION_FONT_SIZE_16X9
+                        : 25;
+                    const effFontSize9x16 =
+                      typeof activeDoc.promptConfig?.CAPTION_FONT_SIZE_9X16 === 'number' &&
+                      activeDoc.promptConfig.CAPTION_FONT_SIZE_9X16 >= 12
+                        ? activeDoc.promptConfig.CAPTION_FONT_SIZE_9X16
+                        : 21;
+                    const effWords16x9 =
+                      typeof activeDoc.promptConfig?.CAPTION_WORDS_PER_LINE_16X9 === 'number'
+                        ? activeDoc.promptConfig.CAPTION_WORDS_PER_LINE_16X9
+                        : 6;
+                    const effWords9x16 =
+                      typeof activeDoc.promptConfig?.CAPTION_WORDS_PER_LINE_9X16 === 'number'
+                        ? activeDoc.promptConfig.CAPTION_WORDS_PER_LINE_9X16
+                        : 4;
 
-                    {srtLineMode !== 'original' && (
-                      <div className="space-y-1.5">
-                        <span className="block text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
-                          ✂️ Cómo Acortar Bloques Largos:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {[
+                    const applyStage7CaptionSettings = (patch: {
+                      maxChars?: number;
+                      lineMode?: 'subdivide' | 'wrap' | 'original';
+                      fontSize16x9?: number;
+                      fontSize9x16?: number;
+                      words16x9?: number;
+                      words9x16?: number;
+                    }) => {
+                      const nextMax = patch.maxChars ?? effMaxChars;
+                      const nextMode = patch.lineMode ?? effLineMode;
+                      const nextF16 = patch.fontSize16x9 ?? effFontSize16x9;
+                      const nextF9 = patch.fontSize9x16 ?? effFontSize9x16;
+                      const nextW16 = patch.words16x9 ?? effWords16x9;
+                      const nextW9 = patch.words9x16 ?? effWords9x16;
+
+                      setSrtMaxChars(nextMax);
+                      setSrtLineMode(nextMode);
+
+                      const nextPromptConfig = {
+                        ...(activeDoc.promptConfig || {}),
+                        CAPTION_MAX_CHARS: nextMax,
+                        CAPTION_LINE_MODE: nextMode,
+                        CAPTION_FONT_SIZE_16X9: nextF16,
+                        CAPTION_FONT_SIZE_9X16: nextF9,
+                        CAPTION_WORDS_PER_LINE_16X9: nextW16,
+                        CAPTION_WORDS_PER_LINE_9X16: nextW9,
+                      };
+
+                      const activeTargetWords =
+                        activeDoc.productionType === 'REEL_9X16' ? nextW9 : nextW16;
+
+                      let nextCorrectedSrt = activeDoc.correctedSrt;
+                      if (activeDoc.capcutRawSrt?.trim() && activeDoc.voiceoverScript?.trim()) {
+                        try {
+                          const res = fixCapcutSrtWithVoiceover(
+                            activeDoc.voiceoverScript,
+                            activeDoc.capcutRawSrt,
                             {
-                              id: 'subdivide' as const,
-                              label: '1 Línea Corta Dinámica (Subdividir tiempos)',
-                              desc: 'Divide frases largas en captions cortos consecutivos con tiempos proporcionales al milisegundo',
-                            },
-                            {
-                              id: 'wrap' as const,
-                              label: '2 Renglones por Bloque (Salto de línea)',
-                              desc: 'Mantiene el mismo bloque de tiempo y parte la frase en 2 renglones cortos',
-                            },
-                          ].map((m) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              title={m.desc}
-                              onClick={() => {
-                                setSrtLineMode(m.id);
-                                if (activeDoc.capcutRawSrt?.trim() && activeDoc.voiceoverScript?.trim()) {
-                                  try {
-                                    const res = fixCapcutSrtWithVoiceover(
-                                      activeDoc.voiceoverScript,
-                                      activeDoc.capcutRawSrt,
-                                      { maxCharsPerLine: srtMaxChars, mode: m.id }
-                                    );
-                                    updateActiveDoc({ correctedSrt: res.fixedSrt });
-                                    const baseMsg = `✅ ¡SRT Procesado con éxito! ${res.blocksCount} bloques generados (máx. ${srtMaxChars} caract.) • ${res.capcutWordsCount} palabras de CapCut alineadas con las ${res.originalWordsCount} palabras de tu Guion de Etapa 4 (Coincidencia: ${res.similarityPct ?? 100}%).`;
-                                    setSrtStatsMsg(res.warningMsg ? `${baseMsg} ${res.warningMsg}` : baseMsg);
-                                  } catch {}
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                                srtLineMode === m.id
-                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
-                              }`}
-                            >
-                              {m.label}
-                            </button>
-                          ))}
+                              maxCharsPerLine: nextMax,
+                              maxWordsPerLine: activeTargetWords,
+                              mode: nextMode,
+                            }
+                          );
+                          nextCorrectedSrt = res.fixedSrt;
+                          const baseMsg = `✅ ¡SRT y Captions del Editor actualizados! ${res.blocksCount} bloques (${nextMode === 'original' ? 'original' : `máx. ${nextMax} caract.`}) • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`;
+                          setSrtStatsMsg(res.warningMsg ? `${baseMsg} ${res.warningMsg}` : baseMsg);
+                        } catch {}
+                      } else if (activeDoc.correctedSrt?.trim()) {
+                        const refRes = reformatSrtText(activeDoc.correctedSrt, {
+                          maxCharsPerLine: nextMax,
+                          maxWordsPerLine: activeTargetWords,
+                          mode: nextMode,
+                        });
+                        if (refRes.blocksCount > 0) {
+                          nextCorrectedSrt = refRes.srt;
+                        }
+                        setSrtStatsMsg(
+                          `✅ Configuración aplicada al Editor de Video y Exportación MP4 (${refRes.blocksCount} bloques): Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`
+                        );
+                      } else {
+                        setSrtStatsMsg(
+                          `✅ Configuración aplicada en tiempo real al Editor de Video y Exportación MP4: Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`
+                        );
+                      }
+
+                      updateActiveDoc({
+                        promptConfig: nextPromptConfig,
+                        ...(nextCorrectedSrt !== activeDoc.correctedSrt
+                          ? { correctedSrt: nextCorrectedSrt }
+                          : {}),
+                      });
+                    };
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-4">
+                          <div className="space-y-1.5">
+                            <span className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                              📏 Largo Máximo de Línea en Pantalla (Caracteres por Caption):
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                { val: 22, label: '⚡ Muy Corto (22 caract. / 3-4 pal.)', w16: 4, w9: 3 },
+                                { val: 32, label: '🎯 Corto Ideal (32 caract. / 4-6 pal.)', w16: 6, w9: 4 },
+                                { val: 42, label: '📐 Medio (42 caract. / 6-7 pal.)', w16: 7, w9: 5 },
+                                { val: 0, label: '📄 Original CapCut (Sin acortar)', w16: 0, w9: 0 },
+                              ].map((opt) => {
+                                const isSelected =
+                                  (opt.val === 0 && effLineMode === 'original') ||
+                                  (opt.val > 0 && effLineMode !== 'original' && effMaxChars === opt.val);
+                                return (
+                                  <button
+                                    key={opt.val}
+                                    type="button"
+                                    onClick={() => {
+                                      const nextMode =
+                                        opt.val === 0
+                                          ? 'original'
+                                          : effLineMode === 'original'
+                                          ? 'subdivide'
+                                          : effLineMode;
+                                      const nextMax = opt.val === 0 ? effMaxChars : opt.val;
+                                      applyStage7CaptionSettings({
+                                        maxChars: nextMax,
+                                        lineMode: nextMode,
+                                        words16x9: opt.w16,
+                                        words9x16: opt.w9,
+                                      });
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                      isSelected
+                                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {effLineMode !== 'original' && (
+                            <div className="space-y-1.5">
+                              <span className="block text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                                ✂️ Cómo Acortar Bloques Largos:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  {
+                                    id: 'subdivide' as const,
+                                    label: '1 Línea Corta Dinámica (Subdividir tiempos)',
+                                    desc: 'Divide frases largas en captions cortos consecutivos con tiempos proporcionales al milisegundo',
+                                  },
+                                  {
+                                    id: 'wrap' as const,
+                                    label: '2 Renglones por Bloque (Salto de línea)',
+                                    desc: 'Mantiene el mismo bloque de tiempo y parte la frase en 2 renglones cortos',
+                                  },
+                                ].map((m) => (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    title={m.desc}
+                                    onClick={() => applyStage7CaptionSettings({ lineMode: m.id })}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                      effLineMode === m.id
+                                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}
+                                  >
+                                    {m.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Tamaño de Font y Cantidad de Palabras por Línea por separado para 16:9 y 9:16 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Configuración 16:9 Horizontal */}
+                          <div className="bg-slate-950/85 border border-sky-500/35 rounded-xl p-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-sky-300 uppercase tracking-wider">
+                                🖥️ Captions para 16:9 (Horizontal YouTube)
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-200">
+                                {effFontSize16x9}px • {effWords16x9 > 0 ? `${effWords16x9} palabras/línea` : 'Auto por caract.'}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-300 font-semibold">
+                                  🔤 Tamaño de Font en 16:9:
+                                </span>
+                                <span className="font-bold text-sky-300">{effFontSize16x9}px</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={14}
+                                  max={64}
+                                  value={effFontSize16x9}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({
+                                      fontSize16x9: Number(e.target.value),
+                                    })
+                                  }
+                                  className="flex-1 accent-sky-400"
+                                />
+                                <div className="flex gap-1">
+                                  {[20, 25, 30, 36].map((sz) => (
+                                    <button
+                                      key={sz}
+                                      type="button"
+                                      onClick={() => applyStage7CaptionSettings({ fontSize16x9: sz })}
+                                      className={`px-2 py-1 rounded text-[11px] font-bold border cursor-pointer ${
+                                        effFontSize16x9 === sz
+                                          ? 'bg-sky-500 text-slate-950 border-sky-400'
+                                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {sz}px
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <span className="block text-xs text-slate-300 font-semibold">
+                                📝 Cantidad de Palabras por Línea en 16:9:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  { w: 3, lbl: '3 pal.' },
+                                  { w: 4, lbl: '4 pal.' },
+                                  { w: 5, lbl: '5 pal.' },
+                                  { w: 6, lbl: '6 pal. (Ideal)' },
+                                  { w: 7, lbl: '7 pal.' },
+                                  { w: 8, lbl: '8 pal.' },
+                                  { w: 0, lbl: 'Auto' },
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.w}
+                                    type="button"
+                                    onClick={() =>
+                                      applyStage7CaptionSettings({
+                                        words16x9: opt.w,
+                                        lineMode:
+                                          opt.w > 0 && effLineMode === 'original'
+                                            ? 'subdivide'
+                                            : effLineMode,
+                                      })
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer transition ${
+                                      effWords16x9 === opt.w
+                                        ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}
+                                  >
+                                    {opt.lbl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Configuración 9:16 Vertical */}
+                          <div className="bg-slate-950/85 border border-amber-500/35 rounded-xl p-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                                📱 Captions para 9:16 (Vertical Reels / Shorts / TikTok)
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-200">
+                                {effFontSize9x16}px • {effWords9x16 > 0 ? `${effWords9x16} palabras/línea` : 'Auto por caract.'}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-300 font-semibold">
+                                  🔤 Tamaño de Font en 9:16:
+                                </span>
+                                <span className="font-bold text-amber-300">{effFontSize9x16}px</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={14}
+                                  max={64}
+                                  value={effFontSize9x16}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({
+                                      fontSize9x16: Number(e.target.value),
+                                    })
+                                  }
+                                  className="flex-1 accent-amber-500"
+                                />
+                                <div className="flex gap-1">
+                                  {[18, 21, 25, 30].map((sz) => (
+                                    <button
+                                      key={sz}
+                                      type="button"
+                                      onClick={() => applyStage7CaptionSettings({ fontSize9x16: sz })}
+                                      className={`px-2 py-1 rounded text-[11px] font-bold border cursor-pointer ${
+                                        effFontSize9x16 === sz
+                                          ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {sz}px
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <span className="block text-xs text-slate-300 font-semibold">
+                                📝 Cantidad de Palabras por Línea en 9:16:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  { w: 2, lbl: '2 pal.' },
+                                  { w: 3, lbl: '3 pal.' },
+                                  { w: 4, lbl: '4 pal. (Ideal)' },
+                                  { w: 5, lbl: '5 pal.' },
+                                  { w: 6, lbl: '6 pal.' },
+                                  { w: 0, lbl: 'Auto' },
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.w}
+                                    type="button"
+                                    onClick={() =>
+                                      applyStage7CaptionSettings({
+                                        words9x16: opt.w,
+                                        lineMode:
+                                          opt.w > 0 && effLineMode === 'original'
+                                            ? 'subdivide'
+                                            : effLineMode,
+                                      })
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer transition ${
+                                      effWords9x16 === opt.w
+                                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}
+                                  >
+                                    {opt.lbl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                   {srtStatsMsg && (
                     <div
@@ -14187,13 +14459,31 @@ export default function App() {
                       type="button"
                       onClick={() => {
                         try {
+                          const effMax =
+                            typeof activeDoc.promptConfig?.CAPTION_MAX_CHARS === 'number'
+                              ? activeDoc.promptConfig.CAPTION_MAX_CHARS
+                              : srtMaxChars;
+                          const effMode: 'subdivide' | 'wrap' | 'original' =
+                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'subdivide' ||
+                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'wrap' ||
+                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'original'
+                              ? activeDoc.promptConfig.CAPTION_LINE_MODE
+                              : srtLineMode;
+                          const effWords =
+                            activeDoc.productionType === 'REEL_9X16'
+                              ? Number(activeDoc.promptConfig?.CAPTION_WORDS_PER_LINE_9X16 ?? 4)
+                              : Number(activeDoc.promptConfig?.CAPTION_WORDS_PER_LINE_16X9 ?? 6);
                           const res = fixCapcutSrtWithVoiceover(
                             activeDoc.voiceoverScript,
                             activeDoc.capcutRawSrt,
-                            { maxCharsPerLine: srtMaxChars, mode: srtLineMode }
+                            {
+                              maxCharsPerLine: effMax,
+                              maxWordsPerLine: effWords,
+                              mode: effMode,
+                            }
                           );
                           updateActiveDoc({ correctedSrt: res.fixedSrt });
-                          const baseMsg = `✅ ¡SRT Procesado con éxito! ${res.blocksCount} bloques generados (${srtLineMode === 'original' ? 'largo original' : `máx. ${srtMaxChars} caract.`}) • ${res.capcutWordsCount} palabras de CapCut alineadas con las ${res.originalWordsCount} palabras de tu Guion de Etapa 4 (Coincidencia: ${res.similarityPct ?? 100}%).`;
+                          const baseMsg = `✅ ¡SRT Procesado con éxito! ${res.blocksCount} bloques generados (${effMode === 'original' ? 'largo original' : `máx. ${effMax} caract. / ${effWords || 'Auto'} pal.`}) • ${res.capcutWordsCount} palabras de CapCut alineadas con las ${res.originalWordsCount} palabras de tu Guion de Etapa 4 (Coincidencia: ${res.similarityPct ?? 100}%).`;
                           setSrtStatsMsg(
                             res.warningMsg ? `${baseMsg} ${res.warningMsg}` : baseMsg
                           );
