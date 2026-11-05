@@ -4872,6 +4872,30 @@ async function analyzeClipSmartReframe9x16(
   };
 }
 
+function resolveLocalFlowProjectFolder(
+  folderPathQuery?: string,
+  folderNameQuery?: string,
+  docTitleQuery?: string
+): string {
+  const raw = String(folderPathQuery || '').trim();
+  const base = raw ? path.basename(raw) : '';
+  let resolved = resolveLocalDocumentaryFolder(
+    raw,
+    folderNameQuery || base,
+    docTitleQuery || raw
+  );
+  if (!resolved && raw && fs.existsSync(raw) && fs.statSync(raw).isDirectory()) {
+    resolved = raw;
+  }
+  if (resolved) {
+    const leaf = path.basename(resolved);
+    if (/^(05_Clips_Video|Clips_Aprobados|06_Video_Final|02_Audio|03_Imagenes|04_Miniaturas)$/i.test(leaf)) {
+      resolved = path.dirname(resolved);
+    }
+  }
+  return resolved;
+}
+
 app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
   try {
     const { folderPath, forceRefresh } = req.body || {};
