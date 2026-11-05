@@ -584,28 +584,98 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onOfficialLogoChange,
   isEditorActive = true,
 }) => {
+  const EDITOR_SESSION_STORAGE_KEY = 'huellas_editor_session_state_v1';
+  const initialSessionState = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(EDITOR_SESSION_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const initialDocStateForInit = useMemo(() => {
+    try {
+      const targetId = activeDoc?.id || initialSessionState?.lastDocId || 'default';
+      const raw = localStorage.getItem(`huellas_editor_doc_overlays_${targetId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   // 1. Aspect Ratio (16:9 vs 9:16) & Export Resolution (HD, 2K, 4K, 8K), FPS, Bitrate & Burn-in Options
-  const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() =>
-    activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9'
-  );
+  const [aspectRatio, setAspectRatio] = useState<EditorAspectRatio>(() => {
+    if (
+      initialDocStateForInit?.aspectRatio === '16:9' ||
+      initialDocStateForInit?.aspectRatio === '9:16'
+    ) {
+      return initialDocStateForInit.aspectRatio;
+    }
+    if (
+      initialSessionState?.aspectRatio === '16:9' ||
+      initialSessionState?.aspectRatio === '9:16'
+    ) {
+      return initialSessionState.aspectRatio;
+    }
+    return activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9';
+  });
   const [exportResolution, setExportResolution] = useState<ExportResolutionPreset>(() => {
-    const initRatio = activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9';
+    const validRes = (v: any): v is ExportResolutionPreset =>
+      v === 'HD_1080P' || v === '2K_1440P' || v === '4K_2160P' || v === '8K_4320P';
+    if (validRes(initialDocStateForInit?.exportResolution)) {
+      return initialDocStateForInit.exportResolution;
+    }
+    if (validRes(initialSessionState?.exportResolution)) {
+      return initialSessionState.exportResolution;
+    }
+    const initRatio: EditorAspectRatio =
+      initialDocStateForInit?.aspectRatio === '9:16' ||
+      initialDocStateForInit?.aspectRatio === '16:9'
+        ? initialDocStateForInit.aspectRatio
+        : initialSessionState?.aspectRatio === '9:16' ||
+          initialSessionState?.aspectRatio === '16:9'
+        ? initialSessionState.aspectRatio
+        : activeDoc?.productionType === 'REEL_9X16'
+        ? '9:16'
+        : '16:9';
     try {
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?._v3_res_by_ratio && parsed?.[initRatio]?.exportResolution) {
-          return parsed[initRatio].exportResolution as ExportResolutionPreset;
+        if (parsed?._v3_res_by_ratio && validRes(parsed?.[initRatio]?.exportResolution)) {
+          return parsed[initRatio].exportResolution;
         }
       }
     } catch {}
     return initRatio === '9:16' ? '2K_1440P' : '8K_4320P';
   });
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
-  const [exportFps, setExportFps] = useState<24 | 30 | 60>(30);
-  const [exportBitrateTier, setExportBitrateTier] = useState<'standard' | 'recommended' | 'ultra' | 'custom'>('recommended');
+  const [exportFps, setExportFps] = useState<24 | 30 | 60>(() => {
+    const fps = Number(initialDocStateForInit?.exportFps ?? initialSessionState?.exportFps);
+    return fps === 24 || fps === 30 || fps === 60 ? fps : 30;
+  });
+  const [exportBitrateTier, setExportBitrateTier] = useState<
+    'standard' | 'recommended' | 'ultra' | 'custom'
+  >(() => {
+    const t = initialDocStateForInit?.exportBitrateTier ?? initialSessionState?.exportBitrateTier;
+    return t === 'standard' || t === 'recommended' || t === 'ultra' || t === 'custom'
+      ? t
+      : 'recommended';
+  });
   const [exportBitrateMbps, setExportBitrateMbps] = useState<number>(() => {
-    const initRatio = activeDoc?.productionType === 'REEL_9X16' ? '9:16' : '16:9';
+    const savedBr = Number(
+      initialDocStateForInit?.exportBitrateMbps ?? initialSessionState?.exportBitrateMbps
+    );
+    if (Number.isFinite(savedBr) && savedBr >= 4 && savedBr <= 400) {
+      return savedBr;
+    }
+    const initRatio: EditorAspectRatio =
+      initialDocStateForInit?.aspectRatio === '9:16' ||
+      initialSessionState?.aspectRatio === '9:16' ||
+      activeDoc?.productionType === 'REEL_9X16'
+        ? '9:16'
+        : '16:9';
     let initRes: ExportResolutionPreset = initRatio === '9:16' ? '2K_1440P' : '8K_4320P';
     try {
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
@@ -621,9 +691,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (initRes === '4K_2160P') return 65;
     return 140;
   });
-  const [burnInLogo, setBurnInLogo] = useState<boolean>(true);
-  const [burnInHook, setBurnInHook] = useState<boolean>(true);
-  const [burnInCaptions, setBurnInCaptions] = useState<boolean>(true);
+  const [burnInLogo, setBurnInLogo] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.burnInLogo === 'boolean'
+      ? initialDocStateForInit.burnInLogo
+      : typeof initialSessionState?.burnInLogo === 'boolean'
+      ? initialSessionState.burnInLogo
+      : true
+  );
+  const [burnInHook, setBurnInHook] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.burnInHook === 'boolean'
+      ? initialDocStateForInit.burnInHook
+      : typeof initialSessionState?.burnInHook === 'boolean'
+      ? initialSessionState.burnInHook
+      : true
+  );
+  const [burnInCaptions, setBurnInCaptions] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.burnInCaptions === 'boolean'
+      ? initialDocStateForInit.burnInCaptions
+      : typeof initialSessionState?.burnInCaptions === 'boolean'
+      ? initialSessionState.burnInCaptions
+      : true
+  );
   const [renderStageLabel, setRenderStageLabel] = useState<string>('');
   const [renderStartedAtMs, setRenderStartedAtMs] = useState<number>(0);
   const [renderElapsedSec, setRenderElapsedSec] = useState<number>(0);
@@ -636,7 +724,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [isRenderingVideo, setIsRenderingVideo] = useState<boolean>(false);
   const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
+  const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>(
+    () =>
+      initialDocStateForInit?.defaultTransition ||
+      initialSessionState?.defaultTransition ||
+      'direct'
+  );
 
   const getRecommendedBitratesForRes = (res: ExportResolutionPreset) => {
     switch (res) {
@@ -863,9 +956,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => Number(initialOverlayStyles.captionAnimDur) || 0.25
   );
 
-  const [clipAnimIn, setClipAnimIn] = useState<ElementAnimationType>('none');
-  const [clipAnimOut, setClipAnimOut] = useState<ElementAnimationType>('none');
-  const [clipAnimDur, setClipAnimDur] = useState<number>(0.6);
+  const [clipAnimIn, setClipAnimIn] = useState<ElementAnimationType>(
+    () => initialSessionState?.clipAnimIn || 'none'
+  );
+  const [clipAnimOut, setClipAnimOut] = useState<ElementAnimationType>(
+    () => initialSessionState?.clipAnimOut || 'none'
+  );
+  const [clipAnimDur, setClipAnimDur] = useState<number>(
+    () => Number(initialSessionState?.clipAnimDur) || 0.6
+  );
 
   const [hookFontFamily, setHookFontFamily] = useState<string>(
     () => initialOverlayStyles.hookFontFamily || EDITOR_FONT_OPTIONS[0].value
@@ -904,16 +1003,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => Number(initialOverlayStyles.hookBoxWidthPct) || 82
   );
   const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
-  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(
-    () => typeof window !== 'undefined' && window.innerWidth < 1024
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(() =>
+    typeof initialSessionState?.isLeftPanelCollapsed === 'boolean'
+      ? initialSessionState.isLeftPanelCollapsed
+      : typeof window !== 'undefined' && window.innerWidth < 1024
   );
   const [leftPanelTab, setLeftPanelTab] = useState<
     'media' | 'audio' | 'text' | 'transitions' | 'captions'
-  >('media');
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState<boolean>(
-    () => typeof window !== 'undefined' && window.innerWidth < 1024
+  >(() => {
+    const t = initialSessionState?.leftPanelTab;
+    return t === 'media' ||
+      t === 'audio' ||
+      t === 'text' ||
+      t === 'transitions' ||
+      t === 'captions'
+      ? t
+      : 'media';
+  });
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState<boolean>(() =>
+    typeof initialSessionState?.isRightPanelCollapsed === 'boolean'
+      ? initialSessionState.isRightPanelCollapsed
+      : typeof window !== 'undefined' && window.innerWidth < 1024
   );
-  const [isTimelineDockExpanded, setIsTimelineDockExpanded] = useState<boolean>(false);
+  const [isTimelineDockExpanded, setIsTimelineDockExpanded] = useState<boolean>(() =>
+    typeof initialSessionState?.isTimelineDockExpanded === 'boolean'
+      ? initialSessionState.isTimelineDockExpanded
+      : false
+  );
   const viewerStageRef = useRef<HTMLDivElement | null>(null);
   const [viewerStageSize, setViewerStageSize] = useState<{ width: number; height: number }>({
     width: 0,
@@ -1198,8 +1314,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // 4. Five Multi-Tracks State
   const [timelineClips, setTimelineClips] = useState<TimelineClipItem[]>([]);
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-  const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(
+    () =>
+      initialDocStateForInit?.selectedClipId ||
+      initialSessionState?.selectedClipId ||
+      null
+  );
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>(() => {
+    if (
+      Array.isArray(initialDocStateForInit?.selectedClipIds) &&
+      initialDocStateForInit.selectedClipIds.length > 0
+    ) {
+      return initialDocStateForInit.selectedClipIds;
+    }
+    if (
+      Array.isArray(initialSessionState?.selectedClipIds) &&
+      initialSessionState.selectedClipIds.length > 0
+    ) {
+      return initialSessionState.selectedClipIds;
+    }
+    const single =
+      initialDocStateForInit?.selectedClipId || initialSessionState?.selectedClipId;
+    return single ? [single] : [];
+  });
   const [clipContextMenu, setClipContextMenu] = useState<{
     x: number;
     y: number;
@@ -1212,7 +1349,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? initialDocOverlays.separatedVocalSegments
         : []
   );
-  const [selectedVocalSegmentId, setSelectedVocalSegmentId] = useState<string | null>(null);
+  const [selectedVocalSegmentId, setSelectedVocalSegmentId] = useState<string | null>(
+    () => initialSessionState?.selectedVocalSegmentId || null
+  );
   const [isSeparatingVocals, setIsSeparatingVocals] = useState<boolean>(false);
   const [separatedMusicSegments, setSeparatedMusicSegments] = useState<TimelineSeparatedVocalItem[]>(
     () =>
@@ -1220,14 +1359,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? initialDocOverlays.separatedMusicSegments
         : []
   );
-  const [selectedMusicSegmentId, setSelectedMusicSegmentId] = useState<string | null>(null);
+  const [selectedMusicSegmentId, setSelectedMusicSegmentId] = useState<string | null>(
+    () => initialSessionState?.selectedMusicSegmentId || null
+  );
   const [isSeparatingMusic, setIsSeparatingMusic] = useState<boolean>(false);
   const [isIsolatingFoley, setIsIsolatingFoley] = useState<boolean>(false);
   const [foleyIsolationProgress, setFoleyIsolationProgress] = useState<{ current: number; total: number } | null>(null);
-  const [autoIsolateFoleyAllClips, setAutoIsolateFoleyAllClips] = useState<boolean>(false);
+  const [autoIsolateFoleyAllClips, setAutoIsolateFoleyAllClips] = useState<boolean>(() =>
+    typeof initialSessionState?.autoIsolateFoleyAllClips === 'boolean'
+      ? initialSessionState.autoIsolateFoleyAllClips
+      : false
+  );
   const autoAttemptedFoleyClipIdsRef = useRef<Set<string>>(new Set());
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
-  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(false);
+  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.showOnlyReviewedClips === 'boolean'
+      ? initialDocStateForInit.showOnlyReviewedClips
+      : typeof initialSessionState?.showOnlyReviewedClips === 'boolean'
+      ? initialSessionState.showOnlyReviewedClips
+      : false
+  );
 
   // Voiceover Track (Track 4) — Starts at 16s in Opción A (after 8s Intro + 8s Clip 1 Hook) or 8s in Opción B (Post-Slogan)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
@@ -1240,11 +1391,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return mode === 'INTRO_POST_SLOGAN' ? clip1HookDur : 8 + clip1HookDur;
   });
   const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
-  const [voiceVolume, setVoiceVolume] = useState<number>(100);
-  const [voiceGainDb, setVoiceGainDb] = useState<number>(5); // Always +5 dB boost for narrative voiceover
-  const [autoDuckingEnabled, setAutoDuckingEnabled] = useState<boolean>(true);
-  const [foleyHighVolume, setFoleyHighVolume] = useState<number>(80); // When narrator is silent
-  const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(20); // When narrator speaks
+  const [voiceVolume, setVoiceVolume] = useState<number>(() => {
+    const v = Number(initialDocStateForInit?.voiceVolume ?? initialSessionState?.voiceVolume);
+    return Number.isFinite(v) && v >= 0 && v <= 200 ? v : 100;
+  });
+  const [voiceGainDb, setVoiceGainDb] = useState<number>(() => {
+    const g = Number(initialDocStateForInit?.voiceGainDb ?? initialSessionState?.voiceGainDb);
+    return Number.isFinite(g) && g >= -12 && g <= 18 ? g : 5;
+  }); // Always +5 dB boost for narrative voiceover
+  const [autoDuckingEnabled, setAutoDuckingEnabled] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.autoDuckingEnabled === 'boolean'
+      ? initialDocStateForInit.autoDuckingEnabled
+      : typeof initialSessionState?.autoDuckingEnabled === 'boolean'
+      ? initialSessionState.autoDuckingEnabled
+      : true
+  );
+  const [foleyHighVolume, setFoleyHighVolume] = useState<number>(() => {
+    const v = Number(
+      initialDocStateForInit?.foleyHighVolume ?? initialSessionState?.foleyHighVolume
+    );
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 80;
+  }); // When narrator is silent
+  const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(() => {
+    const v = Number(
+      initialDocStateForInit?.foleyDuckedVolume ?? initialSessionState?.foleyDuckedVolume
+    );
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 20;
+  }); // When narrator speaks
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
   const [captions, setCaptions] = useState<TimelineCaptionItem[]>(() => {
@@ -1765,7 +1938,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   ]);
 
   const [isAnalyzingReframe9x16, setIsAnalyzingReframe9x16] = useState<boolean>(false);
-  const [reframeSummary9x16, setReframeSummary9x16] = useState<string>('');
+  const [reframeSummary9x16, setReframeSummary9x16] = useState<string>(
+    () =>
+      initialDocStateForInit?.reframeSummary9x16 ||
+      initialSessionState?.reframeSummary9x16 ||
+      ''
+  );
   const autoReframedDocIdsRef = useRef<Set<string>>(new Set());
   const [exportedMasterVideos, setExportedMasterVideos] = useState<{
     '16:9': { fileName: string; filePath: string; sizeMB: string; updatedAt: string } | null;
@@ -2291,8 +2469,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Music Track (Track 5 - Suno)
   const [musicTracks, setMusicTracks] = useState<TimelineMusicItem[]>([]);
-  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(10);
-  const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(null);
+  const [masterMusicVolume, setMasterMusicVolume] = useState<number>(() => {
+    const v = Number(
+      initialDocStateForInit?.masterMusicVolume ?? initialSessionState?.masterMusicVolume
+    );
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 10;
+  });
+  const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(
+    () =>
+      initialDocStateForInit?.selectedMusicTrackId ||
+      initialSessionState?.selectedMusicTrackId ||
+      null
+  );
 
   const handleUpdateMusicTrack = (
     trackId: string,
@@ -2338,19 +2526,39 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(() => {
     try {
-      const saved = Number(
-        localStorage.getItem(`huellas_editor_playhead_${activeDoc?.id || 'default'}`) || 0
+      const targetId = activeDoc?.id || initialSessionState?.lastDocId || 'default';
+      const rawPlayhead = localStorage.getItem(`huellas_editor_playhead_${targetId}`);
+      if (rawPlayhead !== null) {
+        const saved = Number(rawPlayhead);
+        if (Number.isFinite(saved) && saved >= 0) return saved;
+      }
+      const fallbackSaved = Number(
+        initialDocStateForInit?.currentTime ?? initialSessionState?.currentTime ?? 0
       );
-      return Number.isFinite(saved) && saved >= 0 ? saved : 0;
+      return Number.isFinite(fallbackSaved) && fallbackSaved >= 0 ? fallbackSaved : 0;
     } catch {
       return 0;
     }
   });
-  const [timelineZoom, setTimelineZoom] = useState<number>(20); // pixels per second
-  const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(false);
+  const [timelineZoom, setTimelineZoom] = useState<number>(() => {
+    const z = Number(initialDocStateForInit?.timelineZoom ?? initialSessionState?.timelineZoom);
+    return Number.isFinite(z) && z >= 1 && z <= 50 ? z : 20;
+  }); // pixels per second
+  const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(() =>
+    typeof initialDocStateForInit?.isFitEntireProject === 'boolean'
+      ? initialDocStateForInit.isFitEntireProject
+      : typeof initialSessionState?.isFitEntireProject === 'boolean'
+      ? initialSessionState.isFitEntireProject
+      : false
+  );
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'clips' | 'audio' | 'branding' | 'captions'
-  >('clips');
+  >(() => {
+    const tab = initialSessionState?.activeInspectorTab;
+    return tab === 'clips' || tab === 'audio' || tab === 'branding' || tab === 'captions'
+      ? tab
+      : 'clips';
+  });
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
   const [localServerClipVideosMap, setLocalServerClipVideosMap] = useState<Record<number, string>>({});
@@ -2405,39 +2613,266 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const isScrubbingRulerRef = useRef<boolean>(false);
   const prevDocIdForPlayheadRef = useRef<string | undefined>(activeDoc?.id);
   const zoomPlayheadViewportOffsetRef = useRef<number | null>(null);
+  const savedTimelineScrollRef = useRef<{ left: number; top: number }>({
+    left:
+      Number(
+        initialDocStateForInit?.timelineScrollLeft ??
+          initialSessionState?.timelineScrollLeft
+      ) || 0,
+    top:
+      Number(
+        initialDocStateForInit?.timelineScrollTop ??
+          initialSessionState?.timelineScrollTop
+      ) || 0,
+  });
 
-  // Persist playhead position per documentary so leaving the editor to another stage and returning keeps the video right where it was
+  // 1) Restore saved per-documentary playhead, format, quality, zoom, scroll & selection when activeDoc?.id loads or switches
+  // (Declared BEFORE the save effect so initial async activeDoc load NEVER overwrites saved state with 0/defaults)
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        `huellas_editor_playhead_${activeDoc?.id || 'default'}`,
-        String(Number(currentTime.toFixed(2)))
-      );
-    } catch {}
-  }, [currentTime, activeDoc?.id]);
+    if (!activeDoc?.id) return;
+    if (prevDocIdForPlayheadRef.current === activeDoc.id) return;
+    const wasUnset = !prevDocIdForPlayheadRef.current;
+    prevDocIdForPlayheadRef.current = activeDoc.id;
 
-  // Restore saved playhead position when switching to a different documentary
-  useEffect(() => {
-    if (prevDocIdForPlayheadRef.current === activeDoc?.id) return;
-    prevDocIdForPlayheadRef.current = activeDoc?.id;
     try {
-      const saved = Number(
-        localStorage.getItem(`huellas_editor_playhead_${activeDoc?.id || 'default'}`) || 0
-      );
-      const nextTime = Number.isFinite(saved) && saved >= 0 ? saved : 0;
+      const savedDoc = readSavedDocOverlays(activeDoc.id);
+      const rawPlayhead = localStorage.getItem(`huellas_editor_playhead_${activeDoc.id}`);
+      const parsedPlayhead =
+        rawPlayhead !== null
+          ? Number(rawPlayhead)
+          : typeof savedDoc?.currentTime === 'number'
+          ? Number(savedDoc.currentTime)
+          : currentTimeRef.current;
+      const nextTime =
+        Number.isFinite(parsedPlayhead) && parsedPlayhead >= 0 ? parsedPlayhead : 0;
       currentTimeRef.current = nextTime;
       playTimelineStartSecRef.current = nextTime;
       lastSeekVersionRef.current += 1;
       setCurrentTime(nextTime);
+
+      const isDifferentFromSessionDoc =
+        !wasUnset ||
+        (initialSessionState?.lastDocId && initialSessionState.lastDocId !== activeDoc.id);
+
+      if (savedDoc && isDifferentFromSessionDoc) {
+        if (savedDoc.aspectRatio === '16:9' || savedDoc.aspectRatio === '9:16') {
+          setAspectRatio(savedDoc.aspectRatio);
+        }
+        if (
+          savedDoc.exportResolution === 'HD_1080P' ||
+          savedDoc.exportResolution === '2K_1440P' ||
+          savedDoc.exportResolution === '4K_2160P' ||
+          savedDoc.exportResolution === '8K_4320P'
+        ) {
+          setExportResolution(savedDoc.exportResolution);
+        }
+        if (
+          savedDoc.exportFps === 24 ||
+          savedDoc.exportFps === 30 ||
+          savedDoc.exportFps === 60
+        ) {
+          setExportFps(savedDoc.exportFps);
+        }
+        if (
+          savedDoc.exportBitrateTier === 'standard' ||
+          savedDoc.exportBitrateTier === 'recommended' ||
+          savedDoc.exportBitrateTier === 'ultra' ||
+          savedDoc.exportBitrateTier === 'custom'
+        ) {
+          setExportBitrateTier(savedDoc.exportBitrateTier);
+        }
+        if (
+          typeof savedDoc.exportBitrateMbps === 'number' &&
+          savedDoc.exportBitrateMbps >= 4
+        ) {
+          setExportBitrateMbps(savedDoc.exportBitrateMbps);
+        }
+        if (typeof savedDoc.timelineZoom === 'number' && savedDoc.timelineZoom >= 1) {
+          setTimelineZoom(savedDoc.timelineZoom);
+        }
+        if (typeof savedDoc.isFitEntireProject === 'boolean') {
+          setIsFitEntireProject(savedDoc.isFitEntireProject);
+        }
+        if (typeof savedDoc.selectedClipId === 'string' && savedDoc.selectedClipId) {
+          setSelectedClipId(savedDoc.selectedClipId);
+          setSelectedClipIds(
+            Array.isArray(savedDoc.selectedClipIds) && savedDoc.selectedClipIds.length > 0
+              ? savedDoc.selectedClipIds
+              : [savedDoc.selectedClipId]
+          );
+        }
+        if (typeof savedDoc.selectedMusicTrackId === 'string') {
+          setSelectedMusicTrackId(savedDoc.selectedMusicTrackId);
+        }
+        if (typeof savedDoc.voiceVolume === 'number') setVoiceVolume(savedDoc.voiceVolume);
+        if (typeof savedDoc.voiceGainDb === 'number') setVoiceGainDb(savedDoc.voiceGainDb);
+        if (typeof savedDoc.autoDuckingEnabled === 'boolean') {
+          setAutoDuckingEnabled(savedDoc.autoDuckingEnabled);
+        }
+        if (typeof savedDoc.foleyHighVolume === 'number') {
+          setFoleyHighVolume(savedDoc.foleyHighVolume);
+        }
+        if (typeof savedDoc.foleyDuckedVolume === 'number') {
+          setFoleyDuckedVolume(savedDoc.foleyDuckedVolume);
+        }
+        if (typeof savedDoc.masterMusicVolume === 'number') {
+          setMasterMusicVolume(savedDoc.masterMusicVolume);
+        }
+        if (typeof savedDoc.timelineScrollLeft === 'number') {
+          savedTimelineScrollRef.current.left = savedDoc.timelineScrollLeft;
+        }
+        if (typeof savedDoc.timelineScrollTop === 'number') {
+          savedTimelineScrollRef.current.top = savedDoc.timelineScrollTop;
+        }
+      }
     } catch {}
   }, [activeDoc?.id]);
 
-  // Pause playback automatically if user navigates away from the Video Editor to another stage, keeping exact playhead position
+  // 2) Persist playhead position & full editor state in real time so leaving and re-entering the Video Editor (or refreshing) keeps 100% of settings intact
   useEffect(() => {
-    if (!isEditorActive && isPlaying) {
-      setIsPlaying(false);
+    const roundedTime = Number(currentTime.toFixed(2));
+    try {
+      if (activeDoc?.id) {
+        localStorage.setItem(`huellas_editor_playhead_${activeDoc.id}`, String(roundedTime));
+      }
+      const sessionPayload = {
+        lastDocId: activeDoc?.id || initialSessionState?.lastDocId || 'default',
+        aspectRatio,
+        exportResolution,
+        exportFps,
+        exportBitrateTier,
+        exportBitrateMbps,
+        burnInLogo,
+        burnInHook,
+        burnInCaptions,
+        defaultTransition,
+        clipAnimIn,
+        clipAnimOut,
+        clipAnimDur,
+        isLeftPanelCollapsed,
+        leftPanelTab,
+        isRightPanelCollapsed,
+        activeInspectorTab,
+        isTimelineDockExpanded,
+        selectedClipId,
+        selectedClipIds,
+        selectedMusicTrackId,
+        selectedVocalSegmentId,
+        selectedMusicSegmentId,
+        selectedCanvasObject,
+        voiceVolume,
+        voiceGainDb,
+        autoDuckingEnabled,
+        foleyHighVolume,
+        foleyDuckedVolume,
+        masterMusicVolume,
+        showOnlyReviewedClips,
+        autoIsolateFoleyAllClips,
+        timelineZoom,
+        isFitEntireProject,
+        currentTime: roundedTime,
+        timelineScrollLeft: savedTimelineScrollRef.current.left,
+        timelineScrollTop: savedTimelineScrollRef.current.top,
+        reframeSummary9x16,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem(EDITOR_SESSION_STORAGE_KEY, JSON.stringify(sessionPayload));
+      if (activeDoc?.id) {
+        persistDocOverlaysPatch(
+          {
+            aspectRatio,
+            exportResolution,
+            exportFps,
+            exportBitrateTier,
+            exportBitrateMbps,
+            burnInLogo,
+            burnInHook,
+            burnInCaptions,
+            defaultTransition,
+            selectedClipId,
+            selectedClipIds,
+            selectedMusicTrackId,
+            voiceVolume,
+            voiceGainDb,
+            autoDuckingEnabled,
+            foleyHighVolume,
+            foleyDuckedVolume,
+            masterMusicVolume,
+            showOnlyReviewedClips,
+            timelineZoom,
+            isFitEntireProject,
+            currentTime: roundedTime,
+            timelineScrollLeft: savedTimelineScrollRef.current.left,
+            timelineScrollTop: savedTimelineScrollRef.current.top,
+            reframeSummary9x16,
+          },
+          activeDoc.id
+        );
+      }
+    } catch {}
+  }, [
+    activeDoc?.id,
+    aspectRatio,
+    exportResolution,
+    exportFps,
+    exportBitrateTier,
+    exportBitrateMbps,
+    burnInLogo,
+    burnInHook,
+    burnInCaptions,
+    defaultTransition,
+    clipAnimIn,
+    clipAnimOut,
+    clipAnimDur,
+    isLeftPanelCollapsed,
+    leftPanelTab,
+    isRightPanelCollapsed,
+    activeInspectorTab,
+    isTimelineDockExpanded,
+    selectedClipId,
+    selectedClipIds,
+    selectedMusicTrackId,
+    selectedVocalSegmentId,
+    selectedMusicSegmentId,
+    selectedCanvasObject,
+    voiceVolume,
+    voiceGainDb,
+    autoDuckingEnabled,
+    foleyHighVolume,
+    foleyDuckedVolume,
+    masterMusicVolume,
+    showOnlyReviewedClips,
+    autoIsolateFoleyAllClips,
+    timelineZoom,
+    isFitEntireProject,
+    currentTime,
+    reframeSummary9x16,
+  ]);
+
+  // Pause playback automatically if user navigates away from the Video Editor to another stage, keeping exact playhead position;
+  // when re-entering the Video Editor, restore exact timeline scroll & sync the preview frame at currentTime
+  useEffect(() => {
+    if (!isEditorActive) {
+      if (isPlaying) {
+        setIsPlaying(false);
+      }
+      return;
     }
-  }, [isEditorActive, isPlaying]);
+    lastSeekVersionRef.current += 1;
+    const restoreScroll = () => {
+      const container = timelineScrollContainerRef.current;
+      if (container && !isFitEntireProject) {
+        container.scrollLeft = savedTimelineScrollRef.current.left;
+        container.scrollTop = savedTimelineScrollRef.current.top;
+      }
+      if (timelineRulerScrollRef.current && !isFitEntireProject) {
+        timelineRulerScrollRef.current.scrollLeft = savedTimelineScrollRef.current.left;
+      }
+    };
+    restoreScroll();
+    const rafId = window.requestAnimationFrame(restoreScroll);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isEditorActive]);
 
   const prevDocIdForMediaScanRef = useRef<string | undefined>(activeDoc?.id);
 
@@ -3769,9 +4204,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     setTimelineClips(builtClips);
-    if (builtClips.length > 0 && !selectedClipId) {
-      setSelectedClipId(builtClips[0].id);
-      setSelectedClipIds([builtClips[0].id]);
+    if (builtClips.length > 0) {
+      const preferredId =
+        (selectedClipId && builtClips.some((c) => c.id === selectedClipId)
+          ? selectedClipId
+          : null) ||
+        (typeof savedDocOverlays?.selectedClipId === 'string' &&
+        builtClips.some((c) => c.id === savedDocOverlays.selectedClipId)
+          ? savedDocOverlays.selectedClipId
+          : null) ||
+        builtClips[0].id;
+      if (preferredId !== selectedClipId) {
+        setSelectedClipId(preferredId);
+        setSelectedClipIds([preferredId]);
+      }
+      if (!isPlaying && !isFitEntireProject) {
+        window.requestAnimationFrame(() => {
+          const el = timelineScrollContainerRef.current;
+          if (el && el.clientWidth > 0) {
+            el.scrollLeft = savedTimelineScrollRef.current.left;
+            el.scrollTop = savedTimelineScrollRef.current.top;
+          }
+          if (timelineRulerScrollRef.current) {
+            timelineRulerScrollRef.current.scrollLeft = savedTimelineScrollRef.current.left;
+          }
+        });
+      }
     }
     if (isDocSwitch) {
       setSeparatedVocalSegments(
@@ -5996,6 +6454,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     const container = timelineScrollContainerRef.current;
     if (!container) return;
+    if (zoomPlayheadViewportOffsetRef.current === null) {
+      if (container.clientWidth > 0) {
+        container.scrollLeft = savedTimelineScrollRef.current.left;
+        container.scrollTop = savedTimelineScrollRef.current.top;
+      }
+      if (timelineRulerScrollRef.current) {
+        timelineRulerScrollRef.current.scrollLeft = savedTimelineScrollRef.current.left;
+      }
+      return;
+    }
     const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
     const viewWidth = container.clientWidth;
     const newPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
@@ -6008,6 +6476,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           );
     const nextScrollLeft = Math.max(0, newPlayheadX - targetViewportOffset);
     container.scrollLeft = nextScrollLeft;
+    savedTimelineScrollRef.current.left = nextScrollLeft;
     if (timelineRulerScrollRef.current) {
       timelineRulerScrollRef.current.scrollLeft = nextScrollLeft;
     }
@@ -14508,6 +14977,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         {/* Unified Scrollable Multi-Track + Sticky Ruler Container (Single Unbroken Playhead Needle) */}
         <div
           ref={timelineScrollContainerRef}
+          onScroll={(e) => {
+            if (!isEditorActive) return;
+            const el = e.currentTarget;
+            if (el.clientWidth <= 0) return;
+            const nextLeft = Math.round(el.scrollLeft);
+            const nextTop = Math.round(el.scrollTop);
+            if (
+              nextLeft === savedTimelineScrollRef.current.left &&
+              nextTop === savedTimelineScrollRef.current.top
+            ) {
+              return;
+            }
+            savedTimelineScrollRef.current = { left: nextLeft, top: nextTop };
+            try {
+              const rawSession = localStorage.getItem(EDITOR_SESSION_STORAGE_KEY);
+              const parsedSession = rawSession ? JSON.parse(rawSession) : {};
+              localStorage.setItem(
+                EDITOR_SESSION_STORAGE_KEY,
+                JSON.stringify({
+                  ...parsedSession,
+                  timelineScrollLeft: nextLeft,
+                  timelineScrollTop: nextTop,
+                })
+              );
+              if (activeDoc?.id) {
+                persistDocOverlaysPatch(
+                  { timelineScrollLeft: nextLeft, timelineScrollTop: nextTop },
+                  activeDoc.id
+                );
+              }
+            } catch {}
+          }}
           className={`flex-1 min-h-0 bg-[#0e0c09] px-2 pb-1.5 overflow-y-auto ${
             isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
           }`}

@@ -120,7 +120,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:50 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:09 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1905,7 +1905,7 @@ export default function App() {
   const activeDoc = useMemo(() => {
     const found = documentaries.find((d) => d.id === activeDocId);
     if (found) return found;
-    if (mainView === 'capcut_editor' && documentaries.length > 0) {
+    if (documentaries.length > 0) {
       return (
         documentaries.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
         documentaries[0] ||
@@ -1913,11 +1913,14 @@ export default function App() {
       );
     }
     return null;
-  }, [documentaries, activeDocId, mainView]);
+  }, [documentaries, activeDocId]);
 
   useEffect(() => {
     activeDocRef.current = activeDoc;
-  }, [activeDoc]);
+    if (activeDoc?.id && activeDoc.id !== activeDocId) {
+      setActiveDocId(activeDoc.id);
+    }
+  }, [activeDoc, activeDocId]);
 
   // ============================================================================
   // PERSISTENT PER-SECTION SCROLL MEMORY (STAYS WHERE USER LEFT OFF ACROSS STAGES, VIEWS & REFRESH)
@@ -8546,10 +8549,7 @@ export default function App() {
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
-              if (
-                (!activeDoc || ((activeDoc.clips?.length || 0) === 0 && !activeDoc.masterAudioUrl)) &&
-                documentaries.length > 0
-              ) {
+              if (!activeDoc && documentaries.length > 0) {
                 const bestDoc =
                   documentaries.find(
                     (d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)
@@ -9046,38 +9046,36 @@ export default function App() {
 
       {/* =====================================================================
           VIEW 2B: CAPCUT MULTI-TRACK EDITOR (CLIPS, VOICE, LOGO, SUNO, CAPTIONS)
-          Kept mounted while activeDoc exists so leaving to another stage and returning keeps the video & timeline right where it was
+          Always kept mounted so leaving to another stage/view and returning keeps 100% of editor state, aspect ratio, quality, timeline & video right where it was
       ===================================================================== */}
-      {(mainView === 'capcut_editor' || activeDoc) && (
-        <div
-          className={
-            mainView === 'capcut_editor'
-              ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
-              : 'hidden'
+      <div
+        className={
+          mainView === 'capcut_editor'
+            ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
+            : 'hidden'
+        }
+      >
+        <CapCutEditor
+          activeDoc={activeDoc}
+          documentaries={documentaries}
+          onSelectDoc={(docId) => setActiveDocId(docId)}
+          updateActiveDoc={updateActiveDoc}
+          capturedClipVideosMap={capturedClipVideosMap}
+          capturedSunoAudioMap={capturedSunoAudioMap}
+          folderVoiceoverUrl={folderVoiceoverUrl}
+          onReloadFolderMedia={() => handleAutoLoadAllFolderMedia(false)}
+          onPickDownloadFolder={handlePickFlowDownloadFolder}
+          downloadFolderName={effectiveDocFolderName}
+          downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
+          onSaveFileToChosenFolder={(fileName, blob) =>
+            handleSaveAnyFileToChosenFolder(fileName, blob, '06_Video_Final')
           }
-        >
-          <CapCutEditor
-            activeDoc={activeDoc}
-            documentaries={documentaries}
-            onSelectDoc={(docId) => setActiveDocId(docId)}
-            updateActiveDoc={updateActiveDoc}
-            capturedClipVideosMap={capturedClipVideosMap}
-            capturedSunoAudioMap={capturedSunoAudioMap}
-            folderVoiceoverUrl={folderVoiceoverUrl}
-            onReloadFolderMedia={() => handleAutoLoadAllFolderMedia(false)}
-            onPickDownloadFolder={handlePickFlowDownloadFolder}
-            downloadFolderName={effectiveDocFolderName}
-            downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
-            onSaveFileToChosenFolder={(fileName, blob) =>
-              handleSaveAnyFileToChosenFolder(fileName, blob, '06_Video_Final')
-            }
-            onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
-            officialLogoUrl={officialLogoUrl}
-            onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
-            isEditorActive={mainView === 'capcut_editor'}
-          />
-        </div>
-      )}
+          onExportOrganizedFolder={() => handleExportOrganizedProjectFolder(false)}
+          officialLogoUrl={officialLogoUrl}
+          onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
+          isEditorActive={mainView === 'capcut_editor'}
+        />
+      </div>
 
       {/* =====================================================================
           VIEW 3: DOCUMENTARY STUDIO (MENÚ SUPERIOR HORIZONTAL + ÁREA COMPLETA)
