@@ -3856,17 +3856,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             );
           }
         }
+        let prevAssLocalE = 0;
         for (const cp of overlappingCaptions) {
-          const localS = Math.max(0, cp.startSec - segStartSec);
+          const startsInsideSeg = cp.startSec > segStartSec + 0.02;
+          const endsInsideSeg = cp.endSec < segEndSec - 0.02;
+          // 65ms perceptual lead-in so the 60ms fade-in reaches 100% opacity on the exact frame the narrator's syllable begins
+          const localS = startsInsideSeg
+            ? Math.max(prevAssLocalE, Math.max(0, cp.startSec - segStartSec - 0.065))
+            : 0;
           const localE = Math.min(effectiveClipDur, cp.endSec - segStartSec);
           if (localE > localS + 0.04) {
+            prevAssLocalE = localE;
+            const fadeInMs = startsInsideSeg ? 60 : 0;
+            const fadeOutMs = endsInsideSeg ? 65 : 0;
             const capTxt = escapeAssText(cp.text);
             // Captions: Layer 0 = Soft word-hugging shadow ('word_shadow'), Layer 1+2 = Cinematic letter shadow ('cinema'), Layer 3 = Pure crisp white letters
             assEvents.push(
-              `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},CaptionWordShadow,,0,0,0,,{\\fad(180,180)\\blur${capWordBlur}}${capTxt}`,
-              `Dialogue: 1,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaWide,,0,0,0,,{\\fad(180,180)\\blur${capWideBlur}}${capTxt}`,
-              `Dialogue: 2,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaTight,,0,0,0,,{\\fad(180,180)\\blur${capTightBlur}}${capTxt}`,
-              `Dialogue: 3,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCrisp,,0,0,0,,{\\fad(180,180)}${capTxt}`
+              `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},CaptionWordShadow,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capWordBlur}}${capTxt}`,
+              `Dialogue: 1,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaWide,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capWideBlur}}${capTxt}`,
+              `Dialogue: 2,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaTight,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capTightBlur}}${capTxt}`,
+              `Dialogue: 3,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCrisp,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})}${capTxt}`
             );
           }
         }
@@ -4106,6 +4115,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '44100',
             '-ac',
             '2',
+            '-muxpreload',
+            '0',
+            '-muxdelay',
+            '0',
             '-f',
             'mpegts',
             segOut,
@@ -4138,6 +4151,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '-ac',
             '2',
             '-shortest',
+            '-muxpreload',
+            '0',
+            '-muxdelay',
+            '0',
             '-f',
             'mpegts',
             segOut,

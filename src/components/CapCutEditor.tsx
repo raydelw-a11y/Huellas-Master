@@ -4097,7 +4097,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               0.2,
               islands.reduce((acc, isl) => acc + (isl.end - isl.start), 0)
             );
-            const chunkWeights = chunks.map((ch) => spokenSpanishWeight(ch));
+            const chunkWeights = chunks.map((ch, idx) => {
+              const w = spokenSpanishWeight(ch);
+              if (chunks.length <= 1) return w;
+              // Compensate for Spanish phrase-final lengthening (opening words spoken ~8% faster, final words before punctuation lengthened ~14%)
+              return idx === chunks.length - 1 ? w * 1.14 : idx === 0 ? w * 0.92 : w * 0.95;
+            });
             const chunkTotalW = Math.max(1, chunkWeights.reduce((a, b) => a + b, 0));
 
             const spokenTimeToAudioTime = (spokenSec: number, isStart: boolean): number => {
@@ -4119,7 +4124,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             let subCursor = 0;
             chunks.forEach((ch, chIdx) => {
               const chDur = (chunkWeights[chIdx] / chunkTotalW) * totalIslDur;
-              const sAudio = spokenTimeToAudioTime(subCursor, true);
+              const rawSAudio = spokenTimeToAudioTime(subCursor, true);
+              // 45ms consonant onset anticipation after silence pauses
+              const prevGenEndAudio =
+                generated.length > 0 ? generated[generated.length - 1].end - offset : 0;
+              const sAudio =
+                chIdx === 0 && rawSAudio - prevGenEndAudio > 0.08
+                  ? Math.max(prevGenEndAudio + 0.01, rawSAudio - 0.045)
+                  : rawSAudio;
               const eAudio = spokenTimeToAudioTime(subCursor + chDur, false);
               subCursor += chDur;
               generated.push({
@@ -4215,11 +4227,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const baseHook76 = !c1Dur76 || c1Dur76 <= 6 ? 8 : c1Dur76;
 
     const savedDocOverlays = readSavedDocOverlays(docId);
+    const hasSyncedV3 = Boolean(savedDocOverlays?.captionsSyncV3);
     if (
-      userEditedCaptionsDocIdRef.current === docId ||
-      (savedDocOverlays?.userEditedCaptions &&
-        Array.isArray(savedDocOverlays.captions) &&
-        savedDocOverlays.captions.length > 0)
+      hasSyncedV3 &&
+      (userEditedCaptionsDocIdRef.current === docId ||
+        (savedDocOverlays?.userEditedCaptions &&
+          Array.isArray(savedDocOverlays.captions) &&
+          savedDocOverlays.captions.length > 0))
     ) {
       userEditedCaptionsDocIdRef.current = docId;
       setCaptions((prevCaps) => {
@@ -4232,39 +4246,43 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           8,
           sloganSplitAudioSec
         );
-        persistDocOverlaysPatch({ captions: aligned }, docId);
+        persistDocOverlaysPatch({ captions: aligned, captionsSyncV3: true }, docId);
         return aligned;
       });
       return;
     }
-    if (prealignedVideo76SrtRef.current) {
-      const parsed = alignCaptionsToIntroPlacement(
-        parseSrtToCaptionItems(prealignedVideo76SrtRef.current, voiceStartOffsetSec),
+    const applyPrealignedSrt76 = (srtText: string) => {
+      const freshParsed = alignCaptionsToIntroPlacement(
+        parseSrtToCaptionItems(srtText, voiceStartOffsetSec),
         effectiveMode,
         baseHook76,
         8,
         sloganSplitAudioSec
       );
-      setCaptions(parsed);
-      persistDocOverlaysPatch({ captions: parsed }, docId);
+      const existingCaps: TimelineCaptionItem[] = Array.isArray(savedDocOverlays?.captions)
+        ? savedDocOverlays.captions
+        : [];
+      const merged =
+        savedDocOverlays?.userEditedCaptions && existingCaps.length === freshParsed.length
+          ? freshParsed.map((fp, idx) => ({
+              ...fp,
+              text: existingCaps[idx]?.text || fp.text,
+            }))
+          : freshParsed;
+      setCaptions(merged);
+      persistDocOverlaysPatch({ captions: merged, captionsSyncV3: true }, docId);
+    };
+    if (prealignedVideo76SrtRef.current) {
+      applyPrealignedSrt76(prealignedVideo76SrtRef.current);
       return;
     }
     let cancelled = false;
-    fetch('tts-files/subtitulos-video-76-exodo-espanol.srt')
+    fetch('tts-files/subtitulos-video-76-exodo-espanol.srt?v=sync_v3')
       .then((r) => (r.ok ? r.text() : ''))
       .then((txt) => {
         if (cancelled || !txt || !txt.includes('-->')) return;
         prealignedVideo76SrtRef.current = txt;
-        if (userEditedCaptionsDocIdRef.current === docId) return;
-        const parsed = alignCaptionsToIntroPlacement(
-          parseSrtToCaptionItems(txt, voiceStartOffsetSec),
-          effectiveMode,
-          baseHook76,
-          8,
-          sloganSplitAudioSec
-        );
-        setCaptions(parsed);
-        persistDocOverlaysPatch({ captions: parsed }, docId);
+        applyPrealignedSrt76(txt);
       })
       .catch(() => {});
     return () => {
@@ -4706,7 +4724,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const activeCaptionAtPlayhead = useMemo(() => {
     return (
-      captions.find((cap) => currentTime >= cap.start && currentTime <= cap.end) || null
+      captions.find((cap, idx) => {
+        const prevEnd = idx > 0 ? captions[idx - 1].end : 0;
+        const nextStart = idx + 1 < captions.length ? captions[idx + 1].start : Infinity;
+        // 60ms perceptual lead-in after pauses so live preview matches exact first-syllable onset
+        const leadInStart = Math.max(prevEnd, cap.start - 0.06);
+        const effEnd = Math.min(cap.end, nextStart);
+        return currentTime >= leadInStart && currentTime <= effEnd;
+      }) || null
     );
   }, [captions, currentTime]);
 
