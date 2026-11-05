@@ -4658,7 +4658,8 @@ async function analyzeClipSmartReframe9x16(
   ffmpegBin: string,
   mp4Path: string,
   clipNumber: number,
-  fileName: string
+  fileName: string,
+  promptHint = ''
 ): Promise<SmartReframeClipResult> {
   const W = 160;
   const H = 90;
@@ -4668,7 +4669,7 @@ async function analyzeClipSmartReframe9x16(
 
   const rawBuffer = await new Promise<Buffer>((resolve) => {
     const chunks: Buffer[] = [];
-    // Sample ~4 keyframes across the clip (approx every 1.8s on an 8s clip)
+    // Sample ~6 keyframes across the clip (approx every 1.3s on an 8s clip)
     const proc = spawn(
       ffmpegBin,
       [
@@ -4678,9 +4679,9 @@ async function analyzeClipSmartReframe9x16(
         '-i',
         mp4Path,
         '-vf',
-        `fps=0.55,scale=${W}:${H}:flags=fast_bilinear`,
+        `fps=0.75,scale=${W}:${H}:flags=fast_bilinear`,
         '-frames:v',
-        '5',
+        '6',
         '-f',
         'rawvideo',
         '-pix_fmt',
@@ -4708,80 +4709,116 @@ async function analyzeClipSmartReframe9x16(
     };
   }
 
-  const perFrameBestNormX: number[] = [];
+  const perFrameRawNormX: number[] = [];
   const perFrameConfidence: number[] = [];
   const globalColScores = new Float64Array(W);
+  const earlyColAction = new Float64Array(W);
+  const lateColAction = new Float64Array(W);
 
   for (let f = 0; f < numFrames; f++) {
     const baseOffset = f * frameByteSize;
     const prevOffset = f > 0 ? (f - 1) * frameByteSize : -1;
     const colScores = new Float64Array(W);
 
-    // Compute mean luma first for chiaroscuro key-light detection
-    let sumLuma = 0;
-    for (let i = 0; i < frameByteSize; i += 3) {
-      const r = rawBuffer[baseOffset + i];
-      const g = rawBuffer[baseOffset + i + 1];
-      const b = rawBuffer[baseOffset + i + 2];
-      sumLuma += 0.299 * r + 0.587 * g + 0.114 * b;
+    // Estimate global camera drift / background water ripple baseline on a sparse grid
+    const sampleDiffs: number[] = [];
+    if (prevOffset >= 0) {
+      for (let y = 10; y < H - 10; y += 6) {
+        for (let x = 6; x < W - 6; x += 6) {
+          const i = baseOffset + (y * W + x) * 3;
+          const p = prevOffset + (y * W + x) * 3;
+          sampleDiffs.push(
+            Math.abs(rawBuffer[i] - rawBuffer[p]) +
+              Math.abs(rawBuffer[i + 1] - rawBuffer[p + 1]) +
+              Math.abs(rawBuffer[i + 2] - rawBuffer[p + 2])
+          );
+        }
+      }
+      sampleDiffs.sort((a, b) => a - b);
     }
-    const meanLuma = sumLuma / (W * H);
+    const baselineDiff =
+      sampleDiffs.length > 0 ? sampleDiffs[Math.floor(sampleDiffs.length * 0.6)] : 15;
 
-    for (let y = 7; y < H - 7; y++) {
-      // Upper-middle rows (y = 12..58) carry faces/eyes/head-and-shoulders in documentary shots
-      const rowFaceWeight = y >= 11 && y <= 58 ? 2.4 : 1.0;
-      for (let x = 2; x < W - 2; x++) {
+    for (let y = 6; y < H - 10; y++) {
+      // Head band (y = 7..50) and upper torso band (y = 51..76); exclude bottom table/ground
+      const isHeadBand = y >= 7 && y <= 50;
+      const isTorsoBand = y > 50 && y <= 76;
+      const rowWeight = isHeadBand ? 2.5 : isTorsoBand ? 1.15 : 0.35;
+
+      for (let x = 3; x < W - 3; x++) {
         const idx = baseOffset + (y * W + x) * 3;
         const r = rawBuffer[idx];
         const g = rawBuffer[idx + 1];
         const b = rawBuffer[idx + 2];
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const sat = Math.max(r, g, b) - Math.min(r, g, b);
+        const isSky = luma > 180 && sat < 26;
 
-        // 1. Face / Skin / Warm Torchlight Chromaticity Saliency
+        // 1. Face / Skin Chromaticity in head/hand zone (y <= 56), boosted by dark hair/hat/cap above
         let skinWarmScore = 0;
-        if (r > 48 && r > g && g >= b * 0.85 && r - b >= 16 && luma > 32 && luma < 238) {
-          skinWarmScore = Math.min(45, (r - b) * 0.85) * rowFaceWeight;
+        if (
+          y <= 56 &&
+          r > 52 &&
+          r > g &&
+          g >= b * 0.85 &&
+          r - b >= 15 &&
+          r - g >= 5 &&
+          luma > 38 &&
+          luma < 220
+        ) {
+          const upIdx = baseOffset + (Math.max(2, y - 6) * W + x) * 3;
+          const upLuma =
+            0.299 * rawBuffer[upIdx] + 0.587 * rawBuffer[upIdx + 1] + 0.114 * rawBuffer[upIdx + 2];
+          const hairHatBoost = isHeadBand && upLuma < 65 ? 2.1 : 1.0;
+          skinWarmScore = Math.min(55, (r - b) * 1.1) * rowWeight * hairHatBoost;
         }
 
-        // 2. High-Frequency Edge / Sharpness Saliency (in-focus subject vs blurred bokeh)
+        // 2. True 2nd-Order Laplacian Focus Sharpness (in-focus foreground subject vs blurred bokeh)
         const idxLeft = idx - 3;
         const idxRight = idx + 3;
         const idxUp = idx - W * 3;
         const idxDown = idx + W * 3;
-        const gx =
-          Math.abs(rawBuffer[idxRight] - rawBuffer[idxLeft]) +
-          Math.abs(rawBuffer[idxRight + 1] - rawBuffer[idxLeft + 1]);
-        const gy =
-          Math.abs(rawBuffer[idxDown] - rawBuffer[idxUp]) +
-          Math.abs(rawBuffer[idxDown + 1] - rawBuffer[idxUp + 1]);
-        const edgeScore = Math.min(60, (gx + gy) * 0.35) * (y >= 12 && y <= 68 ? 1.45 : 0.9);
+        const lapR =
+          Math.abs(2 * r - rawBuffer[idxLeft] - rawBuffer[idxRight]) +
+          Math.abs(2 * r - rawBuffer[idxUp] - rawBuffer[idxDown]);
+        const lapG =
+          Math.abs(2 * g - rawBuffer[idxLeft + 1] - rawBuffer[idxRight + 1]) +
+          Math.abs(2 * g - rawBuffer[idxUp + 1] - rawBuffer[idxDown + 1]);
+        const lap = (lapR + lapG) * 0.5;
+        const edgeScore = !isSky && lap > 14 ? Math.min(50, (lap - 14) * 0.85) * rowWeight : 0;
 
-        // 3. Temporal Motion Energy between consecutive keyframes
+        // 3. Dark Foreground Silhouette Contrast (e.g. dark coat/cap/beret against brighter background)
+        let silhouetteScore = 0;
+        if ((isHeadBand || isTorsoBand) && luma < 48 && lap > 10) {
+          silhouetteScore = Math.min(32, (52 - luma) * 0.45) * (isHeadBand ? 1.6 : 1.0);
+        }
+
+        // 4. Localized Subject Motion above camera-drift baseline
         let motionScore = 0;
-        if (prevOffset >= 0) {
+        if (prevOffset >= 0 && !isSky) {
           const pIdx = prevOffset + (y * W + x) * 3;
-          const diff =
+          const rawDiff =
             Math.abs(r - rawBuffer[pIdx]) +
             Math.abs(g - rawBuffer[pIdx + 1]) +
             Math.abs(b - rawBuffer[pIdx + 2]);
-          if (diff > 18) {
-            motionScore = Math.min(55, (diff - 18) * 0.55) * rowFaceWeight;
+          const netDiff = rawDiff - (baselineDiff + 12);
+          if (netDiff > 0) {
+            motionScore = Math.min(60, netDiff * 0.75) * rowWeight;
           }
         }
 
-        // 4. Chiaroscuro Key-Light Contrast
-        let keyLightScore = 0;
-        if (luma > meanLuma * 1.25 && luma < 245) {
-          keyLightScore = Math.min(25, (luma - meanLuma) * 0.28);
-        }
-
-        const totalPixelSaliency = skinWarmScore + edgeScore + motionScore + keyLightScore;
+        const totalPixelSaliency = skinWarmScore + edgeScore + silhouetteScore + motionScore;
         colScores[x] += totalPixelSaliency;
         globalColScores[x] += totalPixelSaliency;
+        if (f < Math.ceil(numFrames / 2)) {
+          earlyColAction[x] += motionScore + skinWarmScore * 0.35;
+        } else {
+          lateColAction[x] += motionScore + skinWarmScore * 0.35;
+        }
       }
     }
 
-    // Slide the 9:16 window across x0 = 0 .. maxLeftX
+    // Slide the 9:16 window across x0 = 0 .. maxLeftX without forcing premature 50% snap
     let bestX0 = Math.round(maxLeftX * 0.5);
     let bestWinScore = -1;
     let centerWinScore = 1;
@@ -4789,43 +4826,41 @@ async function analyzeClipSmartReframe9x16(
     for (let x0 = 0; x0 <= maxLeftX; x0++) {
       let winSum = 0;
       for (let dx = 0; dx < winW; dx++) {
-        // Weight center of the 9:16 window higher so the protagonist isn't clipped on the border
         const normDx = (dx - winW * 0.5) / (winW * 0.5);
-        const kernelW = Math.max(0.25, 1.0 - 0.55 * normDx * normDx);
+        const kernelW = Math.max(0.25, 1.0 - 0.5 * normDx * normDx);
         winSum += colScores[x0 + dx] * kernelW;
       }
-      const u = x0 / maxLeftX; // 0..1
-      // Mild center stability prior so symmetric scenes prefer 50%
-      const prior = 1.0 - 0.065 * Math.pow((u - 0.5) * 2, 2);
-      const weightedScore = winSum * prior;
       if (x0 === Math.round(maxLeftX * 0.5)) {
-        centerWinScore = Math.max(1, weightedScore);
+        centerWinScore = Math.max(1, winSum);
       }
-      if (weightedScore > bestWinScore) {
-        bestWinScore = weightedScore;
+      if (winSum > bestWinScore) {
+        bestWinScore = winSum;
         bestX0 = x0;
       }
     }
 
     const ratioVsCenter = bestWinScore / Math.max(1, centerWinScore);
-    const normPct = ratioVsCenter >= 1.065 ? (bestX0 / maxLeftX) * 100 : 50;
-    perFrameBestNormX.push(Math.max(10, Math.min(90, normPct)));
+    const rawPct = (bestX0 / maxLeftX) * 100;
+    perFrameRawNormX.push(Math.max(10, Math.min(90, rawPct)));
     perFrameConfidence.push(Math.min(0.99, Math.max(0.55, (ratioVsCenter - 0.9) * 1.8)));
   }
 
-  // Evaluate overall static best window from globalColScores
+  // Build full window saliency curve across x0 = 0 .. maxLeftX
+  const winCurve = new Float64Array(maxLeftX + 1);
   let globalBestX0 = Math.round(maxLeftX * 0.5);
   let globalBestScore = -1;
   let globalCenterScore = 1;
+
   for (let x0 = 0; x0 <= maxLeftX; x0++) {
     let winSum = 0;
     for (let dx = 0; dx < winW; dx++) {
       const normDx = (dx - winW * 0.5) / (winW * 0.5);
-      const kernelW = Math.max(0.25, 1.0 - 0.55 * normDx * normDx);
+      const kernelW = Math.max(0.25, 1.0 - 0.5 * normDx * normDx);
       winSum += globalColScores[x0 + dx] * kernelW;
     }
+    winCurve[x0] = winSum;
     const u = x0 / maxLeftX;
-    const prior = 1.0 - 0.065 * Math.pow((u - 0.5) * 2, 2);
+    const prior = 1.0 - 0.035 * Math.pow((u - 0.5) * 2, 2);
     const weightedScore = winSum * prior;
     if (x0 === Math.round(maxLeftX * 0.5)) {
       globalCenterScore = Math.max(1, weightedScore);
@@ -4836,16 +4871,93 @@ async function analyzeClipSmartReframe9x16(
     }
   }
 
-  const globalRatioVsCenter = globalBestScore / Math.max(1, globalCenterScore);
-  const overallFocusX =
-    globalRatioVsCenter >= 1.06
-      ? Math.round(Math.max(12, Math.min(88, (globalBestX0 / maxLeftX) * 100)))
-      : 50;
+  // 1) Detect Bimodal Two-Subject Composition (one subject on Left third, one subject on Right third, valley in Center)
+  let leftBestX0 = Math.round(maxLeftX * 0.22);
+  let leftBestVal = -1;
+  for (let x0 = Math.round(maxLeftX * 0.08); x0 <= Math.round(maxLeftX * 0.36); x0++) {
+    if (winCurve[x0] > leftBestVal) {
+      leftBestVal = winCurve[x0];
+      leftBestX0 = x0;
+    }
+  }
+  let rightBestX0 = Math.round(maxLeftX * 0.78);
+  let rightBestVal = -1;
+  for (let x0 = Math.round(maxLeftX * 0.64); x0 <= Math.round(maxLeftX * 0.92); x0++) {
+    if (winCurve[x0] > rightBestVal) {
+      rightBestVal = winCurve[x0];
+      rightBestX0 = x0;
+    }
+  }
+  let centerMinVal = Infinity;
+  for (let x0 = Math.round(maxLeftX * 0.40); x0 <= Math.round(maxLeftX * 0.60); x0++) {
+    if (winCurve[x0] < centerMinVal) {
+      centerMinVal = winCurve[x0];
+    }
+  }
 
-  // Compare first half vs second half to detect horizontal subject movement / camera pan
-  const halfIdx = Math.max(1, Math.floor(perFrameBestNormX.length / 2));
-  const firstHalf = perFrameBestNormX.slice(0, halfIdx);
-  const secondHalf = perFrameBestNormX.slice(halfIdx);
+  const bimodalBalance =
+    Math.min(leftBestVal, rightBestVal) / Math.max(1, Math.max(leftBestVal, rightBestVal));
+  const valleyRatio = centerMinVal / Math.max(1, (leftBestVal + rightBestVal) * 0.5);
+  const lowerPrompt = String(promptHint || '').toLowerCase();
+  const hasTwoShotPrompt =
+    /two-shot|two shot|both men|both women|two people|on the left side[\s\S]{1,240}on the right side|from the left[\s\S]{1,140}to the right/i.test(
+      lowerPrompt
+    );
+  const isRightToLeftPrompt =
+    /from the right[\s\S]{1,140}to the left|on the right side[\s\S]{1,160}to the left/i.test(
+      lowerPrompt
+    );
+
+  const avgConf =
+    perFrameConfidence.reduce((a, b) => a + b, 0) / Math.max(1, perFrameConfidence.length);
+
+  if (
+    bimodalBalance >= 0.72 &&
+    (valleyRatio <= 0.84 || (hasTwoShotPrompt && valleyRatio <= 0.96))
+  ) {
+    const rawLeftPct = Math.round((leftBestX0 / maxLeftX) * 100);
+    const rawRightPct = Math.round((rightBestX0 / maxLeftX) * 100);
+    const leftFocus = Math.max(18, Math.min(34, rawLeftPct < 18 ? 22 : rawLeftPct));
+    const rightFocus = Math.max(66, Math.min(82, rawRightPct > 82 ? 78 : rawRightPct));
+
+    // Check if action clearly moves Right -> Left; default to natural Left -> Right pan for two-shots
+    let earlyLeftSum = 0;
+    let earlyRightSum = 0;
+    let lateLeftSum = 0;
+    let lateRightSum = 0;
+    for (let x = 0; x < Math.floor(W * 0.45); x++) {
+      earlyLeftSum += earlyColAction[x];
+      lateLeftSum += lateColAction[x];
+    }
+    for (let x = Math.ceil(W * 0.55); x < W; x++) {
+      earlyRightSum += earlyColAction[x];
+      lateRightSum += lateColAction[x];
+    }
+    const earlyRightShare = earlyRightSum / Math.max(1, earlyLeftSum + earlyRightSum);
+    const lateRightShare = lateRightSum / Math.max(1, lateLeftSum + lateRightSum);
+    const panRightToLeft =
+      isRightToLeftPrompt || (!hasTwoShotPrompt && earlyRightShare - lateRightShare > 0.14);
+
+    const fStart = panRightToLeft ? rightFocus : leftFocus;
+    const fEnd = panRightToLeft ? leftFocus : rightFocus;
+    const dirLabel = panRightToLeft ? 'Der → Izq' : 'Izq → Der';
+
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: fStart,
+      focusXEnd: fEnd,
+      focusY: 50,
+      confidence: Number(Math.max(0.78, avgConf).toFixed(2)),
+      reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) entre dos sujetos (${dirLabel})`,
+    };
+  }
+
+  // 2) Compare first half vs second half of un-snapped per-frame positions to detect subject movement / camera pan
+  const halfIdx = Math.max(1, Math.floor(perFrameRawNormX.length / 2));
+  const firstHalf = perFrameRawNormX.slice(0, halfIdx);
+  const secondHalf = perFrameRawNormX.slice(halfIdx);
   const avgStart =
     firstHalf.reduce((acc, v) => acc + v, 0) / Math.max(1, firstHalf.length);
   const avgEnd =
@@ -4854,23 +4966,30 @@ async function analyzeClipSmartReframe9x16(
       : avgStart;
 
   const panDelta = Math.abs(avgEnd - avgStart);
-  const avgConf =
-    perFrameConfidence.reduce((a, b) => a + b, 0) / Math.max(1, perFrameConfidence.length);
 
   if (numFrames >= 2 && panDelta >= 12) {
-    const fStart = Math.round(Math.max(12, Math.min(88, avgStart)));
-    const fEnd = Math.round(Math.max(12, Math.min(88, avgEnd)));
-    return {
-      clipNumber,
-      fileName,
-      reframe9x16Mode: 'auto_pan',
-      focusXStart: fStart,
-      focusXEnd: fEnd,
-      focusY: 50,
-      confidence: Number(avgConf.toFixed(2)),
-      reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) siguiendo acción/sujeto`,
-    };
+    const fStart = Math.round(Math.max(16, Math.min(84, avgStart)));
+    const fEnd = Math.round(Math.max(16, Math.min(84, avgEnd)));
+    if (Math.abs(fEnd - fStart) >= 10) {
+      return {
+        clipNumber,
+        fileName,
+        reframe9x16Mode: 'auto_pan',
+        focusXStart: fStart,
+        focusXEnd: fEnd,
+        focusY: 50,
+        confidence: Number(avgConf.toFixed(2)),
+        reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) siguiendo acción/sujeto`,
+      };
+    }
   }
+
+  // 3) Single Off-Center Subject Focus
+  const globalRatioVsCenter = globalBestScore / Math.max(1, globalCenterScore);
+  const overallFocusX =
+    globalRatioVsCenter >= 1.045
+      ? Math.round(Math.max(16, Math.min(84, (globalBestX0 / maxLeftX) * 100)))
+      : 50;
 
   if (Math.abs(overallFocusX - 50) >= 6) {
     const sideLabel = overallFocusX < 50 ? 'izquierdo' : 'derecho';
@@ -4958,6 +5077,33 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
     }
 
     // Discover numbered clips in searchDirs (prioritizing 05_Clips_Video and _4K.mp4)
+    const promptHintByClipNum = new Map<number, string>();
+    try {
+      const allDocs = readDocumentaries();
+      const normRootBase = path.basename(targetRoot).normalize('NFC').toLowerCase();
+      const matchedDoc = allDocs.find((d: any) => {
+        const dt = String(d?.title || '').normalize('NFC').toLowerCase();
+        const df = String(d?.downloadFolderName || '').normalize('NFC').toLowerCase();
+        return (
+          (df && normRootBase.includes(df)) ||
+          (dt && normRootBase.includes(dt.slice(0, 14))) ||
+          (normRootBase.includes('76') && dt.includes('76')) ||
+          (normRootBase.includes('75') && dt.includes('75'))
+        );
+      });
+      if (matchedDoc && Array.isArray(matchedDoc.clips)) {
+        for (const c of matchedDoc.clips) {
+          const cn = Number(c?.clipNumber);
+          if (Number.isFinite(cn) && cn > 0) {
+            promptHintByClipNum.set(
+              cn,
+              `${c.imagePrompt || ''} ${c.videoPrompt || ''} ${c.narrationSegment || ''}`
+            );
+          }
+        }
+      }
+    } catch {}
+
     const clipFilesByNum = new Map<number, { filePath: string; fileName: string }>();
     for (const dir of searchDirs) {
       let entries: string[] = [];
@@ -5001,7 +5147,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           statSize = st.size;
         } catch {}
 
-        const cacheKey = `${clipNum}_${info.fileName}`;
+        const cacheKey = `v3_${clipNum}_${info.fileName}`;
         const existing = cachedMap[cacheKey];
         if (
           !forceRefresh &&
@@ -5017,7 +5163,8 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           ffmpegBin,
           info.filePath,
           clipNum,
-          info.fileName
+          info.fileName,
+          promptHintByClipNum.get(clipNum) || ''
         );
         analyzed.mtimeMs = statMtime;
         analyzed.sizeBytes = statSize;
