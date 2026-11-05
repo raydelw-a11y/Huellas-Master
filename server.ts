@@ -3488,6 +3488,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       idx: number;
       label: string;
       segOut: string;
+      durationSec: number;
       run: () => Promise<void>;
     }> = [];
     const clipsVideoSubdir = path.join(targetRoot, '05_Clips_Video');
@@ -3671,34 +3672,39 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         !isIntroClip &&
         !isOutroClip &&
         (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
-      const foleyVol = c.audioMuted
+      const isClipMuted =
+        Boolean(c.audioMuted) ||
+        (typeof c.foleyVolume === 'number' && c.foleyVolume <= 0.0001);
+      const foleyVol = isClipMuted
         ? 0
+        : typeof c.foleyVolume === 'number' && Number.isFinite(c.foleyVolume)
+        ? Math.max(0, Math.min(2.0, c.foleyVolume))
         : isIntroClip || isOutroClip
-        ? typeof c.foleyVolume === 'number'
-          ? c.foleyVolume
-          : 1.0
+        ? 1.0
         : isFirstClipAfterIntro
-        ? typeof c.foleyVolume === 'number'
-          ? c.foleyVolume
-          : 0.8
-        : c.customVolumeSet
-        ? typeof c.foleyVolume === 'number'
-          ? c.foleyVolume
-          : 0.2
-        : Math.min(0.2, typeof c.foleyVolume === 'number' ? c.foleyVolume : 0.2);
-      const effectiveClipDur =
+        ? 0.8
+        : 0.2;
+      const rawClipDur =
         slotDur > 0.3
           ? slotDur
           : probedSegDur > 0.3
           ? probedSegDur
           : 8;
 
-      const segStartSec =
+      const rawSegStartSec =
         Number.isFinite(Number(c.start)) && Number(c.start) >= 0
           ? Number(c.start)
           : runningTimelineSec;
-      const segEndSec = segStartSec + effectiveClipDur;
-      runningTimelineSec = segEndSec;
+      const rawSegEndSec = rawSegStartSec + rawClipDur;
+      runningTimelineSec = rawSegEndSec;
+
+      // Lock segment frame count to cumulative timeline frames so 80+ concatenated segments accumulate 0.000s of video/caption drift
+      const segStartFrame = Math.round(rawSegStartSec * safeFps);
+      const segEndFrame = Math.max(segStartFrame + 1, Math.round(rawSegEndSec * safeFps));
+      const targetSegFrames = segEndFrame - segStartFrame;
+      const segStartSec = segStartFrame / safeFps;
+      const effectiveClipDur = targetSegFrames / safeFps;
+      const segEndSec = segEndFrame / safeFps;
 
       const defaultAudioFadeIn = isIntroClip || isOutroClip ? 1.5 : isFirstClipAfterIntro ? 1.2 : 0;
       const defaultAudioFadeOut = isIntroClip || isOutroClip ? 2.5 : 0;
@@ -3724,8 +3730,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
         : '';
       const vfTrimSuffix =
-        effectiveClipDur > 0.3
-          ? `,tpad=stop_mode=clone:stop_duration=0.08,trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS`
+        targetSegFrames > 1
+          ? `,tpad=stop_mode=clone:stop_duration=0.15,trim=end_frame=${targetSegFrames},setpts=PTS-STARTPTS`
           : '';
 
       // Build native libass (.ass) file for any subtitles or Hook text falling inside [segStartSec, segEndSec]
@@ -3890,11 +3896,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         return `${stages.join(',')},`;
       };
       const atempoPrefix = buildAtempoChain(speed);
+      const targetAudioSamples = Math.max(1024, Math.round(effectiveClipDur * 44100));
       const afTrimSuffix =
         effectiveClipDur > 0.3
-          ? `,apad,atrim=duration=${effectiveClipDur.toFixed(3)},asetpts=PTS-STARTPTS`
+          ? `,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`
           : '';
-      const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol}${afTrimSuffix}`;
+      const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
 
       const inputTrimArgs: string[] = [];
       if (trimStartSec > 0.01) {
@@ -4076,7 +4083,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         idx: segmentEncodeTasks.length,
         label: segLabel,
         segOut,
+        durationSec: effectiveClipDur,
         run: async () => {
+          if (isClipMuted) {
+            try {
+              await runSegmentEncode(buildSegmentArgs(true, hwEncoderArgs, true));
+            } catch {
+              await runSegmentEncode(buildSegmentArgs(true, swEncoderArgs, false));
+            }
+            return;
+          }
           try {
             await runSegmentEncode(buildSegmentArgs(false, hwEncoderArgs, true));
           } catch {
@@ -4236,7 +4252,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
     const concatListPath = path.join(workDir, 'concat_list.txt');
     const concatContent = fifoPaths
-      .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
+      .map((p, idx) => {
+        const dur = segmentEncodeTasks[idx]?.durationSec || 8;
+        return `file '${p.replace(/'/g, "'\\''")}'\nduration ${dur.toFixed(6)}`;
+      })
       .join('\n');
     fs.writeFileSync(concatListPath, concatContent, 'utf8');
 

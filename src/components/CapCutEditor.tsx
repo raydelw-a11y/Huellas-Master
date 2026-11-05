@@ -599,6 +599,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     total: 0,
   });
   const [lastExportedOutputPath, setLastExportedOutputPath] = useState<string>('');
+  const [isRenderingVideo, setIsRenderingVideo] = useState<boolean>(false);
+  const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>('direct');
 
   const getRecommendedBitratesForRes = (res: ExportResolutionPreset) => {
@@ -1287,12 +1290,100 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : 'INTRO_INICIO_00'
   );
 
+  type SavedClipAudioEdit = {
+    foleyVolume?: number;
+    audioMuted?: boolean;
+    customVolumeSet?: boolean;
+    audioFadeInSec?: number;
+    audioFadeOutSec?: number;
+  };
+  const clipAudioEditsRef = useRef<Record<string, SavedClipAudioEdit>>({});
+
+  const readSavedClipAudioEdits = (targetDocId?: string): Record<string, SavedClipAudioEdit> => {
+    const docId = targetDocId || activeDoc?.id || 'default';
+    try {
+      const raw = localStorage.getItem(`huellas_clip_audio_edits_${docId}`);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (parsed && typeof parsed === 'object') {
+        clipAudioEditsRef.current = { ...parsed, ...clipAudioEditsRef.current };
+        return clipAudioEditsRef.current;
+      }
+    } catch {}
+    return clipAudioEditsRef.current;
+  };
+
+  const recordClipAudioEdit = (
+    clip: Pick<
+      TimelineClipItem,
+      | 'id'
+      | 'clipNumber'
+      | 'partLabel'
+      | 'foleyVolume'
+      | 'audioMuted'
+      | 'customVolumeSet'
+      | 'audioFadeInSec'
+      | 'audioFadeOutSec'
+    >,
+    targetDocId?: string
+  ) => {
+    const docId = targetDocId || activeDoc?.id || 'default';
+    const currentMap = { ...readSavedClipAudioEdits(docId) };
+    const entry: SavedClipAudioEdit = {
+      foleyVolume: clip.foleyVolume,
+      audioMuted: Boolean(clip.audioMuted),
+      customVolumeSet: Boolean(clip.customVolumeSet),
+      audioFadeInSec: clip.audioFadeInSec,
+      audioFadeOutSec: clip.audioFadeOutSec,
+    };
+    if (clip.id) currentMap[clip.id] = entry;
+    currentMap[`num_${clip.clipNumber}_${clip.partLabel || 'full'}`] = entry;
+    if (!clip.partLabel) {
+      currentMap[`num_${clip.clipNumber}`] = entry;
+    }
+    clipAudioEditsRef.current = currentMap;
+    try {
+      localStorage.setItem(`huellas_clip_audio_edits_${docId}`, JSON.stringify(currentMap));
+    } catch {}
+  };
+
+  const getSavedAudioEditForClip = (
+    clip: { id?: string; clipNumber: number; partLabel?: string },
+    editsMap: Record<string, SavedClipAudioEdit>
+  ): SavedClipAudioEdit | undefined => {
+    if (clip.id && editsMap[clip.id]) return editsMap[clip.id];
+    const partKey = `num_${clip.clipNumber}_${clip.partLabel || 'full'}`;
+    if (editsMap[partKey]) return editsMap[partKey];
+    if (!clip.partLabel && editsMap[`num_${clip.clipNumber}`]) {
+      return editsMap[`num_${clip.clipNumber}`];
+    }
+    return undefined;
+  };
+
+  const stripHeavyDataUrlsFromClips = (clips?: TimelineClipItem[]): TimelineClipItem[] | undefined => {
+    if (!Array.isArray(clips)) return clips;
+    return clips.map((c) => ({
+      ...c,
+      posterUrl: c.posterUrl && c.posterUrl.startsWith('data:') ? '' : c.posterUrl,
+      videoUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? '' : c.videoUrl,
+    }));
+  };
+
   const persistDocOverlaysPatch = (patch: Record<string, any>, targetDocId?: string) => {
     const docKey = `huellas_editor_doc_overlays_${targetDocId || activeDoc?.id || 'default'}`;
     try {
       const existingRaw = localStorage.getItem(docKey);
       const existing = existingRaw ? JSON.parse(existingRaw) : {};
-      localStorage.setItem(docKey, JSON.stringify({ ...existing, ...patch, updatedAt: Date.now() }));
+      const nextPayload: Record<string, any> = {
+        ...existing,
+        ...patch,
+        updatedAt: Date.now(),
+      };
+      if (Array.isArray(nextPayload.customTimelineClips)) {
+        nextPayload.customTimelineClips = stripHeavyDataUrlsFromClips(
+          nextPayload.customTimelineClips
+        );
+      }
+      localStorage.setItem(docKey, JSON.stringify(nextPayload));
     } catch {}
   };
 
@@ -1873,9 +1964,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'clips' | 'audio' | 'branding' | 'captions'
   >('clips');
-  const [isRenderingVideo, setIsRenderingVideo] = useState<boolean>(false);
-  const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
-  const [statusMessage, setStatusMessage] = useState<string>('');
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
   const [localServerClipVideosMap, setLocalServerClipVideosMap] = useState<Record<number, string>>({});
@@ -3141,8 +3229,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             tc.clipNumber === 0 ||
             tc.clipNumber === 999;
           const isClip1Restored = tc.clipNumber === 1;
+          const hasExplicitAudioVolume =
+            Boolean(tc.customVolumeSet) ||
+            Boolean(tc.audioMuted) ||
+            (typeof tc.foleyVolume === 'number' && tc.foleyVolume !== 40);
           const repairedFoleyVolume =
-            isIntroOrOutroRestored || isClip1Restored || tc.customVolumeSet
+            isIntroOrOutroRestored || isClip1Restored || hasExplicitAudioVolume
               ? tc.foleyVolume
               : 20;
 
@@ -3166,6 +3258,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           return {
             ...tc,
             foleyVolume: repairedFoleyVolume,
+            customVolumeSet: Boolean(tc.customVolumeSet) || Boolean(tc.audioMuted) || repairedFoleyVolume !== (isIntroOrOutroRestored ? 100 : isClip1Restored ? 80 : 20),
             videoUrl: effectiveVideoUrl,
             opticalFlowUrl: effectiveOpticalFlowUrl,
             opticalFlowBakedKey: effectiveOpticalFlowUrl ? tc.opticalFlowBakedKey : undefined,
@@ -3191,12 +3284,75 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
-    const builtClips = buildAlignedTimelineClipsForIntroMode(
+    const savedClipAudioEdits = readSavedClipAudioEdits(docId);
+    const alignedBuiltClips = buildAlignedTimelineClipsForIntroMode(
       sourceClipsForBuild,
       docIntroPlacement,
       fixedIntroClip,
       fixedOutroClip
     );
+
+    const builtClips = alignedBuiltClips.map((bc) => {
+      const liveMatch = !isDocSwitch
+        ? timelineClips.find(
+            (lc) =>
+              lc.id === bc.id ||
+              (lc.clipNumber === bc.clipNumber && (lc.partLabel || '') === (bc.partLabel || ''))
+          )
+        : undefined;
+      const savedAudio = getSavedAudioEditForClip(bc, savedClipAudioEdits);
+      const useLiveAudio =
+        liveMatch &&
+        (Boolean(liveMatch.audioMuted) ||
+          Boolean(liveMatch.customVolumeSet) ||
+          typeof liveMatch.audioFadeInSec === 'number' ||
+          typeof liveMatch.audioFadeOutSec === 'number');
+      const mergedMuted =
+        savedAudio?.audioMuted !== undefined
+          ? Boolean(savedAudio.audioMuted)
+          : useLiveAudio
+          ? Boolean(liveMatch?.audioMuted)
+          : Boolean(bc.audioMuted);
+      const mergedCustomVol =
+        savedAudio?.customVolumeSet !== undefined
+          ? Boolean(savedAudio.customVolumeSet)
+          : useLiveAudio
+          ? Boolean(liveMatch?.customVolumeSet)
+          : Boolean(bc.customVolumeSet);
+      const mergedFoleyVol =
+        typeof savedAudio?.foleyVolume === 'number'
+          ? savedAudio.foleyVolume
+          : useLiveAudio && typeof liveMatch?.foleyVolume === 'number'
+          ? liveMatch.foleyVolume
+          : bc.foleyVolume;
+      const mergedFadeIn =
+        typeof savedAudio?.audioFadeInSec === 'number'
+          ? savedAudio.audioFadeInSec
+          : useLiveAudio && typeof liveMatch?.audioFadeInSec === 'number'
+          ? liveMatch.audioFadeInSec
+          : bc.audioFadeInSec;
+      const mergedFadeOut =
+        typeof savedAudio?.audioFadeOutSec === 'number'
+          ? savedAudio.audioFadeOutSec
+          : useLiveAudio && typeof liveMatch?.audioFadeOutSec === 'number'
+          ? liveMatch.audioFadeOutSec
+          : bc.audioFadeOutSec;
+
+      return {
+        ...bc,
+        audioMuted: mergedMuted,
+        customVolumeSet: mergedCustomVol || mergedMuted,
+        foleyVolume: mergedFoleyVol,
+        audioFadeInSec: mergedFadeIn,
+        audioFadeOutSec: mergedFadeOut,
+        reframe9x16Mode: liveMatch?.reframe9x16Mode || bc.reframe9x16Mode,
+        reframeFocusXStart: liveMatch?.reframeFocusXStart ?? bc.reframeFocusXStart,
+        reframeFocusXEnd: liveMatch?.reframeFocusXEnd ?? bc.reframeFocusXEnd,
+        reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
+        reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
+        reframeReason: liveMatch?.reframeReason || bc.reframeReason,
+      };
+    });
 
     if (
       activeDoc?.id &&
@@ -3831,14 +3987,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (textSegStrings.length > 1) {
         const firstSpeechStart =
           silences[0] && silences[0].start < 0.05 ? silences[0].end : 0;
-        const lastSpeechEnd =
+        const rawVoiceEnd =
           targetVoiceDur > 5 ? targetVoiceDur : segBounds[segBounds.length - 1].end;
+        const lastSil = silences[silences.length - 1];
+        const lastSpeechEnd =
+          lastSil && lastSil.end >= rawVoiceEnd - 0.12 && lastSil.start > rawVoiceEnd - 8
+            ? lastSil.start
+            : rawVoiceEnd;
         const alignedParas = alignUnitsToSilences(
           textSegStrings,
           firstSpeechStart,
           lastSpeechEnd,
           silences,
-          1.45
+          0.65
         );
         if (alignedParas.length === textSegIndices.length) {
           alignedParas.forEach((ap, pIdx) => {
@@ -4276,16 +4437,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Compute each clip's start & end time on the master timeline (with default audio fade-in / fade-out on Intro & Outro)
   const clipsWithTimelineBounds = useMemo(() => {
     let cursor = 0;
+    const savedAudioMap = readSavedClipAudioEdits(activeDoc?.id);
     return timelineClips.map((clip, index) => {
       const start = cursor;
       const end = cursor + clip.duration;
       cursor = end;
       const isIntroClip = clip.id === 'fixed-doc-intro' || clip.clipNumber === 0;
       const isOutroClip = clip.id === 'fixed-doc-outro' || clip.clipNumber === 999;
+      const savedAudio = getSavedAudioEditForClip(clip, savedAudioMap);
+      const effectiveMuted =
+        savedAudio?.audioMuted !== undefined
+          ? Boolean(savedAudio.audioMuted)
+          : Boolean(clip.audioMuted);
+      const effectiveCustomVol =
+        savedAudio?.customVolumeSet !== undefined
+          ? Boolean(savedAudio.customVolumeSet)
+          : Boolean(clip.customVolumeSet);
+      const effectiveFoleyVol =
+        typeof savedAudio?.foleyVolume === 'number'
+          ? savedAudio.foleyVolume
+          : clip.foleyVolume;
       return {
         ...clip,
+        audioMuted: effectiveMuted,
+        customVolumeSet: effectiveCustomVol || effectiveMuted,
+        foleyVolume: effectiveFoleyVol,
         audioFadeInSec:
-          typeof clip.audioFadeInSec === 'number'
+          typeof savedAudio?.audioFadeInSec === 'number'
+            ? savedAudio.audioFadeInSec
+            : typeof clip.audioFadeInSec === 'number'
             ? clip.audioFadeInSec
             : isIntroClip || isOutroClip
             ? 1.5
@@ -4293,7 +4473,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ? 1.2
             : undefined,
         audioFadeOutSec:
-          typeof clip.audioFadeOutSec === 'number'
+          typeof savedAudio?.audioFadeOutSec === 'number'
+            ? savedAudio.audioFadeOutSec
+            : typeof clip.audioFadeOutSec === 'number'
             ? clip.audioFadeOutSec
             : isIntroClip || isOutroClip
             ? 2.5
@@ -4303,7 +4485,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         end,
       };
     });
-  }, [timelineClips]);
+  }, [timelineClips, activeDoc?.id]);
 
   const selectedClip = useMemo(
     () =>
@@ -4816,6 +4998,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     lastSeekVersionRef.current += 1;
     clipEndedHoldRef.current = false;
     setCurrentTime(clamped);
+    const clipAtTarget = clipsWithTimelineBounds.find(
+      (c) => clamped >= c.start && clamped < c.end
+    );
+    if (clipAtTarget && selectedClipIds.length <= 1 && selectedClipId !== clipAtTarget.id) {
+      setSelectedClipId(clipAtTarget.id);
+      setSelectedClipIds([clipAtTarget.id]);
+    }
   };
 
   // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips (e.g. 7.83s Flow clips) and trimmed/slow-mo clips fit their slot smoothly without ever freezing at the end
@@ -5648,7 +5837,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (!isIntroOrOutro && currentTime >= voiceStartOffsetSec && currentTime < voiceEndSec - 0.05) {
         const voTime = getVoiceAudioTimeForTimelineSec(currentTime);
         const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
-        if (isManualVoSeek || !isPlaying || (vo.paused && Math.abs(vo.currentTime - voTime) > 0.35) || Math.abs(vo.currentTime - voTime) > 1.8) {
+        if (
+          isManualVoSeek ||
+          !isPlaying ||
+          (vo.paused && Math.abs(vo.currentTime - voTime) > 0.2) ||
+          Math.abs(vo.currentTime - voTime) > 0.25
+        ) {
           appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
           try {
             vo.currentTime = voTime;
@@ -6829,19 +7023,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       audioMuted?: boolean;
       customVolumeSet?: boolean;
     },
-    applyToAllClips: boolean = false
+    applyToAllClips: boolean = false,
+    explicitTargetIds?: string[]
   ) => {
     const targetIds =
-      activeTargetClipIds.length > 0
+      Array.isArray(explicitTargetIds) && explicitTargetIds.length > 0
+        ? explicitTargetIds
+        : activeTargetClipIds.length > 0
         ? activeTargetClipIds
         : selectedClip?.id
         ? [selectedClip.id]
+        : activeClipAtPlayhead?.id
+        ? [activeClipAtPlayhead.id]
         : [];
     const targetSet = new Set(targetIds);
+    const singleSelectedClip =
+      targetIds.length === 1
+        ? timelineClips.find((tc) => tc.id === targetIds[0]) || selectedClip
+        : selectedClip;
     const singleSelectedClipNum =
-      targetIds.length <= 1 && selectedClip && !selectedClip.partLabel
-        ? selectedClip.clipNumber
+      targetIds.length <= 1 && singleSelectedClip && !singleSelectedClip.partLabel
+        ? singleSelectedClip.clipNumber
         : null;
+    const docId = activeDoc?.id || 'default';
     commitTimelineClipsUpdate(
       (prev) =>
         prev.map((c) => {
@@ -6872,13 +7076,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           if (typeof patch.audioMuted === 'boolean') {
             next.audioMuted = patch.audioMuted;
+            next.customVolumeSet = patch.customVolumeSet ?? true;
             if (!patch.audioMuted && (next.foleyVolume ?? 0) <= 0) {
-              next.foleyVolume = c.clipNumber === 0 || c.clipNumber === 999 ? 100 : c.clipNumber === 1 ? 80 : 40;
+              next.foleyVolume =
+                c.clipNumber === 0 || c.clipNumber === 999
+                  ? 100
+                  : c.clipNumber === 1
+                  ? 80
+                  : 20;
             }
           }
           if (typeof patch.customVolumeSet === 'boolean') {
             next.customVolumeSet = patch.customVolumeSet;
           }
+          recordClipAudioEdit(next, docId);
           return next;
         }),
       false
@@ -8129,6 +8340,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               fps: exportFps,
               bitrateMbps: exportBitrateMbps,
               clips: clipsWithTimelineBounds.map((c) => {
+                const savedAudio = getSavedAudioEditForClip(
+                  c,
+                  readSavedClipAudioEdits(activeDoc.id)
+                );
+                const clipAudioMuted =
+                  savedAudio?.audioMuted !== undefined
+                    ? Boolean(savedAudio.audioMuted)
+                    : Boolean(c.audioMuted);
+                const clipCustomVolSet =
+                  savedAudio?.customVolumeSet !== undefined
+                    ? Boolean(savedAudio.customVolumeSet)
+                    : Boolean(c.customVolumeSet);
+                const clipFoleyVolume =
+                  typeof savedAudio?.foleyVolume === 'number'
+                    ? savedAudio.foleyVolume
+                    : c.foleyVolume;
                 const isIntroOrOutroClip =
                   c.id === 'fixed-doc-intro' ||
                   c.id === 'fixed-doc-outro' ||
@@ -8139,22 +8366,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   c.clipNumber !== 1 &&
                   c.end > voiceStartOffsetSec + 0.5;
                 const rawClipVolPct =
-                  typeof c.foleyVolume === 'number'
-                    ? c.foleyVolume
+                  typeof clipFoleyVolume === 'number'
+                    ? clipFoleyVolume
                     : isIntroOrOutroClip
                     ? 100
                     : isNarratedClip
                     ? foleyDuckedVolume
                     : foleyHighVolume;
-                const effectiveClipFoleyPct = c.audioMuted
-                  ? 0
-                  : isIntroOrOutroClip
-                  ? rawClipVolPct
-                  : c.customVolumeSet || !autoDuckingEnabled
-                  ? rawClipVolPct
-                  : isNarratedClip
-                  ? Math.min(rawClipVolPct, foleyDuckedVolume)
-                  : rawClipVolPct;
+                const isExplicitClipVol =
+                  clipCustomVolSet ||
+                  (typeof clipFoleyVolume === 'number' &&
+                    clipFoleyVolume !== (isIntroOrOutroClip ? 100 : c.clipNumber === 1 ? 80 : 20));
+                const effectiveClipFoleyPct =
+                  clipAudioMuted || rawClipVolPct <= 0
+                    ? 0
+                    : isIntroOrOutroClip
+                    ? rawClipVolPct
+                    : isExplicitClipVol || !autoDuckingEnabled
+                    ? rawClipVolPct
+                    : isNarratedClip
+                    ? Math.min(rawClipVolPct, foleyDuckedVolume)
+                    : rawClipVolPct;
                 return {
                   clipNumber: c.clipNumber,
                   fileName: c.fileName,
@@ -8174,10 +8406,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   vocalsSeparated: Boolean(c.vocalsSeparated),
                   musicSeparated: Boolean(c.musicSeparated),
                   foleyVolume: Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)),
-                  customVolumeSet: Boolean(c.customVolumeSet),
-                  audioMuted: Boolean(c.audioMuted),
-                  audioFadeInSec: c.audioFadeInSec,
-                  audioFadeOutSec: c.audioFadeOutSec,
+                  customVolumeSet: Boolean(isExplicitClipVol || clipAudioMuted),
+                  audioMuted: Boolean(clipAudioMuted || effectiveClipFoleyPct <= 0),
+                  audioFadeInSec: savedAudio?.audioFadeInSec ?? c.audioFadeInSec,
+                  audioFadeOutSec: savedAudio?.audioFadeOutSec ?? c.audioFadeOutSec,
                   transition: c.transition,
                   reframe9x16Mode: c.reframe9x16Mode || 'auto_center',
                   reframeFocusXStart: typeof c.reframeFocusXStart === 'number' ? c.reframeFocusXStart : 50,
@@ -14035,6 +14267,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   🌊 {clip.speed}x
                                 </span>
                               )}
+                              {clip.audioMuted || (clip.foleyVolume ?? 20) <= 0 ? (
+                                <span className="px-0.5 py-0.2 rounded bg-rose-600/95 text-[7px] font-black text-white leading-none">
+                                  🔇 0%
+                                </span>
+                              ) : clip.customVolumeSet ? (
+                                <span className="px-0.5 py-0.2 rounded bg-amber-500/90 text-[7px] font-black text-slate-950 leading-none">
+                                  🔊 {clip.foleyVolume}%
+                                </span>
+                              ) : null}
                               <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
                                 {formatTimeMMSS(clip.start)}
                               </span>
@@ -14131,8 +14372,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.duration}s • {clip.speed}x
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false ? ' 🌊' : ''}
                               </span>
-                              <span>
-                                {clip.audioMuted
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const nextMuted = !(clip.audioMuted || (clip.foleyVolume ?? 20) <= 0);
+                                  handleUpdateClipsAudio({ audioMuted: nextMuted }, false, [clip.id]);
+                                  setStatusMessage(
+                                    nextMuted
+                                      ? `🔇 Clip ${String(clip.clipNumber).padStart(2, '0')} silenciado (0%) para reproducción y exportación.`
+                                      : `🔊 Audio restaurado en Clip ${String(clip.clipNumber).padStart(2, '0')}.`
+                                  );
+                                }}
+                                title="Haz clic para silenciar o activar el audio de este clip"
+                                className={`px-1 py-0.2 rounded font-bold transition cursor-pointer ${
+                                  clip.audioMuted || (clip.foleyVolume ?? 20) <= 0
+                                    ? 'bg-rose-500/30 border border-rose-500/60 text-rose-200'
+                                    : clip.customVolumeSet
+                                    ? 'bg-amber-500/25 border border-amber-500/50 text-amber-200'
+                                    : 'hover:bg-slate-800 text-slate-300'
+                                }`}
+                              >
+                                {clip.audioMuted || (clip.foleyVolume ?? 20) <= 0
                                   ? '🔇 Silenciado (0%)'
                                   : clip.foleyOnlyIsolated
                                   ? `🌿 Solo Foley • ${clip.foleyVolume}%`
@@ -14148,7 +14409,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {(clip.audioFadeInSec || clip.audioFadeOutSec)
                                   ? ` • 📈${clip.audioFadeInSec || 0}s 📉${clip.audioFadeOutSec || 0}s`
                                   : ''}
-                              </span>
+                              </button>
                             </div>
                           </>
                         )}
