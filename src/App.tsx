@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:49 AM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:48 AM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -8333,15 +8333,15 @@ export default function App() {
 
       {/* TOP NAVIGATION BAR */}
       <header
-        className={`sticky top-0 z-40 bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-4 shrink-0 ${
+        className={`sticky top-0 z-40 w-full max-w-full bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-4 shrink-0 ${
           mainView === 'capcut_editor'
-            ? 'py-1 flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap'
+            ? 'py-1 flex items-center justify-between gap-2 overflow-x-auto flex-nowrap whitespace-nowrap [-webkit-overflow-scrolling:touch]'
             : mainView === 'studio' && isStagesBarCompact
-            ? 'py-1.5 flex items-center justify-between gap-2.5 flex-wrap'
-            : 'py-2.5 sm:py-3 flex items-center justify-between gap-2.5 flex-wrap'
+            ? 'py-1.5 flex items-center justify-between gap-2 flex-wrap'
+            : 'py-2 sm:py-3 flex items-center justify-between gap-2 flex-wrap'
         }`}
       >
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 min-w-0">
           <button
             onClick={() => setMainView('dashboard')}
             className="flex items-center gap-2 text-left group cursor-pointer"
@@ -8385,8 +8385,14 @@ export default function App() {
           </button>
         </div>
 
-        {/* Navigation Pills */}
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        {/* Navigation Pills (Horizontal Scroll on Mobile & Tablet) */}
+        <div
+          className={
+            mainView === 'capcut_editor'
+              ? 'flex items-center gap-1.5 shrink-0 flex-nowrap whitespace-nowrap'
+              : 'w-full lg:w-auto min-w-0 flex items-center gap-1.5 overflow-x-auto flex-nowrap lg:flex-wrap whitespace-nowrap pb-1 lg:pb-0 [-webkit-overflow-scrolling:touch]'
+          }
+        >
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
@@ -8396,13 +8402,13 @@ export default function App() {
               mainView === 'capcut_editor'
                 ? 'px-2 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-            } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'dashboard'
                 ? 'bg-amber-500 text-slate-950 shadow'
                 : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
             }`}
           >
-            <FolderOpen className="w-3.5 h-3.5" />
+            <FolderOpen className="w-3.5 h-3.5 shrink-0" />
             <span>Documentales ({documentaries.length})</span>
           </button>
 
@@ -8416,14 +8422,14 @@ export default function App() {
                 mainView === 'capcut_editor'
                   ? 'px-2 py-0.5 text-[11px]'
                   : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-              } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
                 mainView === 'studio'
                   ? 'bg-amber-500 text-slate-950 shadow'
                   : 'bg-slate-900 text-amber-300 hover:bg-slate-800 border border-amber-500/30'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[140px] sm:max-w-[200px]">
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate max-w-[160px] sm:max-w-[200px]">
                 Estudio: {activeDoc.title}
               </span>
             </button>
@@ -8438,13 +8444,13 @@ export default function App() {
               mainView === 'capcut_editor'
                 ? 'px-2 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-            } rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               mainView === 'standalone_prompt'
                 ? 'bg-amber-500 text-slate-950 shadow'
                 : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5" />
+            <Sliders className="w-3.5 h-3.5 shrink-0" />
             <span>Prompt Maestro</span>
           </button>
 
@@ -8470,14 +8476,14 @@ export default function App() {
               mainView === 'capcut_editor'
                 ? 'px-2.5 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-            } rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
+            } shrink-0 whitespace-nowrap rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
               mainView === 'capcut_editor'
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
                 : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/40'
             }`}
             title="Abrir el Editor de Video Multipista (Clips, Voz, Logo Oficial, Música Suno, Captions, Transiciones y Exportación HD/2K/4K/8K en 16:9 y 9:16)"
           >
-            <Film className="w-3.5 h-3.5" />
+            <Film className="w-3.5 h-3.5 shrink-0" />
             <span>🎬 Editor de Video</span>
           </button>
 
@@ -8491,17 +8497,17 @@ export default function App() {
                 mainView === 'capcut_editor'
                   ? 'px-2 py-0.5 text-[11px]'
                   : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-              } rounded-lg font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
+              } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
                 showWebStudio
                   ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
                   : 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
               }`}
               title="Abrir panel incrustado de Gemini Web y Google Flow para generar texto, imágenes y clips usando tu cuota web gratis (sin gastar API Key)"
             >
-              <Globe className="w-3.5 h-3.5" />
+              <Globe className="w-3.5 h-3.5 shrink-0" />
               <span>Estudio Web (Gratis)</span>
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`w-2 h-2 rounded-full shrink-0 ${
                   extensionInstalled
                     ? showWebStudio
                       ? 'bg-slate-950'
@@ -8515,7 +8521,7 @@ export default function App() {
 
         {/* COMPACT STICKY STAGES BAR (Icon right next to stage number to free vertical space) */}
         {mainView === 'studio' && activeDoc && isStagesBarCompact && (
-          <div className="w-full pt-1 mt-0.5 border-t border-amber-500/20 flex items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
+          <div className="w-full min-w-0 pt-1 mt-0.5 border-t border-amber-500/20 flex items-center justify-start md:justify-center gap-1.5 overflow-x-auto flex-nowrap pb-0.5 [-webkit-overflow-scrolling:touch]">
             {STAGES_LIST.map((st) => {
               const IconComp = st.icon;
               const done = isStageDone(activeDoc, st.num);
@@ -9009,13 +9015,13 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap pb-1 sm:pb-0 [-webkit-overflow-scrolling:touch]">
                 {/* ITEM 4: 1-Click Full Pre-Production (Stages 1 to 9) */}
                 <button
                   type="button"
                   disabled={isFullPreprodRunning}
                   onClick={handleRunFullPreproduction1To8}
-                  className="py-1 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-slate-950 text-xs font-black flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow"
+                  className="shrink-0 py-1 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-slate-950 text-xs font-black flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow"
                   title="Genera de corrido Guion, Timeline, Subtítulos .SRT, Miniaturas A/B, @Referencias, Música Suno, todos los Pares Image/Clip y SEO YouTube en 1 clic"
                 >
                   ⚡{' '}
@@ -9028,7 +9034,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => handleExportOrganizedProjectFolder(false)}
-                  className="py-1 px-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  className="shrink-0 py-1 px-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
                   title="Crea en tu carpeta: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
                 >
                   📦 Carpeta Final YouTube
@@ -9039,7 +9045,7 @@ export default function App() {
                   onChange={(e) =>
                     updateActiveDoc({ productionType: e.target.value as ProductionFormatType })
                   }
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
+                  className="shrink-0 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
                 >
                   {PRODUCTION_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -9052,7 +9058,7 @@ export default function App() {
                   onChange={(e) =>
                     updateActiveDoc({ status: e.target.value as DocumentaryStatusType })
                   }
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
+                  className="shrink-0 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200"
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -9062,38 +9068,17 @@ export default function App() {
                 </select>
                 <button
                   onClick={() => handleExportDocumentaryDossier(activeDoc)}
-                  className="py-1 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  className="shrink-0 py-1 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
                 >
                   <Download className="w-3.5 h-3.5" /> Exportar (.txt)
                 </button>
               </div>
             </div>
 
-            {/* Mobile Stage Selector (Compact Dropdown on Phone) */}
-            <div className="md:hidden">
-              <select
-                value={activeStage}
-                onChange={(e) => handleTrySelectStage(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs font-bold text-amber-200 outline-none"
-              >
-                {STAGES_LIST.map((st) => {
-                  const done = isStageDone(activeDoc, st.num);
-                  const isLocked = st.num > 1 && !hasSelectedDocFolder;
-                  return (
-                    <option key={st.num} value={st.num}>
-                      {isLocked ? '🔒 ' : done ? '✓ ' : '○ '}
-                      {st.title} — {st.subtitle}
-                      {isLocked ? ' (Elige Carpeta en Etapa 1)' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {/* Row 2: 10 Stages Horizontal Navigation Bar (Desktop & Tablet — Full Title & Full Description When Page Is At Top) */}
+            {/* Row 2: 10 Stages Horizontal Navigation Bar (Horizontal Scroll on Mobile, Grid on Desktop & Tablet) */}
             <nav
               data-stages-full-nav="true"
-              className="hidden md:grid md:grid-cols-3 lg:grid-cols-5 gap-2"
+              className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-2 overflow-x-auto pb-1 md:pb-0 [-webkit-overflow-scrolling:touch]"
             >
               {STAGES_LIST.map((st) => {
                 const IconComp = st.icon;
@@ -9110,7 +9095,7 @@ export default function App() {
                         ? `🔒 Bloqueado: Selecciona primero la Carpeta de Descarga del Documental en la Etapa 1`
                         : `${st.title} — ${st.subtitle}`
                     }
-                    className={`px-3 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
+                    className={`shrink-0 w-[215px] md:w-auto px-3 py-2 rounded-xl flex flex-col justify-between gap-1 text-left transition border ${
                       isLocked
                         ? 'bg-slate-950/50 text-slate-600 border-slate-900 opacity-50 cursor-not-allowed'
                         : isCurrent

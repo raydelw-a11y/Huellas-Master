@@ -10149,8 +10149,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ================================================================= */}
         <div className="flex-1 min-w-0 min-h-0 h-full max-h-full flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
           {/* Compact CapCut-Style Player Header ("Player - Timeline 01" + Quick Overlay Selection) */}
-          <div className="w-full px-2 sm:px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-1.5 shrink-0">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <div className="w-full px-2 sm:px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap gap-1.5 shrink-0 [-webkit-overflow-scrolling:touch]">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap sm:flex-wrap">
               <button
                 type="button"
                 onClick={() => {
@@ -10162,7 +10162,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     return next;
                   });
                 }}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
                 title={isLeftPanelCollapsed ? 'Mostrar panel izquierdo Media' : 'Ocultar panel izquierdo Media para ampliar aún más el visor'}
               >
                 <span>◧</span>
@@ -10171,7 +10171,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <span className="hidden sm:inline font-semibold text-slate-200 text-[11px]">
                 Player - Timeline 01
               </span>
-              <span className="font-mono text-amber-300/90 text-[10px] font-bold">
+              <span className="shrink-0 font-mono text-amber-300/90 text-[10px] font-bold">
                 • {aspectRatio} •{' '}
                 {aspectRatio === '16:9'
                   ? `${activePreset.width16x9}×${activePreset.height16x9}`
@@ -10179,7 +10179,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </span>
               <div
                 data-keep-canvas-selection="true"
-                className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
+                className="shrink-0 flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
               >
                 <button
                   type="button"
@@ -10226,7 +10226,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   effectiveVoiceoverUrl && !voiceAudioError
