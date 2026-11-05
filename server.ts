@@ -3981,8 +3981,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const targetAudioSamples = Math.max(1024, Math.round(effectiveClipDur * 44100));
       const afTrimSuffix =
         effectiveClipDur > 0.3
-          ? `,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`
-          : '';
+          ? `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`
+          : ',aresample=44100';
       const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
 
       const inputTrimArgs: string[] = [];
@@ -4353,8 +4353,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     let muxerArgs: string[] = [];
     if (hasVo || resolvedMusicInputs.length > 0) {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
+      const totalTimelineDurStr = Math.max(1, runningTimelineSec).toFixed(3);
       const filterParts: string[] = [
-        '[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB[clip_a]',
+        `[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr},asetpts=N/SR/TB[clip_a]`,
       ];
       const mixLabels: string[] = ['[clip_a]'];
       let nextInputIdx = 1;
