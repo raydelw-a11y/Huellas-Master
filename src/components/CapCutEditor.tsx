@@ -870,11 +870,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     () => Number(initialOverlayStyles.hookBoxWidthPct) || 82
   );
   const [isDraggingOrResizingHook, setIsDraggingOrResizingHook] = useState<boolean>(false);
-  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth < 1024
+  );
   const [leftPanelTab, setLeftPanelTab] = useState<
     'media' | 'audio' | 'text' | 'transitions' | 'captions'
   >('media');
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState<boolean>(false);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth < 1024
+  );
   const [isTimelineDockExpanded, setIsTimelineDockExpanded] = useState<boolean>(false);
   const viewerStageRef = useRef<HTMLDivElement | null>(null);
   const [viewerStageSize, setViewerStageSize] = useState<{ width: number; height: number }>({
@@ -9096,24 +9100,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     if (selectedCanvasObject === 'logo' || selectedCanvasObject === 'hook_text') {
       setActiveInspectorTab('branding');
-      setIsRightPanelCollapsed(false);
+      if (typeof window === 'undefined' || window.innerWidth >= 1024) {
+        setIsRightPanelCollapsed(false);
+      }
     } else if (selectedCanvasObject === 'captions') {
       setActiveInspectorTab('captions');
-      setIsRightPanelCollapsed(false);
+      if (typeof window === 'undefined' || window.innerWidth >= 1024) {
+        setIsRightPanelCollapsed(false);
+      }
     }
   }, [selectedCanvasObject]);
 
   useEffect(() => {
     if (selectedClipId) {
       setActiveInspectorTab('clips');
-      setIsRightPanelCollapsed(false);
+      if (typeof window === 'undefined' || window.innerWidth >= 1024) {
+        setIsRightPanelCollapsed(false);
+      }
     }
   }, [selectedClipId]);
 
   useEffect(() => {
     if (selectedMusicTrackId) {
       setActiveInspectorTab('audio');
-      setIsRightPanelCollapsed(false);
+      if (typeof window === 'undefined' || window.innerWidth >= 1024) {
+        setIsRightPanelCollapsed(false);
+      }
     }
   }, [selectedMusicTrackId]);
 
@@ -9816,15 +9828,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           [1] COMPACT LEFT MEDIA SIDEBAR  |  [2] DOMINANT CENTER VIDEO PLAYER  |  [3] COMPACT RIGHT DETAILS/INSPECTOR
           Left & Right columns are strictly locked to the exact vertical height of the Center Video Player and scroll internally.
       ===================================================================== */}
-      <div className="flex-1 min-h-0 w-full flex flex-row items-stretch gap-1.5 p-1 bg-[#0e0c09] overflow-hidden">
+      <div className="relative flex-1 min-h-0 w-full flex flex-row items-stretch gap-1.5 p-1 bg-[#0e0c09] overflow-hidden">
         {/* =================================================================
             COLUMN 1: COMPACT CAPCUT-STYLE LEFT MEDIA & ASSETS PANEL
         ================================================================= */}
         {isLeftPanelCollapsed ? (
-          <div className="flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+          <div className="hidden sm:flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
             <button
               type="button"
-              onClick={() => setIsLeftPanelCollapsed(false)}
+              onClick={() => {
+                setIsLeftPanelCollapsed(false);
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsRightPanelCollapsed(true);
+                }
+              }}
               className="p-1 rounded-lg bg-slate-900 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-[10px] font-black cursor-pointer transition"
               title="Mostrar panel izquierdo de Media / Audio / Text"
             >
@@ -9835,7 +9852,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </span>
           </div>
         ) : (
-          <div className="w-[210px] lg:w-[230px] xl:w-[245px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 overflow-hidden">
+          <div className="max-md:absolute max-md:inset-y-1 max-md:left-1 max-md:z-[140] max-md:w-[min(86vw,255px)] max-md:shadow-2xl w-[210px] lg:w-[230px] xl:w-[245px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex flex-col min-h-0 overflow-hidden">
             {/* CapCut Top Category Icon Strip (Media, Audio, Text, Transitions, Captions) */}
             <div className="px-1.5 py-1 bg-[#100d0a] border-b border-slate-800/90 flex items-center justify-between gap-0.5 shrink-0">
               {(
@@ -10107,17 +10124,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ================================================================= */}
         <div className="flex-1 min-w-0 min-h-0 h-full max-h-full flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
           {/* Compact CapCut-Style Player Header ("Player - Timeline 01" + Quick Overlay Selection) */}
-          <div className="w-full px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-1.5 shrink-0">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="w-full px-2 sm:px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setIsLeftPanelCollapsed((prev) => !prev)}
-                className="hidden lg:inline-flex px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 cursor-pointer"
+                onClick={() => {
+                  setIsLeftPanelCollapsed((prev) => {
+                    const next = !prev;
+                    if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      setIsRightPanelCollapsed(true);
+                    }
+                    return next;
+                  });
+                }}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
                 title={isLeftPanelCollapsed ? 'Mostrar panel izquierdo Media' : 'Ocultar panel izquierdo Media para ampliar aún más el visor'}
               >
-                ◧
+                <span>◧</span>
+                <span className="lg:hidden">Media</span>
               </button>
-              <span className="font-semibold text-slate-200 text-[11px]">
+              <span className="hidden sm:inline font-semibold text-slate-200 text-[11px]">
                 Player - Timeline 01
               </span>
               <span className="font-mono text-amber-300/90 text-[10px] font-bold">
@@ -10189,11 +10215,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => setIsRightPanelCollapsed((prev) => !prev)}
-                className="hidden lg:inline-flex px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 cursor-pointer"
+                onClick={() => {
+                  setIsRightPanelCollapsed((prev) => {
+                    const next = !prev;
+                    if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      setIsLeftPanelCollapsed(true);
+                    }
+                    return next;
+                  });
+                }}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
                 title={isRightPanelCollapsed ? 'Mostrar panel derecho Details/Inspector' : 'Ocultar panel derecho Details/Inspector para ampliar aún más el visor'}
               >
-                ◨
+                <span>◨</span>
+                <span className="lg:hidden">Editar</span>
               </button>
             </div>
           </div>
@@ -11191,10 +11226,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             COLUMN 3: COMPACT RIGHT DETAILS & INSPECTOR PANEL
         ================================================================= */}
         {isRightPanelCollapsed && (
-          <div className="flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
+          <div className="hidden sm:flex w-8 h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl flex-col items-center py-2 gap-3 select-none">
             <button
               type="button"
-              onClick={() => setIsRightPanelCollapsed(false)}
+              onClick={() => {
+                setIsRightPanelCollapsed(false);
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsLeftPanelCollapsed(true);
+                }
+              }}
               className="p-1 rounded-lg bg-slate-900 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-[10px] font-black cursor-pointer transition"
               title="Mostrar panel derecho Details / Inspector"
             >
@@ -11210,7 +11250,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           className={
             isRightPanelCollapsed
               ? 'hidden'
-              : 'w-[240px] lg:w-[255px] xl:w-[275px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl p-2 flex flex-col min-h-0 overflow-hidden space-y-2'
+              : 'max-md:absolute max-md:inset-y-1 max-md:right-1 max-md:z-[140] max-md:w-[min(90vw,295px)] max-md:shadow-2xl w-[240px] lg:w-[255px] xl:w-[275px] h-full max-h-full shrink-0 bg-[#14110d] border border-slate-800/90 rounded-xl p-2 flex flex-col min-h-0 overflow-hidden space-y-2'
           }
         >
           {/* CapCut-Style "Details" Header + Collapse Button */}
@@ -13724,11 +13764,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div
               style={{
                 left: isFitEntireProject
-                  ? `calc(9.5rem + (100% - 9.5rem) * ${Math.min(
+                  ? `calc(var(--tl-header-offset, 9.5rem) + (100% - var(--tl-header-offset, 9.5rem)) * ${Math.min(
                       1,
                       Math.max(0, currentTime / Math.max(1, totalDurationSec))
                     ).toFixed(6)})`
-                  : `calc(9.5rem + ${(currentTime * timelineZoom).toFixed(2)}px)`,
+                  : `calc(var(--tl-header-offset, 9.5rem) + ${(currentTime * timelineZoom).toFixed(2)}px)`,
               }}
               className="pointer-events-none absolute top-0 bottom-0 z-40 w-0"
             >
@@ -13754,9 +13794,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 isFitEntireProject ? 'w-full' : 'min-w-max'
               }`}
             >
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between">
-                <span>⏱️ Regla</span>
-                <span className="px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
+              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between truncate">
+                <span className="truncate">⏱️ Regla</span>
+                <span className="hidden sm:inline px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
                   {timelineRulerData.scaleUnitLabel}
                 </span>
               </div>
@@ -13841,7 +13881,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-amber-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-amber-300 truncate">
                 1. 🏷️ Logo + Texto
               </div>
               <div
@@ -14009,7 +14049,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 2: CAPTIONS (.SRT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-sky-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-sky-300 truncate">
                 2. 💬 Captions ({captions.length})
               </div>
               <div
@@ -14091,7 +14131,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING + REAL-TIME PLAYHEAD SELECTION) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-[10px] font-black text-amber-300 flex flex-col gap-1">
+              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-[9px] sm:text-[10px] font-black text-amber-300 flex flex-col gap-1">
                 <span className="truncate">3. 🎬 Clips ({timelineClips.length})</span>
               </div>
               <div
@@ -14422,7 +14462,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-emerald-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-emerald-300 truncate">
                 4. 🎙️ Voz Narrativa
               </div>
               <div
@@ -14531,8 +14571,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (CLICKABLE SONGS WITH VOLUME, FADE-IN & FADE-OUT) */}
             <div className={`flex flex-col gap-1 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-                <div className="w-36 shrink-0 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
-                  <span>5. 🎵 Flow Music ({musicTracks.length})</span>
+                <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
+                  <span className="truncate">5. 🎵 Flow Music ({musicTracks.length})</span>
                 </div>
                 <div
                   style={

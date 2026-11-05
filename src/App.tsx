@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:24 PM - 11/04/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:58 AM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -8305,9 +8305,9 @@ export default function App() {
     <div
       className={`${
         mainView === 'capcut_editor'
-          ? 'h-screen max-h-screen overflow-hidden'
-          : 'min-h-screen'
-      } bg-[#0b0a09] text-slate-100 flex flex-col`}
+          ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
+          : 'min-h-[100dvh]'
+      } bg-[#0b0a09] text-slate-100 flex flex-col w-full max-w-[100vw] overflow-x-hidden`}
     >
       {/* Floating Scroll-to-Top Button + Global Deployment Verification Timestamp Badge */}
       <div className="fixed bottom-2 right-3 z-50 flex flex-col items-end gap-1.5 pointer-events-none">
@@ -8701,14 +8701,14 @@ export default function App() {
           VIEW 1: DASHBOARD DE DOCUMENTALES
       ===================================================================== */}
       {(mainView === 'dashboard' || (mainView === 'studio' && !activeDoc)) && (
-        <main className="max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-6">
+        <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-1 space-y-5 sm:space-y-6">
           {/* Hero Banner */}
-          <div className="bg-gradient-to-r from-[#191510] via-[#211b13] to-[#16130f] border border-amber-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-            <div className="space-y-1.5">
-              <h2 className="text-2xl font-bold text-amber-300 tracking-wide">
+          <div className="bg-gradient-to-r from-[#191510] via-[#211b13] to-[#16130f] border border-amber-500/30 rounded-2xl p-4 sm:p-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xl">
+            <div className="space-y-1.5 min-w-0">
+              <h2 className="text-lg sm:text-2xl font-bold text-amber-300 tracking-wide">
                 Biblioteca de Producción — Huellas de la Humanidad
               </h2>
-              <p className="text-sm text-slate-300 max-w-2xl">
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
                 Organiza cada documental de principio a fin: genera el Prompt Maestro, escribe el guion, crea
                 la locución en <strong className="text-amber-300">VoxFlow</strong>, extrae los tiempos exactos
                 con <strong className="text-amber-300">Timeline Extractor</strong>, controla tus lotes de clips,
@@ -8718,7 +8718,7 @@ export default function App() {
             </div>
             <button
               onClick={handleCreateDocumentary}
-              className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center gap-2 shadow-lg shrink-0 transition cursor-pointer"
+              className="w-full md:w-auto justify-center px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center gap-2 shadow-lg shrink-0 transition cursor-pointer"
             >
               <Plus className="w-5 h-5" />
               Nuevo Documental
@@ -8785,7 +8785,7 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               {filteredDocs.map((doc) => {
                 const prog = calculateProgress(doc);
                 const statusObj =
@@ -8990,18 +8990,18 @@ export default function App() {
       {mainView === 'studio' && activeDoc && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
-          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-4 py-2 gap-2 flex flex-col shrink-0">
+          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-2.5 sm:px-4 py-2 gap-2 flex flex-col shrink-0">
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2">
-              <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
-                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 sm:px-3.5 py-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:w-auto">
+                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 shrink-0">
                   Expediente Activo
                 </span>
                 <input
                   type="text"
                   value={activeDoc.title}
                   onChange={(e) => updateActiveDoc({ title: e.target.value })}
-                  className="flex-1 min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1 text-sm font-bold text-amber-200 outline-none"
+                  className="flex-1 min-w-0 sm:min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
                   placeholder="Título del Documental..."
                 />
                 <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
@@ -9009,7 +9009,7 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 {/* ITEM 4: 1-Click Full Pre-Production (Stages 1 to 9) */}
                 <button
                   type="button"
@@ -9196,13 +9196,13 @@ export default function App() {
                   ? STAGES_LIST[currentStageIdx + 1]
                   : null;
               return (
-                <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
+                <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] sm:text-[11px] uppercase tracking-widest text-amber-400 font-bold block truncate">
                       Etapa {currentStageMeta.displayNum} de {STAGES_LIST.length} —{' '}
                       {activeDoc.title}
                     </span>
-                    <h2 className="text-base sm:text-lg font-bold text-slate-100 mt-0.5">
+                    <h2 className="text-sm sm:text-lg font-bold text-slate-100 mt-0.5 leading-snug">
                       {currentStageMeta.title} — {currentStageMeta.subtitle}
                     </h2>
                   </div>

@@ -529,18 +529,14 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
 
   try {
     const freshLocalList = readDocumentaries();
-    let jsonStr = JSON.stringify(freshLocalList, null, 2);
-    if (jsonStr.length > 900000) {
-      jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, false), null, 2);
-      if (jsonStr.length > 900000) {
-        jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, true), null, 2);
-      }
+    let jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, false), null, 2);
+    if (jsonStr.length > 3500000) {
+      jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, true), null, 2);
     }
     if (jsonStr === lastPushedGitHubJson) {
       return { synced: true, total: freshLocalList.length };
     }
     lastPushedGitHubJson = jsonStr;
-    const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       Authorization: `token ${token}`,
@@ -548,6 +544,83 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
       'User-Agent': 'HuellasMaster-Studio',
     };
 
+    try {
+      const refRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}`,
+        { headers }
+      );
+      if (refRes.ok) {
+        const refData: any = await refRes.json();
+        const latestCommitSha = refData?.object?.sha;
+        if (latestCommitSha) {
+          const commitRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}`,
+            { headers }
+          );
+          const commitData: any = await commitRes.json();
+          const baseTreeSha = commitData?.tree?.sha;
+
+          const blobRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+            }
+          );
+          const blobData: any = await blobRes.json();
+          const newBlobSha = blobData?.sha;
+
+          if (baseTreeSha && newBlobSha) {
+            const treeRes = await fetch(
+              `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
+              {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  base_tree: baseTreeSha,
+                  tree: [
+                    { path: 'data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
+                    { path: 'docs/data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
+                  ],
+                }),
+              }
+            );
+            const treeData: any = await treeRes.json();
+            if (treeData?.sha) {
+              const newCommitRes = await fetch(
+                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
+                {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({
+                    message: `Sync documentaries.json (${freshLocalList.length} documentales)`,
+                    tree: treeData.sha,
+                    parents: [latestCommitSha],
+                  }),
+                }
+              );
+              const newCommitData: any = await newCommitRes.json();
+              if (newCommitData?.sha) {
+                const patchRes = await fetch(
+                  `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
+                  {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({ sha: newCommitData.sha, force: false }),
+                  }
+                );
+                if (patchRes.ok) {
+                  return { synced: true, total: freshLocalList.length };
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
     for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
       const existingSha = await getServerGitHubFileSha(targetPath, token);
       const bodyObj: Record<string, any> = {

@@ -1247,20 +1247,109 @@ export async function pushDocumentariesToGitHub(
   }
 
   try {
-    let jsonStr = JSON.stringify(docsList, null, 2);
-    if (jsonStr.length > 900000) {
-      jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, false), null, 2);
-      if (jsonStr.length > 900000) {
-        jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, true), null, 2);
-      }
+    let jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, false), null, 2);
+    if (jsonStr.length > 3500000) {
+      jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, true), null, 2);
     }
-    const encodedContent = btoa(unescape(encodeURIComponent(jsonStr)));
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       Authorization: `token ${ghToken}`,
       'Content-Type': 'application/json',
     };
 
+    // Primary method: Git Data API (supports up to 100 MB & commits both paths atomically)
+    try {
+      const refRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}?t=${Date.now()}`,
+        { headers, cache: 'no-store' }
+      );
+      if (refRes.ok) {
+        const refData = await refRes.json();
+        const latestCommitSha = refData?.object?.sha;
+        if (latestCommitSha) {
+          const commitRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}`,
+            { headers, cache: 'no-store' }
+          );
+          const commitData = await commitRes.json();
+          const baseTreeSha = commitData?.tree?.sha;
+
+          const blobRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+            }
+          );
+          const blobData = await blobRes.json();
+          const newBlobSha = blobData?.sha;
+
+          if (baseTreeSha && newBlobSha) {
+            const treeRes = await fetch(
+              `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
+              {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  base_tree: baseTreeSha,
+                  tree: [
+                    {
+                      path: 'data/documentaries.json',
+                      mode: '100644',
+                      type: 'blob',
+                      sha: newBlobSha,
+                    },
+                    {
+                      path: 'docs/data/documentaries.json',
+                      mode: '100644',
+                      type: 'blob',
+                      sha: newBlobSha,
+                    },
+                  ],
+                }),
+              }
+            );
+            const treeData = await treeRes.json();
+            const newTreeSha = treeData?.sha;
+
+            if (newTreeSha) {
+              const newCommitRes = await fetch(
+                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
+                {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({
+                    message: `Sync documentaries.json (${docsList.length} documentales)`,
+                    tree: newTreeSha,
+                    parents: [latestCommitSha],
+                  }),
+                }
+              );
+              const newCommitData = await newCommitRes.json();
+              if (newCommitData?.sha) {
+                const updateRefRes = await fetch(
+                  `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
+                  {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({ sha: newCommitData.sha, force: false }),
+                  }
+                );
+                if (updateRefRes.ok) {
+                  return { synced: true };
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (gitApiErr) {
+      console.warn('Git Data API fallback to Contents API:', gitApiErr);
+    }
+
+    // Fallback: Contents API (for files < 900 KB)
+    const encodedContent = btoa(unescape(encodeURIComponent(jsonStr)));
     for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
       const existingSha = await getGitHubFileSha(targetPath, ghToken);
       const bodyObj: Record<string, any> = {
