@@ -2170,13 +2170,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
     if (nextRatio === '9:16') {
       const docKey = activeDoc?.id || activeDoc?.title || 'default';
-      const hasAnyReframe = timelineClips.some(
-        (tc) =>
-          tc.clipNumber > 0 &&
-          tc.clipNumber !== 999 &&
-          Boolean(tc.reframe9x16Mode)
-      );
-      if (!hasAnyReframe && !autoReframedDocIdsRef.current.has(docKey)) {
+      if (!autoReframedDocIdsRef.current.has(docKey)) {
         autoReframedDocIdsRef.current.add(docKey);
         setTimeout(() => {
           handleRunSmartAutoReframe9x16(false);
@@ -2184,6 +2178,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
   };
+
+  useEffect(() => {
+    const docKey = activeDoc?.id || activeDoc?.title || '';
+    if (!docKey || autoReframedDocIdsRef.current.has(docKey)) return;
+    if (timelineClips.length === 0) return;
+    autoReframedDocIdsRef.current.add(docKey);
+    const t = window.setTimeout(() => {
+      handleRunSmartAutoReframe9x16(false);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [activeDoc?.id, timelineClips.length]);
 
   // Sync caption settings from Etapa 7 (activeDoc.promptConfig) into CapCutEditor in real time
   useEffect(() => {

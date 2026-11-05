@@ -4714,6 +4714,9 @@ async function analyzeClipSmartReframe9x16(
   const globalColScores = new Float64Array(W);
   const earlyColAction = new Float64Array(W);
   const lateColAction = new Float64Array(W);
+  const bandEyeHuman = new Float64Array(10);
+  const bandLowerSubj = new Float64Array(10);
+  const bandHorizonObj = new Float64Array(10);
 
   for (let f = 0; f < numFrames; f++) {
     const baseOffset = f * frameByteSize;
@@ -4773,7 +4776,7 @@ async function analyzeClipSmartReframe9x16(
           skinWarmScore = Math.min(55, (r - b) * 1.1) * rowWeight * hairHatBoost;
         }
 
-        // 2. True 2nd-Order Laplacian Focus Sharpness (in-focus foreground subject vs blurred bokeh)
+        // 2. True 2nd-Order Laplacian Focus Sharpness + Vertical vs Horizontal Gradient
         const idxLeft = idx - 3;
         const idxRight = idx + 3;
         const idxUp = idx - W * 3;
@@ -4786,6 +4789,48 @@ async function analyzeClipSmartReframe9x16(
           Math.abs(2 * g - rawBuffer[idxUp + 1] - rawBuffer[idxDown + 1]);
         const lap = (lapR + lapG) * 0.5;
         const edgeScore = !isSky && lap > 14 ? Math.min(50, (lap - 14) * 0.85) * rowWeight : 0;
+
+        if (!isSky && x >= 4 && x < W - 4 && y >= 16 && y <= 75) {
+          const bIdx = Math.min(9, Math.floor(x / 16));
+          const gx =
+            Math.abs(rawBuffer[idxRight] - rawBuffer[idxLeft]) +
+            Math.abs(rawBuffer[idxRight + 1] - rawBuffer[idxLeft + 1]);
+          const gy =
+            Math.abs(rawBuffer[idxDown] - rawBuffer[idxUp]) +
+            Math.abs(rawBuffer[idxDown + 1] - rawBuffer[idxUp + 1]);
+          const vOnly = Math.max(0, gx - gy * 0.55);
+          let skinUnderCap = 0;
+          if (
+            y >= 18 &&
+            y <= 44 &&
+            r > 65 &&
+            r > g &&
+            g >= b * 0.85 &&
+            r - b >= 18 &&
+            r - b <= 85 &&
+            luma > 48 &&
+            luma < 200
+          ) {
+            const upIdx6 = baseOffset + (Math.max(6, y - 6) * W + x) * 3;
+            const upLuma6 =
+              0.299 * rawBuffer[upIdx6] +
+              0.587 * rawBuffer[upIdx6 + 1] +
+              0.114 * rawBuffer[upIdx6 + 2];
+            if (upLuma6 < luma - 18 && upLuma6 < 62) {
+              skinUnderCap = (r - b) * 2.5;
+            }
+          }
+          if (y >= 24 && y <= 50) {
+            bandEyeHuman[bIdx] += vOnly + skinUnderCap * 0.8;
+          }
+          if (y >= 20 && y <= 48) {
+            bandHorizonObj[bIdx] += (gx + gy) * (luma < 55 ? 1.5 : 0.7);
+          }
+          if (y >= 50 && y <= 75) {
+            const isWarmAnimalOrObj = r > 60 && r - b >= 25 && luma > 38 && luma < 170;
+            bandLowerSubj[bIdx] += (gx + gy) * (isWarmAnimalOrObj ? 2.0 : 0.8);
+          }
+        }
 
         // 3. Dark Foreground Silhouette Contrast (e.g. dark coat/cap/beret against brighter background)
         let silhouetteScore = 0;
@@ -4910,6 +4955,86 @@ async function analyzeClipSmartReframe9x16(
 
   const avgConf =
     perFrameConfidence.reduce((a, b) => a + b, 0) / Math.max(1, perFrameConfidence.length);
+
+  // 0) Two-Pole Eyeline Pan: Standing human protagonist on one side (e.g. Right 70%-90% in Clip 1 & Clip 12)
+  // looking toward a secondary subject/vessel/animals on the opposite side (e.g. Center-Left 20%-50%), separated by a valley in 50%-70% (or 30%-50%)
+  const rightHumanPeak = Math.max(bandEyeHuman[7], bandEyeHuman[8]);
+  const rightSubjPeak = Math.max(bandLowerSubj[7], bandLowerSubj[8]);
+  const leftSubjPeak = Math.max(bandLowerSubj[2], bandLowerSubj[3], bandLowerSubj[4]);
+  const leftHorizPeak = Math.max(bandHorizonObj[2], bandHorizonObj[3], bandHorizonObj[4]);
+  const valleyEye56 = Math.min(bandEyeHuman[5], bandEyeHuman[6]);
+  const valleyHoriz56 = Math.min(bandHorizonObj[5], bandHorizonObj[6]);
+  const valleySubj6 = bandLowerSubj[6];
+
+  const hasRightPoleWithLeftSubject =
+    !hasTwoShotPrompt &&
+    ((rightHumanPeak > Math.max(bandEyeHuman[2], bandEyeHuman[3], bandEyeHuman[4]) * 1.45 &&
+      leftHorizPeak > valleyHoriz56 * 1.35 &&
+      leftSubjPeak > bandLowerSubj[1] * 1.35) ||
+      (valleyEye56 < rightHumanPeak * 0.68 &&
+        valleyEye56 <
+          Math.max(bandEyeHuman[2], bandEyeHuman[3], bandEyeHuman[4], bandEyeHuman[5]) * 0.68 &&
+        valleySubj6 < rightSubjPeak * 0.93 &&
+        valleySubj6 < leftSubjPeak * 0.82));
+
+  if (hasRightPoleWithLeftSubject) {
+    const rBand =
+      bandEyeHuman[7] + bandLowerSubj[7] >= bandEyeHuman[8] + bandLowerSubj[8] ? 7 : 8;
+    const fStart = rBand === 7 ? 78 : 82;
+    const fEnd =
+      bandHorizonObj[2] + bandLowerSubj[2] < (bandHorizonObj[3] + bandLowerSubj[3]) * 0.85
+        ? 28
+        : 24;
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: fStart,
+      focusXEnd: fEnd,
+      focusY: 50,
+      confidence: Number(Math.max(0.82, avgConf).toFixed(2)),
+      reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) desde sujeto derecho hacia escena izquierda (Der → Izq)`,
+    };
+  }
+
+  const leftHumanPeak = Math.max(bandEyeHuman[1], bandEyeHuman[2]);
+  const leftLowerPeak = Math.max(bandLowerSubj[1], bandLowerSubj[2]);
+  const rightSceneSubjPeak = Math.max(bandLowerSubj[5], bandLowerSubj[6], bandLowerSubj[7]);
+  const rightSceneHorizPeak = Math.max(bandHorizonObj[5], bandHorizonObj[6], bandHorizonObj[7]);
+  const valleyEye34 = Math.min(bandEyeHuman[3], bandEyeHuman[4]);
+  const valleyHoriz34 = Math.min(bandHorizonObj[3], bandHorizonObj[4]);
+  const valleySubj3 = bandLowerSubj[3];
+
+  const hasLeftPoleWithRightSubject =
+    !hasTwoShotPrompt &&
+    ((leftHumanPeak > Math.max(bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 1.45 &&
+      rightSceneHorizPeak > valleyHoriz34 * 1.35 &&
+      rightSceneSubjPeak > bandLowerSubj[8] * 1.35) ||
+      (valleyEye34 < leftHumanPeak * 0.68 &&
+        valleyEye34 <
+          Math.max(bandEyeHuman[4], bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 0.68 &&
+        valleySubj3 < leftLowerPeak * 0.93 &&
+        valleySubj3 < rightSceneSubjPeak * 0.82));
+
+  if (hasLeftPoleWithRightSubject) {
+    const lBand =
+      bandEyeHuman[2] + bandLowerSubj[2] >= bandEyeHuman[1] + bandLowerSubj[1] ? 2 : 1;
+    const fStart = lBand === 2 ? 22 : 18;
+    const fEnd =
+      bandHorizonObj[7] + bandLowerSubj[7] < (bandHorizonObj[6] + bandLowerSubj[6]) * 0.85
+        ? 72
+        : 76;
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: fStart,
+      focusXEnd: fEnd,
+      focusY: 50,
+      confidence: Number(Math.max(0.82, avgConf).toFixed(2)),
+      reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) desde sujeto izquierdo hacia escena derecha (Izq → Der)`,
+    };
+  }
 
   if (
     bimodalBalance >= 0.72 &&
