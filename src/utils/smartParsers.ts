@@ -1241,7 +1241,8 @@ function cleanWordLower(w: string): string {
 
 export function splitWordsIntoShortLines(
   inputWords: string[] | string,
-  maxChars: number = 32
+  maxChars: number = 32,
+  maxWordsPerLine: number = 0
 ): string[][] {
   const words = Array.isArray(inputWords)
     ? inputWords
@@ -1249,19 +1250,40 @@ export function splitWordsIntoShortLines(
     ? inputWords.trim().split(/\s+/).filter(Boolean)
     : [];
   if (!words || words.length === 0) return [];
-  if (maxChars <= 0) return [words];
+  const cleanMaxWords = maxWordsPerLine > 0 ? Math.max(1, Math.round(maxWordsPerLine)) : 0;
+  let effectiveMaxChars = maxChars;
+  if (cleanMaxWords > 0) {
+    if (effectiveMaxChars <= 0) {
+      effectiveMaxChars = cleanMaxWords * 7;
+    } else if (cleanMaxWords >= 7) {
+      effectiveMaxChars = Math.max(effectiveMaxChars, cleanMaxWords * 6);
+    } else if (cleanMaxWords <= 3) {
+      effectiveMaxChars = Math.min(effectiveMaxChars, cleanMaxWords * 7);
+    }
+  }
+  if (effectiveMaxChars <= 0 && cleanMaxWords <= 0) return [words];
+
   const fullText = words.join(' ');
   const hasSentenceBreakInside = words.slice(0, -1).some((w) => /[.?!:;]$/.test(w));
-  if (fullText.length <= maxChars && !hasSentenceBreakInside) {
+  if (
+    (effectiveMaxChars <= 0 || fullText.length <= effectiveMaxChars) &&
+    (cleanMaxWords <= 0 || words.length <= cleanMaxWords) &&
+    !hasSentenceBreakInside
+  ) {
     return [words];
   }
 
   const m = words.length;
+  const minChunksByChars =
+    effectiveMaxChars > 0 ? Math.ceil(fullText.length / effectiveMaxChars) : 1;
+  const minChunksByWords = cleanMaxWords > 0 ? Math.ceil(m / cleanMaxWords) : 1;
   const minChunks = Math.max(
     hasSentenceBreakInside ? 2 : 1,
-    Math.ceil(fullText.length / maxChars)
+    minChunksByChars,
+    minChunksByWords
   );
   const targetLen = fullText.length / minChunks;
+  const targetWords = m / minChunks;
 
   const dp = new Array(m + 1).fill(Infinity);
   const parent = new Array(m + 1).fill(-1);
@@ -1271,16 +1293,22 @@ export function splitWordsIntoShortLines(
     if (dp[i] === Infinity) continue;
     let lineLen = 0;
     for (let j = i + 1; j <= m; j++) {
+      const wordCount = j - i;
+      if (cleanMaxWords > 0 && wordCount > cleanMaxWords) break;
+
       const w = words[j - 1];
       lineLen += j === i + 1 ? w.length : 1 + w.length;
 
-      if (j > i + 1 && lineLen > maxChars + 5) break;
+      if (j > i + 1 && effectiveMaxChars > 0 && lineLen > effectiveMaxChars + 5) break;
 
       let cost = Math.pow(lineLen - targetLen, 2) * 0.25 + 8;
-      if (lineLen > maxChars) {
-        cost += Math.pow(lineLen - maxChars, 2) * 3.0;
+      if (cleanMaxWords > 0) {
+        cost += Math.pow(wordCount - targetWords, 2) * 2.5;
       }
-      if (lineLen < 9 && j < m) {
+      if (effectiveMaxChars > 0 && lineLen > effectiveMaxChars) {
+        cost += Math.pow(lineLen - effectiveMaxChars, 2) * 3.0;
+      }
+      if (lineLen < 9 && j < m && (cleanMaxWords === 0 || cleanMaxWords >= 3)) {
         cost += (9 - lineLen) * 2.5;
       }
 
@@ -1384,6 +1412,7 @@ export function fixCapcutSrtWithVoiceover(
   capcutSrtRaw: string,
   options?: {
     maxCharsPerLine?: number;
+    maxWordsPerLine?: number;
     mode?: 'subdivide' | 'wrap' | 'original';
   }
 ): {
@@ -1589,6 +1618,7 @@ export function fixCapcutSrtWithVoiceover(
   let totalCompChars = 0;
   const rebuiltBlocks: string[] = [];
   const maxCharsPerLine = options?.maxCharsPerLine ?? 32;
+  const maxWordsPerLine = options?.maxWordsPerLine ?? 0;
   const lineMode = options?.mode ?? 'subdivide';
 
   for (let b = 0; b < B; b++) {
@@ -1604,15 +1634,15 @@ export function fixCapcutSrtWithVoiceover(
     totalMatchedChars += Math.max(0, maxLen - dist);
     totalCompChars += maxLen;
 
-    if (lineMode === 'subdivide' && maxCharsPerLine > 0) {
-      const chunks = splitWordsIntoShortLines(slice, maxCharsPerLine);
+    if (lineMode === 'subdivide' && (maxCharsPerLine > 0 || maxWordsPerLine > 0)) {
+      const chunks = splitWordsIntoShortLines(slice, maxCharsPerLine, maxWordsPerLine);
       const subTimestamps = subdivideTimestampRange(block.timestampLine, chunks);
       for (let c = 0; c < chunks.length; c++) {
         const cleanIdx = rebuiltBlocks.length + 1;
         rebuiltBlocks.push(`${cleanIdx}\n${subTimestamps[c]}\n${chunks[c].join(' ')}`);
       }
-    } else if (lineMode === 'wrap' && maxCharsPerLine > 0) {
-      const chunks = splitWordsIntoShortLines(slice, maxCharsPerLine);
+    } else if (lineMode === 'wrap' && (maxCharsPerLine > 0 || maxWordsPerLine > 0)) {
+      const chunks = splitWordsIntoShortLines(slice, maxCharsPerLine, maxWordsPerLine);
       const formattedText = chunks.map((c) => c.join(' ')).join('\n');
       const cleanIdx = rebuiltBlocks.length + 1;
       rebuiltBlocks.push(`${cleanIdx}\n${block.timestampLine}\n${formattedText}`);
@@ -1649,5 +1679,210 @@ export function fixCapcutSrtWithVoiceover(
     capcutWordsCount: totalCapWords,
     similarityPct,
     warningMsg: warnings.join(' '),
+  };
+}
+
+export function reformatCaptionItems<
+  T extends { id?: string; index?: number; start: number; end: number; text: string }
+>(
+  rawItems: T[],
+  options?: {
+    maxCharsPerLine?: number;
+    maxWordsPerLine?: number;
+    mode?: 'subdivide' | 'wrap' | 'original';
+  }
+): T[] {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+  const lineMode = options?.mode ?? 'subdivide';
+  const maxCharsPerLine = typeof options?.maxCharsPerLine === 'number' ? options.maxCharsPerLine : 32;
+  const maxWordsPerLine = typeof options?.maxWordsPerLine === 'number' ? options.maxWordsPerLine : 0;
+
+  const effChars = lineMode === 'original' ? 46 : maxCharsPerLine;
+  const effWords = lineMode === 'original' && maxWordsPerLine <= 0 ? 8 : maxWordsPerLine;
+
+  const wordWeight = (w: string): number => {
+    const expanded = w
+      .replace(/\b1880\b/g, 'milochocientosochenta')
+      .replace(/\b1930\b/g, 'milnovecientostreinta')
+      .replace(/\b1940\b/g, 'milnovecientoscuarenta')
+      .replace(/\b1[89]\d\d\b/g, 'milochocientoscincuenta')
+      .replace(/\b\d{4}\b/g, 'milochocientos')
+      .replace(/\b\d{3}\b/g, 'quinientos')
+      .replace(/\b\d{2}\b/g, 'cuarenta')
+      .replace(/\b\d\b/g, 'cinco');
+    const chars = expanded.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, '').length;
+    const punctBonus = /[.?!:;…]$/.test(w) ? 4 : /[,]$/.test(w) ? 2 : 0;
+    return Math.max(1, chars + punctBonus);
+  };
+
+  interface TimedWord {
+    word: string;
+    start: number;
+    end: number;
+  }
+
+  // Group contiguous caption blocks (gap <= 0.08s and not ending a sentence) into speech islands,
+  // while anchoring every word's exact [start, end] inside the original block it came from.
+  const islands: TimedWord[][] = [];
+  let currentIsland: TimedWord[] = [];
+  let prevBlockEnd = -1;
+  let prevEndedSentence = false;
+
+  for (let i = 0; i < rawItems.length; i++) {
+    const it = rawItems[i];
+    const cleanText = String(it.text || '')
+      .replace(/\r?\n/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (!cleanText) continue;
+
+    const words = cleanText.split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+
+    const bStart = Number(it.start || 0);
+    const bEnd = Math.max(bStart + 0.15, Number(it.end || bStart + 0.5));
+    const bSpan = bEnd - bStart;
+
+    const weights = words.map((w) => wordWeight(w));
+    const totalW = Math.max(1, weights.reduce((a, b) => a + b, 0));
+    let accW = 0;
+    const blockTimedWords: TimedWord[] = words.map((w, wIdx) => {
+      const wS = bStart + (accW / totalW) * bSpan;
+      accW += weights[wIdx];
+      const wE = wIdx === words.length - 1 ? bEnd : bStart + (accW / totalW) * bSpan;
+      return { word: w, start: wS, end: wE };
+    });
+
+    const gapFromPrev = prevBlockEnd >= 0 ? bStart - prevBlockEnd : 999;
+    const islandStart = currentIsland.length > 0 ? currentIsland[0].start : bStart;
+    const canMergeIntoIsland =
+      currentIsland.length > 0 &&
+      gapFromPrev <= 0.08 &&
+      !prevEndedSentence &&
+      bEnd - islandStart <= 14.0;
+
+    if (canMergeIntoIsland) {
+      currentIsland.push(...blockTimedWords);
+    } else {
+      if (currentIsland.length > 0) {
+        islands.push(currentIsland);
+      }
+      currentIsland = [...blockTimedWords];
+    }
+
+    prevBlockEnd = bEnd;
+    prevEndedSentence = /[.?!:;…]["'»”)]*$/.test(cleanText);
+  }
+  if (currentIsland.length > 0) {
+    islands.push(currentIsland);
+  }
+
+  const rebuilt: T[] = [];
+  const templateItem = rawItems[0];
+
+  for (const isl of islands) {
+    const islWords = isl.map((tw) => tw.word);
+    const chunks = splitWordsIntoShortLines(islWords, effChars, effWords);
+    let wordCursor = 0;
+    const chunkItems: Array<{ text: string; start: number; end: number }> = [];
+
+    for (const ch of chunks) {
+      if (ch.length === 0) continue;
+      const firstTw = isl[wordCursor] || isl[0];
+      const lastTw = isl[Math.min(isl.length - 1, wordCursor + ch.length - 1)] || isl[isl.length - 1];
+      wordCursor += ch.length;
+      const cStart = firstTw.start;
+      const cEnd = Math.max(cStart + 0.2, lastTw.end);
+      chunkItems.push({
+        text: ch.join(' '),
+        start: cStart,
+        end: cEnd,
+      });
+    }
+
+    if (lineMode === 'wrap') {
+      for (let k = 0; k < chunkItems.length; k += 2) {
+        const line1 = chunkItems[k];
+        const line2 = k + 1 < chunkItems.length ? chunkItems[k + 1] : null;
+        const idx = rebuilt.length + 1;
+        rebuilt.push({
+          ...templateItem,
+          id: `cap-fmt-${idx}`,
+          index: idx,
+          start: Number(line1.start.toFixed(2)),
+          end: Number((line2 ? line2.end : line1.end).toFixed(2)),
+          text: line2 ? `${line1.text}\n${line2.text}` : line1.text,
+        });
+      }
+    } else {
+      for (const ci of chunkItems) {
+        const idx = rebuilt.length + 1;
+        rebuilt.push({
+          ...templateItem,
+          id: `cap-fmt-${idx}`,
+          index: idx,
+          start: Number(ci.start.toFixed(2)),
+          end: Number(ci.end.toFixed(2)),
+          text: ci.text,
+        });
+      }
+    }
+  }
+
+  for (let i = 0; i < rebuilt.length - 1; i++) {
+    if (rebuilt[i].end > rebuilt[i + 1].start) {
+      rebuilt[i].end = Number(
+        Math.max(rebuilt[i].start + 0.15, rebuilt[i + 1].start - 0.01).toFixed(2)
+      );
+    }
+  }
+
+  return rebuilt;
+}
+
+export function reformatSrtText(
+  srtText: string,
+  options?: {
+    maxCharsPerLine?: number;
+    maxWordsPerLine?: number;
+    mode?: 'subdivide' | 'wrap' | 'original';
+  }
+): { srt: string; blocksCount: number } {
+  if (!srtText || !srtText.trim()) return { srt: '', blocksCount: 0 };
+  const rawBlocks = srtText.trim().split(/\r?\n\s*\r?\n+/);
+  const parsed: Array<{ id: string; index: number; start: number; end: number; text: string }> = [];
+
+  for (let i = 0; i < rawBlocks.length; i++) {
+    const lines = rawBlocks[i]
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length < 2) continue;
+    const tIdx = lines.findIndex((l) => l.includes('-->'));
+    if (tIdx === -1) continue;
+    const [sStr, eStr] = lines[tIdx].split('-->');
+    const sMs = parseSrtSingleTimeMs(sStr || '');
+    const eMs = parseSrtSingleTimeMs(eStr || '');
+    if (sMs === null || eMs === null) continue;
+    const txt = lines.slice(tIdx + 1).join('\n').trim();
+    if (!txt) continue;
+    parsed.push({
+      id: `srt-${i + 1}`,
+      index: parsed.length + 1,
+      start: sMs / 1000,
+      end: Math.max(sMs / 1000 + 0.2, eMs / 1000),
+      text: txt,
+    });
+  }
+
+  if (parsed.length === 0) return { srt: srtText, blocksCount: 0 };
+  const reformatted = reformatCaptionItems(parsed, options);
+  const outBlocks = reformatted.map((it, idx) => {
+    const sLine = `${formatMsToSrtTime(it.start * 1000)} --> ${formatMsToSrtTime(it.end * 1000)}`;
+    return `${idx + 1}\n${sLine}\n${it.text}`;
+  });
+  return {
+    srt: outBlocks.join('\n\n') + '\n',
+    blocksCount: outBlocks.length,
   };
 }

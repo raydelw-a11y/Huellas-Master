@@ -3514,9 +3514,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const e = parseSrtTime(eStr || '');
           const txt = lines
             .slice(timeLineIdx + 1)
-            .join(' ')
-            .replace(/<[^>]+>/g, '')
-            .trim();
+            .map((l) => l.replace(/<[^>]+>/g, '').trim())
+            .filter(Boolean)
+            .join('\n');
           if (txt && e > s + 0.05) {
             rawParsed.push({ startSec: s, endSec: e, text: txt });
           }
@@ -3885,8 +3885,27 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
         if (assEvents.length > 0) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
-          const capFontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.043 : 0.039));
-          const capMarginV = Math.round(outH * (isVertical916 ? 0.155 : 0.11));
+          const capStyleCfg = overlays?.captionStyle || {};
+          const reqCapFontSize = Number(
+            isVertical916
+              ? capStyleCfg.fontSize9x16 ?? capStyleCfg.fontSize
+              : capStyleCfg.fontSize16x9 ?? capStyleCfg.fontSize
+          );
+          const defaultCapFontSize = isVertical916 ? 21 : 25;
+          const capFontScale =
+            Number.isFinite(reqCapFontSize) && reqCapFontSize >= 10
+              ? reqCapFontSize / defaultCapFontSize
+              : 1;
+          const capFontSizeAss = Math.round(
+            refShortSide * (isVertical916 ? 0.043 : 0.039) * capFontScale
+          );
+          const reqBottomPct =
+            typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
+              ? capStyleCfg.bottomPct
+              : isVertical916
+              ? 15.5
+              : 11;
+          const capMarginV = Math.round(outH * (reqBottomPct / 100));
           const capWideMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0045));
           const capTightMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0025));
 
@@ -3900,12 +3919,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const hook2WideMarginV = hook2MarginV + Math.round(refShortSide * 0.0055);
           const hook2TightMarginV = hook2MarginV + Math.round(refShortSide * 0.0028);
 
-          const capWordOutline = Math.max(12, Math.round(refShortSide * 0.0185));
-          const capWideOutline = Math.max(1, Math.round(refShortSide * 0.0018));
+          const capWordOutline = Math.max(10, Math.round(refShortSide * 0.0185 * capFontScale));
+          const capWideOutline = Math.max(1, Math.round(refShortSide * 0.0018 * capFontScale));
           const hook1WideOutline = Math.max(1, Math.round(refShortSide * 0.002));
           const hook2WideOutline = Math.max(2, Math.round(refShortSide * 0.0026));
           const hook1Spacing = Number((3.5 * blurScale).toFixed(1));
           const hook2Spacing = Number((1.5 * blurScale).toFixed(1));
+          const rawCapHex = String(capStyleCfg.color || '#ffffff').replace('#', '');
+          const capCrispAssColor =
+            /^[0-9a-fA-F]{6}$/.test(rawCapHex)
+              ? `&H00${rawCapHex.slice(4, 6).toUpperCase()}${rawCapHex.slice(2, 4).toUpperCase()}${rawCapHex.slice(0, 2).toUpperCase()}`
+              : '&H00FFFFFF';
 
           const assContent = [
             '[Script Info]',
@@ -3920,7 +3944,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             `Style: CaptionWordShadow,Georgia,${capFontSizeAss},&HFF000000,&HFF000000,&H64000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWordOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
             `Style: CaptionCinemaWide,Georgia,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
             `Style: CaptionCinemaTight,Georgia,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
-            `Style: CaptionCrisp,Georgia,${capFontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
+            `Style: CaptionCrisp,Georgia,${capFontSizeAss},${capCrispAssColor},&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
             `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
             `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
             `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1MarginV},1`,
