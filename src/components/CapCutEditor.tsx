@@ -2617,27 +2617,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
   const isScrubbingRulerRef = useRef<boolean>(false);
   const prevDocIdForPlayheadRef = useRef<string | undefined>(activeDoc?.id);
+  const isRestoringDocStateRef = useRef<boolean>(false);
   const zoomPlayheadViewportOffsetRef = useRef<number | null>(null);
-  const savedTimelineScrollRef = useRef<{ left: number; top: number }>({
-    left:
-      Number(
-        initialDocStateForInit?.timelineScrollLeft ??
-          initialSessionState?.timelineScrollLeft
-      ) || 0,
-    top:
+  const hasExplicitTimelineScrollRef = useRef<boolean>(
+    Boolean(
+      initialDocStateForInit?.hasExplicitTimelineScroll ||
+        Number(initialDocStateForInit?.timelineScrollLeft) > 0
+    )
+  );
+  const savedTimelineScrollRef = useRef<{ left: number; top: number }>((() => {
+    const savedLeft = Number(
+      initialDocStateForInit?.timelineScrollLeft ??
+        initialSessionState?.timelineScrollLeft
+    );
+    const savedTop =
       Number(
         initialDocStateForInit?.timelineScrollTop ??
           initialSessionState?.timelineScrollTop
-      ) || 0,
-  });
+      ) || 0;
+    if (
+      Number.isFinite(savedLeft) &&
+      (initialDocStateForInit?.hasExplicitTimelineScroll || savedLeft > 0)
+    ) {
+      return { left: Math.max(0, Math.round(savedLeft)), top: Math.max(0, Math.round(savedTop)) };
+    }
+    if (currentTime > 12) {
+      return {
+        left: Math.max(0, Math.round(152 + currentTime * timelineZoom - 320)),
+        top: Math.max(0, Math.round(savedTop)),
+      };
+    }
+    return { left: 0, top: Math.max(0, Math.round(savedTop)) };
+  })());
 
   // 1) Restore saved per-documentary playhead, format, quality, zoom, scroll & selection when activeDoc?.id loads or switches
-  // (Declared BEFORE the save effect so initial async activeDoc load NEVER overwrites saved state with 0/defaults)
+  // Each documentary stores and restores its own independent Video Editor state.
   useEffect(() => {
     if (!activeDoc?.id) return;
     if (prevDocIdForPlayheadRef.current === activeDoc.id) return;
     const wasUnset = !prevDocIdForPlayheadRef.current;
     prevDocIdForPlayheadRef.current = activeDoc.id;
+
+    const isSameAsInitialBootDoc =
+      wasUnset &&
+      (!initialSessionState?.lastDocId || initialSessionState.lastDocId === activeDoc.id);
+
+    if (!isSameAsInitialBootDoc) {
+      isRestoringDocStateRef.current = true;
+    }
 
     try {
       const savedDoc = readSavedDocOverlays(activeDoc.id);
@@ -2647,7 +2674,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? Number(rawPlayhead)
           : typeof savedDoc?.currentTime === 'number'
           ? Number(savedDoc.currentTime)
-          : currentTimeRef.current;
+          : isSameAsInitialBootDoc
+          ? currentTimeRef.current
+          : 0;
       const nextTime =
         Number.isFinite(parsedPlayhead) && parsedPlayhead >= 0 ? parsedPlayhead : 0;
       currentTimeRef.current = nextTime;
@@ -2655,86 +2684,194 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       lastSeekVersionRef.current += 1;
       setCurrentTime(nextTime);
 
-      const isDifferentFromSessionDoc =
-        !wasUnset ||
-        (initialSessionState?.lastDocId && initialSessionState.lastDocId !== activeDoc.id);
+      const nextZoom =
+        typeof savedDoc?.timelineZoom === 'number' && savedDoc.timelineZoom >= 1
+          ? savedDoc.timelineZoom
+          : isSameAsInitialBootDoc
+          ? timelineZoom
+          : 20;
+      const nextFit =
+        typeof savedDoc?.isFitEntireProject === 'boolean'
+          ? savedDoc.isFitEntireProject
+          : isSameAsInitialBootDoc
+          ? isFitEntireProject
+          : false;
 
-      if (savedDoc && isDifferentFromSessionDoc) {
-        if (savedDoc.aspectRatio === '16:9' || savedDoc.aspectRatio === '9:16') {
-          setAspectRatio(savedDoc.aspectRatio);
-        }
-        if (
-          savedDoc.exportResolution === 'HD_1080P' ||
-          savedDoc.exportResolution === '2K_1440P' ||
-          savedDoc.exportResolution === '4K_2160P' ||
-          savedDoc.exportResolution === '8K_4320P'
-        ) {
-          setExportResolution(savedDoc.exportResolution);
-        }
-        if (
-          savedDoc.exportFps === 24 ||
-          savedDoc.exportFps === 30 ||
-          savedDoc.exportFps === 60
-        ) {
-          setExportFps(savedDoc.exportFps);
-        }
-        if (
-          savedDoc.exportBitrateTier === 'standard' ||
-          savedDoc.exportBitrateTier === 'recommended' ||
-          savedDoc.exportBitrateTier === 'ultra' ||
-          savedDoc.exportBitrateTier === 'custom'
-        ) {
-          setExportBitrateTier(savedDoc.exportBitrateTier);
-        }
-        if (
-          typeof savedDoc.exportBitrateMbps === 'number' &&
-          savedDoc.exportBitrateMbps >= 4
-        ) {
-          setExportBitrateMbps(savedDoc.exportBitrateMbps);
-        }
-        if (typeof savedDoc.timelineZoom === 'number' && savedDoc.timelineZoom >= 1) {
-          setTimelineZoom(savedDoc.timelineZoom);
-        }
-        if (typeof savedDoc.isFitEntireProject === 'boolean') {
-          setIsFitEntireProject(savedDoc.isFitEntireProject);
-        }
-        if (typeof savedDoc.selectedClipId === 'string' && savedDoc.selectedClipId) {
-          setSelectedClipId(savedDoc.selectedClipId);
-          setSelectedClipIds(
-            Array.isArray(savedDoc.selectedClipIds) && savedDoc.selectedClipIds.length > 0
-              ? savedDoc.selectedClipIds
-              : [savedDoc.selectedClipId]
-          );
-        }
-        if (typeof savedDoc.selectedMusicTrackId === 'string') {
-          setSelectedMusicTrackId(savedDoc.selectedMusicTrackId);
-        }
-        if (typeof savedDoc.voiceVolume === 'number') setVoiceVolume(savedDoc.voiceVolume);
-        if (typeof savedDoc.voiceGainDb === 'number') setVoiceGainDb(savedDoc.voiceGainDb);
-        if (typeof savedDoc.autoDuckingEnabled === 'boolean') {
-          setAutoDuckingEnabled(savedDoc.autoDuckingEnabled);
-        }
-        if (typeof savedDoc.foleyHighVolume === 'number') {
-          setFoleyHighVolume(savedDoc.foleyHighVolume);
-        }
-        if (typeof savedDoc.foleyDuckedVolume === 'number') {
-          setFoleyDuckedVolume(savedDoc.foleyDuckedVolume);
-        }
-        if (typeof savedDoc.masterMusicVolume === 'number') {
-          setMasterMusicVolume(savedDoc.masterMusicVolume);
-        }
-        if (typeof savedDoc.timelineScrollLeft === 'number') {
-          savedTimelineScrollRef.current.left = savedDoc.timelineScrollLeft;
-        }
-        if (typeof savedDoc.timelineScrollTop === 'number') {
-          savedTimelineScrollRef.current.top = savedDoc.timelineScrollTop;
-        }
+      if (
+        typeof savedDoc?.timelineScrollLeft === 'number' &&
+        (savedDoc.hasExplicitTimelineScroll || savedDoc.timelineScrollLeft > 0)
+      ) {
+        savedTimelineScrollRef.current = {
+          left: Math.max(0, Math.round(savedDoc.timelineScrollLeft)),
+          top: Math.max(0, Math.round(Number(savedDoc.timelineScrollTop) || 0)),
+        };
+        hasExplicitTimelineScrollRef.current = true;
+      } else if (nextTime > 12) {
+        savedTimelineScrollRef.current = {
+          left: Math.max(0, Math.round(152 + nextTime * nextZoom - 320)),
+          top: Math.max(0, Math.round(Number(savedDoc?.timelineScrollTop) || 0)),
+        };
+        hasExplicitTimelineScrollRef.current = false;
+      } else if (!isSameAsInitialBootDoc) {
+        savedTimelineScrollRef.current = {
+          left: 0,
+          top: Math.max(0, Math.round(Number(savedDoc?.timelineScrollTop) || 0)),
+        };
+        hasExplicitTimelineScrollRef.current = false;
       }
+
+      if (!isSameAsInitialBootDoc) {
+        const nextRatio: EditorAspectRatio =
+          savedDoc?.aspectRatio === '16:9' || savedDoc?.aspectRatio === '9:16'
+            ? savedDoc.aspectRatio
+            : activeDoc.productionType === 'REEL_9X16'
+            ? '9:16'
+            : '16:9';
+        setAspectRatio(nextRatio);
+
+        const nextRes: ExportResolutionPreset =
+          savedDoc?.exportResolution === 'HD_1080P' ||
+          savedDoc?.exportResolution === '2K_1440P' ||
+          savedDoc?.exportResolution === '4K_2160P' ||
+          savedDoc?.exportResolution === '8K_4320P'
+            ? savedDoc.exportResolution
+            : formatProfilesRef.current?.[nextRatio]?.exportResolution ||
+              (nextRatio === '9:16' ? '2K_1440P' : '8K_4320P');
+        setExportResolution(nextRes);
+
+        const nextFps =
+          savedDoc?.exportFps === 24 ||
+          savedDoc?.exportFps === 30 ||
+          savedDoc?.exportFps === 60
+            ? savedDoc.exportFps
+            : 30;
+        setExportFps(nextFps);
+
+        const nextTier =
+          savedDoc?.exportBitrateTier === 'standard' ||
+          savedDoc?.exportBitrateTier === 'recommended' ||
+          savedDoc?.exportBitrateTier === 'ultra' ||
+          savedDoc?.exportBitrateTier === 'custom'
+            ? savedDoc.exportBitrateTier
+            : 'recommended';
+        setExportBitrateTier(nextTier);
+
+        const defaultBitrates = getRecommendedBitratesForRes(nextRes);
+        const nextBitrate =
+          typeof savedDoc?.exportBitrateMbps === 'number' &&
+          savedDoc.exportBitrateMbps >= 4
+            ? savedDoc.exportBitrateMbps
+            : nextTier === 'standard'
+            ? defaultBitrates.standard
+            : nextTier === 'ultra'
+            ? defaultBitrates.ultra
+            : defaultBitrates.recommended;
+        setExportBitrateMbps(nextBitrate);
+
+        setBurnInLogo(
+          typeof savedDoc?.burnInLogo === 'boolean' ? savedDoc.burnInLogo : true
+        );
+        setBurnInHook(
+          typeof savedDoc?.burnInHook === 'boolean' ? savedDoc.burnInHook : true
+        );
+        setBurnInCaptions(
+          typeof savedDoc?.burnInCaptions === 'boolean' ? savedDoc.burnInCaptions : true
+        );
+        setDefaultTransition(savedDoc?.defaultTransition || 'direct');
+
+        setTimelineZoom(nextZoom);
+        setIsFitEntireProject(nextFit);
+        if (typeof savedDoc?.isTimelineDockExpanded === 'boolean') {
+          setIsTimelineDockExpanded(savedDoc.isTimelineDockExpanded);
+        }
+        if (
+          savedDoc?.leftPanelTab === 'media' ||
+          savedDoc?.leftPanelTab === 'audio' ||
+          savedDoc?.leftPanelTab === 'text' ||
+          savedDoc?.leftPanelTab === 'transitions' ||
+          savedDoc?.leftPanelTab === 'captions'
+        ) {
+          setLeftPanelTab(savedDoc.leftPanelTab);
+        }
+        if (
+          savedDoc?.activeInspectorTab === 'clips' ||
+          savedDoc?.activeInspectorTab === 'audio' ||
+          savedDoc?.activeInspectorTab === 'branding' ||
+          savedDoc?.activeInspectorTab === 'captions'
+        ) {
+          setActiveInspectorTab(savedDoc.activeInspectorTab);
+        }
+        if (typeof savedDoc?.isLeftPanelCollapsed === 'boolean') {
+          setIsLeftPanelCollapsed(savedDoc.isLeftPanelCollapsed);
+        }
+        if (typeof savedDoc?.isRightPanelCollapsed === 'boolean') {
+          setIsRightPanelCollapsed(savedDoc.isRightPanelCollapsed);
+        }
+
+        const restoredClipId =
+          typeof savedDoc?.selectedClipId === 'string' && savedDoc.selectedClipId
+            ? savedDoc.selectedClipId
+            : null;
+        setSelectedClipId(restoredClipId);
+        setSelectedClipIds(
+          Array.isArray(savedDoc?.selectedClipIds) && savedDoc.selectedClipIds.length > 0
+            ? savedDoc.selectedClipIds
+            : restoredClipId
+            ? [restoredClipId]
+            : []
+        );
+        setSelectedMusicTrackId(
+          typeof savedDoc?.selectedMusicTrackId === 'string'
+            ? savedDoc.selectedMusicTrackId
+            : null
+        );
+        setVoiceVolume(
+          typeof savedDoc?.voiceVolume === 'number' ? savedDoc.voiceVolume : 100
+        );
+        setVoiceGainDb(
+          typeof savedDoc?.voiceGainDb === 'number' ? savedDoc.voiceGainDb : 5
+        );
+        setAutoDuckingEnabled(
+          typeof savedDoc?.autoDuckingEnabled === 'boolean'
+            ? savedDoc.autoDuckingEnabled
+            : true
+        );
+        setFoleyHighVolume(
+          typeof savedDoc?.foleyHighVolume === 'number' ? savedDoc.foleyHighVolume : 80
+        );
+        setFoleyDuckedVolume(
+          typeof savedDoc?.foleyDuckedVolume === 'number' ? savedDoc.foleyDuckedVolume : 20
+        );
+        setMasterMusicVolume(
+          typeof savedDoc?.masterMusicVolume === 'number' ? savedDoc.masterMusicVolume : 10
+        );
+        setShowOnlyReviewedClips(Boolean(savedDoc?.showOnlyReviewedClips));
+        setReframeSummary9x16(
+          typeof savedDoc?.reframeSummary9x16 === 'string'
+            ? savedDoc.reframeSummary9x16
+            : ''
+        );
+      }
+
+      window.requestAnimationFrame(() => {
+        const el = timelineScrollContainerRef.current;
+        if (el && el.clientWidth > 0 && !nextFit) {
+          el.scrollLeft = savedTimelineScrollRef.current.left;
+          el.scrollTop = savedTimelineScrollRef.current.top;
+        }
+        if (timelineRulerScrollRef.current && !nextFit) {
+          timelineRulerScrollRef.current.scrollLeft = savedTimelineScrollRef.current.left;
+        }
+      });
     } catch {}
   }, [activeDoc?.id]);
 
-  // 2) Persist playhead position & full editor state in real time so leaving and re-entering the Video Editor (or refreshing) keeps 100% of settings intact
+  // 2) Persist playhead position & full editor state per documentary in real time
   useEffect(() => {
+    if (isRestoringDocStateRef.current) {
+      isRestoringDocStateRef.current = false;
+      return;
+    }
     const roundedTime = Number(currentTime.toFixed(2));
     try {
       if (activeDoc?.id) {
@@ -2778,6 +2915,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         currentTime: roundedTime,
         timelineScrollLeft: savedTimelineScrollRef.current.left,
         timelineScrollTop: savedTimelineScrollRef.current.top,
+        hasExplicitTimelineScroll: hasExplicitTimelineScrollRef.current,
         reframeSummary9x16,
         updatedAt: Date.now(),
       };
@@ -2794,6 +2932,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             burnInHook,
             burnInCaptions,
             defaultTransition,
+            isLeftPanelCollapsed,
+            leftPanelTab,
+            isRightPanelCollapsed,
+            activeInspectorTab,
+            isTimelineDockExpanded,
             selectedClipId,
             selectedClipIds,
             selectedMusicTrackId,
@@ -2809,6 +2952,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             currentTime: roundedTime,
             timelineScrollLeft: savedTimelineScrollRef.current.left,
             timelineScrollTop: savedTimelineScrollRef.current.top,
+            hasExplicitTimelineScroll: hasExplicitTimelineScrollRef.current,
             reframeSummary9x16,
           },
           activeDoc.id
@@ -2856,7 +3000,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Pause playback automatically if user navigates away from the Video Editor to another stage, keeping exact playhead position;
   // when re-entering the Video Editor, restore exact timeline scroll & sync the preview frame at currentTime
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isEditorActive) {
       if (isPlaying) {
         setIsPlaying(false);
@@ -2866,7 +3010,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     lastSeekVersionRef.current += 1;
     const restoreScroll = () => {
       const container = timelineScrollContainerRef.current;
-      if (container && !isFitEntireProject) {
+      if (container && !isFitEntireProject && container.clientWidth > 0) {
         container.scrollLeft = savedTimelineScrollRef.current.left;
         container.scrollTop = savedTimelineScrollRef.current.top;
       }
@@ -2876,7 +3020,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
     restoreScroll();
     const rafId = window.requestAnimationFrame(restoreScroll);
-    return () => window.cancelAnimationFrame(rafId);
+    const timerId = window.setTimeout(restoreScroll, 60);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
   }, [isEditorActive]);
 
   const prevDocIdForMediaScanRef = useRef<string | undefined>(activeDoc?.id);
@@ -4210,14 +4358,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     setTimelineClips(builtClips);
     if (builtClips.length > 0) {
-      const preferredId =
-        (selectedClipId && builtClips.some((c) => c.id === selectedClipId)
-          ? selectedClipId
-          : null) ||
-        (typeof savedDocOverlays?.selectedClipId === 'string' &&
+      const savedClipIdForDoc =
+        typeof savedDocOverlays?.selectedClipId === 'string' &&
         builtClips.some((c) => c.id === savedDocOverlays.selectedClipId)
           ? savedDocOverlays.selectedClipId
-          : null) ||
+          : null;
+      const liveClipId =
+        !isDocSwitch && selectedClipId && builtClips.some((c) => c.id === selectedClipId)
+          ? selectedClipId
+          : null;
+      const preferredId =
+        (isDocSwitch ? savedClipIdForDoc || liveClipId : liveClipId || savedClipIdForDoc) ||
         builtClips[0].id;
       if (preferredId !== selectedClipId) {
         setSelectedClipId(preferredId);
@@ -6449,7 +6600,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     });
   };
 
-  // Synchronously adjust scrollLeft before browser paint whenever zoom changes so the playhead stays right where it was
+  // Synchronously adjust scrollLeft before browser paint whenever zoom, doc, or timeline width changes so the timeline stays right where it was left
   useLayoutEffect(() => {
     if (isFitEntireProject) {
       if (timelineRulerScrollRef.current) {
@@ -6460,11 +6611,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const container = timelineScrollContainerRef.current;
     if (!container) return;
     if (zoomPlayheadViewportOffsetRef.current === null) {
-      if (container.clientWidth > 0) {
+      if (!isPlaying && container.clientWidth > 0) {
         container.scrollLeft = savedTimelineScrollRef.current.left;
         container.scrollTop = savedTimelineScrollRef.current.top;
       }
-      if (timelineRulerScrollRef.current) {
+      if (!isPlaying && timelineRulerScrollRef.current) {
         timelineRulerScrollRef.current.scrollLeft = savedTimelineScrollRef.current.left;
       }
       return;
@@ -6482,11 +6633,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const nextScrollLeft = Math.max(0, newPlayheadX - targetViewportOffset);
     container.scrollLeft = nextScrollLeft;
     savedTimelineScrollRef.current.left = nextScrollLeft;
+    hasExplicitTimelineScrollRef.current = true;
     if (timelineRulerScrollRef.current) {
       timelineRulerScrollRef.current.scrollLeft = nextScrollLeft;
     }
     zoomPlayheadViewportOffsetRef.current = null;
-  }, [timelineZoom, isFitEntireProject]);
+  }, [
+    timelineZoom,
+    isFitEntireProject,
+    isEditorActive,
+    activeDoc?.id,
+    timelineClips.length,
+    totalDurationSec,
+  ]);
 
   // Dynamic top time ruler configuration (seconds, minutes, or hours depending on zoom level)
   const timelineRulerData = useMemo(() => {
@@ -14988,6 +15147,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             if (el.clientWidth <= 0) return;
             const nextLeft = Math.round(el.scrollLeft);
             const nextTop = Math.round(el.scrollTop);
+            // Ignore transient browser clamping while timeline clips/duration are still expanding on mount or doc switch
+            if (
+              nextLeft < savedTimelineScrollRef.current.left - 4 &&
+              (timelineClips.length === 0 ||
+                el.scrollWidth < savedTimelineScrollRef.current.left + el.clientWidth)
+            ) {
+              return;
+            }
             if (
               nextLeft === savedTimelineScrollRef.current.left &&
               nextTop === savedTimelineScrollRef.current.top
@@ -14995,6 +15162,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               return;
             }
             savedTimelineScrollRef.current = { left: nextLeft, top: nextTop };
+            hasExplicitTimelineScrollRef.current = true;
             try {
               const rawSession = localStorage.getItem(EDITOR_SESSION_STORAGE_KEY);
               const parsedSession = rawSession ? JSON.parse(rawSession) : {};
@@ -15004,11 +15172,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ...parsedSession,
                   timelineScrollLeft: nextLeft,
                   timelineScrollTop: nextTop,
+                  hasExplicitTimelineScroll: true,
                 })
               );
               if (activeDoc?.id) {
                 persistDocOverlaysPatch(
-                  { timelineScrollLeft: nextLeft, timelineScrollTop: nextTop },
+                  {
+                    timelineScrollLeft: nextLeft,
+                    timelineScrollTop: nextTop,
+                    hasExplicitTimelineScroll: true,
+                  },
                   activeDoc.id
                 );
               }

@@ -120,7 +120,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:17 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:19 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -9046,13 +9046,13 @@ export default function App() {
 
       {/* =====================================================================
           VIEW 2B: CAPCUT MULTI-TRACK EDITOR (CLIPS, VOICE, LOGO, SUNO, CAPTIONS)
-          Always kept mounted so leaving to another stage/view and returning keeps 100% of editor state, aspect ratio, quality, timeline & video right where it was
+          Always kept mounted & laid out (offscreen/invisible when inactive instead of display:none) so the browser never resets timeline scrollLeft/scrollTop
       ===================================================================== */}
       <div
         className={
           mainView === 'capcut_editor'
             ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
-            : 'hidden'
+            : 'fixed inset-0 -z-50 opacity-0 pointer-events-none invisible flex flex-col overflow-hidden'
         }
       >
         <CapCutEditor
