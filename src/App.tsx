@@ -120,7 +120,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:19 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:26 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -132,6 +132,36 @@ function stripStage12ClosingChatter(raw: string): string {
     )
     .replace(/[⠀\s]+$/g, '')
     .trim();
+  return clean;
+}
+
+function formatConcisePinnedComment(raw: string): string {
+  let clean = stripStage12ClosingChatter(raw)
+    .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
+    .replace(/\s*\n+\s*/g, ' ')
+    .trim();
+  if (!clean) return '';
+  // If Gemini prepended a heavy historical summary sentence before the concise 3-sentence structure (> 580 chars),
+  // keep only the last declarative connection sentence right before the "¿...?" question + the question + CTA.
+  if (clean.length > 580) {
+    const qIdx = clean.indexOf('¿');
+    if (qIdx > 140) {
+      const beforeQuestion = clean.slice(0, qIdx).trim();
+      const preSentences = beforeQuestion
+        .split(/(?<=\.)\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (preSentences.length >= 2) {
+        const lastIntroSentence = preSentences[preSentences.length - 1];
+        const conciseCandidate = `${lastIntroSentence} ${clean.slice(qIdx).trim()}`.trim();
+        if (conciseCandidate.length >= 240 && conciseCandidate.length <= 580) {
+          clean = conciseCandidate;
+        }
+      }
+    }
+  }
   return clean;
 }
 
@@ -274,9 +304,7 @@ function parseStage11FourSections(rawText: string): {
     const cleaned = cleanSectionBody(rawSlice);
     if (!cleaned) continue;
     if (cur.key === 'pinnedComment') {
-      out.pinnedComment = stripStage12ClosingChatter(
-        cleaned.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim()
-      );
+      out.pinnedComment = formatConcisePinnedComment(cleaned);
     } else if (cur.key === 'youtubeTags') {
       out.youtubeTags = stripStage12ClosingChatter(cleaned)
         .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '')
@@ -2911,14 +2939,7 @@ export default function App() {
     } else if (stageNum === 113) {
       const hasSectionMarkers = /={2,}\s*SECCION_/i.test(text);
       const parsed4 = hasSectionMarkers ? parseStage11FourSections(text) : null;
-      const pinnedClean = stripStage12ClosingChatter(
-        parsed4?.pinnedComment ||
-          text
-            .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
-            .replace(/\n?```\s*$/i, '')
-            .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
-            .trim()
-      );
+      const pinnedClean = formatConcisePinnedComment(parsed4?.pinnedComment || text);
       if (pinnedClean) {
         updateActiveDoc({ pinnedComment: pinnedClean });
       }
@@ -3034,7 +3055,7 @@ export default function App() {
       : { body: '' };
     const cleanedYt = ytStripped.body;
     const cleanedFb = rawFb ? cleanStage11SingleMetadataText(rawFb) : '';
-    const cleanedPinned = rawPinned ? stripStage12ClosingChatter(rawPinned) : '';
+    const cleanedPinned = rawPinned ? formatConcisePinnedComment(rawPinned) : '';
     const cleanedTags = rawTags ? stripStage12ClosingChatter(rawTags) : '';
 
     const cleanupPatch: Partial<DocumentaryProject> = {};
@@ -15201,7 +15222,7 @@ export default function App() {
                             </h4>
                           </div>
                           <p className="text-[11px] text-slate-400 mt-1">
-                            CTA natural invitando a la audiencia a debatir o contar una experiencia propia (sin etiqueta &quot;Comentario Fijado:&quot;)
+                            Breve y directo (~350–500 chars, 3 oraciones): conexión humana + pregunta cercana + invitación a comentar (sin etiqueta &quot;Comentario Fijado:&quot;)
                           </p>
                         </div>
 

@@ -2270,7 +2270,7 @@ TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PU
 [Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀): CERO encabezados, SIN capítulos y SIN tags SEO, ~3000 caracteres, Título directo ULTRA-ESPECÍFICO, SUGERENTE y referente a la historia real narrada en el guion (sin repetir literalmente la Miniatura ni el Hook del Clip 1), descripción en EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀), Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales)., Slogan: Cada historia deja una huella. Aquí seguimos sus rastros., y 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
 
 ===SECCION_COMENTARIO===
-[Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin encabezado ni comillas: reflexión histórica magnética + pregunta/CTA natural para debatir, sin signos de exclamación (!), sin pedir like/suscribirse, años en dígitos y siglos/monarcas en romanos.]
+[Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin encabezado ni comillas: debe ser BREVE, DIRECTO Y CERCANO (~350 a 500 caracteres máximo, ~60 a 85 palabras, en 1 solo párrafo de EXACTAMENTE 3 ORACIONES: 1) una oración corta conectando el hecho histórico con el presente o la huella humana actual, SIN volver a resumir todo el documental; 2) una pregunta directa y cercana "¿...?" para compartir una historia familiar o debatir el dilema central; 3) un cierre cálido tipo "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios.", sin signos de exclamación (!), sin pedir like/suscribirse, años en dígitos y siglos/monarcas en romanos.]
 
 ===SECCION_TAGS===
 [Entrega aquí EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas (~460 a 500 caracteres máximo, sin encabezado "Tags:").]`;
@@ -2326,10 +2326,15 @@ Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || doc.historica
 Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1200)}
 
 Genera EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO cumpliendo estas reglas inquebrantables:
-1. Entrega el texto directo sin ningún encabezado ni etiqueta (prohibido poner "Comentario Fijado:" o comillas).
-2. Formula una reflexión histórica magnética seguida de un llamado a la acción (CTA) natural que invite a la audiencia a debatir, opinar o compartir una experiencia/vivencia vinculada al hecho histórico.
-3. Queda terminantemente prohibido pedir genéricamente "dale like" o "suscríbete", y prohibido usar signos de exclamación (!).
-4. Escribe todos los años en dígitos y los siglos/nombres con número en números romanos.`;
+1. Entrega el texto directo en 1 solo párrafo corto sin ningún encabezado ni etiqueta (prohibido poner "Comentario Fijado:" o comillas).
+2. EXTENSIÓN BREVE Y CONCISA (~350 a 500 caracteres máximo, ~60 a 85 palabras, EXACTAMENTE 3 ORACIONES):
+   - Oración 1 (Conexión humana breve): Una sola oración corta que conecte aquella travesía, época o suceso con nuestras raíces, costumbres o memoria actual (PROHIBIDO iniciar con un párrafo largo que vuelva a resumir el documental o enumere estadísticas).
+   - Oración 2 (Pregunta cercana "¿...?"): Una pregunta directa que invite al espectador a compartir un recuerdo o historia familiar vinculada al tema o a opinar sobre el dilema humano central del episodio.
+   - Oración 3 (Cierre cálido): Una invitación breve a comentar (ej.: "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios.").
+3. Ejemplo exacto del largo, ritmo y estructura ideal (~490 caracteres):
+   "Muchos de nuestros apellidos, oficios y costumbres actuales nacieron de aquella travesía que comenzó en muelles como el de Santander en 1885. ¿Tu familia también guarda el recuerdo, las cartas o la historia de algún abuelo o bisabuelo que cruzó el océano con una maleta de madera buscando un nuevo destino en América, o qué opinas sobre las duras condiciones del sistema de dependientes de aquella época? Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios."
+4. Queda terminantemente prohibido pedir genéricamente "dale like" o "suscríbete", y prohibido usar signos de exclamación (!).
+5. Escribe todos los años en dígitos y los siglos/nombres con número en números romanos.`;
     } else if (stageNumber === 114) {
       stagePrompt = `Actúa como especialista en SEO de YouTube para "Huellas de la Humanidad".
 Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
