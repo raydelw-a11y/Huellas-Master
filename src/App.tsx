@@ -119,7 +119,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:30 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:34 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -174,6 +174,40 @@ function cleanStage11SingleMetadataText(raw: string): string {
   }
 
   return stripStage12ClosingChatter(clean);
+}
+
+function stripLeadingTitleFromYoutubeMetadata(
+  raw: string,
+  knownTitle?: string
+): { body: string; extractedTitle?: string } {
+  const cleaned = cleanStage11SingleMetadataText(raw);
+  if (!cleaned) return { body: '' };
+  const lines = cleaned.split(/\r?\n/);
+  const firstNonEmptyIdx = lines.findIndex(
+    (l) => l.replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim().length > 0
+  );
+  if (firstNonEmptyIdx === -1) return { body: cleaned };
+  const firstLine = lines[firstNonEmptyIdx].replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim();
+  const secondLine = (lines[firstNonEmptyIdx + 1] || '').replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim();
+  const normFirst = firstLine.replace(/^T[ií]tulo\s*:\s*/i, '').trim();
+  const normKnown = (knownTitle || '').trim();
+  const isKnownMatch =
+    Boolean(normKnown) && normFirst.toLowerCase() === normKnown.toLowerCase();
+  const hasPipeSuffix = /\|\s*Documental\s+Completo/i.test(normFirst) || normFirst.includes(' | ');
+  const isShortHeaderBeforeBraille =
+    normFirst.length <= 190 && secondLine.length === 0 && lines.length > firstNonEmptyIdx + 2;
+  if (isKnownMatch || hasPipeSuffix || /^T[ií]tulo\s*:/i.test(firstLine) || isShortHeaderBeforeBraille) {
+    let nextContentIdx = firstNonEmptyIdx + 1;
+    while (
+      nextContentIdx < lines.length &&
+      lines[nextContentIdx].replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim().length === 0
+    ) {
+      nextContentIdx++;
+    }
+    const body = lines.slice(nextContentIdx).join('\n').trim();
+    return { body: body || cleaned, extractedTitle: normFirst };
+  }
+  return { body: cleaned };
 }
 
 function parseStage11FourSections(rawText: string): {
@@ -2786,8 +2820,15 @@ export default function App() {
       if (parsed4.foundCount >= 1) {
         const patch: Partial<DocumentaryProject> = {};
         if (parsed4.youtube) {
-          patch.rawYoutubeMetadata = parsed4.youtube;
-          patch.rawMetadataText = parsed4.youtube;
+          const ytStripped = stripLeadingTitleFromYoutubeMetadata(
+            parsed4.youtube,
+            activeDocRef.current?.publishTitle
+          );
+          patch.rawYoutubeMetadata = ytStripped.body;
+          patch.rawMetadataText = ytStripped.body;
+          if (!activeDocRef.current?.publishTitle && ytStripped.extractedTitle) {
+            patch.publishTitle = ytStripped.extractedTitle;
+          }
         }
         if (parsed4.facebook) {
           patch.rawFacebookMetadata = parsed4.facebook;
@@ -2810,14 +2851,17 @@ export default function App() {
           pendingStage11QueueRef.current = missingStages;
         }
       } else {
-        let cleanSingle = cleanStage11SingleMetadataText(text);
-        const lockedTitle = (activeDocRef.current?.publishTitle || '').trim();
-        if (lockedTitle && cleanSingle) {
-          const lines = cleanSingle.split(/\r?\n/);
-          lines[0] = lockedTitle;
-          cleanSingle = lines.join('\n');
-        }
-        updateActiveDoc({ rawYoutubeMetadata: cleanSingle, rawMetadataText: cleanSingle });
+        const ytStripped = stripLeadingTitleFromYoutubeMetadata(
+          text,
+          activeDocRef.current?.publishTitle
+        );
+        updateActiveDoc({
+          rawYoutubeMetadata: ytStripped.body,
+          rawMetadataText: ytStripped.body,
+          ...(!activeDocRef.current?.publishTitle && ytStripped.extractedTitle
+            ? { publishTitle: ytStripped.extractedTitle }
+            : {}),
+        });
         if (stageNum === 11) {
           pendingStage11QueueRef.current = [112, 113, 114];
         }
@@ -2944,9 +2988,9 @@ export default function App() {
           const curYt = latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '';
           const curFb = latestDoc.rawFacebookMetadata ?? '';
           if (curYt.trim()) {
-            const nextYt = replaceFirstTitleLine(curYt);
-            patch.rawYoutubeMetadata = nextYt;
-            patch.rawMetadataText = nextYt;
+            const ytStripped = stripLeadingTitleFromYoutubeMetadata(curYt, bestTitle);
+            patch.rawYoutubeMetadata = ytStripped.body;
+            patch.rawMetadataText = ytStripped.body;
           }
           if (curFb.trim()) {
             patch.rawFacebookMetadata = replaceFirstTitleLine(curFb);
@@ -2981,7 +3025,10 @@ export default function App() {
     const rawPinned = activeDoc.pinnedComment ?? '';
     const rawTags = activeDoc.youtubeTags ?? '';
 
-    const cleanedYt = rawYt ? cleanStage11SingleMetadataText(rawYt) : '';
+    const ytStripped = rawYt
+      ? stripLeadingTitleFromYoutubeMetadata(rawYt, activeDoc.publishTitle)
+      : { body: '' };
+    const cleanedYt = ytStripped.body;
     const cleanedFb = rawFb ? cleanStage11SingleMetadataText(rawFb) : '';
     const cleanedPinned = rawPinned ? stripStage12ClosingChatter(rawPinned) : '';
     const cleanedTags = rawTags ? stripStage12ClosingChatter(rawTags) : '';
@@ -2990,6 +3037,9 @@ export default function App() {
     if (rawYt && cleanedYt !== rawYt) {
       cleanupPatch.rawYoutubeMetadata = cleanedYt;
       cleanupPatch.rawMetadataText = cleanedYt;
+    }
+    if (!activeDoc.publishTitle && ytStripped.extractedTitle) {
+      cleanupPatch.publishTitle = ytStripped.extractedTitle;
     }
     if (rawFb && cleanedFb !== rawFb) {
       cleanupPatch.rawFacebookMetadata = cleanedFb;
@@ -6792,7 +6842,9 @@ export default function App() {
           const currentPinned = (latestDoc.pinnedComment ?? '').trim();
           const currentTags = (latestDoc.youtubeTags ?? '').trim();
 
-          const candidateYt = bundle.youtube ? cleanStage11SingleMetadataText(bundle.youtube) : '';
+          const candidateYt = bundle.youtube
+            ? stripLeadingTitleFromYoutubeMetadata(bundle.youtube, latestDoc.publishTitle).body
+            : '';
           const candidateFb = bundle.facebook ? cleanStage11SingleMetadataText(bundle.facebook) : '';
           const candidatePinned = bundle.pinnedComment
             ? stripStage12ClosingChatter(bundle.pinnedComment)
@@ -6855,7 +6907,10 @@ export default function App() {
         if (msg.taskType === 'MANUAL_GRAB_STAGE11' && bundle && activeDoc) {
           const patch: Partial<DocumentaryProject> = {};
           if (bundle.youtube && (targetStage === 11 || targetStage === 111)) {
-            const cleanYt = cleanStage11SingleMetadataText(bundle.youtube);
+            const cleanYt = stripLeadingTitleFromYoutubeMetadata(
+              bundle.youtube,
+              activeDoc.publishTitle
+            ).body;
             patch.rawYoutubeMetadata = cleanYt;
             patch.rawMetadataText = cleanYt;
           }
@@ -6902,7 +6957,10 @@ export default function App() {
             const bundlePatch: Partial<DocumentaryProject> = {};
             if (bundle.youtube) {
               const currentYt = (latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '').trim();
-              const fullYt = cleanStage11SingleMetadataText(bundle.youtube);
+              const fullYt = stripLeadingTitleFromYoutubeMetadata(
+                bundle.youtube,
+                latestDoc.publishTitle
+              ).body;
               if (
                 fullYt.length > currentYt.length &&
                 (!currentYt ||
@@ -14447,11 +14505,12 @@ export default function App() {
               const youtubeTagsVal = activeDoc.youtubeTags ?? '';
 
               const currentDetectedTitle =
-                (youtubeMeta || facebookMeta)
+                (activeDoc.publishTitle || '').trim() ||
+                facebookMeta
                   .split(/\r?\n/)
                   .map((l) => l.replace(/^[⠀\s]+|[⠀\s]+$/g, '').trim())
                   .find(Boolean) ||
-                activeDoc.publishTitle ||
+                stripLeadingTitleFromYoutubeMetadata(youtubeMeta).extractedTitle ||
                 '';
 
               const applySpecificTitleToMetadata = (newTitle: string) => {
@@ -14472,9 +14531,9 @@ export default function App() {
                   publishTitle: cleanTitle,
                 };
                 if (youtubeMeta.trim()) {
-                  const updatedYt = replaceFirstLine(youtubeMeta);
-                  patch.rawYoutubeMetadata = updatedYt;
-                  patch.rawMetadataText = updatedYt;
+                  const ytStripped = stripLeadingTitleFromYoutubeMetadata(youtubeMeta, cleanTitle);
+                  patch.rawYoutubeMetadata = ytStripped.body;
+                  patch.rawMetadataText = ytStripped.body;
                 }
                 if (facebookMeta.trim()) {
                   patch.rawFacebookMetadata = replaceFirstLine(facebookMeta);
@@ -14725,7 +14784,7 @@ export default function App() {
                             </h4>
                           </div>
                           <p className="text-[11px] text-slate-400 mt-1">
-                            3000 chars • Título + 3 Párrafos + 10 Capítulos: + Nota IA + Slogan + 5 Hashtags
+                            3000 chars • 3 Párrafos + 10 Capítulos: + Nota IA + Slogan + 5 Hashtags (Sin Título)
                           </p>
                         </div>
 

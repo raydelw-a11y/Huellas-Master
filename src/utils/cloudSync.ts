@@ -1869,14 +1869,13 @@ TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PU
 
 ===SECCION_YOUTUBE===
 [Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
-1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:"), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
+1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y SIN línea de Título al inicio (comienza directamente en el Párrafo 1 de la descripción), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
 2. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
-3. ${specificTitleLaw11}
-4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
-5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos desde 00:00 hasta antes de ${resolvedFinalDuration11} (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
-6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
-7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.]
+3. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
+4. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos desde 00:00 hasta antes de ${resolvedFinalDuration11} (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
+5. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+6. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+7. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.]
 
 ===SECCION_FACEBOOK===
 [Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
@@ -1891,25 +1890,23 @@ TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PU
 ===SECCION_TAGS===
 [Entrega aquí EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas en una sola línea continua (~460 a 500 caracteres máximo, sin encabezado "Tags:").]`;
     } else if (stageNumber === 111) {
-      const selectedPublishTitle = (doc.publishTitle || '').trim();
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
 Duración final confirmada: ${resolvedFinalDuration11}
 Plataforma: YOUTUBE
-${selectedPublishTitle ? `Título oficial seleccionado para la primera línea (úsalo exactamente tal cual en la línea 1): ${selectedPublishTitle}\n` : ''}Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
+Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
 Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+Guion REAL de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 ${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental:\n${chaptersTimelineGuide}\n` : ''}
 Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
-1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias ("Aquí tienes..."), con la ÚNICA excepción obligatoria del encabezado "Capítulos:". Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales sin cortar ninguna sección.
-2. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del título hasta el final de los 5 hashtags.
-3. ${selectedPublishTitle ? `En la primera línea escribe EXACTAMENTE este título oficial seleccionado: "${selectedPublishTitle}"` : specificTitleLaw11}
-4. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
-5. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
-6. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
-7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
-9. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
+1. SIN LÍNEA DE TÍTULO AL INICIO (el título se maneja en una casilla separada; prohibido incluir el título arriba) y CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias ("Aquí tienes..."), con la ÚNICA excepción obligatoria del encabezado "Capítulos:". Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Párrafo 1 hasta los 5 hashtags finales sin cortar ninguna sección.
+2. Extensión completa de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del primer párrafo hasta el final de los 5 hashtags.
+3. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
+4. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
+5. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+6. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
+7. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
+8. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
     } else if (stageNumber === 112) {
       const selectedPublishTitle = (doc.publishTitle || '').trim();
       stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
