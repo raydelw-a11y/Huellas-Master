@@ -3254,6 +3254,264 @@ app.get('/api/editor/render-status', (_req, res) => {
   res.json({ ok: true, ...activeRenderJobState });
 });
 
+const clipRoomToneAnalysisCache = new Map<
+  string,
+  { rtStartRel: number; rtEndRel: number; crestRatio: number }
+>();
+
+/**
+ * Analyzes the trimmed audio stream of a video clip (8kHz mono s16le PCM) in ~15ms to find:
+ * 1) The flattest, lowest-energy "Room Tone" window (rtStartRel .. rtEndRel) with zero foley spikes,
+ *    used to extend the tail when the video is slowed down without repeating any visual foley impact.
+ * 2) The overall crest ratio (peak / median RMS) to distinguish continuous ambient textures
+ *    (waves, wind, rain, fire, crowd murmur -> play at 1.0x natural speed) from isolated foley
+ *    transients (clamp speed >= 0.88x so it never sounds dragged or metallic).
+ */
+async function analyzeClipAudioRoomToneAndCrest(
+  ffmpegBin: string,
+  sourceMp4: string,
+  trimStartSec: number,
+  sourceSpanSec: number
+): Promise<{ rtStartRel: number; rtEndRel: number; crestRatio: number }> {
+  const safeSpan = Math.max(0.6, sourceSpanSec);
+  const winDur = Math.min(1.6, Math.max(0.5, safeSpan * 0.45));
+  const defaultRtStart = Math.max(0, Math.min(safeSpan - winDur, safeSpan * 0.65));
+  const fallback = {
+    rtStartRel: Number(defaultRtStart.toFixed(3)),
+    rtEndRel: Number((defaultRtStart + winDur).toFixed(3)),
+    crestRatio: 1.8,
+  };
+
+  if (!sourceMp4 || !fs.existsSync(sourceMp4) || safeSpan < 0.7) {
+    return fallback;
+  }
+
+  let mtimeMs = 0;
+  try {
+    mtimeMs = Math.floor(fs.statSync(sourceMp4).mtimeMs);
+  } catch {}
+  const cacheKey = `${sourceMp4}|${mtimeMs}|${trimStartSec.toFixed(2)}|${safeSpan.toFixed(2)}`;
+  const cached = clipRoomToneAnalysisCache.get(cacheKey);
+  if (cached) return cached;
+
+  return new Promise((resolve) => {
+    const sampleRate = 8000;
+    const args: string[] = ['-nostdin', '-v', 'error'];
+    if (trimStartSec > 0.01) {
+      args.push('-ss', trimStartSec.toFixed(3));
+    }
+    args.push(
+      '-t',
+      safeSpan.toFixed(3),
+      '-i',
+      sourceMp4,
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      String(sampleRate),
+      '-f',
+      's16le',
+      'pipe:1'
+    );
+
+    const proc = spawn(ffmpegBin, args, { stdio: ['ignore', 'pipe', 'ignore'] });
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => {
+      try {
+        proc.kill('SIGKILL');
+      } catch {}
+      resolve(fallback);
+    }, 3500);
+
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    proc.on('close', () => {
+      clearTimeout(timer);
+      try {
+        const pcm = Buffer.concat(chunks);
+        const totalSamples = Math.floor(pcm.length / 2);
+        const minSamplesNeeded = Math.floor(sampleRate * 0.6);
+        if (totalSamples < minSamplesNeeded) {
+          resolve(fallback);
+          return;
+        }
+
+        // Compute RMS and Peak in 100ms frames (800 samples per frame)
+        const frameSamples = 800;
+        const numFrames = Math.floor(totalSamples / frameSamples);
+        if (numFrames < 5) {
+          resolve(fallback);
+          return;
+        }
+
+        const frameRms: number[] = new Array(numFrames);
+        const framePeak: number[] = new Array(numFrames);
+        for (let f = 0; f < numFrames; f++) {
+          let sumSq = 0;
+          let maxAbs = 0;
+          const baseIdx = f * frameSamples;
+          for (let s = 0; s < frameSamples; s++) {
+            const val = pcm.readInt16LE((baseIdx + s) * 2) / 32768;
+            const abs = Math.abs(val);
+            sumSq += val * val;
+            if (abs > maxAbs) maxAbs = abs;
+          }
+          frameRms[f] = Math.sqrt(sumSq / frameSamples);
+          framePeak[f] = maxAbs;
+        }
+
+        // Compute overall clip crest ratio (95th percentile frame RMS / median frame RMS)
+        const sortedRms = [...frameRms].sort((a, b) => a - b);
+        const medianRms = Math.max(0.0005, sortedRms[Math.floor(sortedRms.length * 0.5)]);
+        const p95Rms = sortedRms[Math.min(sortedRms.length - 1, Math.floor(sortedRms.length * 0.95))];
+        const crestRatio = Number((p95Rms / medianRms).toFixed(2));
+
+        // Slide a window of winFrames (e.g. 16 frames = 1.6s) to find the flattest, spike-free room tone
+        const winFrames = Math.max(4, Math.min(numFrames - 1, Math.round(winDur * 10)));
+        let bestStartFrame = Math.max(0, Math.floor(numFrames * 0.6));
+        let bestScore = Number.POSITIVE_INFINITY;
+
+        const searchStart = Math.min(2, Math.floor(numFrames * 0.08));
+        const searchEnd = Math.max(searchStart, numFrames - winFrames - 1);
+
+        for (let i = searchStart; i <= searchEnd; i++) {
+          let sumRms = 0;
+          let maxFrameRms = 0;
+          let maxFramePk = 0;
+          for (let k = 0; k < winFrames; k++) {
+            const r = frameRms[i + k];
+            const pk = framePeak[i + k];
+            sumRms += r;
+            if (r > maxFrameRms) maxFrameRms = r;
+            if (pk > maxFramePk) maxFramePk = pk;
+          }
+          const avgRms = sumRms / winFrames;
+          // Penalize windows that are dead-silent (< 10% of medianRms) or contain transient spikes
+          const silencePenalty = avgRms < medianRms * 0.1 ? medianRms * 4 : 0;
+          const spikePenalty = (maxFrameRms - avgRms) * 3.5 + maxFramePk * 0.6;
+          // Slight preference for windows in the second half of the clip so room tone matches the scene exit
+          const positionBias = (1 - i / Math.max(1, searchEnd)) * medianRms * 0.15;
+          const score = avgRms + spikePenalty + silencePenalty + positionBias;
+          if (score < bestScore) {
+            bestScore = score;
+            bestStartFrame = i;
+          }
+        }
+
+        const actualStreamDur = totalSamples / sampleRate;
+        const rtStartRel = Math.max(
+          0,
+          Math.min(actualStreamDur - winDur, bestStartFrame * 0.1)
+        );
+        const rtEndRel = Math.min(actualStreamDur, rtStartRel + winDur);
+        const result = {
+          rtStartRel: Number(rtStartRel.toFixed(3)),
+          rtEndRel: Number(rtEndRel.toFixed(3)),
+          crestRatio,
+        };
+        clipRoomToneAnalysisCache.set(cacheKey, result);
+        resolve(result);
+      } catch {
+        resolve(fallback);
+      }
+    });
+
+    proc.on('error', () => {
+      clearTimeout(timer);
+      resolve(fallback);
+    });
+  });
+}
+
+/**
+ * Builds an FFmpeg audio filter chain that NEVER stretches clip audio into dragged/metallic slow-motion:
+ * - For normal or sped-up clips (rawSpeed >= 0.94): plays normally (clamping speed-ups to <= 1.25x).
+ * - For slowed-down clips (rawSpeed < 0.94):
+ *   * Continuous ambient clips (crestRatio <= 2.2) play at 1.00x (zero atempo).
+ *   * Clips with distinct foley transients (crestRatio > 2.2) clamp audio speed to >= 0.88x.
+ *   * Any remaining tail duration needed to cover targetDurSec is filled exclusively by looping and
+ *     crossfading the clip's own flattest "Room Tone" window (lowpass=3000Hz, volume=0.82), so no
+ *     foley impact or transient is ever repeated out of visual sync.
+ */
+async function buildSmartNaturalFoleyFilter(opts: {
+  ffmpegBin: string;
+  sourceMp4: string;
+  trimStartSec: number;
+  sourceSpanSec: number;
+  targetDurSec: number;
+  rawSpeed: number;
+  afFadePrefix?: string;
+  foleyVol: number;
+  isIntroOrOutro?: boolean;
+}): Promise<string> {
+  const {
+    ffmpegBin,
+    sourceMp4,
+    trimStartSec,
+    sourceSpanSec,
+    targetDurSec,
+    rawSpeed,
+    afFadePrefix = '',
+    foleyVol,
+    isIntroOrOutro = false,
+  } = opts;
+
+  const safeTargetDur = Math.max(0.3, targetDurSec);
+  const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100));
+  const afTrimSuffix = `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`;
+
+  // Intro/Outro or muted clips or normal/faster clips (>= 0.94x): no slow-motion drag occurs
+  if (isIntroOrOutro || foleyVol <= 0.0001 || rawSpeed >= 0.94 || sourceSpanSec < 0.7) {
+    let atempoPrefix = '';
+    if (!isIntroOrOutro && foleyVol > 0.0001 && Math.abs(rawSpeed - 1) >= 0.015) {
+      // Clamp mild slowdowns (>=0.94) and speed-ups (<=1.25) so fast clips also avoid chipmunk pitch
+      const clampedFastOrMild = Math.max(0.94, Math.min(1.25, rawSpeed));
+      if (Math.abs(clampedFastOrMild - 1) >= 0.015) {
+        atempoPrefix = `atempo=${clampedFastOrMild.toFixed(4)},`;
+      }
+    }
+    return `${atempoPrefix}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+  }
+
+  // Slow-motion clip (rawSpeed < 0.94): analyze clip audio for Room Tone window + transient crest
+  const { rtStartRel, rtEndRel, crestRatio } = await analyzeClipAudioRoomToneAndCrest(
+    ffmpegBin,
+    sourceMp4,
+    trimStartSec,
+    sourceSpanSec
+  );
+
+  // Continuous ambient textures (crestRatio <= 2.2) stay at 1.0x; isolated foley clamps at >= 0.88x
+  const naturalAudioSpeed = crestRatio <= 2.2 ? 1.0 : Math.max(0.88, Math.min(1.0, rawSpeed));
+  const atempoStage =
+    Math.abs(naturalAudioSpeed - 1) >= 0.015 ? `atempo=${naturalAudioSpeed.toFixed(4)},` : '';
+  const mainAudioDur = sourceSpanSec / naturalAudioSpeed;
+
+  // If the natural/clamped audio already covers targetDurSec, no room-tone tail extension is needed
+  if (mainAudioDur >= safeTargetDur - 0.06 || rtEndRel - rtStartRel < 0.35) {
+    return `${atempoStage}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+  }
+
+  const winDur = Math.max(0.4, rtEndRel - rtStartRel);
+  const crossfadeDur = Number(
+    Math.min(0.35, Math.max(0.1, Math.min(mainAudioDur * 0.25, winDur * 0.35))).toFixed(3)
+  );
+  const tailNeededSec = Math.max(winDur + 0.2, safeTargetDur - mainAudioDur + crossfadeDur + 0.35);
+  const loopSizeSamples = Math.max(4410, Math.round(winDur * 44100));
+  const edgeFade = Number(Math.min(0.12, winDur * 0.2).toFixed(3));
+  const edgeFadeOutStart = Number(Math.max(0.05, winDur - edgeFade).toFixed(3));
+
+  return [
+    `aresample=44100,asplit=2[amain][art]`,
+    `[amain]${atempoStage}asetpts=PTS-STARTPTS[a1]`,
+    `[art]atrim=start=${rtStartRel.toFixed(3)}:end=${rtEndRel.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=${edgeFade},afade=t=out:st=${edgeFadeOutStart}:d=${edgeFade},lowpass=f=3000,volume=0.82,aloop=loop=-1:size=${loopSizeSamples},atrim=duration=${tailNeededSec.toFixed(3)},asetpts=PTS-STARTPTS[a2]`,
+    `[a1][a2]acrossfade=d=${crossfadeDur}:c1=tri:c2=tri,${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`,
+  ].join(';');
+}
+
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
@@ -3669,7 +3927,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         } catch {}
       }
 
-      // Check if an Optical Flow baked file already exists for this clip segment (excluding foley/vocals/music separated variants)
+      // Check if an Optical Flow baked file already exists for this clip segment (only _of3+ which has non-dragging natural foley audio)
       if (c.opticalFlowUrl && typeof c.opticalFlowUrl === 'string') {
         try {
           const parsedOpt = new URL(c.opticalFlowUrl, 'http://localhost:4200');
@@ -3678,7 +3936,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             optFile &&
             fs.existsSync(optFile) &&
             !optFile.includes('.foley_only_cache') &&
-            !optFile.includes('_foley_')
+            !optFile.includes('_foley_') &&
+            (!optFile.includes('.optical_flow_cache') || optFile.includes('_of3'))
           ) {
             sourceMp4 = optFile;
           }
@@ -4101,28 +4360,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},fps=${safeFps},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
 
-      const buildAtempoChain = (spd: number): string => {
-        if (Math.abs(spd - 1) < 0.003) return '';
-        const stages: string[] = [];
-        let rem = Math.max(0.2, Math.min(4.0, spd));
-        while (rem < 0.5) {
-          stages.push('atempo=0.5');
-          rem /= 0.5;
-        }
-        while (rem > 2.0) {
-          stages.push('atempo=2.0');
-          rem /= 2.0;
-        }
-        stages.push(`atempo=${rem.toFixed(4)}`);
-        return `${stages.join(',')},`;
-      };
-      const atempoPrefix = buildAtempoChain(speed);
-      const targetAudioSamples = Math.max(1024, Math.round(effectiveClipDur * 44100));
-      const afTrimSuffix =
-        effectiveClipDur > 0.3
-          ? `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`
-          : ',aresample=44100';
-      const afFilter = `${atempoPrefix}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+      const afFilter = await buildSmartNaturalFoleyFilter({
+        ffmpegBin,
+        sourceMp4,
+        trimStartSec,
+        sourceSpanSec: effectiveSpan > 0.2 ? effectiveSpan : rawClipDur,
+        targetDurSec: effectiveClipDur,
+        rawSpeed: speed,
+        afFadePrefix,
+        foleyVol,
+        isIntroOrOutro: isIntroClip || isOutroClip || usingPrebakedOpticalFlow,
+      });
 
       const inputTrimArgs: string[] = [];
       if (trimStartSec > 0.01) {
@@ -8639,7 +8887,7 @@ app.post('/api/video/optical-flow', async (req, res) => {
       .basename(sourceMp4, path.extname(sourceMp4))
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 48);
-    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${effectiveTargetDur.toFixed(2)}_of${useOpticalFlow ? 2 : 0}`;
+    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${effectiveTargetDur.toFixed(2)}_of${useOpticalFlow ? 3 : 0}`;
     const outFileName = `${baseKey}_${bakedKey}.mp4`;
     const outFullPath = path.join(cacheDir, outFileName);
 
@@ -8679,26 +8927,16 @@ app.post('/api/video/optical-flow', async (req, res) => {
       inputTrimArgs.push('-to', safeTrimEnd.toFixed(3));
     }
 
-    const buildAtempoChain = (spd: number): string => {
-      const stages: string[] = [];
-      let rem = Math.max(0.15, Math.min(4.0, spd));
-      if (Math.abs(rem - 1) >= 0.02) {
-        while (rem < 0.5) {
-          stages.push('atempo=0.5');
-          rem /= 0.5;
-        }
-        while (rem > 2.0) {
-          stages.push('atempo=2.0');
-          rem /= 2.0;
-        }
-        stages.push(`atempo=${rem.toFixed(3)}`);
-      } else {
-        stages.push('volume=1.0');
-      }
-      stages.push(`apad=whole_dur=${effectiveTargetDur.toFixed(3)}`);
-      return stages.join(',');
-    };
-    const afFilter = buildAtempoChain(safeSpeed);
+    const afFilter = await buildSmartNaturalFoleyFilter({
+      ffmpegBin,
+      sourceMp4,
+      trimStartSec: safeTrimStart,
+      sourceSpanSec: realSpan,
+      targetDurSec: effectiveTargetDur,
+      rawSpeed: safeSpeed,
+      foleyVol: 1.0,
+      isIntroOrOutro: false,
+    });
 
     // Optical Flow MCI filter chain (CapCut Smooth Slow Motion equivalent) — uses PTS-STARTPTS + trim=duration so trimmed clips stretch across 100% of targetDuration
     const vfMci = useOpticalFlow
@@ -8913,19 +9151,9 @@ app.post('/api/flow/separate-clip-vocals', async (req, res) => {
     }
 
     const buildAtempoChain = (spd: number): string => {
-      if (Math.abs(spd - 1) < 0.02) return '';
-      const stages: string[] = [];
-      let rem = Math.max(0.2, Math.min(4.0, spd));
-      while (rem < 0.5) {
-        stages.push('atempo=0.5');
-        rem /= 0.5;
-      }
-      while (rem > 2.0) {
-        stages.push('atempo=2.0');
-        rem /= 2.0;
-      }
-      stages.push(`atempo=${rem.toFixed(3)}`);
-      return stages.join(',');
+      const rem = Math.max(0.88, Math.min(1.25, spd));
+      if (Math.abs(rem - 1) < 0.02) return '';
+      return `atempo=${rem.toFixed(3)}`;
     };
     const atempoPart = buildAtempoChain(safeSpeed);
 
@@ -9151,19 +9379,9 @@ app.post('/api/flow/separate-clip-music', async (req, res) => {
     }
 
     const buildAtempoChain = (spd: number): string => {
-      if (Math.abs(spd - 1) < 0.02) return '';
-      const stages: string[] = [];
-      let rem = Math.max(0.2, Math.min(4.0, spd));
-      while (rem < 0.5) {
-        stages.push('atempo=0.5');
-        rem /= 0.5;
-      }
-      while (rem > 2.0) {
-        stages.push('atempo=2.0');
-        rem /= 2.0;
-      }
-      stages.push(`atempo=${rem.toFixed(3)}`);
-      return stages.join(',');
+      const rem = Math.max(0.88, Math.min(1.25, spd));
+      if (Math.abs(rem - 1) < 0.02) return '';
+      return `atempo=${rem.toFixed(3)}`;
     };
     const atempoPart = buildAtempoChain(safeSpeed);
 

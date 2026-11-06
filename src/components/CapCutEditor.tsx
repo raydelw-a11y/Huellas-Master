@@ -2601,6 +2601,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const separatedVocalsAudioRef = useRef<HTMLAudioElement | null>(null);
   const separatedMusicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const naturalClipFoleyAudioRef = useRef<HTMLAudioElement | null>(null);
   const playIntervalRef = useRef<any>(null);
   const webAudioCtxRef = useRef<AudioContext | null>(null);
   const ambientGainRef = useRef<GainNode | null>(null);
@@ -5717,7 +5718,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } | null
   ): string => {
     if (!clip?.videoUrl) return '';
-    if (clip.opticalFlowUrl && clip.smoothSlowMo !== false && Number(clip.speed ?? 1) < 0.99) {
+    if (
+      clip.opticalFlowUrl &&
+      clip.opticalFlowUrl.includes('_of3') &&
+      clip.smoothSlowMo !== false &&
+      Number(clip.speed ?? 1) < 0.99
+    ) {
       return clip.opticalFlowUrl;
     }
     return clip.videoUrl;
@@ -6137,9 +6143,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       };
     }
 
-    // If playing a pre-baked Optical Flow MP4, pace it across slotDur so it never freezes before the clip ends
+    // If playing a pre-baked Optical Flow MP4 (_of3 with non-dragging natural foley), pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
-      clip.opticalFlowUrl && clip.smoothSlowMo !== false && clip.speed < 0.99
+      clip.opticalFlowUrl &&
+        clip.opticalFlowUrl.includes('_of3') &&
+        clip.smoothSlowMo !== false &&
+        clip.speed < 0.99
     );
     if (usingOpticalFlowVideo) {
       const rawOptRatio = hasKnownVidDur ? safeVidStreamEnd / slotDur : 1;
@@ -6241,6 +6250,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           deckBVideoRef.current.pause();
         } catch {}
       }
+      if (naturalClipFoleyAudioRef.current) {
+        try {
+          naturalClipFoleyAudioRef.current.pause();
+        } catch {}
+      }
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -6291,10 +6305,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           targetVol <= 0 ||
           Boolean(activeClipAtPlayhead.audioMuted) ||
           (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-        vid.volume = shouldMute ? 0 : targetVol;
-        vid.muted = shouldMute;
+        const useNaturalFoleyCompanion = !shouldMute && effectiveRate < 0.88;
+        vid.volume = shouldMute || useNaturalFoleyCompanion ? 0 : targetVol;
+        vid.muted = shouldMute || useNaturalFoleyCompanion;
         if (!reachedClipMediaEnd) {
           vid.play().catch(() => {});
+        }
+        const natFoley = naturalClipFoleyAudioRef.current;
+        if (natFoley) {
+          if (useNaturalFoleyCompanion && activeClipAtPlayhead.videoUrl) {
+            if (natFoley.getAttribute('src') !== activeClipAtPlayhead.videoUrl) {
+              natFoley.setAttribute('src', activeClipAtPlayhead.videoUrl);
+            }
+            const natRate = Math.max(0.9, Math.min(1.0, effectiveRate));
+            natFoley.defaultPlaybackRate = natRate;
+            natFoley.playbackRate = natRate;
+            natFoley.volume = targetVol;
+            natFoley.muted = false;
+            const trimStart = Math.max(0, Number(activeClipAtPlayhead.trimStart || 0));
+            const elapsedInSlot = Math.max(0, startSec - activeClipAtPlayhead.start);
+            natFoley.currentTime = trimStart + elapsedInSlot * natRate;
+            natFoley.play().catch(() => {});
+          } else {
+            natFoley.volume = 0;
+            natFoley.muted = true;
+            if (!natFoley.paused) natFoley.pause();
+          }
         }
       } catch {}
     }
@@ -6514,6 +6550,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (musicAudioRef.current) {
         try {
           musicAudioRef.current.pause();
+        } catch {}
+      }
+      if (naturalClipFoleyAudioRef.current) {
+        try {
+          naturalClipFoleyAudioRef.current.pause();
         } catch {}
       }
       setCinemaAmbienceActive(false);
@@ -6844,9 +6885,72 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         targetVol <= 0 ||
         Boolean(activeClipAtPlayhead.audioMuted) ||
         (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-      vid.volume = shouldMute ? 0 : targetVol;
-      vid.muted = shouldMute;
+      const useNaturalFoleyCompanion = !shouldMute && effectiveRate < 0.88;
+      vid.volume = shouldMute || useNaturalFoleyCompanion ? 0 : targetVol;
+      vid.muted = shouldMute || useNaturalFoleyCompanion;
       vid.style.opacity = '1';
+
+      const natFoley = naturalClipFoleyAudioRef.current;
+      if (natFoley) {
+        if (useNaturalFoleyCompanion && activeClipAtPlayhead.videoUrl && isPlaying) {
+          if (natFoley.getAttribute('src') !== activeClipAtPlayhead.videoUrl) {
+            natFoley.setAttribute('src', activeClipAtPlayhead.videoUrl);
+          }
+          const natRate = Math.max(0.9, Math.min(1.0, effectiveRate));
+          if (Math.abs((natFoley.playbackRate || 1) - natRate) > 0.015) {
+            try {
+              natFoley.defaultPlaybackRate = natRate;
+              natFoley.playbackRate = natRate;
+            } catch {}
+          }
+          const trimStart = Math.max(0, Number(activeClipAtPlayhead.trimStart || 0));
+          const natDur =
+            natFoley.duration && Number.isFinite(natFoley.duration) && natFoley.duration > 0.5
+              ? natFoley.duration
+              : Number(activeClipAtPlayhead.sourceDuration || 8);
+          const trimEnd =
+            typeof activeClipAtPlayhead.trimEnd === 'number' &&
+            activeClipAtPlayhead.trimEnd > trimStart + 0.2
+              ? Math.min(natDur, activeClipAtPlayhead.trimEnd)
+              : natDur;
+          const elapsedInSlot = Math.max(0, currentTime - activeClipAtPlayhead.start);
+          const rawAudioPos = trimStart + elapsedInSlot * natRate;
+          const tailSafeEnd = Math.max(trimStart + 0.3, trimEnd - 0.08);
+          const inRoomToneTail = rawAudioPos >= tailSafeEnd;
+          // If natural-speed audio reaches the end of the clip before the slow-mo slot ends, wrap only inside the last 1.4s room-tone window at softened volume
+          const roomToneWin = Math.min(1.4, Math.max(0.4, (tailSafeEnd - trimStart) * 0.35));
+          const targetAudioPos = !inRoomToneTail
+            ? rawAudioPos
+            : Math.max(
+                trimStart,
+                tailSafeEnd - roomToneWin + ((rawAudioPos - tailSafeEnd) % roomToneWin)
+              );
+          natFoley.volume = inRoomToneTail ? targetVol * 0.72 : targetVol;
+          natFoley.muted = false;
+          if (
+            natFoley.readyState >= 1 &&
+            (isClipSwitch ||
+              isManualSeek ||
+              natFoley.ended ||
+              Math.abs(natFoley.currentTime - targetAudioPos) > (inRoomToneTail ? 0.35 : 0.28))
+          ) {
+            try {
+              natFoley.currentTime = targetAudioPos;
+            } catch {}
+          }
+          if (natFoley.paused && natFoley.readyState >= 1) {
+            natFoley.play().catch(() => {});
+          }
+        } else {
+          natFoley.volume = 0;
+          natFoley.muted = true;
+          if (!natFoley.paused) {
+            try {
+              natFoley.pause();
+            } catch {}
+          }
+        }
+      }
 
       if (isClipSwitch || isManualSeek || !isPlaying) {
         activePlayingClipIdRef.current = activeClipAtPlayhead.id;
@@ -8213,7 +8317,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : Number(clip.sourceDuration || 8);
     const expectedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${Number(
       clip.duration || 8
-    ).toFixed(2)}_of2`;
+    ).toFixed(2)}_of3`;
 
     if (clip.opticalFlowUrl && clip.opticalFlowBakedKey === expectedKey) {
       if (!silent) {
@@ -8315,7 +8419,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
-  // Automatically upgrade any existing slow-mo clip whose Optical Flow cache was generated with the old _of1 key so it never freezes at the end
+  // Automatically upgrade any existing slow-mo clip whose Optical Flow cache was generated with an older key (_of1 / _of2) so it uses _of3 non-dragging natural foley
   useEffect(() => {
     const staleClip = timelineClips.find(
       (c) =>
@@ -8324,7 +8428,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         c.speed < 0.99 &&
         c.smoothSlowMo !== false &&
         !opticalFlowProcessingByClipId[c.id] &&
-        (!c.opticalFlowUrl || !String(c.opticalFlowBakedKey || '').endsWith('_of2'))
+        (!c.opticalFlowUrl || !String(c.opticalFlowBakedKey || '').endsWith('_of3'))
     );
     if (staleClip) {
       triggerOpticalFlowForClip(staleClip, true);
@@ -10297,6 +10401,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
         preload={isEditorActive ? 'auto' : 'none'}
       />
+      <audio
+        ref={naturalClipFoleyAudioRef}
+        preload={isEditorActive ? 'auto' : 'none'}
+      />
 
       {/* FLOATING RIGHT-CLICK CONTEXT MENU FOR SELECTED TIMELINE CLIPS (Separar ▸ Voces / Extraer Música) */}
       {clipContextMenu && (
@@ -11760,7 +11868,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               const shouldMute =
                                 targetVol <= 0 ||
                                 Boolean(activeClipAtPlayhead.audioMuted) ||
-                                (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
+                                (activeClipAtPlayhead.foleyVolume ?? 0) <= 0 ||
+                                effectiveRate < 0.88;
                               vid.volume = shouldMute ? 0 : targetVol;
                               vid.muted = shouldMute;
                               if (isPlaying && !reachedClipMediaEnd) {
