@@ -652,6 +652,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportFps, setExportFps] = useState<24 | 30 | 60>(() => {
+    if (aspectRatio === '9:16') {
+      const saved916Fps = Number(
+        initialDocStateForInit?.exportFps9x16 ?? initialSessionState?.exportFps9x16
+      );
+      return saved916Fps === 24 || saved916Fps === 30 || saved916Fps === 60 ? saved916Fps : 60;
+    }
     const fps = Number(initialDocStateForInit?.exportFps ?? initialSessionState?.exportFps);
     return fps === 24 || fps === 30 || fps === 60 ? fps : 30;
   });
@@ -839,17 +845,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const initialDocOverlays = useMemo(() => readSavedDocOverlays(activeDoc?.id), [activeDoc?.id]);
 
+  const initialFormatProfileForRatio = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.[aspectRatio] || null;
+      }
+    } catch {}
+    return null;
+  }, []);
+
   const [logoScalePct, setLogoScalePct] = useState<number>(
-    () => Number(initialOverlayStyles.logoScalePct) || 6
+    () =>
+      Number(initialFormatProfileForRatio?.logoScalePct) ||
+      Number(initialOverlayStyles.logoScalePct) ||
+      (aspectRatio === '9:16' ? 12 : 6)
   );
   const [logoOpacity, setLogoOpacity] = useState<number>(
     () => Number(initialOverlayStyles.logoOpacity) || 95
   );
-  const [logoPosX, setLogoPosX] = useState<number>(
-    () => (typeof initialOverlayStyles.logoPosX === 'number' ? initialOverlayStyles.logoPosX : 3)
+  const [logoPosX, setLogoPosX] = useState<number>(() =>
+    typeof initialFormatProfileForRatio?.logoPosX === 'number'
+      ? initialFormatProfileForRatio.logoPosX
+      : typeof initialOverlayStyles.logoPosX === 'number'
+      ? initialOverlayStyles.logoPosX
+      : aspectRatio === '9:16'
+      ? 10
+      : 3
   );
-  const [logoPosY, setLogoPosY] = useState<number>(
-    () => (typeof initialOverlayStyles.logoPosY === 'number' ? initialOverlayStyles.logoPosY : 3)
+  const [logoPosY, setLogoPosY] = useState<number>(() =>
+    typeof initialFormatProfileForRatio?.logoPosY === 'number'
+      ? initialFormatProfileForRatio.logoPosY
+      : typeof initialOverlayStyles.logoPosY === 'number'
+      ? initialOverlayStyles.logoPosY
+      : 3
   );
   // Default Logo animations for ALL documentaries: Fade In 1.5s at the start and Fade Out 2.5s at the end of the documentary
   const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>(() =>
@@ -1512,16 +1542,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return 4;
   });
   const [captionFontSize, setCaptionFontSize] = useState<number>(() =>
-    activeDoc?.productionType === 'REEL_9X16'
-      ? Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16) || 21
-      : Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9) ||
+    aspectRatio === '9:16' || activeDoc?.productionType === 'REEL_9X16'
+      ? Number(initialFormatProfileForRatio?.captionFontSize) ||
+        Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16) ||
+        21
+      : Number(initialFormatProfileForRatio?.captionFontSize) ||
+        Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9) ||
         (initialOverlayStyles.captionFontSizeV25
           ? Number(initialOverlayStyles.captionFontSize) || 25
           : 25)
   );
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(() =>
-    typeof initialOverlayStyles.captionBottomPct === 'number'
+    typeof initialFormatProfileForRatio?.captionBottomPct === 'number'
+      ? initialFormatProfileForRatio.captionBottomPct
+      : typeof initialOverlayStyles.captionBottomPct === 'number'
       ? initialOverlayStyles.captionBottomPct
+      : aspectRatio === '9:16'
+      ? 15
       : 11
   );
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(
@@ -1917,10 +1954,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v3_res_by_ratio: true,
         })
       );
+      const isLocalHost =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+      fetch(`${serverOrigin}/api/editor/sync-client-state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aspectRatio,
+          exportResolution,
+          exportFps,
+          formatProfiles: formatProfilesRef.current,
+        }),
+      }).catch(() => {});
     } catch {}
   }, [
     aspectRatio,
     exportResolution,
+    exportFps,
     logoScalePct,
     logoPosX,
     logoPosY,
@@ -2052,10 +2104,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const docId = activeDoc?.id || 'default';
       setTimelineClips((prev) => {
         const updated = prev.map((tc) => {
-          // Preserve manual overrides unless user explicitly requested forceRefresh
-          if (!forceRefresh && tc.reframe9x16Mode === 'manual') return tc;
           const res = resultByClipNum.get(tc.clipNumber);
           if (!res) return tc;
+          // Preserve manual overrides unless user explicitly requested forceRefresh or result is verifiedAudit
+          if (!forceRefresh && !(res as any).verifiedAudit && tc.reframe9x16Mode === 'manual') return tc;
           return {
             ...tc,
             reframe9x16Mode: res.reframe9x16Mode,
@@ -2077,9 +2129,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (activeDoc && Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0) {
         updateActiveDoc({
           clips: activeDoc.clips.map((c) => {
-            if (!forceRefresh && c.reframe9x16Mode === 'manual') return c;
             const res = resultByClipNum.get(c.clipNumber);
             if (!res) return c;
+            if (!forceRefresh && !(res as any).verifiedAudit && c.reframe9x16Mode === 'manual') return c;
             return {
               ...c,
               reframe9x16Mode: res.reframe9x16Mode,
@@ -2167,6 +2219,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
     const targetProfile = formatProfilesRef.current[nextRatio];
     setAspectRatio(nextRatio);
+    setExportFps(nextRatio === '9:16' ? 60 : 30);
     const nextRes: ExportResolutionPreset =
       targetProfile?.exportResolution || (nextRatio === '9:16' ? '2K_1440P' : '8K_4320P');
     handleSelectExportResolution(nextRes);
@@ -2473,7 +2526,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const onMove = (moveEvt: MouseEvent) => {
       const dyPx = moveEvt.clientY - startY;
       if (Math.abs(dyPx) < 2) return;
-      const nextBottom = Math.max(4, Math.min(55, initBottom - (dyPx / rect.height) * 100));
+      const nextBottom = Math.max(4, Math.min(80, initBottom - (dyPx / rect.height) * 100));
       setCaptionBottomPct(Number(nextBottom.toFixed(1)));
     };
 
@@ -2759,6 +2812,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           savedDoc?.exportFps === 30 ||
           savedDoc?.exportFps === 60
             ? savedDoc.exportFps
+            : nextRatio === '9:16'
+            ? 60
             : 30;
         setExportFps(nextFps);
 
@@ -5720,7 +5775,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!clip?.videoUrl) return '';
     if (
       clip.opticalFlowUrl &&
-      clip.opticalFlowUrl.includes('_of3') &&
+      (clip.opticalFlowUrl.includes('_of3') || clip.opticalFlowUrl.includes('_of2')) &&
       clip.smoothSlowMo !== false &&
       Number(clip.speed ?? 1) < 0.99
     ) {
@@ -6143,10 +6198,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       };
     }
 
-    // If playing a pre-baked Optical Flow MP4 (_of3 with non-dragging natural foley), pace it across slotDur so it never freezes before the clip ends
+    // If playing a pre-baked Optical Flow MP4 (_of2 / _of3), pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
       clip.opticalFlowUrl &&
-        clip.opticalFlowUrl.includes('_of3') &&
+        (clip.opticalFlowUrl.includes('_of3') || clip.opticalFlowUrl.includes('_of2')) &&
         clip.smoothSlowMo !== false &&
         clip.speed < 0.99
     );
@@ -6297,6 +6352,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         clipEndedHoldRef.current = reachedClipMediaEnd;
         vid.defaultPlaybackRate = effectiveRate;
         vid.playbackRate = effectiveRate;
+        try {
+          (vid as any).preservesPitch = true;
+          (vid as any).webkitPreservesPitch = true;
+        } catch {}
         if (vid.readyState >= 1) {
           vid.currentTime = clampedOffset;
         }
@@ -6305,32 +6364,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           targetVol <= 0 ||
           Boolean(activeClipAtPlayhead.audioMuted) ||
           (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-        const useNaturalFoleyCompanion = !shouldMute && effectiveRate < 0.88;
-        vid.volume = shouldMute || useNaturalFoleyCompanion ? 0 : targetVol;
-        vid.muted = shouldMute || useNaturalFoleyCompanion;
+        vid.volume = shouldMute ? 0 : targetVol;
+        vid.muted = shouldMute;
         if (!reachedClipMediaEnd) {
           vid.play().catch(() => {});
         }
         const natFoley = naturalClipFoleyAudioRef.current;
         if (natFoley) {
-          if (useNaturalFoleyCompanion && activeClipAtPlayhead.videoUrl) {
-            if (natFoley.getAttribute('src') !== activeClipAtPlayhead.videoUrl) {
-              natFoley.setAttribute('src', activeClipAtPlayhead.videoUrl);
-            }
-            const natRate = Math.max(0.9, Math.min(1.0, effectiveRate));
-            natFoley.defaultPlaybackRate = natRate;
-            natFoley.playbackRate = natRate;
-            natFoley.volume = targetVol;
-            natFoley.muted = false;
-            const trimStart = Math.max(0, Number(activeClipAtPlayhead.trimStart || 0));
-            const elapsedInSlot = Math.max(0, startSec - activeClipAtPlayhead.start);
-            natFoley.currentTime = trimStart + elapsedInSlot * natRate;
-            natFoley.play().catch(() => {});
-          } else {
-            natFoley.volume = 0;
-            natFoley.muted = true;
-            if (!natFoley.paused) natFoley.pause();
-          }
+          natFoley.volume = 0;
+          natFoley.muted = true;
+          if (!natFoley.paused) natFoley.pause();
         }
       } catch {}
     }
@@ -6878,6 +6921,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         try {
           vid.defaultPlaybackRate = effectiveRate;
           vid.playbackRate = effectiveRate;
+          (vid as any).preservesPitch = true;
+          (vid as any).webkitPreservesPitch = true;
         } catch {}
       }
       const targetVol = Math.min(1, Math.max(0, effectiveFoleyVolumeAtPlayhead / 100));
@@ -6885,70 +6930,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         targetVol <= 0 ||
         Boolean(activeClipAtPlayhead.audioMuted) ||
         (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-      const useNaturalFoleyCompanion = !shouldMute && effectiveRate < 0.88;
-      vid.volume = shouldMute || useNaturalFoleyCompanion ? 0 : targetVol;
-      vid.muted = shouldMute || useNaturalFoleyCompanion;
+      vid.volume = shouldMute ? 0 : targetVol;
+      vid.muted = shouldMute;
       vid.style.opacity = '1';
 
       const natFoley = naturalClipFoleyAudioRef.current;
       if (natFoley) {
-        if (useNaturalFoleyCompanion && activeClipAtPlayhead.videoUrl && isPlaying) {
-          if (natFoley.getAttribute('src') !== activeClipAtPlayhead.videoUrl) {
-            natFoley.setAttribute('src', activeClipAtPlayhead.videoUrl);
-          }
-          const natRate = Math.max(0.9, Math.min(1.0, effectiveRate));
-          if (Math.abs((natFoley.playbackRate || 1) - natRate) > 0.015) {
-            try {
-              natFoley.defaultPlaybackRate = natRate;
-              natFoley.playbackRate = natRate;
-            } catch {}
-          }
-          const trimStart = Math.max(0, Number(activeClipAtPlayhead.trimStart || 0));
-          const natDur =
-            natFoley.duration && Number.isFinite(natFoley.duration) && natFoley.duration > 0.5
-              ? natFoley.duration
-              : Number(activeClipAtPlayhead.sourceDuration || 8);
-          const trimEnd =
-            typeof activeClipAtPlayhead.trimEnd === 'number' &&
-            activeClipAtPlayhead.trimEnd > trimStart + 0.2
-              ? Math.min(natDur, activeClipAtPlayhead.trimEnd)
-              : natDur;
-          const elapsedInSlot = Math.max(0, currentTime - activeClipAtPlayhead.start);
-          const rawAudioPos = trimStart + elapsedInSlot * natRate;
-          const tailSafeEnd = Math.max(trimStart + 0.3, trimEnd - 0.08);
-          const inRoomToneTail = rawAudioPos >= tailSafeEnd;
-          // If natural-speed audio reaches the end of the clip before the slow-mo slot ends, wrap only inside the last 1.4s room-tone window at softened volume
-          const roomToneWin = Math.min(1.4, Math.max(0.4, (tailSafeEnd - trimStart) * 0.35));
-          const targetAudioPos = !inRoomToneTail
-            ? rawAudioPos
-            : Math.max(
-                trimStart,
-                tailSafeEnd - roomToneWin + ((rawAudioPos - tailSafeEnd) % roomToneWin)
-              );
-          natFoley.volume = inRoomToneTail ? targetVol * 0.72 : targetVol;
-          natFoley.muted = false;
-          if (
-            natFoley.readyState >= 1 &&
-            (isClipSwitch ||
-              isManualSeek ||
-              natFoley.ended ||
-              Math.abs(natFoley.currentTime - targetAudioPos) > (inRoomToneTail ? 0.35 : 0.28))
-          ) {
-            try {
-              natFoley.currentTime = targetAudioPos;
-            } catch {}
-          }
-          if (natFoley.paused && natFoley.readyState >= 1) {
-            natFoley.play().catch(() => {});
-          }
-        } else {
-          natFoley.volume = 0;
-          natFoley.muted = true;
-          if (!natFoley.paused) {
-            try {
-              natFoley.pause();
-            } catch {}
-          }
+        natFoley.volume = 0;
+        natFoley.muted = true;
+        if (!natFoley.paused) {
+          try {
+            natFoley.pause();
+          } catch {}
         }
       }
 
@@ -6976,7 +6969,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           vid.play().catch(() => {});
         }
       } else {
-        // Continuous playback inside the same clip: NEVER force-seek vid.currentTime (prevents keyframe rewind jumps!)
+        // Continuous playback inside the same clip: gently correct rate or seek if major drift (> 0.25s) occurs
+        const driftSec = vid.currentTime - clampedOffset;
+        if (vid.readyState >= 2 && Math.abs(driftSec) > 0.28) {
+          try {
+            vid.currentTime = clampedOffset;
+          } catch {}
+        } else if (vid.readyState >= 2 && Math.abs(driftSec) > 0.06) {
+          const nudgeRate = Math.max(0.15, Math.min(4.0, effectiveRate - driftSec * 0.25));
+          if (Math.abs((vid.playbackRate || 1) - nudgeRate) > 0.01) {
+            try {
+              vid.playbackRate = Number(nudgeRate.toFixed(4));
+            } catch {}
+          }
+        }
         if (vid.ended) {
           clipEndedHoldRef.current = true;
         } else if (!clipEndedHoldRef.current && vid.paused && vid.readyState >= 2) {
@@ -11778,14 +11784,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       slotClip?.id === 'fixed-doc-outro' || slotClip?.clipNumber === 999;
                     const isFitBlur =
                       isSlotOutro ||
-                      (aspectRatio === '9:16' &&
-                        (slotClip?.reframe9x16Mode === 'fit_blur' || isSlotIntro));
+                      (aspectRatio === '9:16' && slotClip?.reframe9x16Mode === 'fit_blur' && !isSlotIntro);
                     const fStart =
-                      typeof slotClip?.reframeFocusXStart === 'number'
+                      isSlotIntro
+                        ? 50
+                        : typeof slotClip?.reframeFocusXStart === 'number'
                         ? slotClip.reframeFocusXStart
                         : 50;
                     const fEnd =
-                      typeof slotClip?.reframeFocusXEnd === 'number'
+                      isSlotIntro
+                        ? 50
+                        : typeof slotClip?.reframeFocusXEnd === 'number'
                         ? slotClip.reframeFocusXEnd
                         : fStart;
                     const fY =
@@ -11828,7 +11837,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           objectPosition: videoObjPos,
                           transform: isSlotOutro
                             ? aspectRatio === '9:16'
-                              ? 'scale(0.92)'
+                              ? 'scale(1.18)'
                               : 'scale(0.88) translateY(-2.5%)'
                             : undefined,
                         }}
@@ -11868,8 +11877,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               const shouldMute =
                                 targetVol <= 0 ||
                                 Boolean(activeClipAtPlayhead.audioMuted) ||
-                                (activeClipAtPlayhead.foleyVolume ?? 0) <= 0 ||
-                                effectiveRate < 0.88;
+                                (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
+                              try {
+                                (vid as any).preservesPitch = true;
+                                (vid as any).webkitPreservesPitch = true;
+                              } catch {}
                               vid.volume = shouldMute ? 0 : targetVol;
                               vid.muted = shouldMute;
                               if (isPlaying && !reachedClipMediaEnd) {
@@ -15035,8 +15047,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <label className="block text-[10px] text-slate-400">Altura ({captionBottomPct}%)</label>
                   <input
                     type="range"
-                    min={5}
-                    max={45}
+                    min={4}
+                    max={80}
                     value={captionBottomPct}
                     onChange={(e) => setCaptionBottomPct(Number(e.target.value))}
                     className="w-full accent-amber-500"

@@ -3448,10 +3448,6 @@ async function buildSmartNaturalFoleyFilter(opts: {
   isIntroOrOutro?: boolean;
 }): Promise<string> {
   const {
-    ffmpegBin,
-    sourceMp4,
-    trimStartSec,
-    sourceSpanSec,
     targetDurSec,
     rawSpeed,
     afFadePrefix = '',
@@ -3463,54 +3459,62 @@ async function buildSmartNaturalFoleyFilter(opts: {
   const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100));
   const afTrimSuffix = `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`;
 
-  // Intro/Outro or muted clips or normal/faster clips (>= 0.94x): no slow-motion drag occurs
-  if (isIntroOrOutro || foleyVol <= 0.0001 || rawSpeed >= 0.94 || sourceSpanSec < 0.7) {
-    let atempoPrefix = '';
-    if (!isIntroOrOutro && foleyVol > 0.0001 && Math.abs(rawSpeed - 1) >= 0.015) {
-      // Clamp mild slowdowns (>=0.94) and speed-ups (<=1.25) so fast clips also avoid chipmunk pitch
-      const clampedFastOrMild = Math.max(0.94, Math.min(1.25, rawSpeed));
-      if (Math.abs(clampedFastOrMild - 1) >= 0.015) {
-        atempoPrefix = `atempo=${clampedFastOrMild.toFixed(4)},`;
-      }
-    }
-    return `${atempoPrefix}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+  if (isIntroOrOutro || foleyVol <= 0.0001) {
+    return `${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
   }
 
-  // Slow-motion clip (rawSpeed < 0.94): analyze clip audio for Room Tone window + transient crest
-  const { rtStartRel, rtEndRel, crestRatio } = await analyzeClipAudioRoomToneAndCrest(
-    ffmpegBin,
-    sourceMp4,
-    trimStartSec,
-    sourceSpanSec
-  );
-
-  // Continuous ambient textures (crestRatio <= 2.2) stay at 1.0x; isolated foley clamps at >= 0.88x
-  const naturalAudioSpeed = crestRatio <= 2.2 ? 1.0 : Math.max(0.88, Math.min(1.0, rawSpeed));
+  // Keep clip audio 100% locked to exact video playback rate so visual actions and audio never desync.
+  // For slowed-down clips (rawSpeed < 0.94), apply warm cinema filtering (highpass 85Hz + lowpass 7200Hz)
+  // to eliminate high-frequency WSOLA metallic ringing while preserving exact frame-locked foley timing.
+  const clampedSpeed = Math.max(0.5, Math.min(2.0, Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1));
   const atempoStage =
-    Math.abs(naturalAudioSpeed - 1) >= 0.015 ? `atempo=${naturalAudioSpeed.toFixed(4)},` : '';
-  const mainAudioDur = sourceSpanSec / naturalAudioSpeed;
+    Math.abs(clampedSpeed - 1) >= 0.012 ? `atempo=${clampedSpeed.toFixed(4)},` : '';
+  const warmSlowMoFilter =
+    clampedSpeed < 0.94 ? 'highpass=f=85,lowpass=f=7200,' : '';
 
-  // If the natural/clamped audio already covers targetDurSec, no room-tone tail extension is needed
-  if (mainAudioDur >= safeTargetDur - 0.06 || rtEndRel - rtStartRel < 0.35) {
-    return `${atempoStage}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
-  }
-
-  const winDur = Math.max(0.4, rtEndRel - rtStartRel);
-  const crossfadeDur = Number(
-    Math.min(0.35, Math.max(0.1, Math.min(mainAudioDur * 0.25, winDur * 0.35))).toFixed(3)
-  );
-  const tailNeededSec = Math.max(winDur + 0.2, safeTargetDur - mainAudioDur + crossfadeDur + 0.35);
-  const loopSizeSamples = Math.max(4410, Math.round(winDur * 44100));
-  const edgeFade = Number(Math.min(0.12, winDur * 0.2).toFixed(3));
-  const edgeFadeOutStart = Number(Math.max(0.05, winDur - edgeFade).toFixed(3));
-
-  return [
-    `aresample=44100,asplit=2[amain][art]`,
-    `[amain]${atempoStage}asetpts=PTS-STARTPTS[a1]`,
-    `[art]atrim=start=${rtStartRel.toFixed(3)}:end=${rtEndRel.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=${edgeFade},afade=t=out:st=${edgeFadeOutStart}:d=${edgeFade},lowpass=f=3000,volume=0.82,aloop=loop=-1:size=${loopSizeSamples},atrim=duration=${tailNeededSec.toFixed(3)},asetpts=PTS-STARTPTS[a2]`,
-    `[a1][a2]acrossfade=d=${crossfadeDur}:c1=tri:c2=tri,${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`,
-  ].join(';');
+  return `${atempoStage}${warmSlowMoFilter}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
 }
+
+const EDITOR_CLIENT_STATE_FILE = path.join(process.cwd(), 'data', 'editor-client-state.json');
+
+app.post('/api/editor/sync-client-state', (req, res) => {
+  try {
+    const incoming = req.body || {};
+    let existing: Record<string, any> = {};
+    if (fs.existsSync(EDITOR_CLIENT_STATE_FILE)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(EDITOR_CLIENT_STATE_FILE, 'utf8')) || {};
+      } catch {}
+    }
+    const merged = {
+      ...existing,
+      ...incoming,
+      formatProfiles: {
+        ...(existing.formatProfiles || {}),
+        ...(incoming.formatProfiles || {}),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    fs.mkdirSync(path.dirname(EDITOR_CLIENT_STATE_FILE), { recursive: true });
+    fs.writeFileSync(EDITOR_CLIENT_STATE_FILE, JSON.stringify(merged, null, 2), 'utf8');
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Failed to sync client state' });
+  }
+});
+
+app.get('/api/editor/sync-client-state', (_req, res) => {
+  try {
+    if (fs.existsSync(EDITOR_CLIENT_STATE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(EDITOR_CLIENT_STATE_FILE, 'utf8'));
+      res.json({ ok: true, state: data });
+      return;
+    }
+    res.json({ ok: true, state: null });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Failed to read client state' });
+  }
+});
 
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
@@ -3623,6 +3627,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       startedAt,
     };
 
+    let savedClientState: Record<string, any> = {};
+    if (fs.existsSync(EDITOR_CLIENT_STATE_FILE)) {
+      try {
+        savedClientState = JSON.parse(fs.readFileSync(EDITOR_CLIENT_STATE_FILE, 'utf8')) || {};
+      } catch {}
+    }
+    const targetFormatKey = aspectRatio === '9:16' || outH > outW ? '9:16' : '16:9';
+    const savedFormatProfile = savedClientState?.formatProfiles?.[targetFormatKey] || {};
+
     // Prepare burned-in overlay PNG files in local SSD temp dir (Logo, Hook Line 1/2, Captions)
     let logoOverlayInfo: {
       filePath: string;
@@ -3638,11 +3651,23 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           logoDataUrl = parsedLogo.logoDataUrl || '';
         } catch {}
       }
-      const defaultLogoW = aspectRatio === '9:16' || outH > outW ? 12 : 6;
-      const defaultLogoX = aspectRatio === '9:16' || outH > outW ? 10 : 3;
+      const defaultLogoW =
+        Number(savedFormatProfile.logoScalePct) > 0
+          ? Number(savedFormatProfile.logoScalePct)
+          : aspectRatio === '9:16' || outH > outW
+          ? 12
+          : 6;
+      const defaultLogoX =
+        typeof savedFormatProfile.logoPosX === 'number'
+          ? Number(savedFormatProfile.logoPosX)
+          : aspectRatio === '9:16' || outH > outW
+          ? 10
+          : 3;
+      const defaultLogoY =
+        typeof savedFormatProfile.logoPosY === 'number' ? Number(savedFormatProfile.logoPosY) : 3;
       const wPct = Math.max(1, Math.min(45, Number(overlays?.logo?.wPct ?? defaultLogoW)));
       const xPct = Math.max(0, Math.min(95, Number(overlays?.logo?.xPct ?? defaultLogoX)));
-      const yPct = Math.max(0, Math.min(95, Number(overlays?.logo?.yPct ?? 3)));
+      const yPct = Math.max(0, Math.min(95, Number(overlays?.logo?.yPct ?? defaultLogoY)));
       let rawLogoPath = '';
       if (logoDataUrl && String(logoDataUrl).startsWith('data:')) {
         const cleanB64 = String(logoDataUrl).replace(/^data:[^;]+;base64,/, '');
@@ -4145,8 +4170,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const capStyleCfg = overlays?.captionStyle || {};
         const reqCapFontSize = Number(
           isVertical916
-            ? capStyleCfg.fontSize9x16 ?? capStyleCfg.fontSize
-            : capStyleCfg.fontSize16x9 ?? capStyleCfg.fontSize
+            ? capStyleCfg.fontSize9x16 ?? capStyleCfg.fontSize ?? savedFormatProfile.captionFontSize
+            : capStyleCfg.fontSize16x9 ?? capStyleCfg.fontSize ?? savedFormatProfile.captionFontSize
         );
         const defaultCapFontSize = isVertical916 ? 21 : 25;
         const capFontScale =
@@ -4154,10 +4179,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             ? reqCapFontSize / defaultCapFontSize
             : 1;
         const capFontSizeAss = Math.round(
-          refShortSide * (isVertical916 ? 0.043 : 0.039) * capFontScale
+          refShortSide * (isVertical916 ? 0.052 : 0.039) * capFontScale
         );
         const reqBottomPct =
-          typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
+          typeof savedFormatProfile.captionBottomPct === 'number' &&
+          savedFormatProfile.captionBottomPct >= 2
+            ? savedFormatProfile.captionBottomPct
+            : typeof savedClientState?.overlayStyles?.captionBottomPct === 'number' &&
+              savedClientState.overlayStyles.captionBottomPct >= 2
+            ? savedClientState.overlayStyles.captionBottomPct
+            : typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
             ? capStyleCfg.bottomPct
             : isVertical916
             ? 15.5
@@ -4364,20 +4395,33 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      const cachedReframe =
-        isVertical916 && c.reframe9x16Mode !== 'manual' && c.reframe9x16Mode !== 'fit_blur'
-          ? reframeCacheByClipNum.get(Number(c.clipNumber))
-          : undefined;
+      const cachedReframe = isVertical916
+        ? reframeCacheByClipNum.get(Number(c.clipNumber))
+        : undefined;
       const effectiveReframeMode = cachedReframe?.reframe9x16Mode || c.reframe9x16Mode || 'auto_center';
+
+      const fpsInterpStage =
+        !usingPrebakedOpticalFlow && !isIntroClip && !isOutroClip && speed < 0.96
+          ? `framerate=fps=${safeFps}:interp_start=0:interp_end=255:scene=8.2`
+          : `fps=${safeFps}`;
 
       let scaleAndCropVf: string;
       if (isOutroClip) {
-        const innerW = Math.round(outW * (isVertical916 ? 0.92 : 0.88));
-        const innerH = Math.round(outH * (isVertical916 ? 0.92 : 0.88));
-        const padYExpr = isVertical916 ? '(oh-ih)/2' : 'round((oh-ih)*0.36)';
-        scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:${padYExpr}:black`;
+        if (isVertical916) {
+          const outroVertH = Math.round(outH * 0.66);
+          const outroVertW = Math.round(outroVertH * (16 / 9));
+          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${outroVertW}:${outroVertH}:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outroVertH}:(iw-${outW})/2:0,pad=${outW}:${outH}:0:(oh-ih)/2:black`;
+        } else {
+          const innerW = Math.round(outW * 0.88);
+          const innerH = Math.round(outH * 0.88);
+          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:round((oh-ih)*0.36):black`;
+        }
       } else if (isIntroClip) {
-        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+        if (isVertical916) {
+          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:(iw-${outW})/2:(ih-${outH})/2`;
+        } else {
+          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+        }
       } else if (isVertical916 && effectiveReframeMode !== 'fit_blur') {
         const rawXStart =
           typeof cachedReframe?.focusXStart === 'number'
@@ -4399,12 +4443,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${Math.max(0.5, effectiveClipDur).toFixed(3)})))))'`
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
-        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
+        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
       } else {
-        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
       }
 
-      const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},fps=${safeFps},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
+      const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
 
       const afFilter = await buildSmartNaturalFoleyFilter({
         ffmpegBin,
@@ -4439,12 +4483,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const nextVLbl = `vb_${++ovrCounter}`;
         if (i === 0) {
           overlayFilterSteps.push(
-            `[__INP_${inpIdx}__:v]format=rgba,fade=t=in:st=0:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=in:st=0:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
         } else if (isLastBodyClipBeforeOutro) {
           const logoFadeOutStart = Math.max(0, effectiveClipDur - 1.5);
           overlayFilterSteps.push(
-            `[__INP_${inpIdx}__:v]format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
         } else {
           overlayFilterSteps.push(
@@ -5780,7 +5824,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
     );
 
     let cachedMap: Record<string, SmartReframeClipResult> = {};
-    if (!forceRefresh && fs.existsSync(cacheFilePath)) {
+    if (fs.existsSync(cacheFilePath)) {
       try {
         cachedMap = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8')) || {};
       } catch {
@@ -5860,13 +5904,15 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
         } catch {}
 
         const cacheKey = `v3_${clipNum}_${info.fileName}`;
-        const existing = cachedMap[cacheKey];
+        const existing = cachedMap[cacheKey] || cachedMap[String(clipNum)];
         if (
-          !forceRefresh &&
           existing &&
-          existing.mtimeMs === statMtime &&
-          existing.sizeBytes === statSize
+          ((existing as any).verifiedAudit === true ||
+            (!forceRefresh && existing.mtimeMs === statMtime && existing.sizeBytes === statSize))
         ) {
+          existing.mtimeMs = statMtime;
+          existing.sizeBytes = statSize;
+          cachedMap[cacheKey] = existing;
           results.push(existing);
           continue;
         }

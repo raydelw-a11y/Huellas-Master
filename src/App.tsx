@@ -123,7 +123,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:37 AM - 11/06/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:00 AM - 11/06/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1811,6 +1811,34 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [mainView]);
+
+  useEffect(() => {
+    const syncLocalEditorState = () => {
+      try {
+        const rawProfiles = localStorage.getItem('huellas_editor_format_profiles_v1');
+        const rawStyles = localStorage.getItem('huellas_editor_overlay_styles_v1');
+        const parsedProfiles = rawProfiles ? JSON.parse(rawProfiles) : undefined;
+        const parsedStyles = rawStyles ? JSON.parse(rawStyles) : undefined;
+        if (parsedProfiles || parsedStyles) {
+          const isLocal =
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+          const srv = isLocal ? '' : 'http://localhost:4200';
+          fetch(`${srv}/api/editor/sync-client-state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              formatProfiles: parsedProfiles,
+              overlayStyles: parsedStyles,
+            }),
+          }).catch(() => {});
+        }
+      } catch {}
+    };
+    syncLocalEditorState();
+    const timer = window.setTimeout(syncLocalEditorState, 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [selectedRecreationModesByClip, setSelectedRecreationModesByClip] = useState<
     Record<
       string,

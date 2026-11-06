@@ -571,7 +571,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "01_00_00_00_06_Sin_Voz_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F01_Imagen_Inicial_00_00_00_06_Sin_Voz.jpg&v=1793722697429",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 28,
+        "reframeFocusXEnd": 84,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo del vapor en bahía hacia hombres en el muelle derecho"
       },
       {
         "id": "clip-2-1793475893350-2",
@@ -595,7 +601,13 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "02_Ano_1885_muelle_de_Maliano_Santander_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F02_Imagen_Inicial_Ano_1885_muelle_de_Maliano_Santander.jpg&v=1793721720109"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F02_Imagen_Inicial_Ano_1885_muelle_de_Maliano_Santander.jpg&v=1793721720109",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 18,
+        "reframeFocusXEnd": 80,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde emigrante a la izquierda hacia oficial sentado a la derecha"
       },
       {
         "id": "clip-3-1793475893350-3",
@@ -619,7 +631,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "03_el_oceano_Atlantico_hacia_un_destino_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F03_Imagen_Inicial_el_oceano_Atlantico_hacia_un_destino.jpg&v=1793709624528"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F03_Imagen_Inicial_el_oceano_Atlantico_hacia_un_destino.jpg&v=1793709624528",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 45,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento de multitud subiendo por la pasarela al vapor"
       },
       {
         "id": "clip-4-1793475893350-4",
@@ -643,7 +661,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "04_siempre_la_sangre_el_comercio_y_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F04_Imagen_Inicial_siempre_la_sangre_el_comercio_y.jpg&v=1793722697975"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F04_Imagen_Inicial_siempre_la_sangre_el_comercio_y.jpg&v=1793722697975",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 42,
+        "reframeFocusXEnd": 58,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo entre los dos escribientes en el escritorio"
       },
       {
         "id": "clip-5-1793475893350-5",
@@ -667,7 +691,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "05_de_hacer_la_America_desde_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F05_Imagen_Inicial_de_hacer_la_America_desde_las.jpg&v=1793721685215"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F05_Imagen_Inicial_de_hacer_la_America_desde_las.jpg&v=1793721685215",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el faro y rompiente hacia el vapor en la tormenta"
       },
       {
         "id": "clip-6-1793475893351-6",
@@ -691,7 +721,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "06_para_levantar_un_nuevo_mundo_Si_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F06_Imagen_Inicial_para_levantar_un_nuevo_mundo_Si.jpg&v=1793665898551"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F06_Imagen_Inicial_para_levantar_un_nuevo_mundo_Si.jpg&v=1793665898551",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Plano cenital simétrico de manos con lupa sobre el mapa"
       },
       {
         "id": "clip-7-1793475893351-7",
@@ -715,7 +751,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "07_suscribete_Cada_historia_deja_una_huella_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F07_Imagen_Inicial_suscribete_Cada_historia_deja_una_huella.jpg&v=1793667342124",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 85,
+        "reframeFocusXEnd": 55,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque en anciano escribiente a la derecha y transición a montañas"
       },
       {
         "id": "clip-8-1793475893351-8",
@@ -739,7 +781,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "08_de_Asturias_Galicia_Cantabria_y_las_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F08_Imagen_Inicial_de_Asturias_Galicia_Cantabria_y_las.jpg&v=1793722698496",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Familia y primer plano del mapa de España y Canarias centrado"
       },
       {
         "id": "clip-9-1793475893351-9",
@@ -763,7 +811,13 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "09_asturiano_de_Colunga_o_en_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F09_Imagen_Inicial_asturiano_de_Colunga_o_en_las.jpg&v=1793722026680"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F09_Imagen_Inicial_asturiano_de_Colunga_o_en_las.jpg&v=1793722026680",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde mujer junto al hórreo izquierdo hacia pareja en calle derecha"
       },
       {
         "id": "clip-10-1793475893351-10",
@@ -787,7 +841,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "10_techos_de_pizarra_negra_batidos_por_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F10_Imagen_Inicial_techos_de_pizarra_negra_batidos_por.jpg&v=1793722144212",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 34,
+        "reframeFocusXEnd": 44,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque en campesinos trabajando las terrazas de piedra"
       },
       {
         "id": "clip-11-1793475893351-11",
@@ -811,7 +871,13 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "11_Dentro_de_aquellas_viviendas_sin_chimeneas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F11_Imagen_Inicial_Dentro_de_aquellas_viviendas_sin_chimeneas.jpg&v=1793664172262"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F11_Imagen_Inicial_Dentro_de_aquellas_viviendas_sin_chimeneas.jpg&v=1793664172262",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 18,
+        "reframeFocusXEnd": 84,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo completo desde hombre junto al fuego izquierdo hacia familia a la derecha"
       },
       {
         "id": "clip-12-1793475893351-12",
@@ -835,7 +901,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "12_de_roble_y_tojo_bajo_un_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F12_Imagen_Inicial_de_roble_y_tojo_bajo_un.jpg&v=1793675193566"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F12_Imagen_Inicial_de_roble_y_tojo_bajo_un.jpg&v=1793675193566",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 68,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde los bueyes en el establo hacia el campesino a la derecha"
       },
       {
         "id": "clip-13-1793475893351-13",
@@ -859,7 +931,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "13_En_aquel_mundo_estancado_de_acuerdo_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F13_Imagen_Inicial_En_aquel_mundo_estancado_de_acuerdo.jpg&v=1793677157047"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F13_Imagen_Inicial_En_aquel_mundo_estancado_de_acuerdo.jpg&v=1793677157047",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Primer plano de mano dejando moneda junto al libro de cuentas"
       },
       {
         "id": "clip-14-1793475893351-14",
@@ -883,7 +961,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "14_entre_1_peseta_y_1_peseta_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F14_Imagen_Inicial_entre_1_peseta_y_1_peseta.jpg&v=1793679283228"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F14_Imagen_Inicial_entre_1_peseta_y_1_peseta.jpg&v=1793679283228",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 55,
+        "reframeFocusXEnd": 57,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque completo en el campesino cavando (cabeza y cuerpo íntegros en cuadro)"
       },
       {
         "id": "clip-15-1793475893351-15",
@@ -907,7 +991,13 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "15_mar_Existia_un_terror_aun_mas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F15_Imagen_Inicial_mar_Existia_un_terror_aun_mas.jpg&v=1793677167031"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F15_Imagen_Inicial_mar_Existia_un_terror_aun_mas.jpg&v=1793677167031",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 14,
+        "reframeFocusXEnd": 37,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Guardia clavando bando y encuadre 100% completo del cartel RECLUTAMIENTO 1885"
       },
       {
         "id": "clip-16-1793475893351-16",
@@ -931,7 +1021,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "16_de_julio_de_1885_establecia_que_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F16_Imagen_Inicial_de_julio_de_1885_establecia_que.jpg&v=1793679315888"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F16_Imagen_Inicial_de_julio_de_1885_establecia_que.jpg&v=1793679315888",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 80,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde bombo de sorteo a la izquierda hacia fila de jóvenes reclutas a la derecha"
       },
       {
         "id": "clip-17-1793475893351-17",
@@ -955,7 +1051,13 @@
         "reviewedForEditor": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "17_2_mil_pesetas_si_el_sorteo_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F17_Imagen_Inicial_2_mil_pesetas_si_el_sorteo.jpg&v=1793677174632"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F17_Imagen_Inicial_2_mil_pesetas_si_el_sorteo.jpg&v=1793677174632",
+        "reframe9x16Mode": "fit_blur",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Grabado histórico decimonónico completo con fondo difuminado"
       },
       {
         "id": "clip-18-1793475893352-18",
@@ -979,7 +1081,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "18_completos_de_trabajo_fisico_sin_comer_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F18_Imagen_Inicial_completos_de_trabajo_fisico_sin_comer.jpg&v=1793679339237"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F18_Imagen_Inicial_completos_de_trabajo_fisico_sin_comer.jpg&v=1793679339237",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 16,
+        "reframeFocusXEnd": 88,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo completo de izquierda a derecha del campesino firmando al prestamista"
       },
       {
         "id": "clip-19-1793475893352-19",
@@ -1003,7 +1111,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "19_billete_de_tercera_clase_en_vapor_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F19_Imagen_Inicial_billete_de_tercera_clase_en_vapor.jpg&v=1793677181607"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F19_Imagen_Inicial_billete_de_tercera_clase_en_vapor.jpg&v=1793677181607",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 38,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Primer plano de mano con moneda de plata abriendo hacia el vapor en el puerto"
       },
       {
         "id": "clip-20-1793475893352-20",
@@ -1027,7 +1141,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "20_pagar_2_mil_pesetas_para_no_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F20_Imagen_Inicial_pagar_2_mil_pesetas_para_no.jpg&v=1793677599545"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F20_Imagen_Inicial_pagar_2_mil_pesetas_para_no.jpg&v=1793677599545",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 55,
+        "reframeFocusXEnd": 65,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Abrazo inicial y encuadre conjunto manteniendo enfocados al hombre y a la madre"
       },
       {
         "id": "clip-21-1793475893352-21",
@@ -1051,7 +1171,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "21_Asi_comenzo_una_transferencia_demografica_monumental_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F21_Imagen_Inicial_Asi_comenzo_una_transferencia_demografica_monumental.jpg&v=1793679352821"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F21_Imagen_Inicial_Asi_comenzo_una_transferencia_demografica_monumental.jpg&v=1793679352821",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 44,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dos hombres trazando ruta con compás sobre el mapa"
       },
       {
         "id": "clip-22-1793475893352-22",
@@ -1075,7 +1201,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "22_se_sumo_al_menos_un_7a059ffb_1080p_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F22_Imagen_Inicial_se_sumo_al_menos_un_7a059ffb_1080p.jpg&v=1793708488333"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F22_Imagen_Inicial_se_sumo_al_menos_un_7a059ffb_1080p.jpg&v=1793708488333",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 60,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento del bote nocturno saliendo del muelle hacia la niebla"
       },
       {
         "id": "clip-23-1793475893352-23",
@@ -1099,7 +1231,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "23_y_Gibraltar_Incluso_el_aparato_militar_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F23_Imagen_Inicial_y_Gibraltar_Incluso_el_aparato_militar.jpg&v=1793679369592"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F23_Imagen_Inicial_y_Gibraltar_Incluso_el_aparato_militar.jpg&v=1793679369592",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 30,
+        "reframeFocusXEnd": 34,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque centrado en joven emigrante con mochila contemplando el puerto"
       },
       {
         "id": "clip-24-1793475893352-24",
@@ -1123,7 +1261,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "24_de_146_mil_jamas_regresaron_a_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F24_Imagen_Inicial_de_146_mil_jamas_regresaron_a.jpg&v=1793715033853"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F24_Imagen_Inicial_de_146_mil_jamas_regresaron_a.jpg&v=1793715033853",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 48,
+        "reframeFocusXEnd": 48,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dos cargadores tirando de carretillas por la calle empedrada"
       },
       {
         "id": "clip-25-1793475893352-25",
@@ -1147,7 +1291,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "25_registraba_mas_de_129_mil_residentes_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F25_Imagen_Inicial_registraba_mas_de_129_mil_residentes.jpg&v=1793679382493"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F25_Imagen_Inicial_registraba_mas_de_129_mil_residentes.jpg&v=1793679382493",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde mesa de registro a la izquierda hacia fila de reclutas a la derecha"
       },
       {
         "id": "clip-26-1793475893352-26",
@@ -1171,7 +1321,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "26_pisar_tierra_americana_aquellos_viajeros_debian_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F26_Imagen_Inicial_pisar_tierra_americana_aquellos_viajeros_debian.jpg&v=1793677199687"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F26_Imagen_Inicial_pisar_tierra_americana_aquellos_viajeros_debian.jpg&v=1793677199687",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 52,
+        "reframeFocusXEnd": 56,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Multitud en el muelle y chimenea humeante del trasatlántico"
       },
       {
         "id": "clip-27-1793475893352-27",
@@ -1195,7 +1351,13 @@
         "videoSavedFileName": "27_de_La_Coruna_de_donde_partieron_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F27_Imagen_Inicial_de_La_Coruna_de_donde_partieron.jpg&v=1793679395670"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F27_Imagen_Inicial_de_La_Coruna_de_donde_partieron.jpg&v=1793679395670",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 34,
+        "reframeFocusXEnd": 36,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dos mujeres con mantón leyendo carta en el muelle con vapor detrás"
       },
       {
         "id": "clip-28-1793475893352-28",
@@ -1219,7 +1381,13 @@
         "reviewedForEditor": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "28_y_Cadiz_miles_de_viajeros_con_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F28_Imagen_Inicial_y_Cadiz_miles_de_viajeros_con.jpg&v=1793677209059"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F28_Imagen_Inicial_y_Cadiz_miles_de_viajeros_con.jpg&v=1793677209059",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 38,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento de emigrantes subiendo el baúl de madera por la pasarela"
       },
       {
         "id": "clip-29-1793475893353-29",
@@ -1243,7 +1411,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "29_de_la_Compania_Trasatlantica_Espanola_o_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F29_Imagen_Inicial_de_la_Compania_Trasatlantica_Espanola_o.jpg&v=1793678351121"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F29_Imagen_Inicial_de_la_Compania_Trasatlantica_Espanola_o.jpg&v=1793678351121",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Emigrantes bajando por la escalera metálica hacia la tercera clase"
       },
       {
         "id": "clip-30-1793475893353-30",
@@ -1267,7 +1441,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "30_ingresaban_en_una_caverna_metalica_de_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F30_Imagen_Inicial_ingresaban_en_una_caverna_metalica_de.jpg&v=1793679328298",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 28,
+        "reframeFocusXEnd": 72,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo de literas izquierdas a literas derechas en el sollado de proa"
       },
       {
         "id": "clip-31-1793475893353-31",
@@ -1291,7 +1471,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "31_de_paja_marina_Durante_mas_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F31_Imagen_Inicial_de_paja_marina_Durante_mas_de.jpg&v=1793677606599"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F31_Imagen_Inicial_de_paja_marina_Durante_mas_de.jpg&v=1793677606599",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 58,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Hombre cerrando ojo de buey a la izquierda y giro hacia el interior"
       },
       {
         "id": "clip-32-1793475893353-32",
@@ -1315,7 +1501,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "32_irrespirable_El_olor_a_carbon_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F32_Imagen_Inicial_irrespirable_El_olor_a_carbon_de.jpg&v=1793679412087"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F32_Imagen_Inicial_irrespirable_El_olor_a_carbon_de.jpg&v=1793679412087",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 32,
+        "reframeFocusXEnd": 72,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo por la fila de emigrantes comiendo en tercera clase hacia la pareja derecha"
       },
       {
         "id": "clip-33-1793475893353-33",
@@ -1339,7 +1531,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "33_galleta_dura_y_bacalao_hervido_Atrajeran_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F33_Imagen_Inicial_galleta_dura_y_bacalao_hervido_Atrajeran.jpg&v=1793681052966"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F33_Imagen_Inicial_galleta_dura_y_bacalao_hervido_Atrajeran.jpg&v=1793681052966",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Joven leyendo carta bajo la lámpara entre las literas"
       },
       {
         "id": "clip-34-1793475893353-34",
@@ -1363,7 +1561,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "34_los_hombres_aplicados_se_hacian_ricos_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F34_Imagen_Inicial_los_hombres_aplicados_se_hacian_ricos.jpg&v=1793713639690"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F34_Imagen_Inicial_los_hombres_aplicados_se_hacian_ricos.jpg&v=1793713639690",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 26,
+        "reframeFocusXEnd": 82,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde hombres en la barandilla izquierda hacia mujeres con mantón a la derecha"
       },
       {
         "id": "clip-35-1793475893353-35",
@@ -1387,7 +1591,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "35_de_alfonso_xiii_todos_compartian_b823e90e_1080p_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F35_Imagen_Inicial_de_alfonso_xiii_todos_compartian_b823e90e_1080p.jpg&v=1793710632958"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F35_Imagen_Inicial_de_alfonso_xiii_todos_compartian_b823e90e_1080p.jpg&v=1793710632958",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 42,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde fogonero exhausto hacia fogoneros paleando carbón a la derecha"
       },
       {
         "id": "clip-36-1793475893353-36",
@@ -1411,7 +1621,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "36_enfrentaban_al_primer_filtro_del_Nuevo_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F36_Imagen_Inicial_enfrentaban_al_primer_filtro_del_Nuevo.jpg&v=1793681088421"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F36_Imagen_Inicial_enfrentaban_al_primer_filtro_del_Nuevo.jpg&v=1793681088421",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 48,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Sacerdote frente a la muralla portuaria de La Habana"
       },
       {
         "id": "clip-37-1793475893353-37",
@@ -1435,7 +1651,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "37_portuario_En_el_puerto_mexicano_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F37_Imagen_Inicial_portuario_En_el_puerto_mexicano_de.jpg&v=1793681125914"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F37_Imagen_Inicial_portuario_En_el_puerto_mexicano_de.jpg&v=1793681125914",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde mesa de control izquierda hacia emigrantes esperando bajo los arcos"
       },
       {
         "id": "clip-38-1793475893353-38",
@@ -1459,7 +1681,13 @@
         "videoSavedFileName": "38_junio_de_1894_los_medicos_inspeccionaban_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F38_Imagen_Inicial_junio_de_1894_los_medicos_inspeccionaban.jpg&v=1793679499678"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F38_Imagen_Inicial_junio_de_1894_los_medicos_inspeccionaban.jpg&v=1793679499678",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 28,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo por la barca repleta de emigrantes hacia el vapor al fondo"
       },
       {
         "id": "clip-39-1793475893354-39",
@@ -1483,7 +1711,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "39_La_Habana_quienes_no_viajaban_en_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F39_Imagen_Inicial_La_Habana_quienes_no_viajaban_en.jpg&v=1793681144551"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F39_Imagen_Inicial_La_Habana_quienes_no_viajaban_en.jpg&v=1793681144551",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 44,
+        "reframeFocusXEnd": 68,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Camino de subida y barracones de cuarentena de Triscornia"
       },
       {
         "id": "clip-40-1793475893354-40",
@@ -1507,7 +1741,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "40_Casablanca_donde_en_noviembre_de_1900_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F40_Imagen_Inicial_Casablanca_donde_en_noviembre_de_1900.jpg&v=1793681155388"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F40_Imagen_Inicial_Casablanca_donde_en_noviembre_de_1900.jpg&v=1793681155388",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 32,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque en los dos vigilantes/trabajadores en primer plano izquierdo"
       },
       {
         "id": "clip-41-1793475893354-41",
@@ -1531,7 +1771,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "41_con_una_paradoja_visual_inquietante_un_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F41_Imagen_Inicial_con_una_paradoja_visual_inquietante_un.jpg&v=1793681162035"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F41_Imagen_Inicial_con_una_paradoja_visual_inquietante_un.jpg&v=1793681162035",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque directo y estable en el médico de blanco leyendo su libro de registro"
       },
       {
         "id": "clip-42-1793475893354-42",
@@ -1555,7 +1801,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "42_paseo_central_por_jardines_con_35_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F42_Imagen_Inicial_paseo_central_por_jardines_con_35.jpg&v=1793681168958"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F42_Imagen_Inicial_paseo_central_por_jardines_con_35.jpg&v=1793681168958",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde baúles etiquetados a la izquierda hacia mesa de inspección derecha"
       },
       {
         "id": "clip-43-1793475893354-43",
@@ -1579,7 +1831,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "43_vestido_con_uniforme_de_dril_blanco_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F43_Imagen_Inicial_vestido_con_uniforme_de_dril_blanco.jpg&v=1793681175638"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F43_Imagen_Inicial_vestido_con_uniforme_de_dril_blanco.jpg&v=1793681175638",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 36,
+        "reframeFocusXEnd": 62,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Médico a la izquierda examinando los párpados del inmigrante a la derecha"
       },
       {
         "id": "clip-44-1793475893354-44",
@@ -1603,7 +1861,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "44_presion_con_olor_a_azufre_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F44_Imagen_Inicial_presion_con_olor_a_azufre_y.jpg&v=1793681182071"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F44_Imagen_Inicial_presion_con_olor_a_azufre_y.jpg&v=1793681182071",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 10,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el oficial de blanco a la izquierda hacia los hombres tras la reja a la derecha"
       },
       {
         "id": "clip-45-1793475893354-45",
@@ -1627,7 +1891,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "45_varilla_de_vidrio_buscando_granulaciones_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F45_Imagen_Inicial_varilla_de_vidrio_buscando_granulaciones_de.jpg&v=1793681190159"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F45_Imagen_Inicial_varilla_de_vidrio_buscando_granulaciones_de.jpg&v=1793681190159",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Pasillo central simétrico del pabellón de literas de Triscornia"
       },
       {
         "id": "clip-46-1793475893354-46",
@@ -1651,7 +1921,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "46_10_mil_inmigrantes_espanoles_y_para_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F46_Imagen_Inicial_10_mil_inmigrantes_espanoles_y_para.jpg&v=1793679621583"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F46_Imagen_Inicial_10_mil_inmigrantes_espanoles_y_para.jpg&v=1793679621583",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Cabecera completa del DIARIO DE LA MARINA y hombres conversando al fondo"
       },
       {
         "id": "clip-47-1793475893354-47",
@@ -1675,7 +1951,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "47_septiembre_de_1903_el_periodico_Diario_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F47_Imagen_Inicial_septiembre_de_1903_el_periodico_Diario.jpg&v=1793679639587"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F47_Imagen_Inicial_septiembre_de_1903_el_periodico_Diario.jpg&v=1793679639587",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde comerciantes de blanco a la izquierda hacia trabajadores tras la reja derecha"
       },
       {
         "id": "clip-48-1793475893354-48",
@@ -1699,7 +1981,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "48_de_inmigrantes_donde_contratistas_e_influyentes_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F48_Imagen_Inicial_de_inmigrantes_donde_contratistas_e_influyentes.jpg&v=1793679653165"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F48_Imagen_Inicial_de_inmigrantes_donde_contratistas_e_influyentes.jpg&v=1793679653165",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 34,
+        "reframeFocusXEnd": 48,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Guardia caminando junto a la alambrada al atardecer"
       },
       {
         "id": "clip-49-1793475893354-49",
@@ -1723,7 +2011,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "49_More_a_atentar_contra_su_propia_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F49_Imagen_Inicial_More_a_atentar_contra_su_propia.jpg&v=1793707016619"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F49_Imagen_Inicial_More_a_atentar_contra_su_propia.jpg&v=1793707016619",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 48,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Emigrante con maleta cruzando el portón del campamento"
       },
       {
         "id": "clip-50-1793475893354-50",
@@ -1747,7 +2041,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "50_se_encontraba_Ricardo_Ruiz_Balbin_un_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F50_Imagen_Inicial_se_encontraba_Ricardo_Ruiz_Balbin_un.jpg&v=1793681197731"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F50_Imagen_Inicial_se_encontraba_Ricardo_Ruiz_Balbin_un.jpg&v=1793681197731",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 42,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Quinqué encendido y joven escribiendo carta en la mesa"
       },
       {
         "id": "clip-51-1793475893354-51",
@@ -1771,7 +2071,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "51_su_traje_de_pana_humedo_y_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F51_Imagen_Inicial_su_traje_de_pana_humedo_y.jpg&v=1793681204007"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F51_Imagen_Inicial_su_traje_de_pana_humedo_y.jpg&v=1793681204007",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 68,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Madre anciana junto a la ventana abrazando la carta"
       },
       {
         "id": "clip-52-1793475893355-52",
@@ -1795,7 +2101,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "52_pana_por_el_dril_blanco_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F52_Imagen_Inicial_pana_por_el_dril_blanco_y.jpg&v=1793681210186"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F52_Imagen_Inicial_pana_por_el_dril_blanco_y.jpg&v=1793681210186",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 46,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dos mujeres con maletas caminando juntas por la calle empedrada"
       },
       {
         "id": "clip-53-1793475893355-53",
@@ -1819,7 +2131,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "53_su_salud_Sin_embargo_para_la_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F53_Imagen_Inicial_su_salud_Sin_embargo_para_la.jpg&v=1793681216497"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F53_Imagen_Inicial_su_salud_Sin_embargo_para_la.jpg&v=1793681216497",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 58,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Panadero en la puerta izquierda entrando hacia el interior de la panadería"
       },
       {
         "id": "clip-54-1793475893355-54",
@@ -1843,7 +2161,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "54_La_Habana_la_verdadera_prueba_apenas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F54_Imagen_Inicial_La_Habana_la_verdadera_prueba_apenas.jpg&v=1793681223179"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F54_Imagen_Inicial_La_Habana_la_verdadera_prueba_apenas.jpg&v=1793681223179",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 48,
+        "reframeFocusXEnd": 80,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Interior de bodega hacia el dependiente tras el mostrador derecho"
       },
       {
         "id": "clip-55-1793475893355-55",
@@ -1867,7 +2191,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "55_tiendas_y_panaderias_para_alcanzar_la_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F55_Imagen_Inicial_tiendas_y_panaderias_para_alcanzar_la.jpg&v=1793681229541"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F55_Imagen_Inicial_tiendas_y_panaderias_para_alcanzar_la.jpg&v=1793681229541",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el patrón a la izquierda del mostrador hacia el joven dependiente a la derecha"
       },
       {
         "id": "clip-56-1793475893355-56",
@@ -1891,7 +2221,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "56_Aguila_de_Oro_en_Puebla_las_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F56_Imagen_Inicial_Aguila_de_Oro_en_Puebla_las.jpg&v=1793681136159",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 54,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento del joven dependiente barriendo el almacén en penumbra"
       },
       {
         "id": "clip-57-1793475893355-57",
@@ -1915,7 +2251,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "57_rigido_sistema_de_dependientes_Reclamados_por_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F57_Imagen_Inicial_rigido_sistema_de_dependientes_Reclamados_por.jpg&v=1793681150871"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F57_Imagen_Inicial_rigido_sistema_de_dependientes_Reclamados_por.jpg&v=1793681150871",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 44,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Panadero introduciendo la pala hacia la boca encendida del horno a la derecha"
       },
       {
         "id": "clip-58-1793475893355-58",
@@ -1939,7 +2281,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "58_que_borraba_toda_frontera_entre_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F58_Imagen_Inicial_que_borraba_toda_frontera_entre_el.jpg&v=1793681105141"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F58_Imagen_Inicial_que_borraba_toda_frontera_entre_el.jpg&v=1793681105141",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Mujer abriendo los postigos de madera hacia la luz de la calle"
       },
       {
         "id": "clip-59-1793475893355-59",
@@ -1963,7 +2311,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "59_los_hornos_abovedados_de_ladrillo_refractario_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F59_Imagen_Inicial_los_hornos_abovedados_de_ladrillo_refractario.jpg&v=1793681072060"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F59_Imagen_Inicial_los_hornos_abovedados_de_ladrillo_refractario.jpg&v=1793681072060",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 56,
+        "reframeFocusXEnd": 56,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Enfoque fijo en la taza de café humeante y la botella sobre el mostrador"
       },
       {
         "id": "clip-60-1793475893355-60",
@@ -1987,7 +2341,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "60_de_la_noche_Para_ahorrar_alquileres_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F60_Imagen_Inicial_de_la_noche_Para_ahorrar_alquileres.jpg&v=1793681022833"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F60_Imagen_Inicial_de_la_noche_Para_ahorrar_alquileres.jpg&v=1793681022833",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 52,
+        "reframeFocusXEnd": 54,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dependiente exhausto sentado sobre el mostrador en la trastienda"
       },
       {
         "id": "clip-61-1793475893355-61",
@@ -2011,7 +2371,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "61_Al_echar_los_cerrojos_a_medianoche_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F61_Imagen_Inicial_Al_echar_los_cerrojos_a_medianoche.jpg&v=1793705889184"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F61_Imagen_Inicial_Al_echar_los_cerrojos_a_medianoche.jpg&v=1793705889184",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde dependientes sobre sacos a la izquierda hacia joven durmiendo a la derecha"
       },
       {
         "id": "clip-62-1793475893355-62",
@@ -2035,7 +2401,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "62_balanzas_de_platillos_de_laton_o_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F62_Imagen_Inicial_balanzas_de_platillos_de_laton_o.jpg&v=1793705940381"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F62_Imagen_Inicial_balanzas_de_platillos_de_laton_o.jpg&v=1793705940381",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 54,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Joven dependiente mirando la calle a través de la reja"
       },
       {
         "id": "clip-63-1793475893356-63",
@@ -2059,7 +2431,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "63_de_bacalao_aceite_de_oliva_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F63_Imagen_Inicial_de_bacalao_aceite_de_oliva_y.jpg&v=1793705868317"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F63_Imagen_Inicial_de_bacalao_aceite_de_oliva_y.jpg&v=1793705868317",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 54,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Contable escribiendo y primer plano de la pluma estilográfica sobre el libro"
       },
       {
         "id": "clip-64-1793475893356-64",
@@ -2083,7 +2461,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "64_recibian_sueldo_en_efectivo_y_cuando_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F64_Imagen_Inicial_recibian_sueldo_en_efectivo_y_cuando.jpg&v=1793705910513"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F64_Imagen_Inicial_recibian_sueldo_en_efectivo_y_cuando.jpg&v=1793705910513",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde alpargatas a la izquierda hacia los escribientes y libro de cuentas a la derecha"
       },
       {
         "id": "clip-65-1793475893356-65",
@@ -2107,7 +2491,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "65_corriente_de_la_que_descontaba_cada_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F65_Imagen_Inicial_corriente_de_la_que_descontaba_cada.jpg&v=1793679922933"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F65_Imagen_Inicial_corriente_de_la_que_descontaba_cada.jpg&v=1793679922933",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 38,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Encuadre conjunto manteniendo enfocados a ambos hombres estrechándose la mano"
       },
       {
         "id": "clip-66-1793475893356-66",
@@ -2131,7 +2521,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "66_sumision_absoluta_sin_tocar_su_dinero_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F66_Imagen_Inicial_sumision_absoluta_sin_tocar_su_dinero.jpg&v=1793705828071"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F66_Imagen_Inicial_sumision_absoluta_sin_tocar_su_dinero.jpg&v=1793705828071",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 26,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo panorámico por los palacios del Centro Gallego y Asturiano en La Habana"
       },
       {
         "id": "clip-67-1793475893356-67",
@@ -2155,7 +2551,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "67_Aquella_fortuna_levantada_a_base_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F67_Imagen_Inicial_Aquella_fortuna_levantada_a_base_de.jpg&v=1793716302353"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F67_Imagen_Inicial_Aquella_fortuna_levantada_a_base_de.jpg&v=1793716302353",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde enfermeras a la izquierda hacia médicos y pacientes bajo la galería derecha"
       },
       {
         "id": "clip-68-1793475893356-68",
@@ -2179,7 +2581,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "68_colosales_como_la_Quinta_Covadonga_del_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F68_Imagen_Inicial_colosales_como_la_Quinta_Covadonga_del.jpg&v=1793724323328"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F68_Imagen_Inicial_colosales_como_la_Quinta_Covadonga_del.jpg&v=1793724323328",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 28,
+        "reframeFocusXEnd": 72,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo por la multitud reunida frente a la Quinta de Salud"
       },
       {
         "id": "clip-69-1793475893356-69",
@@ -2203,7 +2611,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "69_Mexico_ademas_de_financiar_cientos_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F69_Imagen_Inicial_Mexico_ademas_de_financiar_cientos_de.jpg&v=1793706953978"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F69_Imagen_Inicial_Mexico_ademas_de_financiar_cientos_de.jpg&v=1793706953978",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde jornaleros sentados a la izquierda hacia jornaleros a la derecha del ingenio"
       },
       {
         "id": "clip-70-1793475893356-70",
@@ -2227,7 +2641,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "70_Pero_por_otro_lado_quedo_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F70_Imagen_Inicial_Pero_por_otro_lado_quedo_el.jpg&v=1793679994530"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F70_Imagen_Inicial_Pero_por_otro_lado_quedo_el.jpg&v=1793679994530",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 42,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Fila de repatriados en el muelle junto al buque REPATRIACIÓN"
       },
       {
         "id": "clip-71-1793475893356-71",
@@ -2251,7 +2671,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "71_el_empleo_el_Diario_de_la_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F71_Imagen_Inicial_el_empleo_el_Diario_de_la.jpg&v=1793705940681"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F71_Imagen_Inicial_el_empleo_el_Diario_de_la.jpg&v=1793705940681",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 56,
+        "reframeFocusXEnd": 75,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento del anciano sentado en el catre a medida que avanza la cámara"
       },
       {
         "id": "clip-72-1793475893356-72",
@@ -2275,7 +2701,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "72_Triscornia_o_repatriados_por_caridad_Muchos_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F72_Imagen_Inicial_Triscornia_o_repatriados_por_caridad_Muchos.jpg&v=1793716399383"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F72_Imagen_Inicial_Triscornia_o_repatriados_por_caridad_Muchos.jpg&v=1793716399383",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 44,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Mujer de luto caminando por el sendero de piedra bajo la niebla"
       },
       {
         "id": "clip-73-1793475893357-73",
@@ -2299,7 +2731,13 @@
         "videoAttempts": 1,
         "videoSavedFileName": "73_apagarse_en_el_anonimato_antes_que_4K.mp4",
         "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F73_Imagen_Inicial_apagarse_en_el_anonimato_antes_que.jpg&v=1793680042413",
-        "recreated": false
+        "recreated": false,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 34,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el vapor llegando al puerto hacia la multitud saludando a la derecha"
       },
       {
         "id": "clip-74-1793475893357-74",
@@ -2323,7 +2761,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "74_dio_un_giro_definitivo_El_13_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F74_Imagen_Inicial_dio_un_giro_definitivo_El_13.jpg&v=1793706391937"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F74_Imagen_Inicial_dio_un_giro_definitivo_El_13.jpg&v=1793706391937",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 26,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el trasatlántico atracado hacia los hombres en el muelle derecho"
       },
       {
         "id": "clip-75-1793475893357-75",
@@ -2347,7 +2791,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "75_en_el_muelle_de_Veracruz_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F75_Imagen_Inicial_en_el_muelle_de_Veracruz_el.jpg&v=1793706962635"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F75_Imagen_Inicial_en_el_muelle_de_Veracruz_el.jpg&v=1793706962635",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 52,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Dos hombres abrazándose emocionados en el muelle"
       },
       {
         "id": "clip-76-1793475893357-76",
@@ -2371,7 +2821,13 @@
         "videoSavedFileName": "76_gastado_boina_negra_chamarra_de_pastor_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F76_Imagen_Inicial_gastado_boina_negra_chamarra_de_pastor.jpg&v=1793716874412"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F76_Imagen_Inicial_gastado_boina_negra_chamarra_de_pastor.jpg&v=1793716874412",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Seguimiento del emigrante retornado con boina y gafas en la cubierta"
       },
       {
         "id": "clip-77-1793475893357-77",
@@ -2395,7 +2851,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "77_obreros_que_al_dia_siguiente_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F77_Imagen_Inicial_obreros_que_al_dia_siguiente_de.jpg&v=1793706618870"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F77_Imagen_Inicial_obreros_que_al_dia_siguiente_de.jpg&v=1793706618870",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 20,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde los dos hombres en la mesa izquierda hacia los talleres de imprenta a la derecha"
       },
       {
         "id": "clip-78-1793475893357-78",
@@ -2419,7 +2881,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "78_huella_de_aquel_exodo_late_en_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F78_Imagen_Inicial_huella_de_aquel_exodo_late_en.jpg&v=1793706639531"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F78_Imagen_Inicial_huella_de_aquel_exodo_late_en.jpg&v=1793706639531",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 52,
+        "reframeFocusXEnd": 56,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Panadero al fondo y hogazas de pan dorado en primer plano"
       },
       {
         "id": "clip-79-1793475893357-79",
@@ -2443,7 +2911,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "79_bodegas_y_palacios_habaneros_en_las_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F79_Imagen_Inicial_bodegas_y_palacios_habaneros_en_las.jpg&v=1793718124885"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F79_Imagen_Inicial_bodegas_y_palacios_habaneros_en_las.jpg&v=1793718124885",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 26,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde la pareja en la balaustrada izquierda hacia la casona de indianos"
       },
       {
         "id": "clip-80-1793475893357-80",
@@ -2467,7 +2941,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "80_que_existen_gracias_al_coraje_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F80_Imagen_Inicial_que_existen_gracias_al_coraje_de.jpg&v=1793706578941"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F80_Imagen_Inicial_que_existen_gracias_al_coraje_de.jpg&v=1793706578941",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 44,
+        "reframeFocusXEnd": 46,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Baúl de madera atado con cuerdas centrado sobre los adoquines del muelle"
       },
       {
         "id": "clip-81-1793475893357-81",
@@ -2491,7 +2971,13 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "81_tus_venas_tambien_corre_la_historia_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F81_Imagen_Inicial_tus_venas_tambien_corre_la_historia.jpg&v=1793706620488"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F81_Imagen_Inicial_tus_venas_tambien_corre_la_historia.jpg&v=1793706620488",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 26,
+        "reframeFocusXEnd": 74,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo desde el historiador anciano con vela a la izquierda hacia el joven de pie a la derecha"
       },
       {
         "id": "clip-82-1793475893357-82",
@@ -2515,7 +3001,13 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "82_rastros_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F82_Imagen_Inicial_rastros.jpg&v=1793718471302"
+        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F82_Imagen_Inicial_rastros.jpg&v=1793718471302",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 58,
+        "reframeFocusXEnd": 62,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Joven historiador y libro lacrado sobre el escritorio"
       }
     ],
     "capcutRawSrt": "",
