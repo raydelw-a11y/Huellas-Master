@@ -5010,17 +5010,31 @@ async function analyzeClipSmartReframe9x16(
 
   const leftHumanPeak = Math.max(bandEyeHuman[1], bandEyeHuman[2]);
   const leftLowerPeak = Math.max(bandLowerSubj[1], bandLowerSubj[2]);
+  const leftMidHumanPeak = Math.max(bandEyeHuman[2], bandEyeHuman[3]);
+  const leftMidLowerPeak = Math.max(bandLowerSubj[2], bandLowerSubj[3]);
   const rightSceneSubjPeak = Math.max(bandLowerSubj[5], bandLowerSubj[6], bandLowerSubj[7]);
   const rightSceneHorizPeak = Math.max(bandHorizonObj[5], bandHorizonObj[6], bandHorizonObj[7]);
   const valleyEye34 = Math.min(bandEyeHuman[3], bandEyeHuman[4]);
+  const valleyEye45 = Math.min(bandEyeHuman[4], bandEyeHuman[5]);
   const valleyHoriz34 = Math.min(bandHorizonObj[3], bandHorizonObj[4]);
   const valleySubj3 = bandLowerSubj[3];
+  const valleySubj45 = Math.min(bandLowerSubj[4], bandLowerSubj[5]);
+
+  const hasMidLeftPoleToRightCounter =
+    bandEyeHuman[3] > bandEyeHuman[2] * 1.35 &&
+    valleyEye45 < leftMidHumanPeak * 0.68 &&
+    valleyEye45 < rightHumanPeak * 0.78 &&
+    valleySubj45 < leftMidLowerPeak * 0.82 &&
+    valleySubj45 < Math.max(bandLowerSubj[6], bandLowerSubj[7], bandLowerSubj[8]) * 0.80 &&
+    valleyHoriz56 < Math.max(bandHorizonObj[3], bandHorizonObj[4]) * 0.78 &&
+    valleyHoriz56 < Math.max(bandHorizonObj[7], bandHorizonObj[8]) * 0.78;
 
   const hasLeftPoleWithRightSubject =
     !hasTwoShotPrompt &&
-    ((leftHumanPeak > Math.max(bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 1.45 &&
-      rightSceneHorizPeak > valleyHoriz34 * 1.35 &&
-      rightSceneSubjPeak > bandLowerSubj[8] * 1.35) ||
+    (hasMidLeftPoleToRightCounter ||
+      (leftHumanPeak > Math.max(bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 1.45 &&
+        rightSceneHorizPeak > valleyHoriz34 * 1.35 &&
+        rightSceneSubjPeak > bandLowerSubj[8] * 1.35) ||
       (valleyEye34 < leftHumanPeak * 0.68 &&
         valleyEye34 <
           Math.max(bandEyeHuman[4], bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 0.68 &&
@@ -5028,6 +5042,23 @@ async function analyzeClipSmartReframe9x16(
         valleySubj3 < rightSceneSubjPeak * 0.82));
 
   if (hasLeftPoleWithRightSubject) {
+    if (hasMidLeftPoleToRightCounter) {
+      const fStart = 28;
+      const fEnd =
+        bandEyeHuman[8] + bandHorizonObj[8] >= (bandEyeHuman[7] + bandHorizonObj[7]) * 0.9
+          ? 80
+          : 76;
+      return {
+        clipNumber,
+        fileName,
+        reframe9x16Mode: 'auto_pan',
+        focusXStart: fStart,
+        focusXEnd: fEnd,
+        focusY: 50,
+        confidence: Number(Math.max(0.84, avgConf).toFixed(2)),
+        reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) desde sujeto izquierdo hacia escena derecha (Izq → Der)`,
+      };
+    }
     const lBand =
       bandEyeHuman[2] + bandLowerSubj[2] >= bandEyeHuman[1] + bandLowerSubj[1] ? 2 : 1;
     const fStart = lBand === 2 ? 22 : 18;
