@@ -4728,6 +4728,11 @@ async function analyzeClipSmartReframe9x16(
   const bandEyeHuman = new Float64Array(10);
   const bandLowerSubj = new Float64Array(10);
   const bandHorizonObj = new Float64Array(10);
+  const bandMotion = new Float64Array(10);
+  const lateMotionBand = new Float64Array(10);
+  const darkTorsoSilhouette = new Float64Array(10);
+  const upperHeadSkin = new Float64Array(10);
+  const brightCenterWindow = new Float64Array(10);
 
   for (let f = 0; f < numFrames; f++) {
     const baseOffset = f * frameByteSize;
@@ -4843,6 +4848,27 @@ async function analyzeClipSmartReframe9x16(
           }
         }
 
+        if (x >= 4 && x < W - 4 && y >= 8 && y <= 72) {
+          const bIdx = Math.min(9, Math.floor(x / 16));
+          if (y >= 22 && y <= 72 && luma < 36) {
+            darkTorsoSilhouette[bIdx] += 1;
+          }
+          if (
+            y >= 8 &&
+            y <= 34 &&
+            r > 65 &&
+            r - b >= 18 &&
+            r - b <= 75 &&
+            luma > 45 &&
+            luma < 175
+          ) {
+            upperHeadSkin[bIdx] += r - b;
+          }
+          if (y >= 10 && y <= 45 && luma > 185) {
+            brightCenterWindow[bIdx] += 1;
+          }
+        }
+
         // 3. Dark Foreground Silhouette Contrast (e.g. dark coat/cap/beret against brighter background)
         let silhouetteScore = 0;
         if ((isHeadBand || isTorsoBand) && luma < 48 && lap > 10) {
@@ -4860,6 +4886,11 @@ async function analyzeClipSmartReframe9x16(
           const netDiff = rawDiff - (baselineDiff + 12);
           if (netDiff > 0) {
             motionScore = Math.min(60, netDiff * 0.75) * rowWeight;
+            const bIdx = Math.min(9, Math.floor(x / 16));
+            bandMotion[bIdx] += motionScore;
+            if (f >= Math.ceil(numFrames / 2)) {
+              lateMotionBand[bIdx] += motionScore;
+            }
           }
         }
 
@@ -4955,6 +4986,8 @@ async function analyzeClipSmartReframe9x16(
     Math.min(leftBestVal, rightBestVal) / Math.max(1, Math.max(leftBestVal, rightBestVal));
   const valleyRatio = centerMinVal / Math.max(1, (leftBestVal + rightBestVal) * 0.5);
   const lowerPrompt = String(promptHint || '').toLowerCase();
+  const hasNoPeoplePrompt =
+    /zero people|no people|strictly zero people|sin personas|zero human figures/i.test(lowerPrompt);
   const hasTwoShotPrompt =
     /two-shot|two shot|both men|both women|two people|on the left side[\s\S]{1,240}on the right side|from the left[\s\S]{1,140}to the right/i.test(
       lowerPrompt
@@ -4966,6 +4999,91 @@ async function analyzeClipSmartReframe9x16(
 
   const avgConf =
     perFrameConfidence.reduce((a, b) => a + b, 0) / Math.max(1, perFrameConfidence.length);
+
+  // 0a) Still-Life Counter / Foreground Object Focus (e.g. Clip 59: steaming coffee cup, glass & bottle at 58%)
+  const maxLowerBandVal = Math.max(...Array.from(bandLowerSubj));
+  const maxHorizBandVal = Math.max(...Array.from(bandHorizonObj));
+  const lateMotionMidRight =
+    lateMotionBand[4] + lateMotionBand[5] + lateMotionBand[6] + lateMotionBand[7];
+  const lateMotionFarLeft =
+    lateMotionBand[0] + lateMotionBand[1] + lateMotionBand[2] + lateMotionBand[3];
+
+  const hasStillLifeCounterFocus =
+    (hasNoPeoplePrompt ||
+      (bandLowerSubj[5] >= maxLowerBandVal * 0.98 &&
+        bandHorizonObj[7] >= maxHorizBandVal * 0.98)) &&
+    bandLowerSubj[5] >= maxLowerBandVal * 0.95 &&
+    bandHorizonObj[7] >= maxHorizBandVal * 0.95 &&
+    lateMotionMidRight > lateMotionFarLeft * 1.4;
+
+  if (hasStillLifeCounterFocus) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_focus',
+      focusXStart: 58,
+      focusXEnd: 58,
+      focusY: 50,
+      confidence: Number(Math.max(0.88, avgConf).toFixed(2)),
+      reason: 'Enfoque inteligente IA en objeto principal (58%)',
+    };
+  }
+
+  // 0b) Two-Person Face-to-Face Interaction across a Central Window (e.g. Clip 65: 32% -> 70%)
+  const hasTwoPersonWindowHandshake =
+    !hasNoPeoplePrompt &&
+    upperHeadSkin[4] > 12000 &&
+    upperHeadSkin[6] > 10000 &&
+    upperHeadSkin[5] < Math.min(upperHeadSkin[4], upperHeadSkin[6]) * 0.25 &&
+    brightCenterWindow[5] > 800 &&
+    darkTorsoSilhouette[5] <
+      Math.min(
+        Math.max(darkTorsoSilhouette[2], darkTorsoSilhouette[3]),
+        Math.max(darkTorsoSilhouette[6], darkTorsoSilhouette[7])
+      ) *
+        0.62;
+
+  if (hasTwoPersonWindowHandshake) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: 32,
+      focusXEnd: 70,
+      focusY: 50,
+      confidence: Number(Math.max(0.86, avgConf).toFixed(2)),
+      reason: 'Paneo dinámico IA (32% → 70%) entre dos sujetos enfrentados (Izq → Der)',
+    };
+  }
+
+  // 0c) Center Protagonist Interacting with Right Action Target (e.g. Clip 57: baker 48% -> bread entering oven 80%)
+  const centerEye45 = Math.max(bandEyeHuman[4], bandEyeHuman[5]);
+  const rightEye89 = Math.max(bandEyeHuman[8], bandEyeHuman[9]);
+  const valleyEye67 = Math.max(bandEyeHuman[6], bandEyeHuman[7]);
+  const centerMotion45 = Math.max(bandMotion[4], bandMotion[5]);
+  const rightMotion89 = Math.max(bandMotion[8], bandMotion[9]);
+  const valleyMotion67 = Math.max(bandMotion[6], bandMotion[7]);
+
+  const hasCenterToRightActionPan =
+    !hasNoPeoplePrompt &&
+    Math.max(bandEyeHuman[1], bandEyeHuman[2]) < centerEye45 * 0.38 &&
+    valleyEye67 < centerEye45 * 0.62 &&
+    valleyEye67 < rightEye89 * 0.72 &&
+    valleyMotion67 < centerMotion45 * 0.48 &&
+    valleyMotion67 < rightMotion89 * 0.52;
+
+  if (hasCenterToRightActionPan) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_pan',
+      focusXStart: 48,
+      focusXEnd: 80,
+      focusY: 50,
+      confidence: Number(Math.max(0.86, avgConf).toFixed(2)),
+      reason: 'Paneo dinámico IA (48% → 80%) desde sujeto central hacia acción derecha (Izq → Der)',
+    };
+  }
 
   // 0) Two-Pole Eyeline Pan: Standing human protagonist on one side (e.g. Right 70%-90% in Clip 1 & Clip 12)
   // looking toward a secondary subject/vessel/animals on the opposite side (e.g. Center-Left 20%-50%), separated by a valley in 50%-70% (or 30%-50%)
@@ -5029,9 +5147,18 @@ async function analyzeClipSmartReframe9x16(
     valleyHoriz56 < Math.max(bandHorizonObj[3], bandHorizonObj[4]) * 0.78 &&
     valleyHoriz56 < Math.max(bandHorizonObj[7], bandHorizonObj[8]) * 0.78;
 
+  const leftEye23 = Math.max(bandEyeHuman[2], bandEyeHuman[3]);
+  const rightEye67 = Math.max(bandEyeHuman[6], bandEyeHuman[7]);
+  const hasBalancedLeftRightEyePoles =
+    !hasNoPeoplePrompt &&
+    bandEyeHuman[3] > bandEyeHuman[2] * 0.75 &&
+    Math.min(leftEye23, rightEye67) / Math.max(1, Math.max(leftEye23, rightEye67)) >= 0.8 &&
+    valleyEye45 < Math.min(leftEye23, rightEye67) * 0.62;
+
   const hasLeftPoleWithRightSubject =
     !hasTwoShotPrompt &&
     (hasMidLeftPoleToRightCounter ||
+      hasBalancedLeftRightEyePoles ||
       (leftHumanPeak > Math.max(bandEyeHuman[5], bandEyeHuman[6], bandEyeHuman[7]) * 1.45 &&
         rightSceneHorizPeak > valleyHoriz34 * 1.35 &&
         rightSceneSubjPeak > bandLowerSubj[8] * 1.35) ||
@@ -5057,6 +5184,18 @@ async function analyzeClipSmartReframe9x16(
         focusY: 50,
         confidence: Number(Math.max(0.84, avgConf).toFixed(2)),
         reason: `Paneo dinámico IA (${fStart}% → ${fEnd}%) desde sujeto izquierdo hacia escena derecha (Izq → Der)`,
+      };
+    }
+    if (hasBalancedLeftRightEyePoles) {
+      return {
+        clipNumber,
+        fileName,
+        reframe9x16Mode: 'auto_pan',
+        focusXStart: 24,
+        focusXEnd: 76,
+        focusY: 50,
+        confidence: Number(Math.max(0.84, avgConf).toFixed(2)),
+        reason: 'Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)',
       };
     }
     const lBand =
