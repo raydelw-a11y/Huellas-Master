@@ -3724,16 +3724,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           })
         : 0;
 
-      const trimStartSec = usingPrebakedOpticalFlow
-        ? 0
-        : Math.max(0, Number(c.trimStart || 0));
-      const rawTrimEnd = usingPrebakedOpticalFlow
-        ? 0
-        : Number(c.trimEnd || 0) > trimStartSec
-        ? Number(c.trimEnd)
-        : 0;
+      const trimStartSec =
+        usingPrebakedOpticalFlow || isIntroClip || isOutroClip
+          ? 0
+          : Math.max(0, Number(c.trimStart || 0));
+      const rawTrimEnd =
+        usingPrebakedOpticalFlow || isIntroClip || isOutroClip
+          ? 0
+          : Number(c.trimEnd || 0) > trimStartSec
+          ? Number(c.trimEnd)
+          : 0;
       const trimEndSec =
-        !usingPrebakedOpticalFlow && probedSegDur > 0.4
+        !usingPrebakedOpticalFlow && !isIntroClip && !isOutroClip && probedSegDur > 0.4
           ? rawTrimEnd > trimStartSec + 0.1 && rawTrimEnd < probedSegDur - 0.05
             ? rawTrimEnd
             : Math.max(trimStartSec + 0.2, probedSegDur - 0.04)
@@ -3744,22 +3746,31 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : probedSegDur > trimStartSec + 0.2
           ? probedSegDur - trimStartSec
           : 0;
-      const speed = usingPrebakedOpticalFlow
-        ? 1
-        : slotDur > 0.3 && effectiveSpan > 0.2
-        ? Math.max(0.15, Math.min(4.0, effectiveSpan / slotDur))
-        : Number(c.speed) > 0
-        ? Number(c.speed)
-        : 1;
-      const ptsFactor = usingPrebakedOpticalFlow
-        ? '1.0000'
-        : slotDur > 0.3 && effectiveSpan > 0.2
-        ? ((slotDur + 0.06) / effectiveSpan).toFixed(5)
-        : (1 / speed).toFixed(4);
+      const speed =
+        usingPrebakedOpticalFlow || isIntroClip || isOutroClip
+          ? 1
+          : slotDur > 0.3 && effectiveSpan > 0.2
+          ? Math.max(0.15, Math.min(4.0, effectiveSpan / slotDur))
+          : Number(c.speed) > 0
+          ? Number(c.speed)
+          : 1;
+      const ptsFactor =
+        usingPrebakedOpticalFlow || isIntroClip || isOutroClip
+          ? '1.0000'
+          : slotDur > 0.3 && effectiveSpan > 0.2
+          ? ((slotDur + 0.06) / effectiveSpan).toFixed(5)
+          : (1 / speed).toFixed(4);
       const isFirstClipAfterIntro =
         !isIntroClip &&
         !isOutroClip &&
         (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
+      const nextClipInList = clips[i + 1];
+      const isLastBodyClipBeforeOutro =
+        !isIntroClip &&
+        !isOutroClip &&
+        (i === clips.length - 1 ||
+          Number(nextClipInList?.clipNumber) === 999 ||
+          /outro_huellas/i.test(String(nextClipInList?.fileName || '')));
       const isClipMuted =
         Boolean(c.audioMuted) ||
         (typeof c.foleyVolume === 'number' && c.foleyVolume <= 0.0001);
@@ -3773,7 +3784,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? 0.8
         : 0.2;
       const rawClipDur =
-        slotDur > 0.3
+        isIntroClip || isOutroClip
+          ? slotDur > 0.5
+            ? slotDur
+            : 8
+          : slotDur > 0.3
           ? slotDur
           : probedSegDur > 0.3
           ? probedSegDur
@@ -3794,8 +3809,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const effectiveClipDur = targetSegFrames / safeFps;
       const segEndSec = segEndFrame / safeFps;
 
-      const defaultAudioFadeIn = isIntroClip || isOutroClip ? 1.5 : isFirstClipAfterIntro ? 1.2 : 0;
-      const defaultAudioFadeOut = isIntroClip || isOutroClip ? 2.5 : 0;
+      const defaultAudioFadeIn = isIntroClip ? 1.0 : isOutroClip ? 0.5 : isFirstClipAfterIntro ? 1.2 : 0;
+      const defaultAudioFadeOut = isIntroClip ? 2.0 : isOutroClip ? 1.2 : 0;
       const audioFadeInSec =
         typeof c.audioFadeInSec === 'number' ? Math.max(0, c.audioFadeInSec) : defaultAudioFadeIn;
       const audioFadeOutSec =
@@ -3815,7 +3830,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : isIntroClip
         ? ',fade=t=in:st=0:d=0.6,fade=t=out:st=7.2:d=0.8'
         : isOutroClip
-        ? ',fade=t=in:st=0:d=1.2,fade=t=out:st=5.5:d=2.5'
+        ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - 0.8).toFixed(2)}:d=0.8`
+        : isLastBodyClipBeforeOutro
+        ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - 1.0).toFixed(2)}:d=1.0`
         : '';
       const vfTrimSuffix =
         targetSegFrames > 1
@@ -3838,13 +3855,102 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       if (overlappingCaptions.length > 0 || hasAssHook) {
         const assEvents: string[] = [];
         const blurScale = Math.max(1, refShortSide / 1080);
-        const capWordBlur = Math.round(14 * blurScale);
+        const capStyleCfg = overlays?.captionStyle || {};
+        const reqCapFontSize = Number(
+          isVertical916
+            ? capStyleCfg.fontSize9x16 ?? capStyleCfg.fontSize
+            : capStyleCfg.fontSize16x9 ?? capStyleCfg.fontSize
+        );
+        const defaultCapFontSize = isVertical916 ? 21 : 25;
+        const capFontScale =
+          Number.isFinite(reqCapFontSize) && reqCapFontSize >= 10
+            ? reqCapFontSize / defaultCapFontSize
+            : 1;
+        const capFontSizeAss = Math.round(
+          refShortSide * (isVertical916 ? 0.043 : 0.039) * capFontScale
+        );
+        const reqBottomPct =
+          typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
+            ? capStyleCfg.bottomPct
+            : isVertical916
+            ? 15.5
+            : 11;
+        const capMarginV = Math.round(outH * (reqBottomPct / 100));
+        const capWideOffsetY = Math.max(2, Math.round(refShortSide * 0.004));
+        const capTightOffsetY = Math.max(1, Math.round(refShortSide * 0.002));
+        const capWideMarginV = Math.max(0, capMarginV - capWideOffsetY);
+        const capTightMarginV = Math.max(0, capMarginV - capTightOffsetY);
+
+        const capBgStyle = String(capStyleCfg.bgStyle || 'word_shadow');
+        const rawBgOpacity =
+          typeof capStyleCfg.bgOpacity === 'number' && Number.isFinite(capStyleCfg.bgOpacity)
+            ? Math.max(5, Math.min(100, capStyleCfg.bgOpacity))
+            : 30;
+        // Calibrate word_shadow center alpha so after Gaussian blur its center matches CSS backgroundColor (30%) + outer box-shadow (25.5%)
+        const effectivePillOpacity =
+          capBgStyle === 'solid'
+            ? 0.95
+            : capBgStyle === 'word_shadow'
+            ? Math.min(0.95, (rawBgOpacity / 100) * 1.18)
+            : rawBgOpacity / 100;
+        const pillAlphaInt = Math.max(0, Math.min(255, Math.round((1 - effectivePillOpacity) * 255)));
+        const pillAlphaHex = pillAlphaInt.toString(16).toUpperCase().padStart(2, '0');
+        const rawBgHex = String(capStyleCfg.bgColor || '#000000').replace('#', '');
+        const capPillAssColor =
+          /^[0-9a-fA-F]{6}$/.test(rawBgHex)
+            ? `&H${pillAlphaHex}${rawBgHex.slice(4, 6).toUpperCase()}${rawBgHex.slice(2, 4).toUpperCase()}${rawBgHex.slice(0, 2).toUpperCase()}`
+            : `&H${pillAlphaHex}000000`;
+
+        const capPillBlur =
+          capBgStyle === 'word_shadow'
+            ? Number((7.2 * blurScale).toFixed(1))
+            : Number((1.2 * blurScale).toFixed(1));
         const capWideBlur = Math.round(8 * blurScale);
         const capTightBlur = Number((2 * blurScale).toFixed(1));
         const hook1WideBlur = Math.round(9 * blurScale);
         const hook1TightBlur = Number((2 * blurScale).toFixed(1));
         const hook2WideBlur = Math.round(11 * blurScale);
         const hook2TightBlur = Number((2.2 * blurScale).toFixed(1));
+
+        const buildAssRoundRect = (w: number, h: number, r: number): string => {
+          const x0 = 0;
+          const y0 = 0;
+          const x1 = Math.max(8, Math.round(w));
+          const y1 = Math.max(8, Math.round(h));
+          const rad = Math.min(Math.round(r), Math.floor(x1 / 2), Math.floor(y1 / 2));
+          const k = Math.round(rad * 0.552);
+          return [
+            `m ${x0 + rad} ${y0}`,
+            `l ${x1 - rad} ${y0}`,
+            `b ${x1 - rad + k} ${y0} ${x1} ${y0 + rad - k} ${x1} ${y0 + rad}`,
+            `l ${x1} ${y1 - rad}`,
+            `b ${x1} ${y1 - rad + k} ${x1 - rad + k} ${y1} ${x1 - rad} ${y1}`,
+            `l ${x0 + rad} ${y1}`,
+            `b ${x0 + rad - k} ${y1} ${x0} ${y1 - rad + k} ${x0} ${y1 - rad}`,
+            `l ${x0} ${y0 + rad}`,
+            `b ${x0} ${y0 + rad - k} ${x0 + rad - k} ${y0} ${x0 + rad} ${y0}`,
+          ].join(' ');
+        };
+
+        const estimateBoldLineWidthPx = (lineText: string, fontPx: number): number => {
+          let units = 0;
+          for (const ch of lineText) {
+            if ("ilI.,:;!'|¡ ".includes(ch)) units += 0.31;
+            else if ('mwMW@%'.includes(ch)) units += 0.86;
+            else if ('ABCDEFGHJKLNOPQRSTUVXYZÁÉÍÓÚÑÜ'.includes(ch)) units += 0.69;
+            else if ('frt()[]{}"/-'.includes(ch)) units += 0.4;
+            else units += 0.555;
+          }
+          return Math.round(units * fontPx);
+        };
+
+        const centerX = Math.round(outW / 2);
+        const capPillH = Math.round(capFontSizeAss * 1.18);
+        const capPillPadX = Math.round(capFontSizeAss * (capBgStyle === 'word_shadow' ? 0.38 : 0.48));
+        const capPillRadius = Math.round(capFontSizeAss * (capBgStyle === 'word_shadow' ? 0.24 : 0.28));
+        const capLineStepPx = Math.round(capFontSizeAss * 1.28);
+        const capPillYOffset = Math.round(capFontSizeAss * 0.05);
+        const baseBottomY = outH - capMarginV;
 
         if (hasAssHook && hookTextConfig) {
           const rawL1 = Number(hookTextConfig.line1StartSec ?? 9);
@@ -3884,42 +3990,33 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             prevAssLocalE = localE;
             const fadeInMs = startsInsideSeg ? 60 : 0;
             const fadeOutMs = endsInsideSeg ? 65 : 0;
-            const capTxt = escapeAssText(cp.text);
-            // Captions: Layer 0 = Soft word-hugging shadow ('word_shadow'), Layer 1+2 = Cinematic letter shadow ('cinema'), Layer 3 = Pure crisp white letters
-            assEvents.push(
-              `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},CaptionWordShadow,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capWordBlur}}${capTxt}`,
-              `Dialogue: 1,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaWide,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capWideBlur}}${capTxt}`,
-              `Dialogue: 2,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaTight,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})\\blur${capTightBlur}}${capTxt}`,
-              `Dialogue: 3,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCrisp,,0,0,0,,{\\fad(${fadeInMs},${fadeOutMs})}${capTxt}`
-            );
+            const rawLines = String(cp.text || '')
+              .split(/\r?\n/)
+              .map((l) => l.trim())
+              .filter(Boolean);
+            for (let rIdx = 0; rIdx < rawLines.length; rIdx++) {
+              const rowRaw = rawLines[rIdx];
+              const rowEsc = escapeAssText(rowRaw);
+              const lineBottomY = baseBottomY - (rawLines.length - 1 - rIdx) * capLineStepPx;
+              if (capBgStyle !== 'none') {
+                const pillW = Math.min(
+                  Math.round(outW * 0.92),
+                  estimateBoldLineWidthPx(rowRaw, capFontSizeAss) + capPillPadX * 2
+                );
+                assEvents.push(
+                  `Dialogue: 0,${formatAssTime(localS)},${formatAssTime(localE)},CaptionWordPill,,0,0,0,,{\\an2\\pos(${centerX},${lineBottomY + capPillYOffset})\\fad(${fadeInMs},${fadeOutMs})\\blur${capPillBlur}\\p1}${buildAssRoundRect(pillW, capPillH, capPillRadius)}{\\p0}`
+                );
+              }
+              assEvents.push(
+                `Dialogue: 1,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaWide,,0,0,0,,{\\an2\\pos(${centerX},${lineBottomY + capWideOffsetY})\\fad(${fadeInMs},${fadeOutMs})\\blur${capWideBlur}}${rowEsc}`,
+                `Dialogue: 2,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCinemaTight,,0,0,0,,{\\an2\\pos(${centerX},${lineBottomY + capTightOffsetY})\\fad(${fadeInMs},${fadeOutMs})\\blur${capTightBlur}}${rowEsc}`,
+                `Dialogue: 3,${formatAssTime(localS)},${formatAssTime(localE)},CaptionCrisp,,0,0,0,,{\\an2\\pos(${centerX},${lineBottomY})\\fad(${fadeInMs},${fadeOutMs})}${rowEsc}`
+              );
+            }
           }
         }
         if (assEvents.length > 0) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
-          const capStyleCfg = overlays?.captionStyle || {};
-          const reqCapFontSize = Number(
-            isVertical916
-              ? capStyleCfg.fontSize9x16 ?? capStyleCfg.fontSize
-              : capStyleCfg.fontSize16x9 ?? capStyleCfg.fontSize
-          );
-          const defaultCapFontSize = isVertical916 ? 21 : 25;
-          const capFontScale =
-            Number.isFinite(reqCapFontSize) && reqCapFontSize >= 10
-              ? reqCapFontSize / defaultCapFontSize
-              : 1;
-          const capFontSizeAss = Math.round(
-            refShortSide * (isVertical916 ? 0.043 : 0.039) * capFontScale
-          );
-          const reqBottomPct =
-            typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
-              ? capStyleCfg.bottomPct
-              : isVertical916
-              ? 15.5
-              : 11;
-          const capMarginV = Math.round(outH * (reqBottomPct / 100));
-          const capWideMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0045));
-          const capTightMarginV = Math.max(0, capMarginV - Math.round(refShortSide * 0.0025));
-
           const hook1FontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.035 : 0.036));
           const hook2FontSizeAss = Math.round(refShortSide * (isVertical916 ? 0.052 : 0.0574));
           const hook1MarginV = Math.round(outH * 0.555);
@@ -3930,10 +4027,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const hook2WideMarginV = hook2MarginV + Math.round(refShortSide * 0.0055);
           const hook2TightMarginV = hook2MarginV + Math.round(refShortSide * 0.0028);
 
-          const capWordOutline = Math.max(10, Math.round(refShortSide * 0.0185 * capFontScale));
-          const capWideOutline = Math.max(1, Math.round(refShortSide * 0.0018 * capFontScale));
-          const hook1WideOutline = Math.max(1, Math.round(refShortSide * 0.002));
-          const hook2WideOutline = Math.max(2, Math.round(refShortSide * 0.0026));
           const hook1Spacing = Number((3.5 * blurScale).toFixed(1));
           const hook2Spacing = Number((1.5 * blurScale).toFixed(1));
           const rawCapHex = String(capStyleCfg.color || '#ffffff').replace('#', '');
@@ -3952,15 +4045,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '',
             '[V4+ Styles]',
             'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-            `Style: CaptionWordShadow,Georgia,${capFontSizeAss},&HFF000000,&HFF000000,&H64000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWordOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
-            `Style: CaptionCinemaWide,Georgia,${capFontSizeAss},&H18000000,&H18000000,&H18000000,&HFF000000,-1,0,0,0,100,100,0,0,1,${capWideOutline},0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capWideMarginV},1`,
-            `Style: CaptionCinemaTight,Georgia,${capFontSizeAss},&H0D000000,&H0D000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capTightMarginV},1`,
-            `Style: CaptionCrisp,Georgia,${capFontSizeAss},${capCrispAssColor},&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,${Math.round(outW * 0.075)},${Math.round(outW * 0.075)},${capMarginV},1`,
-            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,${hook1WideOutline},0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
-            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
+            `Style: CaptionWordPill,Georgia,${capFontSizeAss},${capPillAssColor},${capPillAssColor},&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1`,
+            `Style: CaptionCinemaWide,Georgia,${capFontSizeAss},&H28000000,&H28000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1`,
+            `Style: CaptionCinemaTight,Georgia,${capFontSizeAss},&H1E000000,&H1E000000,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1`,
+            `Style: CaptionCrisp,Georgia,${capFontSizeAss},${capCrispAssColor},&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1`,
+            `Style: Hook1CinemaWide,Georgia,${hook1FontSizeAss},&H22000000,&H22000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1WideMarginV},1`,
+            `Style: Hook1CinemaTight,Georgia,${hook1FontSizeAss},&H14000000,&H14000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1TightMarginV},1`,
             `Style: Hook1Crisp,Georgia,${hook1FontSizeAss},&H004DD3FC,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook1Spacing},0,1,0,0,2,${Math.round(outW * 0.06)},${Math.round(outW * 0.06)},${hook1MarginV},1`,
-            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H14000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,${hook2WideOutline},0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2WideMarginV},1`,
-            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H0A000000,&H0A000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2TightMarginV},1`,
+            `Style: Hook2CinemaWide,Georgia,${hook2FontSizeAss},&H22000000,&H22000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2WideMarginV},1`,
+            `Style: Hook2CinemaTight,Georgia,${hook2FontSizeAss},&H14000000,&H14000000,&H00000000,&HFF000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2TightMarginV},1`,
             `Style: Hook2Crisp,Georgia,${hook2FontSizeAss},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,${hook2Spacing},0,1,0,0,8,${Math.round(outW * 0.055)},${Math.round(outW * 0.055)},${hook2MarginV},1`,
             '',
             '[Events]',
@@ -3985,7 +4078,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       }
 
       let scaleAndCropVf: string;
-      if (isVertical916 && c.reframe9x16Mode !== 'fit_blur') {
+      if (isOutroClip) {
+        const innerW = Math.round(outW * (isVertical916 ? 0.92 : 0.88));
+        const innerH = Math.round(outH * (isVertical916 ? 0.92 : 0.88));
+        const padYExpr = isVertical916 ? '(oh-ih)/2' : 'round((oh-ih)*0.36)';
+        scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:${padYExpr}:black`;
+      } else if (isIntroClip) {
+        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+      } else if (isVertical916 && c.reframe9x16Mode !== 'fit_blur') {
         const fStart = Math.max(0, Math.min(1, Number(c.reframeFocusXStart ?? 50) / 100));
         const fEnd = Math.max(0, Math.min(1, Number(c.reframeFocusXEnd ?? c.reframeFocusXStart ?? 50) / 100));
         const fY = Math.max(0, Math.min(1, Number(c.reframeFocusY ?? 50) / 100));
@@ -4038,14 +4138,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       let currentVLabel = 'vb0';
       let ovrCounter = 0;
 
-      // 1) Official Logo overlay (already pre-scaled once to targetLogoW)
-      if (logoOverlayInfo && fs.existsSync(logoOverlayInfo.filePath)) {
+      // 1) Official Logo overlay (already pre-scaled once to targetLogoW; hidden on Outro clip so the closing logo stands alone)
+      if (!isOutroClip && logoOverlayInfo && fs.existsSync(logoOverlayInfo.filePath)) {
         extraOverlayInputs.push('-i', logoOverlayInfo.filePath);
         const inpIdx = extraOverlayInputs.length / 2;
         const nextVLbl = `vb_${++ovrCounter}`;
-        overlayFilterSteps.push(
-          `[${currentVLabel}][__INP_${inpIdx}__:v]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
-        );
+        if (i === 0) {
+          overlayFilterSteps.push(
+            `[__INP_${inpIdx}__:v]format=rgba,fade=t=in:st=0:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+          );
+        } else if (isLastBodyClipBeforeOutro) {
+          const logoFadeOutStart = Math.max(0, effectiveClipDur - 1.5);
+          overlayFilterSteps.push(
+            `[__INP_${inpIdx}__:v]format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+          );
+        } else {
+          overlayFilterSteps.push(
+            `[${currentVLabel}][__INP_${inpIdx}__:v]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+          );
+        }
         currentVLabel = nextVLbl;
       }
 

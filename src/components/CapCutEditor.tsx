@@ -10148,7 +10148,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         activeClipAtPlayhead.end,
         isOutroClipActive || isIntroClipActive || isFirstClipAfterIntro ? 'fade' : clipAnimIn,
         isOutroClipActive
-          ? 1.2
+          ? 0.3
           : isFirstClipAfterIntro
           ? 1.2
           : isIntroClipActive
@@ -10160,7 +10160,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? 'fade'
           : clipAnimOut,
         isOutroClipActive
-          ? 2.5
+          ? 0.5
           : isIntroClipActive
           ? 0.8
           : isLastBodyClipBeforeOutro
@@ -10169,10 +10169,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
+  const outroTimelineClip = clipsWithTimelineBounds.find(
+    (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
+  );
+  const logoOverlayEndSec = outroTimelineClip
+    ? Math.max(0.5, outroTimelineClip.start)
+    : totalDurationSec;
+
   const liveLogoAnim = computeElementAnimationState(
     currentTime,
     0,
-    totalDurationSec,
+    logoOverlayEndSec,
     logoAnimIn,
     logoAnimInDur,
     logoAnimOut,
@@ -11657,8 +11664,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     const isDeckActive = activeDeckSlot === slotIdx;
                     const slotSrc = slotIdx === 0 ? deckAUrl : deckBUrl;
                     const slotClip = isDeckActive ? activeClipAtPlayhead : nextClipAtPlayhead;
+                    const isSlotIntro =
+                      slotClip?.id === 'fixed-doc-intro' || slotClip?.clipNumber === 0;
+                    const isSlotOutro =
+                      slotClip?.id === 'fixed-doc-outro' || slotClip?.clipNumber === 999;
                     const isFitBlur =
-                      aspectRatio === '9:16' && slotClip?.reframe9x16Mode === 'fit_blur';
+                      isSlotOutro ||
+                      (aspectRatio === '9:16' &&
+                        (slotClip?.reframe9x16Mode === 'fit_blur' || isSlotIntro));
                     const fStart =
                       typeof slotClip?.reframeFocusXStart === 'number'
                         ? slotClip.reframeFocusXStart
@@ -11705,6 +11718,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           zIndex: isDeckActive ? 20 : 10,
                           pointerEvents: isDeckActive ? 'auto' : 'none',
                           objectPosition: videoObjPos,
+                          transform: isSlotOutro
+                            ? aspectRatio === '9:16'
+                              ? 'scale(0.92)'
+                              : 'scale(0.88) translateY(-2.5%)'
+                            : undefined,
                         }}
                         playsInline
                         muted={
