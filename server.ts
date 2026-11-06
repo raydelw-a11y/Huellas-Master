@@ -4764,14 +4764,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           fs.writeFileSync(foundTrackPath, Buffer.from(cleanB64, 'base64'));
         }
         if (foundTrackPath && fs.existsSync(foundTrackPath)) {
+          const rawVolNum = typeof mt.volume === 'number' && Number.isFinite(mt.volume) ? Number(mt.volume) : undefined;
+          const normalizedVol =
+            rawVolNum !== undefined
+              ? Math.max(0, Math.min(1, rawVolNum > 1 ? rawVolNum / 100 : rawVolNum))
+              : undefined;
           resolvedMusicInputs.push({
             filePath: foundTrackPath,
-            startSec: Math.max(0, Number(mt.startSec || 0)),
-            durationSec: Math.max(10, Number(mt.durationSec || 90)),
-            volume:
-              typeof mt.volume === 'number' && Number.isFinite(mt.volume)
-                ? Math.max(0, Math.min(1, Number(mt.volume)))
-                : undefined,
+            startSec: Math.max(0, Number(mt.startSec ?? mt.start ?? 0)),
+            durationSec: Math.max(10, Number(mt.durationSec ?? mt.duration ?? 90)),
+            volume: normalizedVol,
             fadeInSec:
               mt.fadeInSec !== undefined && mt.fadeInSec !== null
                 ? Math.max(0, Number(mt.fadeInSec))
