@@ -187,11 +187,19 @@ export function ensureAntiMutationPhysicsInPrompt(
 
 export function buildRawClipsTextWithHeader(
   clips: DocumentaryClip[],
-  operationalHeader: string = DEFAULT_OPERATIONAL_HEADER
+  operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
+  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
 ): string {
   const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
   const body = (clips || [])
-    .map((c) => [c.imagePrompt?.trim(), c.videoPrompt?.trim()].filter(Boolean).join('\n\n'))
+    .map((c) => {
+      const img = c.imagePrompt?.trim();
+      const rawVid = c.videoPrompt?.trim();
+      const vid = rawVid
+        ? applyClipFlowVideoEngineTag(rawVid, resolveClipFlowVideoEngine(c, projectEngineMode))
+        : '';
+      return [img, vid].filter(Boolean).join('\n\n');
+    })
     .filter(Boolean)
     .join('\n\n');
   return body ? `${header}\n\n${body}` : header;
@@ -1886,3 +1894,142 @@ export function reformatSrtText(
     blocksCount: outBlocks.length,
   };
 }
+
+// ============================================================================
+// 5. DETECTOR INTELIGENTE DE PERSONAS POR CLIP (MODO HÍBRIDO OMNI 1.1 FLASH vs LOWER PRIORITY)
+// ============================================================================
+export type FlowClipEngineType = 'OMNI_1_1_FLASH' | 'VEO_3_1_LITE_LOWER_PRIORITY';
+export type FlowProjectEngineMode =
+  | 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+  | 'VEO_3_1_LITE_LOWER_PRIORITY'
+  | 'OMNI_1_1_FLASH';
+
+/**
+ * Strips generic Flow policy/anti-mutation boilerplate and Ambient Foley tail so we only
+ * inspect the actual visual scene description of the clip.
+ */
+function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
+  if (!rawPrompt) return '';
+  return rawPrompt
+    .replace(/\[(?:Video\s+)?Model\s*:[^\]]+\]/gi, ' ')
+    .replace(/Cinematic historical drama reenactment[^.]*\.?/gi, ' ')
+    .replace(/portrayed by anonymous historical reenactment actors[^.]*\.?/gi, ' ')
+    .replace(/no real public figures or prominent people/gi, ' ')
+    .replace(/Fixed subject count[^.]*\.?/gi, ' ')
+    .replace(/clear anatomical separation between subjects[^.]*\.?/gi, ' ')
+    .replace(/strictly no morphing[^.]*\.?/gi, ' ')
+    .replace(/objects and hands maintain solid physical persistence[^.]*\.?/gi, ' ')
+    .replace(/natural human anatomy[^.]*\.?/gi, ' ')
+    .replace(/historian's\s+wooden\s+desk/gi, 'wooden desk')
+    .replace(/Ambient\s+Foley\s*:[\s\S]*$/i, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Automatically detects whether a clip depicts live human subjects (people, characters, @Ref,
+ * crowds, officers, hands in action) vs. a B-roll without people (landscapes, ships at sea,
+ * maps, documents, lithographs, objects, architecture).
+ */
+export function detectClipHasHumanSubjects(clip: {
+  imagePrompt?: string;
+  videoPrompt?: string;
+  visualExplanation?: string;
+}): boolean {
+  const cleanImg = stripFlowPromptBoilerplateForSubjectCheck(clip.imagePrompt || '');
+  const cleanVid = stripFlowPromptBoilerplateForSubjectCheck(clip.videoPrompt || '');
+  const combined = `${cleanImg} ${cleanVid}`.trim();
+  if (!combined) return false;
+
+  // 1. If it mentions a @Person reference tag, it definitely has a person
+  if (/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/.test(combined)) {
+    return true;
+  }
+
+  // 2. If it's explicitly a flat print/lithograph/engraving/map/document on a desk without live hands/actors interacting
+  const isPurePrintOrMap =
+    /\b(satirical\s+lithograph|vintage\s+\d*\s*lithograph|woodcut\s+engraving|cartographic\s+map|overhead\s+view\s+of\s+an\s+antique|macro\s+close-up\s+on\s+an\s+antique\s+(?:historian's\s+)?wooden\s+desk)\b/i.test(
+      combined
+    ) &&
+    !/\b(hands?\s+(?:holding|signing|counting|writing|turning|resting|pointing|stamping)|man|woman|clerk|notary|official|actor)\b/i.test(
+      combined
+    );
+  if (isPurePrintOrMap) {
+    return false;
+  }
+
+  // 3. Check for human subjects, roles, crowds, or visible human anatomy in action
+  const humanSubjectRegex =
+    /\b(man|men|woman|women|boy|girl|child|children|person|people|crowd|passengers|peasants|workers|laborers|miners|sailors|soldiers|officers|guards|gendarmes|policemen|officials|inspectors|clerks|notary|moneylender|usurer|merchants|governor|captain|doctor|physician|surgeon|nurse|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching)|weathered\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering))\b/i;
+
+  if (humanSubjectRegex.test(combined)) {
+    return true;
+  }
+
+  // 4. Fallback check in Spanish visualExplanation if prompts are still in Spanish/skeleton state
+  const cleanExp = (clip.visualExplanation || '').trim();
+  if (
+    cleanExp &&
+    !cleanImg &&
+    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
+      cleanExp
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Resolves which Google Flow video engine a clip should use, taking into account:
+ * 1) If project mode is forced to all-Lower-Priority or all-Omni-Flash
+ * 2) If the user manually toggled `clip.flowClipEngine` on that specific clip
+ * 3) Otherwise, automatic human detection (`Omni 1.1 Flash` for people, `Veo 3.1 - Lite [Lower Priority]` for rest)
+ */
+export function resolveClipFlowVideoEngine(
+  clip: {
+    imagePrompt?: string;
+    videoPrompt?: string;
+    visualExplanation?: string;
+    flowClipEngine?: FlowClipEngineType;
+  },
+  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+): FlowClipEngineType {
+  if (projectEngineMode === 'OMNI_1_1_FLASH') return 'OMNI_1_1_FLASH';
+  if (projectEngineMode === 'VEO_3_1_LITE_LOWER_PRIORITY') return 'VEO_3_1_LITE_LOWER_PRIORITY';
+  if (
+    clip.flowClipEngine === 'OMNI_1_1_FLASH' ||
+    clip.flowClipEngine === 'VEO_3_1_LITE_LOWER_PRIORITY'
+  ) {
+    return clip.flowClipEngine;
+  }
+  return detectClipHasHumanSubjects(clip) ? 'OMNI_1_1_FLASH' : 'VEO_3_1_LITE_LOWER_PRIORITY';
+}
+
+/**
+ * Injects or updates the explicit `[Model: ...]` instruction at the end of a `Clip X` prompt
+ * (right before `fix the name` if present) so the first 6 words of `Clip X (MM:SS - MM:SS): Create`
+ * remain 100% intact for Google Flow's file-renaming rule.
+ */
+export function applyClipFlowVideoEngineTag(
+  videoPrompt: string,
+  engine: FlowClipEngineType
+): string {
+  if (!videoPrompt || !videoPrompt.trim()) return videoPrompt;
+  const modelLabel =
+    engine === 'OMNI_1_1_FLASH' ? 'Omni 1.1 Flash' : 'Veo 3.1 - Lite [Lower Priority]';
+  const tagText = `[Model: ${modelLabel}]`;
+
+  // Remove any existing [Model: ...] or [Video Model: ...] tag first
+  const cleaned = videoPrompt
+    .replace(/\s*\[(?:Video\s+)?Model\s*:[^\]]*\]\s*(?:\])?/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (/fix the name\s*\.?\s*$/i.test(cleaned)) {
+    return cleaned.replace(/\s*(fix the name\s*\.?\s*)$/i, ` ${tagText} $1`);
+  }
+  return `${cleaned} ${tagText}`;
+}
+

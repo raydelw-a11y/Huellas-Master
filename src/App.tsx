@@ -81,6 +81,9 @@ import {
   applyAutomaticFlowPolicyShield,
   normalizeClip1Line1Format,
   reformatSrtText,
+  detectClipHasHumanSubjects,
+  resolveClipFlowVideoEngine,
+  applyClipFlowVideoEngineTag,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -120,7 +123,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:36 PM - 11/05/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:16 PM - 11/05/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -404,10 +407,17 @@ function resolveSubfolderForDocumentaryAsset(
 
 function applyFlowVideoEngineToDirectiveText(
   text: string,
-  _engine: 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH' = 'VEO_3_1_LITE_LOWER_PRIORITY'
+  engine:
+    | 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+    | 'VEO_3_1_LITE_LOWER_PRIORITY'
+    | 'OMNI_1_1_FLASH' = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
 ): string {
-  const engineLabel = 'Veo 3.1 - Lite [Lower Priority]';
-  const targetLine = `Usa ${engineLabel} para videos y nano banana 2.1 para imágenes iniciales de cada clip.`;
+  const targetLine =
+    engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+      ? 'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.'
+      : engine === 'OMNI_1_1_FLASH'
+      ? 'Usa Omni 1.1 Flash para videos y nano banana 2.1 para imágenes iniciales de cada clip.'
+      : 'Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.';
   const src = String(text || '').trim();
   if (!src) return targetLine;
   const lineRegex =
@@ -12580,21 +12590,47 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Motor de Video para Google Flow Agent (Veo 3.1 - Lite [Lower Priority]) */}
-                      <div className="bg-slate-950/90 border border-purple-500/30 rounded-xl p-2 flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-[11px] font-bold text-slate-300">
-                          🎬 Motor de Video en Prompts:
-                        </span>
+                      {/* Motor de Video para Google Flow Agent (Modo Híbrido: Omni 1.1 Flash con Personas / Lower Priority sin Personas) */}
+                      <div className="bg-slate-950/90 border border-purple-500/30 rounded-xl p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-300">
+                            🎬 Motor de Video en Prompts (100% vía Prompt):
+                          </span>
+                          {Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0 && (() => {
+                            const currentMode =
+                              activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                            const omniCount = activeDoc.clips.filter(
+                              (c) => resolveClipFlowVideoEngine(c, currentMode) === 'OMNI_1_1_FLASH'
+                            ).length;
+                            const lowerCount = activeDoc.clips.length - omniCount;
+                            return (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-slate-200">
+                                ⚡ <strong className="text-amber-300">{omniCount}</strong> con Personas (Omni Flash) • 🟢{' '}
+                                <strong className="text-emerald-300">{lowerCount}</strong> sin Personas (Lower Priority Gratis)
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {(
                             [
                               {
+                                id: 'HYBRID_PEOPLE_OMNI_REST_LOWER' as const,
+                                label: '🔀 Híbrido: Omni 1.1 Flash (Personas) + Lower Priority (Resto Gratis)',
+                              },
+                              {
                                 id: 'VEO_3_1_LITE_LOWER_PRIORITY' as const,
-                                label: 'Veo 3.1 - Lite [Lower Priority]',
+                                label: '🟢 Solo Lower Priority (Gratis)',
+                              },
+                              {
+                                id: 'OMNI_1_1_FLASH' as const,
+                                label: '⚡ Solo Omni 1.1 Flash',
                               },
                             ] as const
                           ).map((eng) => {
-                            const isSelected = true;
+                            const currentMode =
+                              activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                            const isSelected = currentMode === eng.id;
                             return (
                               <button
                                 key={eng.id}
@@ -12604,16 +12640,30 @@ export default function App() {
                                     activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                                     eng.id
                                   );
-                                  const nextRaw = applyFlowVideoEngineToDirectiveText(
-                                    ensureOperationalHeaderInRawClips(
-                                      activeDoc.rawClipsText || '',
-                                      nextHeader
-                                    ),
-                                    eng.id
-                                  );
+                                  const updatedClips = (activeDoc.clips || []).map((c) => {
+                                    const resolved = resolveClipFlowVideoEngine(c, eng.id);
+                                    return {
+                                      ...c,
+                                      videoPrompt: applyClipFlowVideoEngineTag(
+                                        c.videoPrompt || '',
+                                        resolved
+                                      ),
+                                    };
+                                  });
+                                  const nextRaw =
+                                    updatedClips.length > 0
+                                      ? buildRawClipsTextWithHeader(updatedClips, nextHeader, eng.id)
+                                      : applyFlowVideoEngineToDirectiveText(
+                                          ensureOperationalHeaderInRawClips(
+                                            activeDoc.rawClipsText || '',
+                                            nextHeader
+                                          ),
+                                          eng.id
+                                        );
                                   updateActiveDoc({
                                     flowVideoEngine: eng.id,
                                     operationalHeader: nextHeader,
+                                    clips: updatedClips,
                                     rawClipsText: nextRaw,
                                   });
                                 }}
@@ -12637,7 +12687,7 @@ export default function App() {
                         onChange={(e) => {
                           const val = e.target.value;
                           const activeEngine =
-                            activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+                            activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
                           const currentHeader = applyFlowVideoEngineToDirectiveText(
                             activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                             activeEngine
@@ -12651,7 +12701,7 @@ export default function App() {
                           }
                         }}
                         placeholder={
-                          'Actúa como un historiador, director de cine, y periodista profesional...\nUsa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video...'
+                          'Actúa como un historiador, director de cine, y periodista profesional...\nUsa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video... [Model: Omni 1.1 Flash] fix the name'
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                       />
@@ -12692,18 +12742,25 @@ export default function App() {
                       <button
                         onClick={() => {
                           const activeEngine =
-                            activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY';
+                            activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
                           const currentHeader = applyFlowVideoEngineToDirectiveText(
                             activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                             activeEngine
                           );
-                          const textToCopy = applyFlowVideoEngineToDirectiveText(
-                            ensureOperationalHeaderInRawClips(
-                              activeDoc.rawClipsText || '',
-                              currentHeader
-                            ),
-                            activeEngine
-                          );
+                          const textToCopy =
+                            Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0
+                              ? buildRawClipsTextWithHeader(
+                                  activeDoc.clips,
+                                  currentHeader,
+                                  activeEngine
+                                )
+                              : applyFlowVideoEngineToDirectiveText(
+                                  ensureOperationalHeaderInRawClips(
+                                    activeDoc.rawClipsText || '',
+                                    currentHeader
+                                  ),
+                                  activeEngine
+                                );
                           if (textToCopy !== activeDoc.rawClipsText) {
                             updateActiveDoc({
                               operationalHeader: currentHeader,
@@ -13332,17 +13389,28 @@ export default function App() {
 
                       <button
                         onClick={() => {
+                          const activeEngine =
+                            activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                          const currentHeader = applyFlowVideoEngineToDirectiveText(
+                            activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                            activeEngine
+                          );
                           const visible = activeDoc.clips.filter((_, idx) =>
                             clipBatchFilter === 0
                               ? true
                               : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10
                           );
                           const headerPrefix =
-                            clipBatchFilter <= 1
-                              ? `${activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER}\n\n`
-                              : '';
+                            clipBatchFilter <= 1 ? `${currentHeader}\n\n` : '';
                           const body = visible
-                            .map((c) => `${c.imagePrompt}\n${c.videoPrompt}`)
+                            .map((c) => {
+                              const resolved = resolveClipFlowVideoEngine(c, activeEngine);
+                              const taggedVid = applyClipFlowVideoEngineTag(
+                                c.videoPrompt || '',
+                                resolved
+                              );
+                              return `${c.imagePrompt}\n${taggedVid}`;
+                            })
                             .join('\n\n');
                           copyText(headerPrefix + body, 'copy-batch-clips');
                         }}
@@ -13415,6 +13483,10 @@ export default function App() {
                       const isRecreatedClip = Boolean(
                         clip.recreated || (clip.videoAttempts && clip.videoAttempts > 1)
                       );
+                      const activeEngineMode =
+                        activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                      const clipResolvedEngine = resolveClipFlowVideoEngine(clip, activeEngineMode);
+                      const clipAutoHasPeople = detectClipHasHumanSubjects(clip);
 
                       const borderClass =
                         clip.auditStatus === 'mismatch'
@@ -13604,15 +13676,81 @@ export default function App() {
                                     </span>
                                   )}
 
+                                  {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.1 Flash vs Lower Priority Gratis) */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextClipEngine =
+                                        clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                          ? 'VEO_3_1_LITE_LOWER_PRIORITY'
+                                          : 'OMNI_1_1_FLASH';
+                                      const updatedVidPrompt = applyClipFlowVideoEngineTag(
+                                        clip.videoPrompt || '',
+                                        nextClipEngine
+                                      );
+                                      const nextClips = [...activeDoc.clips];
+                                      nextClips[realIdx] = {
+                                        ...clip,
+                                        flowClipEngine: nextClipEngine,
+                                        videoPrompt: updatedVidPrompt,
+                                      };
+                                      const nextMode =
+                                        activeDoc.flowVideoEngine === 'OMNI_1_1_FLASH' ||
+                                        activeDoc.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY'
+                                          ? 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                                          : activeEngineMode;
+                                      const nextHeader = applyFlowVideoEngineToDirectiveText(
+                                        activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                        nextMode
+                                      );
+                                      updateActiveDoc({
+                                        flowVideoEngine: nextMode,
+                                        operationalHeader: nextHeader,
+                                        clips: nextClips,
+                                        rawClipsText: buildRawClipsTextWithHeader(
+                                          nextClips,
+                                          nextHeader,
+                                          nextMode
+                                        ),
+                                      });
+                                    }}
+                                    className={`px-2 py-0.5 rounded border text-[10px] font-black cursor-pointer transition ${
+                                      clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                        ? 'bg-amber-500/20 hover:bg-amber-500/35 border-amber-400/60 text-amber-200'
+                                        : 'bg-emerald-500/15 hover:bg-emerald-500/30 border-emerald-400/50 text-emerald-200'
+                                    }`}
+                                    title={
+                                      clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                        ? `Este clip usa Omni 1.1 Flash (${
+                                            clipAutoHasPeople
+                                              ? 'personas detectadas automáticamente'
+                                              : 'asignado manualmente'
+                                          }). Haz clic para cambiarlo a Lower Priority (Gratis).`
+                                        : `Este clip usa Veo 3.1 - Lite [Lower Priority] Gratis (${
+                                            !clipAutoHasPeople
+                                              ? 'sin personas detectadas'
+                                              : 'asignado manualmente'
+                                          }). Haz clic para cambiarlo a Omni 1.1 Flash.`
+                                    }
+                                  >
+                                    {clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                      ? '⚡ Omni 1.1 Flash (Personas)'
+                                      : '🟢 Lower Priority (Gratis)'}
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => {
                                       const header = applyFlowVideoEngineToDirectiveText(
                                         activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
-                                        activeDoc.flowVideoEngine || 'VEO_3_1_LITE_LOWER_PRIORITY'
+                                        activeEngineMode
+                                      );
+                                      const taggedVid = applyClipFlowVideoEngineTag(
+                                        clip.videoPrompt || '',
+                                        clipResolvedEngine
                                       );
                                       copyText(
-                                        `${header}\n\n${clip.imagePrompt}\n${clip.videoPrompt}`,
+                                        `${header}\n\n${clip.imagePrompt}\n${taggedVid}`,
                                         `copy-clip-${clip.id}`
                                       );
                                     }}
@@ -13787,12 +13925,16 @@ export default function App() {
                           <div className="flex items-center justify-end">
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                const taggedVid = applyClipFlowVideoEngineTag(
+                                  (clip.videoPrompt || '').trim(),
+                                  clipResolvedEngine
+                                );
                                 copyText(
-                                  `${(clip.imagePrompt || '').trim()}\n${(clip.videoPrompt || '').trim()}`,
+                                  `${(clip.imagePrompt || '').trim()}\n${taggedVid}`,
                                   `both-prompts-${clip.id}`
-                                )
-                              }
+                                );
+                              }}
                               className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-xs font-black text-amber-200 flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                               title={`Copiar juntos el Prompt de Imagen + el Prompt de Video del Clip ${paddedNum}`}
                             >
@@ -13852,7 +13994,11 @@ export default function App() {
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1.5">
                                   <span className="text-xs font-semibold text-emerald-300">
-                                    🎬 Prompt de Video (Veo 3.1 - Lite [Lower Priority] + Foley)
+                                    🎬 Prompt de Video (
+                                    {clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                      ? '⚡ Omni 1.1 Flash • Con Personas'
+                                      : '🟢 Veo 3.1 - Lite [Lower Priority] • Sin Personas'}{' '}
+                                    + Foley)
                                   </span>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <button
@@ -13880,7 +14026,15 @@ export default function App() {
                                       🎬 Flow Video
                                     </button>
                                     <button
-                                      onClick={() => copyText(clip.videoPrompt, `vid-${clip.id}`)}
+                                      onClick={() =>
+                                        copyText(
+                                          applyClipFlowVideoEngineTag(
+                                            clip.videoPrompt || '',
+                                            clipResolvedEngine
+                                          ),
+                                          `vid-${clip.id}`
+                                        )
+                                      }
                                       className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
                                     >
                                       {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}

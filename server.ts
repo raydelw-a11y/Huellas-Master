@@ -245,8 +245,8 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
 const DEFAULT_OPERATIONAL_HEADER_SERVER = `Actúa como un historiador, director de cine, y periodista profesional.
-Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración, el tiempo y las palabras entre paréntesis en caso de que existan.
+Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
 Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
 Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
 No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
@@ -2133,7 +2133,7 @@ REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mi
     } else if (stageNumber === 8) {
       const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Veo 3.1 - Lite [Lower Priority]) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Modo Híbrido: Omni 1.1 Flash cuando haya personas / Veo 3.1 - Lite [Lower Priority] para el resto sin personas) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
 Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
 Sincronización de Clip 1 y Entrada de Voz: ${
         doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
@@ -2154,14 +2154,15 @@ Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial 
 ${opHeader}
 
 Inmediatamente después del párrafo inicial de 9 líneas, entrega cada Clip (empezando por Clip 1 sin voz narrativa, y luego Clip 2 en adelante siguiendo el timeline) cumpliendo esta REGLA INQUEBRANTABLE DE SIMPLICIDAD, PRECISIÓN Y NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS:
+- REGLA HÍBRIDA DE MOTOR DE VIDEO: En cada Clip [N], justo antes de "fix the name", escribe [Model: Omni 1.1 Flash] si en ese clip aparecen personas o personajes humanos, o escribe [Model: Veo 3.1 - Lite [Lower Priority]] si en ese clip NO aparecen personas (paisajes, barcos en el mar, mapas, documentos, litografías u objetos).
 - REGLA INQUEBRANTABLE DE NO DUPLICACIÓN VISUAL ENTRE CLIPS CONTIGUOS (Clip [N] vs Clip [N+1]): Si la voz narrativa continúa en la misma escena, tema o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente bajo ningún concepto (queda terminantemente prohibido poner dos oficinas seguidas, dos escritorios o mostradores de madera con documentos/monedas seguidos, o la misma puesta en escena en dos clips consecutivos). Cada clip siguiente debe mostrar algo completamente diferente en entorno, iluminación y perspectiva pero visualmente referente a la locución (por ejemplo, si el Clip N es un interior oscuro en un escritorio, el Clip N+1 debe pasar a un exterior luminoso en el muelle frente al buque de vapor, una calle abierta o un plano radicalmente distinto).
 - Image [N]: Concisa, directa y clara (~20 a 35 palabras), describiendo únicamente el sujeto/escena principal, época y lugar (${doc.historicalTime}, ${doc.historicalLocation}), e iluminación, cerrando con "cinematic lighting, historical accuracy, no text."
-- Clip [N] ([MM:SS - MM:SS]): Como la IA de video ya usa Image [N] como primer fotograma, NO repitas toda la descripción de vestuario o arquitectura. Describe en UNA SOLA ORACIÓN SIMPLE Y DIRECTA (~12 a 22 palabras) únicamente UN movimiento de cámara suave (ej. slow zoom-in, panning slowly, gliding slowly, slow tilt-up) y UNA micro-acción física natural sobre la imagen inicial, seguido de "Ambient Foley: [2-3 sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text." ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? 'seguido de la oración de la voz narrativa correspondiente y' : 'y'} cerrando con "fix the name".
+- Clip [N] ([MM:SS - MM:SS]): Como la IA de video ya usa Image [N] como primer fotograma, NO repitas toda la descripción de vestuario o arquitectura. Describe en UNA SOLA ORACIÓN SIMPLE Y DIRECTA (~12 a 22 palabras) únicamente UN movimiento de cámara suave (ej. slow zoom-in, panning slowly, gliding slowly, slow tilt-up) y UNA micro-acción física natural sobre la imagen inicial, seguido de "Ambient Foley: [2-3 sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text." ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? 'seguido de la oración de la voz narrativa correspondiente, luego el tag [Model: ...] correspondiente y' : 'seguido del tag [Model: ...] correspondiente y'} cerrando con "fix the name".
 
 Formato exacto de ejemplo:
 Image [N]: Create an image of [escena clara con época y lugar], cinematic lighting, historical accuracy, no text.
 
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}fix the name`;
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámara + 1 acción física simple sobre la imagen inicial]. Ambient Foley: [sonidos puntuales], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración de la voz narrativa correspondiente]. ' : ''}[Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority]] fix the name`;
     } else if (stageNumber === 10) {
       const parseMmSsToSec = (str?: string): number => {
         if (!str) return 0;

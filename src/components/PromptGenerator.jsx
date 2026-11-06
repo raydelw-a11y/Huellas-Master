@@ -73,7 +73,7 @@ ETAPA 2: GENERACIÓN DE LOS CLIPS DE VIDEO (PROMPTS Y DIRECCIÓN)
 Una vez que el usuario confirme el tema y la tipología, la IA generará y entregará EXCLUSIVAMENTE los 3 clips de video (Clip 1 Hook de [DURACION_CLIP_1]s, Clip 2 de [?DURACION_CLIPS=10_SEGUNDOS]10s (1 shot de 10s)[/?DURACION_CLIPS][?DURACION_CLIPS=8_SEGUNDOS]8s (1 shot de 8s)[/?DURACION_CLIPS], Clip 3 de [?DURACION_CLIPS=10_SEGUNDOS]10s (1 shot de 10s)[/?DURACION_CLIPS][?DURACION_CLIPS=8_SEGUNDOS]8s (1 shot de 8s)[/?DURACION_CLIPS]). Al inicio de la entrega de los prompts, anteponer literalmente la orden operativa:
 Actúa como un historiador, director de cine, y periodista profesional.
 Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
 Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
 Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
 No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
@@ -688,7 +688,7 @@ Una vez que el usuario elija su preferencia, la IA generará y entregará los pr
 
   Actúa como un historiador, director de cine, y periodista profesional.
   Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-  Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+  Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
   Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
   Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
   No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
@@ -1239,7 +1239,7 @@ El proyecto exige la creación simultánea de entregables generados a partir de 
 - Estructura de Consulta y Generación de Clips (De 10 en 10 o Todos Juntos): Antes de entregar los prompts de esta etapa, la IA preguntará obligatoriamente al usuario si prefiere recibirlos de 10 en 10 o todos juntos (con ALTO INQUEBRANTABLE esperando su decisión). Si el usuario elige "de 10 en 10", para producciones con más de 10 clips (ej. ~120s con ~12-13 clips totales), la IA entregará los prompts en bloques controlados de 10 clips (Bloque 1: Clips 1 al 10 con ALTO INQUEBRANTABLE esperando confirmación para el Bloque 2: Clips 11 al 13 o restantes). Si el usuario elige "todos juntos", la IA entregará la totalidad de los clips en una sola respuesta continua. Al inicio EXCLUSIVO DEL PRIMER ENVÍO de prompts (Bloque 1 si se eligió de 10 en 10, o al inicio de la entrega continua si se eligió todos juntos), la IA debe anteponer la orden operativa:
 Actúa como un historiador, director de cine, y periodista profesional.
 Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
 Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
 Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
 No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
@@ -1311,7 +1311,7 @@ Nomenclatura Obligatoria de Entrada de Prompts:
 - Orden Operativa Exclusiva al Inicio del Primer Envío de Prompts: Al inicio obligatorio del primer envío de prompts de imágenes y videos (Bloque 1 si se eligió de 10 en 10, o al inicio de la entrega si se eligió todos juntos), la IA debe colocar obligatoriamente como preámbulo inicial la siguiente orden operativa textual (quedando estrictamente prohibido repetirla en bloques posteriores si se entrega de 10 en 10):
   Actúa como un historiador, director de cine, y periodista profesional.
   Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-  Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.
+  Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
   Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
   Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
   No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.

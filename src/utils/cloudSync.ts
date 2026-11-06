@@ -8,6 +8,8 @@ import {
   getStage1ClipDurations,
   stripPauseTags,
   normalizeClip1Line1Format,
+  resolveClipFlowVideoEngine,
+  applyClipFlowVideoEngineTag,
 } from './smartParsers';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
@@ -828,21 +830,56 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextCorrectedSrt = '';
   }
 
+  const isLegacySingleEngineDoc =
+    !doc.operationalHeader?.includes('donde haya personas') &&
+    !(Array.isArray( nextClips ) && nextClips.some((c) => /\[Model:/i.test(c.videoPrompt || '')));
+
+  const nextFlowVideoEngine: 'HYBRID_PEOPLE_OMNI_REST_LOWER' | 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH' =
+    isLegacySingleEngineDoc
+      ? 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+      : doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+
   const normalizeEngineRefs = (text?: string): string => {
     if (typeof text !== 'string' || !text) return text || '';
-    return text
-      .replace(
-        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos/gi,
-        'Usa Veo 3.1 - Lite [Lower Priority] para videos'
-      )
-      .replace(/\bOmni\s*(?:1\.1\s*)?Flash\b/gi, 'Veo 3.1 - Lite [Lower Priority]');
+    if (nextFlowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER') {
+      return text.replace(
+        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos/gi,
+        'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas'
+      );
+    }
+    if (nextFlowVideoEngine === 'OMNI_1_1_FLASH') {
+      return text.replace(
+        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
+        'Usa Omni 1.1 Flash para videos'
+      );
+    }
+    return text.replace(
+      /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
+      'Usa Veo 3.1 - Lite [Lower Priority] para videos'
+    );
   };
 
-  const nextOperationalHeader = normalizeEngineRefs(doc.operationalHeader);
+  if (Array.isArray(nextClips) && nextClips.length > 0) {
+    let anyClipTagChanged = false;
+    const taggedClips = nextClips.map((c) => {
+      if (!c.videoPrompt) return c;
+      const resolvedEngine = resolveClipFlowVideoEngine(c, nextFlowVideoEngine);
+      const taggedPrompt = applyClipFlowVideoEngineTag(c.videoPrompt, resolvedEngine);
+      if (taggedPrompt !== c.videoPrompt) {
+        anyClipTagChanged = true;
+        return { ...c, videoPrompt: taggedPrompt };
+      }
+      return c;
+    });
+    if (anyClipTagChanged) {
+      nextClips = taggedClips;
+    }
+  }
+
+  const nextOperationalHeader = normalizeEngineRefs(doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER);
   nextRawClipsText = normalizeEngineRefs(nextRawClipsText);
-  const nextRawReferencePrompts = normalizeEngineRefs(doc.rawReferencePrompts);
+  const nextRawReferencePrompts = doc.rawReferencePrompts || '';
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
-  const nextFlowVideoEngine = 'VEO_3_1_LITE_LOWER_PRIORITY' as const;
   const hasIntroMarca = Boolean(doc.promptConfig && doc.promptConfig.UBICACION_INTRO_MARCA);
   const nextPromptConfig = hasIntroMarca
     ? doc.promptConfig
@@ -1659,7 +1696,7 @@ REGLAS INQUEBRANTABLES DE LA ETAPA 7:
             .join(', ')
         : 'Usar personajes y lugares del guion';
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Veo 3.1 - Lite [Lower Priority]) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Modo Híbrido: Omni 1.1 Flash cuando haya personas / Veo 3.1 - Lite [Lower Priority] para el resto sin personas) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
 Referencias visuales obligatorias (@Personas y Lugares de Etapa 6): ${refsListText}.
 Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.
 Timeline de la Voz Narrativa:
@@ -1669,10 +1706,10 @@ ${doc.timelineFormattedText || doc.voiceoverScript || ''}
 Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
 ${opHeader}
 
-Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s + REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS: si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente jamás —prohibido poner dos oficinas seguidas, dos escritorios/mostradores con documentos seguidos o el mismo encuadre consecutivo—, sino mostrar algo visualmente diferente pero referente a la locución, alternando por ejemplo de un interior oscuro en un escritorio a un exterior luminoso en un muelle frente a un buque de vapor):
+Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s + REGLA HÍBRIDA DE MOTOR DE VIDEO: escribe [Model: Omni 1.1 Flash] justo antes de "fix the name" únicamente en los clips donde aparezcan personas o personajes humanos, y escribe [Model: Veo 3.1 - Lite [Lower Priority]] justo antes de "fix the name" en los clips sin personas como paisajes, barcos en el mar, mapas, documentos u objetos + REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS: si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente jamás —prohibido poner dos oficinas seguidas, dos escritorios/mostradores con documentos seguidos o el mismo encuadre consecutivo—, sino mostrar algo visualmente diferente pero referente a la locución, alternando por ejemplo de un interior oscuro en un escritorio a un exterior luminoso en un muelle frente a un buque de vapor):
 Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con época y lugar describiendo a los personajes por sus rasgos físicos y vestimenta de época como actores anónimos de recreación histórica sin usar títulos ni nombres propios de figuras públicas reales], clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}fix the name`;
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}[Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority] según haya o no personas] fix the name`;
   } else if (stageNumber === 10) {
     // Calcular automáticamente la duración real del documental a partir del último clip, audio de voz o duración confirmada
     const parseMmSsToSec = (str?: string): number => {
