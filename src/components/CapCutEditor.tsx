@@ -1966,6 +1966,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           exportResolution,
           exportFps,
           formatProfiles: formatProfilesRef.current,
+          clipAudioEdits: readSavedClipAudioEdits(activeDoc?.id),
         }),
       }).catch(() => {});
     } catch {}
@@ -10279,12 +10280,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
-  const outroTimelineClip = clipsWithTimelineBounds.find(
-    (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
-  );
-  const logoOverlayEndSec = outroTimelineClip
-    ? Math.max(0.5, outroTimelineClip.start)
-    : totalDurationSec;
+  const logoOverlayEndSec = totalDurationSec;
 
   const liveLogoAnim = computeElementAnimationState(
     currentTime,

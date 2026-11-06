@@ -4476,8 +4476,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       let currentVLabel = 'vb0';
       let ovrCounter = 0;
 
-      // 1) Official Logo overlay (already pre-scaled once to targetLogoW; hidden on Outro clip so the closing logo stands alone)
-      if (!isOutroClip && logoOverlayInfo && fs.existsSync(logoOverlayInfo.filePath)) {
+      // 1) Official Logo overlay (already pre-scaled once to targetLogoW; visible from Intro through Outro with fade-in on first clip and fade-out at end of Outro)
+      if (logoOverlayInfo && fs.existsSync(logoOverlayInfo.filePath)) {
         extraOverlayInputs.push('-i', logoOverlayInfo.filePath);
         const inpIdx = extraOverlayInputs.length / 2;
         const nextVLbl = `vb_${++ovrCounter}`;
@@ -4485,10 +4485,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           overlayFilterSteps.push(
             `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=in:st=0:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
-        } else if (isLastBodyClipBeforeOutro) {
-          const logoFadeOutStart = Math.max(0, effectiveClipDur - 1.5);
+        } else if (i === clips.length - 1 || isOutroClip) {
+          const logoFadeOutStart = Math.max(0, effectiveClipDur - 2.5);
           overlayFilterSteps.push(
-            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=2.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
         } else {
           overlayFilterSteps.push(
