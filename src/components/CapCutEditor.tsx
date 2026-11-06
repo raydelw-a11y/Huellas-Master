@@ -2066,7 +2066,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             reframeReason: res.reason,
           };
         });
-        persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
+        const summaryTxt = `🎯 IA 9:16: ${countFocus} Foco Lateral • ${countPan} Paneo Dinámico • ${countCenter} Centro`;
+        persistDocOverlaysPatch(
+          { customTimelineClips: updated, userEditedClips: true, reframeSummary9x16: summaryTxt },
+          docId
+        );
         return updated;
       });
 
@@ -2100,6 +2104,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setIsAnalyzingReframe9x16(false);
     }
   };
+
+  const isAutoReframe9x16Activated =
+    Boolean(reframeSummary9x16) ||
+    timelineClips.some(
+      (c) =>
+        c.clipNumber > 0 &&
+        c.clipNumber !== 999 &&
+        Boolean(c.reframe9x16Mode || c.reframeReason)
+    ) ||
+    Boolean(activeDoc?.clips?.some((c) => Boolean(c.reframe9x16Mode || c.reframeReason)));
 
   const handleUpdateClipReframe9x16 = (
     clipId: string,
@@ -11531,13 +11545,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   type="button"
                   disabled={isAnalyzingReframe9x16}
                   onClick={() => handleRunSmartAutoReframe9x16(true)}
-                  className="px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-teal-400 hover:from-amber-400 hover:to-teal-300 disabled:opacity-50 text-slate-950 font-black cursor-pointer shadow transition flex items-center gap-1"
-                  title="Analizar automáticamente todos los clips del documental con Visión IA Local para encontrar el mejor enfoque o paneo 9:16 en cada escena"
+                  className={`px-2.5 py-0.5 rounded-lg border font-black cursor-pointer shadow transition flex items-center gap-1 disabled:opacity-60 ${
+                    isAnalyzingReframe9x16
+                      ? 'bg-sky-500 border-sky-300 text-slate-950 animate-pulse'
+                      : isAutoReframe9x16Activated
+                      ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-300 text-slate-950 shadow-emerald-500/30 ring-1 ring-emerald-300/60'
+                      : 'bg-amber-500 hover:bg-amber-400 border-amber-300 text-slate-950 shadow-amber-500/20'
+                  }`}
+                  title={
+                    isAutoReframe9x16Activated
+                      ? '✅ Auto-Reframe 9:16 ya está activo en los clips de este documental (haz clic si deseas volver a analizar todos los clips con IA)'
+                      : 'Analizar automáticamente todos los clips del documental con Visión IA Local para encontrar el mejor enfoque o paneo 9:16 en cada escena'
+                  }
                 >
                   <Sparkles className="w-3 h-3" />
                   <span>
                     {isAnalyzingReframe9x16
                       ? 'Analizando Clips IA...'
+                      : isAutoReframe9x16Activated
+                      ? '✅ Auto-Reframe IA Activo'
                       : '✨ Auto-Reframe IA (Todos)'}
                   </span>
                 </button>
