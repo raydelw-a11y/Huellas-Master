@@ -3846,6 +3846,29 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro'
     );
 
+    const reframeCacheByClipNum = new Map<
+      number,
+      {
+        reframe9x16Mode?: string;
+        focusXStart?: number;
+        focusXEnd?: number;
+        focusY?: number;
+      }
+    >();
+    const reframeCacheCandidate = fs.existsSync(path.join(clipsVideoSubdir, '.reframe_9x16_cache.json'))
+      ? path.join(clipsVideoSubdir, '.reframe_9x16_cache.json')
+      : path.join(targetRoot, '.reframe_9x16_cache.json');
+    if (fs.existsSync(reframeCacheCandidate)) {
+      try {
+        const parsedRf = JSON.parse(fs.readFileSync(reframeCacheCandidate, 'utf8')) || {};
+        for (const val of Object.values(parsedRf) as any[]) {
+          if (val && typeof val.clipNumber === 'number') {
+            reframeCacheByClipNum.set(Number(val.clipNumber), val);
+          }
+        }
+      } catch {}
+    }
+
     let runningTimelineSec = 0;
 
     for (let i = 0; i < clips.length; i++) {
@@ -3927,8 +3950,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         } catch {}
       }
 
-      // Check if an Optical Flow baked file already exists for this clip segment (only _of3+ which has non-dragging natural foley audio)
-      if (c.opticalFlowUrl && typeof c.opticalFlowUrl === 'string') {
+      // Check if an Optical Flow baked file already exists for this clip segment (only _of3+ in 16:9; in 9:16 always crop/pan directly from the native _4K.mp4 master)
+      if (
+        aspectRatio !== '9:16' &&
+        outW >= outH &&
+        c.opticalFlowUrl &&
+        typeof c.opticalFlowUrl === 'string'
+      ) {
         try {
           const parsedOpt = new URL(c.opticalFlowUrl, 'http://localhost:4200');
           const optFile = parsedOpt.searchParams.get('filePath');
@@ -4336,6 +4364,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
+      const cachedReframe =
+        isVertical916 && c.reframe9x16Mode !== 'manual' && c.reframe9x16Mode !== 'fit_blur'
+          ? reframeCacheByClipNum.get(Number(c.clipNumber))
+          : undefined;
+      const effectiveReframeMode = cachedReframe?.reframe9x16Mode || c.reframe9x16Mode || 'auto_center';
+
       let scaleAndCropVf: string;
       if (isOutroClip) {
         const innerW = Math.round(outW * (isVertical916 ? 0.92 : 0.88));
@@ -4344,10 +4378,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:${padYExpr}:black`;
       } else if (isIntroClip) {
         scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
-      } else if (isVertical916 && c.reframe9x16Mode !== 'fit_blur') {
-        const fStart = Math.max(0, Math.min(1, Number(c.reframeFocusXStart ?? 50) / 100));
-        const fEnd = Math.max(0, Math.min(1, Number(c.reframeFocusXEnd ?? c.reframeFocusXStart ?? 50) / 100));
-        const fY = Math.max(0, Math.min(1, Number(c.reframeFocusY ?? 50) / 100));
+      } else if (isVertical916 && effectiveReframeMode !== 'fit_blur') {
+        const rawXStart =
+          typeof cachedReframe?.focusXStart === 'number'
+            ? cachedReframe.focusXStart
+            : Number(c.reframeFocusXStart ?? 50);
+        const rawXEnd =
+          typeof cachedReframe?.focusXEnd === 'number'
+            ? cachedReframe.focusXEnd
+            : Number(c.reframeFocusXEnd ?? rawXStart);
+        const rawY =
+          typeof cachedReframe?.focusY === 'number'
+            ? cachedReframe.focusY
+            : Number(c.reframeFocusY ?? 50);
+        const fStart = Math.max(0, Math.min(1, rawXStart / 100));
+        const fEnd = Math.max(0, Math.min(1, rawXEnd / 100));
+        const fY = Math.max(0, Math.min(1, rawY / 100));
         const isDynamicPan = Math.abs(fEnd - fStart) >= 0.015;
         const cropXExpr = isDynamicPan
           ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${Math.max(0.5, effectiveClipDur).toFixed(3)})))))'`
@@ -4722,10 +4768,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     if (srtContent) {
-      fs.writeFileSync(path.join(targetRoot, 'Subtitulos.srt'), String(srtContent), 'utf8');
+      const srtFileName = aspectRatio === '9:16' ? 'Subtitulos_9x16.srt' : 'Subtitulos.srt';
+      fs.writeFileSync(path.join(targetRoot, srtFileName), String(srtContent), 'utf8');
       const seoDir = path.join(targetRoot, '01_Guion_y_SEO');
       if (fs.existsSync(seoDir)) {
-        fs.writeFileSync(path.join(seoDir, 'Subtitulos.srt'), String(srtContent), 'utf8');
+        fs.writeFileSync(path.join(seoDir, srtFileName), String(srtContent), 'utf8');
       }
     }
 
@@ -8912,12 +8959,12 @@ app.post('/api/video/optical-flow', async (req, res) => {
     }
 
     // Stretch slightly past effectiveTargetDur (+0.12s) and trim at exact effectiveTargetDur so video frames never end before audio
+    // Always preserve native 16:9 widescreen frame in Optical Flow cache so 9:16 Auto-Reframe & dynamic pan work edge-to-edge without black bars
     const ptsFactor = ((effectiveTargetDur + 0.12) / realSpan).toFixed(5);
-    const isVertical = aspectRatio === '9:16';
-    const outW = isVertical ? 1080 : 1920;
-    const outH = isVertical ? 1920 : 1080;
-    const motionEstW = isVertical ? 480 : 854;
-    const motionEstH = isVertical ? 854 : 480;
+    const outW = 1920;
+    const outH = 1080;
+    const motionEstW = 854;
+    const motionEstH = 480;
 
     const inputTrimArgs: string[] = [];
     if (safeTrimStart > 0.01) {
