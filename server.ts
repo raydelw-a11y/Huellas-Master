@@ -10204,6 +10204,1758 @@ app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
   }
 });
 
+// ============================================================================
+// VIRAL CLIPS STUDIO (OPUSCLIP ENGINE) + INSTAGRAM REELS/STORIES + AUTO-DM LINK
+// ============================================================================
+const VIRAL_CLIPS_DIR = path.join(DATA_DIR, 'viral-clips');
+const VIRAL_UPLOADS_DIR = path.join(VIRAL_CLIPS_DIR, 'uploads');
+const VIRAL_YOUTUBE_DIR = path.join(VIRAL_CLIPS_DIR, 'youtube');
+const VIRAL_EXPORTS_DIR = path.join(VIRAL_CLIPS_DIR, 'exports');
+const VIRAL_BIN_DIR = path.join(DATA_DIR, 'bin');
+const VIRAL_STORE_FILE = path.join(DATA_DIR, 'viral_clips_store.json');
+
+for (const d of [VIRAL_CLIPS_DIR, VIRAL_UPLOADS_DIR, VIRAL_YOUTUBE_DIR, VIRAL_EXPORTS_DIR, VIRAL_BIN_DIR]) {
+  if (!fs.existsSync(d)) {
+    fs.mkdirSync(d, { recursive: true });
+  }
+}
+
+app.use('/viral-clips-media', express.static(VIRAL_CLIPS_DIR));
+
+interface InstagramAutoDmRule {
+  enabled: boolean;
+  keyword: string; // e.g., "HUELLAS" or "VIDEO" or "LINK"
+  matchAnyCommentAskingLink: boolean;
+  destinationUrl: string; // e.g., YouTube documentary URL
+  dmMessageTemplate: string; // e.g., "¡Hola {{username}}! 🙌 Aquí tienes el enlace directo para ver el documental completo en YouTube:\n\n🔗 {{url}}\n\n¡Gracias por apoyar a Huellas de la Humanidad!"
+  publicCommentReply: string; // e.g., "¡Te acabo de enviar el link directo al documental por mensaje privado (DM)! 📩✨"
+  enablePublicCommentReply: boolean;
+}
+
+interface InstagramConfigStore {
+  igUserId: string;
+  accessToken: string;
+  accountUsername?: string;
+  webhookVerifyToken: string;
+  publicServerBaseUrl?: string;
+  autoDm: InstagramAutoDmRule;
+  sentDmLogs: Array<{
+    id: string;
+    recipientUsername: string;
+    triggerType: 'comment' | 'story_reply';
+    triggerText: string;
+    sentUrl: string;
+    mediaId?: string;
+    sentAt: string;
+    status: 'sent' | 'error';
+    errorMsg?: string;
+  }>;
+  repliedTriggerIds: string[];
+  publishedHistory: Array<{
+    id: string;
+    clipTitle: string;
+    publishMode: 'reel' | 'story' | 'combo_reel_story';
+    reelMediaId?: string;
+    reelPermalink?: string;
+    storyMediaId?: string;
+    publishedAt: string;
+  }>;
+}
+
+function loadViralStore(): InstagramConfigStore {
+  const defaults: InstagramConfigStore = {
+    igUserId: process.env.INSTAGRAM_USER_ID || '',
+    accessToken: process.env.INSTAGRAM_ACCESS_TOKEN || '',
+    accountUsername: '',
+    webhookVerifyToken: 'huellas_ig_verify_2026',
+    publicServerBaseUrl: process.env.PUBLIC_SERVER_URL || '',
+    autoDm: {
+      enabled: true,
+      keyword: 'HUELLAS',
+      matchAnyCommentAskingLink: true,
+      destinationUrl: 'https://www.youtube.com/@HuellasdelaHumanidad',
+      dmMessageTemplate:
+        '¡Hola @{{username}}! 🙌 Aquí tienes el link directo para ver el documental completo en alta definición:\n\n🔗 {{url}}\n\n¡Gracias por ver Huellas de la Humanidad!',
+      publicCommentReply:
+        '¡Te acabo de enviar el link directo al documental completo por mensaje privado (DM)! 📩✨',
+      enablePublicCommentReply: true,
+    },
+    sentDmLogs: [],
+    repliedTriggerIds: [],
+    publishedHistory: [],
+  };
+  try {
+    if (fs.existsSync(VIRAL_STORE_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(VIRAL_STORE_FILE, 'utf8'));
+      return {
+        ...defaults,
+        ...parsed,
+        autoDm: { ...defaults.autoDm, ...(parsed.autoDm || {}) },
+        sentDmLogs: Array.isArray(parsed.sentDmLogs) ? parsed.sentDmLogs.slice(0, 200) : [],
+        repliedTriggerIds: Array.isArray(parsed.repliedTriggerIds)
+          ? parsed.repliedTriggerIds.slice(-1000)
+          : [],
+        publishedHistory: Array.isArray(parsed.publishedHistory)
+          ? parsed.publishedHistory.slice(0, 100)
+          : [],
+      };
+    }
+  } catch (e) {
+    console.warn('[ViralStore] Could not read viral_clips_store.json:', e);
+  }
+  return defaults;
+}
+
+function saveViralStore(store: InstagramConfigStore) {
+  try {
+    fs.writeFileSync(VIRAL_STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[ViralStore] Error saving viral_clips_store.json:', e);
+  }
+}
+
+const viralUploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, VIRAL_UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '.mp4') || '.mp4';
+    const safeBase = path
+      .basename(file.originalname || 'video', ext)
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .slice(0, 50);
+    cb(null, `${Date.now()}_${safeBase}${ext}`);
+  },
+});
+
+const uploadViralVideo = multer({
+  storage: viralUploadStorage,
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // Up to 2 GB video upload
+});
+
+async function probeVideoDurationAndDims(filePath: string): Promise<{
+  durationSec: number;
+  width: number;
+  height: number;
+}> {
+  return new Promise((resolve) => {
+    execFile(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-show_entries',
+        'stream=width,height:format=duration',
+        '-of',
+        'json',
+        filePath,
+      ],
+      { timeout: 15000 },
+      (err, stdout) => {
+        if (!err && stdout) {
+          try {
+            const parsed = JSON.parse(stdout);
+            const dur = parseFloat(parsed?.format?.duration || '0');
+            const w = parseInt(parsed?.streams?.[0]?.width || '1920', 10);
+            const h = parseInt(parsed?.streams?.[0]?.height || '1080', 10);
+            if (dur > 0) {
+              resolve({ durationSec: dur, width: w, height: h });
+              return;
+            }
+          } catch {}
+        }
+        // Fallback via ffmpeg -i stderr
+        const ffmpegBin = getFfmpegPath();
+        execFile(ffmpegBin, ['-i', filePath], { timeout: 15000 }, (_e2, _out2, stderr2) => {
+          const text = String(stderr2 || '');
+          const durMatch = text.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/i);
+          const dimMatch = text.match(/,\s*(\d{3,5})x(\d{3,5})\b/);
+          const durationSec = durMatch
+            ? parseInt(durMatch[1], 10) * 3600 +
+              parseInt(durMatch[2], 10) * 60 +
+              parseFloat(durMatch[3])
+            : 60;
+          const width = dimMatch ? parseInt(dimMatch[1], 10) : 1920;
+          const height = dimMatch ? parseInt(dimMatch[2], 10) : 1080;
+          resolve({ durationSec, width, height });
+        });
+      }
+    );
+  });
+}
+
+async function ensureYtDlpBinary(): Promise<string> {
+  const candidates = [
+    '/opt/homebrew/bin/yt-dlp',
+    '/usr/local/bin/yt-dlp',
+    path.join(VIRAL_BIN_DIR, 'yt-dlp'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  const targetBin = path.join(VIRAL_BIN_DIR, 'yt-dlp');
+  const assetName = process.platform === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp_linux';
+  const downloadUrl = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${assetName}`;
+  console.log(`[ViralClips] Descargando binario oficial yt-dlp (${assetName})...`);
+  const resp = await fetch(downloadUrl, { redirect: 'follow' });
+  if (!resp.ok) {
+    throw new Error(`No se pudo descargar yt-dlp automáticamente (HTTP ${resp.status}).`);
+  }
+  const buf = Buffer.from(await resp.arrayBuffer());
+  fs.writeFileSync(targetBin, buf);
+  fs.chmodSync(targetBin, 0o755);
+  return targetBin;
+}
+
+interface WordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
+interface TranscriptSegmentItem {
+  start: number;
+  end: number;
+  text: string;
+  words?: WordTimestamp[];
+}
+
+function buildWordsFromSegment(text: string, startSec: number, endSec: number): WordTimestamp[] {
+  const tokens = String(text || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return [];
+  const span = Math.max(0.2, endSec - startSec);
+  const totalChars = tokens.reduce((acc, w) => acc + Math.max(2, w.length), 0);
+  let cursor = startSec;
+  return tokens.map((w, idx) => {
+    const weight = Math.max(2, w.length) / totalChars;
+    const dur = span * weight;
+    const wStart = Number(cursor.toFixed(2));
+    const wEnd =
+      idx === tokens.length - 1 ? Number(endSec.toFixed(2)) : Number((cursor + dur).toFixed(2));
+    cursor += dur;
+    return { word: w, start: wStart, end: Math.max(wStart + 0.08, wEnd) };
+  });
+}
+
+async function transcribeVideoFileWithTimestamps(
+  videoPath: string,
+  durationSec: number
+): Promise<TranscriptSegmentItem[]> {
+  const ffmpegBin = getFfmpegPath();
+  const tmpMp3 = path.join(os.tmpdir(), `viral_extract_${Date.now()}.mp3`);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        ffmpegBin,
+        [
+          '-y',
+          '-i',
+          videoPath,
+          '-vn',
+          '-ac',
+          '1',
+          '-ar',
+          '16000',
+          '-b:a',
+          '48k',
+          tmpMp3,
+        ],
+        { timeout: 180000 },
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    const ai = getGeminiClient();
+    if (ai && fs.existsSync(tmpMp3)) {
+      const audioBytes = fs.readFileSync(tmpMp3);
+      if (audioBytes.length < 18 * 1024 * 1024) {
+        const base64Audio = audioBytes.toString('base64');
+        const prompt = `Transcribe este audio de forma literal y exacta con sus marcas de tiempo en segundos (start y end) divididas en frases cortas de 3 a 7 segundos cada una. Duración total aproximada: ${Math.round(
+          durationSec
+        )} segundos. Devuelve únicamente un arreglo JSON con objetos {"start": number, "end": number, "text": string}.`;
+        const resp = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType: 'audio/mp3', data: base64Audio } },
+                { text: prompt },
+              ],
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        const rawJson = String(resp.text || '').trim();
+        const parsed = JSON.parse(rawJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed
+            .map((seg: any) => {
+              const s = Math.max(0, Number(seg.start) || 0);
+              const e = Math.max(s + 0.5, Number(seg.end) || s + 4);
+              const t = String(seg.text || '').trim();
+              return {
+                start: s,
+                end: e,
+                text: t,
+                words: buildWordsFromSegment(t, s, e),
+              };
+            })
+            .filter((seg) => seg.text.length > 0);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[ViralClips] Gemini audio transcription fallback:', err);
+  } finally {
+    try {
+      if (fs.existsSync(tmpMp3)) fs.unlinkSync(tmpMp3);
+    } catch {}
+  }
+  return [];
+}
+
+// 1. Upload local video file for Viral Clips
+app.post('/api/viral-clips/upload-video', uploadViralVideo.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'No se recibió ningún archivo de video.' });
+    }
+    const filePath = req.file.path;
+    const { durationSec, width, height } = await probeVideoDurationAndDims(filePath);
+    const segments = await transcribeVideoFileWithTimestamps(filePath, durationSec);
+    res.json({
+      ok: true,
+      videoUrl: `/viral-clips-media/uploads/${path.basename(filePath)}`,
+      localFilePath: filePath,
+      fileName: req.file.originalname || path.basename(filePath),
+      durationSec,
+      width,
+      height,
+      transcriptSegments: segments,
+    });
+  } catch (err: any) {
+    console.error('[ViralClips] upload-video error:', err);
+    res.status(500).json({ ok: false, error: err?.message || 'Error al procesar el video subido.' });
+  }
+});
+
+// 2. Ingest YouTube URL for Viral Clips
+app.post('/api/viral-clips/ingest-youtube', async (req, res) => {
+  try {
+    const { youtubeUrl } = req.body || {};
+    const cleanUrl = String(youtubeUrl || '').trim();
+    if (!cleanUrl || !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(cleanUrl)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Ingresa un enlace válido de YouTube (ej. https://www.youtube.com/watch?v=...).',
+      });
+    }
+
+    const ytDlpBin = await ensureYtDlpBinary();
+    const stamp = Date.now();
+    const outTemplate = path.join(VIRAL_YOUTUBE_DIR, `yt_${stamp}_%(id)s.%(ext)s`);
+    const ffmpegBin = getFfmpegPath();
+
+    // First fetch JSON metadata + title
+    const infoJson = await new Promise<any>((resolve, reject) => {
+      execFile(
+        ytDlpBin,
+        ['--dump-single-json', '--no-playlist', '--no-warnings', cleanUrl],
+        { timeout: 60000, maxBuffer: 25 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) {
+            return reject(new Error(stderr || err.message));
+          }
+          try {
+            resolve(JSON.parse(stdout));
+          } catch (e) {
+            reject(e);
+          }
+        }
+      );
+    });
+
+    const videoId = infoJson?.id || String(stamp);
+    const videoTitle = infoJson?.title || `YouTube_${videoId}`;
+    const targetMp4 = path.join(VIRAL_YOUTUBE_DIR, `yt_${stamp}_${videoId}.mp4`);
+
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        ytDlpBin,
+        [
+          '--no-playlist',
+          '--ffmpeg-location',
+          ffmpegBin,
+          '-f',
+          'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
+          '--merge-output-format',
+          'mp4',
+          '-o',
+          targetMp4,
+          cleanUrl,
+        ],
+        { timeout: 600000 },
+        (err, _stdout, stderr) => {
+          if (err && !fs.existsSync(targetMp4)) {
+            return reject(new Error(stderr || err.message));
+          }
+          resolve();
+        }
+      );
+    });
+
+    const { durationSec, width, height } = await probeVideoDurationAndDims(targetMp4);
+    const segments = await transcribeVideoFileWithTimestamps(targetMp4, durationSec);
+
+    res.json({
+      ok: true,
+      videoId,
+      title: videoTitle,
+      sourceYoutubeUrl: cleanUrl,
+      videoUrl: `/viral-clips-media/youtube/${path.basename(targetMp4)}`,
+      localFilePath: targetMp4,
+      durationSec,
+      width,
+      height,
+      transcriptSegments: segments,
+    });
+  } catch (err: any) {
+    console.error('[ViralClips] ingest-youtube error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'No se pudo descargar el video de YouTube.',
+    });
+  }
+});
+
+// 3. Resolve Documentary Source Video + Transcript for Viral Clips
+app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
+  try {
+    const { docId, downloadFolderPath, downloadFolderName } = req.body || {};
+    const docs: any[] = fs.existsSync(DOCS_FILE)
+      ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'))
+      : [];
+    const doc = docs.find((d) => d.id === docId) || docs[0];
+    if (!doc) {
+      return res.status(404).json({ ok: false, error: 'Documental no encontrado.' });
+    }
+
+    const folderCandidates: string[] = [];
+    if (downloadFolderPath && fs.existsSync(downloadFolderPath)) {
+      folderCandidates.push(downloadFolderPath);
+    }
+    if (doc.downloadFolderPath && fs.existsSync(doc.downloadFolderPath)) {
+      folderCandidates.push(doc.downloadFolderPath);
+    }
+    const icloudVideosBase = path.join(
+      os.homedir(),
+      'Library',
+      'Mobile Documents',
+      'com~apple~CloudDocs',
+      '0YouTube',
+      'Huellas de la Humanidad',
+      'Videos'
+    );
+    if (downloadFolderName && fs.existsSync(path.join(icloudVideosBase, downloadFolderName))) {
+      folderCandidates.push(path.join(icloudVideosBase, downloadFolderName));
+    }
+    if (doc.downloadFolderName && fs.existsSync(path.join(icloudVideosBase, doc.downloadFolderName))) {
+      folderCandidates.push(path.join(icloudVideosBase, doc.downloadFolderName));
+    }
+
+    let rootFolder = folderCandidates[0] || '';
+    let masterVideoPath = '';
+    let masterVideo9x16Path = '';
+
+    if (rootFolder) {
+      const finalDir = path.join(rootFolder, '06_Video_Final');
+      if (fs.existsSync(finalDir)) {
+        const mp4s = fs
+          .readdirSync(finalDir)
+          .filter((f) => f.toLowerCase().endsWith('.mp4'))
+          .map((f) => ({
+            name: f,
+            full: path.join(finalDir, f),
+            mtime: fs.statSync(path.join(finalDir, f)).mtimeMs,
+          }))
+          .sort((a, b) => b.mtime - a.mtime);
+
+        const horiz = mp4s.find((m) => m.name.includes('16x9') || !m.name.includes('9x16'));
+        const vert = mp4s.find((m) => m.name.includes('9x16'));
+        if (horiz) masterVideoPath = horiz.full;
+        if (vert) masterVideo9x16Path = vert.full;
+        if (!masterVideoPath && mp4s[0]) masterVideoPath = mp4s[0].full;
+      }
+    }
+
+    // Build transcript segments from doc.timelineSentences or doc.clips
+    const transcriptSegments: TranscriptSegmentItem[] = [];
+    if (Array.isArray(doc.timelineSentences) && doc.timelineSentences.length > 0) {
+      for (const s of doc.timelineSentences) {
+        const start = Math.max(0, Number(s.start) || 0);
+        const end = Math.max(start + 0.5, Number(s.end) || start + 5);
+        const text = String(s.text || '')
+          .replace(/\[PAUSA[^\]]*\]/gi, '')
+          .trim();
+        if (text) {
+          transcriptSegments.push({
+            start,
+            end,
+            text,
+            words: buildWordsFromSegment(text, start, end),
+          });
+        }
+      }
+    } else if (Array.isArray(doc.clips) && doc.clips.length > 0) {
+      for (const c of doc.clips) {
+        const rangeMatch = String(c.timeRange || '').match(
+          /(\d+):(\d+)\s*-\s*(\d+):(\d+)/
+        );
+        const start = rangeMatch
+          ? parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10)
+          : (Math.max(1, Number(c.clipNumber) || 1) - 1) * 10;
+        const end = rangeMatch
+          ? parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10)
+          : start + 10;
+        const text = String(c.narrationSegment || '')
+          .replace(/\[PAUSA[^\]]*\]/gi, '')
+          .trim();
+        if (text && !/^sin\s+voz/i.test(text)) {
+          transcriptSegments.push({
+            start,
+            end,
+            text,
+            words: buildWordsFromSegment(text, start, end),
+          });
+        }
+      }
+    }
+
+    let durationSec = Number(doc.targetDurationSeconds) || 180;
+    let width = 1920;
+    let height = 1080;
+    if (masterVideoPath && fs.existsSync(masterVideoPath)) {
+      const probed = await probeVideoDurationAndDims(masterVideoPath);
+      durationSec = probed.durationSec;
+      width = probed.width;
+      height = probed.height;
+    } else if (transcriptSegments.length > 0) {
+      durationSec = Math.max(
+        durationSec,
+        transcriptSegments[transcriptSegments.length - 1].end + 6
+      );
+    }
+
+    res.json({
+      ok: true,
+      docId: doc.id,
+      title: doc.title,
+      rootFolder,
+      masterVideoPath,
+      masterVideoUrl: masterVideoPath
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(masterVideoPath)}`
+        : '',
+      masterVideo9x16Path,
+      masterVideo9x16Url: masterVideo9x16Path
+        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(masterVideo9x16Path)}`
+        : '',
+      durationSec,
+      width,
+      height,
+      transcriptSegments,
+    });
+  } catch (err: any) {
+    console.error('[ViralClips] resolve-doc-source error:', err);
+    res.status(500).json({ ok: false, error: err?.message || 'Error al cargar documental.' });
+  }
+});
+
+// 4. OpusClip AI Virality Analyzer (/api/viral-clips/analyze)
+app.post('/api/viral-clips/analyze', async (req, res) => {
+  try {
+    const {
+      title,
+      durationSec,
+      transcriptSegments,
+      targetDurationRange = '30_60',
+      clipCount = 5,
+      structurePreference = 'both', // 'continuous' | 'hook_teaser' | 'both'
+      customTopicFilter = '',
+      autoDmKeyword = 'HUELLAS',
+    } = req.body || {};
+
+    const segments: TranscriptSegmentItem[] = Array.isArray(transcriptSegments)
+      ? transcriptSegments
+      : [];
+
+    if (segments.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          'No hay transcripción disponible para analizar los momentos virales. Asegúrate de que el video tenga voz o guion.',
+      });
+    }
+
+    const minDur =
+      targetDurationRange === '15_30' ? 18 : targetDurationRange === '60_90' ? 55 : 30;
+    const maxDur =
+      targetDurationRange === '15_30' ? 32 : targetDurationRange === '60_90' ? 88 : 58;
+
+    const formattedTranscript = segments
+      .map(
+        (s, idx) =>
+          `[${idx + 1}] (${Number(s.start).toFixed(1)}s - ${Number(s.end).toFixed(1)}s): ${s.text}`
+      )
+      .join('\n');
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Configura primero tu Gemini API Key para ejecutar el motor de análisis OpusClip.',
+      });
+    }
+
+    const prompt = `Actúa como el motor de inteligencia artificial de OpusClip Pro especializado en retención viral para Instagram Reels, YouTube Shorts y TikTok.
+
+VIDEO ORIGEN: "${title || 'Documental Histórico'}"
+DURACIÓN TOTAL: ${Math.round(Number(durationSec) || 180)} segundos.
+RANGO DE DURACIÓN POR CLIP: Entre ${minDur} y ${maxDur} segundos.
+CANTIDAD DE CLIPS A DETECTAR: ${clipCount} clips ordenados de mayor a menor Virality Score (de 99 a 80).
+MODO DE ESTRUCTURA PREFERIDO: ${
+      structurePreference === 'continuous'
+        ? 'Solo fragmentos continuos (startSec a endSec)'
+        : structurePreference === 'hook_teaser'
+        ? 'Modo Hook Teaser + Cuerpo (elige una frase explosiva de 2.5 a 4.5s dentro del segmento como hookTeaserStartSec/hookTeaserEndSec para abrir el video antes del segmento)'
+        : 'Combina los mejores en modo "hook_teaser" (con frase gancho adelantada al inicio) y modo "continuous"'
+    }.
+${customTopicFilter ? `FILTRO O ENFOQUE ESPECIAL SOLICITADO: ${customTopicFilter}` : ''}
+
+TRANSCRIPCIÓN CON MARCAS DE TIEMPO EXACTAS EN SEGUNDOS:
+${formattedTranscript}
+
+INSTRUCCIONES DE SELECCIÓN OPUSCLIP:
+1. Selecciona exactamente ${clipCount} fragmentos autocontenidos que tengan el mayor impacto emocional, revelación histórica, misterio o dato sorprendente.
+2. Respeta estrictamente los tiempos reales de la transcripción (startSec y endSec deben coincidir con el inicio y fin de frases reales y durar entre ${minDur}s y ${maxDur}s).
+3. Para cada clip devuelve:
+   - "title": Título magnético del clip (ej. "El boleto sin retorno de Santander (1885)").
+   - "viralityScore": Número entero entre 82 y 99.
+   - "scoreBreakdown": { "hook": 0-100, "retention": 0-100, "emotion": 0-100, "completeness": 0-100 }
+   - "viralityReason": Explicación breve y concreta (2-3 oraciones) de por qué este fragmento retendrá a la audiencia en Reels/Shorts/TikTok.
+   - "structureMode": "hook_teaser" o "continuous".
+   - "startSec": Segundo exacto de inicio del segmento principal.
+   - "endSec": Segundo exacto de fin del segmento principal.
+   - "hookTeaserStartSec": Segundo de inicio de la frase más impactante (de 2.5 a 4.5s de duración) dentro del segmento para poner al principio como gancho (igual a startSec si es continuous).
+   - "hookTeaserEndSec": Segundo de fin de esa frase gancho.
+   - "hookBannerText": Texto corto en MAYÚSCULAS (4 a 7 palabras máximo) para el cartel superior de los primeros 3.5 segundos.
+   - "storyTeaserDurationSec": Duración ideal (entre 15 y 25 segundos) para publicar como Teaser en Instagram Stories dejando intriga.
+   - "socialCaption": Descripción atrapante lista para Instagram Reels / TikTok / Shorts que termine invitando a comentar la palabra clave "${autoDmKeyword}" para recibir el link del documental completo por DM.
+   - "hashtags": 6 a 8 hashtags virales separados por espacio (incluyendo #Reels #Historia #Documental).
+
+Devuelve ÚNICAMENTE un JSON válido con la propiedad "clips" (arreglo de objetos).`;
+
+    const resp = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const rawText = String(resp.text || '').trim();
+    const parsed = JSON.parse(rawText);
+    const rawClips: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.clips)
+      ? parsed.clips
+      : [];
+
+    const enrichedClips = rawClips.map((c, idx) => {
+      const startSec = Math.max(0, Number(c.startSec) || 0);
+      const endSec = Math.max(startSec + 10, Number(c.endSec) || startSec + 35);
+      const hookStart = Math.max(startSec, Number(c.hookTeaserStartSec) || startSec);
+      const hookEnd = Math.min(
+        endSec,
+        Math.max(hookStart + 2.2, Number(c.hookTeaserEndSec) || hookStart + 3.5)
+      );
+
+      // Slice overlapping transcript segments and their word-level timestamps
+      const overlappingSegments = segments.filter(
+        (s) => s.end > startSec + 0.1 && s.start < endSec - 0.1
+      );
+      const words: WordTimestamp[] = [];
+      for (const seg of overlappingSegments) {
+        const segWords =
+          Array.isArray(seg.words) && seg.words.length > 0
+            ? seg.words
+            : buildWordsFromSegment(seg.text, seg.start, seg.end);
+        for (const w of segWords) {
+          if (w.end > startSec && w.start < endSec) {
+            words.push({
+              word: w.word,
+              start: Number(Math.max(startSec, w.start).toFixed(2)),
+              end: Number(Math.min(endSec, w.end).toFixed(2)),
+            });
+          }
+        }
+      }
+
+      const transcriptExcerpt = overlappingSegments.map((s) => s.text).join(' ');
+
+      return {
+        id: `viral-clip-${Date.now()}-${idx + 1}`,
+        rank: idx + 1,
+        title: String(c.title || `Clip Viral #${idx + 1}`),
+        viralityScore: Math.min(99, Math.max(70, Number(c.viralityScore) || 92 - idx * 2)),
+        scoreBreakdown: {
+          hook: Number(c.scoreBreakdown?.hook) || 95,
+          retention: Number(c.scoreBreakdown?.retention) || 92,
+          emotion: Number(c.scoreBreakdown?.emotion) || 94,
+          completeness: Number(c.scoreBreakdown?.completeness) || 90,
+        },
+        viralityReason: String(
+          c.viralityReason ||
+            'Gancho inmediato en los primeros 3 segundos con alta carga emocional e intriga histórica.'
+        ),
+        structureMode: c.structureMode === 'hook_teaser' ? 'hook_teaser' : 'continuous',
+        startSec: Number(startSec.toFixed(2)),
+        endSec: Number(endSec.toFixed(2)),
+        durationSec: Number((endSec - startSec).toFixed(2)),
+        hookTeaserStartSec: Number(hookStart.toFixed(2)),
+        hookTeaserEndSec: Number(hookEnd.toFixed(2)),
+        hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
+        storyTeaserDurationSec: Math.min(
+          28,
+          Math.max(15, Number(c.storyTeaserDurationSec) || 20)
+        ),
+        socialCaption: String(c.socialCaption || ''),
+        hashtags: String(c.hashtags || '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad'),
+        transcriptExcerpt,
+        words,
+        reframeMode: 'center_fill' as 'center_fill' | 'fit_blur' | 'auto_pan',
+        focusX: 50,
+        captionStyle: 'opus_gold' as 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema',
+      };
+    });
+
+    res.json({
+      ok: true,
+      clips: enrichedClips.sort((a, b) => b.viralityScore - a.viralityScore),
+    });
+  } catch (err: any) {
+    console.error('[ViralClips] analyze error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al analizar momentos virales con IA.',
+    });
+  }
+});
+
+// Helper to build OpusClip-style Word-by-Word Karaoke ASS Subtitles
+function buildOpusClipAssSubtitles(params: {
+  outW: number;
+  outH: number;
+  words: WordTimestamp[];
+  captionStyle: 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
+  wordsPerLine: number;
+  fontSizeScale: number; // e.g., 1.0 default
+  captionYPercent: number; // e.g., 74 (74% from top)
+  hookBannerText?: string;
+  showHookBanner?: boolean;
+  storyCtaBannerText?: string;
+  totalClipDurSec: number;
+}): string {
+  const {
+    outW,
+    outH,
+    words,
+    captionStyle,
+    wordsPerLine = 3,
+    fontSizeScale = 1.0,
+    captionYPercent = 74,
+    hookBannerText,
+    showHookBanner,
+    storyCtaBannerText,
+    totalClipDurSec,
+  } = params;
+
+  const formatAssTime = (sec: number): string => {
+    const clamped = Math.max(0, sec);
+    const hrs = Math.floor(clamped / 3600);
+    const mins = Math.floor((clamped % 3600) / 60);
+    const secs = Math.floor(clamped % 60);
+    const cs = Math.min(99, Math.round((clamped - Math.floor(clamped)) * 100));
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(
+      cs
+    ).padStart(2, '0')}`;
+  };
+
+  const baseFontSize = Math.round(outH * 0.041 * fontSizeScale);
+  const hookBannerFontSize = Math.round(outH * 0.032);
+  const storyCtaFontSize = Math.round(outH * 0.025);
+  const posY = Math.round((Math.max(20, Math.min(88, captionYPercent)) / 100) * outH);
+  const centerX = Math.round(outW / 2);
+
+  // Active word highlight colors in ASS BGR format (&HBBGGRR&)
+  const highlightColorAss =
+    captionStyle === 'hormozi_green'
+      ? '&H0080DE4A&' // Neon Green (#4ADE80)
+      : captionStyle === 'viral_box'
+      ? '&H0038BDF8&' // Sky/Cyan (#F8BD38 / Gold-Amber)
+      : captionStyle === 'huellas_cinema'
+      ? '&H0066D1FF&' // Warm Gold (#FFD166)
+      : '&H0015CCFA&'; // Opus Gold (#FACC15)
+
+  const assLines: string[] = [
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    `PlayResX: ${outW}`,
+    `PlayResY: ${outH}`,
+    'WrapStyle: 2',
+    'ScaledBorderAndShadow: yes',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    `Style: OpusMain,Arial Black,${baseFontSize},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,${Math.max(
+      4,
+      Math.round(baseFontSize * 0.09)
+    )},${Math.max(2, Math.round(baseFontSize * 0.05))},5,40,40,40,1`,
+    `Style: OpusPillBg,Arial Black,${baseFontSize},&HB0000000,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,1,0,1,0,0,5,40,40,40,1`,
+    `Style: HookBanner,Arial Black,${hookBannerFontSize},&H00101010,&H0000FFFF,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1,0,3,${Math.round(
+      hookBannerFontSize * 0.36
+    )},0,8,50,50,180,1`,
+    `Style: StoryCta,Arial Black,${storyCtaFontSize},&H00FFFFFF,&H0000FFFF,&H00155E75,&H00155E75,-1,0,0,0,100,100,1,0,3,${Math.round(
+      storyCtaFontSize * 0.42
+    )},0,2,40,40,95,1`,
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+  ];
+
+  // 1) Optional Hook Banner at the top for the first 3.8s
+  if (showHookBanner && hookBannerText && hookBannerText.trim()) {
+    const cleanHook = hookBannerText
+      .trim()
+      .replace(/[{}]/g, '')
+      .slice(0, 65);
+    const bannerEnd = Math.min(totalClipDurSec, 3.8);
+    assLines.push(
+      `Dialogue: 3,${formatAssTime(0)},${formatAssTime(
+        bannerEnd
+      )},HookBanner,,0,0,0,,{\\fad(180,280)\\pos(${centerX},${Math.round(
+        outH * 0.14
+      )})}  ${cleanHook}  `
+    );
+  }
+
+  // 2) Optional Story CTA Banner at the bottom (e.g. "💬 Responde HUELLAS para enviarte el link por DM")
+  if (storyCtaBannerText && storyCtaBannerText.trim()) {
+    const cleanCta = storyCtaBannerText.trim().replace(/[{}]/g, '');
+    assLines.push(
+      `Dialogue: 3,${formatAssTime(0.2)},${formatAssTime(
+        totalClipDurSec
+      )},StoryCta,,0,0,0,,{\\fad(250,250)\\pos(${centerX},${Math.round(
+        outH * 0.91
+      )})}  ${cleanCta}  `
+    );
+  }
+
+  // 3) Group words into chunks of `wordsPerLine` and emit word-by-word active highlight events
+  const safeWordsPerChunk = Math.max(1, Math.min(6, Number(wordsPerLine) || 3));
+  for (let i = 0; i < words.length; i += safeWordsPerChunk) {
+    const chunk = words.slice(i, i + safeWordsPerChunk);
+    if (chunk.length === 0) continue;
+
+    for (let activeIdx = 0; activeIdx < chunk.length; activeIdx++) {
+      const wStart = chunk[activeIdx].start;
+      const wEnd =
+        activeIdx + 1 < chunk.length ? chunk[activeIdx + 1].start : chunk[activeIdx].end;
+      if (wEnd <= wStart + 0.01) continue;
+
+      const formattedTokens = chunk.map((tokenObj, j) => {
+        const cleanWord = String(tokenObj.word || '')
+          .replace(/[{}]/g, '')
+          .toUpperCase();
+        if (j === activeIdx) {
+          return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${cleanWord}{\\1c&H00FFFFFF&\\fscx100\\fscy100}`;
+        }
+        return cleanWord;
+      });
+
+      const lineStr = formattedTokens.join(' ');
+      assLines.push(
+        `Dialogue: 2,${formatAssTime(wStart)},${formatAssTime(
+          wEnd
+        )},OpusMain,,0,0,0,,{\\pos(${centerX},${posY})}${lineStr}`
+      );
+    }
+  }
+
+  return assLines.join('\n');
+}
+
+// 5. Render Viral Clip to 9:16 MP4 (/api/viral-clips/render)
+async function renderViralClipMp4Internal(params: {
+  sourceVideoPath: string;
+  docRootFolder?: string;
+  clipTitle: string;
+  startSec: number;
+  endSec: number;
+  structureMode: 'continuous' | 'hook_teaser';
+  hookTeaserStartSec?: number;
+  hookTeaserEndSec?: number;
+  reframeMode: 'center_fill' | 'fit_blur' | 'auto_pan';
+  focusX: number;
+  captionStyle: 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
+  wordsPerLine: number;
+  fontSizeScale: number;
+  captionYPercent: number;
+  words: WordTimestamp[];
+  hookBannerText?: string;
+  showHookBanner?: boolean;
+  renderVariant?: 'reel' | 'story_full' | 'story_teaser';
+  storyTeaserDurationSec?: number;
+  storyCtaBannerText?: string;
+}): Promise<{
+  outputFilePath: string;
+  savedInDocFolderPath?: string;
+  publicServeUrl: string;
+  durationSec: number;
+}> {
+  const {
+    sourceVideoPath,
+    docRootFolder,
+    clipTitle,
+    startSec,
+    endSec,
+    structureMode,
+    hookTeaserStartSec = startSec,
+    hookTeaserEndSec = startSec + 3,
+    reframeMode = 'center_fill',
+    focusX = 50,
+    captionStyle = 'opus_gold',
+    wordsPerLine = 3,
+    fontSizeScale = 1.0,
+    captionYPercent = 74,
+    words = [],
+    hookBannerText = '',
+    showHookBanner = true,
+    renderVariant = 'reel',
+    storyTeaserDurationSec = 20,
+    storyCtaBannerText = '',
+  } = params;
+
+  if (!sourceVideoPath || !fs.existsSync(sourceVideoPath)) {
+    throw new Error(
+      'No se encontró el archivo de video origen. Si es un documental, asegúrate de haber exportado el video en 06_Video_Final o sube un archivo MP4.'
+    );
+  }
+
+  const ffmpegBin = getFfmpegPath();
+  const outW = 1080;
+  const outH = 1920;
+
+  // Adjust effective duration based on variant ('reel' vs 'story_full' <=58s vs 'story_teaser' ~20s)
+  let effectiveEndSec = endSec;
+  if (renderVariant === 'story_full') {
+    effectiveEndSec = Math.min(endSec, startSec + 58);
+  } else if (renderVariant === 'story_teaser') {
+    effectiveEndSec = Math.min(endSec, startSec + Math.max(12, storyTeaserDurationSec));
+  }
+  const mainSpanDur = Math.max(3, effectiveEndSec - startSec);
+
+  const useHookTeaser =
+    structureMode === 'hook_teaser' &&
+    renderVariant === 'reel' &&
+    hookTeaserStartSec > startSec + 1.5 &&
+    hookTeaserEndSec > hookTeaserStartSec + 1.5 &&
+    hookTeaserEndSec <= endSec;
+
+  const teaserSpanDur = useHookTeaser ? Math.min(5, hookTeaserEndSec - hookTeaserStartSec) : 0;
+  const totalClipDurSec = teaserSpanDur + mainSpanDur;
+
+  // Shift words to local clip timeline [0, totalClipDurSec]
+  const localWords: WordTimestamp[] = [];
+  if (useHookTeaser) {
+    for (const w of words) {
+      if (w.end > hookTeaserStartSec && w.start < hookTeaserEndSec) {
+        localWords.push({
+          word: w.word,
+          start: Math.max(0, w.start - hookTeaserStartSec),
+          end: Math.min(teaserSpanDur, w.end - hookTeaserStartSec),
+        });
+      }
+    }
+  }
+  for (const w of words) {
+    if (w.end > startSec && w.start < effectiveEndSec) {
+      localWords.push({
+        word: w.word,
+        start: teaserSpanDur + Math.max(0, w.start - startSec),
+        end: teaserSpanDur + Math.min(mainSpanDur, w.end - startSec),
+      });
+    }
+  }
+
+  const assContent = buildOpusClipAssSubtitles({
+    outW,
+    outH,
+    words: localWords,
+    captionStyle,
+    wordsPerLine,
+    fontSizeScale,
+    captionYPercent,
+    hookBannerText,
+    showHookBanner,
+    storyCtaBannerText:
+      renderVariant === 'story_full' || renderVariant === 'story_teaser'
+        ? storyCtaBannerText
+        : '',
+    totalClipDurSec,
+  });
+
+  const stamp = Date.now();
+  const assPath = path.join(os.tmpdir(), `viral_ass_${stamp}.ass`);
+  fs.writeFileSync(assPath, assContent, 'utf8');
+  const escapedAssPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+
+  const safeSlug = String(clipTitle || 'Viral_Clip')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
+
+  const variantSuffix =
+    renderVariant === 'story_teaser'
+      ? '_Story_Teaser'
+      : renderVariant === 'story_full'
+      ? '_Story'
+      : '_Reel_9x16';
+
+  const fileName = `${safeSlug}${variantSuffix}_${stamp}.mp4`;
+  const outputFilePath = path.join(VIRAL_EXPORTS_DIR, fileName);
+
+  // Build 9:16 Reframe filter
+  const fX = Math.max(0, Math.min(1, (Number(focusX) || 50) / 100));
+  let reframeVf = '';
+  if (reframeMode === 'fit_blur') {
+    reframeVf = `split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
+  } else if (reframeMode === 'auto_pan') {
+    reframeVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
+      2
+    )}))':(ih-oh)/2,ass='${escapedAssPath}'`;
+  } else {
+    reframeVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+      3
+    )}:(ih-oh)/2,ass='${escapedAssPath}'`;
+  }
+
+  try {
+    if (!useHookTeaser) {
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          ffmpegBin,
+          [
+            '-y',
+            '-ss',
+            startSec.toFixed(3),
+            '-to',
+            effectiveEndSec.toFixed(3),
+            '-i',
+            sourceVideoPath,
+            '-vf',
+            reframeVf,
+            '-r',
+            '30',
+            '-c:v',
+            'libx264',
+            '-preset',
+            'ultrafast',
+            '-crf',
+            '20',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-movflags',
+            '+faststart',
+            outputFilePath,
+          ],
+          { timeout: 600000 },
+          (err, _stdout, stderr) => {
+            if (err) return reject(new Error(stderr || err.message));
+            resolve();
+          }
+        );
+      });
+    } else {
+      // Render Hook Teaser + Main Segment concatenated, then burn ASS subtitles
+      const complexFilter =
+        reframeMode === 'fit_blur'
+          ? `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
+              3
+            )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
+              3
+            )}:end=${hookTeaserEndSec.toFixed(
+              3
+            )},asetpts=PTS-STARTPTS[a0];[0:v]trim=start=${startSec.toFixed(
+              3
+            )}:end=${effectiveEndSec.toFixed(
+              3
+            )},setpts=PTS-STARTPTS[v1];[0:a]atrim=start=${startSec.toFixed(
+              3
+            )}:end=${effectiveEndSec.toFixed(
+              3
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
+          : `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
+              3
+            )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
+              3
+            )}:end=${hookTeaserEndSec.toFixed(
+              3
+            )},asetpts=PTS-STARTPTS[a0];[0:v]trim=start=${startSec.toFixed(
+              3
+            )}:end=${effectiveEndSec.toFixed(
+              3
+            )},setpts=PTS-STARTPTS[v1];[0:a]atrim=start=${startSec.toFixed(
+              3
+            )}:end=${effectiveEndSec.toFixed(
+              3
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+              3
+            )}:(ih-oh)/2,ass='${escapedAssPath}'[vout]`;
+
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          ffmpegBin,
+          [
+            '-y',
+            '-i',
+            sourceVideoPath,
+            '-filter_complex',
+            complexFilter,
+            '-map',
+            '[vout]',
+            '-map',
+            '[aout]',
+            '-r',
+            '30',
+            '-c:v',
+            'libx264',
+            '-preset',
+            'ultrafast',
+            '-crf',
+            '20',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-movflags',
+            '+faststart',
+            outputFilePath,
+          ],
+          { timeout: 600000 },
+          (err, _stdout, stderr) => {
+            if (err) return reject(new Error(stderr || err.message));
+            resolve();
+          }
+        );
+      });
+    }
+  } finally {
+    try {
+      if (fs.existsSync(assPath)) fs.unlinkSync(assPath);
+    } catch {}
+  }
+
+  let savedInDocFolderPath: string | undefined;
+  if (docRootFolder && fs.existsSync(docRootFolder)) {
+    try {
+      const viralDir = path.join(docRootFolder, '07_Viral_Clips');
+      if (!fs.existsSync(viralDir)) {
+        fs.mkdirSync(viralDir, { recursive: true });
+      }
+      const targetDocCopy = path.join(viralDir, fileName);
+      fs.copyFileSync(outputFilePath, targetDocCopy);
+      savedInDocFolderPath = targetDocCopy;
+    } catch (e) {
+      console.warn('[ViralClips] Could not copy to 07_Viral_Clips:', e);
+    }
+  }
+
+  return {
+    outputFilePath,
+    savedInDocFolderPath,
+    publicServeUrl: `/viral-clips-media/exports/${fileName}`,
+    durationSec: totalClipDurSec,
+  };
+}
+
+app.post('/api/viral-clips/render', async (req, res) => {
+  try {
+    const result = await renderViralClipMp4Internal(req.body || {});
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('[ViralClips] render error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al renderizar el clip viral.',
+    });
+  }
+});
+
+// ============================================================================
+// INSTAGRAM GRAPH API DIRECT PUBLISHER (REELS + STORIES) & AUTO-DM ENGINE
+// ============================================================================
+
+async function uploadMp4ToTemporaryPublicHttps(localFilePath: string): Promise<string> {
+  const store = loadViralStore();
+  if (
+    store.publicServerBaseUrl &&
+    /^https:\/\//i.test(store.publicServerBaseUrl.trim()) &&
+    !store.publicServerBaseUrl.includes('localhost')
+  ) {
+    const base = store.publicServerBaseUrl.trim().replace(/\/+$/, '');
+    return `${base}/viral-clips-media/exports/${encodeURIComponent(path.basename(localFilePath))}`;
+  }
+
+  const fileBytes = fs.readFileSync(localFilePath);
+  const fileName = path.basename(localFilePath);
+
+  // Fallback 1: litterbox.catbox.moe (1h temporary direct HTTPS MP4 link, fast & reliable for Meta Graph API ingestion)
+  try {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('time', '1h');
+    form.append('fileToUpload', new Blob([fileBytes], { type: 'video/mp4' }), fileName);
+    const resp = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', {
+      method: 'POST',
+      body: form,
+    });
+    if (resp.ok) {
+      const urlText = (await resp.text()).trim();
+      if (/^https:\/\/[^\s]+\.mp4$/i.test(urlText)) {
+        return urlText;
+      }
+    }
+  } catch (e) {
+    console.warn('[IG Publisher] litterbox fallback warning:', e);
+  }
+
+  // Fallback 2: tmpfiles.org direct download link
+  try {
+    const form = new FormData();
+    form.append('file', new Blob([fileBytes], { type: 'video/mp4' }), fileName);
+    const resp = await fetch('https://tmpfiles.org/api/v1/upload', {
+      method: 'POST',
+      body: form,
+    });
+    if (resp.ok) {
+      const data: any = await resp.json();
+      const rawUrl = String(data?.data?.url || '');
+      if (rawUrl.startsWith('http')) {
+        return rawUrl
+          .replace('http://tmpfiles.org/', 'https://tmpfiles.org/dl/')
+          .replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
+      }
+    }
+  } catch (e) {
+    console.warn('[IG Publisher] tmpfiles fallback warning:', e);
+  }
+
+  throw new Error(
+    'No se pudo generar una URL pública HTTPS temporal para que los servidores de Meta descarguen el video.'
+  );
+}
+
+async function publishSingleMediaToInstagramGraphApi(params: {
+  igUserId: string;
+  accessToken: string;
+  videoPublicUrl: string;
+  mediaType: 'REELS' | 'STORIES';
+  caption?: string;
+}): Promise<{ mediaId: string; permalink?: string }> {
+  const { igUserId, accessToken, videoPublicUrl, mediaType, caption } = params;
+  const createUrl = new URL(`https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media`);
+  createUrl.searchParams.set('media_type', mediaType);
+  createUrl.searchParams.set('video_url', videoPublicUrl);
+  if (mediaType === 'REELS') {
+    createUrl.searchParams.set('share_to_feed', 'true');
+    if (caption) {
+      createUrl.searchParams.set('caption', caption);
+    }
+  }
+  createUrl.searchParams.set('access_token', accessToken);
+
+  const createResp = await fetch(createUrl.toString(), { method: 'POST' });
+  const createJson: any = await createResp.json();
+  if (!createResp.ok || !createJson?.id) {
+    throw new Error(
+      createJson?.error?.message ||
+        `Error creando contenedor ${mediaType} en Instagram Graph API.`
+    );
+  }
+
+  const creationId = String(createJson.id);
+
+  // Poll container status until FINISHED (up to ~90s)
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const statusUrl = new URL(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(creationId)}`
+    );
+    statusUrl.searchParams.set('fields', 'status_code,status');
+    statusUrl.searchParams.set('access_token', accessToken);
+    const stResp = await fetch(statusUrl.toString());
+    const stJson: any = await stResp.json();
+    const code = String(stJson?.status_code || '');
+    if (code === 'FINISHED') {
+      break;
+    }
+    if (code === 'ERROR' || code === 'EXPIRED') {
+      throw new Error(
+        `Instagram rechazó el procesamiento del video (${code}): ${
+          stJson?.status || 'Verifica el formato MP4 H.264.'
+        }`
+      );
+    }
+  }
+
+  // Publish container
+  const pubUrl = new URL(
+    `https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media_publish`
+  );
+  pubUrl.searchParams.set('creation_id', creationId);
+  pubUrl.searchParams.set('access_token', accessToken);
+
+  const pubResp = await fetch(pubUrl.toString(), { method: 'POST' });
+  const pubJson: any = await pubResp.json();
+  if (!pubResp.ok || !pubJson?.id) {
+    throw new Error(
+      pubJson?.error?.message || `Error publicando ${mediaType} en Instagram.`
+    );
+  }
+
+  const publishedMediaId = String(pubJson.id);
+  let permalink: string | undefined;
+  try {
+    const infoUrl = new URL(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(publishedMediaId)}`
+    );
+    infoUrl.searchParams.set('fields', 'permalink');
+    infoUrl.searchParams.set('access_token', accessToken);
+    const infoResp = await fetch(infoUrl.toString());
+    const infoJson: any = await infoResp.json();
+    if (infoJson?.permalink) permalink = String(infoJson.permalink);
+  } catch {}
+
+  return { mediaId: publishedMediaId, permalink };
+}
+
+// Get Instagram & Auto-DM settings
+app.get('/api/viral-clips/instagram-config', (_req, res) => {
+  const store = loadViralStore();
+  res.json({
+    ok: true,
+    config: {
+      ...store,
+      hasToken: Boolean(store.accessToken && store.accessToken.trim().length > 10),
+      maskedToken: store.accessToken ? getMaskedKey(store.accessToken) : '',
+    },
+  });
+});
+
+// Save Instagram & Auto-DM settings
+app.post('/api/viral-clips/instagram-config', async (req, res) => {
+  try {
+    const current = loadViralStore();
+    const body = req.body || {};
+    if (typeof body.igUserId === 'string') current.igUserId = body.igUserId.trim();
+    if (typeof body.accessToken === 'string' && body.accessToken.trim() && !body.accessToken.includes('••••')) {
+      current.accessToken = body.accessToken.trim();
+    }
+    if (typeof body.publicServerBaseUrl === 'string') {
+      current.publicServerBaseUrl = body.publicServerBaseUrl.trim();
+    }
+    if (body.autoDm && typeof body.autoDm === 'object') {
+      current.autoDm = {
+        ...current.autoDm,
+        ...body.autoDm,
+      };
+    }
+
+    // Verify account username if igUserId + accessToken are present
+    if (current.igUserId && current.accessToken) {
+      try {
+        const testUrl = new URL(
+          `https://graph.facebook.com/v21.0/${encodeURIComponent(current.igUserId)}`
+        );
+        testUrl.searchParams.set('fields', 'id,username,name');
+        testUrl.searchParams.set('access_token', current.accessToken);
+        const r = await fetch(testUrl.toString());
+        const j: any = await r.json();
+        if (r.ok && j?.username) {
+          current.accountUsername = j.username;
+        }
+      } catch {}
+    }
+
+    saveViralStore(current);
+    res.json({
+      ok: true,
+      config: {
+        ...current,
+        hasToken: Boolean(current.accessToken && current.accessToken.trim().length > 10),
+        maskedToken: current.accessToken ? getMaskedKey(current.accessToken) : '',
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Error guardando configuración de Instagram.' });
+  }
+});
+
+// Publish Reel, Story, or Combo Reel + Story directly to Instagram
+app.post('/api/viral-clips/publish-instagram', async (req, res) => {
+  try {
+    const store = loadViralStore();
+    if (!store.igUserId || !store.accessToken) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          'Configura primero tu Instagram Business/Creator User ID y tu Access Token en el panel de Conexión de Instagram.',
+      });
+    }
+
+    const {
+      publishMode = 'combo_reel_story', // 'reel' | 'story' | 'combo_reel_story'
+      storyMode = 'story_teaser', // 'story_teaser' | 'story_full'
+      caption = '',
+      hashtags = '',
+      autoDmDestinationUrl = '',
+      autoDmKeyword = '',
+      renderParams,
+    } = req.body || {};
+
+    // Update Auto-DM destination URL if provided for this documentary/clip
+    if (autoDmDestinationUrl && String(autoDmDestinationUrl).trim()) {
+      store.autoDm.destinationUrl = String(autoDmDestinationUrl).trim();
+    }
+    if (autoDmKeyword && String(autoDmKeyword).trim()) {
+      store.autoDm.keyword = String(autoDmKeyword).trim().toUpperCase();
+    }
+    saveViralStore(store);
+
+    const activeKeyword = store.autoDm.keyword || 'HUELLAS';
+    const fullCaption = `${String(caption || '').trim()}\n\n💬 Comenta "${activeKeyword}" y te envío el link directo al documental completo por DM.\n\n${String(
+      hashtags || ''
+    ).trim()}`.trim();
+
+    let reelResult: { mediaId: string; permalink?: string } | undefined;
+    let storyResult: { mediaId: string; permalink?: string } | undefined;
+
+    if (publishMode === 'reel' || publishMode === 'combo_reel_story') {
+      const renderedReel = await renderViralClipMp4Internal({
+        ...renderParams,
+        renderVariant: 'reel',
+      });
+      const publicReelUrl = await uploadMp4ToTemporaryPublicHttps(renderedReel.outputFilePath);
+      reelResult = await publishSingleMediaToInstagramGraphApi({
+        igUserId: store.igUserId,
+        accessToken: store.accessToken,
+        videoPublicUrl: publicReelUrl,
+        mediaType: 'REELS',
+        caption: fullCaption,
+      });
+    }
+
+    if (publishMode === 'story' || publishMode === 'combo_reel_story') {
+      const ctaText = store.autoDm.enabled
+        ? `💬 Responde "${activeKeyword}" y te envio el link directo por DM`
+        : '🔥 Mira el Reel completo en nuestro perfil';
+      const renderedStory = await renderViralClipMp4Internal({
+        ...renderParams,
+        renderVariant: storyMode === 'story_full' ? 'story_full' : 'story_teaser',
+        storyCtaBannerText: ctaText,
+      });
+      const publicStoryUrl = await uploadMp4ToTemporaryPublicHttps(renderedStory.outputFilePath);
+      storyResult = await publishSingleMediaToInstagramGraphApi({
+        igUserId: store.igUserId,
+        accessToken: store.accessToken,
+        videoPublicUrl: publicStoryUrl,
+        mediaType: 'STORIES',
+      });
+    }
+
+    store.publishedHistory.unshift({
+      id: `pub-${Date.now()}`,
+      clipTitle: String(renderParams?.clipTitle || 'Viral Clip'),
+      publishMode,
+      reelMediaId: reelResult?.mediaId,
+      reelPermalink: reelResult?.permalink,
+      storyMediaId: storyResult?.mediaId,
+      publishedAt: new Date().toISOString(),
+    });
+    saveViralStore(store);
+
+    res.json({
+      ok: true,
+      publishMode,
+      reelResult,
+      storyResult,
+    });
+  } catch (err: any) {
+    console.error('[IG Publisher] publish-instagram error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al publicar en Instagram.',
+    });
+  }
+});
+
+// Active Auto-DM Check & Responder (scans comments on recent Reels & Story replies and sends clickable link DMs)
+async function checkAndSendInstagramAutoDms(): Promise<{
+  checkedCount: number;
+  sentCount: number;
+  details: string[];
+}> {
+  const store = loadViralStore();
+  if (!store.igUserId || !store.accessToken || !store.autoDm.enabled) {
+    return { checkedCount: 0, sentCount: 0, details: [] };
+  }
+
+  const keywordUpper = (store.autoDm.keyword || 'HUELLAS').trim().toUpperCase();
+  const targetUrl = (store.autoDm.destinationUrl || '').trim();
+  if (!targetUrl) {
+    return { checkedCount: 0, sentCount: 0, details: [] };
+  }
+
+  let checkedCount = 0;
+  let sentCount = 0;
+  const details: string[] = [];
+
+  // 1) Scan recent media comments
+  const mediaUrl = new URL(
+    `https://graph.facebook.com/v21.0/${encodeURIComponent(store.igUserId)}/media`
+  );
+  mediaUrl.searchParams.set(
+    'fields',
+    'id,caption,permalink,comments.limit(25){id,text,username,timestamp}'
+  );
+  mediaUrl.searchParams.set('limit', '10');
+  mediaUrl.searchParams.set('access_token', store.accessToken);
+
+  const mediaResp = await fetch(mediaUrl.toString());
+  const mediaJson: any = await mediaResp.json();
+  const mediaItems: any[] = Array.isArray(mediaJson?.data) ? mediaJson.data : [];
+
+  for (const media of mediaItems) {
+    const comments: any[] = Array.isArray(media?.comments?.data) ? media.comments.data : [];
+    for (const c of comments) {
+      const commentId = String(c.id || '');
+      const text = String(c.text || '').trim();
+      const username = String(c.username || 'usuario');
+      if (!commentId || !text) continue;
+      if (
+        store.accountUsername &&
+        username.toLowerCase() === store.accountUsername.toLowerCase()
+      ) {
+        continue;
+      }
+      if (store.repliedTriggerIds.includes(commentId)) continue;
+      checkedCount++;
+
+      const upper = text.toUpperCase();
+      const matchesKeyword = upper.includes(keywordUpper);
+      const matchesIntent =
+        store.autoDm.matchAnyCommentAskingLink &&
+        /\b(LINK|ENLACE|VIDEO|DOCUMENTAL|COMPLETO|YOUTUBE|PASAME|MANDA|QUIERO)\b/i.test(text);
+
+      if (!matchesKeyword && !matchesIntent) continue;
+
+      const dmText = store.autoDm.dmMessageTemplate
+        .replace(/\{\{username\}\}/gi, username)
+        .replace(/\{\{url\}\}/gi, targetUrl);
+
+      try {
+        // Send Private Reply DM with clickable URL via Instagram Graph API
+        const msgUrl = new URL(
+          `https://graph.facebook.com/v21.0/${encodeURIComponent(store.igUserId)}/messages`
+        );
+        msgUrl.searchParams.set('access_token', store.accessToken);
+        const dmResp = await fetch(msgUrl.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient: { comment_id: commentId },
+            message: { text: dmText },
+          }),
+        });
+        const dmJson: any = await dmResp.json();
+        if (!dmResp.ok) {
+          throw new Error(dmJson?.error?.message || 'Error enviando Private Reply DM');
+        }
+
+        // Optional public comment reply to boost engagement
+        if (store.autoDm.enablePublicCommentReply && store.autoDm.publicCommentReply.trim()) {
+          try {
+            const repUrl = new URL(
+              `https://graph.facebook.com/v21.0/${encodeURIComponent(commentId)}/replies`
+            );
+            repUrl.searchParams.set('message', `@${username} ${store.autoDm.publicCommentReply.trim()}`);
+            repUrl.searchParams.set('access_token', store.accessToken);
+            await fetch(repUrl.toString(), { method: 'POST' });
+          } catch {}
+        }
+
+        store.repliedTriggerIds.push(commentId);
+        store.sentDmLogs.unshift({
+          id: `dm-${Date.now()}-${commentId}`,
+          recipientUsername: username,
+          triggerType: 'comment',
+          triggerText: text,
+          sentUrl: targetUrl,
+          mediaId: String(media.id || ''),
+          sentAt: new Date().toISOString(),
+          status: 'sent',
+        });
+        sentCount++;
+        details.push(`DM con link enviado a @${username} ("${text}")`);
+      } catch (err: any) {
+        store.sentDmLogs.unshift({
+          id: `dm-err-${Date.now()}-${commentId}`,
+          recipientUsername: username,
+          triggerType: 'comment',
+          triggerText: text,
+          sentUrl: targetUrl,
+          mediaId: String(media.id || ''),
+          sentAt: new Date().toISOString(),
+          status: 'error',
+          errorMsg: err?.message || 'Error',
+        });
+      }
+    }
+  }
+
+  saveViralStore(store);
+  return { checkedCount, sentCount, details };
+}
+
+app.post('/api/viral-clips/instagram-check-autodm', async (_req, res) => {
+  try {
+    const result = await checkAndSendInstagramAutoDms();
+    const updatedStore = loadViralStore();
+    res.json({
+      ok: true,
+      ...result,
+      sentDmLogs: updatedStore.sentDmLogs,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al revisar comentarios para Auto-DM.',
+    });
+  }
+});
+
+// Official Meta Webhook endpoint for real-time Story replies & Reel comments (when hosted on Render)
+app.get('/api/instagram/webhook', (req, res) => {
+  const store = loadViralStore();
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === store.webhookVerifyToken) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+app.post('/api/instagram/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const store = loadViralStore();
+    if (!store.autoDm.enabled || !store.igUserId || !store.accessToken) return;
+    const body = req.body || {};
+    if (body.object === 'instagram') {
+      // Trigger comment check & handle direct Story reply messaging events
+      const entries: any[] = Array.isArray(body.entry) ? body.entry : [];
+      for (const entry of entries) {
+        const messaging: any[] = Array.isArray(entry.messaging) ? entry.messaging : [];
+        for (const evt of messaging) {
+          const senderId = String(evt?.sender?.id || '');
+          const msgId = String(evt?.message?.mid || '');
+          const msgText = String(evt?.message?.text || '').trim();
+          if (
+            senderId &&
+            senderId !== store.igUserId &&
+            msgId &&
+            msgText &&
+            !store.repliedTriggerIds.includes(msgId)
+          ) {
+            const kw = (store.autoDm.keyword || 'HUELLAS').toUpperCase();
+            if (
+              msgText.toUpperCase().includes(kw) ||
+              (store.autoDm.matchAnyCommentAskingLink &&
+                /\b(LINK|ENLACE|VIDEO|DOCUMENTAL|YOUTUBE)\b/i.test(msgText))
+            ) {
+              const dmText = store.autoDm.dmMessageTemplate
+                .replace(/\{\{username\}\}/gi, 'amigo(a)')
+                .replace(/\{\{url\}\}/gi, store.autoDm.destinationUrl);
+              const msgUrl = new URL(
+                `https://graph.facebook.com/v21.0/${encodeURIComponent(store.igUserId)}/messages`
+              );
+              msgUrl.searchParams.set('access_token', store.accessToken);
+              await fetch(msgUrl.toString(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipient: { id: senderId },
+                  message: { text: dmText },
+                }),
+              });
+              store.repliedTriggerIds.push(msgId);
+              store.sentDmLogs.unshift({
+                id: `dm-story-${Date.now()}`,
+                recipientUsername: `StoryReply (${senderId.slice(-5)})`,
+                triggerType: 'story_reply',
+                triggerText: msgText,
+                sentUrl: store.autoDm.destinationUrl,
+                sentAt: new Date().toISOString(),
+                status: 'sent',
+              });
+              saveViralStore(store);
+            }
+          }
+        }
+      }
+      await checkAndSendInstagramAutoDms();
+    }
+  } catch (e) {
+    console.warn('[IG Webhook] Error processing event:', e);
+  }
+});
+
+// Background interval every 45s to auto-reply to new Reel comments with the clickable link
+setInterval(() => {
+  checkAndSendInstagramAutoDms().catch(() => {});
+}, 45000);
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {

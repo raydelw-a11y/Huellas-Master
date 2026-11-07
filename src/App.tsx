@@ -42,6 +42,7 @@ import {
   RESOLUTION_PRESETS,
   PERMANENT_LOGO_STORAGE_KEY,
 } from './components/CapCutEditor';
+import { ViralClipsStudio } from './components/ViralClipsStudio';
 import {
   DocumentaryProject,
   AVAILABLE_VOICES,
@@ -123,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:27 PM - 11/06/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:20 AM - 11/07/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -832,15 +833,16 @@ export default function App() {
   });
   const [passwordInput, setPasswordInput] = useState('');
 
-  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor'
+  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips'
   const [mainView, setMainView] = useState<
-    'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor'
+    'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips'
   >(() => {
     const saved = localStorage.getItem('huellas_master_view');
     if (
       saved === 'studio' ||
       saved === 'standalone_prompt' ||
       saved === 'capcut_editor' ||
+      saved === 'viral_clips' ||
       saved === 'dashboard'
     )
       return saved;
@@ -8635,6 +8637,29 @@ export default function App() {
             <span>🎬 Editor de Video</span>
           </button>
 
+          <button
+            onClick={() => {
+              saveCurrentSectionScrollPosition();
+              if (!activeDoc && documentaries.length > 0) {
+                setActiveDocId(documentaries[0].id);
+              }
+              setMainView('viral_clips');
+            }}
+            className={`${
+              mainView === 'capcut_editor'
+                ? 'px-2.5 py-0.5 text-[11px]'
+                : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+            } shrink-0 whitespace-nowrap rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
+              mainView === 'viral_clips'
+                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-500/20'
+                : 'bg-orange-500/15 text-amber-200 hover:bg-orange-500/25 border-orange-500/40'
+            }`}
+            title="Clipear videos estilo OpusClip (Documentales, MP4 local o Link de YouTube) con Captions palabra por palabra y publicación directa en Instagram Reels + Stories + Auto-DM Link"
+          >
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span>⚡ Viral Clips</span>
+          </button>
+
           {activeDoc && (
             <button
               onClick={() => {
@@ -9135,6 +9160,19 @@ export default function App() {
           isEditorActive={mainView === 'capcut_editor'}
         />
       </div>
+
+      {/* =====================================================================
+          VIEW 2C: VIRAL CLIPS STUDIO (OPUSCLIP ENGINE + INSTAGRAM REELS/STORIES + AUTO-DM)
+      ===================================================================== */}
+      {mainView === 'viral_clips' && (
+        <ViralClipsStudio
+          documentaries={documentaries}
+          activeDoc={activeDoc}
+          onSelectDoc={(docId) => setActiveDocId(docId)}
+          downloadFolderName={effectiveDocFolderName}
+          downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
+        />
+      )}
 
       {/* =====================================================================
           VIEW 3: DOCUMENTARY STUDIO (MENÚ SUPERIOR HORIZONTAL + ÁREA COMPLETA)
