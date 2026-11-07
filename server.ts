@@ -4654,7 +4654,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         vCodecArgs: string[],
         useHwAccelInput: boolean
       ): string[] => {
-        const inputOffset = useSilentAudioInput ? 1 : 0;
+        const inputOffset = 0;
         const resolvedOverlaySteps = overlayFilterSteps.map((step) =>
           step.replace(/__INP_(\d+)__/g, (_m, d) => String(parseInt(d, 10) + inputOffset))
         );
@@ -4885,7 +4885,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       .replace(/[^a-zA-Z0-9_-]+/g, '_')
       .replace(/^_+|_+$/g, '')
       .slice(0, 60);
-    const platformSlug = isVertical916 ? 'Facebook' : 'YouTube';
+    const platformSlug = aspectRatio === '9:16' || outH > outW ? 'Facebook' : 'YouTube';
     const ratioSlug = aspectRatio.replace(':', 'x');
     const finalFileName = `${videoNumPrefix}_${platformSlug}_${ratioSlug}_${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps.mp4`;
     const videoFinalSubdir = path.join(targetRoot, '06_Video_Final');
