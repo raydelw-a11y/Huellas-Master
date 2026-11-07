@@ -3457,7 +3457,7 @@ async function buildSmartNaturalFoleyFilter(opts: {
 
   const safeTargetDur = Math.max(0.3, targetDurSec);
   const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100) - 1024);
-  const afTrimSuffix = `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`;
+  const afTrimSuffix = `,aresample=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad,atrim=end_sample=${targetAudioSamples},asetpts=N/SR/TB`;
 
   if (isIntroOrOutro || foleyVol <= 0.0001) {
     return `${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
@@ -3466,9 +3466,13 @@ async function buildSmartNaturalFoleyFilter(opts: {
   // Keep clip audio 100% locked to exact video playback rate so visual actions and audio never desync.
   // For slowed-down clips (rawSpeed < 0.94), apply warm cinema filtering (highpass 85Hz + lowpass 7200Hz)
   // to eliminate high-frequency WSOLA metallic ringing while preserving exact frame-locked foley timing.
-  const clampedSpeed = Math.max(0.5, Math.min(2.0, Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1));
+  const clampedSpeed = Math.max(0.25, Math.min(2.0, Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1));
   const atempoStage =
-    Math.abs(clampedSpeed - 1) >= 0.012 ? `atempo=${clampedSpeed.toFixed(4)},` : '';
+    clampedSpeed < 0.5
+      ? `atempo=0.5,atempo=${Math.max(0.5, clampedSpeed / 0.5).toFixed(4)},`
+      : Math.abs(clampedSpeed - 1) >= 0.012
+      ? `atempo=${clampedSpeed.toFixed(4)},`
+      : '';
   const warmSlowMoFilter =
     clampedSpeed < 0.94 ? 'highpass=f=85,lowpass=f=7200,' : '';
 
@@ -4113,7 +4117,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         usingPrebakedOpticalFlow || isIntroClip || isOutroClip
           ? 1
           : slotDur > 0.3 && effectiveSpan > 0.2
-          ? Math.max(0.15, Math.min(4.0, effectiveSpan / slotDur))
+          ? Math.max(0.15, Math.min(4.0, effectiveSpan / (slotDur + 0.06)))
           : Number(c.speed) > 0
           ? Number(c.speed)
           : 1;
@@ -4706,7 +4710,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             sourceMp4,
             ...extraOverlayInputs,
             '-filter_complex',
-            `${fullComplex};anullsrc=channel_layout=stereo:sample_rate=44100,atrim=end_sample=${silentAudioSamples},asetpts=PTS-STARTPTS[aout]`,
+            `${fullComplex};anullsrc=channel_layout=stereo:sample_rate=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,atrim=end_sample=${silentAudioSamples},asetpts=N/SR/TB[aout]`,
             '-map',
             '[vout]',
             '-map',
@@ -4940,7 +4944,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
       const totalTimelineDurStr = Math.max(1, runningTimelineSec).toFixed(3);
       const filterParts: string[] = [
-        `[0:a]aresample=44100:async=1000:first_pts=0,atrim=start_sample=1024,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr},asetpts=N/SR/TB[clip_a]`,
+        `[0:a]asetpts=N/SR/TB,atrim=start_sample=1024,asetpts=N/SR/TB,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr}[clip_a]`,
       ];
       const mixLabels: string[] = ['[clip_a]'];
       let nextInputIdx = 1;

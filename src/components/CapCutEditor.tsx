@@ -6081,34 +6081,37 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     if (baseFoleyVol <= 0) return 0;
 
-    const defaultFadeIn = isIntro
-      ? 1.5
-      : isOutro
-      ? 1.5
-      : activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1
-      ? 1.2
-      : 0;
-    const defaultFadeOut = isIntro ? 2.5 : isOutro ? 2.5 : 0;
+    const defaultFadeIn =
+      isIntro || isOutro
+        ? 0
+        : activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1
+        ? 1.2
+        : 0;
+    const defaultFadeOut = isIntro || isOutro ? 0.15 : 0;
 
     const fadeInSec =
-      typeof activeClipAtPlayhead.audioFadeInSec === 'number'
+      isIntro || isOutro
+        ? defaultFadeIn
+        : typeof activeClipAtPlayhead.audioFadeInSec === 'number'
         ? Math.max(0, activeClipAtPlayhead.audioFadeInSec)
         : defaultFadeIn;
     const fadeOutSec =
-      typeof activeClipAtPlayhead.audioFadeOutSec === 'number'
+      isIntro || isOutro
+        ? defaultFadeOut
+        : typeof activeClipAtPlayhead.audioFadeOutSec === 'number'
         ? Math.max(0, activeClipAtPlayhead.audioFadeOutSec)
         : defaultFadeOut;
 
     const elapsedInClip = Math.max(0, currentTime - activeClipAtPlayhead.start);
     const remainingInClip = Math.max(
       0,
-      activeClipAtPlayhead.end - currentTime - (isIntro || isOutro ? 0.12 : 0)
+      activeClipAtPlayhead.end - currentTime - (isIntro || isOutro ? 0.05 : 0)
     );
     const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInClip / fadeInSec) : 1;
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInClip / fadeOutSec) : 1;
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
 
-    return Math.round(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)));
+    return Number(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)).toFixed(2));
   }, [
     activeClipAtPlayhead,
     autoDuckingEnabled,
@@ -7090,19 +7093,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           vid.play().catch(() => {});
         }
       } else {
-        // Continuous playback inside the same clip: gently correct rate or seek if major drift (> 0.25s) occurs
+        // Continuous playback inside the same clip: let hardware audio clock run untouched at effectiveRate (never micro-nudge playbackRate or it triggers WSOLA vocoder distortion on Intro/Outro)
         const driftSec = vid.currentTime - clampedOffset;
-        if (vid.readyState >= 2 && Math.abs(driftSec) > 0.28) {
+        if (vid.readyState >= 2 && Math.abs(driftSec) > 0.45) {
           try {
             vid.currentTime = clampedOffset;
           } catch {}
-        } else if (vid.readyState >= 2 && Math.abs(driftSec) > 0.06) {
-          const nudgeRate = Math.max(0.15, Math.min(4.0, effectiveRate - driftSec * 0.25));
-          if (Math.abs((vid.playbackRate || 1) - nudgeRate) > 0.01) {
-            try {
-              vid.playbackRate = Number(nudgeRate.toFixed(4));
-            } catch {}
-          }
         }
         if (vid.ended) {
           clipEndedHoldRef.current = true;
@@ -11986,9 +11982,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           objectPosition: videoObjPos,
                           transform: isSlotOutro
                             ? aspectRatio === '9:16'
-                              ? 'scale(1.18)'
+                              ? 'scale(2.085)'
                               : 'scale(0.88) translateY(-2.5%)'
                             : undefined,
+                          filter: isSlotOutro ? 'contrast(1.12) brightness(0.92)' : undefined,
                         }}
                         playsInline
                         muted={
