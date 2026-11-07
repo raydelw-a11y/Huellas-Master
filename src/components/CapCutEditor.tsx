@@ -92,6 +92,7 @@ export interface TimelineClipItem {
   reframeFocusY?: number;      // 0 to 100 (50 = center)
   reframeConfidence?: number;
   reframeReason?: string;
+  userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
 }
 
 export interface TimelineSeparatedVocalItem {
@@ -1967,6 +1968,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           exportFps,
           formatProfiles: formatProfilesRef.current,
           clipAudioEdits: readSavedClipAudioEdits(activeDoc?.id),
+          timelineClips: timelineClips.map((c) => ({
+            id: c.id,
+            clipNumber: c.clipNumber,
+            duration: c.duration,
+            trimStart: c.trimStart,
+            trimEnd: c.trimEnd,
+            speed: c.speed,
+            smoothSlowMo: c.smoothSlowMo,
+            foleyVolume: c.foleyVolume,
+            customVolumeSet: c.customVolumeSet,
+            audioMuted: c.audioMuted,
+            reframe9x16Mode: c.reframe9x16Mode,
+            reframeFocusXStart: c.reframeFocusXStart,
+            reframeFocusXEnd: c.reframeFocusXEnd,
+            reframeFocusY: c.reframeFocusY,
+            userReframed9x16: c.userReframed9x16,
+          })),
         }),
       }).catch(() => {});
     } catch {}
@@ -1988,6 +2006,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captionWordsPerLine16x9,
     captionWordsPerLine9x16,
     captionBottomPct,
+    timelineClips,
   ]);
 
   const [isAnalyzingReframe9x16, setIsAnalyzingReframe9x16] = useState<boolean>(false);
@@ -2107,8 +2126,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const updated = prev.map((tc) => {
           const res = resultByClipNum.get(tc.clipNumber);
           if (!res) return tc;
-          // Preserve manual overrides unless user explicitly requested forceRefresh or result is verifiedAudit
-          if (!forceRefresh && !(res as any).verifiedAudit && tc.reframe9x16Mode === 'manual') return tc;
+          // NEVER overwrite a clip that was manually reframed by the user!
+          if (tc.userReframed9x16 || tc.reframe9x16Mode === 'manual') return tc;
           return {
             ...tc,
             reframe9x16Mode: res.reframe9x16Mode,
@@ -2132,7 +2151,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           clips: activeDoc.clips.map((c) => {
             const res = resultByClipNum.get(c.clipNumber);
             if (!res) return c;
-            if (!forceRefresh && !(res as any).verifiedAudit && c.reframe9x16Mode === 'manual') return c;
+            if ((c as any).userReframed9x16 || c.reframe9x16Mode === 'manual') return c;
             return {
               ...c,
               reframe9x16Mode: res.reframe9x16Mode,
@@ -2179,14 +2198,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   ) => {
     const docId = activeDoc?.id || 'default';
-    let targetClipNum = -1;
+    const matchedClip = timelineClips.find((tc) => tc.id === clipId);
+    const targetClipNum = matchedClip ? matchedClip.clipNumber : -1;
+    const lockedPatch = {
+      ...patch,
+      userReframed9x16: true,
+    };
     setTimelineClips((prev) => {
       const updated = prev.map((tc) => {
         if (tc.id !== clipId) return tc;
-        targetClipNum = tc.clipNumber;
         return {
           ...tc,
-          ...patch,
+          ...lockedPatch,
         };
       });
       persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
@@ -2195,9 +2218,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (targetClipNum > 0 && activeDoc && Array.isArray(activeDoc.clips)) {
       updateActiveDoc({
         clips: activeDoc.clips.map((c) =>
-          c.clipNumber === targetClipNum ? { ...c, ...patch } : c
+          c.clipNumber === targetClipNum ? ({ ...c, ...lockedPatch } as any) : c
         ),
       });
+    }
+    if (targetClipNum > 0) {
+      try {
+        const isLocalHost =
+          typeof window !== 'undefined' &&
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+        const folderPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+        const folderName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+        const docTitle = (activeDoc?.title || '').trim();
+        fetch(`${serverOrigin}/api/editor/update-clip-reframe-9x16`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            folderPath,
+            folderName,
+            docTitle,
+            clipNumber: targetClipNum,
+            reframe9x16Mode: lockedPatch.reframe9x16Mode ?? matchedClip?.reframe9x16Mode ?? 'manual',
+            focusXStart: lockedPatch.reframeFocusXStart ?? matchedClip?.reframeFocusXStart ?? 50,
+            focusXEnd:
+              lockedPatch.reframeFocusXEnd ??
+              lockedPatch.reframeFocusXStart ??
+              matchedClip?.reframeFocusXEnd ??
+              matchedClip?.reframeFocusXStart ??
+              50,
+            focusY: lockedPatch.reframeFocusY ?? matchedClip?.reframeFocusY ?? 50,
+            reason: lockedPatch.reframeReason ?? matchedClip?.reframeReason ?? 'Ajuste manual usuario',
+            userReframed9x16: true,
+          }),
+        }).catch(() => {});
+      } catch {}
     }
   };
 
@@ -2238,7 +2293,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
     if (nextRatio === '9:16') {
       const docKey = activeDoc?.id || activeDoc?.title || 'default';
-      if (!autoReframedDocIdsRef.current.has(docKey)) {
+      if (!autoReframedDocIdsRef.current.has(docKey) && !isAutoReframe9x16Activated) {
         autoReframedDocIdsRef.current.add(docKey);
         setTimeout(() => {
           handleRunSmartAutoReframe9x16(false);
@@ -2252,6 +2307,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!docKey || autoReframedDocIdsRef.current.has(docKey)) return;
     if (timelineClips.length === 0) return;
     autoReframedDocIdsRef.current.add(docKey);
+    const allHaveReframe = timelineClips
+      .filter((c) => c.clipNumber > 0 && c.clipNumber !== 999)
+      .every((c) => Boolean(c.reframe9x16Mode));
+    if (allHaveReframe) return;
     const t = window.setTimeout(() => {
       handleRunSmartAutoReframe9x16(false);
     }, 250);
@@ -3524,14 +3583,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return 68.5;
   }, [isVideo76Doc, activeDoc?.voiceoverScript, effectiveVoiceDurationSec]);
 
-  // Helper: scale a list of timeline clips to an exact target span (in seconds) using cumulative boundary rounding so zero rounding drift ever crushes the final clip (Clip 82)
+  // Helper: scale a list of timeline clips to an exact target span (in seconds) using cumulative boundary rounding so zero rounding drift ever crushes or bloats the final clip (Clip 82)
   const scaleClipsToExactSpan = (items: TimelineClipItem[], targetSpanSec: number, protectClosingClip = false) => {
     if (items.length === 0 || targetSpanSec <= 0) return;
     const avgTarget = targetSpanSec / items.length;
     const weights = items.map((it, idx) => {
       const d = Number(it.duration) || 10;
-      // If the closing clip (e.g. Clip 82) was previously crushed below 9.5s by cumulative rounding, restore its weight to the average clip duration
-      if (protectClosingClip && idx === items.length - 1 && d < Math.min(9.5, avgTarget * 0.88)) {
+      const srcDur = Number(it.sourceDuration) || 10;
+      const tStart = Number(it.trimStart) || 0;
+      const tEnd = typeof it.trimEnd === 'number' && it.trimEnd > tStart + 0.1 ? it.trimEnd : srcDur;
+      const hasCustomShortTrim = tStart > 0.05 || tEnd < srcDur - 0.15;
+      // Heal closing clip or any untrimmed clip that was previously crushed (< 9.5s) or bloated (> 13.5s) so Voz Narrativa stays 100% aligned
+      if (
+        protectClosingClip &&
+        (d > Math.max(13.5, avgTarget * 1.25) ||
+          (!hasCustomShortTrim && d < Math.min(9.5, avgTarget * 0.88)) ||
+          (idx === items.length - 1 && d < Math.min(9.5, avgTarget * 0.88)))
+      ) {
         return Math.max(10, avgTarget);
       }
       return Math.max(2, d);
@@ -4301,6 +4369,51 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
 
           const srcDur = tc.sourceDuration || standardDur;
+          let repairedReframeMode = tc.reframe9x16Mode;
+          let repairedFocusXStart = tc.reframeFocusXStart;
+          let repairedFocusXEnd = tc.reframeFocusXEnd;
+          let repairedFocusY = tc.reframeFocusY;
+          let repairedReframeReason = tc.reframeReason;
+          let repairedUserReframed = tc.userReframed9x16;
+          if (isVideo76Doc) {
+            if (tc.clipNumber === 17 && tc.reframe9x16Mode === 'fit_blur') {
+              repairedReframeMode = 'auto_pan';
+              repairedFocusXStart = 66;
+              repairedFocusXEnd = 52;
+              repairedFocusY = 50;
+              repairedReframeReason =
+                'Paneo vertical sobre el grabado de las 2.000 pesetas hacia el campesino reclutado y el guardia';
+              repairedUserReframed = true;
+              anyRegeneratedOrUpdated = true;
+            } else if (
+              tc.clipNumber === 35 &&
+              !tc.userReframed9x16 &&
+              (tc.reframeFocusXEnd ?? 0) < 95
+            ) {
+              repairedReframeMode = 'auto_pan';
+              repairedFocusXStart = 35;
+              repairedFocusXEnd = 100;
+              repairedFocusY = 50;
+              repairedReframeReason =
+                'Paneo desde el fogonero izquierdo hasta enfocar completamente a los dos hombres de la derecha';
+              repairedUserReframed = true;
+              anyRegeneratedOrUpdated = true;
+            } else if (
+              tc.clipNumber === 74 &&
+              !tc.userReframed9x16 &&
+              tc.reframe9x16Mode === 'auto_pan' &&
+              tc.reframeFocusXEnd === 76
+            ) {
+              repairedReframeMode = 'auto_focus';
+              repairedFocusXStart = 25;
+              repairedFocusXEnd = 25;
+              repairedFocusY = 50;
+              repairedReframeReason =
+                'Enfoque en el vapor Sinaia atracado y los estibadores en el muelle izquierdo (25%)';
+              repairedUserReframed = true;
+              anyRegeneratedOrUpdated = true;
+            }
+          }
           return {
             ...tc,
             foleyVolume: repairedFoleyVolume,
@@ -4322,6 +4435,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             posterUrl: freshPosterUrl,
             smoothSlowMo:
               tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
+            reframe9x16Mode: repairedReframeMode,
+            reframeFocusXStart: repairedFocusXStart,
+            reframeFocusXEnd: repairedFocusXEnd,
+            reframeFocusY: repairedFocusY,
+            reframeReason: repairedReframeReason,
+            userReframed9x16: repairedUserReframed,
           };
         }
       );
@@ -4397,6 +4516,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
         reframeReason: liveMatch?.reframeReason || bc.reframeReason,
+        userReframed9x16: liveMatch?.userReframed9x16 ?? bc.userReframed9x16,
       };
     });
 
@@ -8165,20 +8285,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             .slice(0, outroIdx)
             .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
           const deficit = Number((requiredBeforeOutroSec - preOutroSum).toFixed(2));
-          if (deficit > 0.15) {
-            const lastBodyIdx = outroIdx - 1;
-            const lastBody = next[lastBodyIdx];
-            if (lastBody && lastBody.clipNumber > 0 && lastBody.clipNumber !== 999) {
-              const newLastDur = Number(((lastBody.duration || 8) + deficit).toFixed(2));
-              next = next.map((c, idx) =>
-                idx === lastBodyIdx
-                  ? {
-                      ...c,
-                      duration: newLastDur,
-                      originalSlotDuration: newLastDur,
-                    }
-                  : c
-              );
+          if (Math.abs(deficit) > 0.15) {
+            const candidateIndices = next
+              .map((c, idx) => ({ c, idx }))
+              .filter(({ c, idx }) => {
+                if (idx >= outroIdx || c.clipNumber < 8 || c.clipNumber === 999) return false;
+                const srcDur = Number(c.sourceDuration) || 10;
+                const tStart = Number(c.trimStart) || 0;
+                const tEnd = typeof c.trimEnd === 'number' && c.trimEnd > tStart + 0.1 ? c.trimEnd : srcDur;
+                return !(tStart > 0.05 || tEnd < srcDur - 0.15);
+              })
+              .map((x) => x.idx);
+            if (candidateIndices.length > 0) {
+              const deltaPerClip = deficit / candidateIndices.length;
+              const candSet = new Set(candidateIndices);
+              next = next.map((c, idx) => {
+                if (!candSet.has(idx)) return c;
+                const newDur = Number(Math.max(4, (Number(c.duration) || 10) + deltaPerClip).toFixed(2));
+                return {
+                  ...c,
+                  duration: newDur,
+                  originalSlotDuration: newDur,
+                };
+              });
             }
           }
         }
@@ -9636,6 +9765,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       ? c.reframeFocusXStart
                       : 50,
                   reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
+                  userReframed9x16: Boolean(c.userReframed9x16),
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -11824,7 +11954,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             Math.min(1, (currentTime - slotClip.start) / slotClip.duration)
                           )
                         : 0;
-                    const liveFocusX = fStart + (fEnd - fStart) * clipProg;
+                    const panProg = fEnd >= 96 ? Math.min(1, clipProg / 0.6) : clipProg;
+                    const liveFocusX = fStart + (fEnd - fStart) * panProg;
                     const videoObjPos =
                       aspectRatio === '9:16' && !isFitBlur
                         ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`

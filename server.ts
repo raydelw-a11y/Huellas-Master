@@ -3456,7 +3456,7 @@ async function buildSmartNaturalFoleyFilter(opts: {
   } = opts;
 
   const safeTargetDur = Math.max(0.3, targetDurSec);
-  const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100));
+  const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100) - 1024);
   const afTrimSuffix = `,aresample=44100,apad,atrim=end_sample=${targetAudioSamples},asetpts=PTS-STARTPTS`;
 
   if (isIntroOrOutro || foleyVol <= 0.0001) {
@@ -3513,6 +3513,57 @@ app.get('/api/editor/sync-client-state', (_req, res) => {
     res.json({ ok: true, state: null });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'Failed to read client state' });
+  }
+});
+
+app.post('/api/editor/update-clip-reframe-9x16', (req, res) => {
+  try {
+    const {
+      folderPath,
+      folderName = '',
+      docTitle = '',
+      clipNumber,
+      reframe9x16Mode = 'manual',
+      focusXStart = 50,
+      focusXEnd = 50,
+      focusY = 50,
+      reason = 'Ajuste manual usuario',
+    } = req.body || {};
+    const cNum = Number(clipNumber);
+    if (!Number.isFinite(cNum) || cNum <= 0) {
+      res.status(400).json({ ok: false, error: 'Invalid clipNumber' });
+      return;
+    }
+    const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (resolvedDocFolder) {
+      const cacheFile = path.join(resolvedDocFolder, '05_Clips_Video', '.reframe_9x16_cache.json');
+      if (fs.existsSync(cacheFile)) {
+        try {
+          const cacheObj = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) || {};
+          let updatedAny = false;
+          for (const [k, v] of Object.entries(cacheObj)) {
+            if (v && typeof v === 'object' && Number((v as any).clipNumber) === cNum) {
+              cacheObj[k] = {
+                ...(v as any),
+                reframe9x16Mode,
+                focusXStart: Number(focusXStart),
+                focusXEnd: Number(focusXEnd),
+                focusY: Number(focusY),
+                reason,
+                userReframed9x16: true,
+              };
+              updatedAny = true;
+            }
+          }
+          if (updatedAny) {
+            fs.writeFileSync(cacheFile, JSON.stringify(cacheObj, null, 2), 'utf8');
+          }
+        } catch {}
+      }
+    }
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Failed to update clip reframe' });
   }
 });
 
@@ -4083,13 +4134,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         (i === clips.length - 1 ||
           Number(nextClipInList?.clipNumber) === 999 ||
           /outro_huellas/i.test(String(nextClipInList?.fileName || '')));
+      const savedClipMatch = Array.isArray(savedClientState?.timelineClips)
+        ? savedClientState.timelineClips.find(
+            (sc: any) => Number(sc?.clipNumber) === Number(c.clipNumber)
+          )
+        : undefined;
+      const savedAudioEditMatch =
+        savedClientState?.clipAudioEdits?.[`num:${Number(c.clipNumber)}:`] ||
+        savedClientState?.clipAudioEdits?.[String(c.clipNumber)];
       const isClipMuted =
         Boolean(c.audioMuted) ||
+        Boolean(savedClipMatch?.audioMuted) ||
+        Boolean(savedAudioEditMatch?.audioMuted) ||
         (typeof c.foleyVolume === 'number' && c.foleyVolume <= 0.0001);
       const foleyVol = isClipMuted
         ? 0
         : typeof c.foleyVolume === 'number' && Number.isFinite(c.foleyVolume)
         ? Math.max(0, Math.min(2.0, c.foleyVolume))
+        : typeof savedClipMatch?.foleyVolume === 'number' && Number.isFinite(savedClipMatch.foleyVolume)
+        ? Math.max(0, Math.min(2.0, savedClipMatch.foleyVolume / 100))
         : isIntroClip || isOutroClip
         ? 1.0
         : isFirstClipAfterIntro
@@ -4121,12 +4184,20 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const effectiveClipDur = targetSegFrames / safeFps;
       const segEndSec = segEndFrame / safeFps;
 
-      const defaultAudioFadeIn = isIntroClip ? 1.0 : isOutroClip ? 0.5 : isFirstClipAfterIntro ? 1.2 : 0;
-      const defaultAudioFadeOut = isIntroClip ? 2.0 : isOutroClip ? 1.2 : 0;
+      const defaultAudioFadeIn = isIntroClip || isOutroClip ? 0.05 : isFirstClipAfterIntro ? 1.2 : 0;
+      const defaultAudioFadeOut = isIntroClip || isOutroClip ? 0.25 : 0;
       const audioFadeInSec =
-        typeof c.audioFadeInSec === 'number' ? Math.max(0, c.audioFadeInSec) : defaultAudioFadeIn;
+        isIntroClip || isOutroClip
+          ? defaultAudioFadeIn
+          : typeof c.audioFadeInSec === 'number'
+          ? Math.max(0, c.audioFadeInSec)
+          : defaultAudioFadeIn;
       const audioFadeOutSec =
-        typeof c.audioFadeOutSec === 'number' ? Math.max(0, c.audioFadeOutSec) : defaultAudioFadeOut;
+        isIntroClip || isOutroClip
+          ? defaultAudioFadeOut
+          : typeof c.audioFadeOutSec === 'number'
+          ? Math.max(0, c.audioFadeOutSec)
+          : defaultAudioFadeOut;
       const afFades: string[] = [];
       if (audioFadeInSec > 0.01) {
         afFades.push(`afade=t=in:st=0:d=${audioFadeInSec.toFixed(2)}`);
@@ -4398,7 +4469,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const cachedReframe = isVertical916
         ? reframeCacheByClipNum.get(Number(c.clipNumber))
         : undefined;
-      const effectiveReframeMode = cachedReframe?.reframe9x16Mode || c.reframe9x16Mode || 'auto_center';
+      const isUserReframed =
+        Boolean(c.userReframed9x16) ||
+        Boolean(savedClipMatch?.userReframed9x16) ||
+        c.reframe9x16Mode === 'manual' ||
+        savedClipMatch?.reframe9x16Mode === 'manual';
+      const effectiveReframeMode = isUserReframed
+        ? c.reframe9x16Mode || savedClipMatch?.reframe9x16Mode || cachedReframe?.reframe9x16Mode || 'auto_center'
+        : cachedReframe?.reframe9x16Mode || c.reframe9x16Mode || savedClipMatch?.reframe9x16Mode || 'auto_center';
 
       const fpsInterpStage =
         !usingPrebakedOpticalFlow && !isIntroClip && !isOutroClip && speed < 0.96
@@ -4423,24 +4501,31 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
         }
       } else if (isVertical916 && effectiveReframeMode !== 'fit_blur') {
-        const rawXStart =
-          typeof cachedReframe?.focusXStart === 'number'
-            ? cachedReframe.focusXStart
-            : Number(c.reframeFocusXStart ?? 50);
-        const rawXEnd =
-          typeof cachedReframe?.focusXEnd === 'number'
-            ? cachedReframe.focusXEnd
-            : Number(c.reframeFocusXEnd ?? rawXStart);
-        const rawY =
-          typeof cachedReframe?.focusY === 'number'
-            ? cachedReframe.focusY
-            : Number(c.reframeFocusY ?? 50);
+        const rawXStart = isUserReframed
+          ? Number(c.reframeFocusXStart ?? savedClipMatch?.reframeFocusXStart ?? cachedReframe?.focusXStart ?? 50)
+          : typeof cachedReframe?.focusXStart === 'number'
+          ? cachedReframe.focusXStart
+          : Number(c.reframeFocusXStart ?? savedClipMatch?.reframeFocusXStart ?? 50);
+        const rawXEnd = isUserReframed
+          ? Number(c.reframeFocusXEnd ?? savedClipMatch?.reframeFocusXEnd ?? cachedReframe?.focusXEnd ?? rawXStart)
+          : typeof cachedReframe?.focusXEnd === 'number'
+          ? cachedReframe.focusXEnd
+          : Number(c.reframeFocusXEnd ?? savedClipMatch?.reframeFocusXEnd ?? rawXStart);
+        const rawY = isUserReframed
+          ? Number(c.reframeFocusY ?? savedClipMatch?.reframeFocusY ?? cachedReframe?.focusY ?? 50)
+          : typeof cachedReframe?.focusY === 'number'
+          ? cachedReframe.focusY
+          : Number(c.reframeFocusY ?? savedClipMatch?.reframeFocusY ?? 50);
         const fStart = Math.max(0, Math.min(1, rawXStart / 100));
         const fEnd = Math.max(0, Math.min(1, rawXEnd / 100));
         const fY = Math.max(0, Math.min(1, rawY / 100));
         const isDynamicPan = Math.abs(fEnd - fStart) >= 0.015;
+        const panDurSec =
+          fEnd >= 0.96
+            ? Math.max(0.5, effectiveClipDur * 0.6)
+            : Math.max(0.5, effectiveClipDur);
         const cropXExpr = isDynamicPan
-          ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${Math.max(0.5, effectiveClipDur).toFixed(3)})))))'`
+          ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${panDurSec.toFixed(3)})))))'`
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
         scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
@@ -4612,23 +4697,20 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             segOut,
           ];
         } else {
+          const silentAudioSamples = Math.max(1024, Math.round(effectiveClipDur * 44100) - 1024);
           return [
             '-y',
             ...hwInArgs,
             ...inputTrimArgs,
             '-i',
             sourceMp4,
-            '-f',
-            'lavfi',
-            '-i',
-            `anullsrc=channel_layout=stereo:sample_rate=44100:d=${effectiveClipDur.toFixed(3)}`,
             ...extraOverlayInputs,
             '-filter_complex',
-            fullComplex,
+            `${fullComplex};anullsrc=channel_layout=stereo:sample_rate=44100,atrim=end_sample=${silentAudioSamples},asetpts=PTS-STARTPTS[aout]`,
             '-map',
             '[vout]',
             '-map',
-            '1:a',
+            '[aout]',
             '-r',
             String(safeFps),
             ...vCodecArgs,
@@ -4638,7 +4720,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             '44100',
             '-ac',
             '2',
-            '-shortest',
             '-muxpreload',
             '0',
             '-muxdelay',
@@ -4859,7 +4940,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
       const totalTimelineDurStr = Math.max(1, runningTimelineSec).toFixed(3);
       const filterParts: string[] = [
-        `[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr},asetpts=N/SR/TB[clip_a]`,
+        `[0:a]aresample=44100:async=1000:first_pts=0,atrim=start_sample=1024,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr},asetpts=N/SR/TB[clip_a]`,
       ];
       const mixLabels: string[] = ['[clip_a]'];
       let nextInputIdx = 1;
