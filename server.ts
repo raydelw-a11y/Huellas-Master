@@ -4787,13 +4787,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       }
     }
 
-    const safeDocName = String(docTitle || 'Huellas_Documental')
+    const rawTitleSource = String(
+      docTitle || folderName || path.basename(targetRoot) || 'Huellas_Documental'
+    ).trim();
+    const numMatch =
+      rawTitleSource.match(/\bvideo[_\-\s]*0*(\d+)/i) ||
+      String(folderName || '').match(/\bvideo[_\-\s]*0*(\d+)/i) ||
+      path.basename(targetRoot).match(/\bvideo[_\-\s]*0*(\d+)/i);
+    const videoNumPrefix = numMatch ? `Video_${numMatch[1]}` : 'Video_1';
+    const strippedDocTitle =
+      rawTitleSource.replace(/^(?:video[_\-\s]*0*\d+[_\-\s:—–]*)/i, '').trim() ||
+      'Huellas_Documental';
+    const safeDocName = strippedDocTitle
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9_-]+/g, '_')
       .replace(/^_+|_+$/g, '')
-      .slice(0, 45);
-    const finalFileName = `${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps_${aspectRatio.replace(':', 'x')}.mp4`;
+      .slice(0, 60);
+    const platformSlug = isVertical916 ? 'Facebook' : 'YouTube';
+    const ratioSlug = aspectRatio.replace(':', 'x');
+    const finalFileName = `${videoNumPrefix}_${platformSlug}_${ratioSlug}_${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps.mp4`;
     const videoFinalSubdir = path.join(targetRoot, '06_Video_Final');
     if (!fs.existsSync(videoFinalSubdir)) {
       try {

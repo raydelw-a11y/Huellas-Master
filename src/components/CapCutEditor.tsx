@@ -10202,11 +10202,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
 
       const finalBlob = new Blob(chunks, { type: 'video/mp4' });
-      const safeTitle = (activeDoc?.title || 'Documental_Huellas')
-        .replace(/[^a-zA-Z0-9_-]/g, '_')
-        .slice(0, 40);
+      const rawDocTitle = String(
+        activeDoc?.title || activeDoc?.downloadFolderName || 'Documental_Huellas'
+      ).trim();
+      const numMatch =
+        rawDocTitle.match(/\bvideo[_\-\s]*0*(\d+)/i) ||
+        String(activeDoc?.downloadFolderName || '').match(/\bvideo[_\-\s]*0*(\d+)/i);
+      const videoNumPrefix = numMatch ? `Video_${numMatch[1]}` : 'Video_1';
+      const strippedTitle =
+        rawDocTitle.replace(/^(?:video[_\-\s]*0*\d+[_\-\s:—–]*)/i, '').trim() ||
+        'Documental_Huellas';
+      const safeTitle = strippedTitle
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 60);
+      const platformSlug = aspectRatio === '9:16' ? 'Facebook' : 'YouTube';
       const ratioSlug = aspectRatio === '16:9' ? '16x9' : '9x16';
-      const outFileName = `${safeTitle}_${preset.badge.replace(/\s+/g, '')}_${ratioSlug}.mp4`;
+      const resLabel =
+        exportResolution === '8K_4320P'
+          ? '8K_4320p'
+          : exportResolution === '4K_2160P'
+          ? '4K_2160p'
+          : exportResolution === '2K_1440P'
+          ? '2K_1440p'
+          : '1080p';
+      const outFileName = `${videoNumPrefix}_${platformSlug}_${ratioSlug}_${safeTitle}_${resLabel}_${exportFps}fps_${exportBitrateMbps}Mbps.mp4`;
 
       await onSaveFileToChosenFolder(outFileName, finalBlob);
       setRenderProgressPct(100);
