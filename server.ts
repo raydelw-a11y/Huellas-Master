@@ -10470,58 +10470,48 @@ async function transcribeVideoFileWithTimestamps(
       );
     });
 
-    const ai = getGeminiClient();
-    if (ai && fs.existsSync(tmpMp3)) {
-      const audioBytes = fs.readFileSync(tmpMp3);
-      if (audioBytes.length < 18 * 1024 * 1024) {
-        const base64Audio = audioBytes.toString('base64');
-        const prompt = `Transcribe este audio de forma literal y exacta con sus marcas de tiempo en segundos (start y end) divididas en frases cortas de 3 a 7 segundos cada una. Duración total aproximada: ${Math.round(
-          durationSec
-        )} segundos. Devuelve únicamente un arreglo JSON con objetos {"start": number, "end": number, "text": string}.`;
-        const candidateModels = [
-          'gemini-3.8-flash',
-          'gemini-3-flash-preview',
-          'gemini-3.6-flash',
-          'gemini-3.1-pro-preview',
-        ];
-        for (const modelName of candidateModels) {
-          try {
-            const resp = await ai.models.generateContent({
-              model: modelName,
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    { inlineData: { mimeType: 'audio/mp3', data: base64Audio } },
-                    { text: prompt },
-                  ],
-                },
-              ],
-              config: {
-                responseMimeType: 'application/json',
-              },
-            });
-            const rawJson = String(resp.text || '').trim();
-            const parsed = JSON.parse(rawJson);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              return parsed
-                .map((seg: any) => {
-                  const s = Math.max(0, Number(seg.start) || 0);
-                  const e = Math.max(s + 0.5, Number(seg.end) || s + 4);
-                  const t = String(seg.text || '').trim();
-                  return {
-                    start: s,
-                    end: e,
-                    text: t,
-                    words: buildWordsFromSegment(t, s, e),
-                  };
-                })
-                .filter((seg) => seg.text.length > 0);
-            }
-          } catch (modelErr) {
-            console.warn(`[ViralClips] Transcribe try with ${modelName} failed:`, modelErr);
-          }
+    // Transcribe using Google Cloud Speech-to-Text (with word time offsets) if credentials exist, without calling paid Gemini API
+    if (fs.existsSync(tmpMp3)) {
+      try {
+        const audioBytes = fs.readFileSync(tmpMp3);
+        const sttClient = new speech.SpeechClient();
+        const [response] = await sttClient.recognize({
+          audio: { content: audioBytes.toString('base64') },
+          config: {
+            encoding: 'MP3' as any,
+            sampleRateHertz: 16000,
+            languageCode: 'es-ES',
+            enableAutomaticPunctuation: true,
+            enableWordTimeOffsets: true,
+          },
+        });
+        const results = response.results || [];
+        const outSegs: TranscriptSegmentItem[] = [];
+        for (const r of results) {
+          const alt = r.alternatives?.[0];
+          if (!alt?.transcript) continue;
+          const wList: WordTimestamp[] = (alt.words || []).map((w: any) => {
+            const s =
+              Number(w.startTime?.seconds || 0) + Number(w.startTime?.nanos || 0) / 1e9;
+            const e = Number(w.endTime?.seconds || 0) + Number(w.endTime?.nanos || 0) / 1e9;
+            return {
+              word: String(w.word || '').trim(),
+              start: Number(s.toFixed(2)),
+              end: Number(Math.max(s + 0.1, e).toFixed(2)),
+            };
+          });
+          const sTime = wList[0]?.start ?? 0;
+          const eTime = wList[wList.length - 1]?.end ?? sTime + 5;
+          outSegs.push({
+            start: sTime,
+            end: eTime,
+            text: alt.transcript.trim(),
+            words: wList.length > 0 ? wList : buildWordsFromSegment(alt.transcript, sTime, eTime),
+          });
         }
+        if (outSegs.length > 0) return outSegs;
+      } catch (sttErr) {
+        console.warn('[ViralClips] Local STT fallback notice:', sttErr);
       }
     }
   } catch (err) {
@@ -10821,150 +10811,190 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
     const maxDur =
       targetDurationRange === '15_30' ? 32 : targetDurationRange === '60_90' ? 88 : 58;
 
-    const formattedTranscript = segments
-      .map(
-        (s, idx) =>
-          `[${idx + 1}] (${Number(s.start).toFixed(1)}s - ${Number(s.end).toFixed(1)}s): ${s.text}`
-      )
-      .join('\n');
+    // 100% Free Local OpusClip Virality & Retention Scoring Engine (0 paid Gemini API usage)
+    const hookPowerRegex =
+      /\b(secreto|nadie|jamas|jamás|nunca|imposible|oculto|misterio|tragedia|destino|ultimo|último|ultima|última|verdad|mentira|cuando|pero|sin embargo|aquella noche|aquel dia|aquel día|descubrieron|impactante|historia|millones|miles|muerte|vida|peligro|prohibido|18\d\d|19\d\d|20\d\d|\d+)\b/gi;
+    const emotionPowerRegex =
+      /\b(lagrimas|lágrimas|dolor|esperanza|miedo|silencio|corazon|corazón|hambre|frio|frío|mar|oceano|océano|barco|puerto|familia|madre|padre|hijos|sangre|olvido|memoria|siempre|adiós|adios|promesa|sueño|infierno|milagro)\b/gi;
+    const filterTokens = String(customTopicFilter || '')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 2);
 
-    const ai = getGeminiClient();
-    if (!ai) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Configura primero tu Gemini API Key para ejecutar el motor de análisis OpusClip.',
-      });
+    interface ScoredCandidateWindow {
+      startIdx: number;
+      endIdx: number;
+      startSec: number;
+      endSec: number;
+      hookScore: number;
+      retentionScore: number;
+      emotionScore: number;
+      completenessScore: number;
+      totalScore: number;
+      bestTeaserSeg: TranscriptSegmentItem;
+      reason: string;
     }
 
-    const prompt = `Actúa como el motor de inteligencia artificial de OpusClip Pro especializado en retención viral para Instagram Reels, YouTube Shorts y TikTok.
+    const candidates: ScoredCandidateWindow[] = [];
+    for (let i = 0; i < segments.length; i++) {
+      const sSeg = segments[i];
+      for (let j = i; j < segments.length; j++) {
+        const eSeg = segments[j];
+        const dur = eSeg.end - sSeg.start;
+        if (dur < minDur) continue;
+        if (dur > maxDur) break;
 
-VIDEO ORIGEN: "${title || 'Documental Histórico'}"
-DURACIÓN TOTAL: ${Math.round(Number(durationSec) || 180)} segundos.
-RANGO DE DURACIÓN POR CLIP: Entre ${minDur} y ${maxDur} segundos.
-CANTIDAD DE CLIPS A DETECTAR: ${clipCount} clips ordenados de mayor a menor Virality Score (de 99 a 80).
-MODO DE ESTRUCTURA PREFERIDO: ${
-      structurePreference === 'continuous'
-        ? 'Solo fragmentos continuos (startSec a endSec)'
-        : structurePreference === 'hook_teaser'
-        ? 'Modo Hook Teaser + Cuerpo (elige una frase explosiva de 2.5 a 4.5s dentro del segmento como hookTeaserStartSec/hookTeaserEndSec para abrir el video antes del segmento)'
-        : 'Combina los mejores en modo "hook_teaser" (con frase gancho adelantada al inicio) y modo "continuous"'
-    }.
-${customTopicFilter ? `FILTRO O ENFOQUE ESPECIAL SOLICITADO: ${customTopicFilter}` : ''}
+        const windowSegs = segments.slice(i, j + 1);
+        const fullText = windowSegs.map((w) => w.text).join(' ');
+        const firstText = sSeg.text;
+        const lastText = eSeg.text;
 
-TRANSCRIPCIÓN CON MARCAS DE TIEMPO EXACTAS EN SEGUNDOS:
-${formattedTranscript}
+        const hookMatches = (firstText.match(hookPowerRegex) || []).length;
+        const hasQuestion = /[¿?]/.test(firstText) ? 6 : 0;
+        const emotionMatches = (fullText.match(emotionPowerRegex) || []).length;
+        const totalHookMatches = (fullText.match(hookPowerRegex) || []).length;
 
-INSTRUCCIONES DE SELECCIÓN OPUSCLIP:
-1. Selecciona exactamente ${clipCount} fragmentos autocontenidos que tengan el mayor impacto emocional, revelación histórica, misterio o dato sorprendente.
-2. Respeta estrictamente los tiempos reales de la transcripción (startSec y endSec deben coincidir con el inicio y fin de frases reales y durar entre ${minDur}s y ${maxDur}s).
-3. Para cada clip devuelve:
-   - "title": Título magnético del clip (ej. "El boleto sin retorno de Santander (1885)").
-   - "viralityScore": Número entero entre 82 y 99.
-   - "scoreBreakdown": { "hook": 0-100, "retention": 0-100, "emotion": 0-100, "completeness": 0-100 }
-   - "viralityReason": Explicación breve y concreta (2-3 oraciones) de por qué este fragmento retendrá a la audiencia en Reels/Shorts/TikTok.
-   - "structureMode": "hook_teaser" o "continuous".
-   - "startSec": Segundo exacto de inicio del segmento principal.
-   - "endSec": Segundo exacto de fin del segmento principal.
-   - "hookTeaserStartSec": Segundo de inicio de la frase más impactante (de 2.5 a 4.5s de duración) dentro del segmento para poner al principio como gancho (igual a startSec si es continuous).
-   - "hookTeaserEndSec": Segundo de fin de esa frase gancho.
-   - "hookBannerText": Texto corto en MAYÚSCULAS (4 a 7 palabras máximo) para el cartel superior de los primeros 3.5 segundos.
-   - "storyTeaserDurationSec": Duración ideal (entre 15 y 25 segundos) para publicar como Teaser en Instagram Stories dejando intriga.
-   - "socialCaption": Descripción atrapante lista para Instagram Reels / TikTok / Shorts que termine invitando a comentar la palabra clave "${autoDmKeyword}" para recibir el link del documental completo por DM.
-   - "hashtags": 6 a 8 hashtags virales separados por espacio (incluyendo #Reels #Historia #Documental).
-
-Devuelve ÚNICAMENTE un JSON válido con la propiedad "clips" (arreglo de objetos).`;
-
-    let rawClips: any[] = [];
-    const candidateModels = [
-      'gemini-3.8-flash',
-      'gemini-3-flash-preview',
-      'gemini-3.6-flash',
-      'gemini-3.1-pro-preview',
-    ];
-
-    for (const modelName of candidateModels) {
-      try {
-        const resp = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          },
-        });
-        const rawText = String(resp.text || '')
-          .replace(/^```json\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-        const parsed = JSON.parse(rawText);
-        const list = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray(parsed?.clips)
-          ? parsed.clips
-          : [];
-        if (list.length > 0) {
-          rawClips = list;
-          break;
+        let filterBonus = 0;
+        if (filterTokens.length > 0) {
+          const lowerFull = fullText.toLowerCase();
+          for (const ft of filterTokens) {
+            if (lowerFull.includes(ft)) filterBonus += 8;
+          }
         }
-      } catch (modelErr: any) {
-        console.warn(`[ViralClips] analyze try with ${modelName} failed:`, modelErr?.message || modelErr);
-      }
-    }
 
-    // Smart deterministic OpusClip fallback if all remote model calls failed
-    if (rawClips.length === 0) {
-      const targetMidDur = (minDur + maxDur) / 2;
-      const totalSpan = Math.max(60, segments[segments.length - 1].end - segments[0].start);
-      const stepSec = Math.max(15, (totalSpan - targetMidDur) / Math.max(1, Number(clipCount) || 5));
+        const wordCount = fullText.split(/\s+/).length;
+        const wps = wordCount / Math.max(1, dur);
+        const pacingBonus = wps >= 2.0 && wps <= 3.6 ? 8 : 3;
+        const cleanEndingBonus = /[.!?…"]$/.test(lastText.trim()) ? 7 : 2;
 
-      for (let k = 0; k < (Number(clipCount) || 5); k++) {
-        const approxStart = segments[0].start + k * stepSec;
-        const startSegIdx = Math.max(
-          0,
-          segments.findIndex((s) => s.start >= approxStart)
+        const hookScore = Math.min(99, 82 + hookMatches * 4 + hasQuestion + Math.min(6, totalHookMatches));
+        const emotionScore = Math.min(99, 81 + emotionMatches * 3 + Math.min(8, totalHookMatches));
+        const retentionScore = Math.min(99, 83 + pacingBonus + Math.min(7, windowSegs.length));
+        const completenessScore = Math.min(99, 84 + cleanEndingBonus);
+
+        const totalScore = Math.min(
+          99,
+          Math.round(
+            hookScore * 0.35 +
+              emotionScore * 0.3 +
+              retentionScore * 0.2 +
+              completenessScore * 0.15 +
+              filterBonus
+          )
         );
-        const startSeg = segments[startSegIdx] || segments[0];
-        let endSeg = startSeg;
-        for (let m = startSegIdx; m < segments.length; m++) {
-          endSeg = segments[m];
-          if (endSeg.end - startSeg.start >= minDur) break;
+
+        // Find the single most explosive sub-segment inside the window for Hook Teaser mode
+        let bestTeaserSeg = sSeg;
+        let bestSegScore = -1;
+        for (const ws of windowSegs) {
+          const sc =
+            (ws.text.match(hookPowerRegex) || []).length * 3 +
+            (ws.text.match(emotionPowerRegex) || []).length * 2 +
+            (/[¿?!]/.test(ws.text) ? 4 : 0);
+          if (sc > bestSegScore && ws.end - ws.start >= 2.2) {
+            bestSegScore = sc;
+            bestTeaserSeg = ws;
+          }
         }
-        const st = startSeg.start;
-        const en = Math.min(startSeg.start + maxDur, Math.max(st + minDur, endSeg.end));
-        const firstWords = startSeg.text
-          .split(/\s+/)
-          .slice(0, 6)
-          .join(' ')
-          .replace(/[.,;:!?]+$/g, '');
-        rawClips.push({
-          title: firstWords || `Momento Clave #${k + 1}`,
-          viralityScore: Math.max(82, 97 - k * 2),
-          scoreBreakdown: {
-            hook: Math.max(85, 98 - k * 2),
-            retention: Math.max(82, 95 - k * 2),
-            emotion: Math.max(84, 96 - k * 2),
-            completeness: Math.max(80, 93 - k * 2),
-          },
-          viralityReason:
-            'Fragmento con fuerte apertura narrativa, alta densidad de datos históricos y cierre ideal para retención vertical 9:16.',
-          structureMode:
-            structurePreference === 'continuous'
-              ? 'continuous'
-              : structurePreference === 'hook_teaser'
-              ? 'hook_teaser'
-              : k % 2 === 0
-              ? 'hook_teaser'
-              : 'continuous',
-          startSec: st,
-          endSec: en,
-          hookTeaserStartSec: st,
-          hookTeaserEndSec: Math.min(en, st + 3.5),
-          hookBannerText: firstWords.toUpperCase(),
-          storyTeaserDurationSec: 20,
-          socialCaption: `${startSeg.text} — Una historia real que marcó a toda una generación.`,
-          hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad',
+
+        const reasons: string[] = [];
+        if (hookMatches > 0 || hasQuestion > 0) {
+          reasons.push('Apertura con gancho narrativo directo en los primeros 3 segundos');
+        } else {
+          reasons.push('Inicio claro y envolvente que sitúa a la audiencia de inmediato');
+        }
+        if (emotionMatches >= 2) {
+          reasons.push('alta carga emocional e histórica que maximiza el tiempo de visualización');
+        } else {
+          reasons.push('ritmo dinámico sin silencios muertos ideal para formato vertical 9:16');
+        }
+        reasons.push('y cierre en frase completa que invita a comentar.');
+
+        candidates.push({
+          startIdx: i,
+          endIdx: j,
+          startSec: sSeg.start,
+          endSec: eSeg.end,
+          hookScore,
+          retentionScore,
+          emotionScore,
+          completenessScore,
+          totalScore,
+          bestTeaserSeg,
+          reason: reasons.join(', '),
         });
+        break; // Keep best duration match starting at i
       }
     }
+
+    candidates.sort((a, b) => b.totalScore - a.totalScore);
+
+    // Select top N non-overlapping (or minimally overlapping) windows
+    const desiredCount = Math.max(1, Math.min(15, Number(clipCount) || 5));
+    const picked: ScoredCandidateWindow[] = [];
+    for (const cand of candidates) {
+      if (picked.length >= desiredCount) break;
+      const overlaps = picked.some(
+        (p) =>
+          Math.max(0, Math.min(p.endSec, cand.endSec) - Math.max(p.startSec, cand.startSec)) >
+          Math.min(p.endSec - p.startSec, cand.endSec - cand.startSec) * 0.35
+      );
+      if (!overlaps) {
+        picked.push(cand);
+      }
+    }
+    // If transcript is short and we need more clips, fill with remaining best candidates
+    for (const cand of candidates) {
+      if (picked.length >= desiredCount) break;
+      if (!picked.includes(cand)) picked.push(cand);
+    }
+
+    const rawClips = picked.map((p, k) => {
+      const startSeg = segments[p.startIdx] || segments[0];
+      const cleanWords = startSeg.text
+        .replace(/^[¡¿"«—\-\s]+/, '')
+        .split(/\s+/)
+        .slice(0, 6)
+        .join(' ')
+        .replace(/[.,;:!?"»]+$/g, '');
+      const bannerWords = p.bestTeaserSeg.text
+        .replace(/^[¡¿"«—\-\s]+/, '')
+        .split(/\s+/)
+        .slice(0, 6)
+        .join(' ')
+        .replace(/[.,;:!?"»]+$/g, '')
+        .toUpperCase();
+
+      return {
+        title: cleanWords || `Momento Viral #${k + 1}`,
+        viralityScore: Math.max(82, Math.min(99, p.totalScore - k)),
+        scoreBreakdown: {
+          hook: p.hookScore,
+          retention: p.retentionScore,
+          emotion: p.emotionScore,
+          completeness: p.completenessScore,
+        },
+        viralityReason: p.reason,
+        structureMode:
+          structurePreference === 'continuous'
+            ? 'continuous'
+            : structurePreference === 'hook_teaser'
+            ? 'hook_teaser'
+            : k % 2 === 0
+            ? 'hook_teaser'
+            : 'continuous',
+        startSec: p.startSec,
+        endSec: p.endSec,
+        hookTeaserStartSec: p.bestTeaserSeg.start,
+        hookTeaserEndSec: Math.min(p.endSec, Math.max(p.bestTeaserSeg.start + 2.8, Math.min(p.bestTeaserSeg.end, p.bestTeaserSeg.start + 4.5))),
+        hookBannerText: bannerWords || cleanWords.toUpperCase(),
+        storyTeaserDurationSec: 20,
+        socialCaption: `🔥 ${p.bestTeaserSeg.text.trim()}\n\nUn episodio fascinante de "${
+          title || 'Huellas de la Humanidad'
+        }".`,
+        hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad #Cultura',
+      };
+    });
 
     const enrichedClips = rawClips.map((c, idx) => {
       const startSec = Math.max(0, Number(c.startSec) || 0);
