@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:02 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:41 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1074,10 +1074,35 @@ export default function App() {
       {
         id: 'vid_clqshy5NB7I',
         videoId: 'clqshy5NB7I',
+        realYoutubeId: 'clqshy5NB7I',
         url: 'https://youtu.be/clqshy5NB7I',
-        title: 'La llegada de los italianos a Argentina',
+        title:
+          '1880: La Épica Llegada de los Italianos que Transformaron Argentina (Reconstrucción con IA)',
         channelTitle: 'Reimaginando Pasados',
         channelName: 'Reimaginando Pasados',
+        description: `1880: La Épica Llegada de los Italianos que Transformaron Argentina (Reconstrucción con IA)
+
+Descubre la fascinante historia de cómo más de 2 millones de italianos transformaron Argentina entre 1870 y 1914 en la mayor ola migratoria de la historia del país. Este documental te transporta desde los pueblos empobrecidos del sur de Italia hasta los conventillos de Buenos Aires, revelando el increíble viaje transatlántico que cambió dos naciones para siempre.
+Conoce las verdaderas condiciones de las travesías en barco, la dureza de los primeros años en tierra argentina, y cómo estos inmigrantes construyeron con sus manos la Argentina moderna. Desde La Boca hasta las colonias agrícolas de Santa Fe, desde los frigoríficos de Avellaneda hasta las panaderías que aún perfuman nuestras calles, esta es la historia del coraje, el sacrificio y la resiliencia.
+Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron moldeados por esta inmigración masiva. Entérate por qué hoy más del 60% de los argentinos tienen ascendencia italiana y cómo esa herencia sigue viva en cada rincón del país. Una reconstrucción histórica con IA que te hará revivir una época que definió quiénes somos hoy.`,
+        tags: [
+          'inmigración italiana argentina',
+          'historia argentina',
+          'italianos en argentina',
+          'inmigración europea',
+          'Buenos Aires 1880',
+          'La Boca historia',
+          'conventillos argentinos',
+          'viaje transatlántico',
+          'Hotel de Inmigrantes',
+          'colonias agrícolas argentina',
+          'influencia italiana argentina',
+          'cocina italiana argentina',
+          'lunfardo origen',
+          'movimiento obrero argentina',
+          'ascendencia italiana',
+          'historia argentina siglo XIX',
+        ],
         analyzedAt: '2026-11-03T15:38:31.830Z',
         commentsCount: 84,
         structureSummary: `1. DECONSTRUCCIÓN DEL HOOK Y PARADOJA CENTRAL (00:00 - 00:30):
@@ -1101,7 +1126,12 @@ export default function App() {
    - @Pedro_Garfias_Zurita (38 años, Vapor Sinaia, Veracruz, 13/06/1939): Sienes plateadas, gafas de concha, boina negra, traje oscuro gastado / chamarra de pastor zamorano y bastón de nudos.
 
 4. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Aritmética de la Supervivencia (1,50 pesetas de jornal vs. 205 pesetas de pasaje vs. 2.000 pesetas para no morir en la guerra) + Desmitificación del «Indiano Rico» (jóvenes durmiendo 10 años sobre el mostrador) + Activación de Memoria Genealógica Hispanoamericana en comentarios.`,
+   - Aritmética de la Supervivencia (1,50 pesetas de jornal vs. 205 pesetas de pasaje vs. 2.000 pesetas para no morir en la guerra) + Desmitificación del «Indiano Rico» (jóvenes durmiendo 10 años sobre el mostrador) + Activación de Memoria Genealógica Hispanoamericana en comentarios.
+
+5. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (1880: La Épica Llegada de los Italianos que Transformaron Argentina):
+   - Gancho del Título: Año concreto (1880) + magnitud humana ("La Épica Llegada de los Italianos") + impacto presente ("que Transformaron Argentina").
+   - Estructura de la Descripción: Recorrido en 3 bloques (pueblos de origen -> travesía transatlántica y arribo al Hotel de Inmigrantes/conventillos -> oficios, panaderías, colonias agrícolas y herencia cultural en el 60% de la población).
+   - Tags / Palabras Clave SEO (16): inmigración italiana argentina, historia argentina, italianos en argentina, inmigración europea, Buenos Aires 1880, La Boca historia, conventillos argentinos, viaje transatlántico, Hotel de Inmigrantes, colonias agrícolas argentina, influencia italiana argentina, cocina italiana argentina, lunfardo origen, movimiento obrero argentina, ascendencia italiana, historia argentina siglo XIX.`,
         structuralBlocks: [
           {
             name: 'Intro (8s) + Hook y Quinta (1885)',
@@ -1256,11 +1286,31 @@ export default function App() {
       {
         id: 'seed_louvre_medieval',
         videoId: 'louvre_medieval_p1',
-        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        realYoutubeId: 'rJdAGfxEYkw',
+        url: 'https://youtu.be/rJdAGfxEYkw',
         title:
-          'Castillo del Louvre Medieval (Estructura de Fortaleza Oculta bajo Monumento Famoso)',
+          'El Louvre en el año 1200: La fortaleza olvidada de París | Documental Completo',
         channelTitle: '@huellas_de_la_humanidad',
         channelName: '@huellas_de_la_humanidad',
+        description: `La imagen monumental del recinto contemporáneo suele eclipsar su origen como bastión puramente militar concebido a finales del siglo XII por orden del monarca Felipe Augusto. Levantada en la ribera derecha del río Sena para proteger la capital francesa frente a la amenaza anglonormanda antes de partir hacia las Cruzadas, esta estructura prescindió por completo de cualquier concesión al lujo cortesano. Con una imponente torre cilíndrica central de 30 metros de altura y lienzos de muralla de 4 metros de espesor en su base, la fortaleza funcionaba como un núcleo hermético donde las decisiones estratégicas de la Corona se custodiaban tras fosos perimetrales de agua estancada y pesadas rejas de hierro forjado. Los documentos administrativos de la época constatan que este baluarte no fue proyectado para albergar festines reales, sino para operar como arsenal de guerra, tesorería del reino y presidio fortificado en una era marcada por el conflicto territorial incesante.`,
+        tags: [
+          'arquitectura defensiva capeta',
+          'torre del homenaje grosse tour',
+          'muralla medieval filipina',
+          'vida cotidiana edad media',
+          'ingenieria militar siglo xiii',
+          'guarnicion real francesa',
+          'arqueologia subterranea parisina',
+          'asedio castillos feudales',
+          'abastecimiento fortalezas antiguas',
+          'construccion gotica primitiva',
+          'oficios medievales herreria canteria',
+          'sanidad medieval europea',
+          'cronica dinastia capeto',
+          'vestimenta militar cota malla',
+          'fortificaciones ribera sena',
+          'historia oculta museos europeos',
+        ],
         analyzedAt: '2026-11-03T14:59:02.462Z',
         commentsCount: 42,
         structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -1273,7 +1323,11 @@ export default function App() {
    - Bloque 5 (Demolición, Transformación y Redescubrimiento, 18%): Cómo quedó sepultado bajo el Renacimiento y cómo las excavaciones del siglo XX sacaron a la luz sus cimientos intactos.
    - Bloque 6 (Reflexión Final + Outro Oficial de 8s, 8%): Qué nos revela esa piedra oculta hoy + cierre limpio antes del Outro de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.`,
+   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (El Louvre en el año 1200: La fortaleza olvidada de París):
+   - Gancho del Título: Monumento mundialmente famoso ("El Louvre") + fecha medieval exacta ("en el año 1200") + revelación oculta ("La fortaleza olvidada de París").
+   - Estructura de la Descripción: Desmitificación militar bajo Felipe II Augusto, dimensiones exactas de la Grosse Tour (30m de altura, muros de 4m), arsenal/tesorería/presidio y logística intramuros.
+   - Tags / Palabras Clave SEO (16): arquitectura defensiva capeta, torre del homenaje grosse tour, muralla medieval filipina, vida cotidiana edad media, ingenieria militar siglo xiii, guarnicion real francesa, arqueologia subterranea parisina, asedio castillos feudales, abastecimiento fortalezas antiguas, construccion gotica primitiva, oficios medievales herreria canteria, sanidad medieval europea, cronica dinastia capeto, vestimenta militar cota malla, fortificaciones ribera sena, historia oculta museos europeos.`,
         structuralBlocks: [
           {
             name: 'Intro (8s) + Hook y Promesa',
@@ -1334,11 +1388,33 @@ export default function App() {
       {
         id: 'seed_princesas_edad_media',
         videoId: 'princesas_edad_media',
-        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        realYoutubeId: '7oexZOHGQ8k',
+        url: 'https://youtu.be/7oexZOHGQ8k',
         title:
-          'Las Princesas de la Edad Media (Estructura de Desmitificación de Vida Cotidiana e Intimidad Histórica)',
+          'Así Era Vivir en la Corte Real del Siglo XIII: El Oscuro Precio de la Corona | Documental Completo',
         channelTitle: '@huellas_de_la_humanidad',
         channelName: '@huellas_de_la_humanidad',
+        description: `Detrás de las baladas caballerescas y los tapices bañados en oro de la Plena Edad Media se ocultaba una maquinaria diplomática implacable donde cada princesa de la alta nobleza europea carecía de soberanía sobre su propio destino. Desde que alcanzaban la juventud nupcial, las futuras consortes eran sometidas a exámenes físicos y médicos por embajadas extranjeras que evaluaban su constitución ósea, su dentadura y su equilibrio humoral antes de firmar capitulaciones matrimoniales y enviarlas en travesías sin retorno hacia cortes extrañas cuyo idioma desconocían. La vida cotidiana dentro de residencias regias como el Palais de la Cité o el castillo de Vincennes exigía una disciplina corporal extrema regulada por tratados médicos como el compendio salernitano de la Trotula y por las estrictas ordenanzas del guardarropa real.`,
+        tags: [
+          'princesas en la edad media',
+          'vida de una princesa medieval',
+          'trotula de salerno',
+          'albayalde de plomo cerusa',
+          'oropimente trisulfuro de arsenico',
+          'ingeborg de dinamarca',
+          'felipe ii augusto',
+          'blanca de castilla regente',
+          'leonor de aquitania',
+          'torre real de etampes',
+          'interdicto inocencio iii',
+          'benedictio thalami boda medieval',
+          'chambre des dames parto medieval',
+          'cuentas guardarropa enrique iii',
+          'pieles de vair y armino',
+          'amor cortes midons',
+          'chretien de troyes',
+          'mateo paris chronica majora',
+        ],
         analyzedAt: '2026-11-03T14:59:02.463Z',
         commentsCount: 58,
         structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -1351,7 +1427,11 @@ export default function App() {
    - Bloque 5 (Poder Oculto, Regencias y Conspiraciones, 15%): Cómo las mujeres que sobrevivían lograban gobernar imperios desde la sombra.
    - Bloque 6 (Cierre Reflexivo + Outro 8s, 8%): Reflexión humana final y entrada limpia del Outro Oficial de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.`,
+   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (Así Era Vivir en la Corte Real del Siglo XIII: El Oscuro Precio de la Corona):
+   - Gancho del Título: Inmersión en primera persona ("Así Era Vivir en la Corte Real del Siglo XIII") + contraste oscuro ("El Oscuro Precio de la Corona").
+   - Estructura de la Descripción: Contraste entre literatura caballeresca y archivos de cancillería (exámenes físicos de embajadas, cosmética tóxica con albayalde de plomo y oropimente según la Trotula de Salerno, encierro de Ingeborg de Dinamarca en Étampes y parto en la Chambre des Dames).
+   - Tags / Palabras Clave SEO (18): princesas en la edad media, vida de una princesa medieval, trotula de salerno, albayalde de plomo cerusa, oropimente trisulfuro de arsenico, ingeborg de dinamarca, felipe ii augusto, blanca de castilla regente, leonor de aquitania, torre real de etampes, interdicto inocencio iii, benedictio thalami boda medieval, chambre des dames parto medieval, cuentas guardarropa enrique iii, pieles de vair y armino, amor cortes midons, chretien de troyes, mateo paris chronica majora.`,
         structuralBlocks: [
           {
             name: 'Intro (8s) + Choque Mito vs Realidad',
@@ -1412,11 +1492,40 @@ export default function App() {
       {
         id: 'seed_misterio_investigativo',
         videoId: 'misterio_cronologico_viral',
-        url: 'https://www.youtube.com/@huellas_de_la_humanidad',
+        realYoutubeId: 'PPgK7kuznm0',
+        url: 'https://youtu.be/PPgK7kuznm0',
         title:
-          'Misterio Histórico / True Crime Antiguo (Estructura de Investigación Forense en 5 Pistas)',
-        channelTitle: 'Plantilla Viral Analizada',
-        channelName: 'Plantilla Viral Analizada',
+          'Así Fue el Brutal Asedio de Antioquía en 1098: Hambre, Traición y Fe | Documental Completo',
+        channelTitle: '@huellas_de_la_humanidad',
+        channelName: '@huellas_de_la_humanidad',
+        description: `En junio de 1098, dentro de la Catedral de San Pedro en Antioquía, Siria, trece hombres encerrados bajo llave cavaban una fosa profunda en la penumbra buscando una reliquia que, según los registros imperiales de Constantinopla, ni siquiera debía encontrarse allí. Lo que había comenzado en noviembre de 1095 en los campos de Clermont, Francia, con la promesa papal de Urbano II y la marcha de 70 mil europeos hacia Oriente, acababa de transformarse en una trampa mortal donde los conquistadores quedaron sitiados dentro de su propia conquista frente a las 400 torres bizantinas del monte Silpio.`,
+        tags: [
+          'Primera Cruzada',
+          'Pedro Bartolomé',
+          'Lanza Sagrada',
+          'Bohemundo de Tarento',
+          'Raimundo de Tolosa',
+          'Kerbogha de Mosul',
+          'Yaghi-Siyan',
+          'Ademar de Le Puy',
+          'Urbano II',
+          'Concilio de Clermont',
+          'Catedral de San Pedro',
+          'Monte Silpio',
+          'Torre de las Dos Hermanas',
+          'comandante Firuz',
+          'Alejo I Comneno',
+          'Esteban de Blois',
+          'Godofredo de Bouillon',
+          'Gesta Francorum',
+          'Raimundo de Aguilers',
+          'Alberto de Aquisgrán',
+          'Ana Comnena',
+          'caballería franca',
+          'trepadores de cuerdas',
+          'asedio de Arqa',
+          'juicio de fuego',
+        ],
         analyzedAt: '2026-11-03T14:59:02.463Z',
         commentsCount: 31,
         structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -1429,7 +1538,11 @@ export default function App() {
    - Bloque 5 (La Evidencia Forense / Arqueológica Moderna, 18%): Qué reveló la ciencia moderna al analizar los restos o archivos secretos.
    - Bloque 6 (Veredicto Abierto + Outro 8s, 8%): Presentación de la conclusión más sólida + pregunta de debate + Outro Oficial de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.`,
+   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (Así Fue el Brutal Asedio de Antioquía en 1098: Hambre, Traición y Fe):
+   - Gancho del Título: Suceso bélico extremo con año exacto ("Así Fue el Brutal Asedio de Antioquía en 1098") + tríada dramática ("Hambre, Traición y Fe").
+   - Estructura de la Descripción: Apertura in media res en la Catedral de San Pedro (junio de 1098, excavación de la Lanza Sagrada por Pedro Bartolomé), retroceso al Concilio de Clermont (1095), traición de Firuz en la Torre de las Dos Hermanas y juicio de fuego en Arqa.
+   - Tags / Palabras Clave SEO (25): Primera Cruzada, Pedro Bartolomé, Lanza Sagrada, Bohemundo de Tarento, Raimundo de Tolosa, Kerbogha de Mosul, Yaghi-Siyan, Ademar de Le Puy, Urbano II, Concilio de Clermont, Catedral de San Pedro, Monte Silpio, Torre de las Dos Hermanas, comandante Firuz, Alejo I Comneno, Esteban de Blois, Godofredo de Bouillon, Gesta Francorum, Raimundo de Aguilers, Alberto de Aquisgrán, Ana Comnena, caballería franca, trepadores de cuerdas, asedio de Arqa, juicio de fuego.`,
         structuralBlocks: [
           {
             name: 'Intro (8s) + El Hallazgo Inexplicable',
@@ -1538,31 +1651,103 @@ export default function App() {
     });
   }, [channelDeduplicatedComments, analyzedVideosDeduplicatedComments, analyzedVideosLibrary]);
 
+  const extractYoutubeVideoIdClient = (rawUrl: string): string => {
+    const clean = String(rawUrl || '').trim();
+    if (!clean) return '';
+    const m = clean.match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/))([a-zA-Z0-9_-]{11})/
+    );
+    if (m && m[1]) return m[1];
+    if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+    return '';
+  };
+
+  const findAlreadyInvestigatedLibraryVideo = (rawUrl: string, libList = analyzedVideosLibrary) => {
+    const clean = String(rawUrl || '').trim();
+    if (!clean) return null;
+    const ytId = extractYoutubeVideoIdClient(clean);
+    return (
+      libList.find((v: any) => {
+        if (!v) return false;
+        if (
+          ytId &&
+          (v.videoId === ytId ||
+            v.realYoutubeId === ytId ||
+            v.id === `vid_${ytId}` ||
+            (typeof v.url === 'string' && v.url.includes(ytId)))
+        ) {
+          return true;
+        }
+        const vUrl = String(v.url || '').trim();
+        if (
+          vUrl &&
+          vUrl !== 'https://www.youtube.com/@huellas_de_la_humanidad' &&
+          vUrl.toLowerCase() === clean.toLowerCase()
+        ) {
+          return true;
+        }
+        return (
+          String(v.videoId || '').toLowerCase() === clean.toLowerCase() ||
+          String(v.id || '').toLowerCase() === clean.toLowerCase()
+        );
+      }) || null
+    );
+  };
+
   const normalizeAnalyzedVideoEntries = (rawList: any[]) => {
-    const normalized = (Array.isArray(rawList) ? rawList : []).map((v: any) => ({
-      ...v,
-      id: String(v.id || v.videoId || ''),
-      videoId: String(v.videoId || v.id || ''),
-      title: String(v.title || 'Video Analizado'),
-      channelTitle: String(v.channelTitle || v.channelName || '@huellas_de_la_humanidad'),
-      description: String(v.description || ''),
-      tags: Array.isArray(v.tags) ? v.tags.map(String).filter(Boolean) : [],
-      url: String(v.url || ''),
-      analyzedAt: String(v.analyzedAt || new Date().toISOString()),
-      structureSummary: String(v.structureSummary || ''),
-      structuralBlocks: Array.isArray(v.structuralBlocks) ? v.structuralBlocks : [],
-      comments: Array.isArray(v.comments) ? v.comments : [],
-    }));
-    const seenIds = new Set(normalized.flatMap((v) => [v.id, v.videoId].filter(Boolean)));
+    const normalized = (Array.isArray(rawList) ? rawList : []).map((v: any) => {
+      const seedMatch = STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.find(
+        (s: any) =>
+          s.id === v.id ||
+          s.videoId === v.videoId ||
+          (s.realYoutubeId && (s.realYoutubeId === v.videoId || s.realYoutubeId === v.realYoutubeId))
+      );
+      return {
+        ...(seedMatch || {}),
+        ...v,
+        id: String(v.id || v.videoId || seedMatch?.id || ''),
+        videoId: String(v.videoId || v.id || seedMatch?.videoId || ''),
+        realYoutubeId: String(v.realYoutubeId || seedMatch?.realYoutubeId || ''),
+        title: String(seedMatch?.title || v.title || 'Video Analizado'),
+        channelTitle: String(
+          v.channelTitle || v.channelName || seedMatch?.channelTitle || '@huellas_de_la_humanidad'
+        ),
+        description: String(v.description || seedMatch?.description || ''),
+        tags:
+          Array.isArray(v.tags) && v.tags.length > 0
+            ? v.tags.map(String).filter(Boolean)
+            : Array.isArray(seedMatch?.tags)
+            ? seedMatch.tags
+            : [],
+        url: String(
+          v.url && v.url !== 'https://www.youtube.com/@huellas_de_la_humanidad'
+            ? v.url
+            : seedMatch?.url || v.url || ''
+        ),
+        analyzedAt: String(v.analyzedAt || new Date().toISOString()),
+        structureSummary: String(
+          v.structureSummary && v.structureSummary.includes('ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS')
+            ? v.structureSummary
+            : seedMatch?.structureSummary || v.structureSummary || ''
+        ),
+        structuralBlocks: Array.isArray(v.structuralBlocks) ? v.structuralBlocks : [],
+        comments: Array.isArray(v.comments) ? v.comments : [],
+      };
+    });
+    const seenIds = new Set(
+      normalized.flatMap((v) => [v.id, v.videoId, v.realYoutubeId].filter(Boolean))
+    );
     const missingSeeds = STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.filter(
-      (s) => !seenIds.has(s.id) && !seenIds.has(s.videoId)
+      (s: any) =>
+        !seenIds.has(s.id) && !seenIds.has(s.videoId) && (!s.realYoutubeId || !seenIds.has(s.realYoutubeId))
     );
     return [...missingSeeds, ...normalized];
   };
 
   const loadStage1AnalyzedVideosAndComments = async (
     customVideoUrlOrForce: string | boolean = false,
-    _topicHint = ''
+    _topicHint = '',
+    mode: 'STANDALONE_INVESTIGATE' | 'COMBINED_WITH_OUR_DOC' = 'STANDALONE_INVESTIGATE'
   ): Promise<Record<string, string> | null> => {
     const forceRefresh = customVideoUrlOrForce === true;
     const customVideoUrl =
@@ -1604,10 +1789,11 @@ export default function App() {
                   ...prev,
                 ]);
               }
-              if (data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id) {
-                setSelectedAnalyzedVideoId(
-                  String(data.matchedLibraryEntry.videoId || data.matchedLibraryEntry.id)
-                );
+              const matchedId = String(
+                data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id || ''
+              );
+              if (matchedId) {
+                setSelectedAnalyzedVideoId(matchedId);
               }
               if (customVideoUrl) {
                 const extractedTitle = String(
@@ -1629,22 +1815,34 @@ export default function App() {
                 ).trim();
                 const extractedResearchBlock = String(data.researchPromptBlock || '').trim();
                 const curDoc = activeDocRef.current || activeDoc;
-                const nextPromptConfig: Record<string, string> = {
+                // Clear the pasted link text box once investigated so the video is selected in the library dropdown as the single active video
+                const savedPromptConfig: Record<string, string> = {
                   ...(curDoc?.promptConfig || {}),
-                  YOUTUBE_VIRAL_LINK: customVideoUrl,
+                  YOUTUBE_VIRAL_LINK: '',
+                  YOUTUBE_SELECTED_LIBRARY_LINK: customVideoUrl,
                   YOUTUBE_VIDEO_TITLE: extractedTitle,
                   YOUTUBE_VIDEO_DESCRIPTION: extractedDescription,
                   YOUTUBE_VIDEO_TAGS: extractedTags,
                   YOUTUBE_VIDEO_CHANNEL: extractedChannel,
                   YOUTUBE_COMMENTS_RESEARCH_BLOCK: extractedResearchBlock,
-                  ESTRUCTURA_VIRAL_TITULO:
-                    extractedTitle || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
-                  ESTRUCTURA_VIRAL_RESUMEN:
-                    extractedSummary || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
+                  ESTRUCTURA_VIRAL_TITULO: extractedTitle,
+                  ESTRUCTURA_VIRAL_RESUMEN: extractedSummary,
+                  SELECTED_ANALYZED_VIDEO_TITLE: extractedTitle,
+                  SELECTED_ANALYZED_VIDEO_SUMMARY: extractedSummary,
                   YOUTUBE_EXTRACTED_FOR_LINK: customVideoUrl,
                 };
-                updateActiveDoc({ promptConfig: nextPromptConfig });
-                return nextPromptConfig;
+                updateActiveDoc({ promptConfig: savedPromptConfig });
+
+                if (mode === 'COMBINED_WITH_OUR_DOC') {
+                  // For this run, pass YOUTUBE_VIRAL_LINK with empty ESTRUCTURA_VIRAL_RESUMEN so Gemini investigates the video together with our documentary
+                  return {
+                    ...savedPromptConfig,
+                    YOUTUBE_VIRAL_LINK: customVideoUrl,
+                    ESTRUCTURA_VIRAL_RESUMEN: '',
+                    SELECTED_ANALYZED_VIDEO_SUMMARY: '',
+                  };
+                }
+                return savedPromptConfig;
               }
               return null;
             }
@@ -1661,19 +1859,54 @@ export default function App() {
               const oembedData = await oembedRes.json();
               const fallbackTitle = String(oembedData?.title || '').trim();
               const fallbackChannel = String(oembedData?.author_name || '').trim();
+              const ytId =
+                extractYoutubeVideoIdClient(customVideoUrl) || `vid_${Date.now()}`;
               if (fallbackTitle) {
+                const fallbackSummary = `1. DECONSTRUCCIÓN DEL HOOK Y PROMESA DEL TÍTULO:\n   - Título Analizado: "${fallbackTitle}" (Canal: ${fallbackChannel || 'YouTube'}).\n2. RADIOGRAFÍA ESTRUCTURAL Y EJES VIRALES:\n   - Enlace: ${customVideoUrl}`;
+                const newEntry = {
+                  id: `vid_${ytId}`,
+                  videoId: ytId,
+                  realYoutubeId: ytId,
+                  url: customVideoUrl,
+                  title: fallbackTitle,
+                  channelTitle: fallbackChannel || 'YouTube',
+                  channelName: fallbackChannel || 'YouTube',
+                  description: '',
+                  tags: [],
+                  analyzedAt: new Date().toISOString(),
+                  commentsCount: 0,
+                  structureSummary: fallbackSummary,
+                  structuralBlocks: [],
+                  comments: [],
+                };
+                setAnalyzedVideosLibrary((prev) => [
+                  newEntry,
+                  ...prev.filter((v) => v.videoId !== ytId),
+                ]);
+                setSelectedAnalyzedVideoId(ytId);
                 const curDoc = activeDocRef.current || activeDoc;
-                const nextPromptConfig: Record<string, string> = {
+                const savedPromptConfig: Record<string, string> = {
                   ...(curDoc?.promptConfig || {}),
-                  YOUTUBE_VIRAL_LINK: customVideoUrl,
+                  YOUTUBE_VIRAL_LINK: '',
+                  YOUTUBE_SELECTED_LIBRARY_LINK: customVideoUrl,
                   YOUTUBE_VIDEO_TITLE: fallbackTitle,
                   YOUTUBE_VIDEO_CHANNEL: fallbackChannel,
-                  ESTRUCTURA_VIRAL_TITULO:
-                    fallbackTitle || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                  ESTRUCTURA_VIRAL_TITULO: fallbackTitle,
+                  ESTRUCTURA_VIRAL_RESUMEN: fallbackSummary,
+                  SELECTED_ANALYZED_VIDEO_TITLE: fallbackTitle,
+                  SELECTED_ANALYZED_VIDEO_SUMMARY: fallbackSummary,
                   YOUTUBE_EXTRACTED_FOR_LINK: customVideoUrl,
                 };
-                updateActiveDoc({ promptConfig: nextPromptConfig });
-                return nextPromptConfig;
+                updateActiveDoc({ promptConfig: savedPromptConfig });
+                if (mode === 'COMBINED_WITH_OUR_DOC') {
+                  return {
+                    ...savedPromptConfig,
+                    YOUTUBE_VIRAL_LINK: customVideoUrl,
+                    ESTRUCTURA_VIRAL_RESUMEN: '',
+                    SELECTED_ANALYZED_VIDEO_SUMMARY: '',
+                  };
+                }
+                return savedPromptConfig;
               }
             }
           } catch {}
@@ -1705,6 +1938,36 @@ export default function App() {
       setStage1LoadingLibrary(false);
     }
     return null;
+  };
+
+  const handleInvestigateVideoButton = async () => {
+    const rawLink = (activeDoc?.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+    if (!rawLink) {
+      alert(
+        '⚠️ Por favor, pega primero el link de un video de YouTube en la caja de texto para poder investigarlo.'
+      );
+      setBridgeStatusMsg(
+        '⚠️ Pega primero el link de un video de YouTube en la caja de texto para investigarlo.'
+      );
+      return;
+    }
+    const existingVideo = findAlreadyInvestigatedLibraryVideo(rawLink);
+    if (existingVideo) {
+      alert(
+        `⚠️ Este video ya fue investigado anteriormente ("${existingVideo.title}").\n\nNo se permite investigarlo nuevamente. Deja la caja de texto en blanco (puedes seleccionarlo arriba en la biblioteca) o pega el link de otro video que aún no haya sido investigado.`
+      );
+      return;
+    }
+    const resultPatch = await loadStage1AnalyzedVideosAndComments(
+      rawLink,
+      activeDoc?.topic || activeDoc?.title || '',
+      'STANDALONE_INVESTIGATE'
+    );
+    if (resultPatch) {
+      setBridgeStatusMsg(
+        `✅ Video "${resultPatch.YOUTUBE_VIDEO_TITLE || rawLink}" investigado por completo (Título, Descripción, Tags, Comentarios y Estructura) y seleccionado para tu documental.`
+      );
+    }
   };
 
   useEffect(() => {
@@ -7900,11 +8163,19 @@ export default function App() {
     let overridePromptConfig: Record<string, string> | undefined;
     if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
       const youtubeUrl = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
-      const alreadyExtractedFor = (activeDoc.promptConfig?.YOUTUBE_EXTRACTED_FOR_LINK || '').trim();
-      if (youtubeUrl && (alreadyExtractedFor !== youtubeUrl || !activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE)) {
+      if (youtubeUrl) {
+        const duplicateInLibrary = findAlreadyInvestigatedLibraryVideo(youtubeUrl);
+        if (duplicateInLibrary) {
+          alert(
+            `⚠️ El link pegado en la caja de texto corresponde a un video que ya fue investigado antes ("${duplicateInLibrary.title}").\n\nPara continuar, deja en blanco esa caja de texto (puedes elegir el video en la lista superior si deseas usar su investigación previa) o pega el link de otro video que aún no haya sido investigado.`
+          );
+          return;
+        }
+        // Video has NOT been investigated yet -> investigate it together with our documentary
         const extractedPatch = await loadStage1AnalyzedVideosAndComments(
           youtubeUrl,
-          activeDoc.topic || activeDoc.title || ''
+          activeDoc.topic || activeDoc.title || '',
+          'COMBINED_WITH_OUR_DOC'
         );
         if (extractedPatch) {
           overridePromptConfig = extractedPatch;
@@ -10313,7 +10584,7 @@ export default function App() {
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
                         Seleccionar Estructura de Video Analizado Previamente ({analyzedVideosLibrary.length}{' '}
-                        en biblioteca)
+                        en biblioteca — solo 1 video por investigación)
                       </label>
                       <select
                         value={selectedAnalyzedVideoId}
@@ -10322,12 +10593,16 @@ export default function App() {
                           setSelectedAnalyzedVideoId(nextId);
                           const found = analyzedVideosLibrary.find((v) => v.videoId === nextId);
                           if (found) {
+                            // Rule 2: Only 1 video can be used. Selecting from library clears any pasted link in the text box.
                             updateActiveDoc({
                               promptConfig: {
                                 ...(activeDoc.promptConfig || {}),
-                                YOUTUBE_VIRAL_LINK: found.url || found.videoId,
+                                YOUTUBE_VIRAL_LINK: '',
+                                YOUTUBE_SELECTED_LIBRARY_LINK: found.url || found.videoId,
                                 ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
                                 ESTRUCTURA_VIRAL_TITULO: found.title,
+                                SELECTED_ANALYZED_VIDEO_SUMMARY: found.structureSummary,
+                                SELECTED_ANALYZED_VIDEO_TITLE: found.title,
                                 YOUTUBE_VIDEO_TITLE: found.title,
                                 YOUTUBE_VIDEO_DESCRIPTION: found.description || '',
                                 YOUTUBE_VIDEO_TAGS: Array.isArray(found.tags)
@@ -10341,8 +10616,11 @@ export default function App() {
                               promptConfig: {
                                 ...(activeDoc.promptConfig || {}),
                                 YOUTUBE_VIRAL_LINK: '',
+                                YOUTUBE_SELECTED_LIBRARY_LINK: '',
                                 ESTRUCTURA_VIRAL_RESUMEN: '',
                                 ESTRUCTURA_VIRAL_TITULO: '',
+                                SELECTED_ANALYZED_VIDEO_SUMMARY: '',
+                                SELECTED_ANALYZED_VIDEO_TITLE: '',
                                 YOUTUBE_VIDEO_TITLE: '',
                                 YOUTUBE_VIDEO_DESCRIPTION: '',
                                 YOUTUBE_VIDEO_TAGS: '',
@@ -10365,69 +10643,149 @@ export default function App() {
                     </div>
 
                     {/* Input para pegar un Link de YouTube adicional o nuevo */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        O pega el Link de un Video Viral de Referencia (Si no está analizado aún, se
-                        investigará junto con el documental al pulsar "✨ Comenzar Investigación")
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || ''}
-                          onChange={(e) => {
-                            const urlVal = e.target.value;
-                            const matched = analyzedVideosLibrary.find(
-                              (v) =>
-                                v.url === urlVal.trim() ||
-                                (v.videoId && urlVal.includes(v.videoId))
-                            );
-                            if (matched) {
-                              setSelectedAnalyzedVideoId(matched.videoId);
-                            }
-                            updateActiveDoc({
-                              promptConfig: {
-                                ...(activeDoc.promptConfig || {}),
-                                YOUTUBE_VIRAL_LINK: urlVal,
-                                ESTRUCTURA_VIRAL_RESUMEN: matched
-                                  ? matched.structureSummary
-                                  : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
-                                ESTRUCTURA_VIRAL_TITULO: matched
-                                  ? matched.title
-                                  : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
-                                YOUTUBE_VIDEO_TITLE: matched
-                                  ? matched.title
-                                  : activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE || '',
-                                YOUTUBE_VIDEO_DESCRIPTION: matched
-                                  ? matched.description || ''
-                                  : activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '',
-                                YOUTUBE_VIDEO_TAGS:
-                                  matched && Array.isArray(matched.tags)
-                                    ? matched.tags.join(', ')
-                                    : activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '',
-                              },
-                            });
-                          }}
-                          placeholder="https://www.youtube.com/watch?v=... (opcional)"
-                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
-                        />
-                        <button
-                          type="button"
-                          disabled={
-                            stage1LoadingLibrary ||
-                            !(activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim()
-                          }
-                          onClick={() =>
-                            loadStage1AnalyzedVideosAndComments(
-                              activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '',
-                              activeDoc.topic || activeDoc.title || ''
-                            )
-                          }
-                          className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer whitespace-nowrap"
-                        >
-                          🔍 Analizar Título, Descripción, Tags y Comentarios
-                        </button>
-                      </div>
-                    </div>
+                    {(() => {
+                      const pastedUrlValue = activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '';
+                      const duplicateInvestigatedVideo = findAlreadyInvestigatedLibraryVideo(
+                        pastedUrlValue
+                      );
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            O pega el Link de un Video de YouTube Nuevo (Pulsa "Investigar Video" para
+                            investigarlo ahora, o "✨ Comenzar Investigación" para investigarlo junto con
+                            nuestro documental)
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={pastedUrlValue}
+                              onChange={(e) => {
+                                const urlVal = e.target.value;
+                                // Rule 2: Only ONE video can be used. Typing/pasting a link clears the dropdown selection above.
+                                if (urlVal.trim()) {
+                                  setSelectedAnalyzedVideoId('');
+                                }
+                                updateActiveDoc({
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    YOUTUBE_VIRAL_LINK: urlVal,
+                                    YOUTUBE_SELECTED_LIBRARY_LINK: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK || '',
+                                    ESTRUCTURA_VIRAL_RESUMEN: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
+                                    ESTRUCTURA_VIRAL_TITULO: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                                    SELECTED_ANALYZED_VIDEO_SUMMARY: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY || '',
+                                    SELECTED_ANALYZED_VIDEO_TITLE: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || '',
+                                    YOUTUBE_VIDEO_TITLE: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE || '',
+                                    YOUTUBE_VIDEO_DESCRIPTION: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '',
+                                    YOUTUBE_VIDEO_TAGS: urlVal.trim()
+                                      ? ''
+                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '',
+                                  },
+                                });
+                              }}
+                              placeholder="https://www.youtube.com/watch?v=... (deja en blanco si usas uno de la lista o ninguno)"
+                              className={`flex-1 bg-slate-950 border rounded-xl px-3 py-2 text-xs text-slate-100 ${
+                                duplicateInvestigatedVideo
+                                  ? 'border-rose-500 ring-1 ring-rose-500/50'
+                                  : 'border-slate-800'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              disabled={stage1LoadingLibrary || Boolean(duplicateInvestigatedVideo)}
+                              onClick={handleInvestigateVideoButton}
+                              className={`px-3.5 py-2 rounded-xl border text-xs font-bold whitespace-nowrap transition ${
+                                duplicateInvestigatedVideo
+                                  ? 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                                  : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 cursor-pointer'
+                              }`}
+                            >
+                              {stage1LoadingLibrary ? 'Investigando...' : 'Investigar Video'}
+                            </button>
+                          </div>
+
+                          {duplicateInvestigatedVideo && (
+                            <div className="bg-rose-950/70 border border-rose-500/60 rounded-xl p-3 text-xs text-rose-200 space-y-2">
+                              <p className="font-bold text-rose-300">
+                                ⚠️ Este link corresponde a un video que ya fue investigado antes: «
+                                {duplicateInvestigatedVideo.title}»
+                              </p>
+                              <p className="text-[11px] text-rose-200/90 leading-relaxed">
+                                No se permite investigarlo nuevamente ni pulsar{' '}
+                                <strong>"✨ Comenzar Investigación"</strong> mientras este link
+                                repetido esté en la caja de texto. Deja la caja en blanco (o selecciona
+                                su investigación previa arriba) o pega el link de otro video que aún no
+                                haya sido investigado.
+                              </p>
+                              <div className="flex flex-wrap gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAnalyzedVideoId(duplicateInvestigatedVideo.videoId);
+                                    updateActiveDoc({
+                                      promptConfig: {
+                                        ...(activeDoc.promptConfig || {}),
+                                        YOUTUBE_VIRAL_LINK: '',
+                                        YOUTUBE_SELECTED_LIBRARY_LINK:
+                                          duplicateInvestigatedVideo.url ||
+                                          duplicateInvestigatedVideo.videoId,
+                                        ESTRUCTURA_VIRAL_RESUMEN:
+                                          duplicateInvestigatedVideo.structureSummary,
+                                        ESTRUCTURA_VIRAL_TITULO: duplicateInvestigatedVideo.title,
+                                        SELECTED_ANALYZED_VIDEO_SUMMARY:
+                                          duplicateInvestigatedVideo.structureSummary,
+                                        SELECTED_ANALYZED_VIDEO_TITLE:
+                                          duplicateInvestigatedVideo.title,
+                                        YOUTUBE_VIDEO_TITLE: duplicateInvestigatedVideo.title,
+                                        YOUTUBE_VIDEO_DESCRIPTION:
+                                          duplicateInvestigatedVideo.description || '',
+                                        YOUTUBE_VIDEO_TAGS: Array.isArray(
+                                          duplicateInvestigatedVideo.tags
+                                        )
+                                          ? duplicateInvestigatedVideo.tags.join(', ')
+                                          : '',
+                                        YOUTUBE_VIDEO_CHANNEL:
+                                          duplicateInvestigatedVideo.channelTitle || '',
+                                      },
+                                    });
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer"
+                                >
+                                  ✓ Usar Investigación Previa y Dejar Caja en Blanco
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateActiveDoc({
+                                      promptConfig: {
+                                        ...(activeDoc.promptConfig || {}),
+                                        YOUTUBE_VIRAL_LINK: '',
+                                      },
+                                    })
+                                  }
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-rose-400/40 text-rose-200 font-bold text-[11px] cursor-pointer"
+                                >
+                                  🧹 Dejar Caja en Blanco
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* EXPLICACIÓN DE LA INVESTIGACIÓN DEL VIDEO SELECCIONADO + BARRA VISUAL DE TIEMPOS */}
                     {(() => {
@@ -10855,17 +11213,38 @@ export default function App() {
                         {geminiDeepResearchEnabled ? '✓' : 'Off'}
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={aiGenerating}
-                        onClick={() => handleGenerateWithGemini(1)}
-                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-500/25"
-                      >
-                        <Wand2 className="w-4 h-4" />
-                        {aiGenerating
-                          ? 'Investigando en Gemini Deep Research...'
-                          : '✨ Comenzar Investigación'}
-                      </button>
+                      {(() => {
+                        const pastedLinkForStart = (
+                          activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || ''
+                        ).trim();
+                        const duplicateBlockForStart = findAlreadyInvestigatedLibraryVideo(
+                          pastedLinkForStart
+                        );
+                        return (
+                          <button
+                            type="button"
+                            disabled={aiGenerating || Boolean(duplicateBlockForStart)}
+                            onClick={() => handleGenerateWithGemini(1)}
+                            title={
+                              duplicateBlockForStart
+                                ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
+                                : 'Comenzar Investigación Profunda'
+                            }
+                            className={`px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition ${
+                              duplicateBlockForStart
+                                ? 'bg-slate-800 text-slate-500 border border-rose-500/40 cursor-not-allowed opacity-60'
+                                : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-amber-500/25'
+                            }`}
+                          >
+                            <Wand2 className="w-4 h-4" />
+                            {aiGenerating
+                              ? 'Investigando en Gemini Deep Research...'
+                              : duplicateBlockForStart
+                              ? '🔒 Link Ya Investigado (Limpia la Caja)'
+                              : '✨ Comenzar Investigación'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
 

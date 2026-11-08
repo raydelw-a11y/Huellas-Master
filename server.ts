@@ -8317,8 +8317,31 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
     id: 'vid_clqshy5NB7I',
     videoId: 'clqshy5NB7I',
     url: 'https://youtu.be/clqshy5NB7I',
-    title: 'La llegada de los italianos a Argentina',
+    title: '1880: La Épica Llegada de los Italianos que Transformaron Argentina (Reconstrucción con IA)',
     channelName: 'Reimaginando Pasados',
+    description: `1880: La Épica Llegada de los Italianos que Transformaron Argentina (Reconstrucción con IA)
+
+Descubre la fascinante historia de cómo más de 2 millones de italianos transformaron Argentina entre 1870 y 1914 en la mayor ola migratoria de la historia del país. Este documental te transporta desde los pueblos empobrecidos del sur de Italia hasta los conventillos de Buenos Aires, revelando el increíble viaje transatlántico que cambió dos naciones para siempre.
+Conoce las verdaderas condiciones de las travesías en barco, la dureza de los primeros años en tierra argentina, y cómo estos inmigrantes construyeron con sus manos la Argentina moderna. Desde La Boca hasta las colonias agrícolas de Santa Fe, desde los frigoríficos de Avellaneda hasta las panaderías que aún perfuman nuestras calles, esta es la historia del coraje, el sacrificio y la resiliencia.
+Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron moldeados por esta inmigración masiva. Entérate por qué hoy más del 60% de los argentinos tienen ascendencia italiana y cómo esa herencia sigue viva en cada rincón del país. Una reconstrucción histórica con IA que te hará revivir una época que definió quiénes somos hoy.`,
+    tags: [
+      'inmigración italiana argentina',
+      'historia argentina',
+      'italianos en argentina',
+      'inmigración europea',
+      'Buenos Aires 1880',
+      'La Boca historia',
+      'conventillos argentinos',
+      'viaje transatlántico',
+      'Hotel de Inmigrantes',
+      'colonias agrícolas argentina',
+      'influencia italiana argentina',
+      'cocina italiana argentina',
+      'lunfardo origen',
+      'movimiento obrero argentina',
+      'ascendencia italiana',
+      'historia argentina siglo XIX',
+    ],
     analyzedAt: new Date().toISOString(),
     commentsCount: 84,
     structureSummary: `1. DECONSTRUCCIÓN DEL HOOK Y PARADOJA CENTRAL (00:00 - 00:30):
@@ -8342,7 +8365,12 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
    - @Pedro_Garfias_Zurita (38 años, Vapor Sinaia, Veracruz, 13/06/1939): Sienes plateadas, gafas de concha, boina negra, traje oscuro gastado / chamarra de pastor zamorano y bastón de nudos.
 
 4. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Aritmética de la Supervivencia (1,50 pesetas de jornal vs. 205 pesetas de pasaje vs. 2.000 pesetas para no morir en la guerra) + Desmitificación del «Indiano Rico» (jóvenes durmiendo 10 años sobre el mostrador) + Activación de Memoria Genealógica Hispanoamericana en comentarios.`,
+   - Aritmética de la Supervivencia (1,50 pesetas de jornal vs. 205 pesetas de pasaje vs. 2.000 pesetas para no morir en la guerra) + Desmitificación del «Indiano Rico» (jóvenes durmiendo 10 años sobre el mostrador) + Activación de Memoria Genealógica Hispanoamericana en comentarios.
+
+5. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (1880: La Épica Llegada de los Italianos que Transformaron Argentina):
+   - Gancho del Título: Año concreto (1880) + magnitud humana ("La Épica Llegada de los Italianos") + impacto presente ("que Transformaron Argentina").
+   - Estructura de la Descripción: Recorrido en 3 bloques (pueblos de origen -> travesía transatlántica y arribo al Hotel de Inmigrantes/conventillos -> oficios, panaderías, colonias agrícolas y herencia cultural en el 60% de la población).
+   - Tags / Palabras Clave SEO (16): inmigración italiana argentina, historia argentina, italianos en argentina, inmigración europea, Buenos Aires 1880, La Boca historia, conventillos argentinos, viaje transatlántico, Hotel de Inmigrantes, colonias agrícolas argentina, influencia italiana argentina, cocina italiana argentina, lunfardo origen, movimiento obrero argentina, ascendencia italiana, historia argentina siglo XIX.`,
     structuralBlocks: [
       { name: 'Intro (8s) + Hook y Quinta (1885)', pct: 10, description: 'Muelle de Santander, jornal de 1,50 pesetas vs. 2.000 pesetas de redención militar y Slogan.' },
       { name: 'Acto I: La Piedra, el Humo y el Desarraigo', pct: 16, description: 'Aldeas de Asturias/Galicia, minifundios de <0,5 ha, Ley de Reclutamiento de 1885 y despedida.' },
@@ -8467,9 +8495,28 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
   {
     id: 'seed_louvre_medieval',
     videoId: 'louvre_medieval_p1',
-    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
-    title: 'Castillo del Louvre Medieval (Estructura de Fortaleza Oculta bajo Monumento Famoso)',
+    url: 'https://youtu.be/rJdAGfxEYkw',
+    title: 'El Louvre en el año 1200: La fortaleza olvidada de París | Documental Completo',
     channelName: '@huellas_de_la_humanidad',
+    description: `La imagen monumental del recinto contemporáneo suele eclipsar su origen como bastión puramente militar concebido a finales del siglo XII por orden del monarca Felipe Augusto. Levantada en la ribera derecha del río Sena para proteger la capital francesa frente a la amenaza anglonormanda antes de partir hacia las Cruzadas, esta estructura prescindió por completo de cualquier concesión al lujo cortesano. Con una imponente torre cilíndrica central de 30 metros de altura y lienzos de muralla de 4 metros de espesor en su base, la fortaleza funcionaba como un núcleo hermético donde las decisiones estratégicas de la Corona se custodiaban tras fosos perimetrales de agua estancada y pesadas rejas de hierro forjado. Los documentos administrativos de la época constatan que este baluarte no fue proyectado para albergar festines reales, sino para operar como arsenal de guerra, tesorería del reino y presidio fortificado en una era marcada por el conflicto territorial incesante.`,
+    tags: [
+      'arquitectura defensiva capeta',
+      'torre del homenaje grosse tour',
+      'muralla medieval filipina',
+      'vida cotidiana edad media',
+      'ingenieria militar siglo xiii',
+      'guarnicion real francesa',
+      'arqueologia subterranea parisina',
+      'asedio castillos feudales',
+      'abastecimiento fortalezas antiguas',
+      'construccion gotica primitiva',
+      'oficios medievales herreria canteria',
+      'sanidad medieval europea',
+      'cronica dinastia capeto',
+      'vestimenta militar cota malla',
+      'fortificaciones ribera sena',
+      'historia oculta museos europeos',
+    ],
     analyzedAt: new Date().toISOString(),
     commentsCount: 42,
     structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -8482,7 +8529,11 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
    - Bloque 5 (Demolición, Transformación y Redescubrimiento, 18%): Cómo quedó sepultado bajo el Renacimiento y cómo las excavaciones del siglo XX sacaron a la luz sus cimientos intactos.
    - Bloque 6 (Reflexión Final + Outro Oficial de 8s, 8%): Qué nos revela esa piedra oculta hoy + cierre limpio antes del Outro de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.`,
+   - "Lo oculto a plena vista": revelar que debajo de un lugar mundialmente conocido existe una estructura secreta que casi ningún turista comprende.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (El Louvre en el año 1200: La fortaleza olvidada de París):
+   - Gancho del Título: Monumento mundialmente famoso ("El Louvre") + fecha medieval exacta ("en el año 1200") + revelación oculta ("La fortaleza olvidada de París").
+   - Estructura de la Descripción: Desmitificación militar bajo Felipe II Augusto, dimensiones exactas de la Grosse Tour (30m de altura, muros de 4m), arsenal/tesorería/presidio y logística intramuros.
+   - Tags / Palabras Clave SEO (16): arquitectura defensiva capeta, torre del homenaje grosse tour, muralla medieval filipina, vida cotidiana edad media, ingenieria militar siglo xiii, guarnicion real francesa, arqueologia subterranea parisina, asedio castillos feudales, abastecimiento fortalezas antiguas, construccion gotica primitiva, oficios medievales herreria canteria, sanidad medieval europea, cronica dinastia capeto, vestimenta militar cota malla, fortificaciones ribera sena, historia oculta museos europeos.`,
     structuralBlocks: [
       { name: 'Intro (8s) + Hook y Promesa', pct: 8, description: 'Contraste monumento actual vs. fortaleza subterránea oculta y Slogan.' },
       { name: 'Acto I: La Amenaza Original', pct: 20, description: 'El peligro militar que obligó a construir la fortaleza.' },
@@ -8519,9 +8570,30 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
   {
     id: 'seed_princesas_edad_media',
     videoId: 'princesas_edad_media',
-    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
-    title: 'Las Princesas de la Edad Media (Estructura de Desmitificación de Vida Cotidiana e Intimidad Histórica)',
+    url: 'https://youtu.be/7oexZOHGQ8k',
+    title: 'Así Era Vivir en la Corte Real del Siglo XIII: El Oscuro Precio de la Corona | Documental Completo',
     channelName: '@huellas_de_la_humanidad',
+    description: `Detrás de las baladas caballerescas y los tapices bañados en oro de la Plena Edad Media se ocultaba una maquinaria diplomática implacable donde cada princesa de la alta nobleza europea carecía de soberanía sobre su propio destino. Desde que alcanzaban la juventud nupcial, las futuras consortes eran sometidas a exámenes físicos y médicos por embajadas extranjeras que evaluaban su constitución ósea, su dentadura y su equilibrio humoral antes de firmar capitulaciones matrimoniales y enviarlas en travesías sin retorno hacia cortes extrañas cuyo idioma desconocían. La vida cotidiana dentro de residencias regias como el Palais de la Cité o el castillo de Vincennes exigía una disciplina corporal extrema regulada por tratados médicos como el compendio salernitano de la Trotula y por las estrictas ordenanzas del guardarropa real.`,
+    tags: [
+      'princesas en la edad media',
+      'vida de una princesa medieval',
+      'trotula de salerno',
+      'albayalde de plomo cerusa',
+      'oropimente trisulfuro de arsenico',
+      'ingeborg de dinamarca',
+      'felipe ii augusto',
+      'blanca de castilla regente',
+      'leonor de aquitania',
+      'torre real de etampes',
+      'interdicto inocencio iii',
+      'benedictio thalami boda medieval',
+      'chambre des dames parto medieval',
+      'cuentas guardarropa enrique iii',
+      'pieles de vair y armino',
+      'amor cortes midons',
+      'chretien de troyes',
+      'mateo paris chronica majora',
+    ],
     analyzedAt: new Date().toISOString(),
     commentsCount: 58,
     structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -8534,7 +8606,11 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
    - Bloque 5 (Poder Oculto, Regencias y Conspiraciones, 15%): Cómo las mujeres que sobrevivían lograban gobernar imperios desde la sombra.
    - Bloque 6 (Cierre Reflexivo + Outro 8s, 8%): Reflexión humana final y entrada limpia del Outro Oficial de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.`,
+   - Empatía corporal + desmitificación sensorial: el espectador siente el frío, el peso de la ropa y el miedo real de una persona de carne y hueso en otra época.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (Así Era Vivir en la Corte Real del Siglo XIII: El Oscuro Precio de la Corona):
+   - Gancho del Título: Inmersión en primera persona ("Así Era Vivir en la Corte Real del Siglo XIII") + contraste oscuro ("El Oscuro Precio de la Corona").
+   - Estructura de la Descripción: Contraste entre literatura caballeresca y archivos de cancillería (exámenes físicos de embajadas, cosmética tóxica con albayalde de plomo y oropimente según la Trotula de Salerno, encierro de Ingeborg de Dinamarca en Étampes y parto en la Chambre des Dames).
+   - Tags / Palabras Clave SEO (18): princesas en la edad media, vida de una princesa medieval, trotula de salerno, albayalde de plomo cerusa, oropimente trisulfuro de arsenico, ingeborg de dinamarca, felipe ii augusto, blanca de castilla regente, leonor de aquitania, torre real de etampes, interdicto inocencio iii, benedictio thalami boda medieval, chambre des dames parto medieval, cuentas guardarropa enrique iii, pieles de vair y armino, amor cortes midons, chretien de troyes, mateo paris chronica majora.`,
     structuralBlocks: [
       { name: 'Intro (8s) + Choque Mito vs Realidad', pct: 9, description: 'Destruye el cliché de cuento de hadas en los primeros segundos.' },
       { name: 'Acto I: Peones de Alianza', pct: 21, description: 'Infancia, contratos matrimoniales y destierro diplomático.' },
@@ -8571,9 +8647,37 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
   {
     id: 'seed_misterio_investigativo',
     videoId: 'misterio_cronologico_viral',
-    url: 'https://www.youtube.com/@huellas_de_la_humanidad',
-    title: 'Misterio Histórico / True Crime Antiguo (Estructura de Investigación Forense en 5 Pistas)',
-    channelName: 'Plantilla Viral Analizada',
+    url: 'https://youtu.be/PPgK7kuznm0',
+    title: 'Así Fue el Brutal Asedio de Antioquía en 1098: Hambre, Traición y Fe | Documental Completo',
+    channelName: '@huellas_de_la_humanidad',
+    description: `En junio de 1098, dentro de la Catedral de San Pedro en Antioquía, Siria, trece hombres encerrados bajo llave cavaban una fosa profunda en la penumbra buscando una reliquia que, según los registros imperiales de Constantinopla, ni siquiera debía encontrarse allí. Lo que había comenzado en noviembre de 1095 en los campos de Clermont, Francia, con la promesa papal de Urbano II y la marcha de 70 mil europeos hacia Oriente, acababa de transformarse en una trampa mortal donde los conquistadores quedaron sitiados dentro de su propia conquista frente a las 400 torres bizantinas del monte Silpio.`,
+    tags: [
+      'Primera Cruzada',
+      'Pedro Bartolomé',
+      'Lanza Sagrada',
+      'Bohemundo de Tarento',
+      'Raimundo de Tolosa',
+      'Kerbogha de Mosul',
+      'Yaghi-Siyan',
+      'Ademar de Le Puy',
+      'Urbano II',
+      'Concilio de Clermont',
+      'Catedral de San Pedro',
+      'Monte Silpio',
+      'Torre de las Dos Hermanas',
+      'comandante Firuz',
+      'Alejo I Comneno',
+      'Esteban de Blois',
+      'Godofredo de Bouillon',
+      'Gesta Francorum',
+      'Raimundo de Aguilers',
+      'Alberto de Aquisgrán',
+      'Ana Comnena',
+      'caballería franca',
+      'trepadores de cuerdas',
+      'asedio de Arqa',
+      'juicio de fuego',
+    ],
     analyzedAt: new Date().toISOString(),
     commentsCount: 31,
     structureSummary: `1. DECONSTRUCCIÓN DEL HOOK (00:00 - 00:30):
@@ -8586,7 +8690,11 @@ const DEFAULT_ANALYZED_VIDEOS_SEED: AnalyzedVideoLibraryEntry[] = [
    - Bloque 5 (La Evidencia Forense / Arqueológica Moderna, 18%): Qué reveló la ciencia moderna al analizar los restos o archivos secretos.
    - Bloque 6 (Veredicto Abierto + Outro 8s, 8%): Presentación de la conclusión más sólida + pregunta de debate + Outro Oficial de 8s.
 3. GATILLOS PSICOLÓGICOS DE VIRALIDAD:
-   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.`,
+   - Efecto Zeigarnik (bucles abiertos): cada acto resuelve una pista pero abre una pregunta mayor hasta el veredicto del último bloque.
+4. ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS SEO DEL VIDEO (Así Fue el Brutal Asedio de Antioquía en 1098: Hambre, Traición y Fe):
+   - Gancho del Título: Suceso bélico extremo con año exacto ("Así Fue el Brutal Asedio de Antioquía en 1098") + tríada dramática ("Hambre, Traición y Fe").
+   - Estructura de la Descripción: Apertura in media res en la Catedral de San Pedro (junio de 1098, excavación de la Lanza Sagrada por Pedro Bartolomé), retroceso al Concilio de Clermont (1095), traición de Firuz en la Torre de las Dos Hermanas y juicio de fuego en Arqa.
+   - Tags / Palabras Clave SEO (25): Primera Cruzada, Pedro Bartolomé, Lanza Sagrada, Bohemundo de Tarento, Raimundo de Tolosa, Kerbogha de Mosul, Yaghi-Siyan, Ademar de Le Puy, Urbano II, Concilio de Clermont, Catedral de San Pedro, Monte Silpio, Torre de las Dos Hermanas, comandante Firuz, Alejo I Comneno, Esteban de Blois, Godofredo de Bouillon, Gesta Francorum, Raimundo de Aguilers, Alberto de Aquisgrán, Ana Comnena, caballería franca, trepadores de cuerdas, asedio de Arqa, juicio de fuego.`,
     structuralBlocks: [
       { name: 'Intro (8s) + El Hallazgo Inexplicable', pct: 8, description: 'Presenta el enigma central y la contradicción histórica.' },
       { name: 'Acto I: La Versión Oficial rota', pct: 19, description: 'Expone la historia oficial y la pista que la desmiente.' },
@@ -9046,17 +9154,41 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
           ? library[existingIdx].tags || []
           : [];
 
+      const extractedChapters = (resolvedDescription.match(/(?:^|\n)\s*\d{1,2}:\d{2}(?::\d{2})?\s+[^\n]+/g) || [])
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       const defaultSummary = [
-        `📌 TÍTULO DEL VIDEO ANALIZADO: "${resolvedTitle}" (Canal: ${resolvedChannel})`,
-        resolvedTags.length > 0
-          ? `🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (${resolvedTags.length}): ${resolvedTags.slice(0, 30).join(', ')}`
-          : `🏷️ TAGS: Se extraerán palabras clave semánticas del título y la descripción durante la investigación.`,
+        `1. DECONSTRUCCIÓN DEL HOOK Y PROMESA DEL TÍTULO (00:00 - 00:30):`,
+        `   - Título Analizado: "${resolvedTitle}" (Canal: ${resolvedChannel}).`,
+        `   - Promesa Narrativa y Ángulo de CTR: Plantea desde el titular el conflicto histórico central y la revelación documental que retiene al espectador en los primeros 30 segundos.`,
+        ``,
+        `2. RADIOGRAFÍA ESTRUCTURAL BLOQUE POR BLOQUE Y CAPÍTULOS DE LA DESCRIPCIÓN:`,
+        ...(extractedChapters.length > 0
+          ? extractedChapters.map((ch) => `   - ${ch}`)
+          : [
+              `   - Bloque I (0% - 8%): Intro Oficial (8s) + Hook visual/sonoro y planteamiento de la paradoja.`,
+              `   - Bloque II (8% - 28%): Contexto histórico, época, lugar y origen del conflicto.`,
+              `   - Bloque III (28% - 53%): Escalada narrativa, pruebas documentales y micro-ganchos de retención.`,
+              `   - Bloque IV (53% - 75%): Giro dramático central y consecuencias humanas directas.`,
+              `   - Bloque V (75% - 92%): Desenlace histórico, impacto y conexión con el presente.`,
+              `   - Bloque VI (92% - 100%): Reflexión final, Slogan y Outro Oficial (8s).`,
+            ]),
+        ``,
+        `3. ANÁLISIS PROFUNDO DE LA DESCRIPCIÓN DEL VIDEO:`,
         resolvedDescription
-          ? `📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\n${resolvedDescription.slice(0, 1800)}${resolvedDescription.length > 1800 ? '...' : ''}`
-          : `📝 DESCRIPCIÓN: (Sin descripción pública detectada en el video).`,
-        `💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: ${targetViewerComments.length} comentarios públicos (${deduplicatedTargetComments.length} únicos agrupados por repetición).`,
-        `🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.`,
-      ].join('\n\n');
+          ? `   ${resolvedDescription.slice(0, 2200)}${resolvedDescription.length > 2200 ? '...' : ''}`
+          : `   (Sin descripción pública extensa detectada; se prioriza el desglose semántico del título y comentarios).`,
+        ``,
+        `4. ANÁLISIS DE TAGS / PALABRAS CLAVE SEO (${resolvedTags.length}):`,
+        resolvedTags.length > 0
+          ? `   - Palabras Clave Extraídas: ${resolvedTags.join(', ')}`
+          : `   - Se extraen como ejes temáticos los sustantivos históricos y geográficos del título "${resolvedTitle}".`,
+        ``,
+        `5. MINERÍA DE COMENTARIOS, DUDAS Y SUGERENCIAS DE LA AUDIENCIA (${targetViewerComments.length} comentarios leídos):`,
+        ...(finalQuestions.slice(0, 5).map((q) => `   - Duda/Pregunta: ${q}`)),
+        ...(finalSuggestions.slice(0, 5).map((s) => `   - Sugerencia/Debate: ${s}`)),
+      ].join('\n');
 
       const entry: AnalyzedVideoLibraryEntry = {
         id: existingIdx >= 0 ? library[existingIdx].id : `vid_${targetVideoId}`,
