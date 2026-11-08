@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:13 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:44 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1470,9 +1470,7 @@ export default function App() {
   const [analyzedVideosLibrary, setAnalyzedVideosLibrary] = useState<any[]>(
     () => STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK
   );
-  const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>(
-    'clqshy5NB7I'
-  );
+  const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>('');
   const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>(() =>
     STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.flatMap((v) => v.comments || []).filter(
       (c) => c.sourceType === 'channel'
@@ -1590,9 +1588,6 @@ export default function App() {
               if (Array.isArray(data.analyzedVideosLibrary)) {
                 const normVids = normalizeAnalyzedVideoEntries(data.analyzedVideosLibrary);
                 setAnalyzedVideosLibrary(normVids);
-                if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
-                  setSelectedAnalyzedVideoId(normVids[0].videoId);
-                }
               }
               if (Array.isArray(data.deduplicatedChannelComments)) {
                 setChannelDeduplicatedComments(data.deduplicatedChannelComments);
@@ -1624,9 +1619,6 @@ export default function App() {
             if (Array.isArray(dataLib.videos)) {
               const normVids = normalizeAnalyzedVideoEntries(dataLib.videos);
               setAnalyzedVideosLibrary(normVids);
-              if (!selectedAnalyzedVideoId && normVids[0]?.videoId) {
-                setSelectedAnalyzedVideoId(normVids[0].videoId);
-              }
             }
             if (Array.isArray(dataLib.channelComments) && dataLib.channelComments.length > 0) {
               setChannelDeduplicatedComments(dataLib.channelComments);
@@ -9843,137 +9835,6 @@ export default function App() {
                         </select>
                       </div>
                     </div>
-
-                    {/* Automatic Clip Math Preview WITH 8s Intro and 8s Outro */}
-                    <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-2">
-                      <div className="text-xs font-bold text-amber-300">
-                        📐 Cuadre Exacto del Timeline (Contemplando Intro Oficial 8s + Outro Oficial 8s):
-                      </div>
-                      {(() => {
-                        const FIXED_INTRO_SEC = 8;
-                        const FIXED_OUTRO_SEC = 8;
-                        const introMode =
-                          activeDoc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
-                            ? 'INTRO_POST_SLOGAN'
-                            : 'INTRO_INICIO_00';
-                        const totalSec = activeDoc.targetDurationSeconds || 120;
-                        const c1Dur =
-                          activeDoc.clip1DurationSeconds ||
-                          (activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4);
-                        const clip1TimelineSec =
-                          activeDoc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
-                        const voiceEntryInClipsSec =
-                          activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                            ? c1Dur + 2
-                            : clip1TimelineSec;
-                        const voiceEntryMasterSec =
-                          introMode === 'INTRO_INICIO_00'
-                            ? FIXED_INTRO_SEC + voiceEntryInClipsSec
-                            : voiceEntryInClipsSec;
-                        const step = activeDoc.clipDurationMode === '8_SEGUNDOS' ? 8 : 10;
-                        const bodySec = Math.max(
-                          step,
-                          totalSec - FIXED_INTRO_SEC - FIXED_OUTRO_SEC - clip1TimelineSec
-                        );
-                        const devClipsCount = Math.max(1, Math.round(bodySec / step));
-                        const totalGeneratedClipsCount = 1 + devClipsCount;
-                        const outroStartSec =
-                          FIXED_INTRO_SEC + clip1TimelineSec + devClipsCount * step;
-                        const approxFinalDuration = outroStartSec + FIXED_OUTRO_SEC;
-                        const spokenTargetSec = Math.max(
-                          10,
-                          approxFinalDuration -
-                            FIXED_OUTRO_SEC -
-                            (FIXED_INTRO_SEC + voiceEntryInClipsSec)
-                        );
-                        const estChars = Math.round(spokenTargetSec * 13.5);
-                        const fmtMMSS = (s: number) =>
-                          `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
-                            Math.floor(s % 60)
-                          ).padStart(2, '0')}`;
-                        return (
-                          <ul className="text-xs text-slate-300 space-y-1.5">
-                            {introMode === 'INTRO_INICIO_00' ? (
-                              <>
-                                <li>
-                                  • <strong>Intro Oficial de Marca (8s Inicial por defecto):</strong>{' '}
-                                  <span className="text-amber-300 font-mono">00:00 - 00:08</span> (
-                                  <code>Intro.mp4</code> con Audio Fade In/Out y entrada de Clip 1 con Fade In)
-                                </li>
-                                <li>
-                                  • <strong>Clip 1 (Hook visual sin voz):</strong>{' '}
-                                  <span className="text-amber-300 font-mono">
-                                    00:08 - {fmtMMSS(FIXED_INTRO_SEC + clip1TimelineSec)}
-                                  </span>{' '}
-                                  (
-                                  {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                                    ? `${c1Dur}s sin ralentizar`
-                                    : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
-                                  )
-                                </li>
-                              </>
-                            ) : (
-                              <>
-                                <li>
-                                  • <strong>Clip 1 (Hook visual sin voz al inicio):</strong>{' '}
-                                  <span className="text-amber-300 font-mono">
-                                    00:00 - {fmtMMSS(clip1TimelineSec)}
-                                  </span>{' '}
-                                  (
-                                  {activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-                                    ? `${c1Dur}s sin ralentizar`
-                                    : `${c1Dur}s ralentizado a ${clip1TimelineSec}s`}
-                                  )
-                                </li>
-                                <li>
-                                  • <strong>Intro Oficial de Marca (8s Post-Slogan):</strong>{' '}
-                                  <span className="text-amber-300 font-mono">~00:26 - 00:34</span> (
-                                  <code>Intro.mp4</code> de 8s insertado tras el Párrafo 2 / Slogan Completo con{' '}
-                                  <code>[pausa: 8s]</code> en la voz narrativa)
-                                </li>
-                              </>
-                            )}
-                            <li>
-                              • <strong>Entrada de la Voz Narrativa:</strong>{' '}
-                              <span className="text-emerald-400 font-semibold">
-                                Segundo {voiceEntryMasterSec} ({fmtMMSS(voiceEntryMasterSec)} del
-                                Master)
-                              </span>
-                            </li>
-                            <li>
-                              • <strong>Clips de desarrollo narrado ({step}s c/u):</strong> ~
-                              {devClipsCount} clips completos de {step}s (
-                              <span className="font-mono text-slate-200">
-                                {fmtMMSS(
-                                  introMode === 'INTRO_INICIO_00'
-                                    ? FIXED_INTRO_SEC + clip1TimelineSec
-                                    : clip1TimelineSec
-                                )}{' '}
-                                - {fmtMMSS(outroStartSec)}
-                              </span>
-                              )
-                            </li>
-                            <li>
-                              • <strong>Outro Oficial de Marca (8s fijos al cierre):</strong>{' '}
-                              <span className="text-purple-300 font-mono">
-                                {fmtMMSS(outroStartSec)} - {fmtMMSS(approxFinalDuration)}
-                              </span>{' '}
-                              (<code>Outro.mp4</code> con Fade In/Out tras concluir la voz en{' '}
-                              {fmtMMSS(outroStartSec)})
-                            </li>
-                            <li>
-                              • <strong>Total de Clips IA a generar + Extensión de Guion:</strong>{' '}
-                              <span className="text-amber-300 font-bold">
-                                ~{totalGeneratedClipsCount} clips IA (~{approxFinalDuration}s totales con
-                                Intro 8s y Outro 8s)
-                              </span>{' '}
-                              · Guion sugerido: <strong>~{estChars} caracteres</strong> (~
-                              {spokenTargetSec}s de locución pura)
-                            </li>
-                          </ul>
-                        );
-                      })()}
-                    </div>
                   </div>
                 </div>
 
@@ -10028,6 +9889,15 @@ export default function App() {
                                 YOUTUBE_VIRAL_LINK: found.url || found.videoId,
                                 ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
                                 ESTRUCTURA_VIRAL_TITULO: found.title,
+                              },
+                            });
+                          } else {
+                            updateActiveDoc({
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                YOUTUBE_VIRAL_LINK: '',
+                                ESTRUCTURA_VIRAL_RESUMEN: '',
+                                ESTRUCTURA_VIRAL_TITULO: '',
                               },
                             });
                           }
@@ -10102,9 +9972,9 @@ export default function App() {
 
                     {/* EXPLICACIÓN DE LA INVESTIGACIÓN DEL VIDEO SELECCIONADO + BARRA VISUAL DE TIEMPOS */}
                     {(() => {
-                      const activeVideo =
-                        analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
-                        analyzedVideosLibrary[0];
+                      const activeVideo = selectedAnalyzedVideoId
+                        ? analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId)
+                        : null;
                       if (!activeVideo) return null;
                       const totalSec = activeDoc.targetDurationSeconds || 120;
                       const FIXED_INTRO_SEC = 8;
@@ -10643,120 +10513,6 @@ export default function App() {
                     );
                   })()}
                 </div>
-
-                {/* BLOQUE 5: GENERADOR INTERACTIVO DE PROMPT MAESTRO (PERGAMINO FINAL) */}
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
-                  <p className="text-xs text-amber-200">
-                    💡 Ajusta cualquier directiva técnica adicional abajo y presiona{' '}
-                    <strong>"📌 Guardar Prompt Maestro y Configuración en este Documental"</strong> en el
-                    panel derecho para dejar el pergamino compilado en este expediente.
-                  </p>
-                  {activeDoc.compiledMasterPrompt && (
-                    <span className="text-xs bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 px-3 py-1 rounded-full font-semibold">
-                      ✓ Prompt Maestro guardado ({activeDoc.compiledMasterPrompt.length} car.)
-                    </span>
-                  )}
-                </div>
-
-                <PromptGenerator
-                  key={activeDoc.id}
-                  initialFormData={activeDoc.promptConfig}
-                  initialVoiceover={activeDoc.voiceoverScript}
-                  embedded={true}
-                  onChangeConfig={(formDataObj: any) => {
-                    const nextClipDurationMode =
-                      formDataObj.DURACION_CLIPS === '8_SEGUNDOS' ? '8_SEGUNDOS' : '10_SEGUNDOS';
-                    const nextClip1SyncMode =
-                      formDataObj.SINCRONIZACION_CLIP_1 === 'RALENTIZAR_CAPCUT'
-                        ? 'RALENTIZAR_CAPCUT'
-                        : 'VOZ_EN_CLIP_2';
-                    const nextClip1Sec = parseInt(formDataObj.DURACION_CLIP_1 || '6', 10) || 6;
-                    const nextClip1TextMode =
-                      formDataObj.TEXTO_PANTALLA_CLIP_1 === 'IA_CLIP_1'
-                        ? 'IA_CLIP_1'
-                        : 'CAPCUT_MANUAL';
-                    const nextSentenceMode =
-                      nextClipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds';
-
-                    const currentCfgJson = JSON.stringify(activeDoc.promptConfig || {});
-                    const nextCfgJson = JSON.stringify(formDataObj || {});
-                    if (
-                      currentCfgJson === nextCfgJson &&
-                      activeDoc.clipDurationMode === nextClipDurationMode &&
-                      activeDoc.clip1SyncMode === nextClip1SyncMode &&
-                      activeDoc.clip1DurationSeconds === nextClip1Sec &&
-                      activeDoc.clip1TextMode === nextClip1TextMode
-                    ) {
-                      return;
-                    }
-                    updateActiveDoc({
-                      promptConfig: formDataObj,
-                      clipDurationMode: nextClipDurationMode,
-                      clip1SyncMode: nextClip1SyncMode,
-                      clip1DurationSeconds: nextClip1Sec,
-                      clip1TextMode: nextClip1TextMode,
-                      timelineSettings: {
-                        ...(activeDoc.timelineSettings || {
-                          language: 'es',
-                          customLanguage: '',
-                          quality: 'high',
-                          outputStyle: 'timeline',
-                          timestampFormat: 'MM:SS',
-                          noBlankLines: true,
-                          strictNarration: false,
-                          removeFiller: false,
-                          mergeShort: false,
-                          preservePunctuation: true,
-                          includeLineNumbers: true,
-                        }),
-                        sentenceMode: nextSentenceMode,
-                      },
-                    });
-                  }}
-                  onSaveToProject={(compiledPrompt: string, formDataObj: any) => {
-                    const nextClipDurationMode =
-                      formDataObj.DURACION_CLIPS === '8_SEGUNDOS' ? '8_SEGUNDOS' : '10_SEGUNDOS';
-                    const nextSentenceMode =
-                      nextClipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds';
-                    updateActiveDoc({
-                      compiledMasterPrompt: compiledPrompt,
-                      promptConfig: formDataObj,
-                      clipDurationMode: nextClipDurationMode,
-                      clip1SyncMode:
-                        formDataObj.SINCRONIZACION_CLIP_1 === 'RALENTIZAR_CAPCUT'
-                          ? 'RALENTIZAR_CAPCUT'
-                          : 'VOZ_EN_CLIP_2',
-                      clip1DurationSeconds: parseInt(formDataObj.DURACION_CLIP_1 || '6', 10) || 6,
-                      clip1TextMode:
-                        formDataObj.TEXTO_PANTALLA_CLIP_1 === 'IA_CLIP_1'
-                          ? 'IA_CLIP_1'
-                          : 'CAPCUT_MANUAL',
-                      timelineSettings: {
-                        ...(activeDoc.timelineSettings || {
-                          language: 'es',
-                          customLanguage: '',
-                          quality: 'high',
-                          outputStyle: 'timeline',
-                          timestampFormat: 'MM:SS',
-                          noBlankLines: true,
-                          strictNarration: false,
-                          removeFiller: false,
-                          mergeShort: false,
-                          preservePunctuation: true,
-                          includeLineNumbers: true,
-                        }),
-                        sentenceMode: nextSentenceMode,
-                      },
-                    });
-                    alert('✅ Prompt Maestro y configuración guardados en la ficha de este documental.');
-                  }}
-                  onSrtFixed={({ rawSrt, fixedSrt }: any) => {
-                    updateActiveDoc({
-                      capcutRawSrt: rawSrt,
-                      correctedSrt: fixedSrt,
-                    });
-                  }}
-                />
               </div>
             )}
 
