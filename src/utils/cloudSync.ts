@@ -1008,15 +1008,57 @@ export function buildMobileSetupLink(geminiKey: string, ghToken: string): string
   return `${PUBLIC_GITHUB_PAGES_URL}#setup=${payload}`;
 }
 
+const LOCAL_RECENT_DOCS_BACKUP_KEY = 'huellas_master_recent_docs_backup_v1';
+
 export function loadLocalCachedDocumentaries(): DocumentaryProject[] {
+  let mainList: DocumentaryProject[] = [];
   try {
     const raw = localStorage.getItem(LOCAL_DOCS_CACHE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? applyStoredClipReviewStateToDocs(parsed) : [];
-  } catch {
-    return [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) mainList = parsed;
+    }
+  } catch {}
+
+  let recentBackupList: DocumentaryProject[] = [];
+  try {
+    const rawBackup = localStorage.getItem(LOCAL_RECENT_DOCS_BACKUP_KEY);
+    if (rawBackup) {
+      const parsedBackup = JSON.parse(rawBackup);
+      if (Array.isArray(parsedBackup)) recentBackupList = parsedBackup;
+    }
+  } catch {}
+
+  if (recentBackupList.length === 0) {
+    return applyStoredClipReviewStateToDocs(mainList);
   }
+  if (mainList.length === 0) {
+    return applyStoredClipReviewStateToDocs(recentBackupList);
+  }
+
+  const byId = new Map<string, DocumentaryProject>();
+  for (const d of mainList) {
+    if (d && d.id) byId.set(d.id, d);
+  }
+  for (const b of recentBackupList) {
+    if (!b || !b.id) continue;
+    const existing = byId.get(b.id);
+    if (!existing) {
+      byId.set(b.id, b);
+    } else {
+      const bTime = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+      const eTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+      if (bTime >= eTime) {
+        byId.set(b.id, { ...existing, ...b });
+      }
+    }
+  }
+  const combined = Array.from(byId.values()).sort((a, b) => {
+    const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+    const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    return tB - tA;
+  });
+  return applyStoredClipReviewStateToDocs(combined);
 }
 
 export function stripHeavyMediaForStorage(
@@ -1025,6 +1067,9 @@ export function stripHeavyMediaForStorage(
 ): DocumentaryProject[] {
   return (list || []).map((doc) => ({
     ...doc,
+    ...(typeof doc.compiledMasterPrompt === 'string' && doc.compiledMasterPrompt.length > 500
+      ? { compiledMasterPrompt: doc.compiledMasterPrompt.slice(0, 200) }
+      : {}),
     ...(stripReferenceImages &&
     typeof doc.thumbnailImageUrl === 'string' &&
     doc.thumbnailImageUrl.startsWith('data:') &&
@@ -1073,18 +1118,44 @@ export function saveLocalCachedDocumentaries(list: DocumentaryProject[]) {
       saveClipReviewStateForDoc(doc.id, doc.clips);
     }
   }
+
+  // Always save the 2 most recently updated documentaries in a compact dedicated backup key first
+  // so active mobile/in-progress documentaries (e.g. Video 77) never get lost even if full list hits Safari 5MB quota
   try {
-    localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(list));
+    const sortedRecent = [...list]
+      .filter((d) => d && d.id)
+      .sort((a, b) => {
+        const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+        const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+        return tB - tA;
+      })
+      .slice(0, 2);
+    const compactRecent = stripHeavyMediaForStorage(sortedRecent, true);
+    localStorage.setItem(LOCAL_RECENT_DOCS_BACKUP_KEY, JSON.stringify(compactRecent));
+  } catch {}
+
+  const lightList = stripHeavyMediaForStorage(list, false);
+  try {
+    localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(lightList));
   } catch {
     try {
-      // Fallback 1: Strip transient base64 videoFrames from clips so localStorage fits within 5MB quota
-      const lightList = stripHeavyMediaForStorage(list, false);
-      localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(lightList));
+      // Remove old entry first so iOS Safari/WebKit doesn't double-count the previous 3.9MB string during replacement
+      localStorage.removeItem(LOCAL_DOCS_CACHE_KEY);
+      const ultraLightList = stripHeavyMediaForStorage(list, true);
+      localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(ultraLightList));
     } catch {
       try {
-        // Fallback 2: Also strip heavy base64 reference/audio data URLs so documentary structure & flags always persist
-        const ultraLightList = stripHeavyMediaForStorage(list, true);
-        localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(ultraLightList));
+        // Fallback 3: Also strip redundant rawClipsText on completed docs that already have parsed clips[]
+        const minimalList = stripHeavyMediaForStorage(list, true).map((d, idx) =>
+          idx === 0
+            ? d
+            : {
+                ...d,
+                rawClipsText: Array.isArray(d.clips) && d.clips.length > 0 ? '' : d.rawClipsText,
+                capcutRawSrt: d.correctedSrt ? '' : d.capcutRawSrt,
+              }
+        );
+        localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(minimalList));
       } catch (e) {
         console.warn('Could not cache documentaries in localStorage:', e);
       }
@@ -1192,7 +1263,36 @@ export function mergeDocumentariesLists(
         : l;
     const existing = byId.get(l.id);
     if (!existing) {
-      byId.set(l.id, normalized);
+      const canonical77 = byId.get('doc-video-77-huellas');
+      const isLocal77Candidate =
+        l.id !== 'doc-video-77-huellas' &&
+        (/77/.test(l.downloadFolderName || '') ||
+          /77/.test(l.title || '') ||
+          (l.title === 'Nuevo Documental — Huellas de la Humanidad' &&
+            (!l.clips || l.clips.length === 0)));
+      if (canonical77 && isLocal77Candidate) {
+        byId.set('doc-video-77-huellas', {
+          ...canonical77,
+          title:
+            normalized.title && normalized.title !== 'Nuevo Documental — Huellas de la Humanidad'
+              ? normalized.title
+              : canonical77.title,
+          topic: normalized.topic || canonical77.topic,
+          typology: normalized.typology || canonical77.typology,
+          historicalTime: normalized.historicalTime || canonical77.historicalTime,
+          historicalLocation: normalized.historicalLocation || canonical77.historicalLocation,
+          targetDurationSeconds:
+            normalized.targetDurationSeconds || canonical77.targetDurationSeconds,
+          sectionsStructure: normalized.sectionsStructure || canonical77.sectionsStructure,
+          deepResearchPrompt: normalized.deepResearchPrompt || canonical77.deepResearchPrompt,
+          deepResearchResult: normalized.deepResearchResult || canonical77.deepResearchResult,
+          voiceoverScript: normalized.voiceoverScript || canonical77.voiceoverScript,
+          downloadFolderName: normalized.downloadFolderName || canonical77.downloadFolderName,
+          downloadFolderPath: normalized.downloadFolderPath || canonical77.downloadFolderPath,
+        });
+      } else {
+        byId.set(l.id, normalized);
+      }
     } else {
       const lTime = Date.parse(normalized.updatedAt || normalized.createdAt || '') || 0;
       const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;

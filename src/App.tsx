@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:44 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:55 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1958,25 +1958,53 @@ export default function App() {
   const [commentReplying, setCommentReplying] = useState<boolean>(false);
   const [folderVoiceoverUrl, setFolderVoiceoverUrl] = useState<string>('');
 
+  const hasAutoSelectedFolderDocRef = React.useRef<boolean>(false);
+
   const activeDoc = useMemo(() => {
     const found = documentaries.find((d) => d.id === activeDocId);
     if (found) return found;
     if (documentaries.length > 0) {
-      return (
-        documentaries.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
-        documentaries[0] ||
-        null
-      );
+      if (mainView === 'capcut_editor') {
+        return (
+          documentaries.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
+          documentaries[0] ||
+          null
+        );
+      }
+      return documentaries[0] || null;
     }
     return null;
-  }, [documentaries, activeDocId]);
+  }, [documentaries, activeDocId, mainView]);
 
   useEffect(() => {
     activeDocRef.current = activeDoc;
+    if (
+      !hasAutoSelectedFolderDocRef.current &&
+      documentaries.length > 0 &&
+      mainView === 'studio' &&
+      activeStage === 1
+    ) {
+      const savedFolder = (localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || '').trim();
+      if (/77/.test(savedFolder)) {
+        const doc77 = documentaries.find(
+          (d) =>
+            /77/.test(d.title || '') ||
+            /77/.test(d.downloadFolderName || '') ||
+            /77/.test(d.topic || '')
+        );
+        if (doc77) {
+          hasAutoSelectedFolderDocRef.current = true;
+          if (doc77.id !== activeDocId) {
+            setActiveDocId(doc77.id);
+            return;
+          }
+        }
+      }
+    }
     if (activeDoc?.id && activeDoc.id !== activeDocId) {
       setActiveDocId(activeDoc.id);
     }
-  }, [activeDoc, activeDocId]);
+  }, [activeDoc, activeDocId, documentaries, mainView, activeStage]);
 
   // ============================================================================
   // PERSISTENT PER-SECTION SCROLL MEMORY (STAYS WHERE USER LEFT OFF ACROSS STAGES, VIEWS & REFRESH)
@@ -2142,8 +2170,16 @@ export default function App() {
               const srvList: DocumentaryProject[] = await docsRes.json();
               if (Array.isArray(srvList) && srvList.length > 0) {
                 const normalizedSrv = srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d));
-                setDocumentaries(normalizedSrv);
-                saveLocalCachedDocumentaries(normalizedSrv);
+                setDocumentaries((prev) => {
+                  const localBase = prev.length > 0 ? prev : loadLocalCachedDocumentaries();
+                  const merged = mergeDocumentariesLists(
+                    localBase,
+                    normalizedSrv,
+                    getLocalDeletedDocIds()
+                  );
+                  saveLocalCachedDocumentaries(merged);
+                  return merged;
+                });
               }
             }
           } else if (nextDocsVer > 0 && serverDocsVersionRef.current === 0) {
@@ -2172,9 +2208,13 @@ export default function App() {
                 if (docsRes && docsRes.ok) {
                   const srvList: DocumentaryProject[] = await docsRes.json();
                   if (Array.isArray(srvList) && srvList.length > 0) {
-                    saveLocalCachedDocumentaries(
-                      srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d))
+                    const normalizedSrv = srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d));
+                    const mergedBeforeReload = mergeDocumentariesLists(
+                      loadLocalCachedDocumentaries(),
+                      normalizedSrv,
+                      getLocalDeletedDocIds()
                     );
+                    saveLocalCachedDocumentaries(mergedBeforeReload);
                   }
                 }
               } catch {}
@@ -2194,8 +2234,16 @@ export default function App() {
               const normalizedFromDisk = data.documentaries.map((d: DocumentaryProject) =>
                 normalizeDocumentaryVoiceoverAudio(d)
               );
-              setDocumentaries(normalizedFromDisk);
-              saveLocalCachedDocumentaries(normalizedFromDisk);
+              setDocumentaries((prev) => {
+                const localBase = prev.length > 0 ? prev : loadLocalCachedDocumentaries();
+                const merged = mergeDocumentariesLists(
+                  localBase,
+                  normalizedFromDisk,
+                  getLocalDeletedDocIds()
+                );
+                saveLocalCachedDocumentaries(merged);
+                return merged;
+              });
             }
           }
           return;
@@ -2250,29 +2298,37 @@ export default function App() {
           }
           return withAudio;
         });
-        // Server disk is authoritative for all existing documentaries; only merge brand-new offline docs that do not exist on server yet
-        const serverIds = new Set(normalizedList.map((d) => d.id));
-        const deletedIds = new Set(getLocalDeletedDocIds());
-        const offlineOnlyDocs = cached.filter(
-          (c) => c && c.id && !serverIds.has(c.id) && !deletedIds.has(c.id)
-        );
-        const authoritativeList = [...normalizedList, ...offlineOnlyDocs];
+        // Merge local cached documentaries with server list so any documentary created or edited on mobile is never lost after a deploy
+        const serverById = new Map(normalizedList.map((d) => [d.id, d]));
+        const deletedIds = getLocalDeletedDocIds();
+        const deletedSet = new Set(deletedIds);
+        const authoritativeList = mergeDocumentariesLists(cached, normalizedList, deletedIds);
         setDocumentaries(authoritativeList);
         saveLocalCachedDocumentaries(authoritativeList);
 
-        // Only push brand-new offline-created documentaries that didn't exist on the server yet
-        for (const doc of offlineOnlyDocs) {
-          fetch(`/api/documentaries/${doc.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...doc,
-              _isBackgroundCacheSync: true,
-              _clientCodeVersion: serverCodeVersionRef.current,
-              _clientDocsVersion: serverDocsVersionRef.current,
-            }),
-          }).catch(() => {});
-        }
+        // Push any local-only or newer local documentaries to the server before triggering cloud sync
+        const docsToPushToServer = cached.filter((c) => {
+          if (!c || !c.id || deletedSet.has(c.id)) return false;
+          const srvDoc = serverById.get(c.id);
+          if (!srvDoc) return true;
+          const cTime = Date.parse(c.updatedAt || c.createdAt || '') || 0;
+          const sTime = Date.parse(srvDoc.updatedAt || srvDoc.createdAt || '') || 0;
+          return cTime > sTime;
+        });
+
+        await Promise.all(
+          docsToPushToServer.map((doc) =>
+            fetch(`/api/documentaries/${doc.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...doc,
+                _clientCodeVersion: serverCodeVersionRef.current,
+                _clientDocsVersion: serverDocsVersionRef.current,
+              }),
+            }).catch(() => {})
+          )
+        );
 
         const st = await statusRes.json();
         setServerStatus(st);
@@ -2290,8 +2346,16 @@ export default function App() {
               const normalizedSynced = syncData.documentaries.map((d: DocumentaryProject) =>
                 normalizeDocumentaryVoiceoverAudio(d)
               );
-              setDocumentaries(normalizedSynced);
-              saveLocalCachedDocumentaries(normalizedSynced);
+              setDocumentaries((prev) => {
+                const localBase = prev.length > 0 ? prev : loadLocalCachedDocumentaries();
+                const merged = mergeDocumentariesLists(
+                  localBase,
+                  normalizedSynced,
+                  getLocalDeletedDocIds()
+                );
+                saveLocalCachedDocumentaries(merged);
+                return merged;
+              });
             }
           })
           .catch(() => {});
@@ -9238,9 +9302,24 @@ export default function App() {
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
             <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 sm:px-3.5 py-2">
               <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:w-auto">
-                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 shrink-0">
-                  Expediente Activo
-                </span>
+                {documentaries.length > 1 ? (
+                  <select
+                    value={activeDoc.id}
+                    onChange={(e) => setActiveDocId(e.target.value)}
+                    title="Cambiar de documental"
+                    className="max-w-[140px] sm:max-w-[190px] text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-300 font-bold px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 shrink-0 outline-none cursor-pointer"
+                  >
+                    {documentaries.map((d) => (
+                      <option key={d.id} value={d.id} className="bg-slate-950 text-amber-200">
+                        {d.title || d.downloadFolderName || 'Sin título'}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 shrink-0">
+                    Expediente Activo
+                  </span>
+                )}
                 <input
                   type="text"
                   value={activeDoc.title}
