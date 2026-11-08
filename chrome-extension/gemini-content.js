@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 9) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 9;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 10) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 10;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -628,13 +628,64 @@
 
     const targetLevel = enableArgonLow ? 'LOW' : 'HIGH';
 
+    const triggerHoverAndClick = (el, alsoClick = true) => {
+      if (!el) return;
+      try {
+        const r = el.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+        el.dispatchEvent(new PointerEvent('pointerover', opts));
+        el.dispatchEvent(new PointerEvent('pointerenter', opts));
+        el.dispatchEvent(new MouseEvent('mouseover', opts));
+        el.dispatchEvent(new MouseEvent('mouseenter', opts));
+        el.dispatchEvent(new PointerEvent('pointermove', opts));
+        el.dispatchEvent(new MouseEvent('mousemove', opts));
+        if (alsoClick) {
+          el.dispatchEvent(new PointerEvent('pointerdown', opts));
+          el.dispatchEvent(new MouseEvent('mousedown', opts));
+          el.dispatchEvent(new PointerEvent('pointerup', opts));
+          el.dispatchEvent(new MouseEvent('mouseup', opts));
+          el.click();
+        }
+      } catch {
+        try {
+          if (alsoClick) el.click();
+        } catch {}
+      }
+    };
+
+    const closeAnyOpenOverlayMenus = async () => {
+      const backdrops = Array.from(
+        document.querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing')
+      );
+      if (backdrops.length > 0) {
+        backdrops.forEach((b) => {
+          try {
+            b.click();
+          } catch {}
+        });
+        await sleep(160);
+      }
+      const openMenus = Array.from(
+        document.querySelectorAll('.cdk-overlay-container [role="menu"], .mat-mdc-menu-panel')
+      ).filter((el) => el && el.offsetParent !== null);
+      if (openMenus.length > 0) {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+        );
+        await sleep(160);
+      }
+    };
+
     const getVisibleMenuItems = () =>
       Array.from(
         document.querySelectorAll(
-          '[role="menuitem"], [role="option"], [role="menuitemradio"], [role="radio"], [role="tab"], .mat-mdc-menu-item, mat-option, button.bard-mode-list-button'
+          '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="option"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container button, [role="menuitem"], [role="option"], [role="menuitemradio"], .mat-mdc-menu-item, button.bard-mode-list-button'
         )
       ).filter((el) => el && el.offsetParent !== null);
 
+    // Find the bottom-right model switcher pill button ("Argon ^" / "3.1 Pro" / "3.8 Flash" / "3.5 Flash-Lite")
     const findModelSwitcherBtn = () => {
       const switcherSelectors = [
         '[data-test-id="bard-mode-menu-button"]',
@@ -648,241 +699,293 @@
         const el = document.querySelector(sel);
         if (el && el.offsetParent !== null) return el;
       }
-      return null;
+      // Fallback: find the pill button near the prompt bar whose text is "Argon", "4 Argon", "3.1 Pro", "3.8 Flash", "3.5 Flash-Lite"
+      const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
+        (el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container')
+      );
+      return (
+        allBtns.find((el) => {
+          const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return /^(?:4\s*)?argon$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+        }) || null
+      );
     };
 
+    // Find the bottom-left "+" button (left of "Ask Gemini") that opens Upload files / Create image / ... More tools >
+    const findPlusToolsMenuBtn = () => {
+      const inputEl = findPromptInput();
+      const inputRect = inputEl ? inputEl.getBoundingClientRect() : null;
+      const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
+        (el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container')
+      );
+
+      // 1. Check buttons physically located on the left side of the prompt input bar
+      if (inputRect) {
+        const leftPromptBtns = allBtns
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            const verticallyAligned =
+              r.bottom >= inputRect.top - 60 && r.top <= inputRect.bottom + 80;
+            const onLeftSide = r.left <= inputRect.left + 90;
+            return verticallyAligned && onLeftSide && r.width >= 20 && r.width <= 90;
+          })
+          .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+
+        const plusCandidate =
+          leftPromptBtns.find((el) => {
+            const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+            const tip = (el.getAttribute('mattooltip') || el.getAttribute('title') || '').toLowerCase();
+            const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+            return (
+              aria.includes('add') ||
+              aria.includes('más') ||
+              aria.includes('more') ||
+              aria.includes('upload') ||
+              aria.includes('tools') ||
+              aria.includes('herramientas') ||
+              aria.includes('open') ||
+              tip.includes('add') ||
+              txt === '+' ||
+              txt === 'add'
+            );
+          }) || leftPromptBtns[0];
+
+        if (plusCandidate) return plusCandidate;
+      }
+
+      // 2. Fallback by aria-label / icon name
+      return (
+        allBtns.find((el) => {
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          return (
+            aria.includes('add files') ||
+            aria.includes('upload') ||
+            aria.includes('more tools') ||
+            aria.includes('add to prompt')
+          );
+        }) || null
+      );
+    };
+
+    // STEP A: Select "4 Argon" AND open "Thinking level >" sub-menu to pick "Low" or "High" (Photo 1)
     const ensureArgon4AndThinkingLevel = async () => {
+      await closeAnyOpenOverlayMenus();
+
       const switcherBtn = findModelSwitcherBtn();
-      if (switcherBtn) {
-        const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const isCurrentlyArgon = /argon/i.test(currentLabel) && !/\bpro\b/i.test(currentLabel);
-        const hasWrongLevelOnButton =
-          targetLevel === 'HIGH'
-            ? /\b(low|bajo|medium|medio)\b/i.test(currentLabel)
-            : /\b(high|alto|medium|medio)\b/i.test(currentLabel);
+      if (!switcherBtn) return;
 
-        if (!isCurrentlyArgon || hasWrongLevelOnButton) {
-          switcherBtn.click();
-          await sleep(280);
+      const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const isCurrentlyArgon = /\bargon\b/i.test(currentLabel) && !/\bpro\b/i.test(currentLabel);
 
-          let menuItems = getVisibleMenuItems();
+      // 1. Open the model switcher menu ("Argon ^")
+      triggerHoverAndClick(switcherBtn, true);
+      await sleep(340);
 
-          // Always select Argon 4 (or Argon), NEVER Pro!
-          let argonItem = null;
-          if (targetLevel === 'HIGH') {
-            argonItem =
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon\s*4/i.test(txt) && /\b(high|alto)\b/i.test(txt) && !/\bpro\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon\s*4/i.test(txt) && !/\b(low|bajo|pro)\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon/i.test(txt) && /\b(high|alto)\b/i.test(txt) && !/\bpro\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon/i.test(txt) && !/\b(low|bajo|pro)\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => /argon/i.test((el.innerText || el.textContent || '').trim()));
-          } else {
-            argonItem =
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon\s*4/i.test(txt) && /\b(low|bajo)\b/i.test(txt) && !/\bpro\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon\s*4/i.test(txt) && !/\b(high|alto|pro)\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon/i.test(txt) && /\b(low|bajo)\b/i.test(txt) && !/\bpro\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').trim();
-                return /argon/i.test(txt) && !/\b(high|alto|pro)\b/i.test(txt);
-              }) ||
-              menuItems.find((el) => /argon/i.test((el.innerText || el.textContent || '').trim()));
-          }
+      let menuItems = getVisibleMenuItems();
 
-          if (argonItem) {
-            argonItem.click();
-            await sleep(250);
-          }
+      // 2. If not currently on "4 Argon", click "4 Argon" ("Complex tasks") first
+      if (!isCurrentlyArgon) {
+        const argon4Item =
+          menuItems.find((el) => {
+            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /\b4\s*argon\b/i.test(txt) || (/argon/i.test(txt) && /complex\s*tasks/i.test(txt));
+          }) ||
+          menuItems.find((el) => {
+            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+          });
 
-          // Re-query visible menu/sub-menu items in case clicking Argon 4 opened a Thinking Level sub-menu (Low / Medium / High)
+        if (argon4Item) {
+          triggerHoverAndClick(argon4Item, true);
+          await sleep(340);
+        }
+
+        // Re-check if clicking "4 Argon" closed the menu; if so, re-open "Argon ^" so we can access "Thinking level >"
+        menuItems = getVisibleMenuItems();
+        const hasThinkingLevelVisible = menuItems.some((el) =>
+          /thinking\s*level|nivel\s*de\s*pensamiento/i.test(
+            (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+          )
+        );
+        if (!hasThinkingLevelVisible) {
+          const freshSwitcherBtn = findModelSwitcherBtn() || switcherBtn;
+          triggerHoverAndClick(freshSwitcherBtn, true);
+          await sleep(340);
           menuItems = getVisibleMenuItems();
-          const subLevelItem =
-            targetLevel === 'HIGH'
-              ? menuItems.find((el) =>
-                  /^(?:high|alto|thinking\s*:?\s*high|argon\s*4?\s*high|argon\s*\(high\))$/i.test(
-                    (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
-                  )
-                ) ||
-                menuItems.find((el) => {
-                  const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                  return (
-                    /\b(high|alto)\b/i.test(txt) &&
-                    !/\b(low|bajo|medium|medio|pro|2\.5|3\.1)\b/i.test(txt)
-                  );
-                })
-              : menuItems.find((el) =>
-                  /^(?:low|bajo|thinking\s*:?\s*low|argon\s*4?\s*low|argon\s*\(low\))$/i.test(
-                    (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
-                  )
-                ) ||
-                menuItems.find((el) => {
-                  const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                  return (
-                    /\b(low|bajo)\b/i.test(txt) &&
-                    !/\b(high|alto|medium|medio|pro)\b/i.test(txt)
-                  );
-                });
-
-          if (subLevelItem && subLevelItem !== argonItem) {
-            subLevelItem.click();
-            await sleep(220);
-          } else if (!argonItem) {
-            document.body.click();
-            await sleep(120);
-          }
         }
       }
 
-      // Configure separate Thinking/Reasoning level selector or pill ("High" for Research / "Low" for Argon Low)
-      const allButtons = Array.from(
-        document.querySelectorAll(
-          'button, [role="button"], [role="combobox"], [role="radio"], [role="tab"], mat-select, mat-chip'
-        )
-      ).filter((el) => el && el.offsetParent !== null && el !== switcherBtn);
-
-      const exactLevelRegex = targetLevel === 'HIGH' ? /^(?:high|alto)$/i : /^(?:low|bajo)$/i;
-      const ariaLevelRegex =
-        targetLevel === 'HIGH'
-          ? /\b(?:thinking|reasoning|nivel|level|effort|argon)\b.*\b(?:high|alto)\b/i
-          : /\b(?:thinking|reasoning|nivel|level|effort|argon)\b.*\b(?:low|bajo)\b/i;
-
-      const directPillBtn = allButtons.find((el) => {
-        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        const a = (el.getAttribute('aria-label') || '').trim();
-        return exactLevelRegex.test(t) || ariaLevelRegex.test(a);
+      // 3. Find "Thinking level >" inside the open Argon menu and hover + click it to open the sub-menu (Low / Medium / High)
+      const thinkingLevelMenuItem = menuItems.find((el) => {
+        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        return /thinking\s*level|nivel\s*de\s*pensamiento/i.test(txt);
       });
 
-      if (directPillBtn) {
-        const isAlreadySelected =
-          directPillBtn.getAttribute('aria-selected') === 'true' ||
-          directPillBtn.getAttribute('aria-pressed') === 'true' ||
-          directPillBtn.getAttribute('aria-checked') === 'true';
-        if (!isAlreadySelected) {
-          directPillBtn.click();
-          await sleep(220);
+      if (thinkingLevelMenuItem) {
+        // First hover over "Thinking level >" (Angular Material sub-menus open on mouseenter/pointerenter or click)
+        triggerHoverAndClick(thinkingLevelMenuItem, false);
+        await sleep(220);
+
+        let subMenuItems = getVisibleMenuItems();
+        let hasLowHighSubMenu = subMenuItems.some((el) =>
+          /quick\s+and\s+efficient|extra\s+thorough|balanced\s+depth|^\s*(?:low|medium|high)\b/i.test(
+            (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+          )
+        );
+
+        if (!hasLowHighSubMenu) {
+          triggerHoverAndClick(thinkingLevelMenuItem, true);
+          await sleep(300);
+          subMenuItems = getVisibleMenuItems();
         }
-      } else {
-        // Check if there is a Thinking level dropdown currently set to a different level
-        const levelDropdownBtn = allButtons.find((el) => {
-          const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          const a = (el.getAttribute('aria-label') || '').trim();
-          const hasLevelAria = /\b(thinking|reasoning|effort|level|nivel)\b/i.test(a);
-          const hasLevelText =
-            /^(?:high|medium|low|alto|medio|bajo|minimal|thinking\s*:\s*(?:high|medium|low|minimal)|argon\s*4?\s*(?:high|medium|low))$/i.test(
-              t
-            );
-          return hasLevelAria || hasLevelText;
+
+        const targetLevelOption =
+          targetLevel === 'HIGH'
+            ? subMenuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return (
+                  (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
+                  /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
+                );
+              }) ||
+              subMenuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return (
+                  /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
+                  !/thinking\s*level|low|medium|pro|flash|argon/i.test(txt)
+                );
+              })
+            : subMenuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return (
+                  (/\blow\b/i.test(txt) && /quick\s+and\s+efficient/i.test(txt)) ||
+                  /^(?:✓\s*)?(?:low|bajo)(?:\s+quick\s+and\s+efficient)?$/i.test(txt)
+                );
+              }) ||
+              subMenuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return (
+                  /\b(low|bajo|quick\s+and\s+efficient)\b/i.test(txt) &&
+                  !/thinking\s*level|high|medium|pro|flash|argon/i.test(txt)
+                );
+              });
+
+        if (targetLevelOption) {
+          triggerHoverAndClick(targetLevelOption, true);
+          await sleep(280);
+        }
+      }
+
+      await closeAnyOpenOverlayMenus();
+    };
+
+    // STEP B: Activate or Deactivate "Deep research" via "+" button -> "... More tools >" -> "Deep research" (Photo 2)
+    const ensureDeepResearchToggle = async () => {
+      await closeAnyOpenOverlayMenus();
+
+      // Check if Deep research is already active as a chip/button in the prompt input bar (outside overlay menus)
+      const nonOverlayCandidates = Array.from(
+        document.querySelectorAll(
+          'mat-chip, mat-chip-option, button, [role="button"], [role="checkbox"], [role="switch"], . tool-chip'
+        )
+      ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+
+      const activeDeepResearchChip = nonOverlayCandidates.find((el) => {
+        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        const a = (el.getAttribute('aria-label') || '').trim();
+        const matchesName =
+          /^(?:deep\s*research|investigaci[oó]n\s+profunda)/i.test(t) ||
+          /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a);
+        if (!matchesName) return false;
+        // If it's a chip in the input area or explicitly pressed/selected
+        const isChipOrSelected =
+          el.tagName.toLowerCase().includes('chip') ||
+          el.getAttribute('aria-pressed') === 'true' ||
+          el.getAttribute('aria-checked') === 'true' ||
+          el.classList.contains('selected') ||
+          el.classList.contains('active') ||
+          el.classList.contains('mdc-evolution-chip--selected') ||
+          el.classList.contains('mat-mdc-chip-selected') ||
+          Boolean(el.querySelector('[aria-label*="remove" i], [aria-label*="close" i], mat-icon'));
+        return isChipOrSelected;
+      });
+
+      if (!enableDeepResearch) {
+        // Turn OFF Deep research if it is currently active in the prompt bar
+        if (activeDeepResearchChip) {
+          const removeBtn = activeDeepResearchChip.querySelector(
+            'button, [aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [aria-label*="eliminar" i], [matChipRemove]'
+          );
+          triggerHoverAndClick(removeBtn || activeDeepResearchChip, true);
+          await sleep(260);
+        }
+        return;
+      }
+
+      // enableDeepResearch === true:
+      if (activeDeepResearchChip) {
+        // Already active!
+        return;
+      }
+
+      // Open "+" menu on the left of "Ask Gemini" (Photo 2)
+      const plusBtn = findPlusToolsMenuBtn();
+      if (plusBtn) {
+        triggerHoverAndClick(plusBtn, true);
+        await sleep(340);
+
+        let menuItems = getVisibleMenuItems();
+
+        // Check if "Deep research" is already directly visible in the first menu
+        let deepResearchItem = menuItems.find((el) => {
+          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(txt);
         });
 
-        if (levelDropdownBtn) {
-          const currentLevelTxt = (
-            levelDropdownBtn.innerText ||
-            levelDropdownBtn.textContent ||
-            ''
-          )
-            .replace(/\s+/g, ' ')
-            .trim();
-          const alreadyAtTargetLevel =
-            targetLevel === 'HIGH'
-              ? /\b(high|alto)\b/i.test(currentLevelTxt) &&
-                !/\b(low|medium|bajo|medio)\b/i.test(currentLevelTxt)
-              : /\b(low|bajo)\b/i.test(currentLevelTxt) &&
-                !/\b(high|medium|alto|medio)\b/i.test(currentLevelTxt);
+        if (!deepResearchItem) {
+          // Find "... More tools >" ("Más herramientas") and hover + click it to open the sub-menu (Canvas / Deep research / Guided Learning)
+          const moreToolsItem = menuItems.find((el) => {
+            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /\b(more\s+tools|m[aá]s\s+herramientas)\b/i.test(txt);
+          });
 
-          if (!alreadyAtTargetLevel) {
-            levelDropdownBtn.click();
+          if (moreToolsItem) {
+            triggerHoverAndClick(moreToolsItem, false);
             await sleep(240);
-            const opts = getVisibleMenuItems();
-            const targetOpt =
-              opts.find((el) =>
-                exactLevelRegex.test(
-                  (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
-                )
-              ) ||
-              opts.find((el) => {
+            menuItems = getVisibleMenuItems();
+            deepResearchItem = menuItems.find((el) => {
+              const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(txt);
+            });
+
+            if (!deepResearchItem) {
+              triggerHoverAndClick(moreToolsItem, true);
+              await sleep(320);
+              menuItems = getVisibleMenuItems();
+              deepResearchItem = menuItems.find((el) => {
                 const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return targetLevel === 'HIGH'
-                  ? /\b(high|alto)\b/i.test(txt) && !/\b(low|medium|bajo|medio|pro)\b/i.test(txt)
-                  : /\b(low|bajo)\b/i.test(txt) && !/\b(high|medium|alto|medio|pro)\b/i.test(txt);
+                return /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(txt);
               });
-            if (targetOpt) {
-              targetOpt.click();
-              await sleep(220);
-            } else {
-              document.body.click();
-              await sleep(100);
             }
           }
         }
-      }
-    };
 
-    const ensureDeepResearchToggle = async () => {
-      const toolbarCandidates = Array.from(
-        document.querySelectorAll(
-          'button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]'
-        )
-      ).filter((el) => el && el.offsetParent !== null);
-
-      const deepResearchBtn = toolbarCandidates.find((el) => {
-        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        const a = (el.getAttribute('aria-label') || '').trim();
-        return (
-          /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
-          /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a)
-        );
-      });
-
-      if (deepResearchBtn) {
-        const isAlreadyPressed =
-          deepResearchBtn.getAttribute('aria-pressed') === 'true' ||
-          deepResearchBtn.getAttribute('aria-checked') === 'true' ||
-          deepResearchBtn.classList.contains('selected') ||
-          deepResearchBtn.classList.contains('active') ||
-          deepResearchBtn.classList.contains('mdc-evolution-chip--selected') ||
-          deepResearchBtn.classList.contains('mat-mdc-chip-selected');
-
-        if (enableDeepResearch && !isAlreadyPressed) {
-          deepResearchBtn.click();
-          await sleep(280);
-        } else if (!enableDeepResearch && isAlreadyPressed) {
-          deepResearchBtn.click();
-          await sleep(220);
+        if (deepResearchItem) {
+          triggerHoverAndClick(deepResearchItem, true);
+          await sleep(320);
+        } else {
+          await closeAnyOpenOverlayMenus();
         }
       }
     };
 
     try {
-      // 1. Activate/deactivate Deep Research first
+      // 1. Configure Deep Research (ON via "+" -> "More tools >" -> "Deep research", or OFF if disabled)
       await ensureDeepResearchToggle();
-      // 2. Select Argon 4 + Thinking Level (High or Low) — done AFTER Deep Research toggle so if Deep Research defaulted the dropdown to Pro, we immediately switch it to Argon 4 + High!
+      // 2. Configure Model ("Argon ^" -> "4 Argon" -> "Thinking level >" -> "Low" or "High")
       await ensureArgon4AndThinkingLevel();
-      // 3. Re-verify Deep Research is still active after selecting Argon 4 + Thinking High
-      if (enableDeepResearch) {
-        await ensureDeepResearchToggle();
-      }
     } catch {}
   }
 

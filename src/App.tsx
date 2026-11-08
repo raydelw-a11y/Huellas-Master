@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:30 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:57 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -903,7 +903,9 @@ function buildStage1PropositionParts(
     videoTitle: string;
   }> = []
 ): Stage1PropositionPart[] {
-  const researchText = String(doc.deepResearchResult || '').trim();
+  const researchText = `${String(doc.deepResearchPrompt || '').trim()}\n${String(
+    doc.deepResearchResult || ''
+  ).trim()}`.trim();
   const refTitle = String(
     refVideo?.title ||
       doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
@@ -2289,7 +2291,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const buildAndApplyStage1PropositionPatch = (
     docToInspect: DocumentaryProject,
     rawResearchText?: string,
-    preferExtractedValues = false
+    preferExtractedValues = false,
+    phase: 'PART1' | 'PART2' = 'PART1'
   ): Partial<DocumentaryProject> => {
     const selectedVideoObj =
       analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) || null;
@@ -2299,10 +2302,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const effectiveResearch =
       rawResearchText !== undefined
         ? rawResearchText
-        : String(docToInspect.deepResearchResult || '');
+        : String(docToInspect.deepResearchPrompt || docToInspect.deepResearchResult || '');
     const tempDoc: DocumentaryProject = {
       ...docToInspect,
-      deepResearchResult: effectiveResearch,
+      deepResearchPrompt: phase === 'PART1' ? effectiveResearch : docToInspect.deepResearchPrompt,
+      deepResearchResult: phase === 'PART2' ? effectiveResearch : docToInspect.deepResearchResult,
     };
     const parts = buildStage1PropositionParts(tempDoc, selectedVideoObj, selectedComments);
 
@@ -2329,34 +2333,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? p4.options[0]
         : docToInspect.historicalLocation;
 
-    let finalResearchText = effectiveResearch;
-    if (!finalResearchText.trim()) {
-      finalResearchText = [
-        '================================================================================',
-        '0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE)',
-        '================================================================================',
-        ...parts.map(
-          (p) =>
-            `\nPARTE ${p.partNumber} — ${p.title.toUpperCase()}:\n- Resumen de esta parte: ${p.summary}\n- Opción 1: ${p.options[0]}\n- Opción 2: ${p.options[1]}\n- Opción 3: ${p.options[2]}`
-        ),
-        '\n================================================================================',
-        '1. SÍNTESIS DE LA INVESTIGACIÓN PROFUNDA Y CRUCE CON EL VIDEO REFERENTE',
-        '================================================================================',
-        selectedVideoObj
-          ? `• Video de Referencia Investigado: "${selectedVideoObj.title}"\n• Tags del Referente: ${(selectedVideoObj.tags || []).join(', ')}\n• Estructura Analizada: ${selectedVideoObj.structureSummary}`
-          : '• Investigación estructurada para el documental en curso con determinación automática de Tipología, Tema Central, Tiempo/Época y Lugar Histórico.',
-      ].join('\n');
-    }
-
     return {
       typology: nextTypology,
       topic: nextTopic,
       historicalTime: nextHistoricalTime,
       historicalLocation: nextHistoricalLocation,
-      deepResearchResult: finalResearchText,
+      ...(phase === 'PART1'
+        ? { deepResearchPrompt: effectiveResearch }
+        : { deepResearchResult: effectiveResearch }),
       promptConfig: {
         ...(docToInspect.promptConfig || {}),
-        INVESTIGACION_COMPLETADA: 'SI',
+        STAGE1_PART1_COMPLETED: 'SI',
+        ...(phase === 'PART2' ? { INVESTIGACION_COMPLETADA: 'SI' } : {}),
         TIPOLOGIA_VIDEO: nextTypology,
         TEMA_VIDEO: nextTopic,
         TIEMPO_EPOCA: nextHistoricalTime,
@@ -3539,10 +3527,46 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!activeDoc) return;
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
 
-    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
-      // Save Gemini's Deep Research output into deepResearchResult and auto-fill Tipología, Tema Central, Tiempo/Época, Lugar Histórico + 3 options per part
+    if (stageNum === 10) {
+      // Stage 1 — Parte 1 finished (4 Argon · Thinking Low · Sin Deep Research):
+      // Investigated the reference video + determined 🏛️ Definición Histórica y Continuidad & ⏱️ Calibración Matemática (3 options per part)
+      const propositionPatch = buildAndApplyStage1PropositionPatch(activeDoc, text, true, 'PART1');
+      updateActiveDoc({
+        ...propositionPatch,
+        deepResearchPrompt: text,
+      });
+
+      const ytLink = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+      if (ytLink && text.length > 120) {
+        fetch('/api/youtube/analyzed-videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: ytLink,
+            title:
+              activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || activeDoc.topic || ytLink,
+            structureSummary: text.slice(0, 4500),
+          }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.ok && Array.isArray(d.videos)) {
+              setAnalyzedVideosLibrary(d.videos);
+              if (d.entry?.id) setSelectedAnalyzedVideoId(d.entry.id);
+            }
+          })
+          .catch(() => {});
+      }
+    } else if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+      // Stage 1 — Parte 2 finished (4 Argon · Thinking High + Deep Research):
+      // Save Gemini's Deep Research output into deepResearchResult (preserving already determined Parte 1 fields unless blank)
       const parsedRefs = parseReferencesFromRawText(text);
-      const propositionPatch = buildAndApplyStage1PropositionPatch(activeDoc, text, true);
+      const propositionPatch = buildAndApplyStage1PropositionPatch(
+        activeDoc,
+        text,
+        false,
+        'PART2'
+      );
       const patch: Partial<DocumentaryProject> = {
         ...propositionPatch,
         deepResearchResult: text,
@@ -8460,8 +8484,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box!
-    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+    // When starting research in Stage 1 (Parte 1 or Parte 2), automatically paste the compiled prompt into its text box!
+    if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       updateActiveDoc({
         sectionsStructure: promptText,
       });
@@ -8470,43 +8494,47 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!extensionInstalled && !isHuellasExtensionDetected()) {
       setBridgeStatusType('WORKING');
       setBridgeStatusMsg(
-        '📋 Prompt de Investigación pegado en su cuadro de texto y copiado al portapapeles. Activa la Extensión Puente para envío 100% automático a Gemini Web.'
+        '📋 Prompt pegado en su cuadro de texto y copiado al portapapeles. Activa la Extensión Puente para envío 100% automático a Gemini Web.'
       );
       return;
     }
 
+    const isStage1Part1Low = stageNum === 10;
     const isResearchStage = stageNum === 1 || stageNum === 2 || stageNum === 3;
-    const useHighModel =
-      options?.enableHighModel !== undefined
-        ? options.enableHighModel
-        : isResearchStage
-        ? geminiHighModelEnabled
-        : false;
-    const useArgonLow =
-      options?.enableArgonLow !== undefined ? options.enableArgonLow : !useHighModel;
-    const useDeepResearch =
-      options?.enableDeepResearch !== undefined
-        ? options.enableDeepResearch
-        : isResearchStage
-        ? geminiDeepResearchEnabled
-        : false;
+    const useHighModel = isStage1Part1Low
+      ? false
+      : options?.enableHighModel !== undefined
+      ? options.enableHighModel
+      : isResearchStage
+      ? geminiHighModelEnabled
+      : false;
+    const useArgonLow = isStage1Part1Low
+      ? true
+      : options?.enableArgonLow !== undefined
+      ? options.enableArgonLow
+      : !useHighModel;
+    const useDeepResearch = isStage1Part1Low
+      ? false
+      : options?.enableDeepResearch !== undefined
+      ? options.enableDeepResearch
+      : isResearchStage
+      ? geminiDeepResearchEnabled
+      : false;
 
     setAiGenerating(true);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      isResearchStage
-        ? `🔬 Prompt de Investigación pegado en su cuadro y enviado a Gemini Web (${
-            useHighModel ? 'Argon 4 · Thinking: High' : 'Argon 4 · Thinking: Low'
-          }${
-            useDeepResearch ? ' + Deep Research activo con Auto-Iniciar Plan' : ''
-          })...`
-        : `⚡ Enviando prompt a Gemini Web en modo Argon 4 (Thinking: Low)...`
+      isStage1Part1Low
+        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Argon · Thinking level: Low (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
+        : isResearchStage
+        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Argon · Thinking level: High + Deep Research activo (con Auto-Iniciar Plan)...`
+        : `⚡ Enviando prompt a Gemini Web en modo 4 Argon (Thinking level: Low)...`
     );
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
       prompt: promptText,
       stageNumber: stageNum,
-      taskType: 'STAGE_GENERATION',
+      taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
       preferredModel: useArgonLow ? 'ARGON_4_LOW' : 'ARGON_4_HIGH',
@@ -8596,24 +8624,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       return;
     }
     let overridePromptConfig: Record<string, string> | undefined;
-    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+    if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       const youtubeUrl = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
       if (youtubeUrl) {
         const duplicateInLibrary = findAlreadyInvestigatedLibraryVideo(youtubeUrl);
-        if (duplicateInLibrary) {
+        if (duplicateInLibrary && stageNum === 10) {
           alert(
             `⚠️ El link pegado en la caja de texto corresponde a un video que ya fue investigado antes ("${duplicateInLibrary.title}").\n\nPara continuar, deja en blanco esa caja de texto (puedes elegir el video en la lista superior si deseas usar su investigación previa) o pega el link de otro video que aún no haya sido investigado.`
           );
           return;
         }
-        // Video has NOT been investigated yet -> investigate it together with our documentary
-        const extractedPatch = await loadStage1AnalyzedVideosAndComments(
-          youtubeUrl,
-          activeDoc.topic || activeDoc.title || '',
-          'COMBINED_WITH_OUR_DOC'
-        );
-        if (extractedPatch) {
-          overridePromptConfig = extractedPatch;
+        if (!duplicateInLibrary) {
+          // Video has NOT been investigated yet -> investigate it together with our documentary
+          const extractedPatch = await loadStage1AnalyzedVideosAndComments(
+            youtubeUrl,
+            activeDoc.topic || activeDoc.title || '',
+            'COMBINED_WITH_OUR_DOC'
+          );
+          if (extractedPatch) {
+            overridePromptConfig = extractedPatch;
+          }
         }
       }
     }
@@ -11675,59 +11705,48 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
                 </div>
 
-                {/* BLOQUE 4: CENTRO DE INVESTIGACIÓN PROFUNDA (BOTÓN "✨ COMENZAR INVESTIGACIÓN" + MODELO HIGH + DEEP RESEARCH AUTO-CLICK) */}
-                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-6 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
-                          100% Gratis vía Extensión Gemini Web
-                        </span>
-                        <h3 className="font-black text-amber-300 text-base sm:text-lg">
-                          🔬 Centro de Investigación Profunda y Estructura (Deep Research)
-                        </h3>
-                      </div>
-                      <p className="text-xs text-slate-300">
-                        Al pulsar <strong>"✨ Comenzar Investigación"</strong>, el Prompt de
-                        Investigación completo (con la estructura del video seleccionado, dudas repetidas{' '}
-                        <code className="text-amber-300">×N</code>, Intro 8s y Outro 8s) se pega
-                        automáticamente en su caja abajo y la Extensión activa{' '}
-                        <strong className="text-emerald-300">Argon 4 (Thinking: High)</strong> +{' '}
-                        <strong className="text-emerald-300">
-                          Deep Research (con auto-clic en "Iniciar investigación")
-                        </strong>
-                        .
-                      </p>
+                {/* BLOQUE 4: ETAPA 1 DIVIDIDA EN DOS PARTES:
+                    PARTE 1: INVESTIGACIÓN DEL OTRO VIDEO + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (4 ARGON · THINKING LOW · SIN DEEP RESEARCH)
+                    PARTE 2: INVESTIGACIÓN PROFUNDA DE NUESTRO DOCUMENTAL (4 ARGON · THINKING HIGH · CON DEEP RESEARCH ACTIVO) */}
+                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-6 space-y-5 shadow-xl">
+                  {/* CABECERA GENERAL DE LAS 2 FASES DE ETAPA 1 */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                        Etapa 1 Dividida en 2 Fases
+                      </span>
+                      <h3 className="font-black text-amber-300 text-base sm:text-lg">
+                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (Thinking Low) → 2º Investigación Profunda (Deep Research + Thinking High)
+                      </h3>
                     </div>
+                  </div>
 
-                    {/* Controles de Modelo Argon 4 (Thinking: High) + Deep Research + Botón ✨ Comenzar Investigación */}
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setGeminiHighModelEnabled((v) => !v)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition ${
-                          geminiHighModelEnabled
-                            ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
-                            : 'bg-slate-900 border-slate-700 text-slate-400'
-                        }`}
-                        title="Selecciona automáticamente Argon 4 con Thinking level en High en Gemini Web (nunca Pro)"
-                      >
-                        🧠 Modelo: Argon 4 (Thinking: High) {geminiHighModelEnabled ? '✓' : 'Off'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setGeminiDeepResearchEnabled((v) => !v)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition ${
-                          geminiDeepResearchEnabled
-                            ? 'bg-purple-950/80 border-purple-400/60 text-purple-200'
-                            : 'bg-slate-900 border-slate-700 text-slate-400'
-                        }`}
-                        title="Activa Deep Research en Gemini Web y hace auto-clic en el botón 'Iniciar investigación' cuando aparece el plan"
-                      >
-                        🔬 Modo: Deep Research (Auto-Iniciar Plan){' '}
-                        {geminiDeepResearchEnabled ? '✓' : 'Off'}
-                      </button>
+                  {/* =====================================================================
+                      FASE 1 DE ETAPA 1: INVESTIGACIÓN DEL OTRO VIDEO + DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (SIN DEEP RESEARCH · THINKING LEVEL: LOW)
+                     ===================================================================== */}
+                  <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between flex-wrap gap-4">
+                      <div className="space-y-1 max-w-3xl">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-black">
+                            PASO 1 DE ETAPA 1
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-emerald-300 text-[11px] font-bold">
+                            ⚡ 4 Argon · Thinking level: Low · SIN Deep Research
+                          </span>
+                          {(activeDoc.deepResearchPrompt || '').trim() && (
+                            <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[11px] font-black">
+                              ✓ Paso 1 Completado
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base">
+                          1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
+                        </h4>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Analiza rápidamente el video referente (Título, Descripción, Tags, Comentarios <code className="text-amber-300">×N</code> y estructura) en <strong>4 Argon con Thinking level en Low (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
+                        </p>
+                      </div>
 
                       {(() => {
                         const pastedLinkForStart = (
@@ -11740,13 +11759,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <button
                             type="button"
                             disabled={aiGenerating || Boolean(duplicateBlockForStart)}
-                            onClick={() => handleGenerateWithGemini(1)}
+                            onClick={() => handleGenerateWithGemini(10)}
                             title={
                               duplicateBlockForStart
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
-                                : 'Comenzar Investigación Profunda'
+                                : 'Ejecutar Paso 1 con 4 Argon en Thinking level: Low (sin Deep Research)'
                             }
-                            className={`px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition ${
+                            className={`px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition shrink-0 ${
                               duplicateBlockForStart
                                 ? 'bg-slate-800 text-slate-500 border border-rose-500/40 cursor-not-allowed opacity-60'
                                 : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-amber-500/25'
@@ -11754,223 +11773,250 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           >
                             <Wand2 className="w-4 h-4" />
                             {aiGenerating
-                              ? 'Investigando en Gemini Deep Research...'
+                              ? 'Procesando en Gemini...'
                               : duplicateBlockForStart
                               ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                              : '✨ Comenzar Investigación'}
+                              : '⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)'}
                           </button>
                         );
                       })()}
                     </div>
-                  </div>
 
-                  {/* RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE) */}
-                  {(() => {
-                    const isInvestigationDone = Boolean(
-                      (activeDoc.deepResearchResult || '').trim()
-                    );
-                    const selectedVideoObj =
-                      analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
-                      null;
-                    const selectedComments = deduplicatedCommentsList.filter((c) =>
-                      selectedResearchCommentIds.includes(c.id)
-                    );
-                    const propositionParts = buildStage1PropositionParts(
-                      activeDoc,
-                      selectedVideoObj,
-                      selectedComments
-                    );
+                    {/* RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE) */}
+                    {(() => {
+                      const isPart1OrPart2Done = Boolean(
+                        (activeDoc.deepResearchPrompt || '').trim() ||
+                          (activeDoc.deepResearchResult || '').trim() ||
+                          activeDoc.promptConfig?.STAGE1_PART1_COMPLETED === 'SI'
+                      );
+                      const selectedVideoObj =
+                        analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
+                        null;
+                      const selectedComments = deduplicatedCommentsList.filter((c) =>
+                        selectedResearchCommentIds.includes(c.id)
+                      );
+                      const propositionParts = buildStage1PropositionParts(
+                        activeDoc,
+                        selectedVideoObj,
+                        selectedComments
+                      );
 
-                    const handleSelectPropositionOption = (
-                      partId: Stage1PropositionPart['id'],
-                      optionValue: string
-                    ) => {
-                      if (partId === 'typology') {
-                        updateActiveDoc({
-                          typology: optionValue,
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            TIPOLOGIA_VIDEO: optionValue,
-                          },
-                        });
-                      } else if (partId === 'topic') {
-                        updateActiveDoc({
-                          topic: optionValue,
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            TEMA_VIDEO: optionValue,
-                          },
-                        });
-                      } else if (partId === 'historicalTime') {
-                        updateActiveDoc({
-                          historicalTime: optionValue,
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            TIEMPO_EPOCA: optionValue,
-                          },
-                        });
-                      } else if (partId === 'historicalLocation') {
-                        updateActiveDoc({
-                          historicalLocation: optionValue,
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            LUGAR_HISTORICO: optionValue,
-                          },
-                        });
-                      } else if (partId === 'hookAndAngle') {
-                        updateActiveDoc({
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            PROPOSICION_GANCHO: optionValue,
-                            ANGULO_CENTRAL: optionValue,
-                          },
-                        });
-                      } else if (partId === 'actsEscaleta') {
-                        updateActiveDoc({
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            PROPOSICION_ESCALETA: optionValue,
-                          },
-                        });
-                      } else if (partId === 'climaxAndClosure') {
-                        updateActiveDoc({
-                          promptConfig: {
-                            ...(activeDoc.promptConfig || {}),
-                            PROPOSICION_CLIMAX: optionValue,
-                          },
-                        });
-                      }
-                    };
+                      const handleSelectPropositionOption = (
+                        partId: Stage1PropositionPart['id'],
+                        optionValue: string
+                      ) => {
+                        if (partId === 'typology') {
+                          updateActiveDoc({
+                            typology: optionValue,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TIPOLOGIA_VIDEO: optionValue,
+                            },
+                          });
+                        } else if (partId === 'topic') {
+                          updateActiveDoc({
+                            topic: optionValue,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TEMA_VIDEO: optionValue,
+                            },
+                          });
+                        } else if (partId === 'historicalTime') {
+                          updateActiveDoc({
+                            historicalTime: optionValue,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TIEMPO_EPOCA: optionValue,
+                            },
+                          });
+                        } else if (partId === 'historicalLocation') {
+                          updateActiveDoc({
+                            historicalLocation: optionValue,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              LUGAR_HISTORICO: optionValue,
+                            },
+                          });
+                        } else if (partId === 'hookAndAngle') {
+                          updateActiveDoc({
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              PROPOSICION_GANCHO: optionValue,
+                              ANGULO_CENTRAL: optionValue,
+                            },
+                          });
+                        } else if (partId === 'actsEscaleta') {
+                          updateActiveDoc({
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              PROPOSICION_ESCALETA: optionValue,
+                            },
+                          });
+                        } else if (partId === 'climaxAndClosure') {
+                          updateActiveDoc({
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              PROPOSICION_CLIMAX: optionValue,
+                            },
+                          });
+                        }
+                      };
 
-                    if (!isInvestigationDone) {
-                      return (
-                        <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
-                          <div className="space-y-1">
-                            <div className="text-xs sm:text-sm font-bold text-amber-300">
-                              📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Uno)
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                              Al terminar la investigación completa (&quot;✨ Comenzar Investigación&quot;), nuestra app llenará automáticamente la Tipología, el Tema Central, el Tiempo/Época y el Lugar Histórico, y mostrará aquí el resumen por partes con 3 opciones seleccionables para cada uno.
-                            </p>
+                      if (!isPart1OrPart2Done) {
+                        return (
+                          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)&quot;</strong>, Gemini analizará el otro video sin usar Deep Research (con <strong>4 Argon · Thinking level: Low</strong>), llenará automáticamente <strong>🏛️ Definición Histórica y Continuidad</strong> y mostrará aquí las <strong>3 opciones seleccionables para cada parte</strong> antes de pasar al Paso 2.
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const patch = buildAndApplyStage1PropositionPatch(
-                                activeDoc,
-                                undefined,
-                                true
-                              );
-                              updateActiveDoc(patch);
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 text-xs font-bold cursor-pointer shrink-0"
-                          >
-                            ⚡ Generar Proposición Ahora y Auto-Llenar Campos
-                          </button>
+                        );
+                      }
+
+                      return (
+                        <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
+                          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
+                                  ✓ Paso 1 Determinado · Campos Auto-Llenados
+                                </span>
+                                <h4 className="text-sm sm:text-base font-black text-amber-300">
+                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Parte)
+                                </h4>
+                              </div>
+                              <p className="text-xs text-slate-300">
+                                Se ha determinado automáticamente la Opción 1 para la <strong>Tipología del Video</strong>, <strong>Tema Central</strong>, <strong>Tiempo / Época</strong> y <strong>Lugar Histórico</strong>. Puedes elegir cualquiera de las <strong>3 opciones</strong> de cada parte antes de lanzar el <strong>Paso 2 (Investigación Profunda con Deep Research)</strong>:
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const patch = buildAndApplyStage1PropositionPatch(
+                                  activeDoc,
+                                  activeDoc.deepResearchPrompt || activeDoc.deepResearchResult,
+                                  true,
+                                  'PART1'
+                                );
+                                updateActiveDoc(patch);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer shrink-0"
+                            >
+                              🔄 Re-Extraer Opciones del Paso 1
+                            </button>
+                          </div>
+
+                          <div className="space-y-4">
+                            {propositionParts.map((part) => (
+                              <div
+                                key={part.id}
+                                className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3"
+                              >
+                                <div className="flex items-start justify-between flex-wrap gap-2">
+                                  <div>
+                                    <div className="text-xs sm:text-sm font-extrabold text-amber-200">
+                                      {part.title}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400">{part.subtitle}</div>
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
+                                    3 opciones disponibles
+                                  </span>
+                                </div>
+
+                                <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">
+                                  <strong className="text-emerald-300">Resumen de esta parte:</strong>{' '}
+                                  {part.summary}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                  {part.options.map((optText, idx) => {
+                                    const isSelected =
+                                      String(part.currentValue || '').trim() ===
+                                      String(optText || '').trim();
+                                    return (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleSelectPropositionOption(part.id, optText)}
+                                        className={`text-left p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                          isSelected
+                                            ? 'bg-emerald-500/15 border-emerald-400 text-slate-100 shadow-md shadow-emerald-500/10'
+                                            : 'bg-slate-950/90 hover:bg-slate-900 border-slate-800 text-slate-300'
+                                        }`}
+                                      >
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between gap-1">
+                                            <span
+                                              className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
+                                                isSelected
+                                                  ? 'bg-emerald-400 text-slate-950'
+                                                  : 'bg-slate-800 text-amber-300'
+                                              }`}
+                                            >
+                                              Opción {idx + 1}
+                                            </span>
+                                            {isSelected && (
+                                              <span className="text-[10px] font-bold text-emerald-300">
+                                                ✓ Activa en Documental
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-xs leading-relaxed">{optText}</p>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       );
-                    }
+                    })()}
+                  </div>
 
-                    return (
-                      <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
-                        <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
-                                ✓ Investigación Completada · Campos Auto-Llenados
-                              </span>
-                              <h4 className="text-sm sm:text-base font-black text-amber-300">
-                                📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Parte)
-                              </h4>
-                            </div>
-                            <p className="text-xs text-slate-300">
-                              Se ha determinado automáticamente la Opción 1 para la <strong>Tipología del Video</strong>, <strong>Tema Central</strong>, <strong>Tiempo / Época</strong> y <strong>Lugar Histórico</strong>. Haz clic en cualquiera de las <strong>3 opciones</strong> de cada parte para cambiar la selección activa de tu documental:
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const patch = buildAndApplyStage1PropositionPatch(
-                                activeDoc,
-                                activeDoc.deepResearchResult,
-                                true
-                              );
-                              updateActiveDoc(patch);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer shrink-0"
-                          >
-                            🔄 Re-Extraer Opciones de la Investigación
-                          </button>
+                  {/* =====================================================================
+                      FASE 2 DE ETAPA 1: INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + THINKING LEVEL: HIGH
+                     ===================================================================== */}
+                  <div className="bg-slate-950/90 border-2 border-purple-500/40 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between flex-wrap gap-4">
+                      <div className="space-y-1 max-w-3xl">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-md bg-purple-500/20 border border-purple-400/50 text-purple-200 text-xs font-black">
+                            PASO 2 DE ETAPA 1
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold">
+                            🧠 4 Argon · Thinking level: High (Extra thorough) + 🔬 Feature Deep Research Activo
+                          </span>
                         </div>
-
-                        <div className="space-y-4">
-                          {propositionParts.map((part) => (
-                            <div
-                              key={part.id}
-                              className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3"
-                            >
-                              <div className="flex items-start justify-between flex-wrap gap-2">
-                                <div>
-                                  <div className="text-xs sm:text-sm font-extrabold text-amber-200">
-                                    {part.title}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400">{part.subtitle}</div>
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
-                                  3 opciones disponibles
-                                </span>
-                              </div>
-
-                              <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">
-                                <strong className="text-emerald-300">Resumen de esta parte:</strong>{' '}
-                                {part.summary}
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                                {part.options.map((optText, idx) => {
-                                  const isSelected =
-                                    String(part.currentValue || '').trim() ===
-                                    String(optText || '').trim();
-                                  return (
-                                    <button
-                                      key={idx}
-                                      type="button"
-                                      onClick={() => handleSelectPropositionOption(part.id, optText)}
-                                      className={`text-left p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
-                                        isSelected
-                                          ? 'bg-emerald-500/15 border-emerald-400 text-slate-100 shadow-md shadow-emerald-500/10'
-                                          : 'bg-slate-950/90 hover:bg-slate-900 border-slate-800 text-slate-300'
-                                      }`}
-                                    >
-                                      <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between gap-1">
-                                          <span
-                                            className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
-                                              isSelected
-                                                ? 'bg-emerald-400 text-slate-950'
-                                                : 'bg-slate-800 text-amber-300'
-                                            }`}
-                                          >
-                                            Opción {idx + 1}
-                                          </span>
-                                          {isSelected && (
-                                            <span className="text-[10px] font-bold text-emerald-300">
-                                              ✓ Activa en Documental
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-xs leading-relaxed">{optText}</p>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base">
+                          2º Investigación Profunda con el Feature de Gemini Deep Research y Thinking Level en High
+                        </h4>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, selecciona en el menú <strong>&quot;Argon&quot; → &quot;4 Argon&quot; → &quot;Thinking level&quot; → &quot;High&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
+                        </p>
                       </div>
-                    );
-                  })()}
+
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <button
+                          type="button"
+                          disabled={aiGenerating}
+                          onClick={() =>
+                            handleSendStageToGeminiWeb(1, undefined, {
+                              enableHighModel: true,
+                              enableArgonLow: false,
+                              enableDeepResearch: true,
+                            })
+                          }
+                          title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Argon con Thinking level en High"
+                          className="px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
+                        >
+                          <Wand2 className="w-4 h-4" />
+                          {aiGenerating
+                            ? 'Investigando en Gemini Deep Research...'
+                            : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Thinking High)'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Dos Cajas de Texto: 1. Prompt de Investigación (Auto-pegado) y 2. Resultado de la Investigación Profunda */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">

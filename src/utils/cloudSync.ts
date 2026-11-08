@@ -1700,85 +1700,142 @@ export function buildStagePromptText(
     : '';
 
   let stagePrompt = '';
-  if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+  if (stageNumber === 10) {
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
-    stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".${viralContextBlock}
+    stagePrompt = `Actúa como director e investigador jefe para "Huellas de la Humanidad".
+Esta es la FASE 1 DE LA ETAPA 1 (4 Argon · Thinking level: Low · SIN Deep Research): Investigación del video de referencia + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental.${viralContextBlock}
 
 ================================================================================
-📋 DATOS MAESTROS DEL DOCUMENTAL EN PROCESO (ETAPA 1 UNIFICADA — PROMPT MAESTRO)
+🏛️ ESTADO ACTUAL DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA A DETERMINAR
 ================================================================================
 - Tipología del protocolo: ${
       cleanTypology ||
-      'EN BLANCO (Determinar automáticamente tras la investigación cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología a medida acorde con el documental en proceso)'
+      'EN BLANCO (Determinar cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología a medida acorde con el documental en proceso)'
     }
 - Tema central del documental: ${
       cleanTopic ||
-      'EN BLANCO (Determinar y proponer automáticamente a partir de la investigación del video de referencia y/o los comentarios de la audiencia)'
+      'EN BLANCO (Determinar automáticamente a partir del análisis del video de referencia y las dudas de la audiencia)'
     }
 - Tiempo / Época histórica (años en dígitos, siglos en romanos): ${
       cleanTime ||
-      'EN BLANCO (Determinar y proponer automáticamente con años en dígitos o Siglo en números romanos, ej. Año 1888 / Siglo XIX)'
+      'EN BLANCO (Determinar automáticamente con años en dígitos o Siglo en números romanos, ej. Año 1888 / Siglo XIX)'
     }
 - Lugar histórico (Ciudad, País): ${
-      cleanLoc ||
-      'EN BLANCO (Determinar y proponer automáticamente Ciudad, País)'
+      cleanLoc || 'EN BLANCO (Determinar automáticamente Ciudad, País)'
     }
-${centralParadox ? `- Ángulo / Paradoja o Contradicción Central obligatoria: ${centralParadox}\n` : ''}${
+${
+  excludePreviousParts
+    ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
+    : ''
+}- ⏱️ Calibración Matemática seleccionada:
+  • Duración Total Objetivo del Proyecto: ~${totalTargetSec} segundos (~${(totalTargetSec / 60).toFixed(0)} minutos)
+  • Intro Oficial de Marca: 00:00 - 00:08 (${fixedIntroSec}s fijos)
+  • Clip 1 (Hook visual sin voz): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
+  • Entrada de la Voz Narrativa y Cuerpo de Clips (${clipDurationLabel} c/u): Segundo ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) durante ~${effectiveNarratedSec}s de narración efectiva
+  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos
+${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS:\n${selectedAudienceQuestions}\n` : ''}
+================================================================================
+⚡ TAREA DE LA FASE 1 (INVESTIGACIÓN DEL OTRO VIDEO + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA)
+================================================================================
+Analiza el video de referencia (Título, Descripción, Tags, Comentarios y estructura de retención) y entrega obligatoriamente este informe estructurado con 3 opciones para cada parte de nuestro documental:
+
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE):
+   Entrega obligatoriamente este bloque con EXACTAMENTE 3 opciones numeradas (Opción 1, Opción 2, Opción 3) para cada una de las 7 partes:
+   - PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO):
+     • Resumen de esta parte: [Explicación de por qué aplica esta tipología o nueva tipología creada]
+     • Opción 1: [Determina cuál de las 8 tipologías del protocolo encaja mejor O CREA UNA NUEVA tipología a medida acorde con nuestro documental en proceso]
+     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología creada a medida]
+     • Opción 3: [Tercera opción de tipología o nueva tipología híbrida creada a medida]
+   - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
+     • Resumen de esta parte: [Explicación del eje temático propuesto]
+     • Opción 1: [Proposición principal de Tema Central y tesis histórica de alto impacto para nuestro documental]
+     • Opción 2: [Segunda proposición de Tema Central enfocada en la experiencia humana y dudas de la audiencia]
+     • Opción 3: [Tercera proposición de Tema Central enfocada en el misterio documental o contradicción histórica]
+   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):
+     • Resumen de esta parte: [Justificación del marco cronológico]
+     • Opción 1: [Ej. Año 1898 – 1931 / Siglo XIX y Siglo XX (años en dígitos y Siglo en números romanos)]
+     • Opción 2: [Segunda opción de recorte temporal exacto (Año en dígitos / Siglo en romanos)]
+     • Opción 3: [Tercera opción de arco temporal histórico (Años en dígitos / Siglo en romanos)]
+   - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):
+     • Resumen de esta parte: [Justificación de los escenarios geográficos]
+     • Opción 1: [Ciudad, País principal donde transcurre nuestro documental]
+     • Opción 2: [Epicentro específico + Ciudad, País]
+     • Opción 3: [Ruta geográfica o escenarios conectados (Ciudad, País)]
+   - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
+     • Resumen de esta parte: [Estrategia de impacto en los primeros segundos]
+     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central]
+     • Opción 2: [Propuesta 2 de Hook de choque sensorial e intriga inmediata]
+     • Opción 3: [Propuesta 3 de Hook basado en una revelación o pregunta de la audiencia]
+   - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN):
+     • Resumen de esta parte: [Distribución matemática de los actos contemplando Intro 8s y Outro 8s]
+     • Opción 1: [Propuesta 1 de calibración matemática por bloques (%) y minutos para ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
+     • Opción 2: [Propuesta 2 de calibración y desarrollo narrativo cronológico-inmersivo]
+     • Opción 3: [Propuesta 3 de calibración y desarrollo investigativo de revelación progresiva]
+   - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
+     • Resumen de esta parte: [Estrategia de desenlace hacia el Outro de 8s]
+     • Opción 1: [Propuesta 1 de clímax emocional/histórico y cierre reflexivo]
+     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita de la audiencia y legado]
+     • Opción 3: [Propuesta 3 de giro final y huella imborrable en la humanidad]
+
+1. RADIOGRAFÍA DEL VIDEO DE REFERENCIA (TÍTULO, DESCRIPCIÓN, TAGS Y ESTRUCTURA DE RETENCIÓN):
+   - Desglose de la fórmula del video referente, sus porcentajes por bloque, gatillos psicológicos y cómo los adaptaremos a nuestra Calibración Matemática de ~${(totalTargetSec / 60).toFixed(0)} minutos.`;
+  } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+    const cleanTopic = (doc.topic || '').trim();
+    const cleanTypology = (doc.typology || '').trim();
+    const cleanTime = (doc.historicalTime || '').trim();
+    const cleanLoc = (doc.historicalLocation || '').trim();
+    const chosenHookProp = (
+      doc.promptConfig?.PROPOSICION_GANCHO ||
+      doc.promptConfig?.ANGULO_CENTRAL ||
+      centralParadox ||
+      ''
+    ).trim();
+    const chosenEscaletaProp = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
+    const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
+    const part1AnalysisText = (doc.deepResearchPrompt || '').trim();
+
+    stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".
+Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 ARGON THINKING LEVEL: HIGH), utilizando la 🏛️ Definición Histórica y Continuidad y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
+
+================================================================================
+🏛️ DEFINICIÓN HISTÓRICA, CONTINUIDAD Y CALIBRACIÓN MATEMÁTICA DETERMINADAS EN FASE 1
+================================================================================
+- Tipología del protocolo determinada: ${cleanTypology || 'Por confirmar en la investigación'}
+- Tema central del documental determinado: ${cleanTopic || 'Por confirmar en la investigación'}
+- Tiempo / Época histórica determinada: ${cleanTime || 'Por confirmar en la investigación'}
+- Lugar histórico determinado (Ciudad, País): ${cleanLoc || 'Por confirmar en la investigación'}
+${chosenHookProp ? `- Gancho Inicial y Contradicción Central seleccionada (Parte 5): ${chosenHookProp}\n` : ''}${
+      chosenEscaletaProp ? `- Calibración Matemática y Escaleta por Actos seleccionada (Parte 6): ${chosenEscaletaProp}\n` : ''
+    }${chosenClimaxProp ? `- Clímax Histórico y Cierre Reflexivo seleccionado (Parte 7): ${chosenClimaxProp}\n` : ''}${
       excludePreviousParts
         ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
         : ''
-    }- Arquitectura Matemática Completa del Video (con Intro y Outro Oficiales de 8s):
+    }- ⏱️ Calibración Matemática del Video (con Intro y Outro Oficiales de 8s):
   • Duración Total Objetivo del Proyecto: ~${totalTargetSec} segundos (~${(totalTargetSec / 60).toFixed(1)} min)
   • Intro Oficial de Marca: 00:00 - 00:08 (${fixedIntroSec}s fijos — sin voz ni música de fondo)
   • Clip 1 (Hook visual con Texto en Pantalla sin voz): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
   • Entrada de la Voz Narrativa y Cuerpo de Clips (${clipDurationLabel} c/u): Segundo ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) durante ~${effectiveNarratedSec}s de narración efectiva
-  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos (entra con crossfade justo cuando terminan la voz narrativa y la música del último clip narrado)
-${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS PARA RESPONDER EN LA INVESTIGACIÓN:\n${selectedAudienceQuestions}\n` : ''}
+  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos
+${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS PARA RESPONDER EN LA INVESTIGACIÓN PROFUNDA:\n${selectedAudienceQuestions}\n` : ''}${
+      part1AnalysisText
+        ? `\n📌 CONCLUSIONES PREVIAS DE LA FASE 1 (DEFINICIÓN Y CALIBRACIÓN):\n${part1AnalysisText.slice(0, 3500)}\n`
+        : ''
+    }
 ================================================================================
-🔬 TAREA DE INVESTIGACIÓN PROFUNDA (MODO HIGH + DEEP RESEARCH)
+🔬 TAREA DE INVESTIGACIÓN PROFUNDA (4 ARGON · THINKING LEVEL: HIGH + DEEP RESEARCH)
 ================================================================================
-Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en estas 5 secciones claras:
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE):
-   Entrega obligatoriamente al inicio este bloque con EXACTAMENTE 3 opciones numeradas (Opción 1, Opción 2, Opción 3) para cada una de las 7 partes de la proposición de nuestro documental (la Opción 1 será la recomendada por defecto para auto-rellenar los campos):
-   - PARTE 1: TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO)
-     • Opción 1: [Determina cuál de las 8 tipologías del protocolo encaja mejor O CREA UNA NUEVA tipología a medida acorde con nuestro documental en proceso]
-     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología creada a medida]
-     • Opción 3: [Tercera opción de tipología o nueva tipología híbrida creada a medida]
-   - PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO
-     • Opción 1: [Proposición principal de Tema Central y tesis histórica de alto impacto para nuestro documental]
-     • Opción 2: [Segunda proposición de Tema Central enfocada en la experiencia humana / supervivencia cotidiana y dudas de la audiencia]
-     • Opción 3: [Tercera proposición de Tema Central enfocada en el misterio documental, intriga política o contradicción histórica]
-   - PARTE 3: TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS)
-     • Opción 1: [Ej. Año 1880 / Siglo XIX (o año/rango exacto en dígitos y Siglo en números romanos)]
-     • Opción 2: [Segunda opción de recorte temporal exacto (Año en dígitos / Siglo en romanos)]
-     • Opción 3: [Tercera opción de arco temporal histórico (Años en dígitos / Siglo en romanos)]
-   - PARTE 4: LUGAR HISTÓRICO (CIUDAD, PAÍS)
-     • Opción 1: [Ciudad, País principal donde transcurre nuestro documental]
-     • Opción 2: [Epicentro específico + Ciudad, País]
-     • Opción 3: [Ruta geográfica o escenarios conectados (Ciudad, País)]
-   - PARTE 5: GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA)
-     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central]
-     • Opción 2: [Propuesta 2 de Hook de choque sensorial e intriga inmediata]
-     • Opción 3: [Propuesta 3 de Hook basado en una revelación o pregunta de la audiencia]
-   - PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL
-     • Opción 1: [Propuesta 1 de ruta estructural y progresión de actos adaptada a ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
-     • Opción 2: [Propuesta 2 de desarrollo narrativo cronológico-inmersivo]
-     • Opción 3: [Propuesta 3 de desarrollo investigativo de revelación progresiva]
-   - PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO
-     • Opción 1: [Propuesta 1 de clímax emocional/histórico y cierre reflexivo hacia el lema oficial]
-     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita de la audiencia y legado]
-     • Opción 3: [Propuesta 3 de giro final y huella imborrable en la humanidad]
-1. EXPLICACIÓN DE LA ESTRUCTURA VIRAL Y ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE REFERENCIA:
-   - Desglose de los bloques narrativos con su porcentaje (%) y rango de tiempo exacto contemplando el Intro de 8s al inicio y el Outro de 8s al final, más el análisis del título, la descripción (capítulos, enfoque, fuentes) y los tags del video de YouTube de referencia aplicados a nuestro documental.
-2. RECUENTO ESTRUCTURAL CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES HISTÓRICAS:
-   - Escaleta detallada acto por acto, datos sensoriales verificados (olores, sonidos, dimensiones, cifras reales, leyes, nombres propios con números romanos) y respuestas históricas a las dudas de los comentarios de la audiencia.
-3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (DEEP RESEARCH):
-   - Hechos documentados, crónicas de época, hallazgos arqueológicos/forenses, desarrollo profundo de los subtemas y palabras clave detectados en el título, descripción y tags del video analizado, y micro-historias humanas listas para nutrir el Guion de Voz en Off.
-4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS):
-   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${cleanTime || 'época determinada en la investigación'}, ${cleanLoc || 'lugar determinado en la investigación'}).`;
+Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, época, lugar y estructura ya determinados arriba, y entrégala en estas 4 secciones claras:
+1. DESGLOSE MATEMÁTICO Y ESTRUCTURAL POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN CON INTRO 8S Y OUTRO 8S):
+   - Mapa exacto de los bloques narrativos con su porcentaje (%), rango de tiempo exacto y micro-ganchos de retención adaptados a la estructura del video referente.
+2. RECUENTO HISTÓRICO CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES DOCUMENTADAS:
+   - Desarrollo profundo acto por acto con fechas exactas, cifras reales, leyes, contratos, precios de la época, detalles sensoriales verificados (olores, sonidos, texturas, arquitectura) y respuestas históricas a las dudas de la audiencia.
+3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (FUENTES PRIMARIAS, ARCHIVOS Y CRÓNICAS):
+   - Hechos documentados, expedientes judiciales/comerciales/arqueológicos, micro-historias humanas con nombres reales y citas históricas listas para nutrir el Guion de Voz en Off en la Etapa 2.
+4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS DE GOOGLE FLOW):
+   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (@Nombre_Lugar) con su descripción física, edad, rostro e indumentaria histórica exacta de la época (${cleanTime || 'época determinada'}, ${cleanLoc || 'lugar determinado'}).`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
