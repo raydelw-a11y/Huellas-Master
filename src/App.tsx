@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:53 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:06 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -2545,6 +2545,8 @@ export default function App() {
     flowDownloadDirHandleRef.current = null;
     setFlowDownloadFolderName('');
     setFlowServerFolderPath('');
+    localStorage.removeItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY);
+    localStorage.removeItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY);
     if (!isCloudMode) {
       try {
         const res = await fetch('/api/documentaries', {
@@ -3181,7 +3183,7 @@ export default function App() {
     if (!folderCandidate || !doc) return true;
     const docNum = extractDocVideoNumber(`${doc.title || ''} ${doc.topic || ''}`);
     const folderNum = extractDocVideoNumber(folderCandidate);
-    if (folderNum && (!docNum || docNum !== folderNum)) return false;
+    if (docNum && folderNum && docNum !== folderNum) return false;
     return true;
   };
 
@@ -3192,14 +3194,27 @@ export default function App() {
     localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) || ''
   ).trim();
 
+  const isNonLegacyGlobalFolder = (folderCandidate?: string): boolean => {
+    const clean = (folderCandidate || '').trim();
+    if (!clean) return false;
+    const fNum = extractDocVideoNumber(clean);
+    if (fNum === '74' || fNum === '75' || fNum === '76') return false;
+    return true;
+  };
+
   const effectiveDocFolderName =
     (doesFolderMatchDoc(activeDoc?.downloadFolderName, activeDoc)
       ? (activeDoc?.downloadFolderName || '').trim()
       : '') ||
+    (doesFolderMatchDoc(flowDownloadFolderName, activeDoc) ? flowDownloadFolderName.trim() : '') ||
     (doesFolderMatchDoc(activeDoc?.downloadFolderPath, activeDoc)
       ? (activeDoc?.downloadFolderPath || '').trim()
       : '') ||
-    getCanonicalFolderNameForDoc(activeDoc);
+    getCanonicalFolderNameForDoc(activeDoc) ||
+    (isNonLegacyGlobalFolder(globalStoredFolderName) &&
+    doesFolderMatchDoc(globalStoredFolderName, activeDoc)
+      ? globalStoredFolderName
+      : '');
   const hasSelectedDocFolder = Boolean(effectiveDocFolderName);
 
   // Sync the download folder for the active documentary without crossing documentaries or pre-selecting on new docs
@@ -3250,6 +3265,10 @@ export default function App() {
           ? activeDoc.downloadFolderName
           : '') ||
         canonicalName ||
+        (isNonLegacyGlobalFolder(globalStoredFolderName) &&
+        doesFolderMatchDoc(globalStoredFolderName, activeDoc)
+          ? globalStoredFolderName
+          : '') ||
         ''
       ).trim();
       const unifiedPath = (
@@ -3314,66 +3333,72 @@ export default function App() {
 
   // 1. Choose Single Root Destination Folder on User's Computer in Stage 1 (Opens Native File Browser / Finder to Select or Create Folder)
   const handlePickFlowDownloadFolder = async (): Promise<boolean> => {
-    // 1A. Try native macOS Finder dialog via local server (works in Safari, Chrome, localhost, and cloud bridge, with "Nueva carpeta" button)
-    const isLocalhostOrigin =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const pickerBases = isLocalhostOrigin
-      ? ['']
-      : ['http://localhost:4200', ''];
+    const isMobileTouchDevice =
+      typeof navigator !== 'undefined' &&
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
 
-    for (const baseOrigin of pickerBases) {
-      try {
-        const res = await fetch(`${baseOrigin}/api/system/pick-folder`, { method: 'POST' });
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await res.json();
-          if (data?.cancelled) {
-            return false;
+    if (!isMobileTouchDevice) {
+      // 1A. Try native macOS Finder dialog via local server (works in desktop Safari, Chrome, localhost, and cloud bridge, with "Nueva carpeta" button)
+      const isLocalhostOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const pickerBases = isLocalhostOrigin ? [''] : ['http://localhost:4200', ''];
+
+      for (const baseOrigin of pickerBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/system/pick-folder`, { method: 'POST' });
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json();
+            if (data?.cancelled) {
+              return false;
+            }
+            if (res.ok && data?.folderPath) {
+              const cleanPath = String(data.folderPath).trim().replace(/\/+$/, '');
+              const cleanName = String(
+                data.folderName || cleanPath.split('/').pop() || cleanPath
+              ).trim();
+              flowDownloadDirHandleRef.current = null;
+              syncSingleFolderAcrossAllDocs(cleanName, cleanPath);
+              setFlowStatusLog(
+                `📁 Carpeta raíz seleccionada: "${cleanName}" con sus subcarpetas (${DOCUMENTARY_SUBFOLDERS.join(', ')}) listas.`
+              );
+              return true;
+            }
           }
-          if (res.ok && data?.folderPath) {
-            const cleanPath = String(data.folderPath).trim().replace(/\/+$/, '');
-            const cleanName = String(data.folderName || cleanPath.split('/').pop() || cleanPath).trim();
-            flowDownloadDirHandleRef.current = null;
-            syncSingleFolderAcrossAllDocs(cleanName, cleanPath);
+        } catch {}
+      }
+
+      // 1B. Native OS File System Access API picker (Chrome / Edge / Brave) — allows creating a new folder in Finder
+      try {
+        if (typeof (window as any).showDirectoryPicker === 'function') {
+          const dirHandle = await (window as any).showDirectoryPicker({
+            mode: 'readwrite',
+          });
+          if (dirHandle) {
+            const pickedName = dirHandle.name || 'Carpeta Seleccionada';
+            flowDownloadDirHandleRef.current = dirHandle;
+            try {
+              for (const sub of DOCUMENTARY_SUBFOLDERS) {
+                await dirHandle.getDirectoryHandle(sub, { create: true });
+              }
+            } catch {}
+            await saveDirHandleToIndexedDB(activeDoc?.id, dirHandle);
+            syncSingleFolderAcrossAllDocs(pickedName, '');
             setFlowStatusLog(
-              `📁 Carpeta raíz seleccionada: "${cleanName}" con sus subcarpetas (${DOCUMENTARY_SUBFOLDERS.join(', ')}) listas.`
+              `📁 Carpeta raíz seleccionada: "${pickedName}" con sus subcarpetas (${DOCUMENTARY_SUBFOLDERS.join(', ')}) listas.`
             );
             return true;
           }
         }
-      } catch {}
-    }
-
-    // 1B. Native OS File System Access API picker (Chrome / Edge / Brave) — allows creating a new folder in Finder
-    try {
-      if (typeof (window as any).showDirectoryPicker === 'function') {
-        const dirHandle = await (window as any).showDirectoryPicker({
-          mode: 'readwrite',
-        });
-        if (dirHandle) {
-          const pickedName = dirHandle.name || 'Carpeta Seleccionada';
-          flowDownloadDirHandleRef.current = dirHandle;
-          try {
-            for (const sub of DOCUMENTARY_SUBFOLDERS) {
-              await dirHandle.getDirectoryHandle(sub, { create: true });
-            }
-          } catch {}
-          await saveDirHandleToIndexedDB(activeDoc?.id, dirHandle);
-          syncSingleFolderAcrossAllDocs(pickedName, '');
-          setFlowStatusLog(
-            `📁 Carpeta raíz seleccionada: "${pickedName}" con sus subcarpetas (${DOCUMENTARY_SUBFOLDERS.join(', ')}) listas.`
-          );
-          return true;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          return false;
         }
       }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        return false;
-      }
     }
 
-    // 1C. Native OS Folder Input Picker fallback (iOS / Safari without local server) — opens Files / Finder dialog
+    // 1C. Native OS Folder Input Picker (iOS / Safari) — runs synchronously on tap so iOS Safari never drops the gesture
     const getInferredEmptyFolderName = (): string => {
       const customTitle = (activeDoc?.title || '').trim();
       if (customTitle && !/^nuevo documental/i.test(customTitle)) {
@@ -3381,7 +3406,10 @@ export default function App() {
       }
       let maxNum = 76;
       for (const d of documentaries) {
-        const n = parseInt(extractDocVideoNumber(`${d.title || ''} ${d.topic || ''} ${d.downloadFolderName || ''}`), 10);
+        const n = parseInt(
+          extractDocVideoNumber(`${d.title || ''} ${d.topic || ''} ${d.downloadFolderName || ''}`),
+          10
+        );
         if (!isNaN(n) && n > maxNum) maxNum = n;
       }
       return `Video ${maxNum + 1}`;
@@ -3395,14 +3423,19 @@ export default function App() {
       input.style.display = 'none';
       document.body.appendChild(input);
       const openedAt = Date.now();
+      let settled = false;
       const cleanup = () => {
+        window.removeEventListener('focus', onWindowFocusAfterPicker);
         if (input.parentNode) input.parentNode.removeChild(input);
       };
       const applyPickedOrEmptyFolder = (fallbackEmpty: boolean) => {
+        if (settled) return;
+        settled = true;
         const files = input.files;
         if (files && files.length > 0) {
           const relPath = (files[0] as any).webkitRelativePath || '';
-          const folderName = relPath.split('/')[0] || files[0].name || getInferredEmptyFolderName();
+          const folderName =
+            relPath.split('/')[0] || files[0].name || getInferredEmptyFolderName();
           syncSingleFolderAcrossAllDocs(folderName, '');
           setFlowStatusLog(
             `📁 Carpeta raíz seleccionada: "${folderName}". ¡Etapas 2 a 12 desbloqueadas!`
@@ -3427,16 +3460,24 @@ export default function App() {
         cleanup();
         resolve(false);
       };
+      const onWindowFocusAfterPicker = () => {
+        setTimeout(() => {
+          if (settled) return;
+          if (Date.now() - openedAt > 1200) {
+            applyPickedOrEmptyFolder(true);
+          }
+        }, 700);
+      };
+      window.addEventListener('focus', onWindowFocusAfterPicker);
       input.onchange = () => {
         applyPickedOrEmptyFolder(true);
       };
       input.oncancel = () => {
-        // On iOS Safari, tapping "Open" inside an empty folder ("Folder is Empty") dispatches cancel with 0 files;
-        // if the user spent > 1.2s in the Files picker selecting/creating the folder, bind the folder immediately.
         if (Date.now() - openedAt > 1200) {
           applyPickedOrEmptyFolder(true);
           return;
         }
+        settled = true;
         cleanup();
         resolve(false);
       };
