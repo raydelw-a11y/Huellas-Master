@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:03 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:11 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -10701,10 +10701,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         }}
                         disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
                         className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
-                        title="Forzar sincronización inmediata del nombre en la carpeta de la Mac y en la conversación de Gemini"
+                        title="Actualizar el nombre en la carpeta de la Mac y en la conversación de Gemini"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
-                        {isRenamingVideoRealtime ? 'Sincronizando...' : 'Sincronizado en Tiempo Real'}
+                        {isRenamingVideoRealtime ? 'Actualizando...' : 'Actualizar'}
                       </button>
                     </div>
 
