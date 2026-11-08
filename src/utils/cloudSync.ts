@@ -1666,15 +1666,31 @@ export function buildStagePromptText(
 
   let stagePrompt = '';
   if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+    const cleanTopic = (doc.topic || '').trim();
+    const cleanTypology = (doc.typology || '').trim();
+    const cleanTime = (doc.historicalTime || '').trim();
+    const cleanLoc = (doc.historicalLocation || '').trim();
     stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".${viralContextBlock}
 
 ================================================================================
 📋 DATOS MAESTROS DEL DOCUMENTAL EN PROCESO (ETAPA 1 UNIFICADA — PROMPT MAESTRO)
 ================================================================================
-- Tema central del documental: ${doc.topic || doc.title || 'Por definir'}
-- Tipología del protocolo: ${doc.typology || '1. Un suceso histórico'}
-- Tiempo / Época histórica (años en dígitos, siglos en romanos): ${doc.historicalTime || 'Por definir'}
-- Lugar histórico (Ciudad, País): ${doc.historicalLocation || 'Por definir'}
+- Tipología del protocolo: ${
+      cleanTypology ||
+      'EN BLANCO (Determinar automáticamente tras la investigación cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología a medida acorde con el documental en proceso)'
+    }
+- Tema central del documental: ${
+      cleanTopic ||
+      'EN BLANCO (Determinar y proponer automáticamente a partir de la investigación del video de referencia y/o los comentarios de la audiencia)'
+    }
+- Tiempo / Época histórica (años en dígitos, siglos en romanos): ${
+      cleanTime ||
+      'EN BLANCO (Determinar y proponer automáticamente con años en dígitos o Siglo en números romanos, ej. Año 1888 / Siglo XIX)'
+    }
+- Lugar histórico (Ciudad, País): ${
+      cleanLoc ||
+      'EN BLANCO (Determinar y proponer automáticamente Ciudad, País)'
+    }
 ${centralParadox ? `- Ángulo / Paradoja o Contradicción Central obligatoria: ${centralParadox}\n` : ''}${
       excludePreviousParts
         ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
@@ -1689,7 +1705,37 @@ ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECC
 ================================================================================
 🔬 TAREA DE INVESTIGACIÓN PROFUNDA (MODO HIGH + DEEP RESEARCH)
 ================================================================================
-Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en estas 4 secciones claras:
+Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en estas 5 secciones claras:
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE):
+   Entrega obligatoriamente al inicio este bloque con EXACTAMENTE 3 opciones numeradas (Opción 1, Opción 2, Opción 3) para cada una de las 7 partes de la proposición de nuestro documental (la Opción 1 será la recomendada por defecto para auto-rellenar los campos):
+   - PARTE 1: TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO)
+     • Opción 1: [Determina cuál de las 8 tipologías del protocolo encaja mejor O CREA UNA NUEVA tipología a medida acorde con nuestro documental en proceso]
+     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología creada a medida]
+     • Opción 3: [Tercera opción de tipología o nueva tipología híbrida creada a medida]
+   - PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO
+     • Opción 1: [Proposición principal de Tema Central y tesis histórica de alto impacto para nuestro documental]
+     • Opción 2: [Segunda proposición de Tema Central enfocada en la experiencia humana / supervivencia cotidiana y dudas de la audiencia]
+     • Opción 3: [Tercera proposición de Tema Central enfocada en el misterio documental, intriga política o contradicción histórica]
+   - PARTE 3: TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS)
+     • Opción 1: [Ej. Año 1880 / Siglo XIX (o año/rango exacto en dígitos y Siglo en números romanos)]
+     • Opción 2: [Segunda opción de recorte temporal exacto (Año en dígitos / Siglo en romanos)]
+     • Opción 3: [Tercera opción de arco temporal histórico (Años en dígitos / Siglo en romanos)]
+   - PARTE 4: LUGAR HISTÓRICO (CIUDAD, PAÍS)
+     • Opción 1: [Ciudad, País principal donde transcurre nuestro documental]
+     • Opción 2: [Epicentro específico + Ciudad, País]
+     • Opción 3: [Ruta geográfica o escenarios conectados (Ciudad, País)]
+   - PARTE 5: GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA)
+     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central]
+     • Opción 2: [Propuesta 2 de Hook de choque sensorial e intriga inmediata]
+     • Opción 3: [Propuesta 3 de Hook basado en una revelación o pregunta de la audiencia]
+   - PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL
+     • Opción 1: [Propuesta 1 de ruta estructural y progresión de actos adaptada a ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
+     • Opción 2: [Propuesta 2 de desarrollo narrativo cronológico-inmersivo]
+     • Opción 3: [Propuesta 3 de desarrollo investigativo de revelación progresiva]
+   - PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO
+     • Opción 1: [Propuesta 1 de clímax emocional/histórico y cierre reflexivo hacia el lema oficial]
+     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita de la audiencia y legado]
+     • Opción 3: [Propuesta 3 de giro final y huella imborrable en la humanidad]
 1. EXPLICACIÓN DE LA ESTRUCTURA VIRAL Y ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE REFERENCIA:
    - Desglose de los bloques narrativos con su porcentaje (%) y rango de tiempo exacto contemplando el Intro de 8s al inicio y el Outro de 8s al final, más el análisis del título, la descripción (capítulos, enfoque, fuentes) y los tags del video de YouTube de referencia aplicados a nuestro documental.
 2. RECUENTO ESTRUCTURAL CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES HISTÓRICAS:
@@ -1697,7 +1743,7 @@ Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en esta
 3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (DEEP RESEARCH):
    - Hechos documentados, crónicas de época, hallazgos arqueológicos/forenses, desarrollo profundo de los subtemas y palabras clave detectados en el título, descripción y tags del video analizado, y micro-historias humanas listas para nutrir el Guion de Voz en Off.
 4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS):
-   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).`;
+   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${cleanTime || 'época determinada en la investigación'}, ${cleanLoc || 'lugar determinado en la investigación'}).`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
@@ -1707,8 +1753,24 @@ Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en esta
     const targetChars = Math.round(
       Math.max(10, (doc.targetDurationSeconds || 120) - FIXED_OUTRO_SEC - effectiveVoiceEntrySec) * 13.5
     );
+    const chosenHookProp = (
+      doc.promptConfig?.PROPOSICION_GANCHO ||
+      doc.promptConfig?.CONTRADICCION_CENTRAL ||
+      ''
+    ).trim();
+    const chosenActsProp = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
+    const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
+    const chosenPropositionBlock =
+      chosenHookProp || chosenActsProp || chosenClimaxProp
+        ? `\nProposición Seleccionada por Partes para Nuestro Documental:\n${
+            doc.typology ? `- Tipología: ${doc.typology}\n` : ''
+          }${chosenHookProp ? `- Gancho Inicial y Ángulo Central: ${chosenHookProp}\n` : ''}${
+            chosenActsProp ? `- Escaleta y Desarrollo por Actos: ${chosenActsProp}\n` : ''
+          }${chosenClimaxProp ? `- Clímax y Cierre Reflexivo: ${chosenClimaxProp}\n` : ''}`
+        : '';
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
+Tipología: ${doc.typology || 'Documental Histórico'}${chosenPropositionBlock}
 Estructura e Investigación previa:
 ${doc.sectionsStructure || ''}
 ${doc.deepResearchResult || ''}

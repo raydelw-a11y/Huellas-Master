@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:41 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:03 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -823,6 +823,357 @@ const TYPOLOGIES = [
   '7. Una manipulación psicológica',
   '8. Una curiosidad',
 ];
+
+interface Stage1PropositionPart {
+  partNumber: number;
+  id:
+    | 'typology'
+    | 'topic'
+    | 'historicalTime'
+    | 'historicalLocation'
+    | 'hookAndAngle'
+    | 'actsEscaleta'
+    | 'climaxAndClosure';
+  title: string;
+  subtitle: string;
+  summary: string;
+  currentValue: string;
+  options: [string, string, string];
+}
+
+function parsePropositionSectionOptions(
+  rawResearch: string,
+  partNum: number
+): { summary: string; options: string[] } {
+  if (!rawResearch || !rawResearch.trim()) return { summary: '', options: [] };
+  const partRegex = new RegExp(
+    `PARTE\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=PARTE\\s*${partNum + 1}\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
+    'i'
+  );
+  const match = rawResearch.match(partRegex);
+  if (!match) return { summary: '', options: [] };
+  const block = match[0];
+
+  let summary = '';
+  const summaryMatch = block.match(/Resumen(?:\s+de\s+esta\s+parte)?\s*:\s*([^\n]+)/i);
+  if (summaryMatch?.[1]) {
+    summary = summaryMatch[1].replace(/^\*+|\*+$/g, '').trim();
+  }
+
+  const extracted: string[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const optRegex = new RegExp(
+      `Opci[oó]n\\s*${i}(?:\\s*\\([^)]*\\))?\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*•]\\s*)?\\**Opci[oó]n\\s*${
+        i + 1
+      }|\\n\\s*PARTE\\s*\\d+|$)`,
+      'i'
+    );
+    const optMatch = block.match(optRegex);
+    if (optMatch?.[1]) {
+      const cleaned = optMatch[1]
+        .replace(/\r/g, '')
+        .split('\n')
+        .map((l) => l.replace(/^\s*[-*•]\s*/, '').trim())
+        .filter(Boolean)
+        .join(' ')
+        .replace(/^\*+|\*+$/g, '')
+        .replace(/^\[|\]$/g, '')
+        .trim();
+      if (cleaned && cleaned.length > 3) {
+        extracted.push(cleaned);
+      }
+    }
+  }
+  return { summary, options: extracted };
+}
+
+function buildStage1PropositionParts(
+  doc: DocumentaryProject,
+  refVideo?: {
+    videoId?: string;
+    title?: string;
+    description?: string;
+    tags?: string[];
+    structureSummary?: string;
+  } | null,
+  topComments: Array<{
+    text: string;
+    repeatCount: number;
+    totalLikes: number;
+    videoTitle: string;
+  }> = []
+): Stage1PropositionPart[] {
+  const researchText = String(doc.deepResearchResult || '').trim();
+  const refTitle = String(
+    refVideo?.title ||
+      doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
+      doc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+      ''
+  ).trim();
+  const refDesc = String(
+    refVideo?.description || doc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || ''
+  ).trim();
+  const refTags =
+    refVideo && Array.isArray(refVideo.tags) && refVideo.tags.length > 0
+      ? refVideo.tags.join(', ')
+      : String(doc.promptConfig?.YOUTUBE_VIDEO_TAGS || '').trim();
+  const refStructure = String(
+    refVideo?.structureSummary || doc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || ''
+  ).trim();
+  const combinedText = `${researchText} ${doc.topic || ''} ${doc.title || ''} ${refTitle} ${refDesc} ${refTags} ${refStructure}`.toLowerCase();
+  const durationMinutes = Math.max(10, Math.round((doc.targetDurationSeconds || 900) / 60));
+
+  const topDoubt1 =
+    topComments[0]?.text ||
+    '¿Qué ocultaban los registros oficiales sobre cómo vivían, pensaban y morían realmente las personas comunes en esta época?';
+  const topDoubt2 =
+    topComments[1]?.text ||
+    '¿Cuáles eran las leyes secretas, rituales prohibidos y contradicciones cotidianas que la historia escolar jamás explicó?';
+
+  // Detect thematic flavor to craft intelligent defaults when Gemini hasn't explicitly output all 3 options
+  const isEgypt = /egipt|fara[oó]n|nilo|tebas|hatshepsut|escriba|pir[aá]mid| papiro|luxor|karnak/i.test(
+    combinedText
+  );
+  const isCharacterOrConspiracy = /hatshepsut|borrar|fara[oó]n|personaje|reina|rey|emperador|asesin|conspiraci/i.test(
+    combinedText
+  );
+  const isScribesOrLaws = /escriba|leyes|ocult|secreto|casta|sacerdot|burocracia|jerogl[ií]f/i.test(
+    combinedText
+  );
+  const isDailyLife = /vida\s+[ií]ntima|d[ií]a\s+normal|sobreviv|cotidian|higiene|costumbre|familia|mujer/i.test(
+    combinedText
+  );
+
+  // --- PARTE 1: TIPOLOGÍA DEL VIDEO ---
+  const parsedP1 = parsePropositionSectionOptions(researchText, 1);
+  let defaultTypologyOptions: [string, string, string];
+  if (isCharacterOrConspiracy) {
+    defaultTypologyOptions = [
+      '9. Investigación forense de una conspiración dinástica y borrado histórico (Nueva tipología creada)',
+      '4. Un misterio sin resolver',
+      '3. Un personaje',
+    ];
+  } else if (isScribesOrLaws) {
+    defaultTypologyOptions = [
+      '9. Desclasificación histórica de castas de poder, rituales y secretos de Estado (Nueva tipología creada)',
+      '7. Una manipulación psicológica',
+      '6. Una conciencia o realidad colectiva',
+    ];
+  } else if (isDailyLife || isEgypt) {
+    defaultTypologyOptions = [
+      '9. Radiografía inmersiva de vida íntima, secretos cotidianos y mentalidad colectiva (Nueva tipología creada)',
+      '6. Una conciencia o realidad colectiva',
+      '8. Una curiosidad',
+    ];
+  } else {
+    defaultTypologyOptions = [
+      '9. Crónica inmersiva de misterios arqueológicos y contradicciones humanas (Nueva tipología creada)',
+      '1. Un suceso histórico',
+      '4. Un misterio sin resolver',
+    ];
+  }
+  const p1Options: [string, string, string] = [
+    parsedP1.options[0] || doc.promptConfig?.PROP_P1_OPT1 || defaultTypologyOptions[0],
+    parsedP1.options[1] || doc.promptConfig?.PROP_P1_OPT2 || defaultTypologyOptions[1],
+    parsedP1.options[2] || doc.promptConfig?.PROP_P1_OPT3 || defaultTypologyOptions[2],
+  ];
+  const p1Summary =
+    parsedP1.summary ||
+    (refTitle
+      ? `Basado en el análisis del video de referencia ("${refTitle}") y las dudas repetidas de la audiencia, el documental combina inmersión histórica con revelación de secretos ocultos, por lo que se propone crear una nueva tipología a medida o elegir la categoría oficial más afín del protocolo.`
+      : 'La investigación determina qué tipología del protocolo se ajusta mejor al episodio o crea una nueva tipología híbrida acorde con la naturaleza del documental en proceso.');
+
+  // --- PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO ---
+  const parsedP2 = parsePropositionSectionOptions(researchText, 2);
+  const baseSubject = refTitle
+    ? refTitle.replace(/\s*[:|-]\s*Lo que NO.*$/i, '').trim()
+    : doc.title && !/^Documental\s+\d+$/i.test(doc.title.trim())
+    ? doc.title.trim()
+    : isEgypt
+    ? 'La cara oculta del Antiguo Egipto'
+    : 'El enigma histórico detrás de los registros oficiales';
+
+  const defaultTopicOptions: [string, string, string] = isEgypt
+    ? [
+        `La verdad silenciada sobre ${baseSubject.toLowerCase()}: arqueología forense de la vida privada, leyes secretas, medicina ritual y las respuestas a las grandes dudas que los papiros oficiales ocultaron.`,
+        `Sobrevivir a las sombras del Nilo: cómo funcionaban realmente el poder, la intimidad familiar, los contratos sagrados y los castigos invisibles en la sociedad del Imperio Nuevo egipcio.`,
+        `El código prohibido de los templos y las tumbas de Tebas: lo que los hallazgos osteológicos y los ostraca de Deir el-Medina revelan frente al mito escolar.`,
+      ]
+    : [
+        `${baseSubject}: investigación profunda de las evidencias arqueológicas, contradicciones sociales y secretos cotidianos que la historia oficial omitió.`,
+        `Crónica íntima y forense de ${baseSubject.toLowerCase()}: cómo vivían, qué temían y cómo operaba realmente el poder tras los muros del pasado.`,
+        `Las pruebas olvidadas de ${baseSubject.toLowerCase()}: resolviendo los mayores vacíos históricos y preguntas sin respuesta de la época.`,
+      ];
+
+  const p2Options: [string, string, string] = [
+    parsedP2.options[0] || doc.promptConfig?.PROP_P2_OPT1 || defaultTopicOptions[0],
+    parsedP2.options[1] || doc.promptConfig?.PROP_P2_OPT2 || defaultTopicOptions[1],
+    parsedP2.options[2] || doc.promptConfig?.PROP_P2_OPT3 || defaultTopicOptions[2],
+  ];
+  const p2Summary =
+    parsedP2.summary ||
+    `Proposición de eje temático central diseñado para superar en profundidad histórica al video referente${
+      refTitle ? ` ("${refTitle}")` : ''
+    } y responder directamente a las dudas con mayor repetición (×N) de los espectadores.`;
+
+  // --- PARTE 3: TIEMPO / ÉPOCA ---
+  const parsedP3 = parsePropositionSectionOptions(researchText, 3);
+  const defaultTimeOptions: [string, string, string] = isEgypt
+    ? [
+        'Siglo XV a. C. — Siglo XII a. C. (Años 1550 a. C. – 1077 a. C., Imperio Nuevo: Dinastías XVIII a XX)',
+        'Año 1479 a. C. – 1279 a. C. (Siglo XV a. C. a Siglo XIII a. C., apogeo de Tebas y Deir el-Medina)',
+        'Siglo XXVI a. C. — Siglo XI a. C. (c. 2500 a. C. – 1070 a. C., del Imperio Antiguo al colapso ramésida)',
+      ]
+    : [
+        'Siglo XV a. C. — Siglo XII a. C. (c. 1500 a. C. – 1150 a. C., Edad del Bronce Tardío)',
+        'Siglo I d. C. — Siglo IV d. C. (Años 27 a. C. – 395 d. C., Antigüedad Clásica)',
+        'Siglo XII — Siglo XV (Años 1150 – 1492, Plena y Baja Edad Media)',
+      ];
+  const p3Options: [string, string, string] = [
+    parsedP3.options[0] || doc.promptConfig?.PROP_P3_OPT1 || defaultTimeOptions[0],
+    parsedP3.options[1] || doc.promptConfig?.PROP_P3_OPT2 || defaultTimeOptions[1],
+    parsedP3.options[2] || doc.promptConfig?.PROP_P3_OPT3 || defaultTimeOptions[2],
+  ];
+  const p3Summary =
+    parsedP3.summary ||
+    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) para anclar el rigor arqueológico, vestuario y arquitectura de cada escena.';
+
+  // --- PARTE 4: LUGAR HISTÓRICO ---
+  const parsedP4 = parsePropositionSectionOptions(researchText, 4);
+  const defaultLocationOptions: [string, string, string] = isEgypt
+    ? [
+        'Tebas (actual Luxor), Deir el-Medina y Valle de los Reyes, Egipto',
+        'Menfis, Karnak y Deir el-Bahari, Ribera Occidental del Nilo, Egipto',
+        'Amarna, Abidos y el Delta del Nilo, Alto y Bajo Egipto',
+      ]
+    : [
+        'Tebas (Luxor) y Valle del Nilo, Egipto',
+        'Alejandría y Delta del Nilo, Egipto Mediterráneo',
+        'Roma y Cuenca del Mediterráneo Antiguo, Italia',
+      ];
+  const p4Options: [string, string, string] = [
+    parsedP4.options[0] || doc.promptConfig?.PROP_P4_OPT1 || defaultLocationOptions[0],
+    parsedP4.options[1] || doc.promptConfig?.PROP_P4_OPT2 || defaultLocationOptions[1],
+    parsedP4.options[2] || doc.promptConfig?.PROP_P4_OPT3 || defaultLocationOptions[2],
+  ];
+  const p4Summary =
+    parsedP4.summary ||
+    'Escenarios geográficos y arqueológicos principales (Ciudad, País) donde transcurren los actos narrativos y las referencias visuales de Google Flow.';
+
+  // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL ---
+  const parsedP5 = parsePropositionSectionOptions(researchText, 5);
+  const defaultHookOptions: [string, string, string] = [
+    `Clip 1 (6s sin voz): Cámara descendiendo con antorchas hacia una cámara sellada mientras un escriba oculta un papiro bajo piedra caliza. Entrada de voz (00:16): Contradicción entre la monumentalidad sagrada que vemos en los museos y la cruda realidad física y secreta que vivían sus habitantes puertas adentro.`,
+    `Clip 1 (6s sin voz): Primer plano cinematográfico de manos cincelando y borrando un cartucho real en la penumbra de un templo. Entrada de voz (00:16): ¿Por qué una civilización obsesionada con la eternidad dedicó tanto esfuerzo a ocultar sus propias leyes íntimas y borrar a sus propios protagonistas?`,
+    `Clip 1 (6s sin voz): Amanecer brumoso sobre el Nilo contrastando el palacio real con los callejones de adobe de los artesanos de tumbas. Entrada de voz (00:16): La paradoja de quienes construían la inmortalidad de los dioses mientras enfrentaban peligros invisibles, juicios secretos y una lucha diaria por sobrevivir.`,
+  ];
+  const p5Options: [string, string, string] = [
+    parsedP5.options[0] || doc.promptConfig?.PROP_P5_OPT1 || defaultHookOptions[0],
+    parsedP5.options[1] || doc.promptConfig?.PROP_P5_OPT2 || defaultHookOptions[1],
+    parsedP5.options[2] || doc.promptConfig?.PROP_P5_OPT3 || defaultHookOptions[2],
+  ];
+  const p5Summary =
+    parsedP5.summary ||
+    'Diseño del impacto inicial en los primeros segundos (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en el segundo 16) planteando la contradicción central que atrapa la retención.';
+
+  // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
+  const parsedP6 = parsePropositionSectionOptions(researchText, 6);
+  const defaultEscaletaOptions: [string, string, string] = [
+    `Estructura en 5 Actos Progresivos (${durationMinutes} min): Acto I: El mito frente al hallazgo arqueológico · Acto II: La arquitectura oculta de la vida privada y familiar · Acto III: El peso de la ley, la medicina y los rituales prohibidos · Acto IV: Respuesta documental a las grandes dudas de la audiencia ("${topDoubt1.slice(0, 75)}...") · Acto V: El colapso del silencio y legado.`,
+    `Estructura de Investigación Forense en 4 Bloques (${durationMinutes} min): Bloque 1: La escena histórica y el engaño visual · Bloque 2: Las pruebas materiales en ostraca, papiros y restos óseos · Bloque 3: La psicología colectiva, castas de poder y supervivencia diaria ("${topDoubt2.slice(0, 75)}...") · Bloque 4: El veredicto de la historia.`,
+    `Estructura Cronológica Inmersiva de 24 Horas + Revelación (${durationMinutes} min): Desde el amanecer en los barrios de artesanos hasta los rituales nocturnos en el sanctasanctórum de los templos, entrelazando cada hora del día con revelaciones sobre higiene, justicia, intimidad y secretos de Estado.`,
+  ];
+  const p6Options: [string, string, string] = [
+    parsedP6.options[0] || doc.promptConfig?.PROP_P6_OPT1 || defaultEscaletaOptions[0],
+    parsedP6.options[1] || doc.promptConfig?.PROP_P6_OPT2 || defaultEscaletaOptions[1],
+    parsedP6.options[2] || doc.promptConfig?.PROP_P6_OPT3 || defaultEscaletaOptions[2],
+  ];
+  const p6Summary =
+    parsedP6.summary ||
+    `Arquitectura narrativa dimensionada exactamente para ${durationMinutes} minutos, integrando giros de retención y respondiendo orgánicamente a los comentarios más repetidos (×N) de la audiencia.`;
+
+  // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
+  const parsedP7 = parsePropositionSectionOptions(researchText, 7);
+  const defaultClimaxOptions: [string, string, string] = [
+    `Clímax: Revelación del hallazgo arqueológico definitivo en las tumbas de los constructores que demuestra que la verdadera inmortalidad no estaba en el oro real, sino en los fragmentos de vida cotidiana que intentaron ocultar. Cierre reflexivo que conecta sus miedos y deseos con los nuestros hoy, dando paso al Outro Oficial de 8s.`,
+    `Clímax: El instante en que las inscripciones ocultas y los restos forenses desarman siglos de propaganda oficial, respondiendo la duda central de la audiencia. Cierre filosófico sobre cómo la memoria humana sobrevive incluso cuando el poder intenta cincelarla de la piedra.`,
+    `Clímax: Reconstrucción del juicio y destino final de los protagonistas anónimos frente a la eternidad. Cierre inmersivo en silencio solemne sobre las ruinas actuales al atardecer antes de fundir con el Outro Oficial de 8s.`,
+  ];
+  const p7Options: [string, string, string] = [
+    parsedP7.options[0] || doc.promptConfig?.PROP_P7_OPT1 || defaultClimaxOptions[0],
+    parsedP7.options[1] || doc.promptConfig?.PROP_P7_OPT2 || defaultClimaxOptions[1],
+    parsedP7.options[2] || doc.promptConfig?.PROP_P7_OPT3 || defaultClimaxOptions[2],
+  ];
+  const p7Summary =
+    parsedP7.summary ||
+    'Resolución de la contradicción central en el último tercio del documental y reflexión filosófica final antes de los 8 segundos de Outro Oficial de marca.';
+
+  return [
+    {
+      partNumber: 1,
+      id: 'typology',
+      title: 'Parte 1 · Tipología del Video (Etapa 1 del Protocolo)',
+      subtitle: 'Selecciona una opción del protocolo o la nueva tipología creada acorde con el documental',
+      summary: p1Summary,
+      currentValue: doc.typology || p1Options[0],
+      options: p1Options,
+    },
+    {
+      partNumber: 2,
+      id: 'topic',
+      title: 'Parte 2 · Tema Central del Documental / Episodio',
+      subtitle: 'Se llena automáticamente en el campo Tema Central y puedes alternar entre las 3 opciones',
+      summary: p2Summary,
+      currentValue: doc.topic || p2Options[0],
+      options: p2Options,
+    },
+    {
+      partNumber: 3,
+      id: 'historicalTime',
+      title: 'Parte 3 · Tiempo / Época (Años en dígitos o Siglo en romanos)',
+      subtitle: 'Se llena automáticamente en el campo Tiempo / Época y puedes alternar entre las 3 opciones',
+      summary: p3Summary,
+      currentValue: doc.historicalTime || p3Options[0],
+      options: p3Options,
+    },
+    {
+      partNumber: 4,
+      id: 'historicalLocation',
+      title: 'Parte 4 · Lugar Histórico (Ciudad, País)',
+      subtitle: 'Se llena automáticamente en el campo Lugar Histórico y puedes alternar entre las 3 opciones',
+      summary: p4Summary,
+      currentValue: doc.historicalLocation || p4Options[0],
+      options: p4Options,
+    },
+    {
+      partNumber: 5,
+      id: 'hookAndAngle',
+      title: 'Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
+      subtitle: 'Define cómo abre el documental en los primeros segundos y qué contradicción guía la investigación',
+      summary: p5Summary,
+      currentValue: doc.promptConfig?.PROPOSICION_GANCHO || p5Options[0],
+      options: p5Options,
+    },
+    {
+      partNumber: 6,
+      id: 'actsEscaleta',
+      title: 'Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
+      subtitle: 'Define la estructura de bloques y cómo se responden las dudas ×N de la audiencia',
+      summary: p6Summary,
+      currentValue: doc.promptConfig?.PROPOSICION_ESCALETA || p6Options[0],
+      options: p6Options,
+    },
+    {
+      partNumber: 7,
+      id: 'climaxAndClosure',
+      title: 'Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo',
+      subtitle: 'Define el desenlace documental antes del Outro Oficial de 8 segundos',
+      summary: p7Summary,
+      currentValue: doc.promptConfig?.PROPOSICION_CLIMAX || p7Options[0],
+      options: p7Options,
+    },
+  ];
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -1970,6 +2321,122 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
+  const buildAndApplyStage1PropositionPatch = (
+    docToInspect: DocumentaryProject,
+    rawResearchText?: string,
+    preferExtractedValues = false
+  ): Partial<DocumentaryProject> => {
+    const selectedVideoObj =
+      analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) || null;
+    const selectedComments = deduplicatedCommentsList.filter((c) =>
+      selectedResearchCommentIds.includes(c.id)
+    );
+    const effectiveResearch =
+      rawResearchText !== undefined
+        ? rawResearchText
+        : String(docToInspect.deepResearchResult || '');
+    const tempDoc: DocumentaryProject = {
+      ...docToInspect,
+      deepResearchResult: effectiveResearch,
+    };
+    const parts = buildStage1PropositionParts(tempDoc, selectedVideoObj, selectedComments);
+
+    const p1 = parts[0];
+    const p2 = parts[1];
+    const p3 = parts[2];
+    const p4 = parts[3];
+    const p5 = parts[4];
+    const p6 = parts[5];
+    const p7 = parts[6];
+
+    const nextTypology =
+      !docToInspect.typology?.trim() || preferExtractedValues
+        ? p1.options[0]
+        : docToInspect.typology;
+    const nextTopic =
+      !docToInspect.topic?.trim() || preferExtractedValues ? p2.options[0] : docToInspect.topic;
+    const nextHistoricalTime =
+      !docToInspect.historicalTime?.trim() || preferExtractedValues
+        ? p3.options[0]
+        : docToInspect.historicalTime;
+    const nextHistoricalLocation =
+      !docToInspect.historicalLocation?.trim() || preferExtractedValues
+        ? p4.options[0]
+        : docToInspect.historicalLocation;
+
+    let finalResearchText = effectiveResearch;
+    if (!finalResearchText.trim()) {
+      finalResearchText = [
+        '================================================================================',
+        '0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE)',
+        '================================================================================',
+        ...parts.map(
+          (p) =>
+            `\nPARTE ${p.partNumber} — ${p.title.toUpperCase()}:\n- Resumen de esta parte: ${p.summary}\n- Opción 1: ${p.options[0]}\n- Opción 2: ${p.options[1]}\n- Opción 3: ${p.options[2]}`
+        ),
+        '\n================================================================================',
+        '1. SÍNTESIS DE LA INVESTIGACIÓN PROFUNDA Y CRUCE CON EL VIDEO REFERENTE',
+        '================================================================================',
+        selectedVideoObj
+          ? `• Video de Referencia Investigado: "${selectedVideoObj.title}"\n• Tags del Referente: ${(selectedVideoObj.tags || []).join(', ')}\n• Estructura Analizada: ${selectedVideoObj.structureSummary}`
+          : '• Investigación estructurada para el documental en curso con determinación automática de Tipología, Tema Central, Tiempo/Época y Lugar Histórico.',
+      ].join('\n');
+    }
+
+    return {
+      typology: nextTypology,
+      topic: nextTopic,
+      historicalTime: nextHistoricalTime,
+      historicalLocation: nextHistoricalLocation,
+      deepResearchResult: finalResearchText,
+      promptConfig: {
+        ...(docToInspect.promptConfig || {}),
+        INVESTIGACION_COMPLETADA: 'SI',
+        TIPOLOGIA_VIDEO: nextTypology,
+        TEMA_VIDEO: nextTopic,
+        TIEMPO_EPOCA: nextHistoricalTime,
+        LUGAR_HISTORICO: nextHistoricalLocation,
+        PROPOSICION_GANCHO:
+          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_GANCHO
+            ? p5.options[0]
+            : docToInspect.promptConfig.PROPOSICION_GANCHO,
+        ANGULO_CENTRAL:
+          preferExtractedValues || !docToInspect.promptConfig?.ANGULO_CENTRAL
+            ? p5.options[0]
+            : docToInspect.promptConfig.ANGULO_CENTRAL,
+        PROPOSICION_ESCALETA:
+          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_ESCALETA
+            ? p6.options[0]
+            : docToInspect.promptConfig.PROPOSICION_ESCALETA,
+        PROPOSICION_CLIMAX:
+          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_CLIMAX
+            ? p7.options[0]
+            : docToInspect.promptConfig.PROPOSICION_CLIMAX,
+        PROP_P1_OPT1: p1.options[0],
+        PROP_P1_OPT2: p1.options[1],
+        PROP_P1_OPT3: p1.options[2],
+        PROP_P2_OPT1: p2.options[0],
+        PROP_P2_OPT2: p2.options[1],
+        PROP_P2_OPT3: p2.options[2],
+        PROP_P3_OPT1: p3.options[0],
+        PROP_P3_OPT2: p3.options[1],
+        PROP_P3_OPT3: p3.options[2],
+        PROP_P4_OPT1: p4.options[0],
+        PROP_P4_OPT2: p4.options[1],
+        PROP_P4_OPT3: p4.options[2],
+        PROP_P5_OPT1: p5.options[0],
+        PROP_P5_OPT2: p5.options[1],
+        PROP_P5_OPT3: p5.options[2],
+        PROP_P6_OPT1: p6.options[0],
+        PROP_P6_OPT2: p6.options[1],
+        PROP_P6_OPT3: p6.options[2],
+        PROP_P7_OPT1: p7.options[0],
+        PROP_P7_OPT2: p7.options[1],
+        PROP_P7_OPT3: p7.options[2],
+      },
+    };
+  };
+
   useEffect(() => {
     if (mainView === 'studio' && (activeStage === 1 || activeStage === 2 || activeStage === 3)) {
       loadStage1AnalyzedVideosAndComments(false);
@@ -2858,7 +3325,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       },
       compiledMasterPrompt: '',
       topic: '',
-      typology: 'Un suceso histórico',
+      typology: '',
       historicalTime: '',
       historicalLocation: '',
       targetDurationSeconds: 900,
@@ -3108,9 +3575,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
 
     if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
-      // Save Gemini's Deep Research output into deepResearchResult (while keeping the auto-pasted Research Prompt in sectionsStructure)
+      // Save Gemini's Deep Research output into deepResearchResult and auto-fill Tipología, Tema Central, Tiempo/Época, Lugar Histórico + 3 options per part
       const parsedRefs = parseReferencesFromRawText(text);
+      const propositionPatch = buildAndApplyStage1PropositionPatch(activeDoc, text, true);
       const patch: Partial<DocumentaryProject> = {
+        ...propositionPatch,
         deepResearchResult: text,
       };
       if (parsedRefs.length > 0 && (!activeDoc.references || activeDoc.references.length === 0)) {
@@ -8026,9 +8495,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box!
+    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box and auto-populate blank fields + 3 options per part!
     if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+      const autoPropPatch = buildAndApplyStage1PropositionPatch(currentDoc, undefined, false);
       updateActiveDoc({
+        ...autoPropPatch,
         sectionsStructure: promptText,
       });
     }
@@ -10262,36 +10733,107 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </span>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Tipología del Video (Etapa 1 del Protocolo)
-                      </label>
-                      <select
-                        value={activeDoc.typology}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateActiveDoc({
-                            typology: val,
-                            promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              TIPOLOGIA_VIDEO: val,
-                            },
-                          });
-                        }}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                      >
-                        {TYPOLOGIES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-3 text-[11px] text-emerald-200/90 leading-relaxed flex items-center justify-between flex-wrap gap-2">
+                      <span>
+                        ✨ <strong>Auto-llenado Inteligente tras la Investigación:</strong> Puedes dejar en blanco la{' '}
+                        <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el{' '}
+                        <strong>Lugar Histórico</strong>. Al terminar la investigación, nuestra app determinará qué opción poner (o creará una nueva tipología acorde con el documental) y mostrará el resumen por partes con 3 opciones para cada uno.
+                      </span>
+                      {(activeDoc.typology ||
+                        activeDoc.topic ||
+                        activeDoc.historicalTime ||
+                        activeDoc.historicalLocation) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateActiveDoc({
+                              typology: '',
+                              topic: '',
+                              historicalTime: '',
+                              historicalLocation: '',
+                              promptConfig: {
+                                ...(activeDoc.promptConfig || {}),
+                                TIPOLOGIA_VIDEO: '',
+                                TEMA_VIDEO: '',
+                                TIEMPO_EPOCA: '',
+                                LUGAR_HISTORICO: '',
+                              },
+                            })
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-semibold cursor-pointer shrink-0"
+                        >
+                          🧹 Dejar los 4 en Blanco para Auto-Llenar
+                        </button>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Tema Central del Documental / Episodio
-                      </label>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-xs font-semibold text-slate-300">
+                          Tipología del Video (Etapa 1 del Protocolo)
+                        </label>
+                        <span className="text-[10px] text-emerald-400 font-semibold">
+                          Permite dejar en blanco · Se determina o crea nueva tras investigar
+                        </span>
+                      </div>
+                      {(() => {
+                        const extraTypologies = [
+                          activeDoc.typology,
+                          activeDoc.promptConfig?.PROP_P1_OPT1,
+                          activeDoc.promptConfig?.PROP_P1_OPT2,
+                          activeDoc.promptConfig?.PROP_P1_OPT3,
+                        ]
+                          .map((v) => String(v || '').trim())
+                          .filter((v) => v.length > 0 && !TYPOLOGIES.includes(v));
+                        const uniqueExtraTypologies = Array.from(new Set(extraTypologies));
+                        return (
+                          <select
+                            value={activeDoc.typology || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateActiveDoc({
+                                typology: val,
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  TIPOLOGIA_VIDEO: val,
+                                },
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                          >
+                            <option value="">
+                              — En blanco (La app determinará cuál poner o creará una nueva tras la investigación) —
+                            </option>
+                            {uniqueExtraTypologies.length > 0 && (
+                              <optgroup label="✨ Tipología Creada / Determinada para este Documental">
+                                {uniqueExtraTypologies.map((customT) => (
+                                  <option key={customT} value={customT}>
+                                    {customT}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="📋 Opciones Oficiales del Protocolo (Etapa 1)">
+                              {TYPOLOGIES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        );
+                      })()}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-xs font-semibold text-slate-300">
+                          Tema Central del Documental / Episodio
+                        </label>
+                        <span className="text-[10px] text-emerald-400 font-semibold">
+                          ✨ Se llena automáticamente luego de la investigación
+                        </span>
+                      </div>
                       <textarea
                         rows={2}
                         value={activeDoc.topic}
@@ -10305,16 +10847,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             },
                           });
                         }}
-                        placeholder="Ej. El misterio de la Biblioteca de Alejandría y los rollos sobrevivientes..."
+                        placeholder="Ej. El misterio de la Biblioteca de Alejandría y los rollos sobrevivientes... (Puedes dejarlo en blanco para auto-llenado tras la investigación)"
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-100"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Tiempo / Época (Años en dígitos o Siglo en romanos)
-                        </label>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="block text-xs font-semibold text-slate-300">
+                            Tiempo / Época (Años en dígitos o Siglo en romanos)
+                          </label>
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            ✨ Auto-llenado
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={activeDoc.historicalTime}
@@ -10333,9 +10880,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Lugar Histórico (Ciudad, País)
-                        </label>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <label className="block text-xs font-semibold text-slate-300">
+                            Lugar Histórico (Ciudad, País)
+                          </label>
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            ✨ Auto-llenado
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={activeDoc.historicalLocation}
@@ -11247,6 +11799,215 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       })()}
                     </div>
                   </div>
+
+                  {/* RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE) */}
+                  {(() => {
+                    const isInvestigationDone = Boolean(
+                      (activeDoc.deepResearchResult || '').trim() ||
+                        activeDoc.promptConfig?.INVESTIGACION_COMPLETADA === 'SI'
+                    );
+                    const selectedVideoObj =
+                      analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
+                      null;
+                    const selectedComments = deduplicatedCommentsList.filter((c) =>
+                      selectedResearchCommentIds.includes(c.id)
+                    );
+                    const propositionParts = buildStage1PropositionParts(
+                      activeDoc,
+                      selectedVideoObj,
+                      selectedComments
+                    );
+
+                    const handleSelectPropositionOption = (
+                      partId: Stage1PropositionPart['id'],
+                      optionValue: string
+                    ) => {
+                      if (partId === 'typology') {
+                        updateActiveDoc({
+                          typology: optionValue,
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            TIPOLOGIA_VIDEO: optionValue,
+                          },
+                        });
+                      } else if (partId === 'topic') {
+                        updateActiveDoc({
+                          topic: optionValue,
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            TEMA_VIDEO: optionValue,
+                          },
+                        });
+                      } else if (partId === 'historicalTime') {
+                        updateActiveDoc({
+                          historicalTime: optionValue,
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            TIEMPO_EPOCA: optionValue,
+                          },
+                        });
+                      } else if (partId === 'historicalLocation') {
+                        updateActiveDoc({
+                          historicalLocation: optionValue,
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            LUGAR_HISTORICO: optionValue,
+                          },
+                        });
+                      } else if (partId === 'hookAndAngle') {
+                        updateActiveDoc({
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            PROPOSICION_GANCHO: optionValue,
+                            ANGULO_CENTRAL: optionValue,
+                          },
+                        });
+                      } else if (partId === 'actsEscaleta') {
+                        updateActiveDoc({
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            PROPOSICION_ESCALETA: optionValue,
+                          },
+                        });
+                      } else if (partId === 'climaxAndClosure') {
+                        updateActiveDoc({
+                          promptConfig: {
+                            ...(activeDoc.promptConfig || {}),
+                            PROPOSICION_CLIMAX: optionValue,
+                          },
+                        });
+                      }
+                    };
+
+                    if (!isInvestigationDone) {
+                      return (
+                        <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
+                          <div className="space-y-1">
+                            <div className="text-xs sm:text-sm font-bold text-amber-300">
+                              📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Uno)
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Al terminar la investigación completa (&quot;✨ Comenzar Investigación&quot;), nuestra app llenará automáticamente la Tipología, el Tema Central, el Tiempo/Época y el Lugar Histórico, y mostrará aquí el resumen por partes con 3 opciones seleccionables para cada uno.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const patch = buildAndApplyStage1PropositionPatch(
+                                activeDoc,
+                                undefined,
+                                true
+                              );
+                              updateActiveDoc(patch);
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 text-xs font-bold cursor-pointer shrink-0"
+                          >
+                            ⚡ Generar Proposición Ahora y Auto-Llenar Campos
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
+                        <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
+                                ✓ Investigación Completada · Campos Auto-Llenados
+                              </span>
+                              <h4 className="text-sm sm:text-base font-black text-amber-300">
+                                📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Parte)
+                              </h4>
+                            </div>
+                            <p className="text-xs text-slate-300">
+                              Se ha determinado automáticamente la Opción 1 para la <strong>Tipología del Video</strong>, <strong>Tema Central</strong>, <strong>Tiempo / Época</strong> y <strong>Lugar Histórico</strong>. Haz clic en cualquiera de las <strong>3 opciones</strong> de cada parte para cambiar la selección activa de tu documental:
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const patch = buildAndApplyStage1PropositionPatch(
+                                activeDoc,
+                                activeDoc.deepResearchResult,
+                                true
+                              );
+                              updateActiveDoc(patch);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer shrink-0"
+                          >
+                            🔄 Re-Extraer Opciones de la Investigación
+                          </button>
+                        </div>
+
+                        <div className="space-y-4">
+                          {propositionParts.map((part) => (
+                            <div
+                              key={part.id}
+                              className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3"
+                            >
+                              <div className="flex items-start justify-between flex-wrap gap-2">
+                                <div>
+                                  <div className="text-xs sm:text-sm font-extrabold text-amber-200">
+                                    {part.title}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400">{part.subtitle}</div>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
+                                  3 opciones disponibles
+                                </span>
+                              </div>
+
+                              <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">
+                                <strong className="text-emerald-300">Resumen de esta parte:</strong>{' '}
+                                {part.summary}
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                {part.options.map((optText, idx) => {
+                                  const isSelected =
+                                    String(part.currentValue || '').trim() ===
+                                    String(optText || '').trim();
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => handleSelectPropositionOption(part.id, optText)}
+                                      className={`text-left p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                        isSelected
+                                          ? 'bg-emerald-500/15 border-emerald-400 text-slate-100 shadow-md shadow-emerald-500/10'
+                                          : 'bg-slate-950/90 hover:bg-slate-900 border-slate-800 text-slate-300'
+                                      }`}
+                                    >
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span
+                                            className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
+                                              isSelected
+                                                ? 'bg-emerald-400 text-slate-950'
+                                                : 'bg-slate-800 text-amber-300'
+                                            }`}
+                                          >
+                                            Opción {idx + 1}
+                                          </span>
+                                          {isSelected && (
+                                            <span className="text-[10px] font-bold text-emerald-300">
+                                              ✓ Activa en Documental
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs leading-relaxed">{optText}</p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Dos Cajas de Texto: 1. Prompt de Investigación (Auto-pegado) y 2. Resultado de la Investigación Profunda */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
