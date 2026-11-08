@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:06 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:11 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -9553,7 +9553,7 @@ export default function App() {
                   <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="font-bold text-amber-300 text-base">
-                        🏛️ Definición Histórica, Paradoja Central y Continuidad
+                        🏛️ Definición Histórica y Continuidad
                       </h3>
                       <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
                         Sincronizado con el Prompt Maestro
@@ -9651,78 +9651,6 @@ export default function App() {
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
                         />
                       </div>
-                    </div>
-
-                    {/* PARADOJA CENTRAL / ÁNGULO VIRAL + 3 SUGERENCIAS */}
-                    <div className="pt-1 border-t border-slate-800/80 space-y-2">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <label className="block text-xs font-semibold text-amber-300">
-                          ⚡ Ángulo / Contradicción Central del Episodio (Fuerza el Gancho y la Investigación)
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const baseTopic = (activeDoc.topic || activeDoc.title || 'este suceso histórico').trim();
-                            const loc = (activeDoc.historicalLocation || 'aquel territorio').trim();
-                            const time = (activeDoc.historicalTime || 'aquella época').trim();
-                            const angles = [
-                              `La gran paradoja de ${baseTopic} (${time}): lo que comenzó como una promesa de salvación en ${loc} ocultaba un mecanismo implacable que nadie vio venir hasta que fue demasiado tarde.`,
-                              `El archivo silenciado de ${baseTopic}: por qué la versión oficial de ${loc} omitió el detalle material y humano más decisivo de ${time}.`,
-                              `Sobrevivir a ${baseTopic} en ${loc} (${time}): la contradicción extrema entre la riqueza prometida y la cruda realidad cotidiana de quienes lo vivieron en carne propia.`,
-                            ];
-                            setSuggestedViralAngles(angles);
-                            if (!activeDoc.promptConfig?.CONTRADICCION_CENTRAL) {
-                              updateActiveDoc({
-                                promptConfig: {
-                                  ...(activeDoc.promptConfig || {}),
-                                  CONTRADICCION_CENTRAL: angles[0],
-                                },
-                              });
-                            }
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[11px] font-bold cursor-pointer transition"
-                        >
-                          🎲 Sugerir 3 Ángulos Virales
-                        </button>
-                      </div>
-                      <textarea
-                        rows={2}
-                        value={activeDoc.promptConfig?.CONTRADICCION_CENTRAL || ''}
-                        onChange={(e) =>
-                          updateActiveDoc({
-                            promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              CONTRADICCION_CENTRAL: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Ej. Viajaban buscando riqueza y libertad, pero el pasaje a crédito los ataba a una deuda más dura que la tierra que dejaron atrás..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200"
-                      />
-                      {suggestedViralAngles.length > 0 && (
-                        <div className="space-y-1.5 bg-slate-950/80 border border-amber-500/25 rounded-xl p-2.5">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                            Haz clic en un ángulo para aplicarlo:
-                          </div>
-                          {suggestedViralAngles.map((ang, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() =>
-                                updateActiveDoc({
-                                  promptConfig: {
-                                    ...(activeDoc.promptConfig || {}),
-                                    CONTRADICCION_CENTRAL: ang,
-                                  },
-                                })
-                              }
-                              className="w-full text-left text-[11px] text-slate-300 hover:text-amber-200 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 rounded-lg px-2.5 py-1.5 transition cursor-pointer"
-                            >
-                              <strong>Opción {i + 1}:</strong> {ang}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     {/* CONTINUIDAD / NO REPETIR ELEMENTOS DE PARTES ANTERIORES */}
