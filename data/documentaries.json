@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-08T19:50:00.000Z",
+    "updatedAt": "2026-11-08T23:09:33.974Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -87,8 +87,9 @@
     "hashtags": "",
     "youtubeTags": "",
     "pinnedComment": "",
-    "downloadFolderName": "Video 77",
-    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 77"
+    "downloadFolderName": "Video 77 — Huellas de la Humanidad",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 77 — Huellas de la Humanidad",
+    "geminiChatTitle": "Video 77 — Huellas de la Humanidad"
   },
   {
     "id": "doc-1793459858927-xld0",
