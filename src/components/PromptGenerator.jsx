@@ -3001,29 +3001,10 @@ const PromptGenerator = ({
   };
 
   const compiledOutput = compileTemplate();
-  const lastUpdatedText = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:48 PM - 10/31/2026';
+  const lastUpdatedText = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:34 AM - 11/08/2026';
 
   return (
     <div className="app-container" style={{ position: 'relative' }}>
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '8px',
-          right: '12px',
-          fontSize: '0.7rem',
-          color: 'var(--accent-gold)',
-          opacity: 0.9,
-          zIndex: 9999,
-          fontFamily: 'monospace',
-          backgroundColor: 'var(--paper-color)',
-          padding: '2px 8px',
-          borderRadius: '4px',
-          border: '1px solid var(--accent-gold)',
-          pointerEvents: 'none'
-        }}
-      >
-        Actualizado: {lastUpdatedText}
-      </div>
       <div className="panel input-panel" style={{ display: 'flex', flexDirection: 'column', height: '92vh', overflow: 'hidden' }}>
         <div className="brand-header" style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
