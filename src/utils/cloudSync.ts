@@ -1599,11 +1599,32 @@ export function buildStagePromptText(
   const youtubeCommentsResearchBlock = (
     doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
   ).trim();
-  const selectedStructureTitle = (doc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || '').trim();
-  const selectedStructureSummary = (doc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY || '').trim();
+  const selectedStructureTitle = (
+    doc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE ||
+    doc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+    doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
+    ''
+  ).trim();
+  const selectedStructureSummary = (
+    doc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY ||
+    doc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN ||
+    ''
+  ).trim();
+  const youtubeVideoTitle = (
+    doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
+    selectedStructureTitle ||
+    ''
+  ).trim();
+  const youtubeVideoDescription = (doc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '').trim();
+  const youtubeVideoTags = (doc.promptConfig?.YOUTUBE_VIDEO_TAGS || '').trim();
+  const youtubeVideoChannel = (doc.promptConfig?.YOUTUBE_VIDEO_CHANNEL || '').trim();
   const centralParadox = (doc.promptConfig?.CONTRADICCION_CENTRAL || '').trim();
   const excludePreviousParts = (doc.promptConfig?.EXCLUIR_PARTES_ANTERIORES || '').trim();
-  const selectedAudienceQuestions = (doc.promptConfig?.SELECTED_AUDIENCE_COMMENTS_BLOCK || '').trim();
+  const selectedAudienceQuestions = (
+    doc.promptConfig?.SELECTED_AUDIENCE_COMMENTS_BLOCK ||
+    doc.promptConfig?.COMENTARIOS_AUDIENCIA_SELECCIONADOS ||
+    ''
+  ).trim();
 
   const fixedIntroSec = 8;
   const fixedOutroSec = 8;
@@ -1612,16 +1633,35 @@ export function buildStagePromptText(
   const totalTargetSec = doc.targetDurationSeconds || 120;
   const effectiveNarratedSec = Math.max(20, totalTargetSec - fullEntrySec - fixedOutroSec);
 
+  const hasExplicitMetadataFields = Boolean(
+    youtubeVideoTitle || youtubeVideoDescription || youtubeVideoTags
+  );
+  const metadataAlreadyInCommentsBlock =
+    youtubeCommentsResearchBlock.includes('ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE');
+
+  const standaloneYoutubeMetadataBlock =
+    (hasExplicitMetadataFields || youtubeViralLink) && !metadataAlreadyInCommentsBlock
+      ? `\n================================================================================\n🏷️ ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- TÍTULO DEL VIDEO DE REFERENCIA: "${youtubeVideoTitle || youtubeViralLink}"${
+          youtubeVideoChannel ? `\n- CANAL DE ORIGEN: ${youtubeVideoChannel}` : ''
+        }\n- TAGS / PALABRAS CLAVE DEL VIDEO: ${
+          youtubeVideoTags || '(Analizar y extraer palabras clave nucleares del título y descripción del video)'
+        }\n- DESCRIPCIÓN DEL VIDEO DE REFERENCIA:\n${
+          youtubeVideoDescription
+            ? youtubeVideoDescription.slice(0, 3500)
+            : '(Analizar directamente la descripción, capítulos, fuentes y enfoque del video en el enlace proporcionado)'
+        }\n\n-> DIRECTRIZ OBLIGATORIA PARA NUESTRA INVESTIGACIÓN DOCUMENTAL (TÍTULO + DESCRIPCIÓN + TAGS):\n   1. Analiza el gancho semántico, la promesa narrativa y el ángulo central del TÍTULO del video para potenciar el enfoque de nuestra investigación.\n   2. Analiza a fondo la DESCRIPCIÓN del video (estructura de capítulos/timestamps, resumen histórico, subtemas, fuentes y planteamiento) e incluye todos esos hallazgos y ejes temáticos en la Investigación Profunda de nuestro documental.\n   3. Analiza los TAGS y palabras clave del video para integrar en nuestra investigación los conceptos históricos, personajes, contextos y términos de mayor interés para la audiencia.\n`
+      : '';
+
   const viralContextBlock = selectedStructureSummary
-    ? `\n================================================================================\n🏛️ ESTRUCTURA SELECCIONADA DE VIDEO ANALIZADO PREVIAMENTE: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nINVESTIGACIÓN Y ESTRUCTURA GANADORA YA REALIZADA DE ESTE VIDEO:\n${selectedStructureSummary}\n\nINSTRUCCIÓN OBLIGATORIA: Clona y adapta exactamente las proporciones, la cadencia de micro-ganchos y la progresión dramática de esta estructura ganadora para nuestro documental actual.\n${
+    ? `\n================================================================================\n🏛️ ESTRUCTURA SELECCIONADA DE VIDEO ANALIZADO PREVIAMENTE: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nINVESTIGACIÓN Y ESTRUCTURA GANADORA YA REALIZADA DE ESTE VIDEO:\n${selectedStructureSummary}\n\nINSTRUCCIÓN OBLIGATORIA: Clona y adapta exactamente las proporciones, la cadencia de micro-ganchos y la progresión dramática de esta estructura ganadora para nuestro documental actual, integrando además el análisis de su TÍTULO, DESCRIPCIÓN y TAGS en nuestra investigación.\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : youtubeViralLink
-    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR Y CLONAR ESTRUCTURALMENTE (AÚN NO ANALIZADO): ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA DE DOBLE INVESTIGACIÓN (VIDEO DE REFERENCIA + DOCUMENTAL EN PROCESO):\nComo este video de referencia (${youtubeViralLink}) aún no tiene su investigación estructural guardada, DEBES realizar en esta misma investigación:\n1) La radiografía profunda de los 8 ejes virales del video (${youtubeViralLink}): Hook (0-30s), Escaleta bloque por bloque con porcentajes, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral y Mapa Maestro de Recreación.\n2) La Investigación Profunda (Deep Research) de nuestro documental en proceso aplicando exactamente esa misma estructura.\n${
+    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR Y CLONAR ESTRUCTURALMENTE (INCLUYENDO TÍTULO, DESCRIPCIÓN Y TAGS): ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA DE DOBLE INVESTIGACIÓN (VIDEO DE REFERENCIA + DOCUMENTAL EN PROCESO):\nDEBES realizar en esta misma investigación:\n1) La radiografía profunda del video de referencia (${youtubeViralLink}), analizando obligatoriamente su TÍTULO, su DESCRIPCIÓN completa (capítulos, resumen, fuentes y gancho), sus TAGS/palabras clave y sus 8 ejes virales: Hook (0-30s), Escaleta bloque por bloque con porcentajes, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral (Título/Descripción/Tags) y Mapa Maestro de Recreación.\n2) La Investigación Profunda (Deep Research) de nuestro documental en proceso aplicando exactamente esa misma estructura e incluyendo los temas, ángulos, palabras clave y hallazgos detectados en el título, descripción, tags y comentarios del video.\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
-    : youtubeCommentsResearchBlock
-    ? `\n${youtubeCommentsResearchBlock}\n`
+    : standaloneYoutubeMetadataBlock || youtubeCommentsResearchBlock
+    ? `\n${standaloneYoutubeMetadataBlock}${youtubeCommentsResearchBlock}\n`
     : '';
 
   let stagePrompt = '';
@@ -1650,12 +1690,12 @@ ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECC
 🔬 TAREA DE INVESTIGACIÓN PROFUNDA (MODO HIGH + DEEP RESEARCH)
 ================================================================================
 Ejecuta una Investigación Profunda exhaustiva y entrégala estructurada en estas 4 secciones claras:
-1. EXPLICACIÓN DE LA ESTRUCTURA VIRAL APLICADA (Y ANÁLISIS DEL VIDEO DE REFERENCIA SI SE PROPORCIONÓ):
-   - Desglose de los bloques narrativos con su porcentaje (%) y rango de tiempo exacto contemplando el Intro de 8s al inicio y el Outro de 8s al final.
+1. EXPLICACIÓN DE LA ESTRUCTURA VIRAL Y ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE REFERENCIA:
+   - Desglose de los bloques narrativos con su porcentaje (%) y rango de tiempo exacto contemplando el Intro de 8s al inicio y el Outro de 8s al final, más el análisis del título, la descripción (capítulos, enfoque, fuentes) y los tags del video de YouTube de referencia aplicados a nuestro documental.
 2. RECUENTO ESTRUCTURAL CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES HISTÓRICAS:
    - Escaleta detallada acto por acto, datos sensoriales verificados (olores, sonidos, dimensiones, cifras reales, leyes, nombres propios con números romanos) y respuestas históricas a las dudas de los comentarios de la audiencia.
 3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (DEEP RESEARCH):
-   - Hechos documentados, crónicas de época, hallazgos arqueológicos/forenses y micro-historias humanas listas para nutrir el Guion de Voz en Off.
+   - Hechos documentados, crónicas de época, hallazgos arqueológicos/forenses, desarrollo profundo de los subtemas y palabras clave detectados en el título, descripción y tags del video analizado, y micro-historias humanas listas para nutrir el Guion de Voz en Off.
 4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS):
    - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (Nombre_Lugar) con su descripción física e indumentaria histórica exacta de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).`;
   } else if (stageNumber === 4) {

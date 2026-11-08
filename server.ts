@@ -1994,15 +1994,26 @@ app.post('/api/ai/generate-stage', async (req, res) => {
     const voiceEntrySec = c1Dur + 2;
     const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
     const youtubeViralLink = (doc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+    const youtubeVideoTitle = (
+      doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
+      doc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+      ''
+    ).trim();
+    const youtubeVideoDescription = (doc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '').trim();
+    const youtubeVideoTags = (doc.promptConfig?.YOUTUBE_VIDEO_TAGS || '').trim();
     const youtubeCommentsResearchBlock = (
       doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
     ).trim();
+    const youtubeMetadataBlock =
+      youtubeVideoTitle || youtubeVideoDescription || youtubeVideoTags
+        ? `\nMETADATOS EXTRAÍDOS DEL VIDEO DE YOUTUBE DE REFERENCIA:\n- TÍTULO DEL VIDEO: ${youtubeVideoTitle || youtubeViralLink}\n- TAGS / PALABRAS CLAVE DEL VIDEO: ${youtubeVideoTags || '(Extraer del título y descripción)'}\n- DESCRIPCIÓN DEL VIDEO:\n${youtubeVideoDescription ? youtubeVideoDescription.slice(0, 3500) : '(Sin descripción adicional)'}\n-> INSTRUCCIÓN OBLIGATORIA SOBRE TÍTULO, DESCRIPCIÓN Y TAGS: Analiza a fondo el título, la descripción (capítulos, fuentes, enfoque narrativo y promesas) y los tags del video de YouTube para integrarlos directamente en la Investigación Profunda de nuestro documental.\n`
+        : '';
     const viralContextBlock = youtubeViralLink
-      ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL: Analiza profunda, minuciosa, detallada, incisiva e intensamente, detalle por detalle y sin obviar nada, el video de YouTube en el enlace (${youtubeViralLink}) para entender cómo se hizo viral en la plataforma y RECREA EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este documental.\n${
+      ? `\nENLACE DE VIDEO VIRAL DE YOUTUBE DE REFERENCIA: ${youtubeViralLink}\nINSTRUCCIÓN OBLIGATORIA DE ANÁLISIS VIRAL (ESTRUCTURA + TÍTULO + DESCRIPCIÓN + TAGS): Analiza profunda, minuciosa, detallada, incisiva e intensamente el video de YouTube en el enlace (${youtubeViralLink}), incluyendo su TÍTULO, su DESCRIPCIÓN completa y sus TAGS/palabras clave, para entender cómo se hizo viral en la plataforma, aprovechar sus ángulos temáticos y RECREAR EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en nuestra investigación documental.${youtubeMetadataBlock}${
           youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
         }`
-      : youtubeCommentsResearchBlock
-      ? `\n${youtubeCommentsResearchBlock}\n`
+      : youtubeMetadataBlock || youtubeCommentsResearchBlock
+      ? `\n${youtubeMetadataBlock}${youtubeCommentsResearchBlock}\n`
       : '';
 
     let stagePrompt = '';
@@ -7891,9 +7902,20 @@ function extractYoutubeVideoId(rawUrl: string): string | null {
 
 async function fetchYoutubeVideoCommentsDataOnly(
   videoId: string,
-  maxPages: number = 2
-): Promise<{ videoId: string; title: string; comments: YoutubeExtractedComment[] }> {
+  maxPages: number = 2,
+  includeMetadata: boolean = false
+): Promise<{
+  videoId: string;
+  title: string;
+  description: string;
+  tags: string[];
+  channelName: string;
+  comments: YoutubeExtractedComment[];
+}> {
   const innertubeUrl = 'https://www.youtube.com/youtubei/v1/next?prettyPrint=false';
+  const playerUrl = 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
+  const userAgent =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   const clientContext = {
     client: {
       clientName: 'WEB',
@@ -7903,21 +7925,172 @@ async function fetchYoutubeVideoCommentsDataOnly(
     },
   };
 
+  let extractedTitle = '';
+  let extractedDescription = '';
+  let extractedChannelName = '';
+  const tagsSet = new Set<string>();
+
+  const addTagsFromList = (items: any[]) => {
+    for (const raw of items || []) {
+      const cleaned = String(raw || '').trim();
+      if (cleaned && cleaned.length >= 2 && cleaned.length <= 90) {
+        tagsSet.add(cleaned);
+      }
+    }
+  };
+
   try {
+    if (includeMetadata) {
+      // 1) Try YouTube Innertube Player endpoint + public Watch page in parallel for full Title, Description, and Keywords/Tags
+      const [playerRes, watchRes] = await Promise.all([
+        fetch(playerUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': userAgent,
+          },
+          body: JSON.stringify({ context: clientContext, videoId }),
+        }).catch(() => null),
+        fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
+          headers: {
+            'User-Agent': userAgent,
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+          },
+        }).catch(() => null),
+      ]);
+
+      if (playerRes && playerRes.ok) {
+        try {
+          const jPlayer: any = await playerRes.json();
+          const vd = jPlayer?.videoDetails || {};
+          const mf = jPlayer?.microformat?.playerMicroformatRenderer || {};
+          if (vd.title) extractedTitle = String(vd.title).trim();
+          if (vd.shortDescription) extractedDescription = String(vd.shortDescription).trim();
+          if (!extractedDescription && mf.description?.simpleText) {
+            extractedDescription = String(mf.description.simpleText).trim();
+          }
+          if (vd.author) extractedChannelName = String(vd.author).trim();
+          if (!extractedChannelName && mf.ownerChannelName) {
+            extractedChannelName = String(mf.ownerChannelName).trim();
+          }
+          if (Array.isArray(vd.keywords)) {
+            addTagsFromList(vd.keywords);
+          }
+        } catch {}
+      }
+
+      if (watchRes && watchRes.ok) {
+        try {
+          const html = await watchRes.text();
+          const playerMatch = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.*?\});\s*(?:var|<\/script>)/s);
+          if (playerMatch && playerMatch[1]) {
+            try {
+              const parsedPlayer = JSON.parse(playerMatch[1]);
+              const vd = parsedPlayer?.videoDetails || {};
+              const mf = parsedPlayer?.microformat?.playerMicroformatRenderer || {};
+              if (!extractedTitle && vd.title) extractedTitle = String(vd.title).trim();
+              if (!extractedDescription && vd.shortDescription) {
+                extractedDescription = String(vd.shortDescription).trim();
+              }
+              if (!extractedDescription && mf.description?.simpleText) {
+                extractedDescription = String(mf.description.simpleText).trim();
+              }
+              if (!extractedChannelName && vd.author) {
+                extractedChannelName = String(vd.author).trim();
+              }
+              if (Array.isArray(vd.keywords)) {
+                addTagsFromList(vd.keywords);
+              }
+            } catch {}
+          }
+          if (!extractedDescription) {
+            const descMatch = html.match(/"shortDescription":"((?:\\.|[^"\\])*)"/);
+            if (descMatch && descMatch[1]) {
+              try {
+                extractedDescription = JSON.parse(`"${descMatch[1]}"`).trim();
+              } catch {
+                extractedDescription = descMatch[1].replace(/\\n/g, '\n').trim();
+              }
+            }
+          }
+          if (tagsSet.size === 0) {
+            const kwMatch = html.match(/"keywords":\[(.*?)\]/);
+            if (kwMatch && kwMatch[1]) {
+              try {
+                const parsedKw = JSON.parse(`[${kwMatch[1]}]`);
+                if (Array.isArray(parsedKw)) addTagsFromList(parsedKw);
+              } catch {}
+            }
+            const metaKwMatch = html.match(/<meta\s+name="keywords"\s+content="([^"]*)"/i);
+            if (metaKwMatch && metaKwMatch[1]) {
+              addTagsFromList(
+                metaKwMatch[1]
+                  .split(',')
+                  .map((s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim())
+              );
+            }
+          }
+          if (!extractedTitle) {
+            const metaTitleMatch = html.match(/<meta\s+name="title"\s+content="([^"]*)"/i);
+            if (metaTitleMatch && metaTitleMatch[1]) {
+              extractedTitle = metaTitleMatch[1]
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&amp;/g, '&')
+                .trim();
+            }
+          }
+        } catch {}
+      }
+    }
+
     const res1 = await fetch(innertubeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': userAgent,
       },
       body: JSON.stringify({ context: clientContext, videoId }),
     });
-    if (!res1.ok) return { videoId, title: videoId, comments: [] };
+    if (!res1.ok) {
+      return {
+        videoId,
+        title: extractedTitle || videoId,
+        description: extractedDescription,
+        tags: Array.from(tagsSet),
+        channelName: extractedChannelName,
+        comments: [],
+      };
+    }
     const j1: any = await res1.json();
     const s1 = JSON.stringify(j1);
     const titleMatch = s1.match(/"title":\{"runs":\[\{"text":"([^"]+)"\}\]/);
-    const title = titleMatch ? titleMatch[1] : videoId;
+    const title = extractedTitle || (titleMatch ? titleMatch[1] : videoId);
+
+    // Also inspect j1 (next response) for description and channel owner if not yet populated
+    if (!extractedDescription || !extractedChannelName) {
+      const walkMetadata = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        if (!extractedDescription && node.attributedDescription?.content) {
+          extractedDescription = String(node.attributedDescription.content).trim();
+        }
+        if (!extractedDescription && node.description?.runs && Array.isArray(node.description.runs)) {
+          const joined = node.description.runs.map((r: any) => r.text || '').join('').trim();
+          if (joined.length > extractedDescription.length) extractedDescription = joined;
+        }
+        if (!extractedChannelName && node.videoOwnerRenderer?.title?.runs?.[0]?.text) {
+          extractedChannelName = String(node.videoOwnerRenderer.title.runs[0].text).trim();
+        }
+        for (const k of Object.keys(node)) walkMetadata(node[k]);
+      };
+      walkMetadata(j1);
+    }
+
+    // Extract any #hashtags from title and description into tagsSet as well
+    const combinedTextForHashtags = `${title}\n${extractedDescription}`;
+    for (const hm of combinedTextForHashtags.matchAll(/#([a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ_]{2,50})/g)) {
+      if (hm[1]) tagsSet.add(`#${hm[1]}`);
+    }
 
     const findContinuationTokens = (obj: any): string[] => {
       const tokens: string[] = [];
@@ -7943,7 +8116,14 @@ async function fetchYoutubeVideoCommentsDataOnly(
 
     const initialTokens = findContinuationTokens(j1);
     if (initialTokens.length === 0) {
-      return { videoId, title, comments: [] };
+      return {
+        videoId,
+        title,
+        description: extractedDescription,
+        tags: Array.from(tagsSet),
+        channelName: extractedChannelName,
+        comments: [],
+      };
     }
 
     const collected: YoutubeExtractedComment[] = [];
@@ -7955,8 +8135,7 @@ async function fetchYoutubeVideoCommentsDataOnly(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'User-Agent': userAgent,
         },
         body: JSON.stringify({ context: clientContext, continuation: nextToken }),
       });
@@ -8001,9 +8180,23 @@ async function fetchYoutubeVideoCommentsDataOnly(
       nextToken = nextContinuation;
     }
 
-    return { videoId, title, comments: collected };
+    return {
+      videoId,
+      title,
+      description: extractedDescription,
+      tags: Array.from(tagsSet),
+      channelName: extractedChannelName,
+      comments: collected,
+    };
   } catch {
-    return { videoId, title: videoId, comments: [] };
+    return {
+      videoId,
+      title: extractedTitle || videoId,
+      description: extractedDescription,
+      tags: Array.from(tagsSet),
+      channelName: extractedChannelName,
+      comments: [],
+    };
   }
 }
 
@@ -8108,6 +8301,8 @@ interface AnalyzedVideoLibraryEntry {
   url: string;
   title: string;
   channelName: string;
+  description?: string;
+  tags?: string[];
   analyzedAt: string;
   commentsCount: number;
   structureSummary: string;
@@ -8643,6 +8838,18 @@ app.post('/api/youtube/analyzed-videos', (req, res) => {
       url: rawUrl || (existingIdx >= 0 ? library[existingIdx].url : ''),
       title: String(body.title || (existingIdx >= 0 ? library[existingIdx].title : `Video Analizado (${extractedId})`)).trim(),
       channelName: String(body.channelName || (existingIdx >= 0 ? library[existingIdx].channelName : 'YouTube')).trim(),
+      description: String(
+        body.description !== undefined
+          ? body.description
+          : existingIdx >= 0
+          ? library[existingIdx].description || ''
+          : ''
+      ).trim(),
+      tags: Array.isArray(body.tags)
+        ? body.tags.map(String).filter(Boolean)
+        : existingIdx >= 0 && Array.isArray(library[existingIdx].tags)
+        ? library[existingIdx].tags
+        : [],
       analyzedAt: new Date().toISOString(),
       commentsCount: Number(body.commentsCount ?? (existingIdx >= 0 ? library[existingIdx].commentsCount : 0)),
       structureSummary: String(
@@ -8689,8 +8896,15 @@ app.post('/api/youtube/analyze-comments-research', async (req, res) => {
 
     const [targetData, channelData] = await Promise.all([
       targetVideoId
-        ? fetchYoutubeVideoCommentsDataOnly(targetVideoId, 3)
-        : Promise.resolve({ videoId: '', title: '', comments: [] as YoutubeExtractedComment[] }),
+        ? fetchYoutubeVideoCommentsDataOnly(targetVideoId, 3, true)
+        : Promise.resolve({
+            videoId: '',
+            title: '',
+            description: '',
+            tags: [] as string[],
+            channelName: '',
+            comments: [] as YoutubeExtractedComment[],
+          }),
       fetchHuellasChannelCommentsCached(Boolean(forceRefreshChannel)),
     ]);
 
@@ -8813,29 +9027,58 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
     let matchedLibraryEntry: AnalyzedVideoLibraryEntry | null = null;
     if (targetVideoId) {
       const existingIdx = library.findIndex((v) => v.videoId === targetVideoId || v.url === videoUrl);
-      const defaultSummary = `Análisis de "${targetData.title || videoUrl}":\n- Comentarios públicos extraídos y agrupados: ${targetViewerComments.length} (${deduplicatedTargetComments.length} únicos agrupados por repetición).\n- Al ejecutar "✨ Comenzar Investigación", Gemini Web (en modo High + Deep Research) realizará la radiografía completa de los 8 ejes virales de este video junto con la investigación del documental en curso y actualizará esta ficha automáticamente.`;
+      const resolvedTitle =
+        targetData.title && targetData.title !== targetVideoId
+          ? targetData.title
+          : existingIdx >= 0
+          ? library[existingIdx].title
+          : `Video de YouTube (${targetVideoId})`;
+      const resolvedChannel =
+        targetData.channelName ||
+        (existingIdx >= 0 ? library[existingIdx].channelName : 'YouTube Referencia Viral');
+      const resolvedDescription =
+        targetData.description ||
+        (existingIdx >= 0 ? library[existingIdx].description || '' : '');
+      const resolvedTags =
+        targetData.tags && targetData.tags.length > 0
+          ? targetData.tags
+          : existingIdx >= 0 && Array.isArray(library[existingIdx].tags)
+          ? library[existingIdx].tags || []
+          : [];
+
+      const defaultSummary = [
+        `📌 TÍTULO DEL VIDEO ANALIZADO: "${resolvedTitle}" (Canal: ${resolvedChannel})`,
+        resolvedTags.length > 0
+          ? `🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (${resolvedTags.length}): ${resolvedTags.slice(0, 30).join(', ')}`
+          : `🏷️ TAGS: Se extraerán palabras clave semánticas del título y la descripción durante la investigación.`,
+        resolvedDescription
+          ? `📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\n${resolvedDescription.slice(0, 1800)}${resolvedDescription.length > 1800 ? '...' : ''}`
+          : `📝 DESCRIPCIÓN: (Sin descripción pública detectada en el video).`,
+        `💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: ${targetViewerComments.length} comentarios públicos (${deduplicatedTargetComments.length} únicos agrupados por repetición).`,
+        `🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.`,
+      ].join('\n\n');
+
       const entry: AnalyzedVideoLibraryEntry = {
         id: existingIdx >= 0 ? library[existingIdx].id : `vid_${targetVideoId}`,
         videoId: targetVideoId,
         url: videoUrl,
-        title:
-          targetData.title && targetData.title !== targetVideoId
-            ? targetData.title
-            : existingIdx >= 0
-            ? library[existingIdx].title
-            : `Video de YouTube (${targetVideoId})`,
-        channelName: existingIdx >= 0 ? library[existingIdx].channelName : 'YouTube Referencia Viral',
+        title: resolvedTitle,
+        channelName: resolvedChannel,
+        description: resolvedDescription,
+        tags: resolvedTags,
         analyzedAt: new Date().toISOString(),
         commentsCount: targetViewerComments.length,
         structureSummary:
-          existingIdx >= 0 && library[existingIdx].structureSummary
+          existingIdx >= 0 &&
+          library[existingIdx].structureSummary &&
+          !library[existingIdx].structureSummary.startsWith('Análisis de "')
             ? library[existingIdx].structureSummary
             : defaultSummary,
         structuralBlocks:
           existingIdx >= 0 && library[existingIdx].structuralBlocks?.length > 0
             ? library[existingIdx].structuralBlocks
             : [
-                { name: 'Intro (8s) + Hook Viral', pct: 8, description: 'Apertura magnética en los primerossegundos y promesa narrativa.' },
+                { name: 'Intro (8s) + Hook Viral', pct: 8, description: 'Apertura magnética en los primeros segundos y promesa narrativa.' },
                 { name: 'Acto I: Planteamiento Histórico', pct: 20, description: 'Contexto de época, lugar y contradicción inicial.' },
                 { name: 'Acto II: Desarrollo y Tensión', pct: 25, description: 'Progresión narrativa con micro-ganchos de retención.' },
                 { name: 'Acto III: Revelación Central', pct: 22, description: 'Giro dramático y hallazgos documentales.' },
@@ -8853,7 +9096,37 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
       matchedLibraryEntry = entry;
     }
 
+    const metadataBlockLines: string[] = targetVideoId
+      ? [
+          `================================================================================`,
+          `🏷️ ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE (${videoUrl || targetVideoId})`,
+          `================================================================================`,
+          `- TÍTULO EXACTO DEL VIDEO DE REFERENCIA: "${targetData.title || videoUrl}"`,
+          `- CANAL DE ORIGEN: ${targetData.channelName || 'YouTube'}`,
+          `- TAGS / PALABRAS CLAVE SEO DEL VIDEO (${targetData.tags.length}): ${
+            targetData.tags.length > 0
+              ? targetData.tags.join(', ')
+              : '(Extraer términos clave nucleares del título y de la descripción)'
+          }`,
+          `- DESCRIPCIÓN COMPLETA DEL VIDEO DE REFERENCIA:`,
+          targetData.description
+            ? targetData.description.slice(0, 3500)
+            : '(Sin descripción de texto adicional en el video)',
+          ``,
+          `-> DIRECTRIZ OBLIGATORIA PARA NUESTRA INVESTIGACIÓN DOCUMENTAL (TÍTULO + DESCRIPCIÓN + TAGS):`,
+          `   1. Analiza la promesa, tensión dramática y enfoque del TÍTULO ("${targetData.title || videoUrl}") e incorpóralos como ángulo rector en nuestra Investigación Profunda.`,
+          `   2. Analiza minuciosamente la DESCRIPCIÓN del video (capítulos/timestamps, resumen histórico, subtemas, datos o fuentes mencionadas y gancho narrativo) e incluye todos esos ejes temáticos desarrollados con rigor documental en nuestra investigación.`,
+          `   3. Analiza los TAGS y palabras clave (${
+            targetData.tags.length > 0
+              ? targetData.tags.slice(0, 25).join(', ')
+              : 'conceptos clave del título y descripción'
+          }) para cubrir dentro de nuestra investigación los términos históricos, personajes, contextos y búsquedas de mayor interés para la audiencia.`,
+          ``,
+        ]
+      : [];
+
     const lines: string[] = [
+      ...metadataBlockLines,
       `================================================================================`,
       `💬 MINERÍA REAL DE COMENTARIOS DE LA AUDIENCIA (VIDEO ANALIZADO + CANAL ${HUELLAS_OFFICIAL_CHANNEL_HANDLE})`,
       `================================================================================`,
@@ -8881,8 +9154,8 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
           ]
         : []),
       ``,
-      `-> REGLA INQUEBRANTABLE SOBRE ESTOS COMENTARIOS (SOLO EN EL PROMPT DE INVESTIGACIÓN):`,
-      `   NO insertes estas preguntas ni sugerencias directamente como texto suelto en el resultado final, SINO INCLÚYELAS OBLIGATORIAMENTE DENTRO DEL PROMPT PARA REALIZAR LA INVESTIGACIÓN PROFUNDA para que al ejecutar dicho prompt de investigación se investiguen y respondan a fondo todas las dudas, preguntas y sugerencias reales de la audiencia.`,
+      `-> REGLA INQUEBRANTABLE SOBRE ESTOS COMENTARIOS, TÍTULO, DESCRIPCIÓN Y TAGS:`,
+      `   Incluye e integra obligatoriamente el análisis del Título, la Descripción, los Tags y todas las dudas/sugerencias de los comentarios del video de referencia dentro de la Investigación Profunda de nuestro documental.`,
       `================================================================================`,
     ];
 
@@ -8892,6 +9165,9 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
       ok: true,
       targetVideoId,
       targetVideoTitle: targetData.title || videoUrl,
+      targetVideoDescription: targetData.description || '',
+      targetVideoTags: targetData.tags || [],
+      targetChannelName: targetData.channelName || '',
       targetCommentsCount: targetViewerComments.length,
       channelVideosScanned: channelData.videoCount,
       channelCommentsCount: channelData.comments.length,

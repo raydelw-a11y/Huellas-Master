@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:55 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:51 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1544,6 +1544,8 @@ export default function App() {
       videoId: String(v.videoId || v.id || ''),
       title: String(v.title || 'Video Analizado'),
       channelTitle: String(v.channelTitle || v.channelName || '@huellas_de_la_humanidad'),
+      description: String(v.description || ''),
+      tags: Array.isArray(v.tags) ? v.tags.map(String).filter(Boolean) : [],
       url: String(v.url || ''),
       analyzedAt: String(v.analyzedAt || new Date().toISOString()),
       structureSummary: String(v.structureSummary || ''),
@@ -1560,7 +1562,7 @@ export default function App() {
   const loadStage1AnalyzedVideosAndComments = async (
     customVideoUrlOrForce: string | boolean = false,
     _topicHint = ''
-  ) => {
+  ): Promise<Record<string, string> | null> => {
     const forceRefresh = customVideoUrlOrForce === true;
     const customVideoUrl =
       typeof customVideoUrlOrForce === 'string' ? customVideoUrlOrForce.trim() : '';
@@ -1606,7 +1608,72 @@ export default function App() {
                   String(data.matchedLibraryEntry.videoId || data.matchedLibraryEntry.id)
                 );
               }
-              return;
+              if (customVideoUrl) {
+                const extractedTitle = String(
+                  data.targetVideoTitle || data.matchedLibraryEntry?.title || ''
+                ).trim();
+                const extractedDescription = String(
+                  data.targetVideoDescription || data.matchedLibraryEntry?.description || ''
+                ).trim();
+                const extractedTags = Array.isArray(data.targetVideoTags)
+                  ? data.targetVideoTags.map(String).filter(Boolean).join(', ')
+                  : Array.isArray(data.matchedLibraryEntry?.tags)
+                  ? data.matchedLibraryEntry.tags.map(String).filter(Boolean).join(', ')
+                  : '';
+                const extractedChannel = String(
+                  data.targetChannelName || data.matchedLibraryEntry?.channelName || ''
+                ).trim();
+                const extractedSummary = String(
+                  data.matchedLibraryEntry?.structureSummary || ''
+                ).trim();
+                const extractedResearchBlock = String(data.researchPromptBlock || '').trim();
+                const curDoc = activeDocRef.current || activeDoc;
+                const nextPromptConfig: Record<string, string> = {
+                  ...(curDoc?.promptConfig || {}),
+                  YOUTUBE_VIRAL_LINK: customVideoUrl,
+                  YOUTUBE_VIDEO_TITLE: extractedTitle,
+                  YOUTUBE_VIDEO_DESCRIPTION: extractedDescription,
+                  YOUTUBE_VIDEO_TAGS: extractedTags,
+                  YOUTUBE_VIDEO_CHANNEL: extractedChannel,
+                  YOUTUBE_COMMENTS_RESEARCH_BLOCK: extractedResearchBlock,
+                  ESTRUCTURA_VIRAL_TITULO:
+                    extractedTitle || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                  ESTRUCTURA_VIRAL_RESUMEN:
+                    extractedSummary || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
+                  YOUTUBE_EXTRACTED_FOR_LINK: customVideoUrl,
+                };
+                updateActiveDoc({ promptConfig: nextPromptConfig });
+                return nextPromptConfig;
+              }
+              return null;
+            }
+          } catch {}
+        }
+
+        // Public oEmbed fallback when running on static mobile mode without local backend
+        if (customVideoUrl) {
+          try {
+            const oembedRes = await fetch(
+              `https://noembed.com/embed?url=${encodeURIComponent(customVideoUrl)}`
+            );
+            if (oembedRes.ok) {
+              const oembedData = await oembedRes.json();
+              const fallbackTitle = String(oembedData?.title || '').trim();
+              const fallbackChannel = String(oembedData?.author_name || '').trim();
+              if (fallbackTitle) {
+                const curDoc = activeDocRef.current || activeDoc;
+                const nextPromptConfig: Record<string, string> = {
+                  ...(curDoc?.promptConfig || {}),
+                  YOUTUBE_VIRAL_LINK: customVideoUrl,
+                  YOUTUBE_VIDEO_TITLE: fallbackTitle,
+                  YOUTUBE_VIDEO_CHANNEL: fallbackChannel,
+                  ESTRUCTURA_VIRAL_TITULO:
+                    fallbackTitle || curDoc?.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                  YOUTUBE_EXTRACTED_FOR_LINK: customVideoUrl,
+                };
+                updateActiveDoc({ promptConfig: nextPromptConfig });
+                return nextPromptConfig;
+              }
             }
           } catch {}
         }
@@ -1636,6 +1703,7 @@ export default function App() {
     } catch {} finally {
       setStage1LoadingLibrary(false);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -7472,10 +7540,20 @@ export default function App() {
       enableDeepResearch?: boolean;
       enableArgonLow?: boolean;
       skipModelSwitch?: boolean;
+      overridePromptConfig?: Record<string, string>;
     }
   ) => {
-    const currentDoc = activeDocRef.current || activeDoc;
-    if (!currentDoc) return;
+    const baseDoc = activeDocRef.current || activeDoc;
+    if (!baseDoc) return;
+    const currentDoc = options?.overridePromptConfig
+      ? {
+          ...baseDoc,
+          promptConfig: {
+            ...(baseDoc.promptConfig || {}),
+            ...options.overridePromptConfig,
+          },
+        }
+      : baseDoc;
     if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 3 (Miniatura Oficial).'
@@ -7638,7 +7716,25 @@ export default function App() {
       );
       return;
     }
-    handleSendStageToGeminiWeb(stageNum);
+    let overridePromptConfig: Record<string, string> | undefined;
+    if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
+      const youtubeUrl = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+      const alreadyExtractedFor = (activeDoc.promptConfig?.YOUTUBE_EXTRACTED_FOR_LINK || '').trim();
+      if (youtubeUrl && (alreadyExtractedFor !== youtubeUrl || !activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE)) {
+        const extractedPatch = await loadStage1AnalyzedVideosAndComments(
+          youtubeUrl,
+          activeDoc.topic || activeDoc.title || ''
+        );
+        if (extractedPatch) {
+          overridePromptConfig = extractedPatch;
+        }
+      }
+    }
+    handleSendStageToGeminiWeb(
+      stageNum,
+      undefined,
+      overridePromptConfig ? { overridePromptConfig } : undefined
+    );
   };
 
   // Stage 5: Generate 3 Thumbnail Text Overlay Options strictly via logged-in Gemini Web (No API Calls)
@@ -9968,6 +10064,12 @@ export default function App() {
                                 YOUTUBE_VIRAL_LINK: found.url || found.videoId,
                                 ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
                                 ESTRUCTURA_VIRAL_TITULO: found.title,
+                                YOUTUBE_VIDEO_TITLE: found.title,
+                                YOUTUBE_VIDEO_DESCRIPTION: found.description || '',
+                                YOUTUBE_VIDEO_TAGS: Array.isArray(found.tags)
+                                  ? found.tags.join(', ')
+                                  : '',
+                                YOUTUBE_VIDEO_CHANNEL: found.channelTitle || '',
                               },
                             });
                           } else {
@@ -9977,6 +10079,10 @@ export default function App() {
                                 YOUTUBE_VIRAL_LINK: '',
                                 ESTRUCTURA_VIRAL_RESUMEN: '',
                                 ESTRUCTURA_VIRAL_TITULO: '',
+                                YOUTUBE_VIDEO_TITLE: '',
+                                YOUTUBE_VIDEO_DESCRIPTION: '',
+                                YOUTUBE_VIDEO_TAGS: '',
+                                YOUTUBE_VIDEO_CHANNEL: '',
                               },
                             });
                           }
@@ -10024,6 +10130,16 @@ export default function App() {
                                 ESTRUCTURA_VIRAL_TITULO: matched
                                   ? matched.title
                                   : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
+                                YOUTUBE_VIDEO_TITLE: matched
+                                  ? matched.title
+                                  : activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE || '',
+                                YOUTUBE_VIDEO_DESCRIPTION: matched
+                                  ? matched.description || ''
+                                  : activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '',
+                                YOUTUBE_VIDEO_TAGS:
+                                  matched && Array.isArray(matched.tags)
+                                    ? matched.tags.join(', ')
+                                    : activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '',
                               },
                             });
                           }}
@@ -10044,7 +10160,7 @@ export default function App() {
                           }
                           className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer whitespace-nowrap"
                         >
-                          🔍 Extraer Datos y Comentarios
+                          🔍 Analizar Título, Descripción, Tags y Comentarios
                         </button>
                       </div>
                     </div>
@@ -10055,6 +10171,17 @@ export default function App() {
                         ? analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId)
                         : null;
                       if (!activeVideo) return null;
+                      const videoTagsList =
+                        Array.isArray(activeVideo.tags) && activeVideo.tags.length > 0
+                          ? activeVideo.tags
+                          : (activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '')
+                              .split(',')
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                      const videoDescriptionText =
+                        activeVideo.description ||
+                        activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION ||
+                        '';
                       const totalSec = activeDoc.targetDurationSeconds || 120;
                       const FIXED_INTRO_SEC = 8;
                       const FIXED_OUTRO_SEC = 8;
@@ -10071,17 +10198,49 @@ export default function App() {
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className="text-[10px] uppercase tracking-wider font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
-                                ✓ Explicación de la Investigación del Video Seleccionado
+                                ✓ Título, Descripción, Tags y Estructura del Video Analizado
                               </span>
                               <h4 className="text-xs sm:text-sm font-bold text-amber-200 mt-1">
-                                {activeVideo.title}
+                                📌 Título: {activeVideo.title}
                               </h4>
                               <p className="text-[11px] text-slate-400">
                                 Canal: {activeVideo.channelTitle} · Analizado:{' '}
-                                {new Date(activeVideo.analyzedAt).toLocaleDateString()}
+                                {new Date(activeVideo.analyzedAt).toLocaleDateString()} · Incluido en la investigación del documental
                               </p>
                             </div>
                           </div>
+
+                          {(videoTagsList.length > 0 || videoDescriptionText) && (
+                            <div className="bg-slate-900/80 border border-amber-500/20 rounded-xl p-3 space-y-2">
+                              {videoTagsList.length > 0 && (
+                                <div>
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">
+                                    🏷️ Tags / Palabras Clave del Video ({videoTagsList.length}):
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {videoTagsList.slice(0, 28).map((tag: string, idx: number) => (
+                                      <span
+                                        key={`${tag}-${idx}`}
+                                        className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-200"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {videoDescriptionText && (
+                                <div>
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 mb-1">
+                                    📝 Descripción Extraída del Video (Incluida en la Investigación):
+                                  </div>
+                                  <pre className="text-[11px] text-slate-300 whitespace-pre-wrap font-sans max-h-32 overflow-y-auto leading-relaxed bg-slate-950/70 p-2 rounded-lg border border-slate-800">
+                                    {videoDescriptionText}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Barra Visual Recalibrada a la Duración del Documental Actual (incluyendo Intro 8s y Outro 8s) */}
                           <div className="space-y-1.5">
@@ -10479,6 +10638,18 @@ export default function App() {
                                     selectedVideoObj?.title ||
                                     activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
                                     '',
+                                  YOUTUBE_VIDEO_TITLE:
+                                    selectedVideoObj?.title ||
+                                    activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
+                                    '',
+                                  YOUTUBE_VIDEO_DESCRIPTION:
+                                    selectedVideoObj?.description ||
+                                    activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION ||
+                                    '',
+                                  YOUTUBE_VIDEO_TAGS:
+                                    selectedVideoObj && Array.isArray(selectedVideoObj.tags)
+                                      ? selectedVideoObj.tags.join(', ')
+                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '',
                                   COMENTARIOS_AUDIENCIA_SELECCIONADOS:
                                     selectedCommentsText ||
                                     activeDoc.promptConfig?.COMENTARIOS_AUDIENCIA_SELECCIONADOS ||
