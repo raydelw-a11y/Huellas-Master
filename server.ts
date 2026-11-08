@@ -2727,19 +2727,36 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido:
 app.post('/api/system/pick-folder', async (_req, res) => {
   try {
     const { execFile } = await import('child_process');
+    const defaultVideosDir =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+    const hasDefaultVideosDir = fs.existsSync(defaultVideosDir);
+    const appleScript = hasDefaultVideosDir
+      ? `tell application "System Events" to activate\nPOSIX path of (choose folder with prompt "Selecciona o crea (Nueva carpeta) la carpeta raíz para este documental:" default location (POSIX file "${defaultVideosDir}"))`
+      : `tell application "System Events" to activate\nPOSIX path of (choose folder with prompt "Selecciona o crea (Nueva carpeta) la carpeta raíz para este documental:")`;
     execFile(
       'osascript',
-      [
-        '-e',
-        'POSIX path of (choose folder with prompt "Selecciona la carpeta donde Huellas Master descargará automáticamente los videos aprobados de Google Flow:")',
-      ],
+      ['-e', appleScript],
       (err, stdout) => {
         if (err) {
           res.status(400).json({ cancelled: true, error: 'Selección de carpeta cancelada.' });
           return;
         }
-        const folderPath = (stdout || '').trim();
-        res.json({ ok: true, folderPath });
+        const folderPath = (stdout || '').trim().replace(/\/+$/, '');
+        const folderName = path.basename(folderPath);
+        const subfolders = [
+          '01_Guion_y_SEO',
+          '02_Audio',
+          '03_Miniaturas',
+          '04_Referencias',
+          '05_Clips_Video',
+          '06_Video_Final',
+        ];
+        for (const sub of subfolders) {
+          try {
+            fs.mkdirSync(path.join(folderPath, sub), { recursive: true });
+          } catch {}
+        }
+        res.json({ ok: true, folderPath, folderName });
       }
     );
   } catch (err: any) {

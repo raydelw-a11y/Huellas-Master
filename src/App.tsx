@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:34 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:42 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -455,18 +455,18 @@ function openDirHandleDB(): Promise<IDBDatabase> {
 }
 
 async function saveDirHandleToIndexedDB(docId: string | undefined, handle: any): Promise<void> {
-  if (!handle) return;
+  if (!handle || !docId) return;
   try {
     const db = await openDirHandleDB();
     const tx = db.transaction(DIR_HANDLE_STORE_NAME, 'readwrite');
     const store = tx.objectStore(DIR_HANDLE_STORE_NAME);
-    store.put(handle, 'default_doc_folder');
-    if (docId) store.put(handle, docId);
+    store.put(handle, docId);
     db.close();
   } catch {}
 }
 
 async function loadDirHandleFromIndexedDB(docId?: string): Promise<any | null> {
+  if (!docId) return null;
   try {
     const db = await openDirHandleDB();
     const getByKey = (key: string) =>
@@ -477,11 +477,7 @@ async function loadDirHandleFromIndexedDB(docId?: string): Promise<any | null> {
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => resolve(null);
       });
-    // Always prioritize the single master folder handle so Stage 1, Stage 5, Stage 8, and Editor match 100%
-    let handle = await getByKey('default_doc_folder');
-    if (!handle && docId) {
-      handle = await getByKey(docId);
-    }
+    const handle = await getByKey(docId);
     db.close();
     return handle || null;
   } catch {
@@ -2540,10 +2536,15 @@ export default function App() {
       hashtags: '',
       youtubeTags: '',
       pinnedComment: '',
+      downloadFolderName: '',
+      downloadFolderPath: '',
     };
   };
 
   const handleCreateDocumentary = async () => {
+    flowDownloadDirHandleRef.current = null;
+    setFlowDownloadFolderName('');
+    setFlowServerFolderPath('');
     if (!isCloudMode) {
       try {
         const res = await fetch('/api/documentaries', {
@@ -2554,10 +2555,14 @@ export default function App() {
             productionType: 'DOCUMENTAL_16X9',
             status: 'planificacion',
             operationalHeader: DEFAULT_OPERATIONAL_HEADER,
+            downloadFolderName: '',
+            downloadFolderPath: '',
           }),
         });
         if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
           const created = await res.json();
+          created.downloadFolderName = '';
+          created.downloadFolderPath = '';
           const next = [created, ...documentaries];
           setDocumentaries(next);
           saveLocalCachedDocumentaries(next);
@@ -3176,7 +3181,7 @@ export default function App() {
     if (!folderCandidate || !doc) return true;
     const docNum = extractDocVideoNumber(`${doc.title || ''} ${doc.topic || ''}`);
     const folderNum = extractDocVideoNumber(folderCandidate);
-    if (docNum && folderNum && docNum !== folderNum) return false;
+    if (folderNum && (!docNum || docNum !== folderNum)) return false;
     return true;
   };
 
@@ -3188,25 +3193,20 @@ export default function App() {
   ).trim();
 
   const effectiveDocFolderName =
-    (flowDownloadDirHandleRef.current?.name &&
-    doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
-      ? flowDownloadDirHandleRef.current.name
-      : '') ||
-    (doesFolderMatchDoc(flowDownloadFolderName, activeDoc) ? flowDownloadFolderName.trim() : '') ||
     (doesFolderMatchDoc(activeDoc?.downloadFolderName, activeDoc)
       ? (activeDoc?.downloadFolderName || '').trim()
       : '') ||
-    getCanonicalFolderNameForDoc(activeDoc) ||
-    (doesFolderMatchDoc(globalStoredFolderName, activeDoc) ? globalStoredFolderName : '') ||
-    (doesFolderMatchDoc(flowServerFolderPath, activeDoc) ? flowServerFolderPath.trim() : '') ||
-    (doesFolderMatchDoc(globalStoredFolderPath, activeDoc) ? globalStoredFolderPath : '');
+    (doesFolderMatchDoc(activeDoc?.downloadFolderPath, activeDoc)
+      ? (activeDoc?.downloadFolderPath || '').trim()
+      : '') ||
+    getCanonicalFolderNameForDoc(activeDoc);
   const hasSelectedDocFolder = Boolean(effectiveDocFolderName);
 
-  // Sync the download folder for the active documentary without crossing Video 75 and Video 76
+  // Sync the download folder for the active documentary without crossing documentaries or pre-selecting on new docs
   useEffect(() => {
     if (!activeDoc) return;
     let isCancelled = false;
-    // Clear in-memory media maps when switching documentaries so clips from Video 75 and Video 76 never mix
+    // Clear in-memory media maps when switching documentaries so clips from different documentaries never mix
     setCapturedClipVideosMap({});
     setCapturedSunoAudioMap({});
     setFolderVoiceoverUrl('');
@@ -3221,12 +3221,7 @@ export default function App() {
       const idbHandle = await loadDirHandleFromIndexedDB(activeDoc.id);
       if (isCancelled) return;
       const validRestoredHandle =
-        idbHandle && doesFolderMatchDoc(idbHandle.name, activeDoc)
-          ? idbHandle
-          : flowDownloadDirHandleRef.current &&
-            doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
-          ? flowDownloadDirHandleRef.current
-          : null;
+        idbHandle && doesFolderMatchDoc(idbHandle.name, activeDoc) ? idbHandle : null;
 
       if (validRestoredHandle) {
         flowDownloadDirHandleRef.current = validRestoredHandle;
@@ -3255,30 +3250,20 @@ export default function App() {
           ? activeDoc.downloadFolderName
           : '') ||
         canonicalName ||
-        (doesFolderMatchDoc(globalStoredFolderName, activeDoc) ? globalStoredFolderName : '') ||
         ''
       ).trim();
       const unifiedPath = (
         (doesFolderMatchDoc(activeDoc.downloadFolderPath, activeDoc)
           ? activeDoc.downloadFolderPath
-          : '') ||
-        (doesFolderMatchDoc(globalStoredFolderPath, activeDoc) ? globalStoredFolderPath : '') ||
-        ''
+          : '') || ''
       ).trim();
-
-      if (unifiedName) {
-        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, unifiedName);
-      }
-      if (unifiedPath) {
-        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, unifiedPath);
-      }
 
       setFlowDownloadFolderName(unifiedName);
       setFlowServerFolderPath(unifiedPath);
 
       if (
-        (unifiedName && activeDoc.downloadFolderName !== unifiedName) ||
-        (unifiedPath && activeDoc.downloadFolderPath !== unifiedPath)
+        activeDoc.downloadFolderName !== unifiedName ||
+        (activeDoc.downloadFolderPath || '') !== unifiedPath
       ) {
         updateActiveDoc({
           downloadFolderName: unifiedName,
@@ -3315,7 +3300,7 @@ export default function App() {
     return true;
   };
 
-  // Apply the chosen single folder name & path across all documentaries so Stage 1, Stage 5, Stage 8 & Editor always match
+  // Apply the chosen single folder name & path to the active documentary so Stage 1, Stage 5, Stage 8 & Editor always match
   const syncSingleFolderAcrossAllDocs = (folderName: string, folderPath: string) => {
     localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, folderName);
     localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, folderPath);
@@ -3327,8 +3312,40 @@ export default function App() {
     });
   };
 
-  // 1. Choose Single Root Destination Folder on User's Computer in Stage 1 (With Subfolders for Each File Type)
+  // 1. Choose Single Root Destination Folder on User's Computer in Stage 1 (Opens Native File Browser / Finder to Select or Create Folder)
   const handlePickFlowDownloadFolder = async (): Promise<boolean> => {
+    // 1A. Try native macOS Finder dialog via local server (works in Safari, Chrome, localhost, and cloud bridge, with "Nueva carpeta" button)
+    const isLocalhostOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const pickerBases = isLocalhostOrigin
+      ? ['']
+      : ['http://localhost:4200', ''];
+
+    for (const baseOrigin of pickerBases) {
+      try {
+        const res = await fetch(`${baseOrigin}/api/system/pick-folder`, { method: 'POST' });
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          if (data?.cancelled) {
+            return false;
+          }
+          if (res.ok && data?.folderPath) {
+            const cleanPath = String(data.folderPath).trim().replace(/\/+$/, '');
+            const cleanName = String(data.folderName || cleanPath.split('/').pop() || cleanPath).trim();
+            flowDownloadDirHandleRef.current = null;
+            syncSingleFolderAcrossAllDocs(cleanName, cleanPath);
+            setFlowStatusLog(
+              `📁 Carpeta raíz seleccionada: "${cleanName}" con sus subcarpetas (${DOCUMENTARY_SUBFOLDERS.join(', ')}) listas.`
+            );
+            return true;
+          }
+        }
+      } catch {}
+    }
+
+    // 1B. Native OS File System Access API picker (Chrome / Edge / Brave) — allows creating a new folder in Finder
     try {
       if (typeof (window as any).showDirectoryPicker === 'function') {
         const dirHandle = await (window as any).showDirectoryPicker({
@@ -3337,7 +3354,6 @@ export default function App() {
         if (dirHandle) {
           const pickedName = dirHandle.name || 'Carpeta Seleccionada';
           flowDownloadDirHandleRef.current = dirHandle;
-          // Pre-create all 6 organized subfolders inside the root folder right away
           try {
             for (const sub of DOCUMENTARY_SUBFOLDERS) {
               await dirHandle.getDirectoryHandle(sub, { create: true });
@@ -3357,42 +3373,54 @@ export default function App() {
       }
     }
 
-    // Fallback to native macOS folder picker on local server if showDirectoryPicker is unavailable
-    if (!isCloudMode) {
-      try {
-        const res = await fetch('/api/system/pick-folder', { method: 'POST' });
-        if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
-          const data = await res.json();
-          if (data.folderPath) {
-            flowDownloadDirHandleRef.current = null;
-            syncSingleFolderAcrossAllDocs(data.folderPath, data.folderPath);
-            setFlowStatusLog(
-              `📁 Carpeta raíz seleccionada: "${data.folderPath}" con subcarpetas para cada tipo de archivo.`
-            );
-            return true;
-          }
+    // 1C. Native OS Folder Input Picker fallback (Safari without local server) — opens Finder / Files dialog
+    return await new Promise<boolean>((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      (input as any).webkitdirectory = true;
+      (input as any).directory = true;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      let settled = false;
+      const cleanup = () => {
+        if (input.parentNode) input.parentNode.removeChild(input);
+      };
+      input.onchange = () => {
+        settled = true;
+        const files = input.files;
+        if (files && files.length > 0) {
+          const relPath = (files[0] as any).webkitRelativePath || '';
+          const folderName = relPath.split('/')[0] || files[0].name || 'Carpeta Seleccionada';
+          syncSingleFolderAcrossAllDocs(folderName, '');
+          setFlowStatusLog(
+            `📁 Carpeta raíz seleccionada: "${folderName}". ¡Etapas 2 a 12 desbloqueadas!`
+          );
+          cleanup();
+          resolve(true);
+          return;
         }
-      } catch {}
-    }
-
-    // Universal fallback for browsers without showDirectoryPicker (e.g., Safari / iOS on GitHub Pages)
-    const defaultFolderSlug = (activeDoc?.title || 'Documental_Huellas')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .slice(0, 40);
-    const manualFolder = window.prompt(
-      '📂 Ingresa o confirma el nombre de la carpeta raíz de descarga para todo el documental:',
-      defaultFolderSlug
-    );
-    if (manualFolder && manualFolder.trim()) {
-      const cleanFolder = manualFolder.trim();
-      syncSingleFolderAcrossAllDocs(cleanFolder, '');
-      setFlowStatusLog(
-        `📁 Carpeta raíz del documental configurada: "${cleanFolder}". ¡Etapas 2 a 12 desbloqueadas!`
+        cleanup();
+        resolve(false);
+      };
+      input.oncancel = () => {
+        settled = true;
+        cleanup();
+        resolve(false);
+      };
+      window.addEventListener(
+        'focus',
+        () => {
+          setTimeout(() => {
+            if (!settled) {
+              cleanup();
+              resolve(false);
+            }
+          }, 600);
+        },
+        { once: true }
       );
-      return true;
-    }
-
-    return false;
+      input.click();
+    });
   };
 
   // Ensure the single root folder handle is restored and readwrite permission is granted WHILE a user click gesture is active,
@@ -9243,12 +9271,6 @@ export default function App() {
                     </option>
                   ))}
                 </select>
-                <button
-                  onClick={() => handleExportDocumentaryDossier(activeDoc)}
-                  className="shrink-0 py-1 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-                >
-                  <Download className="w-3.5 h-3.5" /> Exportar (.txt)
-                </button>
               </div>
             </div>
 
