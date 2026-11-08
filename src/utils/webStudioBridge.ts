@@ -24,6 +24,7 @@ export interface WebBridgeReferenceQueueItem {
 export interface WebBridgeCommandPayload {
   action:
     | 'SEND_PROMPT'
+    | 'RENAME_GEMINI_CHAT'
     | 'LOAD_STORY_STUDIO_PROJECT'
     | 'GRAB_LAST_RESPONSE'
     | 'GRAB_LAST_MEDIA'
@@ -34,6 +35,10 @@ export interface WebBridgeCommandPayload {
     | 'STOP_FLOW_WATCHER'
     | 'OPEN_DOCKED'
     | 'FOCUS_TAB';
+  docId?: string;
+  videoName?: string;
+  geminiChatUrl?: string;
+  notebookName?: string;
   prompt?: string;
   imagePrompt?: string;
   aspectRatio?: '16:9' | '9:16';
@@ -100,26 +105,57 @@ export function pingHuellasExtension(): void {
   );
 }
 
+export interface ActiveGeminiDocContext {
+  docId: string;
+  videoName: string;
+  geminiChatUrl?: string;
+  notebookName?: string;
+}
+
+let activeGeminiDocContext: ActiveGeminiDocContext | null = null;
+
+export function setActiveGeminiDocContext(ctx: ActiveGeminiDocContext | null): void {
+  activeGeminiDocContext = ctx;
+  if (typeof window !== 'undefined') {
+    (window as any).__HUELLAS_ACTIVE_DOC_GEMINI_CTX__ = ctx;
+  }
+}
+
 export function sendCommandToWebBridge(
   targetService: WebServiceTarget,
   payload: WebBridgeCommandPayload
 ): string {
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const ctx =
+    activeGeminiDocContext ||
+    (typeof window !== 'undefined' ? (window as any).__HUELLAS_ACTIVE_DOC_GEMINI_CTX__ : null);
+
+  const enrichedPayload: WebBridgeCommandPayload =
+    targetService === 'GEMINI' && ctx
+      ? {
+          docId: ctx.docId,
+          videoName: ctx.videoName,
+          geminiChatUrl: ctx.geminiChatUrl || '',
+          notebookName: ctx.notebookName || 'Huellas de la Humanidad',
+          ...payload,
+        }
+      : payload;
+
   // Prevent Quill/Rich-Textarea in Gemini Web from treating '\n' in execCommand('insertText') as an Enter key press that submits after line 1
   const safePayload: WebBridgeCommandPayload =
     targetService === 'GEMINI' &&
-    payload.action === 'SEND_PROMPT' &&
-    typeof payload.prompt === 'string'
+    enrichedPayload.action === 'SEND_PROMPT' &&
+    typeof enrichedPayload.prompt === 'string'
       ? {
-          ...payload,
-          prompt: payload.prompt
+          ...enrichedPayload,
+          prompt: enrichedPayload.prompt
             .replace(/\r\n/g, '\n')
             .split('\n')
             .map((line) => line.trim())
             .filter(Boolean)
             .join('   |   '),
         }
-      : payload;
+      : enrichedPayload;
 
   if (typeof window !== 'undefined') {
     window.postMessage(

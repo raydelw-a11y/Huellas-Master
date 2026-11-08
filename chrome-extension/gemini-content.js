@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 7) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 7;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 8) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 8;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -1019,6 +1019,385 @@
     }, 1100);
   }
 
+  // ==========================================================================
+  // NOTEBOOK "HUELLAS DE LA HUMANIDAD" + 1-CHAT-PER-VIDEO DETECTOR & RENAMER
+  // ==========================================================================
+  function normalizeCompareText(str) {
+    return String(str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function extractVideoNumberToken(str) {
+    const m = String(str || '').match(/\bvideo\s*0*(\d+)\b/i);
+    return m ? m[1] : '';
+  }
+
+  function extractChatIdFromUrl(urlStr) {
+    const m = String(urlStr || '').match(/\/app\/([a-zA-Z0-9_-]{8,})/);
+    return m ? m[1] : '';
+  }
+
+  function doesTitleMatchTargetVideo(candidateTitle, targetVideoName) {
+    const normCand = normalizeCompareText(candidateTitle);
+    const normTarget = normalizeCompareText(targetVideoName);
+    if (!normCand || !normTarget) return false;
+    if (normCand === normTarget || normCand.includes(normTarget) || normTarget.includes(normCand)) {
+      return true;
+    }
+    const candNum = extractVideoNumberToken(candidateTitle);
+    const targetNum = extractVideoNumberToken(targetVideoName);
+    if (candNum && targetNum && candNum === targetNum) {
+      return true;
+    }
+    return false;
+  }
+
+  async function ensureGeminiSidebarOpen() {
+    const sideCandidates = document.querySelectorAll(
+      '[data-test-id="conversation"], .conversation-items-container, .conversations-container, bard-sidenav a[href*="/app/"]'
+    );
+    const hasVisibleSidebar = Array.from(sideCandidates).some((el) => isElementVisibleInDom(el));
+    if (hasVisibleSidebar) return;
+
+    const menuBtns = document.querySelectorAll(
+      'button[data-test-id="side-nav-menu-button"], button[aria-label*="Main menu" i], button[aria-label*="Menú principal" i], button[aria-label*="Menu" i], button[aria-label*="Menú" i]'
+    );
+    for (const btn of menuBtns) {
+      if (isElementVisibleInDom(btn)) {
+        btn.click();
+        await sleep(350);
+        break;
+      }
+    }
+  }
+
+  function getActiveGeminiChatTitleInDom() {
+    const headerSelectors = [
+      '[data-test-id="conversation-title"]',
+      '.conversation-title',
+      'conversation-title',
+      '[data-test-id="conversation"].selected .conversation-title',
+      '.conversation.selected .conversation-title',
+      '[aria-selected="true"] .conversation-title',
+    ];
+    for (const sel of headerSelectors) {
+      const el = document.querySelector(sel);
+      if (el && isElementVisibleInDom(el)) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (txt && !/^google gemini$/i.test(txt)) return txt;
+      }
+    }
+    const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini$/i, '').trim();
+    if (docTitle && !/^gemini$/i.test(docTitle) && !/^google gemini$/i.test(docTitle)) {
+      return docTitle;
+    }
+    return '';
+  }
+
+  function findChatElementInSidebar(targetVideoName, targetChatUrl) {
+    const targetChatId = extractChatIdFromUrl(targetChatUrl);
+    const allItems = Array.from(
+      document.querySelectorAll(
+        '[data-test-id="conversation"], a[href*="/app/"], .conversation-items-container [role="button"], .conversation-items-container [role="listitem"], .conversations-container [role="button"], .chat-history-list [role="button"]'
+      )
+    );
+
+    if (targetChatId) {
+      for (const item of allItems) {
+        const href = item.getAttribute('href') || item.querySelector?.('a')?.getAttribute('href') || '';
+        const jslog = item.getAttribute('jslog') || '';
+        if (href.includes(targetChatId) || jslog.includes(targetChatId)) {
+          return item;
+        }
+      }
+    }
+
+    if (targetVideoName) {
+      for (const item of allItems) {
+        const txt = (item.innerText || item.textContent || '').trim();
+        if (txt && doesTitleMatchTargetVideo(txt, targetVideoName)) {
+          return item;
+        }
+      }
+    }
+    return null;
+  }
+
+  async function renameGeminiConversationInDom(newTitle, targetChatUrl, docId) {
+    const cleanNewTitle = String(newTitle || '').trim();
+    if (!cleanNewTitle) return false;
+
+    try {
+      await ensureGeminiSidebarOpen();
+
+      // If targetChatUrl points to a specific conversation not currently active, click it in sidebar first
+      const sidebarItem = findChatElementInSidebar(cleanNewTitle, targetChatUrl);
+      const currentTitle = getActiveGeminiChatTitleInDom();
+      if (currentTitle && normalizeCompareText(currentTitle) === normalizeCompareText(cleanNewTitle)) {
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_CHAT_LINKED',
+            docId,
+            geminiChatUrl: window.location.href,
+            geminiChatTitle: cleanNewTitle,
+          })
+          .catch(() => {});
+        return true;
+      }
+
+      // 1. Try opening the conversation actions menu (top header title menu or sidebar 3-dots button)
+      let renameMenuTrigger = null;
+      if (sidebarItem && isElementVisibleInDom(sidebarItem)) {
+        sidebarItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        sidebarItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        await sleep(150);
+        const container =
+          sidebarItem.closest('.conversation-items-container, [role="listitem"], .conversation') ||
+          sidebarItem.parentElement;
+        if (container) {
+          renameMenuTrigger = container.querySelector(
+            'button[data-test-id="actions-menu-button"], button[aria-label*="More" i], button[aria-label*="Más" i], button[aria-label*="Opciones" i], button[mattooltip*="More" i], button[mattooltip*="Más" i]'
+          );
+        }
+      }
+
+      if (!renameMenuTrigger) {
+        const topTitleBtn = document.querySelector(
+          'button[data-test-id="conversation-title"], .conversation-title-container button, [data-test-id="conversation-actions-button"], button[aria-label*="Conversation actions" i], button[aria-label*="Acciones de la conversación" i]'
+        );
+        if (topTitleBtn && isElementVisibleInDom(topTitleBtn)) {
+          renameMenuTrigger = topTitleBtn;
+        }
+      }
+
+      if (renameMenuTrigger) {
+        renameMenuTrigger.click();
+        await sleep(300);
+      }
+
+      // 2. Find and click "Rename" / "Cambiar nombre" menu item or button
+      const menuItems = Array.from(
+        document.querySelectorAll(
+          'button[data-test-id="rename-button"], [role="menuitem"], .mat-mdc-menu-item, button[aria-label*="Rename" i], button[aria-label*="Cambiar nombre" i]'
+        )
+      );
+      let clickedRenameOption = false;
+      for (const item of menuItems) {
+        if (!isElementVisibleInDom(item)) continue;
+        const txt = (item.innerText || item.textContent || '').trim().toLowerCase();
+        const aria = (item.getAttribute('aria-label') || '').toLowerCase();
+        const hasEditIcon = Boolean(
+          item.querySelector('mat-icon[fonticon="edit"], mat-icon[data-mat-icon-name="edit"], mat-icon[fonticon="drive_file_rename_outline"]')
+        );
+        if (
+          txt.includes('rename') ||
+          txt.includes('cambiar nombre') ||
+          txt.includes('renombrar') ||
+          aria.includes('rename') ||
+          aria.includes('cambiar nombre') ||
+          hasEditIcon
+        ) {
+          item.click();
+          clickedRenameOption = true;
+          await sleep(320);
+          break;
+        }
+      }
+
+      if (!clickedRenameOption) return false;
+
+      // 3. Find the rename text input inside the dialog or inline header
+      const inputCandidates = Array.from(
+        document.querySelectorAll(
+          'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, input[aria-label*="name" i], input[aria-label*="nombre" i], input[aria-label*="title" i], input[aria-label*="título" i], input[type="text"]'
+        )
+      ).filter((el) => isElementVisibleInDom(el));
+
+      const renameInput = inputCandidates[0];
+      if (!renameInput) return false;
+
+      renameInput.focus();
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set;
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(renameInput, cleanNewTitle);
+      } else {
+        renameInput.value = cleanNewTitle;
+      }
+      renameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      renameInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(160);
+
+      // 4. Click Save/Rename button in dialog or press Enter
+      const saveBtns = Array.from(
+        document.querySelectorAll(
+          'button[data-test-id="confirm-button"], .mat-mdc-dialog-container button[type="submit"], mat-dialog-container button[color="primary"], .mat-mdc-dialog-actions button'
+        )
+      ).filter((b) => isElementVisibleInDom(b) && !b.disabled);
+
+      let clickedSave = false;
+      for (const btn of saveBtns) {
+        const bTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+        if (
+          bTxt.includes('rename') ||
+          bTxt.includes('cambiar') ||
+          bTxt.includes('guardar') ||
+          bTxt.includes('save') ||
+          bTxt.includes('aceptar') ||
+          bTxt.includes('ok')
+        ) {
+          btn.click();
+          clickedSave = true;
+          break;
+        }
+      }
+
+      if (!clickedSave) {
+        renameInput.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      }
+
+      await sleep(350);
+      chrome.runtime
+        .sendMessage({
+          type: 'GEMINI_CHAT_LINKED',
+          docId,
+          geminiChatUrl: window.location.href,
+          geminiChatTitle: cleanNewTitle,
+        })
+        .catch(() => {});
+      reportStatus(
+        'COMPLETED',
+        `✏️ Conversación de Gemini renombrada en tiempo real a "${cleanNewTitle}".`,
+        { docId }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function ensureCorrectVideoChatBeforePrompt(payload) {
+    const targetVideoName = String(payload.videoName || '').trim();
+    const targetChatUrl = String(payload.geminiChatUrl || '').trim();
+    const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
+    const docId = payload.docId || '';
+
+    if (!targetVideoName && !targetChatUrl) {
+      return { isNewChat: false };
+    }
+
+    const currentChatId = extractChatIdFromUrl(window.location.href);
+    const targetChatId = extractChatIdFromUrl(targetChatUrl);
+    const currentDomTitle = getActiveGeminiChatTitleInDom();
+
+    // Case 1: Already inside the exact linked chat URL or a chat whose title matches targetVideoName
+    if (
+      (targetChatId && currentChatId && targetChatId === currentChatId) ||
+      (targetVideoName && currentDomTitle && doesTitleMatchTargetVideo(currentDomTitle, targetVideoName))
+    ) {
+      chrome.runtime
+        .sendMessage({
+          type: 'GEMINI_CHAT_LINKED',
+          docId,
+          geminiChatUrl: window.location.href,
+          geminiChatTitle: targetVideoName || currentDomTitle,
+        })
+        .catch(() => {});
+
+      if (
+        targetVideoName &&
+        currentDomTitle &&
+        normalizeCompareText(currentDomTitle) !== normalizeCompareText(targetVideoName)
+      ) {
+        await renameGeminiConversationInDom(targetVideoName, window.location.href, docId);
+      }
+      return { isNewChat: false };
+    }
+
+    // Case 2: Search Gemini sidebar for an existing chat of this video (by URL or by Video Name / Number)
+    await ensureGeminiSidebarOpen();
+    const existingChatItem = findChatElementInSidebar(targetVideoName, targetChatUrl);
+    if (existingChatItem) {
+      reportStatus(
+        'WORKING',
+        `🔍 Cambiando automáticamente a la conversación de "${targetVideoName}" en Gemini...`,
+        { stageNumber: payload.stageNumber }
+      );
+      existingChatItem.click();
+      await sleep(1500);
+      chrome.runtime
+        .sendMessage({
+          type: 'GEMINI_CHAT_LINKED',
+          docId,
+          geminiChatUrl: window.location.href,
+          geminiChatTitle: targetVideoName,
+        })
+        .catch(() => {});
+      return { isNewChat: false };
+    }
+
+    // Case 3: No chat exists yet for this video -> Open a new chat inside the Notebook "Huellas de la Humanidad"
+    const existingMessagesInCurrentTab = getModelResponseElements().length;
+    const normNotebook = normalizeCompareText(notebookName);
+
+    // Look for Notebook / Gem / Project "Huellas de la Humanidad" in the sidebar
+    const sidebarLinks = Array.from(
+      document.querySelectorAll('a, button, [role="button"], [role="listitem"], [role="treeitem"]')
+    );
+    let notebookClicked = false;
+    for (const el of sidebarLinks) {
+      if (!isElementVisibleInDom(el)) continue;
+      const txt = normalizeCompareText(el.innerText || el.textContent || '');
+      if (txt === normNotebook || (txt.includes('huellas de la humanidad') && txt.length < 45)) {
+        reportStatus(
+          'WORKING',
+          `📓 Entrando al Notebook "${notebookName}" para crear el chat de "${targetVideoName}"...`,
+          { stageNumber: payload.stageNumber }
+        );
+        el.click();
+        notebookClicked = true;
+        await sleep(1200);
+        break;
+      }
+    }
+
+    // If current tab still has messages from another video (e.g. Video 76), click "New chat" / "Nuevo chat"
+    if (!notebookClicked && (existingMessagesInCurrentTab > 0 || currentChatId)) {
+      const newChatBtns = document.querySelectorAll(
+        'button[data-test-id="new-chat-button"], a[data-test-id="new-chat-button"], button[aria-label*="New chat" i], button[aria-label*="Nuevo chat" i], button[aria-label*="Nueva conversación" i], a[href="/app"]'
+      );
+      for (const btn of newChatBtns) {
+        if (isElementVisibleInDom(btn)) {
+          reportStatus(
+            'WORKING',
+            `✨ Creando nueva conversación exclusiva para "${targetVideoName}"...`,
+            { stageNumber: payload.stageNumber }
+          );
+          btn.click();
+          await sleep(1200);
+          break;
+        }
+      }
+    }
+
+    return { isNewChat: true };
+  }
+
   function executeSinglePromptOrder(payload) {
     isBusyWithOrder = true;
     (async () => {
@@ -1032,6 +1411,9 @@
         if (waitbusyLoops > 0) {
           await sleep(500);
         }
+
+        // 1B. Automatically detect/switch to the single conversation for this Video inside Notebook "Huellas de la Humanidad"
+        const chatState = await ensureCorrectVideoChatBeforePrompt(payload);
 
         const useArgonLow =
           Boolean(payload.enableArgonLow) ||
@@ -1155,6 +1537,30 @@
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
           });
+
+          // If this was the first prompt of the video, capture the newly assigned chat URL and rename the chat to payload.videoName
+          if (payload.videoName || payload.docId) {
+            setTimeout(async () => {
+              const chatId = extractChatIdFromUrl(window.location.href);
+              if (chatId) {
+                chrome.runtime
+                  .sendMessage({
+                    type: 'GEMINI_CHAT_LINKED',
+                    docId: payload.docId,
+                    geminiChatUrl: window.location.href,
+                    geminiChatTitle: payload.videoName || getActiveGeminiChatTitleInDom(),
+                  })
+                  .catch(() => {});
+                if (chatState && chatState.isNewChat && payload.videoName) {
+                  await renameGeminiConversationInDom(
+                    payload.videoName,
+                    window.location.href,
+                    payload.docId
+                  );
+                }
+              }
+            }, 3200);
+          }
         } else {
           isBusyWithOrder = false;
           processNextQueuedPrompt();
@@ -1188,6 +1594,13 @@
       const ok = handleSendPrompt(msg);
       sendResponse({ handled: ok });
       return false;
+    }
+
+    if (msg.action === 'RENAME_GEMINI_CHAT') {
+      renameGeminiConversationInDom(msg.videoName, msg.geminiChatUrl, msg.docId).then((ok) => {
+        sendResponse({ handled: ok });
+      });
+      return true;
     }
 
     if (msg.action === 'GRAB_LAST_RESPONSE' || msg.action === 'SYNC_STAGE11_FROM_GEMINI') {

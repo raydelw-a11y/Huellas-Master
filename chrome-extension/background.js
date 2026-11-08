@@ -2982,6 +2982,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (
     message.type === 'BRIDGE_STATUS' ||
     message.type === 'GEMINI_RESPONSE_READY' ||
+    message.type === 'GEMINI_CHAT_LINKED' ||
     message.type === 'FLOW_MEDIA_READY' ||
     message.type === 'FLOW_VIDEO_CAPTURED' ||
     message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||

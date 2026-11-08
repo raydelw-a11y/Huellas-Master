@@ -12408,6 +12408,146 @@ setInterval(() => {
   checkAndSendInstagramAutoDms().catch(() => {});
 }, 45000);
 
+// Real-time rename of documentary root folder on macOS + sync with documentary record
+app.post('/api/system/rename-doc-folder', (req, res) => {
+  try {
+    const { docId, newName, oldFolderPath, oldFolderName } = req.body || {};
+    const rawTrimmed = String(newName || '').trim();
+    if (!rawTrimmed) {
+      res.status(400).json({ ok: false, error: 'El nombre del video/carpeta no puede estar vacío.' });
+      return;
+    }
+
+    // Safe macOS folder name (preserve accents, spaces, em-dashes, parentheses; replace / and : with -)
+    const safeFolderName = rawTrimmed
+      .replace(/[/:\\]+/g, ' - ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const icloudVideosDir =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+    const hasIcloudDir = fs.existsSync(icloudVideosDir);
+
+    let existingFolderPath = '';
+    if (oldFolderPath && typeof oldFolderPath === 'string' && fs.existsSync(oldFolderPath)) {
+      existingFolderPath = oldFolderPath;
+    } else if (
+      hasIcloudDir &&
+      oldFolderName &&
+      typeof oldFolderName === 'string' &&
+      fs.existsSync(path.join(icloudVideosDir, oldFolderName))
+    ) {
+      existingFolderPath = path.join(icloudVideosDir, oldFolderName);
+    } else if (hasIcloudDir) {
+      // Try matching by "Video XX" prefix in iCloud Videos directory
+      const numMatch =
+        safeFolderName.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i) ||
+        String(oldFolderName || '').match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
+      if (numMatch) {
+        const targetNum = numMatch[1];
+        const prefixRegex = new RegExp(
+          `^(?:video|ep\\.?|episodio|documental)\\s*0*${targetNum}(?:\\b|\\s|_|-|$)`,
+          'i'
+        );
+        const entries = fs.readdirSync(icloudVideosDir, { withFileTypes: true });
+        const found = entries.find((e) => e.isDirectory() && !e.name.startsWith('.') && prefixRegex.test(e.name));
+        if (found) {
+          existingFolderPath = path.join(icloudVideosDir, found.name);
+        }
+      }
+    }
+
+    const parentDir = existingFolderPath
+      ? path.dirname(existingFolderPath)
+      : hasIcloudDir
+      ? icloudVideosDir
+      : path.join(DATA_DIR, 'projects');
+
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    const newFolderPath = path.join(parentDir, safeFolderName);
+    let wasRenamed = false;
+    let wasCreated = false;
+
+    if (existingFolderPath && fs.existsSync(existingFolderPath)) {
+      if (existingFolderPath !== newFolderPath) {
+        if (!fs.existsSync(newFolderPath)) {
+          fs.renameSync(existingFolderPath, newFolderPath);
+          wasRenamed = true;
+        }
+      }
+    } else if (hasIcloudDir) {
+      if (!fs.existsSync(newFolderPath)) {
+        fs.mkdirSync(newFolderPath, { recursive: true });
+        wasCreated = true;
+      }
+    }
+
+    // Ensure standard subfolders and marker file exist inside the target folder
+    if (fs.existsSync(newFolderPath)) {
+      const subfolders = [
+        '01_Guion_y_SEO',
+        '02_Audio',
+        '03_Miniaturas',
+        '04_Referencias',
+        '05_Clips_Video',
+        '06_Video_Final',
+        '07_Viral_Clips',
+      ];
+      for (const sub of subfolders) {
+        try {
+          fs.mkdirSync(path.join(newFolderPath, sub), { recursive: true });
+        } catch {}
+      }
+      try {
+        fs.writeFileSync(
+          path.join(newFolderPath, '00_Carpeta_Raiz_Huellas.txt'),
+          `Carpeta raíz del documental: ${safeFolderName}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
+          'utf8'
+        );
+      } catch {}
+    }
+
+    // Also update documentary record on disk if docId is provided
+    if (docId) {
+      try {
+        const list = readDocumentaries();
+        const idx = list.findIndex((d) => d.id === docId);
+        if (idx !== -1) {
+          list[idx] = {
+            ...list[idx],
+            title: safeFolderName,
+            downloadFolderName: safeFolderName,
+            downloadFolderPath: newFolderPath,
+            geminiChatTitle: safeFolderName,
+            updatedAt: new Date().toISOString(),
+          };
+          writeDocumentaries(list);
+        }
+      } catch (e) {
+        console.warn('[RenameDocFolder] Warning updating documentaries.json:', e);
+      }
+    }
+
+    res.json({
+      ok: true,
+      folderName: safeFolderName,
+      folderPath: newFolderPath,
+      renamedFrom: existingFolderPath || null,
+      wasRenamed,
+      wasCreated,
+    });
+  } catch (err: any) {
+    console.error('[RenameDocFolder] Error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al renombrar la carpeta del documental en Mac.',
+    });
+  }
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {

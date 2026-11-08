@@ -141,7 +141,8 @@
       message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
       message.type === 'FLOW_REFERENCE_CAPTURED' ||
       message.type === 'SUNO_AUDIO_CAPTURED' ||
-      message.type === 'HUELLAS_CONNECTED_TABS_UPDATE'
+      message.type === 'HUELLAS_CONNECTED_TABS_UPDATE' ||
+      message.type === 'GEMINI_CHAT_LINKED'
     ) {
       window.postMessage(
         {

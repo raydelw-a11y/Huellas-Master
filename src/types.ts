@@ -250,6 +250,8 @@ export interface DocumentaryProject {
   // Etapa 1: Configuración, Carpeta de Descarga Obligatoria y Prompt Maestro
   downloadFolderName?: string;
   downloadFolderPath?: string;
+  geminiChatUrl?: string;
+  geminiChatTitle?: string;
   promptConfig: Record<string, any>;
   compiledMasterPrompt: string;
 

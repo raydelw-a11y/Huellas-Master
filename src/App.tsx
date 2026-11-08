@@ -120,11 +120,12 @@ import {
   isHuellasExtensionDetected,
   pingHuellasExtension,
   sendCommandToWebBridge,
+  setActiveGeminiDocContext,
 } from './utils/webStudioBridge';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:51 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:02 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -3443,15 +3444,177 @@ export default function App() {
     return true;
   };
 
+  const [videoNameDraft, setVideoNameDraft] = useState<string>('');
+  const [realtimeRenameStatusMsg, setRealtimeRenameStatusMsg] = useState<string>('');
+  const [isRenamingVideoRealtime, setIsRenamingVideoRealtime] = useState<boolean>(false);
+  const renameDebounceTimerRef = useRef<any>(null);
+  const lastKnownFolderNameRef = useRef<string>('');
+  const lastKnownFolderPathRef = useRef<string>('');
+  const isTypingVideoNameRef = useRef<boolean>(false);
+
+  const currentCanonicalVideoName = useMemo(() => {
+    const rawTitle = (activeDoc?.title || '').trim();
+    const isGenericTitle = !rawTitle || /^nuevo documental/i.test(rawTitle);
+    return (!isGenericTitle ? rawTitle : effectiveDocFolderName) || rawTitle || '';
+  }, [activeDoc?.title, effectiveDocFolderName]);
+
+  // Keep global Gemini context synchronized with the active documentary so every prompt goes to its single dedicated conversation inside "Huellas de la Humanidad"
+  useEffect(() => {
+    if (!activeDoc) {
+      setActiveGeminiDocContext(null);
+      return;
+    }
+    setActiveGeminiDocContext({
+      docId: activeDoc.id,
+      videoName: currentCanonicalVideoName,
+      geminiChatUrl: activeDoc.geminiChatUrl,
+      notebookName: 'Huellas de la Humanidad',
+    });
+  }, [activeDoc?.id, currentCanonicalVideoName, activeDoc?.geminiChatUrl]);
+
+  // Sync draft input when switching documentaries or selecting a folder (unless user is actively typing in the input)
+  useEffect(() => {
+    if (isTypingVideoNameRef.current) return;
+    setVideoNameDraft(currentCanonicalVideoName);
+    if (effectiveDocFolderName) {
+      lastKnownFolderNameRef.current = effectiveDocFolderName;
+    }
+    if (flowServerFolderPath || activeDoc?.downloadFolderPath) {
+      lastKnownFolderPathRef.current = (flowServerFolderPath || activeDoc?.downloadFolderPath || '').trim();
+    }
+  }, [activeDoc?.id, currentCanonicalVideoName, effectiveDocFolderName, flowServerFolderPath]);
+
+  const executeRealtimeVideoFolderAndGeminiRename = async (rawTargetName: string) => {
+    const cleanName = String(rawTargetName || '')
+      .replace(/[/:\\]+/g, ' - ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const doc = activeDocRef.current || activeDoc;
+    if (!cleanName || !doc) return;
+
+    setIsRenamingVideoRealtime(true);
+    try {
+      const isLocalOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const apiBases = isLocalOrigin ? [''] : ['http://localhost:4200', ''];
+
+      let serverFolderName = cleanName;
+      let serverFolderPath = lastKnownFolderPathRef.current || flowServerFolderPath || doc.downloadFolderPath || '';
+
+      for (const base of apiBases) {
+        try {
+          const res = await fetch(`${base}/api/system/rename-doc-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: doc.id,
+              newName: cleanName,
+              oldFolderPath: lastKnownFolderPathRef.current || flowServerFolderPath || doc.downloadFolderPath || '',
+              oldFolderName: lastKnownFolderNameRef.current || effectiveDocFolderName || doc.downloadFolderName || '',
+            }),
+          });
+          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+            const data = await res.json();
+            if (data?.ok && data.folderName) {
+              serverFolderName = String(data.folderName);
+              serverFolderPath = String(data.folderPath || serverFolderPath);
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      lastKnownFolderNameRef.current = serverFolderName;
+      lastKnownFolderPathRef.current = serverFolderPath;
+      localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, serverFolderName);
+      if (serverFolderPath) {
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, serverFolderPath);
+      }
+      setFlowDownloadFolderName(serverFolderName);
+      if (serverFolderPath) {
+        setFlowServerFolderPath(serverFolderPath);
+      }
+
+      updateActiveDoc({
+        title: serverFolderName,
+        downloadFolderName: serverFolderName,
+        ...(serverFolderPath ? { downloadFolderPath: serverFolderPath } : {}),
+        geminiChatTitle: serverFolderName,
+      });
+
+      // Check if a Gemini conversation is already created/linked for this video
+      const vNum = extractDocVideoNumber(`${serverFolderName} ${doc.title || ''}`);
+      const matchingTab = geminiTabs.find((t) => {
+        if (doc.geminiChatUrl && t.url && t.url.split('?')[0] === doc.geminiChatUrl.split('?')[0]) {
+          return true;
+        }
+        if (vNum && new RegExp(`\\bvideo\\s*0*${vNum}\\b`, 'i').test(t.title || '')) {
+          return true;
+        }
+        return false;
+      });
+      const hasExistingGeminiChat = Boolean(doc.geminiChatUrl || matchingTab);
+
+      if (hasExistingGeminiChat && (extensionInstalled || isHuellasExtensionDetected())) {
+        sendCommandToWebBridge('GEMINI', {
+          action: 'RENAME_GEMINI_CHAT',
+          docId: doc.id,
+          videoName: serverFolderName,
+          geminiChatUrl: doc.geminiChatUrl || matchingTab?.url || '',
+          notebookName: 'Huellas de la Humanidad',
+          tabId: matchingTab?.id || selectedGeminiTabId,
+        });
+        setRealtimeRenameStatusMsg(
+          `✅ Sincronizado en tiempo real: Carpeta en Mac ("${serverFolderName}") y conversación en Gemini (Notebook "Huellas de la Humanidad") renombradas.`
+        );
+      } else {
+        setRealtimeRenameStatusMsg(
+          `✅ Carpeta en Mac actualizada en tiempo real ("${serverFolderName}"). Como aún no hay chat en Gemini para este video, se creará automáticamente en el Notebook "Huellas de la Humanidad" con este nombre al enviar el primer prompt.`
+        );
+      }
+    } finally {
+      setIsRenamingVideoRealtime(false);
+    }
+  };
+
+  const handleVideoNameRealtimeChange = (rawNextValue: string) => {
+    isTypingVideoNameRef.current = true;
+    setVideoNameDraft(rawNextValue);
+    const trimmed = rawNextValue.trim();
+    if (trimmed) {
+      setFlowDownloadFolderName(trimmed);
+      updateActiveDoc({
+        title: trimmed,
+        downloadFolderName: trimmed,
+        geminiChatTitle: trimmed,
+      });
+    }
+    if (renameDebounceTimerRef.current) {
+      clearTimeout(renameDebounceTimerRef.current);
+    }
+    renameDebounceTimerRef.current = setTimeout(() => {
+      isTypingVideoNameRef.current = false;
+      if (trimmed) {
+        executeRealtimeVideoFolderAndGeminiRename(trimmed);
+      }
+    }, 500);
+  };
+
   // Apply the chosen single folder name & path to the active documentary so Stage 1, Stage 5, Stage 8 & Editor always match
   const syncSingleFolderAcrossAllDocs = (folderName: string, folderPath: string) => {
+    lastKnownFolderNameRef.current = folderName;
+    if (folderPath) lastKnownFolderPathRef.current = folderPath;
     localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, folderName);
     localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, folderPath);
     setFlowDownloadFolderName(folderName);
     setFlowServerFolderPath(folderPath);
+    setVideoNameDraft(folderName);
     updateActiveDoc({
+      title: folderName,
       downloadFolderName: folderName,
       downloadFolderPath: folderPath,
+      geminiChatTitle: folderName,
     });
   };
 
@@ -7074,6 +7237,24 @@ export default function App() {
         if (Array.isArray(msg.flowTabs)) {
           setFlowTabs(msg.flowTabs);
         }
+      } else if (msg.type === 'GEMINI_CHAT_LINKED') {
+        setExtensionInstalled(true);
+        const linkedChatUrl = String(msg.chatUrl || '').trim();
+        const linkedChatTitle = String(msg.chatTitle || '').trim();
+        const targetDocId = String(msg.docId || '').trim();
+        const currentDoc = activeDocRef.current || activeDoc;
+        if (currentDoc && (!targetDocId || targetDocId === currentDoc.id)) {
+          const patch: Partial<DocumentaryProject> = {};
+          if (linkedChatUrl && linkedChatUrl !== currentDoc.geminiChatUrl) {
+            patch.geminiChatUrl = linkedChatUrl;
+          }
+          if (linkedChatTitle && linkedChatTitle !== currentDoc.geminiChatTitle) {
+            patch.geminiChatTitle = linkedChatTitle;
+          }
+          if (Object.keys(patch).length > 0) {
+            updateActiveDoc(patch);
+          }
+        }
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
         setBridgeStatusMsg(msg.message || '');
@@ -9627,9 +9808,9 @@ export default function App() {
             =============================================================== */}
             {(activeStage === 1 || activeStage === 2 || activeStage === 3) && (
               <div className="space-y-6">
-                {/* BLOQUE 1: CARPETA DE DESCARGA OBLIGATORIA */}
+                {/* BLOQUE 1: CARPETA DE DESCARGA OBLIGATORIA + EDITOR EN TIEMPO REAL DEL NOMBRE DEL VIDEO / CARPETA MAC / CHAT GEMINI */}
                 <div
-                  className={`rounded-2xl p-5 border-2 transition-all shadow-lg ${
+                  className={`rounded-2xl p-5 border-2 transition-all shadow-lg space-y-4 ${
                     hasSelectedDocFolder
                       ? 'bg-gradient-to-r from-emerald-950/70 via-[#14120f] to-slate-950 border-emerald-500/60'
                       : 'bg-gradient-to-r from-amber-950/80 via-rose-950/40 to-[#14120f] border-amber-500'
@@ -9637,7 +9818,7 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="space-y-1 max-w-3xl">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
                             hasSelectedDocFolder
@@ -9650,7 +9831,7 @@ export default function App() {
                             : '🔒 Paso 1 Obligatorio para Desbloquear Etapas 2 a 10'}
                         </span>
                         <h3 className="text-sm sm:text-base font-black text-slate-100">
-                          📂 Carpeta de Descarga del Documental
+                          📂 Carpeta de Descarga del Documental & Chat Único en Gemini
                         </h3>
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
@@ -9668,10 +9849,10 @@ export default function App() {
                         ) : (
                           <>
                             Antes de avanzar a las demás etapas, selecciona la carpeta de tu
-                            computadora donde se descargarán automáticamente todos los clips,
-                            miniaturas, audios y el video final de este documental.{' '}
+                            computadora o escribe abajo el nombre del video donde se descargarán
+                            automáticamente todos los clips, miniaturas, audios y el video final de este documental.{' '}
                             <strong className="text-amber-300">
-                              Las Etapas 2 a 10 permanecerán bloqueadas hasta que elijas la carpeta.
+                              Las Etapas 2 a 10 permanecerán bloqueadas hasta que elijas o nombres la carpeta.
                             </strong>
                           </>
                         )}
@@ -9710,6 +9891,89 @@ export default function App() {
                           <FolderOpen className="w-4 h-4" />
                           📂 Seleccionar Carpeta de Descarga del Documental
                         </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* EDITOR EN TIEMPO REAL DEL NOMBRE DEL VIDEO -> RENOMBRA CARPETA EN MAC + CONVERSACIÓN EN GEMINI (NOTEBOOK "HUELLAS DE LA HUMANIDAD") */}
+                  <div className="pt-3 border-t border-slate-800/80 bg-slate-950/65 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                        ✏️ Nombre del Video (Sincroniza en Tiempo Real: Proyecto + Carpeta en Mac + Chat en Gemini):
+                      </label>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 font-bold">
+                          📓 Notebook en Gemini: &ldquo;Huellas de la Humanidad&rdquo;
+                        </span>
+                        {activeDoc.geminiChatUrl ? (
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">
+                            💬 Chat en Gemini activo (se renombra en tiempo real)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-200 font-semibold">
+                            💬 Sin chat creado aún (se creará al enviar el 1er prompt)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        value={videoNameDraft}
+                        onChange={(e) => handleVideoNameRealtimeChange(e.target.value)}
+                        onBlur={() => {
+                          isTypingVideoNameRef.current = false;
+                          if (renameDebounceTimerRef.current) {
+                            clearTimeout(renameDebounceTimerRef.current);
+                          }
+                          if (videoNameDraft.trim()) {
+                            executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            isTypingVideoNameRef.current = false;
+                            if (renameDebounceTimerRef.current) {
+                              clearTimeout(renameDebounceTimerRef.current);
+                            }
+                            if (videoNameDraft.trim()) {
+                              executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
+                            }
+                          }
+                        }}
+                        placeholder="Ej: Video 77 — El Misterio Oculto de..."
+                        className="flex-1 bg-slate-900/95 border border-emerald-500/40 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          isTypingVideoNameRef.current = false;
+                          if (renameDebounceTimerRef.current) {
+                            clearTimeout(renameDebounceTimerRef.current);
+                          }
+                          if (videoNameDraft.trim()) {
+                            executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
+                          }
+                        }}
+                        disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
+                        className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
+                        title="Forzar sincronización inmediata del nombre en la carpeta de la Mac y en la conversación de Gemini"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
+                        {isRenamingVideoRealtime ? 'Sincronizando...' : 'Sincronizado en Tiempo Real'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-400">
+                      <span>
+                        Al editar este nombre, se actualiza automáticamente el nombre de la carpeta física en tu Mac y el título de la conversación única de este video dentro del Notebook <strong className="text-slate-200">&ldquo;Huellas de la Humanidad&rdquo;</strong> en Gemini.
+                      </span>
+                      {realtimeRenameStatusMsg && (
+                        <span className="text-emerald-300 font-semibold">
+                          {realtimeRenameStatusMsg}
+                        </span>
                       )}
                     </div>
                   </div>
