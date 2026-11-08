@@ -12086,6 +12086,47 @@ app.post('/api/instagram/webhook', async (req, res) => {
   }
 });
 
+// Auto-initialize newly created iCloud Drive documentary folders (e.g., created from iPhone Files app)
+// with the 6 standard subfolders and a root marker file so iOS Safari's folder picker never sees "Folder is Empty"
+function ensureIcloudVideoFoldersInitialized() {
+  try {
+    const icloudVideosDir =
+      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+    if (!fs.existsSync(icloudVideosDir)) return;
+    const subfolders = [
+      '01_Guion_y_SEO',
+      '02_Audio',
+      '03_Miniaturas',
+      '04_Referencias',
+      '05_Clips_Video',
+      '06_Video_Final',
+    ];
+    const entries = fs.readdirSync(icloudVideosDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (!/^(?:video|ep\.?|documental)\s*\d+/i.test(entry.name)) continue;
+      const folderFull = path.join(icloudVideosDir, entry.name);
+      const markerPath = path.join(folderFull, '00_Carpeta_Raiz_Huellas.txt');
+      if (!fs.existsSync(markerPath)) {
+        for (const sub of subfolders) {
+          try {
+            fs.mkdirSync(path.join(folderFull, sub), { recursive: true });
+          } catch {}
+        }
+        try {
+          fs.writeFileSync(
+            markerPath,
+            `Carpeta raíz del documental: ${entry.name}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
+            'utf8'
+          );
+        } catch {}
+      }
+    }
+  } catch {}
+}
+ensureIcloudVideoFoldersInitialized();
+setInterval(ensureIcloudVideoFoldersInitialized, 2500);
+
 // Background interval every 45s to auto-reply to new Reel comments with the clickable link
 setInterval(() => {
   checkAndSendInstagramAutoDms().catch(() => {});

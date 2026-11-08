@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:42 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:53 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -3373,7 +3373,20 @@ export default function App() {
       }
     }
 
-    // 1C. Native OS Folder Input Picker fallback (Safari without local server) — opens Finder / Files dialog
+    // 1C. Native OS Folder Input Picker fallback (iOS / Safari without local server) — opens Files / Finder dialog
+    const getInferredEmptyFolderName = (): string => {
+      const customTitle = (activeDoc?.title || '').trim();
+      if (customTitle && !/^nuevo documental/i.test(customTitle)) {
+        return customTitle;
+      }
+      let maxNum = 76;
+      for (const d of documentaries) {
+        const n = parseInt(extractDocVideoNumber(`${d.title || ''} ${d.topic || ''} ${d.downloadFolderName || ''}`), 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+      return `Video ${maxNum + 1}`;
+    };
+
     return await new Promise<boolean>((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -3381,16 +3394,28 @@ export default function App() {
       (input as any).directory = true;
       input.style.display = 'none';
       document.body.appendChild(input);
-      let settled = false;
+      const openedAt = Date.now();
       const cleanup = () => {
         if (input.parentNode) input.parentNode.removeChild(input);
       };
-      input.onchange = () => {
-        settled = true;
+      const applyPickedOrEmptyFolder = (fallbackEmpty: boolean) => {
         const files = input.files;
         if (files && files.length > 0) {
           const relPath = (files[0] as any).webkitRelativePath || '';
-          const folderName = relPath.split('/')[0] || files[0].name || 'Carpeta Seleccionada';
+          const folderName = relPath.split('/')[0] || files[0].name || getInferredEmptyFolderName();
+          syncSingleFolderAcrossAllDocs(folderName, '');
+          setFlowStatusLog(
+            `📁 Carpeta raíz seleccionada: "${folderName}". ¡Etapas 2 a 12 desbloqueadas!`
+          );
+          cleanup();
+          resolve(true);
+          return;
+        }
+        const entryName =
+          (input as any).webkitEntries?.[0]?.name ||
+          (input.value ? input.value.replace(/^.*[\\/]/, '').trim() : '');
+        if (entryName || fallbackEmpty) {
+          const folderName = entryName || getInferredEmptyFolderName();
           syncSingleFolderAcrossAllDocs(folderName, '');
           setFlowStatusLog(
             `📁 Carpeta raíz seleccionada: "${folderName}". ¡Etapas 2 a 12 desbloqueadas!`
@@ -3402,23 +3427,19 @@ export default function App() {
         cleanup();
         resolve(false);
       };
+      input.onchange = () => {
+        applyPickedOrEmptyFolder(true);
+      };
       input.oncancel = () => {
-        settled = true;
+        // On iOS Safari, tapping "Open" inside an empty folder ("Folder is Empty") dispatches cancel with 0 files;
+        // if the user spent > 1.2s in the Files picker selecting/creating the folder, bind the folder immediately.
+        if (Date.now() - openedAt > 1200) {
+          applyPickedOrEmptyFolder(true);
+          return;
+        }
         cleanup();
         resolve(false);
       };
-      window.addEventListener(
-        'focus',
-        () => {
-          setTimeout(() => {
-            if (!settled) {
-              cleanup();
-              resolve(false);
-            }
-          }, 600);
-        },
-        { once: true }
-      );
       input.click();
     });
   };
@@ -8690,37 +8711,6 @@ export default function App() {
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span>⚡ Viral Clips</span>
           </button>
-
-          {activeDoc && (
-            <button
-              onClick={() => {
-                if (mainView !== 'studio') setMainView('studio');
-                setShowWebStudio((prev) => !prev);
-              }}
-              className={`${
-                mainView === 'capcut_editor'
-                  ? 'px-2 py-0.5 text-[11px]'
-                  : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
-              } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 border transition cursor-pointer ${
-                showWebStudio
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
-                  : 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
-              }`}
-              title="Abrir panel incrustado de Gemini Web y Google Flow para generar texto, imágenes y clips usando tu cuota web gratis (sin gastar API Key)"
-            >
-              <Globe className="w-3.5 h-3.5 shrink-0" />
-              <span>Estudio Web (Gratis)</span>
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  extensionInstalled
-                    ? showWebStudio
-                      ? 'bg-slate-950'
-                      : 'bg-emerald-400'
-                    : 'bg-amber-400 animate-pulse'
-                }`}
-              />
-            </button>
-          )}
         </div>
 
         {/* COMPACT STICKY STAGES BAR (Icon right next to stage number to free vertical space) */}
