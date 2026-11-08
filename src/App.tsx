@@ -925,53 +925,37 @@ function buildStage1PropositionParts(
 
   const topDoubt1 =
     topComments[0]?.text ||
-    '¿Qué ocultaban los registros oficiales sobre cómo vivían, pensaban y morían realmente las personas comunes en esta época?';
+    '¿Qué detalles decisivos quedaron fuera de la versión oficial de esta historia?';
   const topDoubt2 =
     topComments[1]?.text ||
-    '¿Cuáles eran las leyes secretas, rituales prohibidos y contradicciones cotidianas que la historia escolar jamás explicó?';
+    '¿Cuáles fueron las verdaderas causas y consecuencias humanas detrás de este acontecimiento?';
 
-  // Detect thematic flavor to craft intelligent defaults when Gemini hasn't explicitly output all 3 options
-  const isEgypt = /egipt|fara[oó]n|nilo|tebas|hatshepsut|escriba|pir[aá]mid| papiro|luxor|karnak/i.test(
-    combinedText
-  );
-  const isCharacterOrConspiracy = /hatshepsut|borrar|fara[oó]n|personaje|reina|rey|emperador|asesin|conspiraci/i.test(
-    combinedText
-  );
-  const isScribesOrLaws = /escriba|leyes|ocult|secreto|casta|sacerdot|burocracia|jerogl[ií]f/i.test(
-    combinedText
-  );
-  const isDailyLife = /vida\s+[ií]ntima|d[ií]a\s+normal|sobreviv|cotidian|higiene|costumbre|familia|mujer/i.test(
-    combinedText
+  const baseSubject = refTitle
+    ? refTitle.replace(/\s*[:|-]\s*Lo que NO.*$/i, '').trim()
+    : doc.topic?.trim()
+    ? doc.topic.trim()
+    : doc.title && !/^Video\s+\d+/i.test(doc.title.trim()) && !/^Documental\s+\d+/i.test(doc.title.trim())
+    ? doc.title.trim()
+    : 'El suceso histórico investigado';
+
+  // Extract any years or centuries present in the research or video description
+  const detectedYears = Array.from(
+    new Set(
+      (`${researchText} ${refTitle} ${refDesc}`.match(
+        /\b(?:Siglo\s+[IVXLCDM]+(?:\s*(?:a\.\s*C\.|d\.\s*C\.))?|(?:1[0-9]{3}|20[0-2][0-9])(?:\s*[–-]\s*(?:1[0-9]{3}|20[0-2][0-9]))?|\d{3,4}\s*(?:a\.\s*C\.|d\.\s*C\.))\b/gi
+      ) || [])
+        .map((m) => m.trim())
+        .filter(Boolean)
+    )
   );
 
   // --- PARTE 1: TIPOLOGÍA DEL VIDEO ---
   const parsedP1 = parsePropositionSectionOptions(researchText, 1);
-  let defaultTypologyOptions: [string, string, string];
-  if (isCharacterOrConspiracy) {
-    defaultTypologyOptions = [
-      '9. Investigación forense de una conspiración dinástica y borrado histórico (Nueva tipología creada)',
-      '4. Un misterio sin resolver',
-      '3. Un personaje',
-    ];
-  } else if (isScribesOrLaws) {
-    defaultTypologyOptions = [
-      '9. Desclasificación histórica de castas de poder, rituales y secretos de Estado (Nueva tipología creada)',
-      '7. Una manipulación psicológica',
-      '6. Una conciencia o realidad colectiva',
-    ];
-  } else if (isDailyLife || isEgypt) {
-    defaultTypologyOptions = [
-      '9. Radiografía inmersiva de vida íntima, secretos cotidianos y mentalidad colectiva (Nueva tipología creada)',
-      '6. Una conciencia o realidad colectiva',
-      '8. Una curiosidad',
-    ];
-  } else {
-    defaultTypologyOptions = [
-      '9. Crónica inmersiva de misterios arqueológicos y contradicciones humanas (Nueva tipología creada)',
-      '1. Un suceso histórico',
-      '4. Un misterio sin resolver',
-    ];
-  }
+  const defaultTypologyOptions: [string, string, string] = [
+    `9. Crónica documental de ascenso, crisis y reconstrucción histórica: ${baseSubject.slice(0, 55)} (Nueva tipología creada)`,
+    '1. Un suceso histórico',
+    '4. Un misterio sin resolver',
+  ];
   const p1Options: [string, string, string] = [
     parsedP1.options[0] || doc.promptConfig?.PROP_P1_OPT1 || defaultTypologyOptions[0],
     parsedP1.options[1] || doc.promptConfig?.PROP_P1_OPT2 || defaultTypologyOptions[1],
@@ -980,30 +964,16 @@ function buildStage1PropositionParts(
   const p1Summary =
     parsedP1.summary ||
     (refTitle
-      ? `Basado en el análisis del video de referencia ("${refTitle}") y las dudas repetidas de la audiencia, el documental combina inmersión histórica con revelación de secretos ocultos, por lo que se propone crear una nueva tipología a medida o elegir la categoría oficial más afín del protocolo.`
+      ? `Basado en la investigación completa y el análisis del video referente ("${refTitle}"), nuestra app determina la opción del protocolo más precisa o crea una nueva tipología a medida acorde con el documental en proceso.`
       : 'La investigación determina qué tipología del protocolo se ajusta mejor al episodio o crea una nueva tipología híbrida acorde con la naturaleza del documental en proceso.');
 
   // --- PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO ---
   const parsedP2 = parsePropositionSectionOptions(researchText, 2);
-  const baseSubject = refTitle
-    ? refTitle.replace(/\s*[:|-]\s*Lo que NO.*$/i, '').trim()
-    : doc.title && !/^Documental\s+\d+$/i.test(doc.title.trim())
-    ? doc.title.trim()
-    : isEgypt
-    ? 'La cara oculta del Antiguo Egipto'
-    : 'El enigma histórico detrás de los registros oficiales';
-
-  const defaultTopicOptions: [string, string, string] = isEgypt
-    ? [
-        `La verdad silenciada sobre ${baseSubject.toLowerCase()}: arqueología forense de la vida privada, leyes secretas, medicina ritual y las respuestas a las grandes dudas que los papiros oficiales ocultaron.`,
-        `Sobrevivir a las sombras del Nilo: cómo funcionaban realmente el poder, la intimidad familiar, los contratos sagrados y los castigos invisibles en la sociedad del Imperio Nuevo egipcio.`,
-        `El código prohibido de los templos y las tumbas de Tebas: lo que los hallazgos osteológicos y los ostraca de Deir el-Medina revelan frente al mito escolar.`,
-      ]
-    : [
-        `${baseSubject}: investigación profunda de las evidencias arqueológicas, contradicciones sociales y secretos cotidianos que la historia oficial omitió.`,
-        `Crónica íntima y forense de ${baseSubject.toLowerCase()}: cómo vivían, qué temían y cómo operaba realmente el poder tras los muros del pasado.`,
-        `Las pruebas olvidadas de ${baseSubject.toLowerCase()}: resolviendo los mayores vacíos históricos y preguntas sin respuesta de la época.`,
-      ];
+  const defaultTopicOptions: [string, string, string] = [
+    `${baseSubject}: investigación documental profunda de las decisiones críticas, crisis ocultas y giros históricos que cambiaron su destino para siempre.`,
+    `La historia no contada detrás de ${baseSubject}: los errores fatales, las disputas de poder y las pruebas documentales que la narrativa popular ignoró.`,
+    `Anatomía de una supervivencia histórica (${baseSubject}): cómo estuvo al borde de desaparecer y qué factor inesperado transformó su legado.`,
+  ];
 
   const p2Options: [string, string, string] = [
     parsedP2.options[0] || doc.promptConfig?.PROP_P2_OPT1 || defaultTopicOptions[0],
@@ -1018,17 +988,18 @@ function buildStage1PropositionParts(
 
   // --- PARTE 3: TIEMPO / ÉPOCA ---
   const parsedP3 = parsePropositionSectionOptions(researchText, 3);
-  const defaultTimeOptions: [string, string, string] = isEgypt
-    ? [
-        'Siglo XV a. C. — Siglo XII a. C. (Años 1550 a. C. – 1077 a. C., Imperio Nuevo: Dinastías XVIII a XX)',
-        'Año 1479 a. C. – 1279 a. C. (Siglo XV a. C. a Siglo XIII a. C., apogeo de Tebas y Deir el-Medina)',
-        'Siglo XXVI a. C. — Siglo XI a. C. (c. 2500 a. C. – 1070 a. C., del Imperio Antiguo al colapso ramésida)',
-      ]
-    : [
-        'Siglo XV a. C. — Siglo XII a. C. (c. 1500 a. C. – 1150 a. C., Edad del Bronce Tardío)',
-        'Siglo I d. C. — Siglo IV d. C. (Años 27 a. C. – 395 d. C., Antigüedad Clásica)',
-        'Siglo XII — Siglo XV (Años 1150 – 1492, Plena y Baja Edad Media)',
-      ];
+  const defaultTimeOptions: [string, string, string] =
+    detectedYears.length > 0
+      ? [
+          `${detectedYears.slice(0, 3).join(' – ')} (Periodo histórico central determinado en la investigación)`,
+          `Año ${detectedYears[0]} y décadas decisivas del conflicto (Cronología puntual de los hechos)`,
+          `Marco histórico completo de origen, crisis y consolidación (${detectedYears.join(', ')})`,
+        ]
+      : [
+          'Época histórica principal determinada en el informe de investigación (Siglo / Años exactos)',
+          'Décadas críticas del conflicto y punto de inflexión histórico',
+          'Cronología extendida desde los antecedentes hasta el desenlace',
+        ];
   const p3Options: [string, string, string] = [
     parsedP3.options[0] || doc.promptConfig?.PROP_P3_OPT1 || defaultTimeOptions[0],
     parsedP3.options[1] || doc.promptConfig?.PROP_P3_OPT2 || defaultTimeOptions[1],
@@ -1036,21 +1007,15 @@ function buildStage1PropositionParts(
   ];
   const p3Summary =
     parsedP3.summary ||
-    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) para anclar el rigor arqueológico, vestuario y arquitectura de cada escena.';
+    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) extraída de la investigación para anclar el rigor histórico de cada escena.';
 
   // --- PARTE 4: LUGAR HISTÓRICO ---
   const parsedP4 = parsePropositionSectionOptions(researchText, 4);
-  const defaultLocationOptions: [string, string, string] = isEgypt
-    ? [
-        'Tebas (actual Luxor), Deir el-Medina y Valle de los Reyes, Egipto',
-        'Menfis, Karnak y Deir el-Bahari, Ribera Occidental del Nilo, Egipto',
-        'Amarna, Abidos y el Delta del Nilo, Alto y Bajo Egipto',
-      ]
-    : [
-        'Tebas (Luxor) y Valle del Nilo, Egipto',
-        'Alejandría y Delta del Nilo, Egipto Mediterráneo',
-        'Roma y Cuenca del Mediterráneo Antiguo, Italia',
-      ];
+  const defaultLocationOptions: [string, string, string] = [
+    `Escenario histórico principal de "${baseSubject.slice(0, 50)}" (Ciudad, País según actas y registros de la investigación)`,
+    'Sedes clave donde se gestó el origen, la crisis y el punto de quiebre del suceso',
+    'Epicentro geográfico y social donde impactaron las consecuencias históricas del episodio',
+  ];
   const p4Options: [string, string, string] = [
     parsedP4.options[0] || doc.promptConfig?.PROP_P4_OPT1 || defaultLocationOptions[0],
     parsedP4.options[1] || doc.promptConfig?.PROP_P4_OPT2 || defaultLocationOptions[1],
@@ -1058,14 +1023,14 @@ function buildStage1PropositionParts(
   ];
   const p4Summary =
     parsedP4.summary ||
-    'Escenarios geográficos y arqueológicos principales (Ciudad, País) donde transcurren los actos narrativos y las referencias visuales de Google Flow.';
+    'Escenarios geográficos e históricos principales (Ciudad, País) determinados en la investigación donde transcurren los actos narrativos.';
 
   // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL ---
   const parsedP5 = parsePropositionSectionOptions(researchText, 5);
   const defaultHookOptions: [string, string, string] = [
-    `Clip 1 (6s sin voz): Cámara descendiendo con antorchas hacia una cámara sellada mientras un escriba oculta un papiro bajo piedra caliza. Entrada de voz (00:16): Contradicción entre la monumentalidad sagrada que vemos en los museos y la cruda realidad física y secreta que vivían sus habitantes puertas adentro.`,
-    `Clip 1 (6s sin voz): Primer plano cinematográfico de manos cincelando y borrando un cartucho real en la penumbra de un templo. Entrada de voz (00:16): ¿Por qué una civilización obsesionada con la eternidad dedicó tanto esfuerzo a ocultar sus propias leyes íntimas y borrar a sus propios protagonistas?`,
-    `Clip 1 (6s sin voz): Amanecer brumoso sobre el Nilo contrastando el palacio real con los callejones de adobe de los artesanos de tumbas. Entrada de voz (00:16): La paradoja de quienes construían la inmortalidad de los dioses mientras enfrentaban peligros invisibles, juicios secretos y una lucha diaria por sobrevivir.`,
+    `Clip 1 (6s sin voz): Escena cinematográfica del instante exacto de mayor tensión en "${baseSubject}". Entrada de voz (00:16): La contradicción entre el colapso inminente que todos daban por hecho y el giro oculto que cambió la historia.`,
+    `Clip 1 (6s sin voz): Primer plano documental de los documentos y pruebas decisivas del caso en penumbra. Entrada de voz (00:16): ¿Cómo pudo un proyecto rechazado y al borde de la ruina convertirse en un fenómeno histórico irrepetible?`,
+    `Clip 1 (6s sin voz): Reconstrucción atmosférica del escenario original antes de la crisis. Entrada de voz (00:16): La paradoja de quienes tuvieron el futuro frente a sus ojos y lo rechazaron sin sospechar lo que estaba por ocurrir.`,
   ];
   const p5Options: [string, string, string] = [
     parsedP5.options[0] || doc.promptConfig?.PROP_P5_OPT1 || defaultHookOptions[0],
@@ -1079,9 +1044,9 @@ function buildStage1PropositionParts(
   // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
   const parsedP6 = parsePropositionSectionOptions(researchText, 6);
   const defaultEscaletaOptions: [string, string, string] = [
-    `Estructura en 5 Actos Progresivos (${durationMinutes} min): Acto I: El mito frente al hallazgo arqueológico · Acto II: La arquitectura oculta de la vida privada y familiar · Acto III: El peso de la ley, la medicina y los rituales prohibidos · Acto IV: Respuesta documental a las grandes dudas de la audiencia ("${topDoubt1.slice(0, 75)}...") · Acto V: El colapso del silencio y legado.`,
-    `Estructura de Investigación Forense en 4 Bloques (${durationMinutes} min): Bloque 1: La escena histórica y el engaño visual · Bloque 2: Las pruebas materiales en ostraca, papiros y restos óseos · Bloque 3: La psicología colectiva, castas de poder y supervivencia diaria ("${topDoubt2.slice(0, 75)}...") · Bloque 4: El veredicto de la historia.`,
-    `Estructura Cronológica Inmersiva de 24 Horas + Revelación (${durationMinutes} min): Desde el amanecer en los barrios de artesanos hasta los rituales nocturnos en el sanctasanctórum de los templos, entrelazando cada hora del día con revelaciones sobre higiene, justicia, intimidad y secretos de Estado.`,
+    `Estructura en 5 Actos Progresivos (${durationMinutes} min): Acto I: El instante crítico y planteamiento · Acto II: Los orígenes desconocidos y primeras caídas · Acto III: Los rechazos y el punto de quiebre · Acto IV: La estrategia oculta y respuesta a la audiencia ("${topDoubt1.slice(0, 70)}...") · Acto V: El desenlace histórico.`,
+    `Estructura de Investigación Documental en 4 Bloques (${durationMinutes} min): Bloque 1: La escena del colapso · Bloque 2: Las causas profundas y errores ocultos · Bloque 3: El contraataque inesperado ("${topDoubt2.slice(0, 70)}...") · Bloque 4: El impacto definitivo en la historia.`,
+    `Estructura Cronológica de Alta Tensión (${durationMinutes} min): Recorrido documental acto por acto desde la primera gran crisis hasta la consolidación final, intercalando pruebas históricas y micro-ganchos de retención.`,
   ];
   const p6Options: [string, string, string] = [
     parsedP6.options[0] || doc.promptConfig?.PROP_P6_OPT1 || defaultEscaletaOptions[0],
@@ -1095,9 +1060,9 @@ function buildStage1PropositionParts(
   // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
   const parsedP7 = parsePropositionSectionOptions(researchText, 7);
   const defaultClimaxOptions: [string, string, string] = [
-    `Clímax: Revelación del hallazgo arqueológico definitivo en las tumbas de los constructores que demuestra que la verdadera inmortalidad no estaba en el oro real, sino en los fragmentos de vida cotidiana que intentaron ocultar. Cierre reflexivo que conecta sus miedos y deseos con los nuestros hoy, dando paso al Outro Oficial de 8s.`,
-    `Clímax: El instante en que las inscripciones ocultas y los restos forenses desarman siglos de propaganda oficial, respondiendo la duda central de la audiencia. Cierre filosófico sobre cómo la memoria humana sobrevive incluso cuando el poder intenta cincelarla de la piedra.`,
-    `Clímax: Reconstrucción del juicio y destino final de los protagonistas anónimos frente a la eternidad. Cierre inmersivo en silencio solemne sobre las ruinas actuales al atardecer antes de fundir con el Outro Oficial de 8s.`,
+    `Clímax: Revelación del momento decisivo en que "${baseSubject}" revierte su destino contra todo pronóstico. Cierre reflexivo sobre la resiliencia y las decisiones que cambian el rumbo de la historia antes del Outro Oficial de 8s.`,
+    `Clímax: Desenlace documental que responde la gran incógnita central con datos históricos verificados. Cierre filosófico conectando las lecciones de este episodio con el presente, dando paso al Outro Oficial de 8s.`,
+    `Clímax: El contraste final entre quienes dieron todo por perdido y el impacto duradero que dejó en el mundo moderno. Cierre solemne antes de fundir con el Outro Oficial de 8s.`,
   ];
   const p7Options: [string, string, string] = [
     parsedP7.options[0] || doc.promptConfig?.PROP_P7_OPT1 || defaultClimaxOptions[0],
