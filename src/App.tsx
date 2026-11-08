@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:11 AM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:13 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -2473,7 +2473,7 @@ export default function App() {
       typology: 'Un suceso histórico',
       historicalTime: '',
       historicalLocation: '',
-      targetDurationSeconds: 120,
+      targetDurationSeconds: 900,
       clipDurationMode: '10_SEGUNDOS',
       clip1SyncMode: 'VOZ_EN_CLIP_2',
       clip1DurationSeconds: 6,
@@ -9715,18 +9715,21 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Duración Total Aproximada (Segundos)
+                          Duración Total del Documental
                         </label>
-                        <input
-                          type="number"
-                          min={20}
-                          max={7200}
-                          value={activeDoc.targetDurationSeconds}
+                        <select
+                          value={
+                            [600, 900, 1200, 1800, 3600, 7200].includes(
+                              Number(activeDoc.targetDurationSeconds)
+                            )
+                              ? Number(activeDoc.targetDurationSeconds)
+                              : 900
+                          }
                           onChange={(e) => {
-                            const nextSec = parseInt(e.target.value || '120', 10);
+                            const nextSec = parseInt(e.target.value || '900', 10);
                             updateActiveDoc({
                               targetDurationSeconds: nextSec,
                               promptConfig: {
@@ -9735,10 +9738,17 @@ export default function App() {
                               },
                             });
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
-                        />
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300 cursor-pointer"
+                        >
+                          <option value={600}>10 minutos (600s)</option>
+                          <option value={900}>15 minutos (900s)</option>
+                          <option value={1200}>20 minutos (1200s)</option>
+                          <option value={1800}>30 minutos (1800s)</option>
+                          <option value={3600}>1 hora (3600s)</option>
+                          <option value={7200}>2 horas (7200s)</option>
+                        </select>
                         <span className="text-[11px] text-slate-500">
-                          ~{(activeDoc.targetDurationSeconds / 60).toFixed(1)} min (duración total con Intro y Outro)
+                          Incluye Intro (8s) y Outro (8s)
                         </span>
                       </div>
 
