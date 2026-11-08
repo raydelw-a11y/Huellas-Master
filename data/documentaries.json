@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-08T23:09:33.974Z",
+    "updatedAt": "2026-11-08T23:31:00.000Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -17,11 +17,12 @@
       "DURACION_CLIPS": "8_SEGUNDOS",
       "DURACION_CLIPS_SEGUNDOS": "8",
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
-      "UBICACION_INTRO_MARCA": "INTRO_INICIO_00"
+      "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
+      "CLEAN_RESET_V77": "2026_11_08_1830"
     },
     "compiledMasterPrompt": "",
     "topic": "",
-    "typology": "Un suceso histórico",
+    "typology": "",
     "historicalTime": "",
     "historicalLocation": "",
     "targetDurationSeconds": 1800,

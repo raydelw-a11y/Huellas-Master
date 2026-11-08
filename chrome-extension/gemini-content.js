@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 8) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 8;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 9) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 9;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -626,8 +626,16 @@
   ) {
     if (!enableHighModel && !enableDeepResearch && !enableArgonLow) return;
 
-    try {
-      // 1. Find the main model switcher button in Gemini Web
+    const targetLevel = enableArgonLow ? 'LOW' : 'HIGH';
+
+    const getVisibleMenuItems = () =>
+      Array.from(
+        document.querySelectorAll(
+          '[role="menuitem"], [role="option"], [role="menuitemradio"], [role="radio"], [role="tab"], .mat-mdc-menu-item, mat-option, button.bard-mode-list-button'
+        )
+      ).filter((el) => el && el.offsetParent !== null);
+
+    const findModelSwitcherBtn = () => {
       const switcherSelectors = [
         '[data-test-id="bard-mode-menu-button"]',
         'bard-mode-switcher button',
@@ -636,155 +644,192 @@
         'button[aria-label*="modelo" i]',
         'button[aria-label*="selector" i]',
       ];
-      let switcherBtn = null;
       for (const sel of switcherSelectors) {
         const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null) {
-          switcherBtn = el;
-          break;
-        }
+        if (el && el.offsetParent !== null) return el;
       }
+      return null;
+    };
 
+    const ensureArgon4AndThinkingLevel = async () => {
+      const switcherBtn = findModelSwitcherBtn();
       if (switcherBtn) {
-        const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '').toLowerCase();
-        const needsModelClick = enableArgonLow
-          ? !(/argon/i.test(currentLabel) && /\b(low|bajo)\b/i.test(currentLabel))
-          : (enableHighModel && !/pro|high|thinking|avanzado|ultra/i.test(currentLabel)) ||
-            (enableDeepResearch && !/deep\s*research|investigaci[oó]n\s+profunda/i.test(currentLabel));
+        const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const isCurrentlyArgon = /argon/i.test(currentLabel) && !/\bpro\b/i.test(currentLabel);
+        const hasWrongLevelOnButton =
+          targetLevel === 'HIGH'
+            ? /\b(low|bajo|medium|medio)\b/i.test(currentLabel)
+            : /\b(high|alto|medium|medio)\b/i.test(currentLabel);
 
-        if (needsModelClick) {
+        if (!isCurrentlyArgon || hasWrongLevelOnButton) {
           switcherBtn.click();
           await sleep(280);
 
-          const getVisibleMenuItems = () =>
-            Array.from(
-              document.querySelectorAll(
-                '[role="menuitem"], [role="option"], [role="menuitemradio"], [role="radio"], [role="tab"], .mat-mdc-menu-item, button.bard-mode-list-button'
-              )
-            ).filter((el) => el && el.offsetParent !== null);
-
           let menuItems = getVisibleMenuItems();
 
-          if (enableArgonLow) {
-            // 1A. Look for a combined "Argon Low" item first, then "Argon" (not High), then "Low / Flash / Fast"
-            const argonLowCombined = menuItems.find((el) => {
-              const txt = (el.innerText || el.textContent || '').trim();
-              return /argon/i.test(txt) && /\b(low|bajo)\b/i.test(txt);
-            });
-            const argonItem =
-              argonLowCombined ||
+          // Always select Argon 4 (or Argon), NEVER Pro!
+          let argonItem = null;
+          if (targetLevel === 'HIGH') {
+            argonItem =
               menuItems.find((el) => {
                 const txt = (el.innerText || el.textContent || '').trim();
-                return /argon/i.test(txt) && !/\bhigh\b/i.test(txt);
+                return /argon\s*4/i.test(txt) && /\b(high|alto)\b/i.test(txt) && !/\bpro\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon\s*4/i.test(txt) && !/\b(low|bajo|pro)\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon/i.test(txt) && /\b(high|alto)\b/i.test(txt) && !/\bpro\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon/i.test(txt) && !/\b(low|bajo|pro)\b/i.test(txt);
               }) ||
               menuItems.find((el) => /argon/i.test((el.innerText || el.textContent || '').trim()));
-
-            if (argonItem) {
-              argonItem.click();
-              await sleep(240);
-            }
-
-            // Re-query visible menu/sub-menu items in case clicking Argon revealed Low/Medium/High options
-            menuItems = getVisibleMenuItems();
-            const lowMenuItem =
-              menuItems.find((el) =>
-                /^(?:low|bajo|argon\s*low|argon\s*\(low\))$/i.test(
-                  (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
-                )
-              ) ||
-              menuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return /\b(low|bajo|flash|fast|r[aá]pido)\b/i.test(txt) && !/\bhigh\b/i.test(txt);
-              });
-
-            if (lowMenuItem && lowMenuItem !== argonItem) {
-              lowMenuItem.click();
-              await sleep(220);
-            } else if (!argonItem) {
-              document.body.click();
-              await sleep(120);
-            }
           } else {
-            let chosenItem = null;
-            if (enableDeepResearch) {
-              chosenItem = menuItems.find((el) =>
-                /deep\s*research|investigaci[oó]n\s+profunda/i.test(
-                  (el.innerText || el.textContent || '').trim()
-                )
-              );
-            }
-            if (!chosenItem && enableHighModel) {
-              chosenItem =
-                menuItems.find((el) => {
-                  const txt = (el.innerText || el.textContent || '').trim();
-                  return /argon/i.test(txt) && /\bhigh\b/i.test(txt);
-                }) ||
-                menuItems.find((el) =>
-                  /\b(3\.1\s*pro|2\.5\s*pro|pro|high|avanzado|thinking|razonamiento)\b/i.test(
-                    (el.innerText || el.textContent || '').trim()
+            argonItem =
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon\s*4/i.test(txt) && /\b(low|bajo)\b/i.test(txt) && !/\bpro\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon\s*4/i.test(txt) && !/\b(high|alto|pro)\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon/i.test(txt) && /\b(low|bajo)\b/i.test(txt) && !/\bpro\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => {
+                const txt = (el.innerText || el.textContent || '').trim();
+                return /argon/i.test(txt) && !/\b(high|alto|pro)\b/i.test(txt);
+              }) ||
+              menuItems.find((el) => /argon/i.test((el.innerText || el.textContent || '').trim()));
+          }
+
+          if (argonItem) {
+            argonItem.click();
+            await sleep(250);
+          }
+
+          // Re-query visible menu/sub-menu items in case clicking Argon 4 opened a Thinking Level sub-menu (Low / Medium / High)
+          menuItems = getVisibleMenuItems();
+          const subLevelItem =
+            targetLevel === 'HIGH'
+              ? menuItems.find((el) =>
+                  /^(?:high|alto|thinking\s*:?\s*high|argon\s*4?\s*high|argon\s*\(high\))$/i.test(
+                    (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
                   )
                 ) ||
-                null;
-            }
+                menuItems.find((el) => {
+                  const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return (
+                    /\b(high|alto)\b/i.test(txt) &&
+                    !/\b(low|bajo|medium|medio|pro|2\.5|3\.1)\b/i.test(txt)
+                  );
+                })
+              : menuItems.find((el) =>
+                  /^(?:low|bajo|thinking\s*:?\s*low|argon\s*4?\s*low|argon\s*\(low\))$/i.test(
+                    (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+                  )
+                ) ||
+                menuItems.find((el) => {
+                  const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return (
+                    /\b(low|bajo)\b/i.test(txt) &&
+                    !/\b(high|alto|medium|medio|pro)\b/i.test(txt)
+                  );
+                });
 
-            if (chosenItem) {
-              chosenItem.click();
-              await sleep(260);
-            } else {
-              document.body.click();
-              await sleep(120);
-            }
+          if (subLevelItem && subLevelItem !== argonItem) {
+            subLevelItem.click();
+            await sleep(220);
+          } else if (!argonItem) {
+            document.body.click();
+            await sleep(120);
           }
         }
       }
 
-      // 1B. If enableArgonLow is active, also check if there is a separate Thinking/Reasoning level selector or pill ("High" / "Medium" / "Low") in the toolbar or header
-      if (enableArgonLow) {
-        const allButtons = Array.from(
-          document.querySelectorAll(
-            'button, [role="button"], [role="combobox"], [role="radio"], [role="tab"], mat-select, mat-chip'
-          )
-        ).filter((el) => el && el.offsetParent !== null);
+      // Configure separate Thinking/Reasoning level selector or pill ("High" for Research / "Low" for Argon Low)
+      const allButtons = Array.from(
+        document.querySelectorAll(
+          'button, [role="button"], [role="combobox"], [role="radio"], [role="tab"], mat-select, mat-chip'
+        )
+      ).filter((el) => el && el.offsetParent !== null && el !== switcherBtn);
 
-        // Direct "Low" pill/tab button if visible
-        const directLowBtn = allButtons.find((el) => {
+      const exactLevelRegex = targetLevel === 'HIGH' ? /^(?:high|alto)$/i : /^(?:low|bajo)$/i;
+      const ariaLevelRegex =
+        targetLevel === 'HIGH'
+          ? /\b(?:thinking|reasoning|nivel|level|effort|argon)\b.*\b(?:high|alto)\b/i
+          : /\b(?:thinking|reasoning|nivel|level|effort|argon)\b.*\b(?:low|bajo)\b/i;
+
+      const directPillBtn = allButtons.find((el) => {
+        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        const a = (el.getAttribute('aria-label') || '').trim();
+        return exactLevelRegex.test(t) || ariaLevelRegex.test(a);
+      });
+
+      if (directPillBtn) {
+        const isAlreadySelected =
+          directPillBtn.getAttribute('aria-selected') === 'true' ||
+          directPillBtn.getAttribute('aria-pressed') === 'true' ||
+          directPillBtn.getAttribute('aria-checked') === 'true';
+        if (!isAlreadySelected) {
+          directPillBtn.click();
+          await sleep(220);
+        }
+      } else {
+        // Check if there is a Thinking level dropdown currently set to a different level
+        const levelDropdownBtn = allButtons.find((el) => {
           const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           const a = (el.getAttribute('aria-label') || '').trim();
-          return /^(?:low|bajo)$/i.test(t) || /\b(?:thinking|reasoning|nivel|level|argon)\b.*\blow\b/i.test(a);
+          const hasLevelAria = /\b(thinking|reasoning|effort|level|nivel)\b/i.test(a);
+          const hasLevelText =
+            /^(?:high|medium|low|alto|medio|bajo|minimal|thinking\s*:\s*(?:high|medium|low|minimal)|argon\s*4?\s*(?:high|medium|low))$/i.test(
+              t
+            );
+          return hasLevelAria || hasLevelText;
         });
 
-        if (directLowBtn) {
-          directLowBtn.click();
-          await sleep(200);
-        } else {
-          // Or if there is a level dropdown button currently showing "High" or "Medium", click it and pick "Low"
-          const levelDropdownBtn = allButtons.find((el) => {
-            if (el === switcherBtn) return false;
-            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            const a = (el.getAttribute('aria-label') || '').trim();
-            return (
-              /^(?:high|medium|alto|medio|thinking:\s*high|argon\s*high)$/i.test(t) ||
-              /\b(thinking|reasoning|effort|level|nivel)\b/i.test(a)
-            );
-          });
-          if (levelDropdownBtn) {
+        if (levelDropdownBtn) {
+          const currentLevelTxt = (
+            levelDropdownBtn.innerText ||
+            levelDropdownBtn.textContent ||
+            ''
+          )
+            .replace(/\s+/g, ' ')
+            .trim();
+          const alreadyAtTargetLevel =
+            targetLevel === 'HIGH'
+              ? /\b(high|alto)\b/i.test(currentLevelTxt) &&
+                !/\b(low|medium|bajo|medio)\b/i.test(currentLevelTxt)
+              : /\b(low|bajo)\b/i.test(currentLevelTxt) &&
+                !/\b(high|medium|alto|medio)\b/i.test(currentLevelTxt);
+
+          if (!alreadyAtTargetLevel) {
             levelDropdownBtn.click();
             await sleep(240);
-            const opts = Array.from(
-              document.querySelectorAll(
-                '[role="menuitem"], [role="option"], [role="menuitemradio"], .mat-mdc-menu-item, mat-option, button'
-              )
-            ).filter((el) => el && el.offsetParent !== null);
-            const lowOpt =
+            const opts = getVisibleMenuItems();
+            const targetOpt =
               opts.find((el) =>
-                /^(?:low|bajo)$/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+                exactLevelRegex.test(
+                  (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+                )
               ) ||
-              opts.find((el) =>
-                /\b(low|bajo)\b/i.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
-              );
-            if (lowOpt) {
-              lowOpt.click();
-              await sleep(200);
+              opts.find((el) => {
+                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                return targetLevel === 'HIGH'
+                  ? /\b(high|alto)\b/i.test(txt) && !/\b(low|medium|bajo|medio|pro)\b/i.test(txt)
+                  : /\b(low|bajo)\b/i.test(txt) && !/\b(high|medium|alto|medio|pro)\b/i.test(txt);
+              });
+            if (targetOpt) {
+              targetOpt.click();
+              await sleep(220);
             } else {
               document.body.click();
               await sleep(100);
@@ -792,10 +837,13 @@
           }
         }
       }
+    };
 
-      // 2. Manage Deep Research chip/button in the prompt input toolbar (turn ON if enableDeepResearch, turn OFF if enableArgonLow)
+    const ensureDeepResearchToggle = async () => {
       const toolbarCandidates = Array.from(
-        document.querySelectorAll('button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]')
+        document.querySelectorAll(
+          'button, mat-chip, [role="button"], [role="checkbox"], [role="switch"]'
+        )
       ).filter((el) => el && el.offsetParent !== null);
 
       const deepResearchBtn = toolbarCandidates.find((el) => {
@@ -813,15 +861,27 @@
           deepResearchBtn.getAttribute('aria-checked') === 'true' ||
           deepResearchBtn.classList.contains('selected') ||
           deepResearchBtn.classList.contains('active') ||
-          deepResearchBtn.classList.contains('mdc-evolution-chip--selected');
+          deepResearchBtn.classList.contains('mdc-evolution-chip--selected') ||
+          deepResearchBtn.classList.contains('mat-mdc-chip-selected');
 
         if (enableDeepResearch && !isAlreadyPressed) {
           deepResearchBtn.click();
-          await sleep(260);
+          await sleep(280);
         } else if (!enableDeepResearch && isAlreadyPressed) {
           deepResearchBtn.click();
           await sleep(220);
         }
+      }
+    };
+
+    try {
+      // 1. Activate/deactivate Deep Research first
+      await ensureDeepResearchToggle();
+      // 2. Select Argon 4 + Thinking Level (High or Low) — done AFTER Deep Research toggle so if Deep Research defaulted the dropdown to Pro, we immediately switch it to Argon 4 + High!
+      await ensureArgon4AndThinkingLevel();
+      // 3. Re-verify Deep Research is still active after selecting Argon 4 + Thinking High
+      if (enableDeepResearch) {
+        await ensureDeepResearchToggle();
       }
     } catch {}
   }
@@ -842,7 +902,7 @@
     reportStatus(
       'GENERATING',
       isDeepResearch
-        ? '🔬 Gemini Web (High + Deep Research) preparando el Plan de Investigación...'
+        ? '🔬 Gemini Web (Argon 4 · Thinking: High + Deep Research) preparando el Plan de Investigación...'
         : 'Gemini Web está redactando la respuesta...',
       meta
     );
@@ -1419,19 +1479,19 @@
           Boolean(payload.enableArgonLow) ||
           (!payload.enableHighModel && !payload.enableDeepResearch);
         const desiredModeKey = payload.enableDeepResearch
-          ? 'HIGH_DEEP_RESEARCH'
+          ? 'ARGON4_HIGH_DEEP_RESEARCH'
           : payload.enableHighModel
-          ? 'HIGH'
+          ? 'ARGON4_HIGH'
           : 'ARGON_LOW';
 
-        // 2. Configure model (skip re-clicking menu if already configured to the exact same mode in this session)
-        if (!payload.skipModelSwitch && lastConfiguredModelMode !== desiredModeKey) {
+        // 2. Always verify & configure Argon 4 + Thinking Level + Deep Research in DOM (especially after chat navigation)
+        if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
             useArgonLow
-              ? '⚡ Configurando Gemini Argon en Low...'
-              : `⚙️ Configurando Gemini Web en modo ${
-                  payload.enableDeepResearch ? 'High + Deep Research' : 'High / Pro'
+              ? '⚡ Configurando Gemini Argon 4 en Thinking: Low...'
+              : `⚙️ Configurando Gemini Web en Argon 4 (Thinking: High)${
+                  payload.enableDeepResearch ? ' + Deep Research activo' : ''
                 }...`,
             { stageNumber: payload.stageNumber }
           );

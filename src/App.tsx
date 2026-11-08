@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:11 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:30 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -8495,11 +8495,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box and auto-populate blank fields + 3 options per part!
+    // When starting research in Stage 1 ("Prompt Maestro"), automatically paste the research prompt into its text box!
     if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
-      const autoPropPatch = buildAndApplyStage1PropositionPatch(currentDoc, undefined, false);
       updateActiveDoc({
-        ...autoPropPatch,
         sectionsStructure: promptText,
       });
     }
@@ -8533,11 +8531,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusMsg(
       isResearchStage
         ? `🔬 Prompt de Investigación pegado en su cuadro y enviado a Gemini Web (${
-            useHighModel ? 'Modelo High/Pro' : 'Gemini Argon (Low)'
+            useHighModel ? 'Argon 4 · Thinking: High' : 'Argon 4 · Thinking: Low'
           }${
-            useDeepResearch ? ' + Modo Deep Research con Auto-Iniciar Plan' : ''
+            useDeepResearch ? ' + Deep Research activo con Auto-Iniciar Plan' : ''
           })...`
-        : `⚡ Enviando prompt a Gemini Web en modo Argon (Low)...`
+        : `⚡ Enviando prompt a Gemini Web en modo Argon 4 (Thinking: Low)...`
     );
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
@@ -8546,7 +8544,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       taskType: 'STAGE_GENERATION',
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
-      preferredModel: useArgonLow ? 'ARGON_LOW' : 'HIGH_PRO',
+      preferredModel: useArgonLow ? 'ARGON_4_LOW' : 'ARGON_4_HIGH',
+      thinkingLevel: useArgonLow ? 'LOW' : 'HIGH',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),
       autoSubmit: true,
@@ -11728,7 +11727,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Investigación completo (con la estructura del video seleccionado, dudas repetidas{' '}
                         <code className="text-amber-300">×N</code>, Intro 8s y Outro 8s) se pega
                         automáticamente en su caja abajo y la Extensión activa{' '}
-                        <strong className="text-emerald-300">Modelo High/Pro</strong> +{' '}
+                        <strong className="text-emerald-300">Argon 4 (Thinking: High)</strong> +{' '}
                         <strong className="text-emerald-300">
                           Deep Research (con auto-clic en "Iniciar investigación")
                         </strong>
@@ -11736,7 +11735,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </p>
                     </div>
 
-                    {/* Controles de Modelo High + Deep Research + Botón ✨ Comenzar Investigación */}
+                    {/* Controles de Modelo Argon 4 (Thinking: High) + Deep Research + Botón ✨ Comenzar Investigación */}
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <button
                         type="button"
@@ -11746,9 +11745,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
                             : 'bg-slate-900 border-slate-700 text-slate-400'
                         }`}
-                        title="Cambia automáticamente el selector de Gemini Web a High / Pro / 2.5 Pro"
+                        title="Selecciona automáticamente Argon 4 con Thinking level en High en Gemini Web (nunca Pro)"
                       >
-                        🧠 Modelo: High / Pro {geminiHighModelEnabled ? '✓' : 'Off'}
+                        🧠 Modelo: Argon 4 (Thinking: High) {geminiHighModelEnabled ? '✓' : 'Off'}
                       </button>
 
                       <button
@@ -11803,8 +11802,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {/* RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE) */}
                   {(() => {
                     const isInvestigationDone = Boolean(
-                      (activeDoc.deepResearchResult || '').trim() ||
-                        activeDoc.promptConfig?.INVESTIGACION_COMPLETADA === 'SI'
+                      (activeDoc.deepResearchResult || '').trim()
                     );
                     const selectedVideoObj =
                       analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||

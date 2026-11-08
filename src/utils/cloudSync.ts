@@ -880,6 +880,41 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   nextRawClipsText = normalizeEngineRefs(nextRawClipsText);
   const nextRawReferencePrompts = doc.rawReferencePrompts || '';
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
+  const isVideo77Doc =
+    doc.id === 'doc-video-77-huellas' || /^Video\s*77\b/i.test(String(doc.title || '').trim());
+  const needsV77Reset =
+    isVideo77Doc && doc.promptConfig?.CLEAN_RESET_V77 !== '2026_11_08_1830';
+
+  if (needsV77Reset) {
+    const cleanedCfg: Record<string, string> = {
+      TIPO_PRODUCCION: doc.promptConfig?.TIPO_PRODUCCION || 'REELS',
+      SUB_OPCION_POST: doc.promptConfig?.SUB_OPCION_POST || 'EXPECTATIVA_ESTRENO',
+      SUB_OPCION_REELS: doc.promptConfig?.SUB_OPCION_REELS || '16X9',
+      SINCRONIZACION_CLIP_1: doc.promptConfig?.SINCRONIZACION_CLIP_1 || 'RALENTIZAR_CAPCUT',
+      TEXTO_PANTALLA_CLIP_1: doc.promptConfig?.TEXTO_PANTALLA_CLIP_1 || 'CAPCUT_MANUAL',
+      DURACION_CLIP_1: doc.promptConfig?.DURACION_CLIP_1 || '6',
+      DURACION_CLIPS: doc.promptConfig?.DURACION_CLIPS || '8_SEGUNDOS',
+      DURACION_CLIPS_SEGUNDOS: doc.promptConfig?.DURACION_CLIPS_SEGUNDOS || '8',
+      VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
+      UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
+      CLEAN_RESET_V77: '2026_11_08_1830',
+    };
+    return {
+      ...doc,
+      typology: '',
+      topic: '',
+      historicalTime: '',
+      historicalLocation: '',
+      sectionsStructure: '',
+      deepResearchPrompt: '',
+      deepResearchResult: '',
+      voiceoverScript: '',
+      rawReferencePrompts: '',
+      references: [],
+      promptConfig: cleanedCfg,
+    };
+  }
+
   const hasIntroMarca = Boolean(doc.promptConfig && doc.promptConfig.UBICACION_INTRO_MARCA);
   const nextPromptConfig = hasIntroMarca
     ? doc.promptConfig
