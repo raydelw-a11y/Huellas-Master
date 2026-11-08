@@ -124,7 +124,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:47 AM - 11/07/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:30 AM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -9214,14 +9214,17 @@ export default function App() {
                     : 'Auto-Generar Etapas 1 a 9 (1 Clic)'}
                 </button>
 
-                {/* ITEM 6: Organized Final Project Folder */}
+                {/* ITEM 6: Sync & Update Root Project Folder */}
                 <button
                   type="button"
-                  onClick={() => handleExportOrganizedProjectFolder(false)}
+                  onClick={async () => {
+                    await handleAutoLoadAllFolderMedia(false, true);
+                    await handleExportOrganizedProjectFolder(false);
+                  }}
                   className="shrink-0 py-1 px-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-                  title="Crea en tu carpeta: /Clips_Aprobados, /Audio, /Miniaturas, Subtitulos.srt y SEO_YouTube_Copiar_Pegar.txt"
+                  title="Sincroniza y actualiza tu Carpeta Raíz del Documental: recarga clips/audios del disco y guarda Guion, .SRT, Prompts, Miniaturas y SEO en sus 6 subcarpetas (01_Guion_y_SEO a 06_Video_Final)"
                 >
-                  📦 Carpeta Final YouTube
+                  <RefreshCw className="w-3.5 h-3.5" /> Actualizar Carpeta Raíz
                 </button>
 
                 <select
@@ -9468,10 +9471,31 @@ export default function App() {
                     <div className="flex items-center gap-2.5 flex-wrap">
                       {hasSelectedDocFolder ? (
                         <>
-                          <div className="px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-2">
+                          <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-2">
                             <FolderOpen className="w-4 h-4 text-emerald-400" />
                             ✓ Carpeta Fijada: {effectiveDocFolderName}
                           </div>
+                          <button
+                            type="button"
+                            onClick={handlePickFlowDownloadFolder}
+                            className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 font-bold text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer transition"
+                            title="Seleccionar o cambiar la Carpeta Raíz en tu computadora para este documental"
+                          >
+                            <FolderOpen className="w-4 h-4 text-amber-400" />
+                            📂 Cambiar Carpeta Raíz
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await handleAutoLoadAllFolderMedia(false, true);
+                              await handleExportOrganizedProjectFolder(false);
+                            }}
+                            className="px-3.5 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-200 font-bold text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer transition"
+                            title="Recargar clips y audios desde la carpeta raíz y actualizar las 6 subcarpetas (01_Guion_y_SEO, 02_Audio, 03_Miniaturas, 04_Referencias, 05_Clips_Video, 06_Video_Final)"
+                          >
+                            <RefreshCw className="w-4 h-4 text-purple-300" />
+                            🔄 Actualizar Carpeta Raíz
+                          </button>
                           <button
                             type="button"
                             onClick={() => setActiveStage(4)}
