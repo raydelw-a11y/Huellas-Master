@@ -27,8 +27,9 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
      2. **Perspectiva Externa en Gemini Web (Misma Ventana Ya Abierta -> Chat Nuevo SIN Notebook, Argon en High)**:
         - **PROHIBIDO abrir una ventana o pestaña nueva de Gemini (`new_page`) si ya hay una abierta**: usa `list_pages` y `select_page` en `chrome-devtools` MCP para reutilizar la ventana/pestaña de `gemini.google.com` que ya está abierta (solo abre una pestaña nueva si no existe ninguna de Gemini abierta).
         - Dentro de esa misma ventana de Gemini ya abierta, inicia un **chat nuevo limpio por fuera de todos los Notebooks** (navegando a `https://gemini.google.com/app` o pulsando "New chat" fuera del Notebook), verifica/selecciona el modelo **Argon** con **Thinking Level en High**, envía el problema del que se está hablando y espera hasta capturar su respuesta completa.
-     3. **Invocación de Subagentes con la Perspectiva Extra Incluida**:
+     3. **Invocación de Subagentes con la Perspectiva Extra Incluida (Sin Límites Artificiales de Palabras)**:
         - Llama inmediatamente a `define_subagent` e `invoke_subagent` para lanzar los 2 (o 3) agentes pasándoles **el problema original + la respuesta obtenida de Gemini Web (Argon High)** como una perspectiva externa adicional para que la evalúen, la critiquen y la integren en su debate.
+        - **PROHIBIDO** ponerles límites de palabras o extensión (como *"máximo 250 palabras"* o *"en 1 párrafo"*) o prohibirles inspeccionar los archivos del proyecto: los agentes deben analizar y debatir con total profundidad técnica sin recortes artificiales.
 
 1. **Activación Automática de Subagentes con Modelos Distintos (`define_subagent`, `invoke_subagent`, `send_message`)**:
    - **En `MODO DUO`**:
