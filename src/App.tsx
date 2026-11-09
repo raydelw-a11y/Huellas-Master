@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:26 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:32 AM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -2927,51 +2927,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   }, [mainView, activeStage]);
 
-  // Keep selectedAnalyzedVideoId and activeDoc.promptConfig persistently synchronized per documentary
-  useEffect(() => {
-    if (!activeDoc) return;
-    const matched = resolveSelectedLibraryVideoForDoc(activeDoc, analyzedVideosLibrary, '');
-    if (matched) {
-      const matchedId = String(matched.videoId || matched.id || '');
-      if (matchedId && selectedAnalyzedVideoId !== matchedId) {
-        setSelectedAnalyzedVideoId(matchedId);
-      }
-      const cfg = activeDoc.promptConfig || {};
-      const needsPromptConfigSync =
-        cfg.SELECTED_ANALYZED_VIDEO_ID !== matchedId ||
-        !cfg.ESTRUCTURA_VIRAL_RESUMEN ||
-        !cfg.SELECTED_ANALYZED_VIDEO_TITLE;
-      if (matchedId && needsPromptConfigSync) {
-        updateActiveDoc({
-          promptConfig: {
-            ...cfg,
-            SELECTED_ANALYZED_VIDEO_ID: matchedId,
-            SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-            YOUTUBE_SELECTED_LIBRARY_LINK: String(matched.url || matchedId),
-            ESTRUCTURA_VIRAL_RESUMEN: String(matched.structureSummary || ''),
-            ESTRUCTURA_VIRAL_TITULO: String(matched.title || ''),
-            SELECTED_ANALYZED_VIDEO_SUMMARY: String(matched.structureSummary || ''),
-            SELECTED_ANALYZED_VIDEO_TITLE: String(matched.title || ''),
-            YOUTUBE_VIDEO_TITLE: String(matched.title || ''),
-            YOUTUBE_VIDEO_DESCRIPTION: String(matched.description || ''),
-            YOUTUBE_VIDEO_TAGS: Array.isArray(matched.tags)
-              ? matched.tags.join(', ')
-              : String(cfg.YOUTUBE_VIDEO_TAGS || ''),
-            YOUTUBE_VIDEO_CHANNEL: String(matched.channelTitle || cfg.YOUTUBE_VIDEO_CHANNEL || ''),
-          },
-        });
-      }
-    } else if (analyzedVideosLibrary.length > 0 && selectedAnalyzedVideoId) {
-      setSelectedAnalyzedVideoId('');
-    }
-  }, [
-    activeDoc?.id,
-    analyzedVideosLibrary,
-    activeDoc?.promptConfig?.SELECTED_ANALYZED_VIDEO_ID,
-    activeDoc?.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK,
-    activeDoc?.deepResearchPrompt,
-  ]);
-
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
     if (shouldAutoPlay) {
@@ -3830,6 +3785,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       setSavingStatus('saved');
     }
   };
+
+  // Keep selectedAnalyzedVideoId and activeDoc.promptConfig persistently synchronized per documentary
+  useEffect(() => {
+    if (!activeDoc) return;
+    const matched = resolveSelectedLibraryVideoForDoc(activeDoc, analyzedVideosLibrary, '');
+    if (matched) {
+      const matchedId = String(matched.videoId || matched.id || '');
+      if (matchedId && selectedAnalyzedVideoId !== matchedId) {
+        setSelectedAnalyzedVideoId(matchedId);
+      }
+      const cfg = activeDoc.promptConfig || {};
+      const needsPromptConfigSync =
+        cfg.SELECTED_ANALYZED_VIDEO_ID !== matchedId ||
+        !cfg.ESTRUCTURA_VIRAL_RESUMEN ||
+        !cfg.SELECTED_ANALYZED_VIDEO_TITLE;
+      if (matchedId && needsPromptConfigSync) {
+        updateActiveDoc({
+          promptConfig: {
+            ...cfg,
+            SELECTED_ANALYZED_VIDEO_ID: matchedId,
+            SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+            YOUTUBE_SELECTED_LIBRARY_LINK: String(matched.url || matchedId),
+            ESTRUCTURA_VIRAL_RESUMEN: String(matched.structureSummary || ''),
+            ESTRUCTURA_VIRAL_TITULO: String(matched.title || ''),
+            SELECTED_ANALYZED_VIDEO_SUMMARY: String(matched.structureSummary || ''),
+            SELECTED_ANALYZED_VIDEO_TITLE: String(matched.title || ''),
+            YOUTUBE_VIDEO_TITLE: String(matched.title || ''),
+            YOUTUBE_VIDEO_DESCRIPTION: String(matched.description || ''),
+            YOUTUBE_VIDEO_TAGS: Array.isArray(matched.tags)
+              ? matched.tags.join(', ')
+              : String(cfg.YOUTUBE_VIDEO_TAGS || ''),
+            YOUTUBE_VIDEO_CHANNEL: String(matched.channelTitle || cfg.YOUTUBE_VIDEO_CHANNEL || ''),
+          },
+        });
+      }
+    } else if (analyzedVideosLibrary.length > 0 && selectedAnalyzedVideoId) {
+      setSelectedAnalyzedVideoId('');
+    }
+  }, [
+    activeDoc?.id,
+    analyzedVideosLibrary,
+    activeDoc?.promptConfig?.SELECTED_ANALYZED_VIDEO_ID,
+    activeDoc?.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK,
+    activeDoc?.deepResearchPrompt,
+  ]);
 
   const buildNewDocumentaryObject = (): DocumentaryProject => {
     const now = new Date().toISOString();
