@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:25 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:58 AM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -11253,18 +11253,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           VIEW 3: DOCUMENTARY STUDIO (MENÚ SUPERIOR HORIZONTAL + ÁREA COMPLETA)
       ===================================================================== */}
       {mainView === 'studio' && activeDoc && (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 w-full max-w-full min-w-0 overflow-x-hidden">
           {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
-          <div className="w-full bg-[#12100d] border-b border-amber-500/20 px-2.5 sm:px-4 py-2 gap-2 flex flex-col shrink-0">
+          <div className="w-full max-w-full min-w-0 bg-[#12100d] border-b border-amber-500/20 px-2 sm:px-4 py-2 gap-2 flex flex-col shrink-0 overflow-x-hidden">
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 sm:px-3.5 py-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2 sm:px-3.5 py-2 w-full max-w-full min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 w-full sm:w-auto">
                 {documentaries.length > 1 ? (
                   <select
                     value={activeDoc.id}
                     onChange={(e) => setActiveDocId(e.target.value)}
                     title="Cambiar de documental"
-                    className="max-w-[140px] sm:max-w-[190px] text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-300 font-bold px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 shrink-0 outline-none cursor-pointer"
+                    className="max-w-[115px] sm:max-w-[190px] truncate text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-300 font-bold px-1.5 sm:px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 shrink-0 outline-none cursor-pointer"
                   >
                     {documentaries.map((d) => (
                       <option key={d.id} value={d.id} className="bg-slate-950 text-amber-200">
@@ -11284,7 +11284,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') e.preventDefault();
                   }}
-                  className="flex-1 min-w-0 sm:min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
+                  className="flex-1 min-w-0 sm:min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
                   placeholder="Título del Documental..."
                 />
                 <button
@@ -11441,7 +11441,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
           <section
             data-stage-scroll-container="true"
-            className="flex-1 p-3 sm:p-5 space-y-4 overflow-y-auto"
+            className="flex-1 w-full max-w-full min-w-0 p-2.5 sm:p-5 space-y-4 overflow-y-auto overflow-x-hidden"
           >
             {/* Stage Header Banner */}
             {(() => {
@@ -11457,17 +11457,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   ? STAGES_LIST[currentStageIdx + 1]
                   : null;
               return (
-                <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                <div className="bg-[#16130f] border border-amber-500/25 rounded-2xl px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 w-full max-w-full min-w-0">
                   <div className="min-w-0 flex-1">
                     <span className="text-[10px] sm:text-[11px] uppercase tracking-widest text-amber-400 font-bold block truncate">
                       Etapa {currentStageMeta.displayNum} de {STAGES_LIST.length} —{' '}
                       {activeDoc.title}
                     </span>
-                    <h2 className="text-sm sm:text-lg font-bold text-slate-100 mt-0.5 leading-snug">
+                    <h2 className="text-sm sm:text-lg font-bold text-slate-100 mt-0.5 leading-snug break-words">
                       {currentStageMeta.title} — {currentStageMeta.subtitle}
                     </h2>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {prevStageMeta && (
                       <button
                         onClick={() => handleTrySelectStage(prevStageMeta.num)}
@@ -11505,17 +11505,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ETAPA 1 UNIFICADA: PROMPT MAESTRO (CARPETA + TEMA Y DURACIÓN + VIDEOS ANALIZADOS + COMENTARIOS ×N + DEEP RESEARCH + PERGAMINO)
             =============================================================== */}
             {(activeStage === 1 || activeStage === 2 || activeStage === 3) && (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6 w-full max-w-full min-w-0 overflow-x-hidden">
                 {/* BLOQUE 1: CARPETA DE DESCARGA OBLIGATORIA + EDITOR EN TIEMPO REAL DEL NOMBRE DEL VIDEO / CARPETA MAC / CHAT GEMINI */}
                 <div
-                  className={`rounded-2xl p-5 border-2 transition-all shadow-lg space-y-4 ${
+                  className={`rounded-2xl p-3.5 sm:p-5 border-2 transition-all shadow-lg space-y-4 w-full max-w-full min-w-0 overflow-hidden ${
                     hasSelectedDocFolder
                       ? 'bg-gradient-to-r from-emerald-950/70 via-[#14120f] to-slate-950 border-emerald-500/60'
                       : 'bg-gradient-to-r from-amber-950/80 via-rose-950/40 to-[#14120f] border-amber-500'
                   }`}
                 >
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="space-y-1 max-w-3xl">
+                  <div className="flex items-center justify-between flex-wrap gap-3 sm:gap-4 min-w-0">
+                    <div className="space-y-1 max-w-3xl min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
@@ -11528,18 +11528,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             ? '✓ Paso Obligatorio Completado'
                             : '🔒 Paso 1 Obligatorio para Desbloquear Etapas 2 a 10'}
                         </span>
-                        <h3 className="text-sm sm:text-base font-black text-slate-100">
+                        <h3 className="text-sm sm:text-base font-black text-slate-100 break-words">
                           📂 Carpeta de Descarga del Documental & Chat Único en Gemini
                         </h3>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
+                      <p className="text-xs text-slate-300 leading-relaxed break-words">
                         {hasSelectedDocFolder ? (
                           <>
                             Todos los archivos generados en este documental (Clips aprobados{' '}
-                            <code className="text-amber-300">01_primeras_seis_palabras_4K.mp4</code>,
+                            <code className="text-amber-300 break-all">01_primeras_seis_palabras_4K.mp4</code>,
                             Miniaturas A/B, Audio VoxFlow, Música Suno, <code className="text-amber-300">.SRT</code> y
                             el Video Final) se guardarán automáticamente en:{' '}
-                            <strong className="text-emerald-300 font-mono underline">
+                            <strong className="text-emerald-300 font-mono underline break-words">
                               {effectiveDocFolderName}
                             </strong>
                             . ¡Las Etapas 2 a 10 ya están desbloqueadas!
@@ -11557,37 +11557,39 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap w-full sm:w-auto min-w-0">
                       {hasSelectedDocFolder ? (
                         <>
                           <button
                             type="button"
                             onClick={handlePickFlowDownloadFolder}
-                            className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition"
+                            className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 cursor-pointer transition max-w-full min-w-0 flex-wrap"
                             title="Haz clic aquí si deseas cambiar la Carpeta Raíz de este documental"
                           >
-                            <FolderOpen className="w-4 h-4 text-emerald-400" />
-                            <span>✓ Carpeta Fijada: {effectiveDocFolderName}</span>
-                            <span className="ml-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-[11px] text-emerald-200 font-bold">
+                            <FolderOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="truncate max-w-[200px] sm:max-w-md">
+                              ✓ Carpeta Fijada: {effectiveDocFolderName}
+                            </span>
+                            <span className="ml-auto sm:ml-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-[11px] text-emerald-200 font-bold shrink-0">
                               Cambiar
                             </span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setActiveStage(4)}
-                            className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                            className="px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
                           >
-                            Continuar a Etapa 2 (Guion) <ChevronRight className="w-4 h-4" />
+                            Continuar a Etapa 2 (Guion) <ChevronRight className="w-4 h-4 shrink-0" />
                           </button>
                         </>
                       ) : (
                         <button
                           type="button"
                           onClick={handlePickFlowDownloadFolder}
-                          className="px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25"
+                          className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25 max-w-full"
                         >
-                          <FolderOpen className="w-4 h-4" />
-                          📂 Seleccionar Carpeta de Descarga del Documental
+                          <FolderOpen className="w-4 h-4 shrink-0" />
+                          <span>📂 Seleccionar Carpeta de Descarga del Documental</span>
                         </button>
                       )}
                       <button
@@ -11620,7 +11622,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               'MUDO_SOLO_AMBIENTE',
                             UBICACION_INTRO_MARCA: prevCfg.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00',
                             CLEAN_RESET_V77: '2026_11_08_1912',
-                            V77_MULTI_PASO1_UPDATED: '2026_11_08_1952',
+                            V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_RESTORED',
                           };
                           updateActiveDoc({
                             typology: '',
@@ -11710,8 +11712,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </div>
 
                 {/* BLOQUE 2: DEFINICIÓN HISTÓRICA + ÁNGULO / CONTINUIDAD + CALIBRACIÓN MATEMÁTICA CON INTRO (8s) Y OUTRO (8s) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full max-w-full min-w-0">
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="font-bold text-amber-300 text-base">
                         🏛️ Definición Histórica y Continuidad
@@ -11812,17 +11814,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         ];
 
                         return (
-                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
-                            <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2">
+                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5 max-w-full min-w-0">
+                            <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 max-w-full min-w-0">
                               {selectedList.length > 0 ? (
-                                <div className="flex flex-wrap items-center gap-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5 max-w-full min-w-0">
                                   <span className="text-[11px] font-bold text-amber-300 mr-1">
                                     Activas ({selectedList.length}):
                                   </span>
                                   {selectedList.map((sel) => (
                                     <span
                                       key={sel}
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-[11px] font-semibold"
+                                      className="inline-flex items-start gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-[11px] font-semibold max-w-full break-words whitespace-normal text-left"
                                     >
                                       ✓ {sel}
                                     </span>
@@ -11835,7 +11837,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               )}
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1 max-w-full min-w-0">
                               {allSelectableTypologies.map((tOpt) => {
                                 const isChecked = isTypologyOptionSelected(activeDoc.typology, tOpt);
                                 const isCustom = !TYPOLOGIES.includes(tOpt);
@@ -11856,7 +11858,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         },
                                       });
                                     }}
-                                    className={`text-left px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer flex items-start gap-2 ${
+                                    className={`text-left px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer flex items-start gap-2 min-w-0 max-w-full ${
                                       isChecked
                                         ? 'bg-emerald-500/20 border-emerald-400 text-emerald-100 font-bold'
                                         : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800 text-slate-300'
@@ -11871,7 +11873,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     >
                                       ✓
                                     </span>
-                                    <span className="leading-snug">
+                                    <span className="leading-snug min-w-0 break-words">
                                       {isCustom ? `✨ ${tOpt}` : tOpt}
                                     </span>
                                   </button>
@@ -11988,7 +11990,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
 
                   {/* CALIBRACIÓN MATEMÁTICA CON INTRO OFICIAL (8s) + CLIP 1 + CUERPO + OUTRO OFICIAL (8s) */}
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 space-y-4">
+                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="font-bold text-amber-300 text-base">
                         ⏱️ Calibración Matemática (Intro 8s + Clips + Outro 8s)
@@ -11999,8 +12001,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     {/* SELECTOR DE UBICACIÓN DEL INTRO OFICIAL DE MARCA (8s — Intro.mp4) */}
-                    <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5">
-                      <div>
+                    <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3 sm:p-3.5 max-w-full min-w-0">
+                      <div className="min-w-0 max-w-full">
                         <label className="block text-xs font-bold text-amber-300 mb-1.5">
                           🎬 Ubicación del Intro Oficial de Marca (8s — Intro.mp4)
                         </label>
@@ -12015,7 +12017,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                             });
                           }}
-                          className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-2 text-xs font-semibold text-amber-100 outline-none"
+                          className="w-full max-w-full min-w-0 truncate bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-2 text-xs font-semibold text-amber-100 outline-none"
                         >
                           <option value="INTRO_INICIO_00">
                             Opción A (Por defecto — Intro 8s Inicial en 00:00 - 00:08 [Intro.mp4]): Abre en 00:00 - 00:08 con el Intro Oficial de 8s y desplaza +8s el Hook y la voz (entra en 00:16)
@@ -12027,8 +12029,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-full min-w-0">
+                      <div className="min-w-0">
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
                           Duración Total del Documental
                         </label>
@@ -12051,7 +12053,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                             });
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300 cursor-pointer"
+                          className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300 cursor-pointer"
                         >
                           <option value={600}>10 minutos (600s)</option>
                           <option value={900}>15 minutos (900s)</option>
@@ -12065,7 +12067,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </span>
                       </div>
 
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
                           Duración de cada Clip (desde Clip 2)
                         </label>
@@ -12081,7 +12083,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                             });
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+                          className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
                         >
                           <option value="10_SEGUNDOS">10 segundos por clip (1 shot de 10s)</option>
                           <option value="8_SEGUNDOS">8 segundos por clip (1 shot de 8s)</option>
@@ -12090,8 +12092,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     {/* Clip 1 Sync & Voiceover Entry Configuration */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 max-w-full min-w-0">
+                      <div className="min-w-0">
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
                           Duración del Clip 1 (Segundos)
                         </label>
@@ -12113,10 +12115,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                             });
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
+                          className="w-full max-w-full min-w-0 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-bold text-amber-300"
                         />
                       </div>
-                      <div className="sm:col-span-2">
+                      <div className="sm:col-span-2 min-w-0">
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
                           Sincronización de Clip 1 y Comienzo de Voz Narrativa
                         </label>
@@ -12141,7 +12143,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                             });
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100"
+                          className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100"
                         >
                           <option value="VOZ_EN_CLIP_2">
                             El primer clip sin voz narrativa se creará de{' '}
@@ -12276,9 +12278,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </div>
 
                 {/* BLOQUE 3: ESTRUCTURA DE VIDEOS ANALIZADOS PREVIAMENTE + LISTADO DE COMENTARIOS AGRUPADOS (×N) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full max-w-full min-w-0">
                   {/* COLUMNA IZQUIERDA: SELECTOR DE ESTRUCTURA DE VIDEOS ANALIZADOS + EXPLICACIÓN E INVESTIGACIÓN */}
-                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
+                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <h3 className="font-bold text-amber-300 text-base flex items-center gap-2">
@@ -12369,7 +12371,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 });
                               }
                             }}
-                            className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
+                            className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
                           >
                             <option value="">
                               -- Selecciona un video analizado previamente de la lista --
@@ -12381,8 +12383,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             ))}
                           </select>
                           {effectiveSelectedVideoObj && (
-                            <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
-                              <span>
+                            <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 max-w-full min-w-0">
+                              <span className="min-w-0 break-words">
                                 🔒 <strong>Fijado para {activeDoc.title}:</strong> &quot;{effectiveSelectedVideoObj.title}&quot; permanece seleccionado tras el Paso 1 y forma parte de la investigación <strong>Deep Research en el Paso 2</strong>.
                               </span>
                               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-black text-[10px]">
@@ -12401,13 +12403,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         pastedUrlValue
                       );
                       return (
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-w-full min-w-0">
                           <label className="block text-xs font-semibold text-slate-300 mb-1">
                             O pega el Link de un Video de YouTube Nuevo (Pulsa "Investigar Video" para
                             investigarlo ahora, o "✨ Comenzar Investigación" para investigarlo junto con
                             nuestro documental)
                           </label>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
                             <input
                               type="text"
                               value={pastedUrlValue}
@@ -12449,7 +12451,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 });
                               }}
                               placeholder="https://www.youtube.com/watch?v=... (deja en blanco si usas uno de la lista o ninguno)"
-                              className={`flex-1 bg-slate-950 border rounded-xl px-3 py-2 text-xs text-slate-100 ${
+                              className={`flex-1 min-w-0 w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-slate-100 ${
                                 duplicateInvestigatedVideo
                                   ? 'border-rose-500 ring-1 ring-rose-500/50'
                                   : 'border-slate-800'
@@ -12685,9 +12687,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
 
                   {/* COLUMNA DERECHA: LISTADO DE COMENTARIOS DE MIS VIDEOS Y OTROS VIDEOS ANALIZADOS (AGRUPADOS POR REPETICIÓN ×N) */}
-                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
+                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="font-bold text-amber-300 text-base flex items-center gap-2">
                           💬 Comentarios de Mis Videos y Videos Analizados (Agrupados ×N)
                         </h3>
@@ -12702,8 +12704,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     {/* Filtros de Fuente, Tipo y Búsqueda */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 max-w-full min-w-0">
+                      <div className="flex flex-wrap rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px] max-w-full">
                         <button
                           type="button"
                           onClick={() => setStage1CommentSourceFilter('ALL')}
@@ -12916,14 +12918,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 {/* BLOQUE 4: ETAPA 1 DIVIDIDA EN DOS PARTES:
                     PARTE 1: INVESTIGACIÓN DEL OTRO VIDEO + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (4 ARGON · THINKING LOW · SIN DEEP RESEARCH)
                     PARTE 2: INVESTIGACIÓN PROFUNDA DE NUESTRO DOCUMENTAL (4 ARGON · THINKING HIGH · CON DEEP RESEARCH ACTIVO) */}
-                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-6 space-y-5 shadow-xl">
+                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-3.5 sm:p-6 space-y-5 shadow-xl w-full max-w-full min-w-0 overflow-hidden">
                   {/* CABECERA GENERAL DE LAS 2 FASES DE ETAPA 1 */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-3 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
                         Etapa 1 Dividida en 2 Fases
                       </span>
-                      <h3 className="font-black text-amber-300 text-base sm:text-lg">
+                      <h3 className="font-black text-amber-300 text-sm sm:text-lg break-words">
                         🔬 Flujo en 2 Pasos: 1º Definición y Calibración (Thinking Low) → 2º Investigación Profunda (Deep Research + Thinking High)
                       </h3>
                     </div>
@@ -12932,9 +12934,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {/* =====================================================================
                       FASE 1 DE ETAPA 1: INVESTIGACIÓN DEL OTRO VIDEO + DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (SIN DEEP RESEARCH · THINKING LEVEL: LOW)
                      ===================================================================== */}
-                  <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start justify-between flex-wrap gap-4">
-                      <div className="space-y-1 max-w-3xl">
+                  <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden">
+                    <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4 min-w-0">
+                      <div className="space-y-1 max-w-3xl min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-black">
                             PASO 1 DE ETAPA 1
@@ -12948,10 +12950,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </span>
                           )}
                         </div>
-                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base">
+                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base break-words">
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
-                        <p className="text-xs text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-300 leading-relaxed break-words">
                           Analiza rápidamente el video referente (Título, Descripción, Tags, Comentarios <code className="text-amber-300">×N</code> y estructura) en <strong>4 Argon con Thinking level en Low (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
                         </p>
                       </div>
@@ -12973,18 +12975,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
                                 : 'Ejecutar Paso 1 con 4 Argon en Thinking level: Low (sin Deep Research)'
                             }
-                            className={`px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition shrink-0 ${
+                            className={`w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center ${
                               duplicateBlockForStart
                                 ? 'bg-slate-800 text-slate-500 border border-rose-500/40 cursor-not-allowed opacity-60'
                                 : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-amber-500/25'
                             }`}
                           >
-                            <Wand2 className="w-4 h-4" />
-                            {aiGenerating
-                              ? 'Procesando en Gemini...'
-                              : duplicateBlockForStart
-                              ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                              : '⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)'}
+                            <Wand2 className="w-4 h-4 shrink-0" />
+                            <span>
+                              {aiGenerating
+                                ? 'Procesando en Gemini...'
+                                : duplicateBlockForStart
+                                ? '🔒 Link Ya Investigado (Limpia la Caja)'
+                                : '⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)'}
+                            </span>
                           </button>
                         );
                       })()}
@@ -13143,18 +13147,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       }
 
                       return (
-                        <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
-                          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3">
-                            <div className="space-y-1">
+                        <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-3 sm:p-5 space-y-4 shadow-xl w-full max-w-full min-w-0 overflow-hidden">
+                          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3 min-w-0">
+                            <div className="space-y-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
                                   ✓ Paso 1 Determinado · Campos Auto-Llenados
                                 </span>
-                                <h4 className="text-sm sm:text-base font-black text-amber-300">
+                                <h4 className="text-sm sm:text-base font-black text-amber-300 break-words">
                                   📋 Resumen por Partes de la Proposición para Nuestro Documental (Concordancia Automática entre Partes 1–7)
                                 </h4>
                               </div>
-                              <p className="text-xs text-slate-300">
+                              <p className="text-xs text-slate-300 break-words">
                                 En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. Las <strong>Partes 3 (Tiempo/Época) y 4 (Lugar Histórico)</strong> (así como las Partes 5–7) muestran exclusivamente opciones que están <strong>100% en concordancia histórica con lo seleccionado en las Partes 1 y 2</strong> para evitar cualquier contradicción en el documental:
                               </p>
                             </div>
@@ -13176,8 +13180,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           </div>
 
                           {/* BANNER DE DURACIÓN TOTAL SUGERIDA TRAS EL PASO 1 + VIDEO DE BIBLIOTECA VINCULADO */}
-                          <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-3">
-                            <div className="space-y-1 max-w-3xl">
+                          <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3 sm:p-3.5 flex items-center justify-between flex-wrap gap-3 min-w-0 max-w-full">
+                            <div className="space-y-1 max-w-3xl min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
                                   ⏱️ Duración Sugerida tras Paso 1: {step1DurationRec.recommendedLabel}
@@ -13187,12 +13191,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   {Math.round(step1DurationRec.effectiveNarrationSeconds / 60)} min narrados)
                                 </span>
                                 {selectedVideoObj && (
-                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-400/40 text-purple-200 text-[10px] font-bold">
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-400/40 text-purple-200 text-[10px] font-bold break-words">
                                     📚 Video Biblioteca Seleccionado: {selectedVideoObj.title}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-slate-300 leading-relaxed">
+                              <p className="text-xs text-slate-300 leading-relaxed break-words">
                                 {step1DurationRec.summaryJustification}
                               </p>
                             </div>
@@ -13222,18 +13226,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </button>
                           </div>
 
-                          <div className="space-y-4">
+                          <div className="space-y-4 min-w-0 max-w-full">
                             {propositionParts.map((part) => (
                               <div
                                 key={part.id}
-                                className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3"
+                                className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 sm:p-4 space-y-3 min-w-0 max-w-full overflow-hidden"
                               >
-                                <div className="flex items-start justify-between flex-wrap gap-2">
-                                  <div>
-                                    <div className="text-xs sm:text-sm font-extrabold text-amber-200">
+                                <div className="flex items-start justify-between flex-wrap gap-2 min-w-0">
+                                  <div className="min-w-0">
+                                    <div className="text-xs sm:text-sm font-extrabold text-amber-200 break-words">
                                       {part.title}
                                     </div>
-                                    <div className="text-[11px] text-slate-400">{part.subtitle}</div>
+                                    <div className="text-[11px] text-slate-400 break-words">{part.subtitle}</div>
                                   </div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     {part.partNumber >= 3 && (
@@ -13250,12 +13254,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   </div>
                                 </div>
 
-                                <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">
+                                <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed break-words">
                                   <strong className="text-emerald-300">Resumen de esta parte:</strong>{' '}
                                   {part.summary}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 min-w-0 max-w-full">
                                   {part.options.map((optText, idx) => {
                                     const isSelected =
                                       part.id === 'typology'
@@ -13267,14 +13271,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         key={idx}
                                         type="button"
                                         onClick={() => handleSelectPropositionOption(part.id, optText)}
-                                        className={`text-left p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                        className={`text-left p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 min-w-0 max-w-full break-words ${
                                           isSelected
                                             ? 'bg-emerald-500/15 border-emerald-400 text-slate-100 shadow-md shadow-emerald-500/10'
                                             : 'bg-slate-950/90 hover:bg-slate-900 border-slate-800 text-slate-300'
                                         }`}
                                       >
-                                        <div className="space-y-1.5">
-                                          <div className="flex items-center justify-between gap-1">
+                                        <div className="space-y-1.5 min-w-0">
+                                          <div className="flex items-center justify-between gap-1 flex-wrap">
                                             <span
                                               className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
                                                 isSelected
@@ -13292,7 +13296,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                               </span>
                                             )}
                                           </div>
-                                          <p className="text-xs leading-relaxed">{optText}</p>
+                                          <p className="text-xs leading-relaxed break-words">{optText}</p>
                                         </div>
                                       </button>
                                     );
@@ -13309,9 +13313,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {/* =====================================================================
                       FASE 2 DE ETAPA 1: INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + THINKING LEVEL: HIGH
                      ===================================================================== */}
-                  <div className="bg-slate-950/90 border-2 border-purple-500/40 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start justify-between flex-wrap gap-4">
-                      <div className="space-y-1 max-w-3xl">
+                  <div className="bg-slate-950/90 border-2 border-purple-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden">
+                    <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4 min-w-0">
+                      <div className="space-y-1 max-w-3xl min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-0.5 rounded-md bg-purple-500/20 border border-purple-400/50 text-purple-200 text-xs font-black">
                             PASO 2 DE ETAPA 1
@@ -13327,21 +13331,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             );
                             if (!refVidStep2) return null;
                             return (
-                              <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold">
+                              <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold break-words">
                                 📚 Incluye Video Analizado: &quot;{refVidStep2.title}&quot;
                               </span>
                             );
                           })()}
                         </div>
-                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base">
+                        <h4 className="font-extrabold text-slate-100 text-sm sm:text-base break-words">
                           2º Investigación Profunda con el Feature de Gemini Deep Research y Thinking Level en High
                         </h4>
-                        <p className="text-xs text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-300 leading-relaxed break-words">
                           Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, selecciona en el menú <strong>&quot;Argon&quot; → &quot;4 Argon&quot; → &quot;Thinking level&quot; → &quot;High&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto min-w-0">
                         <button
                           type="button"
                           disabled={aiGenerating}
@@ -13353,20 +13357,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             })
                           }
                           title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Argon con Thinking level en High"
-                          className="px-5 py-3 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg transition bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
+                          className="w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
                         >
-                          <Wand2 className="w-4 h-4" />
-                          {aiGenerating
-                            ? 'Investigando en Gemini Deep Research...'
-                            : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Thinking High)'}
+                          <Wand2 className="w-4 h-4 shrink-0" />
+                          <span>
+                            {aiGenerating
+                              ? 'Investigando en Gemini Deep Research...'
+                              : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Thinking High)'}
+                          </span>
                         </button>
                       </div>
                     </div>
                   </div>
 
                   {/* Dos Cajas de Texto: 1. Prompt de Investigación (Auto-pegado) y 2. Resultado de la Investigación Profunda */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pt-2 min-w-0 max-w-full">
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-2.5 min-w-0 max-w-full overflow-hidden">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <label className="text-xs sm:text-sm font-bold text-amber-300">
                           1. Prompt de Investigación (Se pega automáticamente al pulsar "✨ Comenzar Investigación")
@@ -13470,7 +13476,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       />
                     </div>
 
-                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-2.5 min-w-0 max-w-full overflow-hidden">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <label className="text-xs sm:text-sm font-bold text-emerald-300">
                           2. Resultado de la Investigación Profunda y Estructura (Deep Research / NotebookLM)
