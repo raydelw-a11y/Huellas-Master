@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:45 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:59 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1020,80 +1020,250 @@ function buildStage1PropositionParts(
       refTitle ? ` (usando "${refTitle}" únicamente como guía de estructura y patrones virales)` : ''
     }, diseñados con los mismos gatillos de viralización en YouTube.`;
 
-  // --- PARTE 3: TIEMPO / ÉPOCA ---
+  // --- DETERMINACIÓN DE SELECCIÓN ACTIVA EN PARTE 1 Y PARTE 2 PARA CONCORDANCIA EN CASCADA ---
+  const activeTypologyStr = String(doc.typology || p1Options.slice(0, 2).join(' + ')).trim();
+  const activeTypologiesList = parseSelectedTypologies(activeTypologyStr);
+  const currentTopicStr = String(doc.topic || p2Options[0] || '').trim();
+  const matchedTopicIdx = p2Options.findIndex(
+    (opt) =>
+      opt.trim().toLowerCase() === currentTopicStr.toLowerCase() ||
+      (currentTopicStr.length >= 20 &&
+        opt.trim().toLowerCase().slice(0, 32) === currentTopicStr.toLowerCase().slice(0, 32))
+  );
+  const selectedTopicIdx = matchedTopicIdx >= 0 ? matchedTopicIdx : 0;
+  const activeTopicText = p2Options[selectedTopicIdx] || currentTopicStr;
+  const activeTopicShortLabel =
+    activeTopicText.split(':')[0]?.trim() || `Opción ${selectedTopicIdx + 1} de Parte 2`;
+
+  const hasCrisisOrAuctionTypology = activeTypologiesList.some((t) =>
+    /crisis|subasta|liquidaci[oó]n|imperios|suceso\s+hist[oó]rico/i.test(t)
+  );
+  const hasMysteryOrPsychTypology = activeTypologiesList.some((t) =>
+    /misterio|secreto|psicol[oó]gica|errores\s+fatales|curiosidad/i.test(t)
+  );
+
+  // --- PARTE 3 (TIEMPO / ÉPOCA) Y PARTE 4 (LUGAR HISTÓRICO) 100% EN CONCORDANCIA CON PARTES 1 Y 2 ---
   const parsedP3 = parsePropositionSectionOptions(researchText, 3);
-  const defaultTimeOptions: string[] = [
-    'Años 1879 – 1912 / Siglo XIX y principios del Siglo XX (Auge, fiebre extractiva, 30 años de apogeo y colapso repentino)',
-    'Años 1701 – 1719 / Principios del Siglo XVIII (Cautiverio, experimentos fallidos y nacimiento del imperio europeo)',
-    'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Las dos bancarrotas y la hazaña de ingeniería)',
-    'Año 1720 / Siglo XVIII (El año de la gran burbuja, la euforia colectiva y la subasta de liquidación)',
-    'Años 1854 – 1866 / Mediados del Siglo XIX (Doce años de expediciones fallidas, cables rotos y triunfo final)',
-    'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Tres siglos de aislamiento insular, espionaje industrial y persecución)',
-  ];
-  const p3Options = resolvePartOptionsList(doc, 3, parsedP3.options, defaultTimeOptions);
-  const p3Summary =
-    parsedP3.summary ||
-    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) para cada uno de los ángulos y temas propuestos.';
-
-  // --- PARTE 4: LUGAR HISTÓRICO ---
   const parsedP4 = parsePropositionSectionOptions(researchText, 4);
-  const defaultLocationOptions: string[] = [
-    'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y mercados de Londres, Inglaterra)',
-    'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
-    'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
-    'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
-    'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
-    'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
-  ];
-  const p4Options = resolvePartOptionsList(doc, 4, parsedP4.options, defaultLocationOptions);
-  const p4Summary =
-    parsedP4.summary ||
-    'Escenarios geográficos e históricos principales (Ciudad, País) determinados para cada propuesta de nuestro documental original.';
 
-  // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL ---
+  const buildConcordantTimeAndLocationForTopic = (
+    topicText: string,
+    topicIndex: number
+  ): { timeOptions: string[]; locationOptions: string[] } => {
+    const tNorm = topicText.toLowerCase();
+
+    if (/caucho|amazonas|oro\s+blanco\s+en\s+el\s+amazonas|manaos/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Años 1879 – 1912 / Finales del Siglo XIX y principios del Siglo XX (Arco completo de 33 años: auge, fiebre extractiva, apogeo y colapso del Imperio del Caucho)',
+          'Años 1890 – 1910 / Cambio del Siglo XIX al Siglo XX (Las dos décadas de esplendor europeo en la selva, el Teatro Amazonas y el monopolio mundial)',
+          'Años 1876 – 1912 / Siglo XIX y albores del Siglo XX (Desde el contrabando de las 70 mil semillas en 1876 hasta la quiebra frente al caucho asiático en 1912)',
+          'Años 1909 – 1914 / Principios del Siglo XX (El lustro del espejismo financiero, el desplome de precios en Londres y la liquidación de los barones del caucho)',
+        ],
+        locationOptions: [
+          'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y Bolsa de Londres, Inglaterra)',
+          'Manaos, Estado de Amazonas, Brasil (El París de los Trópicos, el Teatro Amazonas y el puerto fluvial del Río Negro)',
+          'Iquitos y Río Putumayo, Loreto, Perú / Manaos, Brasil (El corredor extractivo de la selva amazónica y los muelles de exportación)',
+          'Santarém y Belém do Pará, Brasil / Real Jardín Botánico de Kew, Londres, Inglaterra (La ruta del contrabando botánico que derribó el monopolio)',
+        ],
+      };
+    }
+
+    if (/meissen|porcelana|alquimista/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Años 1701 – 1719 / Principios del Siglo XVIII (Arco completo: cautiverio del alquimista Böttger, experimentos fallidos y nacimiento de la manufactura real)',
+          'Años 1708 – 1710 / Siglo XVIII (Los dos años críticos de los hornos reales en Dresde y el hallazgo de la fórmula del oro blanco europeo)',
+          'Años 1701 – 1733 / Primera mitad del Siglo XVIII (Tres décadas de espionaje industrial, decretos secretos y reinado de Augusto el Fuerte)',
+          'Años 1705 – 1719 / Principios del Siglo XVIII (Desde el encierro en la fortaleza hasta la muerte prematura del creador a los 37 años)',
+        ],
+        locationOptions: [
+          'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
+          'Fortaleza de Königstein y Laboratorios Subterráneos de Dresde, Sajonia, Alemania',
+          'Castillo de Albrechtsburg en Meissen y Feria Comercial de Leipzig, Sajonia, Alemania',
+          'Dresde y Meissen, Electorado de Sajonia, Alemania / Corte Real de Varsovia, Polonia',
+        ],
+      };
+    }
+
+    if (/ferrocarril|andes|la\s+oroya|ticlio/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Arco completo de 38 años: las dos bancarrotas, las epidemias y la llegada final a Huancayo)',
+          'Años 1870 – 1877 / Siglo XIX (Los siete años febriles de Henry Meiggs, los 60 túneles y la crisis fiscal que paralizó la obra)',
+          'Años 1890 – 1908 / Finales del Siglo XIX y principios del Siglo XX (La perforación del Paso de Galera a 4,781 metros y la culminación de la hazaña)',
+          'Años 1868 – 1893 / Segunda mitad del Siglo XIX (Desde el contrato ferroviario más caro de América hasta la apertura del viaducto de Verrugas)',
+        ],
+        locationOptions: [
+          'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
+          'Quebrada de Verrugas, Matucana y Paso de Galera, Lima y Junín, Perú',
+          'Puerto del Callao, Estación de Desamparados en Lima y La Oroya, Perú',
+          'Valle del Rímac, San Bartolomé y Cumbre de Ticlio (Cordillera Central de los Andes), Perú',
+        ],
+      };
+    }
+
+    if (/mar\s+del\s+sur|south\s+sea|1720|newton/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Año 1720 / Siglo XVIII (El año de la gran burbuja financiera, la euforia especulativa de Londres y el colapso de otoño)',
+          'Años 1711 – 1720 / Principios del Siglo XVIII (Desde la fundación de la Compañía del Mar del Sur y el canje de la deuda nacional hasta la liquidación)',
+          'Años 1720 – 1721 / Siglo XVIII (El estallido de la burbuja, la ruina de Isaac Newton y los juicios secretos en el Parlamento)',
+          'Meses de Enero a Octubre de 1720 / Siglo XVIII (Los diez meses de delirio bursátil en que las acciones subieron diez veces antes de desplomarse)',
+        ],
+        locationOptions: [
+          'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
+          'Exchange Alley (Cafés Financieros de Jonathan’s y Garraway’s) y la City de Londres, Inglaterra',
+          'Sede de la South Sea House en Threadneedle Street y Palacio de Westminster, Londres, Inglaterra',
+          'Londres, Inglaterra y Rutas Comerciales del Atlántico Sur (Imperio Británico y Puertos de América)',
+        ],
+      };
+    }
+
+    if (/tel[eé]grafo|transatl[aá]ntico|cyrus\s+field|cable\s+submarino/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Años 1854 – 1866 / Mediados del Siglo XIX (Arco completo de 12 años: expediciones fallidas, dos cables rotos en el abismo y triunfo definitivo)',
+          'Años 1857 – 1858 / Siglo XIX (El primer cable transatlántico que funcionó solo tres semanas antes de quemarse bajo 2,000 voltios)',
+          'Años 1865 – 1866 / Siglo XIX (La odisea del buque Great Eastern, el rescate del cable perdido en el fondo del océano y la unión de dos continentes)',
+          'Años 1854 – 1868 / Mediados del Siglo XIX (De la burla en el Parlamento británico a la revolución de las comunicaciones mundiales)',
+        ],
+        locationOptions: [
+          'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
+          'Nueva York, Estados Unidos / Londres, Inglaterra y Meseta Telegráfica del Atlántico Norte',
+          'Bahía de Foilhommerum en Valentia Island, Irlanda y Bahía de Trinity en Terranova, Canadá',
+          'Puerto de Sheerness, Inglaterra / Valentia Island, Irlanda y Heart’s Content, Canadá',
+        ],
+      };
+    }
+
+    if (/murano|venecia|vidrio/i.test(tNorm)) {
+      return {
+        timeOptions: [
+          'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Arco histórico del aislamiento insular, el monopolio del cristallo y los decretos de persecución)',
+          'Año 1291 y Siglo XIV / Baja Edad Media (El decreto del Gran Consejo que confinó todos los hornos de Venecia en la isla de Murano)',
+          'Años 1450 – 1550 / Siglos XV y XVI (El siglo de oro de Angelo Barovier, el invención del vidrio cristalino y el apogeo veneciano)',
+          'Años 1665 – 1699 / Siglo XVII (La guerra de espionaje industrial de Colbert para robar los secretos de Murano hacia París)',
+        ],
+        locationOptions: [
+          'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
+          'Hornos de Rio dei Vetrai en la Isla de Murano, Laguna de Venecia, Italia',
+          'Isla de Murano, Venecia, Italia y Manufactura Real de los Espejos en París, Francia',
+          'Piazza San Marco, Tribunal de los Diez e Isla de Murano, República de Venecia, Italia',
+        ],
+      };
+    }
+
+    // Dynamic concordant generator for any custom topic Opción #k parsed from Gemini:
+    // Use ONLY the time/location corresponding to topicIndex so options from other topics never mix!
+    const baseTime =
+      parsedP3.options[topicIndex] ||
+      parsedP3.options[0] ||
+      'Siglo XIX y principios del Siglo XX';
+    const baseLoc =
+      parsedP4.options[topicIndex] ||
+      parsedP4.options[0] ||
+      'Escenario histórico principal (Ciudad, País)';
+
+    return {
+      timeOptions: [
+        `${baseTime} — Arco histórico completo (Origen, expansión, crisis y desenlace del tema seleccionado en Parte 2)`,
+        `${baseTime} — Década crítica de las caídas, rechazos y punto de quiebre financiero`,
+        `${baseTime} — Años exactos del origen del secreto, primeros ensayos y ascenso inicial`,
+        `${baseTime} — Etapa de clímax, subasta/reinvención y consecuencias históricas duraderas`,
+      ],
+      locationOptions: [
+        `${baseLoc} — Escenario histórico principal y epicentro de los acontecimientos`,
+        `${baseLoc} — Sedes operativas, talleres de producción y rutas comerciales clave`,
+        `${baseLoc} — Centros de poder financiero, tribunales y salas de negociación`,
+        `${baseLoc} — Escenarios de origen y expansión internacional del conflicto`,
+      ],
+    };
+  };
+
+  const concordantSet = buildConcordantTimeAndLocationForTopic(activeTopicText, selectedTopicIdx);
+  const p3Options = concordantSet.timeOptions;
+  const p3Summary = `🔗 En concordancia directa con Parte 1 (${
+    activeTypologiesList.length
+  } tipología${activeTypologiesList.length === 1 ? '' : 's'}) y Parte 2 (Opción ${
+    selectedTopicIdx + 1
+  }: "${activeTopicShortLabel}"). Todas las opciones de esta lista pertenecen exclusivamente a este tema para evitar cualquier contradicción cronológica.`;
+
+  const p4Options = concordantSet.locationOptions;
+  const p4Summary = `🔗 En concordancia directa con Parte 1 (${
+    activeTypologiesList.length
+  } tipología${activeTypologiesList.length === 1 ? '' : 's'}) y Parte 2 (Opción ${
+    selectedTopicIdx + 1
+  }: "${activeTopicShortLabel}"). Todos los escenarios geográficos de esta lista pertenecen exclusivamente a este tema y época.`;
+
+  // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL (ADAPTADA A PARTES 1 Y 2) ---
   const parsedP5 = parsePropositionSectionOptions(researchText, 5);
   const defaultHookOptions: string[] = [
-    'Patrón 1 (El Golpe de Martillo y la Liquidación Silenciosa): Clip 1 (6s sin voz) en sala de subastas en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción ridícula de su valor, el trabajo de 30 años y más de 200 sedes operativas cambia de manos sin que nadie en la sala levante la vista.',
-    'Patrón 2 (La Fórmula Numérica 2 Caídas / 3 Rechazos): Clip 1 (6s sin voz) de documentos lacrados arrojados al suelo de piedra. Entrada de voz (00:16): Se rompió 2 veces, fue rechazado 3 veces por quienes dominaban el mundo... y aun así terminó cambiando la historia para siempre.',
-    'Patrón 3 (El Secreto Subestimado por el Gigante): Clip 1 (6s sin voz) de un cuaderno de fórmulas manuscritas bajo lámpara de aceite. Entrada de voz (00:16): Tuvieron el secreto frente a sus ojos por una suma irrisoria y lo despreciaron tres veces, sin imaginar que estaban creando a su mayor rival.',
-    'Patrón 4 (La Caída de un Imperio que Parecía Indestructible): Clip 1 (6s sin voz) de una imponente fachada histórica vacía y cubierta de niebla. Entrada de voz (00:16): Llegó a controlar cientos de sedes y fortunas incalculables, pero un solo error de cálculo borró tres décadas de gloria en una tarde.',
-    'Patrón 5 (El Sacrificio de un Hombre Frente a la Ruina): Clip 1 (6s sin voz) de un creador exhausto recogiendo sus planos en un despacho vacío al anochecer. Entrada de voz (00:16): Cuando los abogados cerraron las carpetas, aquel hombre había perdido su propio nombre, pero la huella de su invención apenas comenzaba.',
-    'Patrón 6 (La Paradoja de la Complacencia y el Contraataque): Clip 1 (6s sin voz) de dos mapas estratégicos enfrentados sobre una mesa de caoba. Entrada de voz (00:16): Mientras el líder absoluto daba la batalla por ganada, en los callejones más pobres nacía la estrategia que daría vuelta el tablero.',
+    `Patrón 1 — El Golpe de Martillo y la Liquidación Silenciosa (${activeTopicShortLabel}): Clip 1 (6s sin voz) en sala en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción de su valor, el esfuerzo de décadas cambia de manos sin que nadie en la sala imagine lo que está a punto de nacer.`,
+    `Patrón 2 — La Fórmula Numérica 2 Caídas / 3 Rechazos (${activeTopicShortLabel}): Clip 1 (6s sin voz) de documentos lacrados sobre piedra fría. Entrada de voz (00:16): Colapsó 2 veces, fue rechazado 3 veces por quienes dominaban el mundo... y aun así terminó cambiando la historia para siempre.`,
+    `Patrón 3 — El Secreto Subestimado por el Gigante (${activeTopicShortLabel}): Clip 1 (6s sin voz) de registros y planos antiguos bajo lámpara de aceite. Entrada de voz (00:16): Tuvieron el secreto frente a sus ojos por una suma irrisoria y lo despreciaron tres veces, sin saber que estaban creando a su mayor rival.`,
+    `Patrón 4 — La Caída de un Imperio que Parecía Indestructible (${activeTopicShortLabel}): Clip 1 (6s sin voz) de una imponente fachada histórica vacía y cubierta de niebla. Entrada de voz (00:16): Llegó a concentrar fortunas incalculables, pero un solo error de soberbia borró décadas de gloria en una tarde.`,
+    `Patrón 5 — El Sacrificio del Creador Frente a la Ruina (${activeTopicShortLabel}): Clip 1 (6s sin voz) de un protagonista exhausto recogiendo sus cuadernos en un despacho vacío al anochecer. Entrada de voz (00:16): Cuando cerraron las puertas, aquel hombre lo había perdido casi todo, pero la huella de su obra apenas comenzaba.`,
+    `Patrón 6 — La Paradoja de la Complacencia y el Contraataque (${activeTopicShortLabel}): Clip 1 (6s sin voz) de dos mapas estratégicos enfrentados sobre una mesa de caoba. Entrada de voz (00:16): Mientras el monopolio dominante daba la victoria por segura, en silencio se gestaba la jugada que daría vuelta el tablero.`,
   ];
-  const p5Options = resolvePartOptionsList(doc, 5, parsedP5.options, defaultHookOptions);
-  const p5Summary =
-    parsedP5.summary ||
-    'Todos los patrones de Hook inicial detectados en el video analizado (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en 00:16) adaptados a nuestra historia original.';
+  const p5Options = parsedP5.options.length >= 3 ? parsedP5.options : defaultHookOptions;
+  const p5Summary = `🔗 Adaptado a Parte 1 (${
+    hasCrisisOrAuctionTypology
+      ? 'enfoque en crisis/liquidación'
+      : hasMysteryOrPsychTypology
+      ? 'enfoque en secreto/tensión'
+      : 'enfoque histórico documental'
+  }) y Parte 2 ("${activeTopicShortLabel}"): patrones de Hook inicial (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en 00:16).`;
 
   // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
   const parsedP6 = parsePropositionSectionOptions(researchText, 6);
   const defaultEscaletaOptions: string[] = [
-    `Escaleta 1 (Estructura de Subasta Inversa — In Media Res · ${durationMinutes} min): Intro 8s + Hook (00:08-02:30): El día de la liquidación total · Acto I (02:30-08:30): El origen humilde y la primera fórmula · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los 3 rechazos humillantes y la segunda quiebra · Acto IV (21:30-27:30): El giro estratégico audaz que salvó el imperio · Clímax y Outro 8s.`,
-    `Escaleta 2 (Estructura de Doble Caída y Triple Rechazo · ${durationMinutes} min): Intro 8s + Hook (8%) · Bloque 1 (20%): El hallazgo inicial y expansión de las primeras sedes · Bloque 2 (25%): Primera bancarrota, error de inventario y primer rechazo · Bloque 3 (22%): Segunda caída, subasta por centavos y tercer rechazo · Bloque 4 (17%): La reinvención radical en plena crisis · Cierre + Outro 8s (8%).`,
-    `Escaleta 3 (Estructura de Rivalidad de Titanes · ${durationMinutes} min): Intro 8s + Hook de contraste · Acto I: El gigante intocable frente al aspirante desconocido · Acto II: Los errores fatales de soberbia y complacencia ("${topDoubt1.slice(0, 65)}...") · Acto III: La guerra de precios, patentes y supervivencia · Acto IV: Cómo el rechazado se convirtió en el mayor rival de la historia · Outro 8s.`,
-    `Escaleta 4 (Estructura Forense de los 30 Años Perdidos · ${durationMinutes} min): Intro 8s + Hook · Investigación cronológica década por década de cómo un hombre construyó más de 200 instalaciones operativas y cómo tres decisiones financieras sellaron su destino antes del resurgimiento en manos nuevas · Outro 8s.`,
-    `Escaleta 5 (Estructura de Micro-Ganchos Cada 4 Minutos · ${durationMinutes} min): 6 bloques diseñados con un cliffhanger documental al cierre de cada bloque (1. El precio del secreto, 2. La trampa de la materia prima, 3. La oferta rechazada, 4. El juicio y la subasta, 5. La jugada maestra en la crisis, 6. El legado imborrable) + Intro 8s y Outro 8s.`,
-    `Escaleta 6 (Estructura Guiada por las Dudas y Reacciones de la Audiencia · ${durationMinutes} min): Responde en 5 actos orgánicos por qué los imperios caen por complacencia ("${topDoubt2.slice(0, 65)}..."), qué pasó con el fundador original tras perder 30 años de esfuerzo y cómo cambió la economía cotidiana + Intro 8s y Outro 8s.`,
+    `Escaleta 1 (Estructura de Subasta Inversa — In Media Res · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook (00:08-02:30): El instante crítico de liquidación · Acto I (02:30-08:30): El origen humilde y el hallazgo inicial · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los rechazos y la segunda caída · Acto IV (21:30-27:30): El giro estratégico definitivo · Clímax y Outro 8s.`,
+    `Escaleta 2 (Estructura de Doble Caída y Triple Rechazo · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook (8%) · Bloque 1 (20%): El descubrimiento y primera expansión · Bloque 2 (25%): Primera crisis, error de cálculo y primer rechazo · Bloque 3 (22%): Segunda caída y momento de máxima tensión · Bloque 4 (17%): La reinvención radical · Cierre + Outro 8s (8%).`,
+    `Escaleta 3 (Estructura de Rivalidad de Titanes · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook de contraste · Acto I: El monopolio dominante frente al desafiante · Acto II: Los errores fatales de complacencia ("${topDoubt1.slice(0, 65)}...") · Acto III: La guerra de patentes, rutas y supervivencia · Acto IV: El desenlace histórico · Outro 8s.`,
+    `Escaleta 4 (Estructura Forense de las Décadas Decisivas · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook · Investigación cronológica etapa por etapa de cómo se levantó la obra y cómo tres decisiones sellaron su destino · Outro 8s.`,
+    `Escaleta 5 (Estructura de Micro-Ganchos Cada 4 Minutos · ${durationMinutes} min · ${activeTopicShortLabel}): 6 bloques diseñados con un cliffhanger documental al cierre de cada bloque (1. El precio del secreto, 2. La trampa de la materia prima, 3. La oferta rechazada, 4. El juicio y la crisis, 5. La jugada maestra, 6. El legado imborrable) + Intro 8s y Outro 8s.`,
+    `Escaleta 6 (Estructura Guiada por las Dudas de la Audiencia · ${durationMinutes} min · ${activeTopicShortLabel}): Responde en 5 actos orgánicos por qué caen los grandes monopolios ("${topDoubt2.slice(0, 65)}..."), qué ocurrió con sus protagonistas y cómo transformó la historia + Intro 8s y Outro 8s.`,
   ];
-  const p6Options = resolvePartOptionsList(doc, 6, parsedP6.options, defaultEscaletaOptions);
-  const p6Summary =
-    parsedP6.summary ||
-    `Múltiples arquitecturas narrativas dimensionadas para ${durationMinutes} minutos, trasladando las proporciones y ritmo de retención del video guía a nuestro documental original.`;
+  const p6Options = parsedP6.options.length >= 3 ? parsedP6.options : defaultEscaletaOptions;
+  const p6Summary = `🔗 Dimensionada para ${durationMinutes} minutos en concordancia con "${activeTopicShortLabel}" (Parte 2) y las tipologías seleccionadas en Parte 1.`;
 
   // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
   const parsedP7 = parsePropositionSectionOptions(researchText, 7);
   const defaultClimaxOptions: string[] = [
-    'Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.',
-    'Clímax 2 (La Paradoja del Rechazo): El instante histórico en que quienes rechazaron 3 veces aquel proyecto comprendieron que habían dejado escapar el negocio del siglo. Cierre solemne con el Slogan Oficial y Outro de 8s.',
-    'Clímax 3 (El Destino Humano del Fundador vs. Su Creación): El contraste conmovedor entre el creador que perdió 30 años de trabajo en un instante y la inmortalidad de la obra que sobrevivió a su ruina. Cierre reflexivo y Outro de 8s.',
-    'Clímax 4 (La Jugada que Cambió las Reglas para Siempre): Revelación de cómo transformar una debilidad humillante en la mayor ventaja competitiva de la época en plena crisis económica. Cierre filosófico y Outro de 8s.',
-    'Clímax 5 (El Impacto en la Vida Cotidiana y la Memoria Colectiva): Conexión directa con los recuerdos y testimonios de la audiencia sobre cómo estas disputas históricas moldearon las costumbres de pueblos y ciudades enteras. Outro de 8s.',
-    'Clímax 6 (Nadie Tiene el Éxito Garantizado): Reflexión documental final sobre por qué ningún imperio —por más de 250 sedes o siglos de poder que posea— es indestructible frente al paso del tiempo. Cierre con Slogan y Outro de 8s.',
+    `Clímax 1 — La Lección del Martillo y el Resurgimiento (${activeTopicShortLabel}): Volvemos a la escena crítica del inicio para revelar qué ocurrió exactamente después del colapso y qué lección dejó para la historia antes del Outro de 8s.`,
+    `Clímax 2 — La Paradoja del Rechazo (${activeTopicShortLabel}): El instante histórico en que quienes subestimaron o rechazaron aquel proyecto comprendieron la magnitud de lo que habían dejado escapar. Cierre solemne con Slogan Oficial y Outro de 8s.`,
+    `Clímax 3 — El Destino Humano del Creador vs. Su Legado (${activeTopicShortLabel}): El contraste conmovedor entre el sacrificio personal de los protagonistas y la huella imborrable que sobrevivió a su época. Cierre reflexivo y Outro de 8s.`,
+    `Clímax 4 — La Jugada que Cambió las Reglas (${activeTopicShortLabel}): Revelación final de cómo una crisis extrema obligó a crear la innovación que transformó para siempre aquel sector histórico. Cierre filosófico y Outro de 8s.`,
+    `Clímax 5 — El Impacto en la Vida Cotidiana y la Memoria Colectiva (${activeTopicShortLabel}): Conexión directa con cómo este episodio moldeó las ciudades, el comercio y la memoria de generaciones enteras. Outro de 8s.`,
+    `Clímax 6 — Ningún Imperio Tiene el Futuro Comprado (${activeTopicShortLabel}): Reflexión documental final sobre por qué ninguna potencia o monopolio es indestructible frente a la soberbia y el paso del tiempo. Cierre con Slogan y Outro de 8s.`,
   ];
-  const p7Options = resolvePartOptionsList(doc, 7, parsedP7.options, defaultClimaxOptions);
-  const p7Summary =
-    parsedP7.summary ||
-    'Opciones de desenlace y reflexión filosófica final extraídas de los patrones de cierre del video analizado antes de los 8 segundos de Outro Oficial de marca.';
+  const p7Options = parsedP7.options.length >= 3 ? parsedP7.options : defaultClimaxOptions;
+  const p7Summary = `🔗 Desenlace y reflexión final en concordancia directa con "${activeTopicShortLabel}" (Parte 2), Parte 3 y Parte 4 antes de los 8 segundos de Outro Oficial.`;
+
+  const resolvedCurrentP3 =
+    doc.historicalTime && p3Options.includes(doc.historicalTime)
+      ? doc.historicalTime
+      : p3Options[0];
+  const resolvedCurrentP4 =
+    doc.historicalLocation && p4Options.includes(doc.historicalLocation)
+      ? doc.historicalLocation
+      : p4Options[0];
+  const resolvedCurrentP5 =
+    doc.promptConfig?.PROPOSICION_GANCHO &&
+    p5Options.includes(doc.promptConfig.PROPOSICION_GANCHO)
+      ? doc.promptConfig.PROPOSICION_GANCHO
+      : p5Options[0];
+  const resolvedCurrentP6 =
+    doc.promptConfig?.PROPOSICION_ESCALETA &&
+    p6Options.includes(doc.promptConfig.PROPOSICION_ESCALETA)
+      ? doc.promptConfig.PROPOSICION_ESCALETA
+      : p6Options[0];
+  const resolvedCurrentP7 =
+    doc.promptConfig?.PROPOSICION_CLIMAX &&
+    p7Options.includes(doc.promptConfig.PROPOSICION_CLIMAX)
+      ? doc.promptConfig.PROPOSICION_CLIMAX
+      : p7Options[0];
 
   return [
     {
@@ -1109,54 +1279,54 @@ function buildStage1PropositionParts(
       partNumber: 2,
       id: 'topic',
       title: 'Parte 2 · Tema Central del Documental / Episodio',
-      subtitle: `Se llena automáticamente en el campo Tema Central y puedes alternar entre las ${p2Options.length} opciones`,
+      subtitle: `Al elegir una opción aquí, las Partes 3, 4, 5, 6 y 7 se actualizan automáticamente en concordancia con este tema`,
       summary: p2Summary,
-      currentValue: doc.topic || p2Options[0],
+      currentValue: activeTopicText,
       options: p2Options,
     },
     {
       partNumber: 3,
       id: 'historicalTime',
-      title: 'Parte 3 · Tiempo / Época (Años en dígitos o Siglo en romanos)',
-      subtitle: `Se llena automáticamente en el campo Tiempo / Época y puedes alternar entre las ${p3Options.length} opciones`,
+      title: `Parte 3 · Tiempo / Época — Concordante con Opción ${selectedTopicIdx + 1} de Parte 2`,
+      subtitle: `Todas las ${p3Options.length} opciones cronológicas corresponden exclusivamente a "${activeTopicShortLabel}"`,
       summary: p3Summary,
-      currentValue: doc.historicalTime || p3Options[0],
+      currentValue: resolvedCurrentP3,
       options: p3Options,
     },
     {
       partNumber: 4,
       id: 'historicalLocation',
-      title: 'Parte 4 · Lugar Histórico (Ciudad, País)',
-      subtitle: `Se llena automáticamente en el campo Lugar Histórico y puedes alternar entre las ${p4Options.length} opciones`,
+      title: `Parte 4 · Lugar Histórico — Concordante con Opción ${selectedTopicIdx + 1} de Parte 2`,
+      subtitle: `Todos los ${p4Options.length} escenarios geográficos corresponden exclusivamente a "${activeTopicShortLabel}"`,
       summary: p4Summary,
-      currentValue: doc.historicalLocation || p4Options[0],
+      currentValue: resolvedCurrentP4,
       options: p4Options,
     },
     {
       partNumber: 5,
       id: 'hookAndAngle',
-      title: 'Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
-      subtitle: `Define cómo abre el documental en los primeros segundos (${p5Options.length} patrones del video analizado)`,
+      title: `Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central`,
+      subtitle: `Patrones de apertura en concordancia con Parte 1 y "${activeTopicShortLabel}" (${p5Options.length} opciones)`,
       summary: p5Summary,
-      currentValue: doc.promptConfig?.PROPOSICION_GANCHO || p5Options[0],
+      currentValue: resolvedCurrentP5,
       options: p5Options,
     },
     {
       partNumber: 6,
       id: 'actsEscaleta',
-      title: 'Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
-      subtitle: `Define la estructura de bloques y cómo se responden las dudas ×N de la audiencia (${p6Options.length} opciones)`,
+      title: `Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental`,
+      subtitle: `Estructuras de bloques en concordancia con Parte 1 y "${activeTopicShortLabel}" (${p6Options.length} opciones)`,
       summary: p6Summary,
-      currentValue: doc.promptConfig?.PROPOSICION_ESCALETA || p6Options[0],
+      currentValue: resolvedCurrentP6,
       options: p6Options,
     },
     {
       partNumber: 7,
       id: 'climaxAndClosure',
-      title: 'Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo',
-      subtitle: `Define el desenlace documental antes del Outro Oficial de 8 segundos (${p7Options.length} opciones)`,
+      title: `Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo`,
+      subtitle: `Desenlaces en concordancia con Parte 1 y "${activeTopicShortLabel}" antes del Outro de 8s (${p7Options.length} opciones)`,
       summary: p7Summary,
-      currentValue: doc.promptConfig?.PROPOSICION_CLIMAX || p7Options[0],
+      currentValue: resolvedCurrentP7,
       options: p7Options,
     },
   ];
@@ -11977,20 +12147,73 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             activeDoc.typology,
                             optionValue
                           );
+                          const nextParts = buildStage1PropositionParts(
+                            { ...activeDoc, typology: nextCombinedTypology },
+                            selectedVideoObj,
+                            selectedComments
+                          );
+                          const nextTime = nextParts[2]?.options.includes(
+                            activeDoc.historicalTime || ''
+                          )
+                            ? activeDoc.historicalTime
+                            : nextParts[2]?.options[0] || activeDoc.historicalTime;
+                          const nextLoc = nextParts[3]?.options.includes(
+                            activeDoc.historicalLocation || ''
+                          )
+                            ? activeDoc.historicalLocation
+                            : nextParts[3]?.options[0] || activeDoc.historicalLocation;
                           updateActiveDoc({
                             typology: nextCombinedTypology,
+                            historicalTime: nextTime,
+                            historicalLocation: nextLoc,
                             promptConfig: {
                               ...(activeDoc.promptConfig || {}),
                               TIPOLOGIA_VIDEO: nextCombinedTypology,
+                              TIEMPO_EPOCA: nextTime || '',
+                              LUGAR_HISTORICO: nextLoc || '',
                             },
                           });
                         } else if (partId === 'topic') {
+                          // Cascade historical concordance automatically to Partes 3, 4, 5, 6 y 7 when changing Tema Central (Parte 2)
+                          const nextParts = buildStage1PropositionParts(
+                            { ...activeDoc, topic: optionValue },
+                            selectedVideoObj,
+                            selectedComments
+                          );
+                          const concordantTime = nextParts[2]?.options[0] || activeDoc.historicalTime || '';
+                          const concordantLoc = nextParts[3]?.options[0] || activeDoc.historicalLocation || '';
+                          const concordantHook =
+                            nextParts[4]?.options[0] ||
+                            activeDoc.promptConfig?.PROPOSICION_GANCHO ||
+                            '';
+                          const concordantEscaleta =
+                            nextParts[5]?.options[0] ||
+                            activeDoc.promptConfig?.PROPOSICION_ESCALETA ||
+                            '';
+                          const concordantClimax =
+                            nextParts[6]?.options[0] ||
+                            activeDoc.promptConfig?.PROPOSICION_CLIMAX ||
+                            '';
+                          const cascadedConfig: Record<string, string> = {
+                            ...(activeDoc.promptConfig || {}),
+                            TEMA_VIDEO: optionValue,
+                            TIEMPO_EPOCA: concordantTime,
+                            LUGAR_HISTORICO: concordantLoc,
+                            PROPOSICION_GANCHO: concordantHook,
+                            ANGULO_CENTRAL: concordantHook,
+                            PROPOSICION_ESCALETA: concordantEscaleta,
+                            PROPOSICION_CLIMAX: concordantClimax,
+                            PROP_P3_OPTIONS_JSON: JSON.stringify(nextParts[2]?.options || []),
+                            PROP_P4_OPTIONS_JSON: JSON.stringify(nextParts[3]?.options || []),
+                            PROP_P5_OPTIONS_JSON: JSON.stringify(nextParts[4]?.options || []),
+                            PROP_P6_OPTIONS_JSON: JSON.stringify(nextParts[5]?.options || []),
+                            PROP_P7_OPTIONS_JSON: JSON.stringify(nextParts[6]?.options || []),
+                          };
                           updateActiveDoc({
                             topic: optionValue,
-                            promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              TEMA_VIDEO: optionValue,
-                            },
+                            historicalTime: concordantTime,
+                            historicalLocation: concordantLoc,
+                            promptConfig: cascadedConfig,
                           });
                         } else if (partId === 'historicalTime') {
                           updateActiveDoc({
@@ -12050,11 +12273,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   ✓ Paso 1 Determinado · Campos Auto-Llenados
                                 </span>
                                 <h4 className="text-sm sm:text-base font-black text-amber-300">
-                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Múltiples Opciones según Video Analizado)
+                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Concordancia Automática entre Partes 1–7)
                                 </h4>
                               </div>
                               <p className="text-xs text-slate-300">
-                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. En cada una de las 7 partes se muestran todas las opciones extraídas de los patrones virales del video analizado antes de lanzar el <strong>Paso 2 (Investigación Profunda con Deep Research)</strong>:
+                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. Las <strong>Partes 3 (Tiempo/Época) y 4 (Lugar Histórico)</strong> (así como las Partes 5–7) muestran exclusivamente opciones que están <strong>100% en concordancia histórica con lo seleccionado en las Partes 1 y 2</strong> para evitar cualquier contradicción en el documental:
                               </p>
                             </div>
                             <button
@@ -12087,12 +12310,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     </div>
                                     <div className="text-[11px] text-slate-400">{part.subtitle}</div>
                                   </div>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
-                                    {part.options.length} opciones disponibles
-                                    {part.id === 'typology'
-                                      ? ` · ${parseSelectedTypologies(activeDoc.typology).length} seleccionadas`
-                                      : ''}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {part.partNumber >= 3 && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold">
+                                        🔗 Concordante con Partes 1 y 2
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
+                                      {part.options.length} opciones disponibles
+                                      {part.id === 'typology'
+                                        ? ` · ${parseSelectedTypologies(activeDoc.typology).length} seleccionadas`
+                                        : ''}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">

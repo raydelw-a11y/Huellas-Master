@@ -3118,6 +3118,785 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // ==========================================================================
+  // GEMINI HARDWARE + MAIN-WORLD ANGULAR (__ngContext__ / NgZone) AUTOMATION
+  // (Técnica combinada: ABA Matrix NgZone/__ngContext__ + CDP Input.dispatchMouseEvent)
+  // ==========================================================================
+  if (message.type === 'GEMINI_HARDWARE_OPEN_NOTEBOOK_NEW_CHAT' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    const notebookNameArg = String(message.notebookName || 'Huellas de la Humanidad').trim();
+    (async () => {
+      const target = { tabId: geminiTabId };
+      let debuggerAttached = false;
+      try {
+        try {
+          await chrome.debugger.attach(target, '1.3');
+          debuggerAttached = true;
+        } catch {}
+
+        // Step 1: Ensure sidebar is open and locate the Notebook/Gem "Huellas de la Humanidad" in MAIN world
+        const runNotebookStep = async (phase) => {
+          const res = await chrome.scripting
+            .executeScript({
+              target: { tabId: geminiTabId },
+              world: 'MAIN',
+              args: [notebookNameArg, phase],
+              func: (nbName, stepPhase) => {
+                const norm = (s) =>
+                  String(s || '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, ' ')
+                    .trim();
+
+                const findNgZone = () => {
+                  const els = document.querySelectorAll('*');
+                  for (let i = 0; i < Math.min(els.length, 600); i++) {
+                    const c = els[i].__ngContext__;
+                    if (!c) continue;
+                    const arr = Array.isArray(c) ? c : [c];
+                    for (const v of arr) {
+                      if (v && v._zone && typeof v._zone.run === 'function') return v._zone;
+                      if (v && v.ngZone && typeof v.ngZone.run === 'function') return v.ngZone;
+                    }
+                  }
+                  return null;
+                };
+
+                const triggerInZone = (el) => {
+                  if (!el) return null;
+                  const zone = findNgZone();
+                  const r = el.getBoundingClientRect();
+                  const cx = Math.round(r.left + r.width / 2);
+                  const cy = Math.round(r.top + r.height / 2);
+                  const fire = () => {
+                    try {
+                      el.click();
+                    } catch {}
+                  };
+                  if (zone) zone.run(fire);
+                  else fire();
+                  return { x: cx, y: cy, text: (el.innerText || el.textContent || '').trim() };
+                };
+
+                // Record base Gem/Notebook URL if currently inside /gem/<gemId>
+                const gemUrlMatch = window.location.href.match(
+                  /^(https:\/\/gemini\.google\.com(?:\/u\/\d+)?\/gem\/[a-zA-Z0-9_-]+)/i
+                );
+                if (gemUrlMatch && gemUrlMatch[1]) {
+                  try {
+                    localStorage.setItem('huellas_gemini_notebook_url', gemUrlMatch[1]);
+                  } catch {}
+                }
+
+                // Also scan any <a href*="/gem/"> matching "Huellas de la Humanidad"
+                const allLinks = Array.from(document.querySelectorAll('a[href*="/gem/"]'));
+                for (const a of allLinks) {
+                  const t = norm(a.innerText || a.textContent || a.getAttribute('aria-label') || '');
+                  if (t.includes('huellas de la humanidad')) {
+                    const href = a.href || a.getAttribute('href') || '';
+                    const m = href.match(/^(?:https:\/\/gemini\.google\.com)?((?:\/u\/\d+)?\/gem\/[a-zA-Z0-9_-]+)$/i);
+                    if (m) {
+                      try {
+                        localStorage.setItem(
+                          'huellas_gemini_notebook_url',
+                          `https://gemini.google.com${m[1]}`
+                        );
+                      } catch {}
+                    }
+                  }
+                }
+
+                if (stepPhase === 'OPEN_SIDEBAR') {
+                  const sideCandidates = document.querySelectorAll(
+                    '[data-test-id="conversation"], .conversation-items-container, bard-sidenav a[href*="/gem/"], bot-list-item'
+                  );
+                  const visible = Array.from(sideCandidates).some((el) => {
+                    const r = el.getBoundingClientRect();
+                    return r.width > 10 && r.height > 10 && r.right > 20;
+                  });
+                  if (!visible) {
+                    const menuBtn = document.querySelector(
+                      'button[data-test-id="side-nav-menu-button"], button[aria-label*="Main menu" i], button[aria-label*="Menú principal" i], button[aria-label*="Expand menu" i]'
+                    );
+                    if (menuBtn && menuBtn.offsetParent !== null) {
+                      return { action: 'CLICKED_MENU', target: triggerInZone(menuBtn) };
+                    }
+                  }
+                  return { action: 'SIDEBAR_ALREADY_OPEN' };
+                }
+
+                if (stepPhase === 'EXPAND_GEMS') {
+                  // If Gems list in sidebar has a "More" / "Mostrar más" button, expand it
+                  const moreGemBtns = Array.from(
+                    document.querySelectorAll(
+                      'bard-sidenav button, mat-sidenav button, [role="navigation"] button'
+                    )
+                  ).filter((b) => {
+                    if (!b || b.offsetParent === null) return false;
+                    const t = norm(b.innerText || b.textContent || b.getAttribute('aria-label') || '');
+                    return /^(more|mas|mostrar mas|ver mas|show more)$/i.test(t);
+                  });
+                  if (moreGemBtns.length > 0) {
+                    return { action: 'EXPANDED_GEMS', target: triggerInZone(moreGemBtns[0]) };
+                  }
+                  return { action: 'NO_EXPAND_NEEDED' };
+                }
+
+                // stepPhase === 'CLICK_NOTEBOOK':
+                // Find the Notebook/Gem item "Huellas de la Humanidad" (NEVER an existing conversation item!)
+                const normTarget = norm(nbName);
+                const candidates = Array.from(
+                  document.querySelectorAll(
+                    'bot-list-item a, bot-list-item button, bot-list-item, a[href*="/gem/"], [data-test-id*="bot"], [data-test-id*="gem"], bard-sidenav a, bard-sidenav button, bard-sidenav [role="listitem"], bard-sidenav [role="button"], .bot-title, a, button'
+                  )
+                ).filter((el) => {
+                  if (!el || el.offsetParent === null) return false;
+                  // Strictly exclude conversation history rows so we NEVER click an existing chat!
+                  if (
+                    el.closest(
+                      '[data-test-id="conversation"], .conversation-items-container, .conversations-container, .chat-history-list'
+                    )
+                  ) {
+                    return false;
+                  }
+                  const href = el.getAttribute('href') || el.querySelector?.('a')?.getAttribute('href') || '';
+                  // Exclude links to a specific existing chat (/app/<id> or /gem/<gemId>/<chatId>)
+                  if (/\/app\/[a-zA-Z0-9_-]{6,}/i.test(href)) return false;
+                  if (/\/gem\/[^/]+\/[a-zA-Z0-9_-]{6,}/i.test(href)) return false;
+                  const txt = norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '');
+                  return (
+                    txt === normTarget ||
+                    (txt.includes('huellas de la humanidad') && txt.length <= 55)
+                  );
+                });
+
+                // Prefer the most specific clickable element (<a> or <button> or smallest bounding box)
+                candidates.sort((a, b) => {
+                  const aIsLinkOrBtn = a.tagName === 'A' || a.tagName === 'BUTTON' ? 0 : 1;
+                  const bIsLinkOrBtn = b.tagName === 'A' || b.tagName === 'BUTTON' ? 0 : 1;
+                  if (aIsLinkOrBtn !== bIsLinkOrBtn) return aIsLinkOrBtn - bIsLinkOrBtn;
+                  return (a.innerText || '').length - (b.innerText || '').length;
+                });
+
+                if (candidates.length > 0) {
+                  const chosen = candidates[0];
+                  const href =
+                    chosen.getAttribute('href') ||
+                    chosen.closest('a')?.getAttribute('href') ||
+                    chosen.querySelector?.('a')?.getAttribute('href') ||
+                    '';
+                  if (href && href.includes('/gem/')) {
+                    const fullUrl = href.startsWith('http')
+                      ? href
+                      : `https://gemini.google.com${href.startsWith('/') ? '' : '/'}${href}`;
+                    try {
+                      localStorage.setItem('huellas_gemini_notebook_url', fullUrl);
+                    } catch {}
+                  }
+                  return {
+                    action: 'CLICKED_NOTEBOOK',
+                    target: triggerInZone(chosen),
+                    savedNotebookUrl: localStorage.getItem('huellas_gemini_notebook_url') || '',
+                  };
+                }
+
+                // Fallback: if we have the saved /gem/<gemId> URL for "Huellas de la Humanidad", navigate directly to it so we stay 100% inside the Notebook!
+                let savedNbUrl = '';
+                try {
+                  savedNbUrl = localStorage.getItem('huellas_gemini_notebook_url') || '';
+                } catch {}
+                if (savedNbUrl && savedNbUrl.includes('/gem/')) {
+                  window.location.href = savedNbUrl;
+                  return { action: 'NAVIGATED_TO_SAVED_NOTEBOOK_URL', savedNotebookUrl: savedNbUrl };
+                }
+
+                return { action: 'NOTEBOOK_NOT_FOUND' };
+              },
+            })
+            .catch(() => []);
+          return (res && res[0] && res[0].result) || null;
+        };
+
+        const s1 = await runNotebookStep('OPEN_SIDEBAR');
+        if (s1?.target?.x && s1?.target?.y && debuggerAttached) {
+          await dispatchHardwareClick(target, s1.target.x, s1.target.y).catch(() => {});
+          await sleep(420);
+        }
+
+        let s3 = await runNotebookStep('CLICK_NOTEBOOK');
+        if (!s3 || s3.action === 'NOTEBOOK_NOT_FOUND') {
+          const s2 = await runNotebookStep('EXPAND_GEMS');
+          if (s2?.target?.x && s2?.target?.y && debuggerAttached) {
+            await dispatchHardwareClick(target, s2.target.x, s2.target.y).catch(() => {});
+          }
+          await sleep(360);
+          s3 = await runNotebookStep('CLICK_NOTEBOOK');
+        }
+
+        if (s3?.target?.x && s3?.target?.y && debuggerAttached) {
+          await dispatchHardwareClick(target, s3.target.x, s3.target.y).catch(() => {});
+        }
+        await sleep(1100);
+
+        sendResponse({ ok: true, result: s3 });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      } finally {
+        if (debuggerAttached) {
+          await chrome.debugger.detach(target).catch(() => {});
+        }
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    const enableHighModel = Boolean(message.enableHighModel);
+    const enableDeepResearch = Boolean(message.enableDeepResearch);
+    const enableArgonLow = Boolean(message.enableArgonLow);
+    const targetLevel = enableArgonLow ? 'LOW' : 'HIGH';
+
+    (async () => {
+      const target = { tabId: geminiTabId };
+      let debuggerAttached = false;
+      let prevActiveTabId = null;
+      let switchedTabTemporarily = false;
+
+      try {
+        // Check if Gemini tab is currently hidden in background; Angular Material CDK sub-menus ("Thinking level >" and "More tools >")
+        // require unthrottled layout frames to position sub-menus when hovered. Briefly activate the Gemini tab if needed and restore right after!
+        try {
+          const gemTab = await chrome.tabs.get(geminiTabId);
+          if (gemTab && !gemTab.active && gemTab.windowId) {
+            const activeTabs = await chrome.tabs.query({ windowId: gemTab.windowId, active: true });
+            if (activeTabs && activeTabs[0] && activeTabs[0].id !== geminiTabId) {
+              prevActiveTabId = activeTabs[0].id;
+            }
+            await chrome.tabs.update(geminiTabId, { active: true }).catch(() => {});
+            switchedTabTemporarily = true;
+            await sleep(220);
+          }
+        } catch {}
+
+        try {
+          await chrome.debugger.attach(target, '1.3');
+          debuggerAttached = true;
+        } catch {}
+
+        const hardwareHoverOnly = async (x, y) => {
+          if (!debuggerAttached || !x || !y) return;
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchMouseEvent', {
+              type: 'mouseMoved',
+              x: Math.max(2, x - 6),
+              y,
+              button: 'none',
+            })
+            .catch(() => {});
+          await sleep(35);
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchMouseEvent', {
+              type: 'mouseMoved',
+              x,
+              y,
+              button: 'none',
+            })
+            .catch(() => {});
+          await sleep(60);
+        };
+
+        const hardwareHoverAndClick = async (x, y) => {
+          if (!debuggerAttached || !x || !y) return;
+          await hardwareHoverOnly(x, y);
+          await dispatchHardwareClick(target, x, y).catch(() => {});
+        };
+
+        // Helper that executes a DOM/Angular inspection & action step inside MAIN world
+        const runMainStep = async (stepName, stepArg = '') => {
+          const res = await chrome.scripting
+            .executeScript({
+              target: { tabId: geminiTabId },
+              world: 'MAIN',
+              args: [stepName, stepArg],
+              func: (op, argVal) => {
+                const findNgZone = () => {
+                  const els = document.querySelectorAll('*');
+                  for (let i = 0; i < Math.min(els.length, 600); i++) {
+                    const c = els[i].__ngContext__;
+                    if (!c) continue;
+                    const arr = Array.isArray(c) ? c : [c];
+                    for (const v of arr) {
+                      if (v && v._zone && typeof v._zone.run === 'function') return v._zone;
+                      if (v && v.ngZone && typeof v.ngZone.run === 'function') return v.ngZone;
+                    }
+                  }
+                  return null;
+                };
+
+                const triggerAngularElement = (el, openSubmenuOnly = false) => {
+                  if (!el) return null;
+                  const zone = findNgZone();
+                  const r = el.getBoundingClientRect();
+                  const cx = Math.round(r.left + r.width / 2);
+                  const cy = Math.round(r.top + r.height / 2);
+
+                  const executeInZone = () => {
+                    // Inspect Angular Ivy __ngContext__ for MatMenuTrigger / directive instances (ABA Note technique)
+                    const nodesToInspect = [el, el.parentElement, ...Array.from(el.children || [])].filter(
+                      Boolean
+                    );
+                    for (const node of nodesToInspect) {
+                      const ctx = node.__ngContext__;
+                      if (!ctx) continue;
+                      const arr = Array.isArray(ctx) ? ctx : [ctx];
+                      for (const item of arr) {
+                        if (!item || typeof item !== 'object') continue;
+                        if (typeof item.openMenu === 'function') {
+                          try {
+                            item.openMenu();
+                          } catch {}
+                        }
+                        if (typeof item._handleMouseEnter === 'function') {
+                          try {
+                            item._handleMouseEnter({ target: el, currentTarget: el });
+                          } catch {}
+                        }
+                      }
+                    }
+
+                    const opts = {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: cx,
+                      clientY: cy,
+                      view: window,
+                    };
+                    try {
+                      el.dispatchEvent(new PointerEvent('pointerover', opts));
+                      el.dispatchEvent(new PointerEvent('pointerenter', opts));
+                      el.dispatchEvent(new MouseEvent('mouseover', opts));
+                      el.dispatchEvent(new MouseEvent('mouseenter', opts));
+                      el.dispatchEvent(new PointerEvent('pointermove', opts));
+                      el.dispatchEvent(new MouseEvent('mousemove', opts));
+                      if (!openSubmenuOnly) {
+                        el.dispatchEvent(new PointerEvent('pointerdown', opts));
+                        el.dispatchEvent(new MouseEvent('mousedown', opts));
+                        el.dispatchEvent(new PointerEvent('pointerup', opts));
+                        el.dispatchEvent(new MouseEvent('mouseup', opts));
+                        el.click();
+                      }
+                    } catch {
+                      if (!openSubmenuOnly) {
+                        try {
+                          el.click();
+                        } catch {}
+                      }
+                    }
+                  };
+
+                  if (zone) zone.run(executeInZone);
+                  else executeInZone();
+
+                  return {
+                    found: true,
+                    x: cx,
+                    y: cy,
+                    text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim(),
+                  };
+                };
+
+                const getOverlayMenuItems = () =>
+                  Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="option"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container button'
+                    )
+                  ).filter((el) => {
+                    if (!el || el.offsetParent === null) return false;
+                    const r = el.getBoundingClientRect();
+                    return r.width > 10 && r.height > 10;
+                  });
+
+                if (op === 'CLOSE_MENUS') {
+                  const backdrops = Array.from(
+                    document.querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing')
+                  );
+                  backdrops.forEach((b) => {
+                    try {
+                      b.click();
+                    } catch {}
+                  });
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 'Escape',
+                      code: 'Escape',
+                      keyCode: 27,
+                      bubbles: true,
+                    })
+                  );
+                  return { closed: true };
+                }
+
+                if (op === 'CHECK_DEEP_RESEARCH_CHIP') {
+                  const nonOverlay = Array.from(
+                    document.querySelectorAll(
+                      'mat-chip, mat-chip-option, button, [role="button"], [role="checkbox"], [role="switch"], .tool-chip, toolbox-drawer *, .input-area *'
+                    )
+                  ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+
+                  const chip = nonOverlay.find((el) => {
+                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const a = (el.getAttribute('aria-label') || '').trim();
+                    const matches =
+                      /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
+                      /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a);
+                    if (!matches) return false;
+                    return (
+                      el.tagName.toLowerCase().includes('chip') ||
+                      el.getAttribute('aria-pressed') === 'true' ||
+                      el.getAttribute('aria-checked') === 'true' ||
+                      el.classList.contains('selected') ||
+                      el.classList.contains('active') ||
+                      el.classList.contains('mdc-evolution-chip--selected') ||
+                      el.classList.contains('mat-mdc-chip-selected') ||
+                      Boolean(
+                        el.querySelector(
+                          '[aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [aria-label*="desactivar" i], mat-icon'
+                        )
+                      )
+                    );
+                  });
+
+                  if (!chip) return { active: false };
+                  const removeBtn =
+                    chip.querySelector(
+                      'button, [aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [matChipRemove]'
+                    ) || chip;
+                  const r = removeBtn.getBoundingClientRect();
+                  return {
+                    active: true,
+                    x: Math.round(r.left + r.width / 2),
+                    y: Math.round(r.top + r.height / 2),
+                  };
+                }
+
+                if (op === 'FIND_AND_OPEN_PLUS_MENU') {
+                  const inputEl = document.querySelector(
+                    'rich-textarea div.ql-editor, div[contenteditable="true"][role="textbox"], rich-textarea'
+                  );
+                  const inputRect = inputEl ? inputEl.getBoundingClientRect() : null;
+                  const allBtns = Array.from(
+                    document.querySelectorAll('button, [role="button"]')
+                  ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+
+                  let plusBtn = null;
+                  if (inputRect) {
+                    const leftBtns = allBtns
+                      .filter((el) => {
+                        const r = el.getBoundingClientRect();
+                        const vert =
+                          r.bottom >= inputRect.top - 70 && r.top <= inputRect.bottom + 90;
+                        const left = r.left <= inputRect.left + 110;
+                        return vert && left && r.width >= 18 && r.width <= 95;
+                      })
+                      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+
+                    plusBtn =
+                      leftBtns.find((el) => {
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        const tip = (
+                          el.getAttribute('mattooltip') ||
+                          el.getAttribute('title') ||
+                          ''
+                        ).toLowerCase();
+                        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                        return (
+                          aria.includes('add') ||
+                          aria.includes('más') ||
+                          aria.includes('more') ||
+                          aria.includes('upload') ||
+                          aria.includes('tools') ||
+                          aria.includes('herramientas') ||
+                          aria.includes('open') ||
+                          tip.includes('add') ||
+                          txt === '+' ||
+                          txt === 'add'
+                        );
+                      }) || leftBtns[0];
+                  }
+
+                  if (!plusBtn) {
+                    plusBtn = allBtns.find((el) => {
+                      const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                      return (
+                        aria.includes('add files') ||
+                        aria.includes('upload') ||
+                        aria.includes('more tools') ||
+                        aria.includes('add to prompt')
+                      );
+                    });
+                  }
+
+                  return plusBtn ? triggerAngularElement(plusBtn, false) : { found: false };
+                }
+
+                if (op === 'FIND_MORE_TOOLS_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const directDeep = items.find((el) =>
+                    /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(
+                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+                    )
+                  );
+                  if (directDeep) {
+                    return {
+                      directDeepResearch: true,
+                      ...triggerAngularElement(directDeep, false),
+                    };
+                  }
+                  const moreTools = items.find((el) =>
+                    /\b(more\s+tools|m[aá]s\s+herramientas)\b/i.test(
+                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+                    )
+                  );
+                  return moreTools
+                    ? {
+                        directDeepResearch: false,
+                        ...triggerAngularElement(moreTools, true),
+                      }
+                    : { found: false };
+                }
+
+                if (op === 'FIND_DEEP_RESEARCH_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const deepItem = items.find((el) =>
+                    /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(
+                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+                    )
+                  );
+                  return deepItem ? triggerAngularElement(deepItem, false) : { found: false };
+                }
+
+                if (op === 'FIND_AND_OPEN_MODEL_SWITCHER') {
+                  const switcherSelectors = [
+                    '[data-test-id="bard-mode-menu-button"]',
+                    'bard-mode-switcher button',
+                    'button.input-area-switch',
+                    'button[aria-label*="mode" i]',
+                    'button[aria-label*="modelo" i]',
+                    'button[aria-label*="selector" i]',
+                  ];
+                  let switcherBtn = null;
+                  for (const sel of switcherSelectors) {
+                    const el = document.querySelector(sel);
+                    if (el && el.offsetParent !== null) {
+                      switcherBtn = el;
+                      break;
+                    }
+                  }
+                  if (!switcherBtn) {
+                    const allBtns = Array.from(
+                      document.querySelectorAll('button, [role="button"]')
+                    ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+                    switcherBtn =
+                      allBtns.find((el) => {
+                        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return /^(?:4\s*)?argon$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+                      }) || null;
+                  }
+                  if (!switcherBtn) return { found: false };
+                  const label = (switcherBtn.innerText || switcherBtn.textContent || '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                  const isAlreadyArgon = /\bargon\b/i.test(label) && !/\bpro\b/i.test(label);
+                  return {
+                    ...triggerAngularElement(switcherBtn, false),
+                    isAlreadyArgon,
+                    label,
+                  };
+                }
+
+                if (op === 'FIND_ARGON4_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const argon4 =
+                    items.find((el) => {
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      return (
+                        /\b4\s*argon\b/i.test(txt) ||
+                        (/argon/i.test(txt) && /complex\s*tasks/i.test(txt))
+                      );
+                    }) ||
+                    items.find((el) => {
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      return /\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+                    });
+                  return argon4 ? triggerAngularElement(argon4, false) : { found: false };
+                }
+
+                if (op === 'FIND_THINKING_LEVEL_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const thinkingItem = items.find((el) =>
+                    /thinking\s*level|nivel\s*de\s*pensamiento/i.test(
+                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+                    )
+                  );
+                  return thinkingItem ? triggerAngularElement(thinkingItem, true) : { found: false };
+                }
+
+                if (op === 'FIND_THINKING_OPTION_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const wantHigh = argVal === 'HIGH';
+                  const option = wantHigh
+                    ? items.find((el) => {
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
+                          /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
+                        );
+                      }) ||
+                      items.find((el) => {
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
+                          !/thinking\s*level|low|medium|pro|flash|argon/i.test(txt)
+                        );
+                      })
+                    : items.find((el) => {
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          (/\blow\b/i.test(txt) && /quick\s+and\s+efficient/i.test(txt)) ||
+                          /^(?:✓\s*)?(?:low|bajo)(?:\s+quick\s+and\s+efficient)?$/i.test(txt)
+                        );
+                      }) ||
+                      items.find((el) => {
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          /\b(low|bajo|quick\s+and\s+efficient)\b/i.test(txt) &&
+                          !/thinking\s*level|high|medium|pro|flash|argon/i.test(txt)
+                        );
+                      });
+                  return option ? triggerAngularElement(option, false) : { found: false };
+                }
+
+                return { found: false };
+              },
+            })
+            .catch(() => []);
+          return (res && res[0] && res[0].result) || { found: false };
+        };
+
+        // --- PART A: CONFIGURE DEEP RESEARCH (+ -> More tools -> Deep research) ---
+        await runMainStep('CLOSE_MENUS');
+        await sleep(160);
+
+        const chipState = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
+        if (!enableDeepResearch && chipState?.active) {
+          await hardwareHoverAndClick(chipState.x, chipState.y);
+          await sleep(280);
+        } else if (enableDeepResearch && !chipState?.active) {
+          const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
+          if (plusInfo?.found) {
+            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+            await sleep(420);
+
+            let moreToolsInfo = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
+            if (!moreToolsInfo?.found) {
+              await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+              await sleep(420);
+              moreToolsInfo = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
+            }
+
+            if (moreToolsInfo?.found) {
+              if (moreToolsInfo.directDeepResearch) {
+                await hardwareHoverAndClick(moreToolsInfo.x, moreToolsInfo.y);
+                await sleep(380);
+              } else {
+                // Hover & click "... More tools >" to open its sub-menu (Canvas / Deep research / Guided Learning)
+                await hardwareHoverOnly(moreToolsInfo.x, moreToolsInfo.y);
+                await sleep(260);
+                let deepInfo = await runMainStep('FIND_DEEP_RESEARCH_IN_OVERLAY');
+                if (!deepInfo?.found) {
+                  await hardwareHoverAndClick(moreToolsInfo.x, moreToolsInfo.y);
+                  await sleep(360);
+                  deepInfo = await runMainStep('FIND_DEEP_RESEARCH_IN_OVERLAY');
+                }
+                if (deepInfo?.found) {
+                  await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
+                  await sleep(380);
+                }
+              }
+            }
+          }
+        }
+
+        // --- PART B: CONFIGURE MODEL "4 Argon" + "Thinking level" ("Low" or "High") ---
+        await runMainStep('CLOSE_MENUS');
+        await sleep(180);
+
+        const switcherInfo = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
+        if (switcherInfo?.found) {
+          await hardwareHoverAndClick(switcherInfo.x, switcherInfo.y);
+          await sleep(400);
+
+          if (!switcherInfo.isAlreadyArgon) {
+            const argon4Info = await runMainStep('FIND_ARGON4_IN_OVERLAY');
+            if (argon4Info?.found) {
+              await hardwareHoverAndClick(argon4Info.x, argon4Info.y);
+              await sleep(420);
+            }
+            // Re-open switcher menu if selecting "4 Argon" closed it
+            const checkThinking = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
+            if (!checkThinking?.found) {
+              const reopenSwitcher = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
+              if (reopenSwitcher?.found) {
+                await hardwareHoverAndClick(reopenSwitcher.x, reopenSwitcher.y);
+                await sleep(400);
+              }
+            }
+          }
+
+          let thinkingMenuInfo = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
+          if (!thinkingMenuInfo?.found) {
+            await hardwareHoverAndClick(switcherInfo.x, switcherInfo.y);
+            await sleep(400);
+            thinkingMenuInfo = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
+          }
+
+          if (thinkingMenuInfo?.found) {
+            await hardwareHoverOnly(thinkingMenuInfo.x, thinkingMenuInfo.y);
+            await sleep(260);
+            let levelOptionInfo = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
+            if (!levelOptionInfo?.found) {
+              await hardwareHoverAndClick(thinkingMenuInfo.x, thinkingMenuInfo.y);
+              await sleep(360);
+              levelOptionInfo = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
+            }
+            if (levelOptionInfo?.found) {
+              await hardwareHoverAndClick(levelOptionInfo.x, levelOptionInfo.y);
+              await sleep(340);
+            }
+          }
+        }
+
+        await runMainStep('CLOSE_MENUS');
+        await sleep(140);
+
+        sendResponse({ ok: true, targetLevel, enableDeepResearch });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      } finally {
+        if (debuggerAttached) {
+          await chrome.debugger.detach(target).catch(() => {});
+        }
+        if (switchedTabTemporarily && prevActiveTabId) {
+          await chrome.tabs.update(prevActiveTabId, { active: true }).catch(() => {});
+        }
+      }
+    })();
+    return true;
+  }
+
   // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
   if (
     message.type === 'BRIDGE_STATUS' ||

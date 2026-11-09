@@ -982,10 +982,24 @@
     };
 
     try {
-      // 1. Configure Deep Research (ON via "+" -> "More tools >" -> "Deep research", or OFF if disabled)
-      await ensureDeepResearchToggle();
-      // 2. Configure Model ("Argon ^" -> "4 Argon" -> "Thinking level >" -> "Low" or "High")
-      await ensureArgon4AndThinkingLevel();
+      // Primary: Use ABA-Note style Main World NgZone + chrome.debugger hardware mouse sequence
+      let hwConfig = null;
+      try {
+        hwConfig = await chrome.runtime.sendMessage({
+          type: 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS',
+          enableHighModel: Boolean(enableHighModel),
+          enableDeepResearch: Boolean(enableDeepResearch),
+          enableArgonLow: Boolean(enableArgonLow),
+        });
+      } catch {}
+
+      // Fallback / verification in DOM if hardware sequence did not complete both checks
+      if (!hwConfig || !hwConfig.ok || !hwConfig.deepResearchOk) {
+        await ensureDeepResearchToggle();
+      }
+      if (!hwConfig || !hwConfig.ok || !hwConfig.thinkingOk) {
+        await ensureArgon4AndThinkingLevel();
+      }
     } catch {}
   }
 
@@ -1000,6 +1014,8 @@
     let planClickedAtMs = 0;
     let textAtPlanClick = '';
     const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
+    const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
+    const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
     const maxTimeoutMs = isDeepResearch ? 1200000 : 180000; // 20 min for Deep Research, 3 min normal
 
     reportStatus(
@@ -1046,10 +1062,33 @@
       const latest = extractLatestGeminiResponse();
       const stillStreaming = isGeminiStillGenerating() || (isDeepResearch && isDeepResearchActivelyBrowsing());
 
-      const isNewTurnResponse =
-        currentCount > initialCount || Boolean(latest.text && latest.text !== initialLastText);
+      const userQueryNodes = Array.from(
+        document.querySelectorAll('user-query, [data-message-author-role="user"]')
+      );
+      const currentUserQueryCount = userQueryNodes.length;
+      const lastUserQueryText =
+        currentUserQueryCount > 0
+          ? normalizeCompareText(
+              (
+                userQueryNodes[currentUserQueryCount - 1].innerText ||
+                userQueryNodes[currentUserQueryCount - 1].textContent ||
+                ''
+              ).slice(0, 300)
+            )
+          : '';
+      const hasSubmittedNewUserTurn =
+        currentUserQueryCount > initialUserQueries ||
+        Boolean(
+          promptFingerprint &&
+            lastUserQueryText &&
+            lastUserQueryText.includes(promptFingerprint.slice(0, 40))
+        );
 
-      if (stillStreaming || isNewTurnResponse) {
+      const isNewTurnResponse =
+        (hasSubmittedNewUserTurn || stillStreaming || hasStarted) &&
+        (currentCount > initialCount || Boolean(latest.text && latest.text !== initialLastText));
+
+      if (stillStreaming || (hasSubmittedNewUserTurn && isNewTurnResponse)) {
         hasStarted = true;
       }
 
@@ -1311,16 +1350,28 @@
     const normTargetBase = normalizeCompareText(rawTargetBase);
     if (!normCandBase || !normTargetBase) return false;
 
-    if (
-      normCandBase === normTargetBase ||
-      normCandBase.includes(normTargetBase) ||
-      normTargetBase.includes(normCandBase)
-    ) {
-      return true;
-    }
     const candNum = extractVideoNumberToken(rawCand);
     const targetNum = extractVideoNumberToken(rawTargetBase);
-    if (candNum && targetNum && candNum === targetNum) {
+
+    // If the target video has a video number (e.g. "77"), NEVER match a chat with a different number or a generic title without that number
+    if (targetNum) {
+      if (candNum && candNum === targetNum) {
+        return true;
+      }
+      if (candNum && candNum !== targetNum) {
+        return false;
+      }
+      return normCandBase === normTargetBase;
+    }
+
+    if (normCandBase === normTargetBase) {
+      return true;
+    }
+    if (
+      normCandBase.length >= 12 &&
+      normTargetBase.length >= 12 &&
+      (normCandBase.includes(normTargetBase) || normTargetBase.includes(normCandBase))
+    ) {
       return true;
     }
     return false;
@@ -1451,7 +1502,7 @@
       }
     }
 
-    // 2. Match currently selected / activated item in sidebar
+    // 2. Match ONLY the explicitly selected / activated item in sidebar (NEVER fall back to convItems[0] which could be an unrelated chat!)
     const selectedSelectors = [
       '[data-test-id="conversation"].selected',
       '.conversation-items-container.selected',
@@ -1464,17 +1515,6 @@
     for (const sel of selectedSelectors) {
       const el = document.querySelector(sel);
       if (el && isElementVisibleInDom(el)) return el;
-    }
-
-    // 3. If the current tab has active messages, the first conversation item in the Recent sidebar list is the active one
-    if (
-      getModelResponseElements().length > 0 ||
-      document.querySelectorAll('user-query, [data-message-author-role="user"]').length > 0
-    ) {
-      const convItems = Array.from(
-        document.querySelectorAll('[data-test-id="conversation"], .conversation-items-container')
-      ).filter((el) => isElementVisibleInDom(el));
-      if (convItems.length > 0) return convItems[0];
     }
 
     return null;
@@ -2046,78 +2086,101 @@
     }
 
     // Case 3: No chat exists yet for this video & mode:
-    // - If current tab is ALREADY an empty new chat (no messages and no chatId) and we want a standard chat (or Deep Research), reuse it directly!
-    if (existingMessagesInCurrentTab === 0 && !currentChatId && isDeepResearchOrder) {
+    // Both the Main Chat ("[Nombre]") AND the Deep Research chat ("[Nombre]_Deep Research") MUST be created INSIDE the Notebook "Huellas de la Humanidad"!
+    const normNotebook = normalizeCompareText(notebookName);
+    const isCurrentlyInTargetNotebook = () => {
+      if (/\/gem\/[a-zA-Z0-9_-]+/i.test(window.location.href)) return true;
+      const mainSelectors = [
+        'bot-info-card',
+        '.bot-name',
+        '[data-test-id="bot-name"]',
+        'header',
+        'zero-state',
+        'hall-of-fame',
+        'main',
+      ];
+      for (const sel of mainSelectors) {
+        const nodes = document.querySelectorAll(sel);
+        for (const n of nodes) {
+          if (!isElementVisibleInDom(n)) continue;
+          const t = normalizeCompareText(n.innerText || n.textContent || '');
+          if (t.includes(normNotebook) || t.includes('huellas de la humanidad')) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // If current tab is ALREADY an empty new chat inside the Notebook "Huellas de la Humanidad", reuse it directly!
+    if (existingMessagesInCurrentTab === 0 && !currentChatId && isCurrentlyInTargetNotebook()) {
       window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
       return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
     }
 
-    // - For Deep Research (enableDeepResearch === true): MUST open a separate standard Gemini chat ("New chat" / "Nuevo chat") so Deep Research tool is available and separated from the Main Chat!
-    if (isDeepResearchOrder) {
-      const newChatBtns = document.querySelectorAll(
-        'button[data-test-id="new-chat-button"], a[data-test-id="new-chat-button"], button[aria-label*="New chat" i], button[aria-label*="Nuevo chat" i], button[aria-label*="Nueva conversación" i], a[href="/app"]'
+    reportStatus(
+      'WORKING',
+      isDeepResearchOrder
+        ? `🔬 Abriendo nueva conversación dentro del Notebook "${notebookName}" para "${targetChatTitle}"...`
+        : `📓 Entrando al Notebook "${notebookName}" para crear el chat único "${targetChatTitle}"...`,
+      { stageNumber: payload.stageNumber }
+    );
+
+    let notebookClicked = false;
+    try {
+      const hwNotebook = await chrome.runtime.sendMessage({
+        type: 'GEMINI_HARDWARE_OPEN_NOTEBOOK_NEW_CHAT',
+        notebookName,
+      });
+      if (hwNotebook && hwNotebook.ok) {
+        notebookClicked = true;
+      }
+    } catch {}
+
+    if (!notebookClicked) {
+      await ensureGeminiSidebarOpen();
+      const sidebarLinks = Array.from(
+        document.querySelectorAll(
+          'a[href*="/gem/"], bard-sidenav a, bard-sidenav button, bard-sidenav [role="button"], bard-sidenav [role="listitem"], a, button, [role="button"]'
+        )
       );
-      let clickedNewChatForDeep = false;
-      for (const btn of newChatBtns) {
-        if (isElementVisibleInDom(btn)) {
-          reportStatus(
-            'WORKING',
-            `🔬 Creando chat aparte "${targetChatTitle}" para la investigación con Deep Research...`,
-            { stageNumber: payload.stageNumber }
-          );
-          btn.click();
-          clickedNewChatForDeep = true;
+      for (const el of sidebarLinks) {
+        if (!isElementVisibleInDom(el)) continue;
+        if (el.closest('[data-test-id="conversation"], .conversation-items-container')) continue;
+        const txt = normalizeCompareText(el.innerText || el.textContent || '');
+        if (txt === normNotebook || (txt.includes('huellas de la humanidad') && txt.length < 45)) {
+          const href = el.getAttribute('href') || el.querySelector?.('a')?.getAttribute('href') || '';
+          if (href && href.includes('/gem/')) {
+            try {
+              localStorage.setItem('huellas_gemini_notebook_url', new URL(href, window.location.origin).href);
+            } catch {}
+          }
+          el.click();
+          notebookClicked = true;
           await sleep(1300);
           break;
         }
       }
-      if (!clickedNewChatForDeep && (existingMessagesInCurrentTab > 0 || currentChatId)) {
-        window.location.href = 'https://gemini.google.com/app';
-        await sleep(1500);
-      }
-      window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
-      return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
     }
 
-    // - For Main Chat (enableDeepResearch === false):
-    //   Only click the Notebook/Gem "Huellas de la Humanidad" or "New chat" ONCE when creating the Main Chat for the very first time!
-    const normNotebook = normalizeCompareText(notebookName);
-    const sidebarLinks = Array.from(
-      document.querySelectorAll('a, button, [role="button"], [role="listitem"], [role="treeitem"]')
-    );
-    let notebookClicked = false;
-    for (const el of sidebarLinks) {
-      if (!isElementVisibleInDom(el)) continue;
-      const txt = normalizeCompareText(el.innerText || el.textContent || '');
-      if (txt === normNotebook || (txt.includes('huellas de la humanidad') && txt.length < 45)) {
-        reportStatus(
-          'WORKING',
-          `📓 Entrando al Notebook "${notebookName}" para crear el chat único "${targetChatTitle}"...`,
-          { stageNumber: payload.stageNumber }
-        );
-        el.click();
-        notebookClicked = true;
-        await sleep(1200);
-        break;
+    if (!notebookClicked) {
+      let savedGemUrl = '';
+      try {
+        savedGemUrl = localStorage.getItem('huellas_gemini_notebook_url') || '';
+      } catch {}
+      const currentGemRootMatch = window.location.href.match(/(https:\/\/gemini\.google\.com(?:\/u\/\d+)?\/gem\/[a-zA-Z0-9_-]+)/i);
+      const targetGemRootUrl = savedGemUrl || (currentGemRootMatch ? currentGemRootMatch[1] : '');
+      if (targetGemRootUrl) {
+        window.location.href = targetGemRootUrl;
+        await sleep(1600);
       }
     }
 
-    if (!notebookClicked && (existingMessagesInCurrentTab > 0 || currentChatId)) {
-      const newChatBtns = document.querySelectorAll(
-        'button[data-test-id="new-chat-button"], a[data-test-id="new-chat-button"], button[aria-label*="New chat" i], button[aria-label*="Nuevo chat" i], button[aria-label*="Nueva conversación" i], a[href="/app"]'
-      );
-      for (const btn of newChatBtns) {
-        if (isElementVisibleInDom(btn)) {
-          reportStatus(
-            'WORKING',
-            `✨ Creando conversación única para "${targetChatTitle}"...`,
-            { stageNumber: payload.stageNumber }
-          );
-          btn.click();
-          await sleep(1200);
-          break;
-        }
-      }
+    // Wait up to 2.5s for any old messages from the previous chat to clear from the DOM
+    let clearWait = 0;
+    while (getModelResponseElements().length > 0 && clearWait < 8) {
+      await sleep(300);
+      clearWait++;
     }
 
     window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
@@ -2183,8 +2246,12 @@
         const initialResponses = getModelResponseElements();
         const initialCount = initialResponses.length;
         const initialLastText = extractLatestGeminiResponse().text;
+        const initialUserQueries = document.querySelectorAll(
+          'user-query, [data-message-author-role="user"]'
+        ).length;
 
         const rawPrompt = String(payload.prompt || '');
+        const promptFingerprint = normalizeCompareText(rawPrompt.slice(0, 120));
         setInputText(inputEl, rawPrompt);
         reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web, enviando orden...', {
           stageNumber: payload.stageNumber,
@@ -2273,6 +2340,8 @@
             enableDeepResearch: Boolean(payload.enableDeepResearch),
             targetChatTitle: resolvedTargetChatTitle,
             docId: payload.docId || '',
+            initialUserQueries,
+            promptFingerprint,
           });
 
           // Poll for newly assigned chat URL (/app/<id> or /gem/<gemId>/<id>), link it, and rename the chat to resolvedTargetChatTitle

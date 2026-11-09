@@ -883,7 +883,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   const isVideo77Doc =
     doc.id === 'doc-video-77-huellas' || /^Video\s*77\b/i.test(String(doc.title || '').trim());
   const needsV77MultiUpdate =
-    isVideo77Doc && doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_08_1952';
+    isVideo77Doc && doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_08_2200_CONCORDANT';
 
   if (needsV77MultiUpdate) {
     const p1Opts = [
@@ -904,21 +904,18 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       'El Telégrafo Transatlántico de Cyrus Field: el cable submarino se rompió 2 veces en el fondo del océano, fue ridiculizado 3 veces por el Parlamento y terminó uniendo dos continentes en minutos.',
       'El Secreto del Vidrio de Murano y los Artesanos Desterrados de Venecia: traicionados 2 veces, perseguidos por 3 decretos de muerte y creadores del monopolio más codiciado de Europa.',
     ];
+    // Concordant options for Parte 3 and Parte 4 strictly bound to Parte 2 (Opción 1: El Imperio del Caucho en el Amazonas)
     const p3Opts = [
-      'Años 1879 – 1912 / Siglo XIX y principios del Siglo XX (Auge, fiebre extractiva, 30 años de apogeo y colapso repentino)',
-      'Años 1701 – 1719 / Principios del Siglo XVIII (Cautiverio, experimentos fallidos y nacimiento del imperio europeo)',
-      'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Las dos bancarrotas y la hazaña de ingeniería)',
-      'Año 1720 / Siglo XVIII (El año de la gran burbuja, la euforia colectiva y la subasta de liquidación)',
-      'Años 1854 – 1866 / Mediados del Siglo XIX (Doce años de expediciones fallidas, cables rotos y triunfo final)',
-      'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Tres siglos de aislamiento insular, espionaje industrial y persecución)',
+      'Años 1879 – 1912 / Finales del Siglo XIX y principios del Siglo XX (Arco completo de 33 años: auge, fiebre extractiva, apogeo y colapso del Imperio del Caucho)',
+      'Años 1890 – 1910 / Cambio del Siglo XIX al Siglo XX (Las dos décadas de esplendor europeo en la selva, el Teatro Amazonas y el monopolio mundial)',
+      'Años 1876 – 1912 / Siglo XIX y albores del Siglo XX (Desde el contrabando de las 70 mil semillas en 1876 hasta la quiebra frente al caucho asiático en 1912)',
+      'Años 1909 – 1914 / Principios del Siglo XX (El lustro del espejismo financiero, el desplome de precios en Londres y la liquidación de los barones del caucho)',
     ];
     const p4Opts = [
-      'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y mercados de Londres, Inglaterra)',
-      'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
-      'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
-      'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
-      'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
-      'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
+      'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y Bolsa de Londres, Inglaterra)',
+      'Manaos, Estado de Amazonas, Brasil (El París de los Trópicos, el Teatro Amazonas y el puerto fluvial del Río Negro)',
+      'Iquitos y Río Putumayo, Loreto, Perú / Manaos, Brasil (El corredor extractivo de la selva amazónica y los muelles de exportación)',
+      'Santarém y Belém do Pará, Brasil / Real Jardín Botánico de Kew, Londres, Inglaterra (La ruta del contrabando botánico que derribó el monopolio)',
     ];
     const p5Opts = [
       'Patrón 1 (El Golpe de Martillo y la Liquidación Silenciosa): Clip 1 (6s sin voz) en sala de subastas en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción ridícula de su valor, el trabajo de 30 años y más de 200 sedes operativas cambia de manos sin que nadie en la sala levante la vista.',
@@ -954,10 +951,10 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       'Resumen de esta parte: 6 propuestas de temas históricos 100% originales para "Huellas de la Humanidad" que aplican exactamente la fórmula viral de caídas repetidas, rechazos y giro inesperado.',
       ...p2Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
       'PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):',
-      'Resumen de esta parte: Delimitación cronológica precisa para cada una de las 6 propuestas originales.',
+      'Resumen de esta parte: Opciones cronológicas vinculadas en concordancia directa con la Parte 1 y el Tema Central seleccionado en la Parte 2.',
       ...p3Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
       'PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):',
-      'Resumen de esta parte: Escenarios geográficos principales (Ciudad, País) correspondientes a las 6 propuestas originales.',
+      'Resumen de esta parte: Escenarios geográficos principales vinculados en concordancia directa con la Parte 1 y el Tema Central seleccionado en la Parte 2.',
       ...p4Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
       'PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):',
       'Resumen de esta parte: 6 patrones de Hook extraídos de la apertura y descripción del video analizado adaptados a nuestro documental original.',
@@ -988,6 +985,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
       UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       STAGE1_PART1_COMPLETED: 'SI',
+      INVESTIGACION_COMPLETADA: '',
       YOUTUBE_SELECTED_LIBRARY_LINK: 'https://youtu.be/r5Uh1uDxrvY?is=ePIGX6c5Lnc1KHh4',
       YOUTUBE_VIDEO_TITLE:
         'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
@@ -1011,7 +1009,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       PROP_P5_OPTIONS_JSON: JSON.stringify(p5Opts),
       PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
       PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
-      V77_MULTI_PASO1_UPDATED: '2026_11_08_1952',
+      V77_MULTI_PASO1_UPDATED: '2026_11_08_2200_CONCORDANT',
     };
 
     return {
@@ -1021,6 +1019,8 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       historicalTime: p3Opts[0],
       historicalLocation: p4Opts[0],
       deepResearchPrompt: v77Paso1Report,
+      deepResearchResult: '',
+      geminiDeepResearchChatUrl: '',
       promptConfig: updatedCfg,
     };
   }
@@ -1871,12 +1871,12 @@ Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4
      • Opción 2: [Segundo tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en hazañas, crisis ocultas o supervivencia humana]
      • Opción 3: [Tercer tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en un misterio, imperio o invención histórica olvidada]
      • Opción 4..N: [Agrega Opción 4, Opción 5, Opción 6... con tantos temas históricos originales adicionales como ángulos y patrones virales se desprendan del video analizado]
-   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):
-     • Resumen de esta parte: [Justificación del marco cronológico para cada propuesta original]
-     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con los años en dígitos y Siglo en números romanos para cada tema/ángulo propuesto]
-   - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):
-     • Resumen de esta parte: [Justificación de los escenarios geográficos de nuestro nuevo documental original]
-     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con la Ciudad, País principal correspondiente a cada propuesta original]
+   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2):
+     • Resumen de esta parte: [Justificación del marco cronológico vinculado en concordancia con la Tipología (Parte 1) y el Tema Central seleccionado en la Parte 2]
+     • Opción 1..N: [Entrega múltiples delimitaciones cronológicas concordantes (años en dígitos y Siglo en números romanos: arco completo, década de apogeo/crisis, años exactos del punto de quiebre, etc.) ligadas al Tema Central principal de la Parte 2, además de la época exacta correspondiente a cada opción de la Parte 2]
+   - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2):
+     • Resumen de esta parte: [Justificación de los escenarios geográficos vinculados en concordancia con la Tipología (Parte 1) y el Tema Central seleccionado en la Parte 2]
+     • Opción 1..N: [Entrega múltiples escenarios geográficos concordantes (Ciudad, País principal, epicentro operativo, ruta comercial/industrial y sede de poder) ligados al Tema Central principal de la Parte 2, además del lugar exacto correspondiente a cada opción de la Parte 2]
    - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
      • Resumen de esta parte: [Cómo adaptamos todos los patrones de Hook del video guía a nuestro nuevo documental original]
      • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las variantes de Hook visual/narrativo (00:08) y paradoja central extraídas de los patrones del video analizado]
