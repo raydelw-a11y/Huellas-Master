@@ -1,12 +1,12 @@
 [
   {
     "id": "doc-video-77-huellas",
-    "title": "Video 77 — Huellas de la Humanidad",
+    "title": "Video 77 — La Penicilina",
     "subtitle": "",
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-09T10:50:10.754Z",
+    "updatedAt": "2026-11-09T11:55:00.080Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -32,7 +32,9 @@
       "ANGULO_CENTRAL": "Patrón 1 (El Golpe de Martillo y la Liquidación Silenciosa): Clip 1 (6s sin voz) en sala de subastas en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción ridícula de su valor, el trabajo de 30 años y más de 200 sedes operativas cambia de manos sin que nadie en la sala levante la vista.",
       "PROPOSICION_ESCALETA": "Escaleta 1 (Estructura de Subasta Inversa — In Media Res · 30 min): Intro 8s + Hook (00:08-02:30): El día de la liquidación total · Acto I (02:30-08:30): El origen humilde y la primera fórmula · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los 3 rechazos humillantes y la segunda quiebra · Acto IV (21:30-27:30): El giro estratégico audaz que salvó el imperio · Clímax y Outro 8s.",
       "PROPOSICION_CLIMAX": "Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.",
-      "V77_MULTI_PASO1_UPDATED": "2026_11_08_2200_CONCORDANT"
+      "V77_MULTI_PASO1_UPDATED": "2026_11_08_2200_CONCORDANT",
+      "REMOTE_RENAME_ACK_ID": "rmt_test_penicilina_77",
+      "REMOTE_RENAME_ACK_STATUS": "folder_renamed"
     },
     "compiledMasterPrompt": "",
     "topic": "El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.",
@@ -102,9 +104,9 @@
     "hashtags": "",
     "youtubeTags": "",
     "pinnedComment": "",
-    "downloadFolderName": "Video 77 — Huellas de la Humanidad",
-    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 77 — Huellas de la Humanidad",
-    "geminiChatTitle": "Video 77 — Huellas de la Humanidad"
+    "downloadFolderName": "Video 77 — La Penicilina",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 77 — La Penicilina",
+    "geminiChatTitle": "Video 77 — La Penicilina"
   },
   {
     "id": "doc-1793459858927-xld0",
