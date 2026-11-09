@@ -34,3 +34,7 @@ Cuando el usuario escriba **`MODO DUO`** (o **`MODO TRIO`**) seguido de un probl
 2. **Debate de Ida y Vuelta + Verificación Rigurosa (Estilo `/boost` + `/teamwork`)**:
    - El agente coordinador hace que los agentes intercambien sus argumentos (`send_message`), rebatan puntos débiles y lleguen a un consenso verificado.
    - Siempre muestra al usuario en el chat un resumen claro del **diálogo/debate entre los modelos** y el **veredicto consensuado** antes o al momento de ejecutar la solución.
+
+3. **Relevo Automático por Cuota Agotada (`Fallback: Claude Opus → Argon + Flash`)**:
+   - Si en cualquier momento el agente en `Model: 'inherit'` (Claude Opus) agota su cuota, sufre límite de capacidad (`quota` / `rate limit`) o falla al responder, el coordinador **no detiene la tarea**: transfiere inmediatamente todo el contexto acumulado del debate a la dupla **Gemini Argon (`Model: 'pro'`) + Gemini Flash (`Model: 'flash'`)** para que continúen el debate y terminen la implementación sin interrupciones.
+   - Igualmente, si la cuota de Claude se agota a nivel del selector del chat y el usuario cambia el selector a **Gemini Argon**, la conversación continúa exactamente desde donde quedó operando automáticamente con **Argon (`pro`) + Flash (`flash`)**.
