@@ -3540,12 +3540,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 Boolean(wantNbUuid) &&
                 (proven || !activeNbUuid || activeNbUuid === wantNbUuid);
               if (!inside) return { found: false, notInside: true, curChat, activeNbUuid, wantNbUuid };
+              if (op === 'CLOSE_IMMERSIVE_IF_COVERING') {
+                const hdrBtn = Array.from(
+                  document.querySelectorAll(
+                    'button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i], [data-test-id="conversation-actions-button"], button[data-test-id="conversation-title"]'
+                  )
+                ).find(vis);
+                if (hdrBtn) return { found: false, headerVisible: true };
+                const closeImm = Array.from(
+                  document.querySelectorAll(
+                    'deep-research-immersive-panel button[aria-label*="close" i], deep-research-immersive-panel button[aria-label*="cerrar" i], [data-test-id="close-button"], button[aria-label="Close"]'
+                  )
+                ).find(vis);
+                return closeImm ? act(closeImm) : { found: false, headerVisible: false };
+              }
               if (op === 'TRIGGER') {
-                const b = Array.from(
+                const candidates = Array.from(
                   document.querySelectorAll(
                     'button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i], button[aria-label*="acciones de conversación" i], button[aria-label*="opciones de conversación" i], [data-test-id="conversation-actions-button"], button[data-test-id="conversation-title"]'
                   )
-                ).find(vis);
+                ).filter(
+                  (el) =>
+                    vis(el) &&
+                    !el.closest('deep-research-immersive-panel, bard-sidenav, side-navigation, [role="navigation"]')
+                );
+                const b =
+                  candidates[0] ||
+                  Array.from(
+                    document.querySelectorAll(
+                      'button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i], [data-test-id="conversation-actions-button"], button[data-test-id="conversation-title"]'
+                    )
+                  ).find(vis);
                 return b ? act(b) : { found: false };
               }
               if (op === 'RENAME_ITEM') {
@@ -3568,9 +3593,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (!inp) return { found: false };
                 inp.focus();
                 try {
-                  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-                  if (setter) setter.call(inp, title);
-                  else inp.value = title;
+                  inp.select();
+                  document.execCommand('selectAll', false, null);
+                  document.execCommand('insertText', false, title);
+                } catch {}
+                try {
+                  if (inp.value !== title) {
+                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                    if (setter) setter.call(inp, title);
+                    else inp.value = title;
+                  }
                   inp.dispatchEvent(
                     new InputEvent('input', {
                       bubbles: true,
@@ -3583,7 +3615,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   inp.dispatchEvent(new Event('change', { bubbles: true }));
                 } catch {}
                 const r = inp.getBoundingClientRect();
-                return { found: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+                return {
+                  found: true,
+                  val: inp.value,
+                  x: Math.round(r.left + r.width / 2),
+                  y: Math.round(r.top + r.height / 2),
+                };
               }
               if (op === 'CONFIRM') {
                 const dlg =
@@ -3591,14 +3628,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     .querySelector('[data-test-id="edit-title-input"], input[aria-label="Rename this chat"]')
                     ?.closest('[role="dialog"], mat-dialog-container, .mat-mdc-dialog-container') || document;
                 const btn = Array.from(dlg.querySelectorAll('button')).find(
-                  (b) => vis(b) && !b.disabled && /^(rename|cambiar(?:\s+el)?\s+nombre|renombrar|guardar|save)$/i.test((b.innerText || '').trim())
+                  (b) =>
+                    vis(b) &&
+                    !b.disabled &&
+                    b.getAttribute('aria-disabled') !== 'true' &&
+                    /^(rename|cambiar(?:\s+el)?\s+nombre|renombrar|guardar|save)$/i.test((b.innerText || '').trim())
                 );
                 return btn ? act(btn) : { found: false };
               }
               if (op === 'VERIFY') {
-                const t = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+                const dlgInp = Array.from(
+                  document.querySelectorAll(
+                    'input[aria-label="Rename this chat"], [data-test-id="edit-title-input"] input, [role="dialog"] input, mat-dialog-container input'
+                  )
+                ).find(vis);
+                if (dlgInp) {
+                  return { found: true, done: false, dialogStillOpen: true };
+                }
+                const domTitleEl = Array.from(
+                  document.querySelectorAll(
+                    '[data-test-id="conversation-title"], button[data-test-id="conversation-actions-button"], .conversation-title'
+                  )
+                ).find((el) => vis(el) && !el.closest('deep-research-immersive-panel'));
+                const domTitle = domTitleEl
+                  ? (domTitleEl.innerText || domTitleEl.textContent || '').replace(/\s+/g, ' ').trim()
+                  : '';
+                const docT = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
                 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-                return { found: true, done: norm(t) === norm(title), title: t };
+                const targetNorm = norm(title);
+                const domMatches = Boolean(domTitle) && norm(domTitle) === targetNorm;
+                const docMatches = Boolean(docT) && norm(docT) === targetNorm;
+                return {
+                  found: true,
+                  done: domMatches || (!domTitle && docMatches),
+                  domTitle,
+                  docTitle: docT,
+                };
               }
               return { found: false };
             },
@@ -3620,6 +3685,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ ok: false, error: 'parámetros incompletos' });
           return;
         }
+        await locate('CLOSE_IMMERSIVE_IF_COVERING', true);
+        await sleep(250);
         const pre = await locate('VERIFY');
         if (pre.notInside) {
           sendResponse({ ok: false, error: 'el chat no está dentro del Notebook' });
@@ -3630,34 +3697,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        // Fast MAIN-world rename pass (works even when DevTools/CDP is already attached to the tab)
         let verified = false;
-        const mTrig = await waitLocate('TRIGGER', 8, true);
-        if (mTrig.found) {
-          await sleep(250);
-          const mItem = await waitLocate('RENAME_ITEM', 8, true);
-          if (mItem.found) {
-            await sleep(300);
-            const mInp = await waitLocate('INPUT', 8, false);
-            if (mInp.found) {
-              await sleep(220);
-              const mConf = await waitLocate('CONFIRM', 8, true);
-              if (mConf.found) {
-                for (let i = 0; i < 10 && !verified; i++) {
-                  await sleep(220);
-                  const v = await locate('VERIFY');
-                  verified = Boolean(v.done);
-                }
-              }
-            }
-          }
-        }
-        if (verified) {
-          sendResponse({ ok: true });
-          return;
-        }
-
-        // Fallback: Hardware CDP pass if MAIN-world click did not complete the rename
+        // Primary path: Hardware CDP click (isTrusted: true) so Angular Material dialog & Google batchexecute RPC always fire
         try {
           const t = await chrome.tabs.get(rnTabId);
           if (t && !t.active) {
@@ -3671,26 +3712,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await chrome.debugger.attach(target, '1.3');
           attached = true;
           await sleep(400);
-        } catch {}
+        } catch {
+          try {
+            await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+            attached = true;
+          } catch {}
+        }
 
         if (attached) {
-          const trig = await waitLocate('TRIGGER', 8, false);
-          if (!trig.found) throw new Error(trig.notInside ? 'fuera del Notebook' : 'menú de la conversación no encontrado');
-          await dispatchHardwareClick(target, trig.x, trig.y);
-          const item = await waitLocate('RENAME_ITEM', 8, false);
-          if (!item.found) throw new Error('opción Rename no encontrada');
-          await dispatchHardwareClick(target, item.x, item.y);
-          const inp = await waitLocate('INPUT', 8, false);
-          if (!inp.found) throw new Error('campo de nombre no encontrado');
-          await sleep(250);
-          const confirm = await waitLocate('CONFIRM', 8, false);
-          if (!confirm.found) throw new Error(confirm.notInside ? 'fuera del Notebook' : 'botón Rename no habilitado');
-          await dispatchHardwareClick(target, confirm.x, confirm.y);
-          for (let i = 0; i < 12 && !verified; i++) {
+          const trig = await waitLocate('TRIGGER', 10, false);
+          if (trig.found) {
+            await dispatchHardwareClick(target, trig.x, trig.y);
             await sleep(250);
-            const v = await locate('VERIFY');
-            verified = Boolean(v.done);
+            const item = await waitLocate('RENAME_ITEM', 10, false);
+            if (item.found) {
+              await dispatchHardwareClick(target, item.x, item.y);
+              await sleep(300);
+              const inp = await waitLocate('INPUT', 10, false);
+              if (inp.found) {
+                await sleep(280);
+                const confirm = await waitLocate('CONFIRM', 10, false);
+                if (confirm.found) {
+                  await dispatchHardwareClick(target, confirm.x, confirm.y);
+                  for (let i = 0; i < 14 && !verified; i++) {
+                    await sleep(250);
+                    const v = await locate('VERIFY');
+                    verified = Boolean(v.done);
+                  }
+                }
+              }
+            }
           }
+        }
+
+        // Fallback: MAIN-world click pass if CDP was unavailable or did not verify
+        if (!verified) {
+          const mTrig = await waitLocate('TRIGGER', 8, true);
+          if (mTrig.found) {
+            await sleep(250);
+            const mItem = await waitLocate('RENAME_ITEM', 8, true);
+            if (mItem.found) {
+              await sleep(300);
+              const mInp = await waitLocate('INPUT', 8, false);
+              if (mInp.found) {
+                await sleep(250);
+                const mConf = await waitLocate('CONFIRM', 8, true);
+                if (mConf.found) {
+                  for (let i = 0; i < 12 && !verified; i++) {
+                    await sleep(250);
+                    const v = await locate('VERIFY');
+                    verified = Boolean(v.done);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (verified) {
+          // Crucial: let Google's batchexecute RPC persist the title on the backend before any SPA navigation
+          await sleep(1800);
         }
         sendResponse({ ok: verified, error: verified ? '' : 'el título no cambió' });
       } catch (err) {

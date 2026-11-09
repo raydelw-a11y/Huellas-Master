@@ -3494,10 +3494,7 @@
           const curChatId = getAppChatIdFromUrl(window.location.href);
           if (!curChatId || !targetTitle) return false;
           await rememberNotebookChat(nbPath, curChatId);
-          const curDocTitle = (document.title || '')
-            .replace(/\s*-\s*Google Gemini\s*$/i, '')
-            .trim();
-          let renamedOk = normalizeCompareText(curDocTitle) === normalizeCompareText(targetTitle);
+          let renamedOk = false;
           for (let attempt = 0; attempt < 2 && !renamedOk; attempt++) {
             let res = null;
             try {
@@ -3560,8 +3557,8 @@
         const curChatId = getAppChatIdFromUrl(window.location.href);
         if (curChatId) {
           const curDocTitle =
-            (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim() ||
-            getActiveGeminiChatTitleInDom();
+            getActiveGeminiChatTitleInDom() ||
+            (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
           const isCurrentVideoDeep =
             (knownDeepChatId && curChatId === knownDeepChatId) ||
             (isInsideNotebook(nbPath) && matchesVideoChatTitle(curDocTitle, true));
@@ -3572,10 +3569,18 @@
 
           if (isCurrentVideoDeep && deepName) {
             const r = await renameCurrentOpenAppChat(deepName, true);
-            if (r) { anyRenamed = true; deepRenamed = true; }
+            if (r) {
+              await sleep(1500);
+              anyRenamed = true;
+              deepRenamed = true;
+            }
           } else if (isCurrentVideoMain && baseName) {
             const r = await renameCurrentOpenAppChat(baseName, false);
-            if (r) { anyRenamed = true; mainRenamed = true; }
+            if (r) {
+              await sleep(1500);
+              anyRenamed = true;
+              mainRenamed = true;
+            }
           }
         }
 
@@ -3597,38 +3602,51 @@
           }
           await sleep(450);
 
-          // First check if a _Deep Research chat for this video exists in the Notebook and needs renaming
+          // First check if a _Deep Research chat for this video exists in the Notebook and needs renaming (with ground-truth verification in Notebook rows)
           let chats = listNotebookPageChats();
-          const deepMatch = chats.find((c) => matchesVideoChatTitle(c.title, true));
-          if (deepMatch && deepName) {
+          for (let deepTry = 0; deepTry < 2; deepTry++) {
+            const deepMatch = chats.find((c) => matchesVideoChatTitle(c.title, true));
+            if (!deepMatch || !deepName) break;
             if (normalizeCompareText(deepMatch.title) === normalizeCompareText(deepName)) {
               deepRenamed = true;
               anyRenamed = true;
-            } else {
-              deepMatch.btn.click();
-              const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
-              if (opened) {
-                await sleep(1100);
-                const r = await renameCurrentOpenAppChat(deepName, true);
-                if (r) { anyRenamed = true; deepRenamed = true; }
-                // Return to Notebook page to check the Main chat as well
-                const backNav = await goToNotebookPage(nbPath, {
-                  ...msg,
-                  target: 'GEMINI',
-                  action: 'RENAME_GEMINI_CHAT',
-                  __deepAlreadyRenamed: deepRenamed,
-                  __mainAlreadyRenamed: mainRenamed,
-                });
-                if (backNav.navigating) {
-                  sendResponse({ handled: true, navigating: true });
-                  return;
-                }
-                for (let i = 0; i < 35 && listNotebookPageChats().length === 0; i++) {
-                  await sleep(220);
-                }
-                await sleep(450);
-                chats = listNotebookPageChats();
-              }
+              break;
+            }
+            const startNbUrl = window.location.href;
+            deepMatch.btn.click();
+            const opened = await waitForUrl(
+              (u) => Boolean(getAppChatIdFromUrl(u)) && u !== startNbUrl,
+              9000
+            );
+            if (!opened) break;
+            await sleep(1800);
+            await renameCurrentOpenAppChat(deepName, true);
+            await sleep(1500);
+            // Return to Notebook page to verify the row title in <project-chat-row> and check Main chat
+            const backNav = await goToNotebookPage(nbPath, {
+              ...msg,
+              target: 'GEMINI',
+              action: 'RENAME_GEMINI_CHAT',
+              __deepAlreadyRenamed: false,
+              __mainAlreadyRenamed: mainRenamed,
+            });
+            if (backNav.navigating) {
+              sendResponse({ handled: true, navigating: true });
+              return;
+            }
+            for (let i = 0; i < 35 && listNotebookPageChats().length === 0; i++) {
+              await sleep(220);
+            }
+            await sleep(600);
+            chats = listNotebookPageChats();
+            const verifyDeepRow = chats.find((c) => matchesVideoChatTitle(c.title, true));
+            if (
+              verifyDeepRow &&
+              normalizeCompareText(verifyDeepRow.title) === normalizeCompareText(deepName)
+            ) {
+              deepRenamed = true;
+              anyRenamed = true;
+              break;
             }
           }
 
@@ -3639,12 +3657,34 @@
               mainRenamed = true;
               anyRenamed = true;
             } else {
+              const startNbUrl = window.location.href;
               mainMatch.btn.click();
-              const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
+              const opened = await waitForUrl(
+                (u) => Boolean(getAppChatIdFromUrl(u)) && u !== startNbUrl,
+                9000
+              );
               if (opened) {
-                await sleep(1100);
+                await sleep(1600);
                 const r = await renameCurrentOpenAppChat(baseName, false);
-                if (r) { anyRenamed = true; mainRenamed = true; }
+                if (r) {
+                  await sleep(1500);
+                  anyRenamed = true;
+                  mainRenamed = true;
+                }
+                const endNav = await goToNotebookPage(nbPath, {
+                  ...msg,
+                  target: 'GEMINI',
+                  action: 'RENAME_GEMINI_CHAT',
+                  __deepAlreadyRenamed: deepRenamed,
+                  __mainAlreadyRenamed: mainRenamed,
+                });
+                if (endNav.navigating) {
+                  sendResponse({ handled: true, navigating: true });
+                  return;
+                }
+                for (let i = 0; i < 30 && listNotebookPageChats().length === 0; i++) {
+                  await sleep(220);
+                }
               }
             }
           }
@@ -3691,6 +3731,7 @@
                 deepResearchVideoName: deepName,
                 mainRenamed,
                 deepRenamed,
+                seenTitles,
               })
               .catch(() => {});
           } catch {}

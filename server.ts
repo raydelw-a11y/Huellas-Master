@@ -12940,7 +12940,8 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
   const videoName = String(req.body?.videoName || '').trim();
   const mainRenamed = Boolean(req.body?.mainRenamed);
   const deepRenamed = Boolean(req.body?.deepRenamed);
-  console.log('[RemoteRenameConfirm]', { commandId, docId, videoName, mainRenamed, deepRenamed });
+  const seenTitles = String(req.body?.seenTitles || '').trim();
+  console.log('[RemoteRenameConfirm]', { commandId, docId, videoName, mainRenamed, deepRenamed, seenTitles });
   if (commandId) {
     pendingGeminiCommands.delete(commandId);
   }
