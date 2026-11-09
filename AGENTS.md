@@ -18,7 +18,13 @@ El usuario trabaja simultáneamente en **varias conversaciones en paralelo sobre
 
 # Protocolo `MODO DUO` / `MODO TRIO` (Debate Multi-Modelo + Boost + Teamwork)
 
-Cuando el usuario escriba **`MODO DUO`** (o **`MODO TRIO`**) seguido de un problema o instrucción (con o sin `/boost` o `/teamwork` delante):
+Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MODO TRIO`** / **`modo trio`**), con o sin `/boost` o `/teamwork` delante:
+
+0. **REGLA INQUEBRANTABLE DE PRIMER PASO (`PASO 0 OBLIGATORIO — PROHIBIDO TRABAJAR SOLO`)**:
+   - **ESTÁ TERMINANTEMENTE PROHIBIDO** que el agente principal empiece a llamar a `read_file`, `edit_file`, `run_command` o `call_mcp_tool` por su cuenta sin haber lanzado antes a los subagentes.
+   - En el **primerísimo paso** del turno en que el usuario escriba `modo duo` o `modo trio`, debes:
+     1. Mostrar en el chat el encabezado visible: **`🤝 [MODO DUO ACTIVADO: Invocando Agente 1 + Agente 2 para debatir]`** (o `MODO TRIO`).
+     2. Llamar **inmediatamente** a `define_subagent` e `invoke_subagent` para crear y lanzar los 2 (o 3) agentes en ese primer turno.
 
 1. **Activación Automática de Subagentes con Modelos Distintos (`define_subagent`, `invoke_subagent`, `send_message`)**:
    - **En `MODO DUO`**:
