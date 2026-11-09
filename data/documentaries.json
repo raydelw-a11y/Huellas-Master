@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-09T11:55:00.080Z",
+    "updatedAt": "2026-11-09T11:55:11.630Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -34,7 +34,7 @@
       "PROPOSICION_CLIMAX": "Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.",
       "V77_MULTI_PASO1_UPDATED": "2026_11_08_2200_CONCORDANT",
       "REMOTE_RENAME_ACK_ID": "rmt_test_penicilina_77",
-      "REMOTE_RENAME_ACK_STATUS": "folder_renamed"
+      "REMOTE_RENAME_ACK_STATUS": "all_completed"
     },
     "compiledMasterPrompt": "",
     "topic": "El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.",
