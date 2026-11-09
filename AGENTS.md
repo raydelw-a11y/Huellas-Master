@@ -38,3 +38,15 @@ Cuando el usuario escriba **`MODO DUO`** (o **`MODO TRIO`**) seguido de un probl
 3. **Relevo Automático por Cuota Agotada (En `MODO DUO`/`TRIO` y también en Modo Normal)**:
    - **En `MODO DUO` / `MODO TRIO`**: Si en cualquier momento el agente en `Model: 'inherit'` (Claude Opus) agota su cuota, sufre límite de capacidad (`quota` / `rate limit`) o falla al responder, el coordinador **no detiene la tarea**: transfiere inmediatamente todo el contexto acumulado del debate a la dupla **Gemini Argon (`Model: 'pro'`) + Gemini Flash (`Model: 'flash'`)** para que continúen el debate y terminen la implementación sin interrupciones.
    - **En Modo Normal (fuera de `MODO DUO`/`TRIO`)**: Si se agota la cuota de Claude Opus durante una tarea o en cualquier subagente, se cambia automáticamente a **Gemini Argon (`Model: 'pro'`)** para terminar la tarea sin interrupción. Además, en cuanto la conversación continúe en **Gemini Argon** tras agotarse Claude, el agente retoma automáticamente el trabajo exacto donde quedó sin pedir que le repitan la instrucción.
+
+---
+
+# Regla de Estilo Visual en Tiempo Real: Narración Paso a Paso (Estilo Claude)
+
+1. **Describir brevemente cada paso mientras trabajas (Prohibido ejecutar herramientas en silencio)**:
+   - Cuando estés en **Gemini Argon** (o cualquier otro modelo), **NUNCA** encadenes llamadas a herramientas (`read_file`, `edit_file`, `run_command`, `invoke_subagent`, etc.) en silencio sin texto visible.
+   - En **cada paso** en que llames a una herramienta, escribe siempre una frase corta y directa (1 línea) visible en el chat antes de la herramienta explicando qué estás haciendo en ese instante (exactamente como hace Claude Opus).
+   - *Ejemplos*:
+     - *"Voy a leer las líneas 9800–9900 de `src/App.tsx` para revisar el panel de la carpeta..."*
+     - *"Ahora aplico el cambio quirúrgico en `server.ts` para agregar el endpoint..."*
+     - *"Compilando el proyecto con `npm run build` y subiendo los cambios a GitHub..."*
