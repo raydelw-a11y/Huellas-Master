@@ -4563,8 +4563,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'HUELLAS_RELOAD_EXTENSION') {
+    sendResponse({ ok: true, reloading: true });
+    setTimeout(() => {
+      try {
+        chrome.runtime.reload();
+      } catch {}
+    }, 80);
+    return false;
+  }
+
   return false;
 });
+
+// ============================================================================
+// AUTO-RELOAD WATCHER (Hot-Reloads Extension Automatically When Files Change)
+// ============================================================================
+let currentExtFingerprint = '';
+let isCheckingExtFingerprint = false;
+
+async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
+  if (isCheckingExtFingerprint) return;
+  isCheckingExtFingerprint = true;
+  try {
+    const res = await fetch(
+      `http://localhost:4200/api/extension/fingerprint${isStartup ? '?ack=1' : ''}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const nextFp = String(data?.fingerprint || '').trim();
+    if (!nextFp) return;
+
+    if (!currentExtFingerprint) {
+      let storedFp = '';
+      try {
+        const st = await chrome.storage.local.get('huellasExtFingerprint');
+        storedFp = String((st && st.huellasExtFingerprint) || '').trim();
+      } catch {}
+      currentExtFingerprint = nextFp;
+      if (storedFp !== nextFp) {
+        try {
+          await chrome.storage.local.set({ huellasExtFingerprint: nextFp });
+        } catch {}
+      }
+      return;
+    }
+
+    if (nextFp !== currentExtFingerprint) {
+      currentExtFingerprint = nextFp;
+      try {
+        await chrome.storage.local.set({ huellasExtFingerprint: nextFp });
+      } catch {}
+      chrome.runtime.reload();
+    }
+  } catch {
+  } finally {
+    isCheckingExtFingerprint = false;
+  }
+}
+
+checkExtensionAutoReloadFromLocalServer(true);
+setInterval(() => {
+  checkExtensionAutoReloadFromLocalServer(false);
+}, 2500);
 
 // ============================================================================
 // GEMINI NOTEBOOK: resume an order after a URL navigation (MODO TRIO consensus)

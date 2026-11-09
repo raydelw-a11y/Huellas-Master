@@ -12719,6 +12719,56 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
   }
 });
 
+let extensionManualReloadCounter = 0;
+let lastExtensionAckAt = 0;
+let lastExtensionAckFingerprint = '';
+
+function computeChromeExtensionFingerprint(): string {
+  try {
+    const extDir = path.join(process.cwd(), 'chrome-extension');
+    if (!fs.existsSync(extDir)) return `manual-${extensionManualReloadCounter}`;
+    const files = fs
+      .readdirSync(extDir)
+      .filter((f) => /\.(js|json|html|css)$/i.test(f))
+      .sort();
+    const parts = files.map((f) => {
+      try {
+        const st = fs.statSync(path.join(extDir, f));
+        return `${f}:${Math.floor(st.mtimeMs)}:${st.size}`;
+      } catch {
+        return f;
+      }
+    });
+    return `${parts.join('|')}#r${extensionManualReloadCounter}`;
+  } catch {
+    return `manual-${extensionManualReloadCounter}`;
+  }
+}
+
+app.get('/api/extension/fingerprint', (req, res) => {
+  const fp = computeChromeExtensionFingerprint();
+  if (req.query.ack === '1') {
+    lastExtensionAckAt = Date.now();
+    lastExtensionAckFingerprint = fp;
+  }
+  res.json({
+    ok: true,
+    fingerprint: fp,
+    lastAckAt: lastExtensionAckAt,
+    lastAckFingerprint: lastExtensionAckFingerprint,
+  });
+});
+
+app.post('/api/extension/reload', (_req, res) => {
+  extensionManualReloadCounter += 1;
+  const fp = computeChromeExtensionFingerprint();
+  res.json({
+    ok: true,
+    fingerprint: fp,
+    reloadedCounter: extensionManualReloadCounter,
+  });
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
