@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:57 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:12 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -932,18 +932,21 @@ function buildStage1PropositionParts(
     topComments[1]?.text ||
     '¿Cuáles fueron las verdaderas causas y consecuencias humanas detrás de este acontecimiento?';
 
-  const baseSubject = refTitle
-    ? refTitle.replace(/\s*[:|-]\s*Lo que NO.*$/i, '').trim()
-    : doc.topic?.trim()
+  // IMPORTANT: Never use refTitle (the investigated reference video) as the subject of OUR documentary!
+  // The investigated video is used ONLY as a structural, psychological, and viral pattern guide.
+  const baseSubject = doc.topic?.trim()
     ? doc.topic.trim()
-    : doc.title && !/^Video\s+\d+/i.test(doc.title.trim()) && !/^Documental\s+\d+/i.test(doc.title.trim())
+    : doc.title &&
+      !/^Video\s+\d+/i.test(doc.title.trim()) &&
+      !/^Documental\s+\d+/i.test(doc.title.trim()) &&
+      !/^Nuevo\s+Documental/i.test(doc.title.trim())
     ? doc.title.trim()
-    : 'El suceso histórico investigado';
+    : 'Nuestro nuevo documental original de Huellas de la Humanidad';
 
-  // Extract any years or centuries present in the research or video description
+  // Extract years or centuries ONLY from our own research/topic, NEVER from refTitle or refDesc
   const detectedYears = Array.from(
     new Set(
-      (`${researchText} ${refTitle} ${refDesc}`.match(
+      (`${researchText} ${doc.historicalTime || ''} ${doc.topic || ''}`.match(
         /\b(?:Siglo\s+[IVXLCDM]+(?:\s*(?:a\.\s*C\.|d\.\s*C\.))?|(?:1[0-9]{3}|20[0-2][0-9])(?:\s*[–-]\s*(?:1[0-9]{3}|20[0-2][0-9]))?|\d{3,4}\s*(?:a\.\s*C\.|d\.\s*C\.))\b/gi
       ) || [])
         .map((m) => m.trim())
@@ -951,10 +954,10 @@ function buildStage1PropositionParts(
     )
   );
 
-  // --- PARTE 1: TIPOLOGÍA DEL VIDEO ---
+  // --- PARTE 1: TIPOLOGÍA DEL VIDEO (ARQUETIPO UNIVERSAL BASADO EN PATRÓN VIRAL, SIN DUPLICAR TEMA) ---
   const parsedP1 = parsePropositionSectionOptions(researchText, 1);
   const defaultTypologyOptions: [string, string, string] = [
-    `9. Crónica documental de ascenso, crisis y reconstrucción histórica: ${baseSubject.slice(0, 55)} (Nueva tipología creada)`,
+    '9. Crónica documental de crisis repetidas, rechazos históricos y giro contra todo pronóstico (Nueva tipología basada en patrón viral)',
     '1. Un suceso histórico',
     '4. Un misterio sin resolver',
   ];
@@ -966,15 +969,15 @@ function buildStage1PropositionParts(
   const p1Summary =
     parsedP1.summary ||
     (refTitle
-      ? `Basado en la investigación completa y el análisis del video referente ("${refTitle}"), nuestra app determina la opción del protocolo más precisa o crea una nueva tipología a medida acorde con el documental en proceso.`
-      : 'La investigación determina qué tipología del protocolo se ajusta mejor al episodio o crea una nueva tipología híbrida acorde con la naturaleza del documental en proceso.');
+      ? `Extrae los patrones y detalles que hicieron que "${refTitle}" se viralizara en YouTube (sin duplicar su tema) para definir la tipología universal o crear una nueva tipología arquetípica para nuestro documental original.`
+      : 'La investigación determina qué tipología del protocolo se ajusta mejor al episodio o crea una nueva tipología arquetípica acorde con la estructura viral de nuestro documental.');
 
   // --- PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO ---
   const parsedP2 = parsePropositionSectionOptions(researchText, 2);
   const defaultTopicOptions: [string, string, string] = [
-    `${baseSubject}: investigación documental profunda de las decisiones críticas, crisis ocultas y giros históricos que cambiaron su destino para siempre.`,
-    `La historia no contada detrás de ${baseSubject}: los errores fatales, las disputas de poder y las pruebas documentales que la narrativa popular ignoró.`,
-    `Anatomía de una supervivencia histórica (${baseSubject}): cómo estuvo al borde de desaparecer y qué factor inesperado transformó su legado.`,
+    `${baseSubject}: crónica histórica 100% original aplicando el patrón viral de caídas repetidas, rechazos y resurgimiento inesperado.`,
+    `Historia inédita para Huellas de la Humanidad: las decisiones críticas, los errores fatales y las pruebas documentales que cambiaron el destino de una época.`,
+    `Anatomía de una supervivencia histórica contra todo pronóstico: cómo un proyecto o civilización al borde del colapso transformó para siempre su legado.`,
   ];
 
   const p2Options: [string, string, string] = [
@@ -984,23 +987,23 @@ function buildStage1PropositionParts(
   ];
   const p2Summary =
     parsedP2.summary ||
-    `Proposición de eje temático central diseñado para superar en profundidad histórica al video referente${
-      refTitle ? ` ("${refTitle}")` : ''
-    } y responder directamente a las dudas con mayor repetición (×N) de los espectadores.`;
+    `Proposición de 3 temas históricos 100% originales y distintos al video investigado${
+      refTitle ? ` (usando "${refTitle}" únicamente como guía de estructura y patrones virales)` : ''
+    }, diseñados para atrapar a la audiencia de YouTube.`;
 
   // --- PARTE 3: TIEMPO / ÉPOCA ---
   const parsedP3 = parsePropositionSectionOptions(researchText, 3);
   const defaultTimeOptions: [string, string, string] =
     detectedYears.length > 0
       ? [
-          `${detectedYears.slice(0, 3).join(' – ')} (Periodo histórico central determinado en la investigación)`,
+          `${detectedYears.slice(0, 3).join(' – ')} (Periodo histórico central de nuestro documental original)`,
           `Año ${detectedYears[0]} y décadas decisivas del conflicto (Cronología puntual de los hechos)`,
           `Marco histórico completo de origen, crisis y consolidación (${detectedYears.join(', ')})`,
         ]
       : [
-          'Época histórica principal determinada en el informe de investigación (Siglo / Años exactos)',
-          'Décadas críticas del conflicto y punto de inflexión histórico',
-          'Cronología extendida desde los antecedentes hasta el desenlace',
+          'Época histórica principal determinada en el Paso 1 para nuestro documental original (Años en dígitos / Siglo en romanos)',
+          'Décadas críticas del conflicto y punto de inflexión de nuestra historia',
+          'Cronología extendida desde los antecedentes hasta el desenlace histórico',
         ];
   const p3Options: [string, string, string] = [
     parsedP3.options[0] || doc.promptConfig?.PROP_P3_OPT1 || defaultTimeOptions[0],
@@ -1009,13 +1012,13 @@ function buildStage1PropositionParts(
   ];
   const p3Summary =
     parsedP3.summary ||
-    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) extraída de la investigación para anclar el rigor histórico de cada escena.';
+    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) correspondiente a nuestro nuevo documental original.';
 
   // --- PARTE 4: LUGAR HISTÓRICO ---
   const parsedP4 = parsePropositionSectionOptions(researchText, 4);
   const defaultLocationOptions: [string, string, string] = [
-    `Escenario histórico principal de "${baseSubject.slice(0, 50)}" (Ciudad, País según actas y registros de la investigación)`,
-    'Sedes clave donde se gestó el origen, la crisis y el punto de quiebre del suceso',
+    'Ciudad, País principal determinado en el Paso 1 para nuestro documental original',
+    'Sedes históricas clave donde se gestó el origen, la crisis y el punto de quiebre de nuestra historia',
     'Epicentro geográfico y social donde impactaron las consecuencias históricas del episodio',
   ];
   const p4Options: [string, string, string] = [
@@ -1025,13 +1028,13 @@ function buildStage1PropositionParts(
   ];
   const p4Summary =
     parsedP4.summary ||
-    'Escenarios geográficos e históricos principales (Ciudad, País) determinados en la investigación donde transcurren los actos narrativos.';
+    'Escenarios geográficos e históricos principales (Ciudad, País) determinados para nuestro documental original.';
 
   // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL ---
   const parsedP5 = parsePropositionSectionOptions(researchText, 5);
   const defaultHookOptions: [string, string, string] = [
-    `Clip 1 (6s sin voz): Escena cinematográfica del instante exacto de mayor tensión en "${baseSubject}". Entrada de voz (00:16): La contradicción entre el colapso inminente que todos daban por hecho y el giro oculto que cambió la historia.`,
-    `Clip 1 (6s sin voz): Primer plano documental de los documentos y pruebas decisivas del caso en penumbra. Entrada de voz (00:16): ¿Cómo pudo un proyecto rechazado y al borde de la ruina convertirse en un fenómeno histórico irrepetible?`,
+    `Clip 1 (6s sin voz): Escena cinematográfica del instante exacto de mayor tensión en nuestra historia original. Entrada de voz (00:16): La contradicción entre el colapso inminente que todos daban por hecho y el giro oculto que cambió la historia.`,
+    `Clip 1 (6s sin voz): Primer plano documental de los documentos y pruebas decisivas del caso en penumbra. Entrada de voz (00:16): Patrón viral de contraste numérico y rechazos sucesivos que desembocaron en un fenómeno histórico irrepetible.`,
     `Clip 1 (6s sin voz): Reconstrucción atmosférica del escenario original antes de la crisis. Entrada de voz (00:16): La paradoja de quienes tuvieron el futuro frente a sus ojos y lo rechazaron sin sospechar lo que estaba por ocurrir.`,
   ];
   const p5Options: [string, string, string] = [
@@ -1041,7 +1044,7 @@ function buildStage1PropositionParts(
   ];
   const p5Summary =
     parsedP5.summary ||
-    'Diseño del impacto inicial en los primeros segundos (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en el segundo 16) planteando la contradicción central que atrapa la retención.';
+    'Diseño del impacto inicial en los primeros segundos (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en el segundo 16) aplicando el patrón de Hook del video guía a nuestra historia original.';
 
   // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
   const parsedP6 = parsePropositionSectionOptions(researchText, 6);
@@ -1057,12 +1060,12 @@ function buildStage1PropositionParts(
   ];
   const p6Summary =
     parsedP6.summary ||
-    `Arquitectura narrativa dimensionada exactamente para ${durationMinutes} minutos, integrando giros de retención y respondiendo orgánicamente a los comentarios más repetidos (×N) de la audiencia.`;
+    `Arquitectura narrativa dimensionada exactamente para ${durationMinutes} minutos, trasladando las proporciones y ritmo de retención del video guía a nuestro documental original.`;
 
   // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
   const parsedP7 = parsePropositionSectionOptions(researchText, 7);
   const defaultClimaxOptions: [string, string, string] = [
-    `Clímax: Revelación del momento decisivo en que "${baseSubject}" revierte su destino contra todo pronóstico. Cierre reflexivo sobre la resiliencia y las decisiones que cambian el rumbo de la historia antes del Outro Oficial de 8s.`,
+    `Clímax: Revelación del momento decisivo en que nuestra historia revierte su destino contra todo pronóstico. Cierre reflexivo sobre la resiliencia y las decisiones que cambian el rumbo de la humanidad antes del Outro Oficial de 8s.`,
     `Clímax: Desenlace documental que responde la gran incógnita central con datos históricos verificados. Cierre filosófico conectando las lecciones de este episodio con el presente, dando paso al Outro Oficial de 8s.`,
     `Clímax: El contraste final entre quienes dieron todo por perdido y el impacto duradero que dejó en el mundo moderno. Cierre solemne antes de fundir con el Outro Oficial de 8s.`,
   ];

@@ -9231,28 +9231,30 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
     const metadataBlockLines: string[] = targetVideoId
       ? [
           `================================================================================`,
-          `🏷️ ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE (${videoUrl || targetVideoId})`,
+          `🏷️ ANÁLISIS DE PATRONES VIRALES (TÍTULO, DESCRIPCIÓN Y TAGS) DEL VIDEO GUÍA DE YOUTUBE (${videoUrl || targetVideoId})`,
           `================================================================================`,
-          `- TÍTULO EXACTO DEL VIDEO DE REFERENCIA: "${targetData.title || videoUrl}"`,
+          `- TÍTULO DEL VIDEO INVESTIGADO (USAR SOLO COMO GUÍA DE PATRÓN VIRAL, NO DUPLICAR SU TEMA): "${targetData.title || videoUrl}"`,
           `- CANAL DE ORIGEN: ${targetData.channelName || 'YouTube'}`,
-          `- TAGS / PALABRAS CLAVE SEO DEL VIDEO (${targetData.tags.length}): ${
+          `- TAGS / PALABRAS CLAVE SEO DEL VIDEO INVESTIGADO (${targetData.tags.length}): ${
             targetData.tags.length > 0
               ? targetData.tags.join(', ')
-              : '(Extraer términos clave nucleares del título y de la descripción)'
+              : '(Extraer patrones de intención de búsqueda y psicología de tags del video guía)'
           }`,
-          `- DESCRIPCIÓN COMPLETA DEL VIDEO DE REFERENCIA:`,
+          `- DESCRIPCIÓN DEL VIDEO INVESTIGADO:`,
           targetData.description
             ? targetData.description.slice(0, 3500)
             : '(Sin descripción de texto adicional en el video)',
           ``,
-          `-> DIRECTRIZ OBLIGATORIA PARA NUESTRA INVESTIGACIÓN DOCUMENTAL (TÍTULO + DESCRIPCIÓN + TAGS):`,
-          `   1. Analiza la promesa, tensión dramática y enfoque del TÍTULO ("${targetData.title || videoUrl}") e incorpóralos como ángulo rector en nuestra Investigación Profunda.`,
-          `   2. Analiza minuciosamente la DESCRIPCIÓN del video (capítulos/timestamps, resumen histórico, subtemas, datos o fuentes mencionadas y gancho narrativo) e incluye todos esos ejes temáticos desarrollados con rigor documental en nuestra investigación.`,
-          `   3. Analiza los TAGS y palabras clave (${
+          `-> DIRECTRIZ OBLIGATORIA (PROHIBIDO DUPLICAR EL VIDEO INVESTIGADO — USAR COMO GUÍA Y PATRÓN VIRAL):`,
+          `   • NO queremos duplicar el tema, marca, personaje ni historia del video investigado ("${targetData.title || videoUrl}").`,
+          `   • Úsalo EXCLUSIVAMENTE como guía, estructura y análisis para extraer los PATRONES y DETALLES que hicieron que se viralizara en YouTube:`,
+          `     1. Del TÍTULO: Analiza su fórmula de clic, contraste numérico o paradoja narrativa para aplicar ese mismo patrón psicológico a un tema histórico 100% ORIGINAL de nuestro canal.`,
+          `     2. De la DESCRIPCIÓN: Analiza su estructura de capítulos/timestamps, ritmo de revelaciones y cadencia para usarlos como molde estructural en nuestro documental.`,
+          `     3. De los TAGS (${
             targetData.tags.length > 0
               ? targetData.tags.slice(0, 25).join(', ')
               : 'conceptos clave del título y descripción'
-          }) para cubrir dentro de nuestra investigación los términos históricos, personajes, contextos y búsquedas de mayor interés para la audiencia.`,
+          }): Analiza la estrategia de curiosidad e interés de la audiencia para trasladar ese magnetismo a nuestra propia historia original.`,
           ``,
         ]
       : [];

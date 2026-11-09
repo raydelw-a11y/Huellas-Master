@@ -883,7 +883,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   const isVideo77Doc =
     doc.id === 'doc-video-77-huellas' || /^Video\s*77\b/i.test(String(doc.title || '').trim());
   const needsV77Reset =
-    isVideo77Doc && doc.promptConfig?.CLEAN_RESET_V77 !== '2026_11_08_1830';
+    isVideo77Doc && doc.promptConfig?.CLEAN_RESET_V77 !== '2026_11_08_1912';
 
   if (needsV77Reset) {
     const cleanedCfg: Record<string, string> = {
@@ -897,7 +897,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       DURACION_CLIPS_SEGUNDOS: doc.promptConfig?.DURACION_CLIPS_SEGUNDOS || '8',
       VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
       UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
-      CLEAN_RESET_V77: '2026_11_08_1830',
+      CLEAN_RESET_V77: '2026_11_08_1912',
     };
     return {
       ...doc,
@@ -1676,23 +1676,23 @@ export function buildStagePromptText(
 
   const standaloneYoutubeMetadataBlock =
     (hasExplicitMetadataFields || youtubeViralLink) && !metadataAlreadyInCommentsBlock
-      ? `\n================================================================================\n🏷️ ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- TÍTULO DEL VIDEO DE REFERENCIA: "${youtubeVideoTitle || youtubeViralLink}"${
+      ? `\n================================================================================\n🏷️ ANÁLISIS DE PATRONES VIRALES (TÍTULO, DESCRIPCIÓN Y TAGS) DEL VIDEO GUÍA DE YOUTUBE (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- TÍTULO DEL VIDEO INVESTIGADO (USAR SOLO COMO GUÍA DE PATRÓN VIRAL, NO DUPLICAR SU TEMA): "${youtubeVideoTitle || youtubeViralLink}"${
           youtubeVideoChannel ? `\n- CANAL DE ORIGEN: ${youtubeVideoChannel}` : ''
-        }\n- TAGS / PALABRAS CLAVE DEL VIDEO: ${
-          youtubeVideoTags || '(Analizar y extraer palabras clave nucleares del título y descripción del video)'
-        }\n- DESCRIPCIÓN DEL VIDEO DE REFERENCIA:\n${
+        }\n- TAGS / PALABRAS CLAVE DEL VIDEO INVESTIGADO: ${
+          youtubeVideoTags || '(Analizar la estrategia de intención de búsqueda y psicología de tags del video guía)'
+        }\n- DESCRIPCIÓN DEL VIDEO INVESTIGADO:\n${
           youtubeVideoDescription
             ? youtubeVideoDescription.slice(0, 3500)
-            : '(Analizar directamente la descripción, capítulos, fuentes y enfoque del video en el enlace proporcionado)'
-        }\n\n-> DIRECTRIZ OBLIGATORIA PARA NUESTRA INVESTIGACIÓN DOCUMENTAL (TÍTULO + DESCRIPCIÓN + TAGS):\n   1. Analiza el gancho semántico, la promesa narrativa y el ángulo central del TÍTULO del video para potenciar el enfoque de nuestra investigación.\n   2. Analiza a fondo la DESCRIPCIÓN del video (estructura de capítulos/timestamps, resumen histórico, subtemas, fuentes y planteamiento) e incluye todos esos hallazgos y ejes temáticos en la Investigación Profunda de nuestro documental.\n   3. Analiza los TAGS y palabras clave del video para integrar en nuestra investigación los conceptos históricos, personajes, contextos y términos de mayor interés para la audiencia.\n`
+            : '(Analizar la arquitectura de capítulos, ritmo narrativo y ganchos de la descripción del video guía)'
+        }\n\n-> REGLA DE ORO (PROHIBIDO DUPLICAR EL VIDEO INVESTIGADO):\n   • NO queremos duplicar ni hacer un video sobre el mismo tema, marca, personaje o evento del video investigado.\n   • El video investigado se usa EXCLUSIVAMENTE como GUÍA, ESTRUCTURA Y ANÁLISIS para extraer los PATRONES, FÓRMULAS Y DETALLES PSICOLÓGICOS que hicieron que se viralizara en YouTube:\n     1. Del TÍTULO: Extrae su patrón psicológico y fórmula de CTR (ej. contraste numérico "cayó X veces / rechazado Y veces", paradoja de supervivencia, revelación oculta) para aplicar ese MISMO PATRÓN a un tema histórico 100% ORIGINAL de nuestro canal.\n     2. De la DESCRIPCIÓN: Extrae su arquitectura de capítulos/timestamps, cadencia de tensión, distribución de bloques y estilo de resumen para usarlos como molde estructural en nuestro documental.\n     3. De los TAGS y COMENTARIOS: Extrae los gatillos de curiosidad, emociones humanas y tipo de incógnitas que atraparon a la audiencia para replicar ese efecto viral en nuestra propia historia original.\n`
       : '';
 
   const viralContextBlock = selectedStructureSummary
-    ? `\n================================================================================\n🏛️ ESTRUCTURA SELECCIONADA DE VIDEO ANALIZADO PREVIAMENTE: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nINVESTIGACIÓN Y ESTRUCTURA GANADORA YA REALIZADA DE ESTE VIDEO:\n${selectedStructureSummary}\n\nINSTRUCCIÓN OBLIGATORIA: Clona y adapta exactamente las proporciones, la cadencia de micro-ganchos y la progresión dramática de esta estructura ganadora para nuestro documental actual, integrando además el análisis de su TÍTULO, DESCRIPCIÓN y TAGS en nuestra investigación.\n${standaloneYoutubeMetadataBlock}${
+    ? `\n================================================================================\n🏛️ GUÍA ESTRUCTURAL Y PATRONES VIRALES DEL VIDEO INVESTIGADO: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nRADIOGRAFÍA DE PATRONES VIRALES Y ESTRUCTURA EXTRAÍDA DE ESTE VIDEO:\n${selectedStructureSummary}\n\n⚠️ INSTRUCCIÓN OBLIGATORIA (NO DUPLICAR TEMA — USAR SOLO COMO GUÍA Y ESTRUCTURA VIRAL):\nPROHIBIDO duplicar o copiar el tema, personaje, marca o suceso del video investigado. Úsalo ÚNICAMENTE como guía, molde estructural y análisis de los patrones y detalles (fórmula del gancho, ritmo de bloques, micro-ganchos de retención, contrastes dramáticos y gatillos psicológicos) que hicieron que se viralizara en YouTube, aplicándolos a un documental 100% ORIGINAL de "Huellas de la Humanidad".\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : youtubeViralLink
-    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR Y CLONAR ESTRUCTURALMENTE (INCLUYENDO TÍTULO, DESCRIPCIÓN Y TAGS): ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA DE DOBLE INVESTIGACIÓN (VIDEO DE REFERENCIA + DOCUMENTAL EN PROCESO):\nDEBES realizar en esta misma investigación:\n1) La radiografía profunda del video de referencia (${youtubeViralLink}), analizando obligatoriamente su TÍTULO, su DESCRIPCIÓN completa (capítulos, resumen, fuentes y gancho), sus TAGS/palabras clave y sus 8 ejes virales: Hook (0-30s), Escaleta bloque por bloque con porcentajes, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral (Título/Descripción/Tags) y Mapa Maestro de Recreación.\n2) La Investigación Profunda (Deep Research) de nuestro documental en proceso aplicando exactamente esa misma estructura e incluyendo los temas, ángulos, palabras clave y hallazgos detectados en el título, descripción, tags y comentarios del video.\n${standaloneYoutubeMetadataBlock}${
+    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR COMO GUÍA DE ESTRUCTURA Y PATRONES VIRALES: ${youtubeViralLink}\n================================================================================\n⚠️ INSTRUCCIÓN OBLIGATORIA (PROHIBIDO DUPLICAR EL VIDEO INVESTIGADO — USAR COMO GUÍA DE PATRONES VIRALES):\nNO queremos duplicar el tema ni la historia del video pegado (${youtubeViralLink}). Queremos analizar a fondo QUÉ PATRONES Y DETALLES HICIERON QUE SE VIRALIZARA EN YOUTUBE para usarlos como guía y estructura en un documental 100% ORIGINAL y DISTINTO de nuestro canal "Huellas de la Humanidad":\n1) Realiza la radiografía de viralidad del video guía (${youtubeViralLink}), descomponiendo su TÍTULO (fórmula de clic y contraste), DESCRIPCIÓN (estructura de capítulos y promesas), TAGS (intención de búsqueda) y sus 8 ejes virales: Hook (0-30s), Escaleta porcentual bloque por bloque, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral y Patrón Maestro transferible.\n2) Aplica esos patrones virales, proporciones y mecanismos de retención a nuestro documental original en proceso (sin repetir jamás el tema del video investigado).\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : standaloneYoutubeMetadataBlock || youtubeCommentsResearchBlock
@@ -1706,25 +1706,25 @@ export function buildStagePromptText(
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
     stagePrompt = `Actúa como director e investigador jefe para "Huellas de la Humanidad".
-Esta es la FASE 1 DE LA ETAPA 1 (4 Argon · Thinking level: Low · SIN Deep Research): Investigación del video de referencia + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental.${viralContextBlock}
+Esta es la FASE 1 DE LA ETAPA 1 (4 Argon · Thinking level: Low · SIN Deep Research): Investigación de patrones virales del otro video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental ORIGINAL.${viralContextBlock}
 
 ================================================================================
 🏛️ ESTADO ACTUAL DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA A DETERMINAR
 ================================================================================
 - Tipología del protocolo: ${
       cleanTypology ||
-      'EN BLANCO (Determinar cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología a medida acorde con el documental en proceso)'
+      'EN BLANCO (Determinar cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología universal basada en el PATRÓN VIRAL del video investigado, SIN copiar el tema del video investigado)'
     }
 - Tema central del documental: ${
       cleanTopic ||
-      'EN BLANCO (Determinar automáticamente a partir del análisis del video de referencia y las dudas de la audiencia)'
+      'EN BLANCO (Proponer 3 temas históricos 100% ORIGINALES, DIFERENTES e INÉDITOS para "Huellas de la Humanidad" —PROHIBIDO duplicar el tema del video investigado— que utilicen exactamente los mismos patrones, contrastes y estructura que hicieron viral al video investigado)'
     }
 - Tiempo / Época histórica (años en dígitos, siglos en romanos): ${
       cleanTime ||
-      'EN BLANCO (Determinar automáticamente con años en dígitos o Siglo en números romanos, ej. Año 1888 / Siglo XIX)'
+      'EN BLANCO (Determinar automáticamente con años en dígitos o Siglo en números romanos acorde con nuestro nuevo tema original, ej. Año 1888 / Siglo XIX)'
     }
 - Lugar histórico (Ciudad, País): ${
-      cleanLoc || 'EN BLANCO (Determinar automáticamente Ciudad, País)'
+      cleanLoc || 'EN BLANCO (Determinar automáticamente Ciudad, País acorde con nuestro nuevo tema original)'
     }
 ${
   excludePreviousParts
@@ -1738,50 +1738,55 @@ ${
   • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos
 ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS:\n${selectedAudienceQuestions}\n` : ''}
 ================================================================================
-⚡ TAREA DE LA FASE 1 (INVESTIGACIÓN DEL OTRO VIDEO + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA)
+⚡ TAREA DE LA FASE 1 (ANÁLISIS DE PATRONES VIRALES DEL VIDEO GUÍA + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA ORIGINAL Y CALIBRACIÓN MATEMÁTICA)
 ================================================================================
-Analiza el video de referencia (Título, Descripción, Tags, Comentarios y estructura de retención) y entrega obligatoriamente este informe estructurado con 3 opciones para cada parte de nuestro documental:
+⚠️ REGLA CRÍTICA DE ORIGINALIDAD:
+- NO queremos duplicar el video investigado ni hacer un documental sobre el mismo tema/marca/suceso del video investigado.
+- Queremos usar el video investigado EXCLUSIVAMENTE como guía, estructura y análisis para extraer los PATRONES y DETALLES que hicieron que se viralizara en YouTube (su arquetipo narrativo, su estructura de caídas y giros, su ritmo de capítulos, sus gatillos psicológicos y su fórmula de título/gancho) y aplicarlos a un documental 100% ORIGINAL de "Huellas de la Humanidad".
+- En la PARTE 1 (Tipología del Video), NUNCA pongas el nombre o tema del video investigado; define una tipología general/arquetípica del protocolo (o crea la Tipología #9 como un arquetipo narrativo viral reutilizable).
 
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL (3 OPCIONES POR CADA PARTE):
+Entrega obligatoriamente este informe estructurado con 3 opciones para cada parte de nuestro documental:
+
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (3 OPCIONES POR CADA PARTE):
    Entrega obligatoriamente este bloque con EXACTAMENTE 3 opciones numeradas (Opción 1, Opción 2, Opción 3) para cada una de las 7 partes:
    - PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO):
-     • Resumen de esta parte: [Explicación de por qué aplica esta tipología o nueva tipología creada]
-     • Opción 1: [Determina cuál de las 8 tipologías del protocolo encaja mejor O CREA UNA NUEVA tipología a medida acorde con nuestro documental en proceso]
-     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología creada a medida]
-     • Opción 3: [Tercera opción de tipología o nueva tipología híbrida creada a medida]
+     • Resumen de esta parte: [Explica qué patrón narrativo/psicológico hizo viral al video guía y qué tipología universal del protocolo o nueva tipología arquetípica debemos usar en nuestro documental original]
+     • Opción 1: [Opción de las 8 tipologías del protocolo O NUEVA tipología arquetípica universal (ej. "9. Crónica de fracasos repetidos, rechazos históricos y ascenso contra todo pronóstico") — PROHIBIDO mencionar el tema específico del video investigado]
+     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología arquetípica basada en el patrón de retención]
+     • Opción 3: [Tercera opción de tipología del protocolo o nueva tipología híbrida basada en el patrón viral]
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
-     • Resumen de esta parte: [Explicación del eje temático propuesto]
-     • Opción 1: [Proposición principal de Tema Central y tesis histórica de alto impacto para nuestro documental]
-     • Opción 2: [Segunda proposición de Tema Central enfocada en la experiencia humana y dudas de la audiencia]
-     • Opción 3: [Tercera proposición de Tema Central enfocada en el misterio documental o contradicción histórica]
+     • Resumen de esta parte: [Explica cómo aplicamos la fórmula viral del video guía a un tema histórico 100% ORIGINAL y DISTINTO para "Huellas de la Humanidad"]
+     • Opción 1: [Tema histórico 100% ORIGINAL y DIFERENTE al video investigado, diseñado con el mismo patrón de impacto, contraste numérico y tensión dramática]
+     • Opción 2: [Segundo tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en hazañas, crisis ocultas o supervivencia humana]
+     • Opción 3: [Tercer tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en un misterio, imperio o invención histórica olvidada]
    - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):
-     • Resumen de esta parte: [Justificación del marco cronológico]
-     • Opción 1: [Ej. Año 1898 – 1931 / Siglo XIX y Siglo XX (años en dígitos y Siglo en números romanos)]
-     • Opción 2: [Segunda opción de recorte temporal exacto (Año en dígitos / Siglo en romanos)]
-     • Opción 3: [Tercera opción de arco temporal histórico (Años en dígitos / Siglo en romanos)]
+     • Resumen de esta parte: [Justificación del marco cronológico para nuestro nuevo documental original]
+     • Opción 1: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 1 de nuestro Tema Central original]
+     • Opción 2: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 2 de nuestro Tema Central original]
+     • Opción 3: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 3 de nuestro Tema Central original]
    - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):
-     • Resumen de esta parte: [Justificación de los escenarios geográficos]
-     • Opción 1: [Ciudad, País principal donde transcurre nuestro documental]
-     • Opción 2: [Epicentro específico + Ciudad, País]
-     • Opción 3: [Ruta geográfica o escenarios conectados (Ciudad, País)]
+     • Resumen de esta parte: [Justificación de los escenarios geográficos de nuestro nuevo documental original]
+     • Opción 1: [Ciudad, País principal correspondiente a la Opción 1 de nuestro Tema Central original]
+     • Opción 2: [Ciudad, País principal correspondiente a la Opción 2 de nuestro Tema Central original]
+     • Opción 3: [Ciudad, País principal correspondiente a la Opción 3 de nuestro Tema Central original]
    - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
-     • Resumen de esta parte: [Estrategia de impacto en los primeros segundos]
-     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central]
-     • Opción 2: [Propuesta 2 de Hook de choque sensorial e intriga inmediata]
-     • Opción 3: [Propuesta 3 de Hook basado en una revelación o pregunta de la audiencia]
+     • Resumen de esta parte: [Cómo adaptamos el patrón de Hook de los primeros 30s del video guía a nuestro nuevo documental original]
+     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central para nuestro documental original]
+     • Opción 2: [Propuesta 2 de Hook de contraste numérico/histórico e intriga inmediata para nuestro documental original]
+     • Opción 3: [Propuesta 3 de Hook basado en una revelación histórica o incógnita de la audiencia para nuestro documental original]
    - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN):
-     • Resumen de esta parte: [Distribución matemática de los actos contemplando Intro 8s y Outro 8s]
-     • Opción 1: [Propuesta 1 de calibración matemática por bloques (%) y minutos para ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
-     • Opción 2: [Propuesta 2 de calibración y desarrollo narrativo cronológico-inmersivo]
-     • Opción 3: [Propuesta 3 de calibración y desarrollo investigativo de revelación progresiva]
+     • Resumen de esta parte: [Cómo trasladamos los porcentajes y ritmo de bloques del video guía a nuestros ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
+     • Opción 1: [Propuesta 1 de calibración matemática por bloques (%) y minutos (~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s) replicando el ritmo de retención del video guía]
+     • Opción 2: [Propuesta 2 de calibración y desarrollo narrativo con micro-ganchos de crisis y superación cada 3-4 minutos]
+     • Opción 3: [Propuesta 3 de calibración y desarrollo investigativo de revelación progresiva hasta el clímax]
    - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
-     • Resumen de esta parte: [Estrategia de desenlace hacia el Outro de 8s]
-     • Opción 1: [Propuesta 1 de clímax emocional/histórico y cierre reflexivo]
-     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita de la audiencia y legado]
-     • Opción 3: [Propuesta 3 de giro final y huella imborrable en la humanidad]
+     • Resumen de esta parte: [Estrategia de desenlace emocional e histórico hacia el Outro de 8s]
+     • Opción 1: [Propuesta 1 de clímax histórico y cierre reflexivo para nuestro documental original]
+     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita central y legado en la humanidad]
+     • Opción 3: [Propuesta 3 de giro final inolvidable y huella histórica antes del Outro de 8s]
 
-1. RADIOGRAFÍA DEL VIDEO DE REFERENCIA (TÍTULO, DESCRIPCIÓN, TAGS Y ESTRUCTURA DE RETENCIÓN):
-   - Desglose de la fórmula del video referente, sus porcentajes por bloque, gatillos psicológicos y cómo los adaptaremos a nuestra Calibración Matemática de ~${(totalTargetSec / 60).toFixed(0)} minutos.`;
+1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (QUÉ HIZO QUE SE VIRALIZARA Y CÓMO LO USAMOS DE GUÍA):
+   - Desglose de los patrones exactos que hicieron viral al video investigado (estructura del Título, ritmo de capítulos en la Descripción, intención de los Tags, detonantes de Comentarios, porcentajes por bloque y gatillos psicológicos) y cómo funcionan como molde para nuestro documental de ~${(totalTargetSec / 60).toFixed(0)} minutos.`;
   } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
