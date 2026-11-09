@@ -4595,6 +4595,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'HUELLAS_KEEPALIVE') {
+    checkExtensionAutoReloadFromLocalServer(false);
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'EXTERNAL_GEMINI_ASK_RESULT') {
+    fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    }).catch(() => {});
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'REMOTE_RENAME_COMPLETED') {
+    fetch('http://localhost:4200/api/system/confirm-remote-rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    }).catch(() => {});
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.type === 'HUELLAS_RELOAD_EXTENSION') {
     sendResponse({ ok: true, reloading: true });
     setTimeout(() => {
@@ -4609,10 +4635,180 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================================================
-// AUTO-RELOAD WATCHER (Hot-Reloads Extension Automatically When Files Change)
+// AUTO-RELOAD WATCHER & EXTERNAL GEMINI WEB BRIDGE (MODO DUO / TRIO)
 // ============================================================================
 let currentExtFingerprint = '';
 let isCheckingExtFingerprint = false;
+const claimedExternalAskIds = new Set();
+const claimedGeminiCommandIds = new Set();
+
+async function runPendingGeminiCommandOrder(cmd) {
+  if (!cmd || !cmd.action) return;
+  const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+  let targetTab = geminiTabs[0] || null;
+  if (!targetTab || !targetTab.id) {
+    targetTab = await chrome.tabs.create({
+      url: 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f',
+      active: false,
+    });
+    await sleep(3200);
+  }
+  const tabId = targetTab.id;
+  await ensureScriptInjected(tabId, 'gemini-content.js');
+  await sleep(250);
+  await chrome.tabs.sendMessage(tabId, {
+    target: 'GEMINI',
+    ...cmd,
+  });
+}
+
+async function inspectGeminiTabLatestResponse(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const isVisible = (el) => {
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const stopSelectors = [
+          'button[aria-label*="Stop" i]',
+          'button[aria-label*="Detener" i]',
+          'button[aria-label*="Interrumpir" i]',
+          'button.stop-button',
+          'button.send-button.stop',
+          '.send-button-container.stop button',
+        ];
+        let generating = false;
+        for (const sel of stopSelectors) {
+          if (isVisible(document.querySelector(sel))) {
+            generating = true;
+            break;
+          }
+        }
+        if (
+          !generating &&
+          document.querySelectorAll(
+            'model-response[is-streaming="true"], message-content[is-streaming="true"], .markdown.streaming, model-response mat-progress-bar, model-response mat-spinner'
+          ).length > 0
+        ) {
+          generating = true;
+        }
+        const nodes = document.querySelectorAll('model-response, [data-message-author-role="model"]');
+        const count = nodes.length;
+        let text = '';
+        if (count > 0) {
+          const clone = nodes[count - 1].cloneNode(true);
+          clone
+            .querySelectorAll(
+              'model-thoughts, .thoughts-container, .thoughts-content, [data-test-id*="thought" i], message-actions, .response-container-footer, .response-container-header, button'
+            )
+            .forEach((n) => n.remove());
+          text = (clone.innerText || clone.textContent || '').trim();
+        }
+        return {
+          generating,
+          count,
+          text,
+          url: window.location.href,
+        };
+      },
+    });
+    return (results && results[0] && results[0].result) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function runExternalGeminiAskOrder(task) {
+  const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+  let targetTab = geminiTabs[0] || null;
+  if (!targetTab || !targetTab.id) {
+    targetTab = await chrome.tabs.create({ url: 'https://gemini.google.com/app', active: false });
+    await sleep(3500);
+  }
+  const tabId = targetTab.id;
+
+  if (task.prompt === '__READ_CURRENT__') {
+    const snap = await inspectGeminiTabLatestResponse(tabId);
+    await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: task.id,
+        ok: Boolean(snap && snap.text),
+        response: (snap && snap.text) || '',
+        chatUrl: (snap && snap.url) || targetTab.url || '',
+      }),
+    }).catch(() => {});
+    return;
+  }
+
+  const orderPayload = {
+    target: 'GEMINI',
+    action: 'ASK_EXTERNAL_ARGON_HIGH',
+    requestId: task.id,
+    prompt: task.prompt,
+  };
+  const key = huellasGeminiResumeKey(tabId);
+  await chrome.storage.session.set({
+    [key]: {
+      url: 'https://gemini.google.com/app',
+      createdAt: Date.now(),
+      order: orderPayload,
+    },
+  });
+  await chrome.tabs.update(tabId, { url: 'https://gemini.google.com/app' });
+
+  await sleep(4800);
+  try {
+    const st = await chrome.storage.session.get(key);
+    if (st && st[key]) {
+      await chrome.storage.session.remove(key).catch(() => {});
+      await ensureScriptInjected(tabId, 'gemini-content.js');
+      await sleep(500);
+      chrome.tabs.sendMessage(tabId, orderPayload).catch(() => {});
+    }
+  } catch {}
+
+  let stableDoneTicks = 0;
+  let lastText = '';
+  for (let i = 0; i < 80; i++) {
+    await sleep(2000);
+    if (!pendingExternalCheckActive(task.id)) break;
+    const snap = await inspectGeminiTabLatestResponse(tabId);
+    if (!snap) continue;
+    if (snap.count > 0 && !snap.generating && snap.text.length > 40) {
+      if (snap.text === lastText) {
+        stableDoneTicks += 1;
+      } else {
+        lastText = snap.text;
+        stableDoneTicks = 1;
+      }
+      if (stableDoneTicks >= 2) {
+        await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: true,
+            response: snap.text,
+            chatUrl: snap.url,
+          }),
+        }).catch(() => {});
+        return;
+      }
+    } else {
+      lastText = snap.text || '';
+      stableDoneTicks = 0;
+    }
+  }
+}
+
+function pendingExternalCheckActive(_id) {
+  return true;
+}
 
 async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
   if (isCheckingExtFingerprint) return;
@@ -4624,6 +4820,47 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
     );
     if (!res.ok) return;
     const data = await res.json();
+
+    if (Array.isArray(data?.pendingGeminiCommands) && data.pendingGeminiCommands.length > 0) {
+      for (const cmd of data.pendingGeminiCommands) {
+        if (!cmd || !cmd.commandId || claimedGeminiCommandIds.has(cmd.commandId)) continue;
+        claimedGeminiCommandIds.add(cmd.commandId);
+        fetch('http://localhost:4200/api/extension/claim-gemini-command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commandId: cmd.commandId }),
+        }).catch(() => {});
+        runPendingGeminiCommandOrder(cmd).catch((err) => {
+          console.warn('[Huellas Bridge] Error ejecutando comando remoto en Gemini:', err);
+        });
+      }
+    }
+
+    if (
+      data?.pendingExternalGeminiAsk &&
+      data.pendingExternalGeminiAsk.id &&
+      !claimedExternalAskIds.has(data.pendingExternalGeminiAsk.id)
+    ) {
+      const task = data.pendingExternalGeminiAsk;
+      claimedExternalAskIds.add(task.id);
+      fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: task.id }),
+      }).catch(() => {});
+      runExternalGeminiAskOrder(task).catch((err) => {
+        fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            error: String(err?.message || err),
+          }),
+        }).catch(() => {});
+      });
+    }
+
     const nextFp = String(data?.fingerprint || '').trim();
     if (!nextFp) return;
 

@@ -393,8 +393,37 @@ async function getServerGitHubFileSha(filePath: string, token: string): Promise<
 
 function mergeServerDocObjects(winner: any, other: any) {
   if (!winner || !other) return winner || other;
-  if (!Array.isArray(winner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
-    return winner;
+  let baseWinner = { ...winner };
+  try {
+    const wCmdRaw = winner.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
+    const oCmdRaw = other.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
+    if (oCmdRaw) {
+      const oCmd = JSON.parse(oCmdRaw);
+      const wCmd = wCmdRaw ? JSON.parse(wCmdRaw) : null;
+      const oReqAt = Number(oCmd?.requestedAt || 0);
+      const wReqAt = Number(wCmd?.requestedAt || 0);
+      const wAckId = winner.promptConfig?.REMOTE_RENAME_ACK_ID || '';
+      if (oReqAt > wReqAt && oCmd?.commandId && oCmd.commandId !== wAckId) {
+        const cleanTarget = String(oCmd.newName || other.title || '').trim();
+        baseWinner = {
+          ...baseWinner,
+          ...(cleanTarget
+            ? {
+                title: cleanTarget,
+                downloadFolderName: cleanTarget,
+                geminiChatTitle: cleanTarget,
+              }
+            : {}),
+          promptConfig: {
+            ...(baseWinner.promptConfig || {}),
+            REMOTE_RENAME_COMMAND_JSON: oCmdRaw,
+          },
+        };
+      }
+    }
+  } catch {}
+  if (!Array.isArray(baseWinner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
+    return baseWinner;
   }
   const otherClipByNum = new Map<number, any>();
   for (const c of other.clips) {
@@ -402,7 +431,7 @@ function mergeServerDocObjects(winner: any, other: any) {
       otherClipByNum.set(c.clipNumber, c);
     }
   }
-  const mergedClips = winner.clips.map((c: any) => {
+  const mergedClips = baseWinner.clips.map((c: any) => {
     const o = otherClipByNum.get(c.clipNumber);
     if (!o) return c;
     return {
@@ -419,7 +448,7 @@ function mergeServerDocObjects(winner: any, other: any) {
         Array.isArray(c.videoFrames) && c.videoFrames.length > 0 ? c.videoFrames : o.videoFrames,
     };
   });
-  return { ...winner, clips: mergedClips };
+  return { ...baseWinner, clips: mergedClips };
 }
 
 function stripHeavyMediaForGitHubServer(list: any[], stripReferenceImages = false): any[] {
@@ -12542,177 +12571,283 @@ setInterval(() => {
   checkAndSendInstagramAutoDms().catch(() => {});
 }, 45000);
 
-// Real-time rename of documentary root folder on macOS + sync with documentary record
+const REMOTE_MAC_RELAY_URL = 'https://ntfy.sh/huellas_master_mac_relay_v77_9a8b7c';
+const REMOTE_MAC_ACK_URL = 'https://ntfy.sh/huellas_master_mac_ack_v77_9a8b7c';
+
+interface PendingGeminiCommandItem {
+  commandId: string;
+  docId: string;
+  action: 'RENAME_GEMINI_CHAT';
+  oldVideoName: string;
+  videoName: string;
+  deepResearchVideoName: string;
+  geminiChatUrl?: string;
+  geminiDeepResearchChatUrl?: string;
+  notebookName: string;
+  createdAt: number;
+  claimedAt?: number;
+}
+
+const pendingGeminiCommands = new Map<string, PendingGeminiCommandItem>();
+const processedRemoteCommandIds = new Set<string>();
+
+function publishRemoteMacAck(payload: Record<string, any>) {
+  fetch(REMOTE_MAC_ACK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, ts: Date.now() }),
+  }).catch(() => {});
+}
+
+function performMacFolderRenameCore(params: {
+  docId?: string;
+  newName: string;
+  oldFolderPath?: string;
+  oldFolderName?: string;
+  commandId?: string;
+  enqueueGeminiRename?: boolean;
+}) {
+  const { docId, newName, oldFolderPath, oldFolderName, commandId, enqueueGeminiRename = true } = params;
+  const rawTrimmed = String(newName || '').trim();
+  if (!rawTrimmed) {
+    throw new Error('El nombre del video/carpeta no puede estar vacío.');
+  }
+
+  // Safe macOS folder name (preserve accents, spaces, em-dashes, parentheses; replace / and : with -)
+  const safeFolderName = rawTrimmed
+    .replace(/[/:\\]+/g, ' - ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const icloudVideosDir =
+    '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+  const hasIcloudDir = fs.existsSync(icloudVideosDir);
+
+  // 1. Look up existing documentary record FIRST before overwriting it so we never lose its current folder path/name
+  let docsList: any[] = [];
+  let docIdx = -1;
+  let storedDoc: any = null;
+  if (docId) {
+    try {
+      docsList = readDocumentaries();
+      docIdx = docsList.findIndex((d) => d && d.id === docId);
+      if (docIdx !== -1) {
+        storedDoc = docsList[docIdx];
+      }
+    } catch {}
+  }
+
+  const candidatePaths = [
+    typeof oldFolderPath === 'string' ? oldFolderPath.trim() : '',
+    typeof storedDoc?.downloadFolderPath === 'string' ? storedDoc.downloadFolderPath.trim() : '',
+    hasIcloudDir && typeof oldFolderName === 'string' && oldFolderName.trim()
+      ? path.join(icloudVideosDir, oldFolderName.trim())
+      : '',
+    hasIcloudDir && typeof storedDoc?.downloadFolderName === 'string' && storedDoc.downloadFolderName.trim()
+      ? path.join(icloudVideosDir, storedDoc.downloadFolderName.trim())
+      : '',
+    hasIcloudDir && typeof storedDoc?.title === 'string' && storedDoc.title.trim()
+      ? path.join(icloudVideosDir, storedDoc.title.trim())
+      : '',
+  ].filter(Boolean);
+
+  let existingFolderPath = '';
+  for (const cand of candidatePaths) {
+    if (cand && fs.existsSync(cand)) {
+      existingFolderPath = cand;
+      break;
+    }
+  }
+
+  if (!existingFolderPath && hasIcloudDir) {
+    // Try matching by "Video XX" prefix in iCloud Videos directory using old name, stored doc, or new name
+    const combinedForNum = [
+      oldFolderName,
+      storedDoc?.downloadFolderName,
+      storedDoc?.title,
+      safeFolderName,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const numMatch = combinedForNum.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
+    if (numMatch) {
+      const targetNum = numMatch[1];
+      const prefixRegex = new RegExp(
+        `^(?:video|ep\\.?|episodio|documental)\\s*0*${targetNum}(?:\\b|\\s|_|-|—|$)`,
+        'i'
+      );
+      const entries = fs.readdirSync(icloudVideosDir, { withFileTypes: true });
+      const found = entries.find((e) => e.isDirectory() && !e.name.startsWith('.') && prefixRegex.test(e.name));
+      if (found) {
+        existingFolderPath = path.join(icloudVideosDir, found.name);
+      }
+    }
+  }
+
+  const previousFolderName = existingFolderPath
+    ? path.basename(existingFolderPath)
+    : String(storedDoc?.downloadFolderName || storedDoc?.title || oldFolderName || '').trim();
+
+  const parentDir = existingFolderPath
+    ? path.dirname(existingFolderPath)
+    : hasIcloudDir
+    ? icloudVideosDir
+    : path.join(DATA_DIR, 'projects');
+
+  if (!fs.existsSync(parentDir)) {
+    fs.mkdirSync(parentDir, { recursive: true });
+  }
+
+  const newFolderPath = path.join(parentDir, safeFolderName);
+  let wasRenamed = false;
+  let wasCreated = false;
+
+  if (existingFolderPath && fs.existsSync(existingFolderPath)) {
+    if (existingFolderPath !== newFolderPath) {
+      if (!fs.existsSync(newFolderPath)) {
+        fs.renameSync(existingFolderPath, newFolderPath);
+        wasRenamed = true;
+      }
+    }
+  } else if (hasIcloudDir) {
+    if (!fs.existsSync(newFolderPath)) {
+      fs.mkdirSync(newFolderPath, { recursive: true });
+      wasCreated = true;
+    }
+  }
+
+  // Ensure standard subfolders and marker file exist inside the target folder
+  if (fs.existsSync(newFolderPath)) {
+    const subfolders = [
+      '01_Guion_y_SEO',
+      '02_Audio',
+      '04_Referencias',
+      '03_Miniaturas',
+      '05_Clips_Video',
+      '06_Video_Final',
+      '07_Viral_Clips',
+    ];
+    for (const sub of subfolders) {
+      try {
+        fs.mkdirSync(path.join(newFolderPath, sub), { recursive: true });
+      } catch {}
+    }
+    try {
+      fs.writeFileSync(
+        path.join(newFolderPath, '00_Carpeta_Raiz_Huellas.txt'),
+        `Carpeta raíz del documental: ${safeFolderName}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
+        'utf8'
+      );
+    } catch {}
+  }
+
+  const effectiveCmdId =
+    commandId || `cmd_rename_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  if (commandId) {
+    processedRemoteCommandIds.add(commandId);
+  }
+
+  // Update documentary record on disk
+  let updatedDocRecord: any = storedDoc;
+  try {
+    const list = docsList.length > 0 ? docsList : readDocumentaries();
+    let idx = docId ? list.findIndex((d) => d && d.id === docId) : -1;
+    if (idx === -1) {
+      const numMatch = safeFolderName.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
+      if (numMatch) {
+        const rx = new RegExp(`\\b(?:video|ep\\.?|episodio|documental)\\s*0*${numMatch[1]}\\b`, 'i');
+        idx = list.findIndex((d) => d && (rx.test(d.title || '') || rx.test(d.downloadFolderName || '')));
+      }
+    }
+    if (idx !== -1) {
+      updatedDocRecord = {
+        ...list[idx],
+        title: safeFolderName,
+        downloadFolderName: safeFolderName,
+        downloadFolderPath: newFolderPath,
+        geminiChatTitle: safeFolderName,
+        promptConfig: {
+          ...(list[idx].promptConfig || {}),
+          ...(commandId
+            ? {
+                REMOTE_RENAME_ACK_ID: commandId,
+                REMOTE_RENAME_ACK_STATUS: 'folder_renamed',
+              }
+            : {}),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      list[idx] = updatedDocRecord;
+      writeDocumentaries(list);
+    }
+  } catch (e) {
+    console.warn('[RenameDocFolder] Warning updating documentaries.json:', e);
+  }
+
+  if (enqueueGeminiRename) {
+    const targetDocId = String(docId || updatedDocRecord?.id || '');
+    // Replace any un-claimed earlier rename command for the same docId
+    for (const [k, v] of pendingGeminiCommands.entries()) {
+      if (v.docId === targetDocId) {
+        pendingGeminiCommands.delete(k);
+      }
+    }
+    pendingGeminiCommands.set(effectiveCmdId, {
+      commandId: effectiveCmdId,
+      docId: targetDocId,
+      action: 'RENAME_GEMINI_CHAT',
+      oldVideoName: previousFolderName || oldFolderName || safeFolderName,
+      videoName: safeFolderName,
+      deepResearchVideoName: `${safeFolderName}_Deep Research`,
+      geminiChatUrl: updatedDocRecord?.geminiChatUrl || '',
+      geminiDeepResearchChatUrl:
+        updatedDocRecord?.geminiDeepResearchChatUrl ||
+        updatedDocRecord?.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+        '',
+      notebookName: 'Huellas de la Humanidad',
+      createdAt: Date.now(),
+    });
+  }
+
+  publishRemoteMacAck({
+    commandId: effectiveCmdId,
+    docId: docId || updatedDocRecord?.id || '',
+    status: 'folder_renamed',
+    folderName: safeFolderName,
+    folderPath: newFolderPath,
+    previousFolderName,
+    wasRenamed,
+    wasCreated,
+  });
+
+  return {
+    ok: true,
+    commandId: effectiveCmdId,
+    folderName: safeFolderName,
+    folderPath: newFolderPath,
+    previousFolderName,
+    renamedFrom: existingFolderPath || null,
+    wasRenamed,
+    wasCreated,
+  };
+}
+
+// Real-time rename of documentary root folder on macOS + sync with documentary record + queue Gemini rename
 app.post('/api/system/rename-doc-folder', (req, res) => {
   try {
-    const { docId, newName, oldFolderPath, oldFolderName } = req.body || {};
-    const rawTrimmed = String(newName || '').trim();
-    if (!rawTrimmed) {
-      res.status(400).json({ ok: false, error: 'El nombre del video/carpeta no puede estar vacío.' });
-      return;
-    }
-
-    // Safe macOS folder name (preserve accents, spaces, em-dashes, parentheses; replace / and : with -)
-    const safeFolderName = rawTrimmed
-      .replace(/[/:\\]+/g, ' - ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const icloudVideosDir =
-      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
-    const hasIcloudDir = fs.existsSync(icloudVideosDir);
-
-    // 1. Look up existing documentary record FIRST before overwriting it so we never lose its current folder path/name
-    let docsList: any[] = [];
-    let docIdx = -1;
-    let storedDoc: any = null;
-    if (docId) {
-      try {
-        docsList = readDocumentaries();
-        docIdx = docsList.findIndex((d) => d && d.id === docId);
-        if (docIdx !== -1) {
-          storedDoc = docsList[docIdx];
-        }
-      } catch {}
-    }
-
-    const candidatePaths = [
-      typeof oldFolderPath === 'string' ? oldFolderPath.trim() : '',
-      typeof storedDoc?.downloadFolderPath === 'string' ? storedDoc.downloadFolderPath.trim() : '',
-      hasIcloudDir && typeof oldFolderName === 'string' && oldFolderName.trim()
-        ? path.join(icloudVideosDir, oldFolderName.trim())
-        : '',
-      hasIcloudDir && typeof storedDoc?.downloadFolderName === 'string' && storedDoc.downloadFolderName.trim()
-        ? path.join(icloudVideosDir, storedDoc.downloadFolderName.trim())
-        : '',
-      hasIcloudDir && typeof storedDoc?.title === 'string' && storedDoc.title.trim()
-        ? path.join(icloudVideosDir, storedDoc.title.trim())
-        : '',
-    ].filter(Boolean);
-
-    let existingFolderPath = '';
-    for (const cand of candidatePaths) {
-      if (cand && fs.existsSync(cand)) {
-        existingFolderPath = cand;
-        break;
-      }
-    }
-
-    if (!existingFolderPath && hasIcloudDir) {
-      // Try matching by "Video XX" prefix in iCloud Videos directory using old name, stored doc, or new name
-      const combinedForNum = [
-        oldFolderName,
-        storedDoc?.downloadFolderName,
-        storedDoc?.title,
-        safeFolderName,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      const numMatch = combinedForNum.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
-      if (numMatch) {
-        const targetNum = numMatch[1];
-        const prefixRegex = new RegExp(
-          `^(?:video|ep\\.?|episodio|documental)\\s*0*${targetNum}(?:\\b|\\s|_|-|—|$)`,
-          'i'
-        );
-        const entries = fs.readdirSync(icloudVideosDir, { withFileTypes: true });
-        const found = entries.find((e) => e.isDirectory() && !e.name.startsWith('.') && prefixRegex.test(e.name));
-        if (found) {
-          existingFolderPath = path.join(icloudVideosDir, found.name);
-        }
-      }
-    }
-
-    const previousFolderName = existingFolderPath
-      ? path.basename(existingFolderPath)
-      : String(storedDoc?.downloadFolderName || storedDoc?.title || oldFolderName || '').trim();
-
-    const parentDir = existingFolderPath
-      ? path.dirname(existingFolderPath)
-      : hasIcloudDir
-      ? icloudVideosDir
-      : path.join(DATA_DIR, 'projects');
-
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-    }
-
-    const newFolderPath = path.join(parentDir, safeFolderName);
-    let wasRenamed = false;
-    let wasCreated = false;
-
-    if (existingFolderPath && fs.existsSync(existingFolderPath)) {
-      if (existingFolderPath !== newFolderPath) {
-        if (!fs.existsSync(newFolderPath)) {
-          fs.renameSync(existingFolderPath, newFolderPath);
-          wasRenamed = true;
-        }
-      }
-    } else if (hasIcloudDir) {
-      if (!fs.existsSync(newFolderPath)) {
-        fs.mkdirSync(newFolderPath, { recursive: true });
-        wasCreated = true;
-      }
-    }
-
-    // Ensure standard subfolders and marker file exist inside the target folder
-    if (fs.existsSync(newFolderPath)) {
-      const subfolders = [
-        '01_Guion_y_SEO',
-        '02_Audio',
-        '04_Referencias',
-        '03_Miniaturas',
-        '05_Clips_Video',
-        '06_Video_Final',
-        '07_Viral_Clips',
-      ];
-      for (const sub of subfolders) {
-        try {
-          fs.mkdirSync(path.join(newFolderPath, sub), { recursive: true });
-        } catch {}
-      }
-      try {
-        fs.writeFileSync(
-          path.join(newFolderPath, '00_Carpeta_Raiz_Huellas.txt'),
-          `Carpeta raíz del documental: ${safeFolderName}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
-          'utf8'
-        );
-      } catch {}
-    }
-
-    // Also update documentary record on disk if docId is provided
-    if (docId) {
-      try {
-        const list = docsList.length > 0 ? docsList : readDocumentaries();
-        const idx = list.findIndex((d) => d && d.id === docId);
-        if (idx !== -1) {
-          list[idx] = {
-            ...list[idx],
-            title: safeFolderName,
-            downloadFolderName: safeFolderName,
-            downloadFolderPath: newFolderPath,
-            geminiChatTitle: safeFolderName,
-            updatedAt: new Date().toISOString(),
-          };
-          writeDocumentaries(list);
-        }
-      } catch (e) {
-        console.warn('[RenameDocFolder] Warning updating documentaries.json:', e);
-      }
-    }
-
-    res.json({
-      ok: true,
-      folderName: safeFolderName,
-      folderPath: newFolderPath,
-      previousFolderName,
-      renamedFrom: existingFolderPath || null,
-      wasRenamed,
-      wasCreated,
+    const { docId, newName, oldFolderPath, oldFolderName, commandId, enqueueGeminiRename } = req.body || {};
+    const result = performMacFolderRenameCore({
+      docId,
+      newName,
+      oldFolderPath,
+      oldFolderName,
+      commandId,
+      enqueueGeminiRename: enqueueGeminiRename !== false,
     });
+    res.json(result);
   } catch (err: any) {
     console.error('[RenameDocFolder] Error:', err);
-    res.status(500).json({
+    res.status(400).json({
       ok: false,
       error: err?.message || 'Error al renombrar la carpeta del documental en Mac.',
     });
@@ -12745,18 +12880,269 @@ function computeChromeExtensionFingerprint(): string {
   }
 }
 
+interface PendingExternalGeminiAsk {
+  id: string;
+  prompt: string;
+  createdAt: number;
+  claimed: boolean;
+  resolve: (result: { ok: boolean; response?: string; chatUrl?: string; error?: string }) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+const pendingExternalGeminiAsks = new Map<string, PendingExternalGeminiAsk>();
+
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
   if (req.query.ack === '1') {
     lastExtensionAckAt = Date.now();
     lastExtensionAckFingerprint = fp;
   }
+  let nextExternalAsk: { id: string; prompt: string } | null = null;
+  for (const item of pendingExternalGeminiAsks.values()) {
+    if (!item.claimed) {
+      nextExternalAsk = { id: item.id, prompt: item.prompt };
+      break;
+    }
+  }
+  const now = Date.now();
+  const pendingCommandsList: PendingGeminiCommandItem[] = [];
+  for (const [k, cmd] of pendingGeminiCommands.entries()) {
+    if (now - cmd.createdAt > 180000) {
+      pendingGeminiCommands.delete(k);
+      continue;
+    }
+    if (!cmd.claimedAt || now - cmd.claimedAt > 25000) {
+      pendingCommandsList.push(cmd);
+    }
+  }
   res.json({
     ok: true,
     fingerprint: fp,
     lastAckAt: lastExtensionAckAt,
     lastAckFingerprint: lastExtensionAckFingerprint,
+    pendingExternalGeminiAsk: nextExternalAsk,
+    pendingGeminiCommands: pendingCommandsList,
   });
+});
+
+app.post('/api/extension/claim-gemini-command', (req, res) => {
+  const commandId = String(req.body?.commandId || '').trim();
+  const cmd = pendingGeminiCommands.get(commandId);
+  if (cmd) {
+    cmd.claimedAt = Date.now();
+  }
+  res.json({ ok: true, commandId });
+});
+
+app.post('/api/system/confirm-remote-rename', (req, res) => {
+  const commandId = String(req.body?.commandId || '').trim();
+  const docId = String(req.body?.docId || '').trim();
+  const videoName = String(req.body?.videoName || '').trim();
+  const mainRenamed = Boolean(req.body?.mainRenamed);
+  const deepRenamed = Boolean(req.body?.deepRenamed);
+  if (commandId) {
+    pendingGeminiCommands.delete(commandId);
+  }
+  for (const [k, v] of pendingGeminiCommands.entries()) {
+    if (docId && v.docId === docId) {
+      pendingGeminiCommands.delete(k);
+    }
+  }
+  if (docId) {
+    try {
+      const list = readDocumentaries();
+      const idx = list.findIndex((d) => d && d.id === docId);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          ...(videoName ? { geminiChatTitle: videoName } : {}),
+          promptConfig: {
+            ...(list[idx].promptConfig || {}),
+            ...(commandId ? { REMOTE_RENAME_ACK_ID: commandId } : {}),
+            REMOTE_RENAME_ACK_STATUS: 'all_completed',
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        writeDocumentaries(list);
+      }
+    } catch {}
+  }
+  publishRemoteMacAck({
+    commandId,
+    docId,
+    status: 'all_completed',
+    folderName: videoName,
+    mainRenamed,
+    deepRenamed,
+  });
+  res.json({ ok: true });
+});
+
+// Background watchers on Mac:
+// 1) Instant HTTPS relay poll (every 2s) so mobile cellular clicks execute on Mac in ~1s
+// 2) GitHub SHA watcher (every 4.5s) as a second guaranteed path
+let isPollingRemoteRelay = false;
+async function checkRemoteMacRelayCommands() {
+  if (isPollingRemoteRelay) return;
+  isPollingRemoteRelay = true;
+  try {
+    const res = await fetch(`${REMOTE_MAC_RELAY_URL}/json?poll=1&since=60s`, {
+      headers: { 'Cache-Control': 'no-cache' },
+    }).catch(() => null);
+    if (res && res.ok) {
+      const rawText = await res.text();
+      const lines = rawText.split(/\r?\n/).filter(Boolean);
+      for (const line of lines) {
+        try {
+          const evt = JSON.parse(line);
+          if (evt?.event !== 'message' || !evt.message) continue;
+          const cmd = JSON.parse(evt.message);
+          if (
+            cmd &&
+            cmd.type === 'REMOTE_RENAME_VIDEO' &&
+            cmd.commandId &&
+            cmd.newName &&
+            !processedRemoteCommandIds.has(cmd.commandId)
+          ) {
+            processedRemoteCommandIds.add(cmd.commandId);
+            console.log(`[RemoteRelay] Executing mobile rename command ${cmd.commandId} -> "${cmd.newName}"`);
+            performMacFolderRenameCore({
+              docId: cmd.docId,
+              newName: cmd.newName,
+              oldFolderName: cmd.oldFolderName,
+              oldFolderPath: cmd.oldFolderPath,
+              commandId: cmd.commandId,
+              enqueueGeminiRename: true,
+            });
+          }
+        } catch {}
+      }
+    }
+  } catch {
+  } finally {
+    isPollingRemoteRelay = false;
+  }
+}
+setInterval(checkRemoteMacRelayCommands, 2000);
+
+let lastCheckedGitHubDocsSha = '';
+let isCheckingGitHubDocsSha = false;
+async function checkGitHubRemoteRenameCommands() {
+  if (isCheckingGitHubDocsSha) return;
+  isCheckingGitHubDocsSha = true;
+  try {
+    const token = getLocalGitHubToken();
+    if (!token) return;
+    const sha = await getServerGitHubFileSha('data/documentaries.json', token);
+    if (sha && sha !== lastCheckedGitHubDocsSha) {
+      lastCheckedGitHubDocsSha = sha;
+      await syncDocumentariesWithGitHubServer(true);
+    }
+    const docs = readDocumentaries();
+    for (const d of docs) {
+      const rawCmd = d?.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
+      if (!rawCmd) continue;
+      try {
+        const cmd = JSON.parse(rawCmd);
+        const ackId = d?.promptConfig?.REMOTE_RENAME_ACK_ID || '';
+        if (
+          cmd?.commandId &&
+          cmd.newName &&
+          cmd.commandId !== ackId &&
+          !processedRemoteCommandIds.has(cmd.commandId)
+        ) {
+          processedRemoteCommandIds.add(cmd.commandId);
+          console.log(`[GitHubRelay] Executing remote rename command ${cmd.commandId} -> "${cmd.newName}"`);
+          performMacFolderRenameCore({
+            docId: d.id,
+            newName: cmd.newName,
+            oldFolderName: cmd.oldFolderName,
+            oldFolderPath: cmd.oldFolderPath,
+            commandId: cmd.commandId,
+            enqueueGeminiRename: true,
+          });
+        }
+      } catch {}
+    }
+  } catch {
+  } finally {
+    isCheckingGitHubDocsSha = false;
+  }
+}
+setInterval(checkGitHubRemoteRenameCommands, 4500);
+
+app.post('/api/gemini-web/ask-external-claim', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  const item = pendingExternalGeminiAsks.get(id);
+  if (!item) {
+    res.status(404).json({ ok: false, error: 'not_found' });
+    return;
+  }
+  item.claimed = true;
+  res.json({ ok: true, id });
+});
+
+app.post('/api/gemini-web/ask-external-result', (req, res) => {
+  const id = String(req.body?.requestId || req.body?.id || '').trim();
+  const item = pendingExternalGeminiAsks.get(id);
+  if (!item) {
+    res.json({ ok: false, error: 'already_resolved_or_not_found' });
+    return;
+  }
+  clearTimeout(item.timer);
+  pendingExternalGeminiAsks.delete(id);
+  item.resolve({
+    ok: Boolean(req.body?.ok !== false),
+    response: String(req.body?.response || req.body?.text || ''),
+    chatUrl: String(req.body?.chatUrl || ''),
+    error: req.body?.error ? String(req.body.error) : undefined,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/gemini-web/ask-external', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) {
+    res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
+    return;
+  }
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 150000, 15000), 240000);
+  const id = `ext_gem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const resultPromise = new Promise<{ ok: boolean; response?: string; chatUrl?: string; error?: string }>((resolve) => {
+    const timer = setTimeout(() => {
+      pendingExternalGeminiAsks.delete(id);
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de Gemini Web tras ${Math.round(timeoutMs / 1000)}s.`,
+      });
+    }, timeoutMs);
+    pendingExternalGeminiAsks.set(id, {
+      id,
+      prompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    setTimeout(() => {
+      const current = pendingExternalGeminiAsks.get(id);
+      if (current && !current.claimed) {
+        exec(
+          `osascript -e 'tell application "Google Chrome"
+            if (count of windows) > 0 then
+              make new tab at end of tabs of window 1 with properties {URL:"chrome-extension://kbfeckjlcogkccfplkmgenalgnmojclf/reloader.html"}
+            end if
+          end tell'`,
+          () => {}
+        );
+      }
+    }, 3200);
+  });
+
+  const outcome = await resultPromise;
+  res.status(outcome.ok ? 200 : 504).json(outcome);
 });
 
 app.post('/api/extension/reload', (_req, res) => {

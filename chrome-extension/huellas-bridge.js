@@ -180,4 +180,15 @@
   };
 
   chrome.runtime.onMessage.addListener(window.__HUELLAS_BRIDGE_RUNTIME_LISTENER__);
+
+  if (window.__HUELLAS_BRIDGE_KEEPALIVE_TIMER__) {
+    clearInterval(window.__HUELLAS_BRIDGE_KEEPALIVE_TIMER__);
+  }
+  window.__HUELLAS_BRIDGE_KEEPALIVE_TIMER__ = setInterval(() => {
+    try {
+      if (chrome?.runtime?.id) {
+        chrome.runtime.sendMessage({ type: 'HUELLAS_KEEPALIVE' }).catch(() => {});
+      }
+    } catch {}
+  }, 15000);
 })();

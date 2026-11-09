@@ -2860,6 +2860,30 @@
     return partial.length === 1 ? partial[0] : null; // only when unambiguous
   }
 
+  const DEFAULT_HUELLAS_NOTEBOOK_PATH = '/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
+
+  async function expandSidebarNotebooksIfNeeded() {
+    try {
+      const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+      const moreBtn = buttons.find((b) => {
+        const t = normalizeCompareText(b.innerText || b.textContent || '');
+        return t === 'more' || t === 'mas' || t.endsWith(' more') || t.endsWith(' mas');
+      });
+      if (moreBtn) {
+        moreBtn.click();
+        await sleep(350);
+      }
+      const nbToggle = Array.from(document.querySelectorAll('button, [role="button"], a')).find((b) => {
+        const t = normalizeCompareText(b.innerText || b.textContent || '');
+        return t === 'notebooks' || t === 'cuadernos' || t.includes('notebooks');
+      });
+      if (nbToggle && !nbToggle.getAttribute('href')?.includes('/notebook/')) {
+        nbToggle.click();
+        await sleep(350);
+      }
+    } catch {}
+  }
+
   async function resolveNotebookPath(notebookName) {
     let saved = '';
     try {
@@ -2869,11 +2893,18 @@
     let link = findNotebookLinkByName(notebookName);
     if (!link && !saved) {
       await ensureGeminiSidebarOpen();
+      await expandSidebarNotebooksIfNeeded();
       link = findNotebookLinkByName(notebookName);
     }
     const fromLink = link ? getNotebookPathFromUrl(link.getAttribute('href')) : '';
     const currentNbPath = getNotebookPathFromUrl(window.location.href);
-    const path = fromLink || currentNbPath || saved;
+    const isHuellasDefault =
+      !notebookName || normalizeCompareText(notebookName).includes('huellas de la humanidad');
+    const path =
+      fromLink ||
+      currentNbPath ||
+      saved ||
+      (isHuellasDefault ? DEFAULT_HUELLAS_NOTEBOOK_PATH : '');
     if (path && path !== saved) {
       try {
         await chrome.storage.local.set({ huellasNotebookPath: path });
@@ -3520,9 +3551,9 @@
           return renamedOk;
         };
 
-        let anyRenamed = false;
-        let mainRenamed = false;
-        let deepRenamed = false;
+        let anyRenamed = Boolean(msg.__deepAlreadyRenamed || msg.__mainAlreadyRenamed);
+        let mainRenamed = Boolean(msg.__mainAlreadyRenamed);
+        let deepRenamed = Boolean(msg.__deepAlreadyRenamed);
 
         // 1. If the tab is currently open on one of this video's chats, rename it immediately in place
         const curChatId = getAppChatIdFromUrl(window.location.href);
@@ -3552,6 +3583,8 @@
           ...msg,
           target: 'GEMINI',
           action: 'RENAME_GEMINI_CHAT',
+          __deepAlreadyRenamed: deepRenamed,
+          __mainAlreadyRenamed: mainRenamed,
         });
         if (nav.navigating) {
           sendResponse({ handled: true, navigating: true });
@@ -3572,44 +3605,51 @@
           // First check if a _Deep Research chat for this video exists in the Notebook and needs renaming
           let chats = listNotebookPageChats();
           const deepMatch = chats.find((c) => matchesVideoChatTitle(c.title, true));
-          if (
-            deepMatch &&
-            deepName &&
-            normalizeCompareText(deepMatch.title) !== normalizeCompareText(deepName)
-          ) {
-            deepMatch.btn.click();
-            const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
-            if (opened) {
-              await sleep(1100);
-              const r = await renameCurrentOpenAppChat(deepName, true);
-              if (r) { anyRenamed = true; deepRenamed = true; }
-              // Return to Notebook page to check the Main chat as well
-              const backNav = await goToNotebookPage(nbPath, {
-                ...msg,
-                target: 'GEMINI',
-                action: 'RENAME_GEMINI_CHAT',
-              });
-              if (backNav.navigating) {
-                sendResponse({ handled: true, navigating: true });
-                return;
+          if (deepMatch && deepName) {
+            if (normalizeCompareText(deepMatch.title) === normalizeCompareText(deepName)) {
+              deepRenamed = true;
+              anyRenamed = true;
+            } else {
+              deepMatch.btn.click();
+              const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
+              if (opened) {
+                await sleep(1100);
+                const r = await renameCurrentOpenAppChat(deepName, true);
+                if (r) { anyRenamed = true; deepRenamed = true; }
+                // Return to Notebook page to check the Main chat as well
+                const backNav = await goToNotebookPage(nbPath, {
+                  ...msg,
+                  target: 'GEMINI',
+                  action: 'RENAME_GEMINI_CHAT',
+                  __deepAlreadyRenamed: deepRenamed,
+                  __mainAlreadyRenamed: mainRenamed,
+                });
+                if (backNav.navigating) {
+                  sendResponse({ handled: true, navigating: true });
+                  return;
+                }
+                for (let i = 0; i < 20 && listNotebookPageChats().length === 0; i++) {
+                  await sleep(200);
+                }
+                await sleep(500);
+                chats = listNotebookPageChats();
               }
-              for (let i = 0; i < 20 && listNotebookPageChats().length === 0; i++) {
-                await sleep(200);
-              }
-              await sleep(500);
-              chats = listNotebookPageChats();
             }
           }
 
           // Now check if the Main chat for this video exists in the Notebook and needs renaming (or linking)
           const mainMatch = chats.find((c) => matchesVideoChatTitle(c.title, false));
           if (mainMatch && baseName) {
-            mainMatch.btn.click();
-            const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
-            if (opened) {
-              await sleep(1100);
-              const r = await renameCurrentOpenAppChat(baseName, false);
-              if (r) { anyRenamed = true; mainRenamed = true; }
+            if (normalizeCompareText(mainMatch.title) === normalizeCompareText(baseName) && mainRenamed) {
+              anyRenamed = true;
+            } else {
+              mainMatch.btn.click();
+              const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
+              if (opened) {
+                await sleep(1100);
+                const r = await renameCurrentOpenAppChat(baseName, false);
+                if (r) { anyRenamed = true; mainRenamed = true; }
+              }
             }
           }
         }
@@ -3626,6 +3666,8 @@
             target: 'GEMINI',
             action: 'RENAME_GEMINI_CHAT',
             __huellasDirectMainTried: true,
+            __deepAlreadyRenamed: deepRenamed,
+            __mainAlreadyRenamed: mainRenamed,
           });
           if (navDirect) {
             sendResponse({ handled: true, navigating: true });
@@ -3643,6 +3685,19 @@
             `✅ Gemini: ${mainRenamed ? `chat principal → "${baseName}"` : 'chat principal no encontrado'}${deepRenamed ? ` · Deep Research → "${deepName}"` : ''}.`,
             { docId }
           );
+          try {
+            chrome.runtime
+              .sendMessage({
+                type: 'REMOTE_RENAME_COMPLETED',
+                commandId: msg.commandId || '',
+                docId,
+                videoName: baseName,
+                deepResearchVideoName: deepName,
+                mainRenamed,
+                deepRenamed,
+              })
+              .catch(() => {});
+          } catch {}
         } else {
           reportStatus(
             'ERROR',
@@ -3753,10 +3808,160 @@
       return false;
     }
 
+    if (msg.action === 'ASK_EXTERNAL_ARGON_HIGH') {
+      const requestId = String(msg.requestId || '').trim();
+      const rawPrompt = String(msg.prompt || '').trim();
+      sendResponse({ handled: true, requestId });
+      (async () => {
+        try {
+          let inputEl = null;
+          for (let i = 0; i < 30; i++) {
+            inputEl = findPromptInput();
+            if (inputEl) break;
+            await sleep(300);
+          }
+          if (!inputEl) {
+            chrome.runtime
+              .sendMessage({
+                type: 'EXTERNAL_GEMINI_ASK_RESULT',
+                requestId,
+                ok: false,
+                error: 'No se encontró la caja de texto en Gemini Web.',
+              })
+              .catch(() => {});
+            return;
+          }
+
+          await configureGeminiModelAndDeepResearch(true, false, false);
+          await sleep(350);
+
+          const initialCount = getModelResponseElements().length;
+          const initialLastText = (extractLatestGeminiResponse().text || '').trim();
+
+          setInputText(inputEl, rawPrompt);
+          chrome.runtime
+            .sendMessage({
+              type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
+              prompt: rawPrompt,
+              autoSubmit: true,
+            })
+            .catch(() => {});
+
+          for (let attempt = 0; attempt < 14; attempt++) {
+            await sleep(attempt === 0 ? 350 : 400);
+            const curCount = getModelResponseElements().length;
+            const curInput = findPromptInput() || inputEl;
+            const rem = (curInput.value ?? curInput.innerText ?? curInput.textContent ?? '').trim();
+            if (isGeminiStillGenerating() || curCount > initialCount || rem.length < 5) {
+              break;
+            }
+            let sendBtn = findSendButton();
+            if (!sendBtn) {
+              setInputText(curInput, rawPrompt);
+              chrome.runtime
+                .sendMessage({
+                  type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
+                  prompt: rawPrompt,
+                  autoSubmit: true,
+                })
+                .catch(() => {});
+              await sleep(180);
+              sendBtn = findSendButton();
+            }
+            if (sendBtn) {
+              try {
+                sendBtn.click();
+              } catch {}
+            } else {
+              curInput.focus();
+              curInput.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  which: 13,
+                  bubbles: true,
+                  cancelable: true,
+                })
+              );
+            }
+          }
+
+          let stableDoneTicks = 0;
+          let lastSeenText = '';
+          for (let tick = 0; tick < 160; tick++) {
+            await sleep(1000);
+            const generating = isGeminiStillGenerating();
+            const curCount = getModelResponseElements().length;
+            const latestText = (extractLatestGeminiResponse().text || '').trim();
+            const hasNewTurn =
+              curCount > initialCount || (latestText.length > 40 && latestText !== initialLastText);
+
+            if (hasNewTurn && !generating && latestText.length > 40) {
+              if (latestText === lastSeenText) {
+                stableDoneTicks += 1;
+              } else {
+                lastSeenText = latestText;
+                stableDoneTicks = 1;
+              }
+              if (stableDoneTicks >= 3) {
+                chrome.runtime
+                  .sendMessage({
+                    type: 'EXTERNAL_GEMINI_ASK_RESULT',
+                    requestId,
+                    ok: true,
+                    response: latestText,
+                    chatUrl: window.location.href,
+                  })
+                  .catch(() => {});
+                return;
+              }
+            } else {
+              lastSeenText = latestText;
+              stableDoneTicks = 0;
+            }
+          }
+
+          const finalFallback = (extractLatestGeminiResponse().text || '').trim();
+          chrome.runtime
+            .sendMessage({
+              type: 'EXTERNAL_GEMINI_ASK_RESULT',
+              requestId,
+              ok: finalFallback.length > 40,
+              response: finalFallback,
+              chatUrl: window.location.href,
+              error: finalFallback.length > 40 ? undefined : 'Timeout esperando respuesta completa en Gemini Web.',
+            })
+            .catch(() => {});
+        } catch (err) {
+          chrome.runtime
+            .sendMessage({
+              type: 'EXTERNAL_GEMINI_ASK_RESULT',
+              requestId,
+              ok: false,
+              error: String(err?.message || err),
+            })
+            .catch(() => {});
+        }
+      })();
+      return false;
+    }
+
     return false;
   };
   window.__HUELLAS_GEMINI_MESSAGE_LISTENER__ = onRuntimeMessage;
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
+
+  if (window.__HUELLAS_GEMINI_KEEPALIVE_TIMER__) {
+    clearInterval(window.__HUELLAS_GEMINI_KEEPALIVE_TIMER__);
+  }
+  window.__HUELLAS_GEMINI_KEEPALIVE_TIMER__ = setInterval(() => {
+    try {
+      if (chrome?.runtime?.id) {
+        chrome.runtime.sendMessage({ type: 'HUELLAS_KEEPALIVE' }).catch(() => {});
+      }
+    } catch {}
+  }, 15000);
 
   chrome.runtime.sendMessage({
     type: 'CONTENT_SCRIPT_READY',
