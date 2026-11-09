@@ -25,6 +25,7 @@ export interface WebBridgeCommandPayload {
   action:
     | 'SEND_PROMPT'
     | 'RENAME_GEMINI_CHAT'
+    | 'SYNC_STAGE11_FROM_GEMINI'
     | 'LOAD_STORY_STUDIO_PROJECT'
     | 'GRAB_LAST_RESPONSE'
     | 'GRAB_LAST_MEDIA'
@@ -37,15 +38,25 @@ export interface WebBridgeCommandPayload {
     | 'FOCUS_TAB';
   docId?: string;
   videoName?: string;
+  deepResearchVideoName?: string;
   geminiChatUrl?: string;
+  geminiDeepResearchChatUrl?: string;
   notebookName?: string;
   prompt?: string;
   imagePrompt?: string;
   aspectRatio?: '16:9' | '9:16';
   stageNumber?: number;
   taskType?: string;
+  enableHighModel?: boolean;
+  enableArgonLow?: boolean;
+  preferredModel?: string;
+  thinkingLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+  enableDeepResearch?: boolean;
+  skipModelSwitch?: boolean;
   clipNumber?: number | string;
   clipId?: string;
+  timeRange?: string;
+  durationSeconds?: number;
   attempt?: number;
   watchForVideo?: boolean;
   mediaType?: 'IMAGE' | 'VIDEO' | 'THUMBNAILS' | 'REFERENCES';
@@ -109,6 +120,7 @@ export interface ActiveGeminiDocContext {
   docId: string;
   videoName: string;
   geminiChatUrl?: string;
+  geminiDeepResearchChatUrl?: string;
   notebookName?: string;
 }
 
@@ -130,16 +142,26 @@ export function sendCommandToWebBridge(
     activeGeminiDocContext ||
     (typeof window !== 'undefined' ? (window as any).__HUELLAS_ACTIVE_DOC_GEMINI_CTX__ : null);
 
+  const rawBaseName = String(payload.videoName || ctx?.videoName || '')
+    .replace(/_\s*Deep\s*Research$/i, '')
+    .trim();
+  const deepResearchName = rawBaseName ? `${rawBaseName}_Deep Research` : '';
+
   const enrichedPayload: WebBridgeCommandPayload =
     targetService === 'GEMINI' && ctx
       ? {
           docId: ctx.docId,
-          videoName: ctx.videoName,
+          videoName: rawBaseName || ctx.videoName,
+          deepResearchVideoName: deepResearchName,
           geminiChatUrl: ctx.geminiChatUrl || '',
+          geminiDeepResearchChatUrl: ctx.geminiDeepResearchChatUrl || '',
           notebookName: ctx.notebookName || 'Huellas de la Humanidad',
           ...payload,
         }
-      : payload;
+      : {
+          ...payload,
+          ...(rawBaseName ? { videoName: rawBaseName, deepResearchVideoName: deepResearchName } : {}),
+        };
 
   // Prevent Quill/Rich-Textarea in Gemini Web from treating '\n' in execCommand('insertText') as an Enter key press that submits after line 1
   const safePayload: WebBridgeCommandPayload =

@@ -2978,6 +2978,146 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'GEMINI_MAIN_WORLD_COMPLETE_RENAME' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    const newTitleArg = String(message.newTitle || '').trim();
+    chrome.scripting
+      .executeScript({
+        target: { tabId: geminiTabId },
+        world: 'MAIN',
+        args: [newTitleArg],
+        func: (targetNewTitle) => {
+          try {
+            if (!targetNewTitle) return;
+            const activeEl = document.activeElement;
+            const isActiveRenameField =
+              activeEl &&
+              (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+              !activeEl.closest('rich-textarea');
+
+            const candidates = Array.from(
+              document.querySelectorAll(
+                'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, [role="dialog"] input, .conversation-items-container input, bard-sidenav input, .conversation-title-container input, input[aria-label*="name" i], input[aria-label*="nombre" i], input[aria-label*="title" i], input[aria-label*="título" i], input[type="text"]:not([readonly])'
+              )
+            ).filter((el) => el && el.offsetParent !== null && !el.closest('rich-textarea'));
+
+            const renameInput = isActiveRenameField ? activeEl : candidates[0];
+            if (!renameInput) return;
+
+            renameInput.focus();
+            if (typeof renameInput.select === 'function') {
+              try {
+                renameInput.select();
+              } catch {}
+            }
+            try {
+              document.execCommand('selectAll', false);
+              document.execCommand('insertText', false, targetNewTitle);
+            } catch {}
+
+            const currentVal = (renameInput.value || '').trim();
+            if (currentVal !== targetNewTitle) {
+              const nativeSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                'value'
+              )?.set;
+              if (nativeSetter) {
+                nativeSetter.call(renameInput, targetNewTitle);
+              } else {
+                renameInput.value = targetNewTitle;
+              }
+            }
+
+            renameInput.dispatchEvent(
+              new InputEvent('beforeinput', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                inputType: 'insertText',
+                data: targetNewTitle,
+              })
+            );
+            renameInput.dispatchEvent(
+              new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                inputType: 'insertText',
+                data: targetNewTitle,
+              })
+            );
+            renameInput.dispatchEvent(new Event('change', { bubbles: true }));
+            renameInput.dispatchEvent(
+              new KeyboardEvent('keyup', {
+                key: targetNewTitle.slice(-1) || 'a',
+                bubbles: true,
+              })
+            );
+
+            setTimeout(() => {
+              try {
+                const dialogBtns = Array.from(
+                  document.querySelectorAll(
+                    'button[data-test-id="confirm-button"], button[data-test-id="save-button"], .mat-mdc-dialog-actions button, mat-dialog-actions button, .mat-mdc-dialog-container button, mat-dialog-container button, [role="dialog"] button'
+                  )
+                ).filter((b) => b && b.offsetParent !== null);
+
+                const confirmBtn =
+                  dialogBtns.find((b) => {
+                    const txt = (b.innerText || b.textContent || '').trim().toLowerCase();
+                    const testId = (b.getAttribute('data-test-id') || '').toLowerCase();
+                    if (/cancel|cancelar|close|cerrar/i.test(txt)) return false;
+                    return (
+                      testId.includes('confirm') ||
+                      testId.includes('save') ||
+                      /\b(rename|cambiar|renombrar|guardar|save|aceptar|ok|confirm)\b/i.test(txt)
+                    );
+                  }) ||
+                  dialogBtns.find((b) => {
+                    const txt = (b.innerText || b.textContent || '').trim().toLowerCase();
+                    return txt && !/cancel|cancelar|close|cerrar/i.test(txt);
+                  });
+
+                if (confirmBtn) {
+                  confirmBtn.disabled = false;
+                  confirmBtn.removeAttribute('disabled');
+                  confirmBtn.setAttribute('aria-disabled', 'false');
+                  confirmBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                  confirmBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                  confirmBtn.click();
+                } else {
+                  renameInput.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    })
+                  );
+                  renameInput.dispatchEvent(
+                    new KeyboardEvent('keyup', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    })
+                  );
+                  renameInput.blur();
+                }
+              } catch {}
+            }, 220);
+          } catch {}
+        },
+      })
+      .catch(() => {});
+    sendResponse({ ok: true });
+    return true;
+  }
+
   // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
   if (
     message.type === 'BRIDGE_STATUS' ||

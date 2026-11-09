@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 10) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 10;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 11) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 11;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -1029,6 +1029,14 @@
             '🚀 ¡Botón "Iniciar investigación" presionado automáticamente! Gemini Deep Research está investigando múltiples fuentes...',
             meta
           );
+          if (meta && meta.targetChatTitle) {
+            setTimeout(() => {
+              renameGeminiConversationInDom(meta.targetChatTitle, window.location.href, meta.docId, {
+                isDeepResearch: true,
+                isActiveTabChat: true,
+              });
+            }, 1800);
+          }
           return;
         }
       }
@@ -1136,6 +1144,26 @@
               `¡Respuesta completa de Gemini Web capturada (${resolvedText.length} caracteres) y enviada a Huellas Master!`,
               meta
             );
+            if (meta && meta.targetChatTitle) {
+              const currentTitleNow = getActiveGeminiChatTitleInDom();
+              if (
+                !currentTitleNow ||
+                normalizeCompareText(currentTitleNow) !== normalizeCompareText(meta.targetChatTitle)
+              ) {
+                renameGeminiConversationInDom(
+                  meta.targetChatTitle,
+                  window.location.href,
+                  meta.docId,
+                  {
+                    isDeepResearch: Boolean(meta.enableDeepResearch),
+                    isActiveTabChat: true,
+                  }
+                ).finally(() => {
+                  processNextQueuedPrompt();
+                });
+                return;
+              }
+            }
             processNextQueuedPrompt();
           }, 450);
           return;
@@ -1183,8 +1211,56 @@
   }
 
   // ==========================================================================
-  // NOTEBOOK "HUELLAS DE LA HUMANIDAD" + 1-CHAT-PER-VIDEO DETECTOR & RENAMER
+  // NOTEBOOK "HUELLAS DE LA HUMANIDAD" + 1-CHAT-PER-VIDEO (+ SEPARATE _Deep Research CHAT) DETECTOR & RENAMER
   // ==========================================================================
+  const DOC_CHATS_STORAGE_KEY = 'huellas_gemini_doc_chats_v2';
+
+  function loadStoredDocChatMap() {
+    try {
+      const raw = localStorage.getItem(DOC_CHATS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return window.__HUELLAS_DOC_CHAT_MAP__ || {};
+  }
+
+  function saveStoredDocChatEntry(docKey, partialEntry) {
+    if (!docKey) return;
+    try {
+      const map = loadStoredDocChatMap();
+      map[docKey] = {
+        ...(map[docKey] || {}),
+        ...partialEntry,
+        updatedAt: Date.now(),
+      };
+      window.__HUELLAS_DOC_CHAT_MAP__ = map;
+      localStorage.setItem(DOC_CHATS_STORAGE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+
+  function getStoredDocChatEntry(docKey, baseVideoName) {
+    const map = loadStoredDocChatMap();
+    if (docKey && map[docKey]) return map[docKey];
+    const normBase = normalizeCompareText(baseVideoName);
+    if (normBase && map[normBase]) return map[normBase];
+    const vNum = extractVideoNumberToken(baseVideoName);
+    if (vNum) {
+      for (const k of Object.keys(map)) {
+        const entry = map[k];
+        if (
+          entry &&
+          (extractVideoNumberToken(entry.baseVideoName || '') === vNum ||
+            extractVideoNumberToken(entry.mainChatTitle || '') === vNum)
+        ) {
+          return entry;
+        }
+      }
+    }
+    return {};
+  }
+
   function normalizeCompareText(str) {
     return String(str || '')
       .normalize('NFD')
@@ -1194,25 +1270,56 @@
       .trim();
   }
 
+  function stripDeepResearchSuffix(str) {
+    return String(str || '')
+      .replace(/[\s_-]*deep\s*research\s*$/i, '')
+      .trim();
+  }
+
+  function hasDeepResearchSuffix(str) {
+    return /(?:^|[\s_-])deep\s*research\b/i.test(String(str || '').trim());
+  }
+
   function extractVideoNumberToken(str) {
     const m = String(str || '').match(/\bvideo\s*0*(\d+)\b/i);
     return m ? m[1] : '';
   }
 
   function extractChatIdFromUrl(urlStr) {
-    const m = String(urlStr || '').match(/\/app\/([a-zA-Z0-9_-]{8,})/);
-    return m ? m[1] : '';
+    const cleanUrl = String(urlStr || '').split('?')[0].split('#')[0].replace(/\/+$/, '');
+    // Match /gem/<gemId>/<chatId>
+    const gemChatMatch = cleanUrl.match(/\/gem\/[^/]+\/([a-zA-Z0-9_-]{6,})$/i);
+    if (gemChatMatch) return gemChatMatch[1];
+    // Match /app/<chatId> (including /u/0/app/<chatId>)
+    const appChatMatch = cleanUrl.match(/\/app\/([a-zA-Z0-9_-]{6,})$/i);
+    if (appChatMatch) return appChatMatch[1];
+    return '';
   }
 
-  function doesTitleMatchTargetVideo(candidateTitle, targetVideoName) {
-    const normCand = normalizeCompareText(candidateTitle);
-    const normTarget = normalizeCompareText(targetVideoName);
-    if (!normCand || !normTarget) return false;
-    if (normCand === normTarget || normCand.includes(normTarget) || normTarget.includes(normCand)) {
+  function doesTitleMatchTargetVideo(candidateTitle, targetBaseVideoName, wantDeepResearch = false) {
+    const rawCand = String(candidateTitle || '').trim();
+    const rawTargetBase = stripDeepResearchSuffix(targetBaseVideoName);
+    if (!rawCand || !rawTargetBase) return false;
+
+    // Never mix the Main Chat ("[Nombre]") with the Deep Research chat ("[Nombre]_Deep Research")
+    const candIsDeep = hasDeepResearchSuffix(rawCand);
+    if (Boolean(wantDeepResearch) !== candIsDeep) {
+      return false;
+    }
+
+    const normCandBase = normalizeCompareText(stripDeepResearchSuffix(rawCand));
+    const normTargetBase = normalizeCompareText(rawTargetBase);
+    if (!normCandBase || !normTargetBase) return false;
+
+    if (
+      normCandBase === normTargetBase ||
+      normCandBase.includes(normTargetBase) ||
+      normTargetBase.includes(normCandBase)
+    ) {
       return true;
     }
-    const candNum = extractVideoNumberToken(candidateTitle);
-    const targetNum = extractVideoNumberToken(targetVideoName);
+    const candNum = extractVideoNumberToken(rawCand);
+    const targetNum = extractVideoNumberToken(rawTargetBase);
     if (candNum && targetNum && candNum === targetNum) {
       return true;
     }
@@ -1221,18 +1328,18 @@
 
   async function ensureGeminiSidebarOpen() {
     const sideCandidates = document.querySelectorAll(
-      '[data-test-id="conversation"], .conversation-items-container, .conversations-container, bard-sidenav a[href*="/app/"]'
+      '[data-test-id="conversation"], .conversation-items-container, .conversations-container, bard-sidenav a[href*="/app/"], bard-sidenav a[href*="/gem/"]'
     );
     const hasVisibleSidebar = Array.from(sideCandidates).some((el) => isElementVisibleInDom(el));
     if (hasVisibleSidebar) return;
 
     const menuBtns = document.querySelectorAll(
-      'button[data-test-id="side-nav-menu-button"], button[aria-label*="Main menu" i], button[aria-label*="Menú principal" i], button[aria-label*="Menu" i], button[aria-label*="Menú" i]'
+      'button[data-test-id="side-nav-menu-button"], button[aria-label*="Main menu" i], button[aria-label*="Menú principal" i], button[aria-label*="Expand menu" i], button[aria-label*="Menu" i], button[aria-label*="Menú" i]'
     );
     for (const btn of menuBtns) {
       if (isElementVisibleInDom(btn)) {
         btn.click();
-        await sleep(350);
+        await sleep(380);
         break;
       }
     }
@@ -1244,34 +1351,64 @@
       '.conversation-title',
       'conversation-title',
       '[data-test-id="conversation"].selected .conversation-title',
+      '[data-test-id="conversation"].selected',
+      '.conversation-items-container.selected .conversation-title',
       '.conversation.selected .conversation-title',
       '[aria-selected="true"] .conversation-title',
+      'a[aria-current="page"] .conversation-title',
     ];
     for (const sel of headerSelectors) {
       const el = document.querySelector(sel);
       if (el && isElementVisibleInDom(el)) {
-        const txt = (el.innerText || el.textContent || '').trim();
-        if (txt && !/^google gemini$/i.test(txt)) return txt;
+        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (
+          txt &&
+          !/^google gemini$/i.test(txt) &&
+          !/^gemini$/i.test(txt) &&
+          !/^huellas de la humanidad$/i.test(txt)
+        ) {
+          return txt;
+        }
       }
     }
     const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini$/i, '').trim();
-    if (docTitle && !/^gemini$/i.test(docTitle) && !/^google gemini$/i.test(docTitle)) {
+    if (
+      docTitle &&
+      !/^gemini$/i.test(docTitle) &&
+      !/^google gemini$/i.test(docTitle) &&
+      !/^huellas de la humanidad$/i.test(docTitle)
+    ) {
       return docTitle;
     }
     return '';
   }
 
-  function findChatElementInSidebar(targetVideoName, targetChatUrl) {
-    const targetChatId = extractChatIdFromUrl(targetChatUrl);
-    const allItems = Array.from(
+  function getAllSidebarConversationItems() {
+    return Array.from(
       document.querySelectorAll(
-        '[data-test-id="conversation"], a[href*="/app/"], .conversation-items-container [role="button"], .conversation-items-container [role="listitem"], .conversations-container [role="button"], .chat-history-list [role="button"]'
+        '[data-test-id="conversation"], .conversation-items-container, a[href*="/app/"], a[href*="/gem/"], .conversations-container [role="button"], .conversations-container [role="listitem"], .chat-history-list [role="button"]'
       )
-    );
+    ).filter((el) => {
+      if (!el) return false;
+      const href = el.getAttribute('href') || '';
+      if (href === '/app' || href === '/u/0/app') return false;
+      return true;
+    });
+  }
 
-    if (targetChatId) {
+  function findChatElementInSidebar(
+    targetBaseVideoName,
+    targetChatUrl,
+    wantDeepResearch = false,
+    excludeChatId = ''
+  ) {
+    const targetChatId = extractChatIdFromUrl(targetChatUrl);
+    const allItems = getAllSidebarConversationItems();
+
+    if (targetChatId && targetChatId !== excludeChatId) {
       for (const item of allItems) {
-        const href = item.getAttribute('href') || item.querySelector?.('a')?.getAttribute('href') || '';
+        const href =
+          item.getAttribute('href') || item.querySelector?.('a')?.getAttribute('href') || '';
         const jslog = item.getAttribute('jslog') || '';
         if (href.includes(targetChatId) || jslog.includes(targetChatId)) {
           return item;
@@ -1279,10 +1416,17 @@
       }
     }
 
-    if (targetVideoName) {
+    if (targetBaseVideoName) {
       for (const item of allItems) {
-        const txt = (item.innerText || item.textContent || '').trim();
-        if (txt && doesTitleMatchTargetVideo(txt, targetVideoName)) {
+        const href =
+          item.getAttribute('href') || item.querySelector?.('a')?.getAttribute('href') || '';
+        const jslog = item.getAttribute('jslog') || '';
+        if (excludeChatId && (href.includes(excludeChatId) || jslog.includes(excludeChatId))) {
+          continue;
+        }
+        const titleEl = item.querySelector?.('.conversation-title') || item;
+        const txt = (titleEl.innerText || titleEl.textContent || '').replace(/\s+/g, ' ').trim();
+        if (txt && doesTitleMatchTargetVideo(txt, targetBaseVideoName, wantDeepResearch)) {
           return item;
         }
       }
@@ -1290,100 +1434,263 @@
     return null;
   }
 
-  async function renameGeminiConversationInDom(newTitle, targetChatUrl, docId) {
+  function findActiveOrFirstSidebarConversationItem(targetChatUrl) {
+    const targetChatId =
+      extractChatIdFromUrl(targetChatUrl) || extractChatIdFromUrl(window.location.href);
+    const allItems = getAllSidebarConversationItems();
+
+    // 1. Match by exact chat ID in href or jslog
+    if (targetChatId) {
+      for (const item of allItems) {
+        const href =
+          item.getAttribute('href') || item.querySelector?.('a')?.getAttribute('href') || '';
+        const jslog = item.getAttribute('jslog') || '';
+        if (href.includes(targetChatId) || jslog.includes(targetChatId)) {
+          return item;
+        }
+      }
+    }
+
+    // 2. Match currently selected / activated item in sidebar
+    const selectedSelectors = [
+      '[data-test-id="conversation"].selected',
+      '.conversation-items-container.selected',
+      '.conversation.selected',
+      '[data-test-id="conversation"][aria-selected="true"]',
+      'a[aria-current="page"][href*="/app/"]',
+      'a[aria-current="page"][href*="/gem/"]',
+      '.mdc-list-item--activated',
+    ];
+    for (const sel of selectedSelectors) {
+      const el = document.querySelector(sel);
+      if (el && isElementVisibleInDom(el)) return el;
+    }
+
+    // 3. If the current tab has active messages, the first conversation item in the Recent sidebar list is the active one
+    if (
+      getModelResponseElements().length > 0 ||
+      document.querySelectorAll('user-query, [data-message-author-role="user"]').length > 0
+    ) {
+      const convItems = Array.from(
+        document.querySelectorAll('[data-test-id="conversation"], .conversation-items-container')
+      ).filter((el) => isElementVisibleInDom(el));
+      if (convItems.length > 0) return convItems[0];
+    }
+
+    return null;
+  }
+
+  async function renameGeminiConversationInDom(newTitle, targetChatUrl, docId, options = {}) {
     const cleanNewTitle = String(newTitle || '').trim();
     if (!cleanNewTitle) return false;
+    const isDeepResearch =
+      Boolean(options.isDeepResearch) || hasDeepResearchSuffix(cleanNewTitle);
+    const baseVideoName = stripDeepResearchSuffix(cleanNewTitle);
+    const docKey = docId || normalizeCompareText(baseVideoName);
+
+    const fireMouseClick = (el) => {
+      if (!el) return;
+      try {
+        const r = el.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+        el.dispatchEvent(new PointerEvent('pointerover', opts));
+        el.dispatchEvent(new PointerEvent('pointerenter', opts));
+        el.dispatchEvent(new MouseEvent('mouseover', opts));
+        el.dispatchEvent(new MouseEvent('mouseenter', opts));
+        el.dispatchEvent(new PointerEvent('pointerdown', opts));
+        el.dispatchEvent(new MouseEvent('mousedown', opts));
+        el.dispatchEvent(new PointerEvent('pointerup', opts));
+        el.dispatchEvent(new MouseEvent('mouseup', opts));
+        el.click();
+      } catch {
+        try {
+          el.click();
+        } catch {}
+      }
+    };
 
     try {
       await ensureGeminiSidebarOpen();
 
-      // If targetChatUrl points to a specific conversation not currently active, click it in sidebar first
-      const sidebarItem = findChatElementInSidebar(cleanNewTitle, targetChatUrl);
       const currentTitle = getActiveGeminiChatTitleInDom();
       if (currentTitle && normalizeCompareText(currentTitle) === normalizeCompareText(cleanNewTitle)) {
+        const currentChatId = extractChatIdFromUrl(window.location.href);
+        if (docKey && currentChatId) {
+          saveStoredDocChatEntry(
+            docKey,
+            isDeepResearch
+              ? {
+                  baseVideoName,
+                  deepResearchChatId: currentChatId,
+                  deepResearchChatUrl: window.location.href,
+                  deepResearchChatTitle: cleanNewTitle,
+                }
+              : {
+                  baseVideoName,
+                  mainChatId: currentChatId,
+                  mainChatUrl: window.location.href,
+                  mainChatTitle: cleanNewTitle,
+                }
+          );
+        }
         chrome.runtime
           .sendMessage({
             type: 'GEMINI_CHAT_LINKED',
             docId,
             geminiChatUrl: window.location.href,
             geminiChatTitle: cleanNewTitle,
+            isDeepResearch,
           })
           .catch(() => {});
         return true;
       }
 
-      // 1. Try opening the conversation actions menu (top header title menu or sidebar 3-dots button)
-      let renameMenuTrigger = null;
-      if (sidebarItem && isElementVisibleInDom(sidebarItem)) {
-        sidebarItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-        sidebarItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-        await sleep(150);
-        const container =
-          sidebarItem.closest('.conversation-items-container, [role="listitem"], .conversation') ||
-          sidebarItem.parentElement;
-        if (container) {
-          renameMenuTrigger = container.querySelector(
-            'button[data-test-id="actions-menu-button"], button[aria-label*="More" i], button[aria-label*="Más" i], button[aria-label*="Opciones" i], button[mattooltip*="More" i], button[mattooltip*="Más" i]'
-          );
+      // Locate target conversation row in sidebar:
+      // First try by targetChatUrl / active conversation, or by baseVideoName matching the same mode (Main vs Deep Research)
+      let sidebarItem =
+        findChatElementInSidebar(baseVideoName, targetChatUrl, isDeepResearch) ||
+        (options.isActiveTabChat !== false
+          ? findActiveOrFirstSidebarConversationItem(targetChatUrl)
+          : null);
+
+      const findRenameMenuItemInOverlay = () => {
+        const menuItems = Array.from(
+          document.querySelectorAll(
+            '.cdk-overlay-container button[data-test-id="rename-button"], .cdk-overlay-container [data-test-id="rename-button"], .cdk-overlay-container [role="menuitem"], .cdk-overlay-container .mat-mdc-menu-item, button[data-test-id="rename-button"], [role="menuitem"], .mat-mdc-menu-item'
+          )
+        ).filter((el) => el && el.offsetParent !== null);
+
+        return (
+          menuItems.find((item) => {
+            const txt = (item.innerText || item.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const aria = (item.getAttribute('aria-label') || '').toLowerCase();
+            const testId = (item.getAttribute('data-test-id') || '').toLowerCase();
+            const hasEditIcon = Boolean(
+              item.querySelector(
+                'mat-icon[fonticon="edit"], mat-icon[data-mat-icon-name="edit"], mat-icon[fonticon="drive_file_rename_outline"], mat-icon[data-mat-icon-name="drive_file_rename_outline"]'
+              ) || /\b(edit|drive_file_rename_outline)\b/.test(txt)
+            );
+            return (
+              testId.includes('rename') ||
+              /\b(rename|cambiar\s+nombre|cambiar\s+el\s+nombre|renombrar|editar\s+nombre)\b/i.test(txt) ||
+              /\b(rename|cambiar\s+nombre|renombrar)\b/i.test(aria) ||
+              hasEditIcon
+            );
+          }) || null
+        );
+      };
+
+      let renameOptionEl = null;
+
+      // 1A. Try opening the sidebar conversation row's 3-dots action menu (actions-menu-button / more_vert)
+      if (sidebarItem) {
+        const rowContainer =
+          sidebarItem.closest(
+            '.conversation-items-container, [role="listitem"], mat-list-item, .conversation, .conversation-item'
+          ) ||
+          sidebarItem.parentElement ||
+          sidebarItem;
+
+        for (const hoverTarget of [rowContainer, sidebarItem]) {
+          if (!hoverTarget) continue;
+          try {
+            hoverTarget.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+            hoverTarget.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+            hoverTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            hoverTarget.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+          } catch {}
+        }
+        await sleep(180);
+
+        const searchRoots = [rowContainer, rowContainer.parentElement, sidebarItem].filter(Boolean);
+        let threeDotsBtn = null;
+        for (const root of searchRoots) {
+          threeDotsBtn =
+            root.querySelector(
+              'button[data-test-id="actions-menu-button"], [data-test-id="actions-menu-button"], button.conversation-actions-menu-button, button[aria-label*="More options" i], button[aria-label*="Más opciones" i], button[aria-label*="More" i], button[aria-label*="Más" i], button[aria-label*="Opciones" i], button[mattooltip*="More" i], button[mattooltip*="Más" i]'
+            ) ||
+            Array.from(root.querySelectorAll('button, [role="button"]')).find((b) => {
+              const iconTxt = (b.innerText || b.textContent || '').trim().toLowerCase();
+              return (
+                Boolean(
+                  b.querySelector(
+                    'mat-icon[fonticon*="more" i], mat-icon[data-mat-icon-name*="more" i]'
+                  )
+                ) ||
+                iconTxt === 'more_vert' ||
+                iconTxt === 'more_horiz'
+              );
+            });
+          if (threeDotsBtn) break;
+        }
+
+        if (threeDotsBtn) {
+          // Force visible in case CSS hides the 3-dots button until OS hover
+          try {
+            threeDotsBtn.style.opacity = '1';
+            threeDotsBtn.style.visibility = 'visible';
+            threeDotsBtn.style.pointerEvents = 'auto';
+          } catch {}
+          fireMouseClick(threeDotsBtn);
+          await sleep(340);
+          renameOptionEl = findRenameMenuItemInOverlay();
         }
       }
 
-      if (!renameMenuTrigger) {
+      // 1B. Fallback: Try top conversation title / actions button in header
+      if (!renameOptionEl) {
         const topTitleBtn = document.querySelector(
-          'button[data-test-id="conversation-title"], .conversation-title-container button, [data-test-id="conversation-actions-button"], button[aria-label*="Conversation actions" i], button[aria-label*="Acciones de la conversación" i]'
+          'button[data-test-id="conversation-title"], [data-test-id="conversation-title"] button, [data-test-id="conversation-title"][role="button"], .conversation-title-container button, [data-test-id="conversation-actions-button"], button[aria-label*="Conversation actions" i], button[aria-label*="Acciones de la conversación" i]'
         );
-        if (topTitleBtn && isElementVisibleInDom(topTitleBtn)) {
-          renameMenuTrigger = topTitleBtn;
+        if (topTitleBtn && topTitleBtn.offsetParent !== null) {
+          fireMouseClick(topTitleBtn);
+          await sleep(340);
+          renameOptionEl = findRenameMenuItemInOverlay();
         }
       }
 
-      if (renameMenuTrigger) {
-        renameMenuTrigger.click();
-        await sleep(300);
-      }
+      if (!renameOptionEl) return false;
 
-      // 2. Find and click "Rename" / "Cambiar nombre" menu item or button
-      const menuItems = Array.from(
-        document.querySelectorAll(
-          'button[data-test-id="rename-button"], [role="menuitem"], .mat-mdc-menu-item, button[aria-label*="Rename" i], button[aria-label*="Cambiar nombre" i]'
-        )
-      );
-      let clickedRenameOption = false;
-      for (const item of menuItems) {
-        if (!isElementVisibleInDom(item)) continue;
-        const txt = (item.innerText || item.textContent || '').trim().toLowerCase();
-        const aria = (item.getAttribute('aria-label') || '').toLowerCase();
-        const hasEditIcon = Boolean(
-          item.querySelector('mat-icon[fonticon="edit"], mat-icon[data-mat-icon-name="edit"], mat-icon[fonticon="drive_file_rename_outline"]')
-        );
-        if (
-          txt.includes('rename') ||
-          txt.includes('cambiar nombre') ||
-          txt.includes('renombrar') ||
-          aria.includes('rename') ||
-          aria.includes('cambiar nombre') ||
-          hasEditIcon
-        ) {
-          item.click();
-          clickedRenameOption = true;
-          await sleep(320);
-          break;
-        }
-      }
+      // 2. Click "Rename" / "Cambiar nombre" option
+      fireMouseClick(renameOptionEl);
+      await sleep(360);
 
-      if (!clickedRenameOption) return false;
+      // 3. Also delegate input filling + confirm click to MAIN world (Angular Zone.js) AND execute in content script
+      chrome.runtime
+        .sendMessage({
+          type: 'GEMINI_MAIN_WORLD_COMPLETE_RENAME',
+          newTitle: cleanNewTitle,
+        })
+        .catch(() => {});
 
-      // 3. Find the rename text input inside the dialog or inline header
+      const activeEl = document.activeElement;
+      const isActiveRenameField =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+        !activeEl.closest('rich-textarea');
+
       const inputCandidates = Array.from(
         document.querySelectorAll(
-          'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, input[aria-label*="name" i], input[aria-label*="nombre" i], input[aria-label*="title" i], input[aria-label*="título" i], input[type="text"]'
+          'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, [role="dialog"] input, .conversation-items-container input, bard-sidenav input, .conversation-title-container input, input[aria-label*="name" i], input[aria-label*="nombre" i], input[aria-label*="title" i], input[aria-label*="título" i], input[type="text"]:not([readonly])'
         )
-      ).filter((el) => isElementVisibleInDom(el));
+      ).filter((el) => el && el.offsetParent !== null && !el.closest('rich-textarea'));
 
-      const renameInput = inputCandidates[0];
+      const renameInput = isActiveRenameField ? activeEl : inputCandidates[0];
       if (!renameInput) return false;
 
       renameInput.focus();
+      if (typeof renameInput.select === 'function') {
+        try {
+          renameInput.select();
+        } catch {}
+      }
+      try {
+        document.execCommand('selectAll', false);
+        document.execCommand('insertText', false, cleanNewTitle);
+      } catch {}
+
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
         'value'
@@ -1393,35 +1700,48 @@
       } else {
         renameInput.value = cleanNewTitle;
       }
-      renameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      renameInput.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: cleanNewTitle,
+        })
+      );
       renameInput.dispatchEvent(new Event('change', { bubbles: true }));
-      await sleep(160);
+      await sleep(240);
 
       // 4. Click Save/Rename button in dialog or press Enter
       const saveBtns = Array.from(
         document.querySelectorAll(
-          'button[data-test-id="confirm-button"], .mat-mdc-dialog-container button[type="submit"], mat-dialog-container button[color="primary"], .mat-mdc-dialog-actions button'
+          'button[data-test-id="confirm-button"], button[data-test-id="save-button"], .mat-mdc-dialog-actions button, mat-dialog-actions button, .mat-mdc-dialog-container button, mat-dialog-container button, [role="dialog"] button'
         )
-      ).filter((b) => isElementVisibleInDom(b) && !b.disabled);
+      ).filter((b) => b && b.offsetParent !== null);
 
-      let clickedSave = false;
-      for (const btn of saveBtns) {
-        const bTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-        if (
-          bTxt.includes('rename') ||
-          bTxt.includes('cambiar') ||
-          bTxt.includes('guardar') ||
-          bTxt.includes('save') ||
-          bTxt.includes('aceptar') ||
-          bTxt.includes('ok')
-        ) {
-          btn.click();
-          clickedSave = true;
-          break;
-        }
-      }
+      const confirmBtn =
+        saveBtns.find((btn) => {
+          const bTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+          const testId = (btn.getAttribute('data-test-id') || '').toLowerCase();
+          if (/cancel|cancelar|close|cerrar/i.test(bTxt)) return false;
+          return (
+            testId.includes('confirm') ||
+            testId.includes('save') ||
+            /\b(rename|cambiar|renombrar|guardar|save|aceptar|ok|confirm)\b/i.test(bTxt)
+          );
+        }) ||
+        saveBtns.find((btn) => {
+          const bTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+          return bTxt && !/cancel|cancelar|close|cerrar/i.test(bTxt);
+        });
 
-      if (!clickedSave) {
+      if (confirmBtn) {
+        try {
+          confirmBtn.disabled = false;
+          confirmBtn.removeAttribute('disabled');
+        } catch {}
+        fireMouseClick(confirmBtn);
+      } else {
         renameInput.dispatchEvent(
           new KeyboardEvent('keydown', {
             key: 'Enter',
@@ -1434,18 +1754,42 @@
         );
       }
 
-      await sleep(350);
+      await sleep(400);
+
+      const resolvedChatId =
+        extractChatIdFromUrl(targetChatUrl) || extractChatIdFromUrl(window.location.href);
+      const resolvedUrl = targetChatUrl || window.location.href;
+      if (docKey && resolvedChatId) {
+        saveStoredDocChatEntry(
+          docKey,
+          isDeepResearch
+            ? {
+                baseVideoName,
+                deepResearchChatId: resolvedChatId,
+                deepResearchChatUrl: resolvedUrl,
+                deepResearchChatTitle: cleanNewTitle,
+              }
+            : {
+                baseVideoName,
+                mainChatId: resolvedChatId,
+                mainChatUrl: resolvedUrl,
+                mainChatTitle: cleanNewTitle,
+              }
+        );
+      }
+
       chrome.runtime
         .sendMessage({
           type: 'GEMINI_CHAT_LINKED',
           docId,
-          geminiChatUrl: window.location.href,
+          geminiChatUrl: resolvedUrl,
           geminiChatTitle: cleanNewTitle,
+          isDeepResearch,
         })
         .catch(() => {});
       reportStatus(
         'COMPLETED',
-        `✏️ Conversación de Gemini renombrada en tiempo real a "${cleanNewTitle}".`,
+        `✏️ Conversación de Gemini renombrada a "${cleanNewTitle}".`,
         { docId }
       );
       return true;
@@ -1454,71 +1798,290 @@
     }
   }
 
-  async function ensureCorrectVideoChatBeforePrompt(payload) {
-    const targetVideoName = String(payload.videoName || '').trim();
-    const targetChatUrl = String(payload.geminiChatUrl || '').trim();
-    const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
-    const docId = payload.docId || '';
+  function scheduleNewChatLinkAndRename(targetChatTitle, docId, isDeepResearchOrder) {
+    const cleanTargetTitle = String(targetChatTitle || '').trim();
+    const baseVideoName = stripDeepResearchSuffix(cleanTargetTitle);
+    const docKey = docId || normalizeCompareText(baseVideoName);
+    const ownerToken = `${docKey}::${isDeepResearchOrder ? 'DEEP' : 'MAIN'}`;
+    window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = ownerToken;
 
-    if (!targetVideoName && !targetChatUrl) {
-      return { isNewChat: false };
-    }
+    let attempts = 0;
+    let hasLinkedUrl = false;
+    let hasRenamedSuccessfully = false;
+
+    const timer = setInterval(async () => {
+      attempts++;
+      if (attempts > 24 || hasRenamedSuccessfully) {
+        clearInterval(timer);
+        return;
+      }
+
+      const currentChatId = extractChatIdFromUrl(window.location.href);
+      const hasResponses =
+        getModelResponseElements().length > 0 ||
+        document.querySelectorAll('user-query, [data-message-author-role="user"]').length > 0;
+
+      if (!currentChatId && !hasResponses) return;
+
+      if (currentChatId && !hasLinkedUrl) {
+        hasLinkedUrl = true;
+        if (docKey) {
+          saveStoredDocChatEntry(
+            docKey,
+            isDeepResearchOrder
+              ? {
+                  baseVideoName,
+                  deepResearchChatId: currentChatId,
+                  deepResearchChatUrl: window.location.href,
+                  deepResearchChatTitle: cleanTargetTitle,
+                }
+              : {
+                  baseVideoName,
+                  mainChatId: currentChatId,
+                  mainChatUrl: window.location.href,
+                  mainChatTitle: cleanTargetTitle,
+                }
+          );
+        }
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_CHAT_LINKED',
+            docId,
+            geminiChatUrl: window.location.href,
+            geminiChatTitle: cleanTargetTitle || getActiveGeminiChatTitleInDom(),
+            isDeepResearch: isDeepResearchOrder,
+          })
+          .catch(() => {});
+      }
+
+      // Wait at least ~4.5s after submission so Gemini's initial auto-title is created in the sidebar before we rename it
+      if (attempts >= 4 && cleanTargetTitle && !hasRenamedSuccessfully) {
+        const currentDomTitle = getActiveGeminiChatTitleInDom();
+        if (
+          currentDomTitle &&
+          normalizeCompareText(currentDomTitle) === normalizeCompareText(cleanTargetTitle)
+        ) {
+          hasRenamedSuccessfully = true;
+          clearInterval(timer);
+          return;
+        }
+        const ok = await renameGeminiConversationInDom(
+          cleanTargetTitle,
+          window.location.href,
+          docId,
+          {
+            isDeepResearch: isDeepResearchOrder,
+            isActiveTabChat: true,
+          }
+        );
+        if (ok) {
+          hasRenamedSuccessfully = true;
+          clearInterval(timer);
+        }
+      }
+    }, 1200);
+  }
+
+  async function ensureCorrectVideoChatBeforePrompt(payload) {
+    const isDeepResearchOrder = Boolean(payload.enableDeepResearch);
+    const rawBaseVideoName = stripDeepResearchSuffix(payload.videoName || '');
+    const targetChatTitle = rawBaseVideoName
+      ? isDeepResearchOrder
+        ? `${rawBaseVideoName}_Deep Research`
+        : rawBaseVideoName
+      : '';
+    const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
+    const docId = String(payload.docId || '').trim();
+    const docKey = docId || normalizeCompareText(rawBaseVideoName);
+    const desiredOwnerToken = docKey ? `${docKey}::${isDeepResearchOrder ? 'DEEP' : 'MAIN'}` : '';
+
+    const storedEntry = getStoredDocChatEntry(docKey, rawBaseVideoName);
+    const mainChatUrl = String(payload.geminiChatUrl || storedEntry.mainChatUrl || '').trim();
+    const deepResearchChatUrl = String(
+      payload.geminiDeepResearchChatUrl || storedEntry.deepResearchChatUrl || ''
+    ).trim();
+
+    const targetChatUrl = isDeepResearchOrder ? deepResearchChatUrl : mainChatUrl;
+    const oppositeChatUrl = isDeepResearchOrder ? mainChatUrl : deepResearchChatUrl;
 
     const currentChatId = extractChatIdFromUrl(window.location.href);
-    const targetChatId = extractChatIdFromUrl(targetChatUrl);
-    const currentDomTitle = getActiveGeminiChatTitleInDom();
+    const targetChatId =
+      extractChatIdFromUrl(targetChatUrl) ||
+      (isDeepResearchOrder ? storedEntry.deepResearchChatId : storedEntry.mainChatId) ||
+      '';
+    const oppositeChatId =
+      extractChatIdFromUrl(oppositeChatUrl) ||
+      (isDeepResearchOrder ? storedEntry.mainChatId : storedEntry.deepResearchChatId) ||
+      '';
 
-    // Case 1: Already inside the exact linked chat URL or a chat whose title matches targetVideoName
-    if (
-      (targetChatId && currentChatId && targetChatId === currentChatId) ||
-      (targetVideoName && currentDomTitle && doesTitleMatchTargetVideo(currentDomTitle, targetVideoName))
-    ) {
+    const currentDomTitle = getActiveGeminiChatTitleInDom();
+    const currentDomIsDeep = hasDeepResearchSuffix(currentDomTitle);
+    const existingMessagesInCurrentTab =
+      getModelResponseElements().length +
+      document.querySelectorAll('user-query, [data-message-author-role="user"]').length;
+
+    if (!rawBaseVideoName && !targetChatUrl) {
+      return { isNewChat: false, targetChatTitle: '', isDeepResearchOrder };
+    }
+
+    // Case 1: Already inside the target chat for this documentary and mode (Main vs _Deep Research)
+    const isExactChatIdMatch = Boolean(
+      targetChatId && currentChatId && targetChatId === currentChatId
+    );
+    const isTitleMatchForSameMode = Boolean(
+      rawBaseVideoName &&
+        currentDomTitle &&
+        doesTitleMatchTargetVideo(currentDomTitle, rawBaseVideoName, isDeepResearchOrder) &&
+        (!oppositeChatId || currentChatId !== oppositeChatId)
+    );
+    const isAlreadyOwnedByThisDocAndMode = Boolean(
+      desiredOwnerToken &&
+        window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ === desiredOwnerToken &&
+        (currentChatId || existingMessagesInCurrentTab > 0) &&
+        (!oppositeChatId || currentChatId !== oppositeChatId) &&
+        currentDomIsDeep === isDeepResearchOrder
+    );
+
+    if (isExactChatIdMatch || isTitleMatchForSameMode || isAlreadyOwnedByThisDocAndMode) {
+      window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
+      if (docKey && currentChatId) {
+        saveStoredDocChatEntry(
+          docKey,
+          isDeepResearchOrder
+            ? {
+                baseVideoName: rawBaseVideoName,
+                deepResearchChatId: currentChatId,
+                deepResearchChatUrl: window.location.href,
+                deepResearchChatTitle: targetChatTitle || currentDomTitle,
+              }
+            : {
+                baseVideoName: rawBaseVideoName,
+                mainChatId: currentChatId,
+                mainChatUrl: window.location.href,
+                mainChatTitle: targetChatTitle || currentDomTitle,
+              }
+        );
+      }
       chrome.runtime
         .sendMessage({
           type: 'GEMINI_CHAT_LINKED',
           docId,
           geminiChatUrl: window.location.href,
-          geminiChatTitle: targetVideoName || currentDomTitle,
+          geminiChatTitle: targetChatTitle || currentDomTitle,
+          isDeepResearch: isDeepResearchOrder,
         })
         .catch(() => {});
 
       if (
-        targetVideoName &&
+        targetChatTitle &&
         currentDomTitle &&
-        normalizeCompareText(currentDomTitle) !== normalizeCompareText(targetVideoName)
+        normalizeCompareText(currentDomTitle) !== normalizeCompareText(targetChatTitle)
       ) {
-        await renameGeminiConversationInDom(targetVideoName, window.location.href, docId);
+        await renameGeminiConversationInDom(targetChatTitle, window.location.href, docId, {
+          isDeepResearch: isDeepResearchOrder,
+          isActiveTabChat: true,
+        });
       }
-      return { isNewChat: false };
+      return { isNewChat: false, targetChatTitle, isDeepResearchOrder };
     }
 
-    // Case 2: Search Gemini sidebar for an existing chat of this video (by URL or by Video Name / Number)
+    // Case 2: Search Gemini sidebar for an existing chat of this video & mode (Main vs _Deep Research)
     await ensureGeminiSidebarOpen();
-    const existingChatItem = findChatElementInSidebar(targetVideoName, targetChatUrl);
+    const existingChatItem = findChatElementInSidebar(
+      rawBaseVideoName,
+      targetChatUrl,
+      isDeepResearchOrder,
+      oppositeChatId
+    );
     if (existingChatItem) {
       reportStatus(
         'WORKING',
-        `🔍 Cambiando automáticamente a la conversación de "${targetVideoName}" en Gemini...`,
+        `🔍 Cambiando automáticamente al chat "${targetChatTitle}" en Gemini...`,
         { stageNumber: payload.stageNumber }
       );
       existingChatItem.click();
       await sleep(1500);
+      window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
+      const switchedChatId = extractChatIdFromUrl(window.location.href);
+      if (docKey && switchedChatId) {
+        saveStoredDocChatEntry(
+          docKey,
+          isDeepResearchOrder
+            ? {
+                baseVideoName: rawBaseVideoName,
+                deepResearchChatId: switchedChatId,
+                deepResearchChatUrl: window.location.href,
+                deepResearchChatTitle: targetChatTitle,
+              }
+            : {
+                baseVideoName: rawBaseVideoName,
+                mainChatId: switchedChatId,
+                mainChatUrl: window.location.href,
+                mainChatTitle: targetChatTitle,
+              }
+        );
+      }
       chrome.runtime
         .sendMessage({
           type: 'GEMINI_CHAT_LINKED',
           docId,
           geminiChatUrl: window.location.href,
-          geminiChatTitle: targetVideoName,
+          geminiChatTitle: targetChatTitle,
+          isDeepResearch: isDeepResearchOrder,
         })
         .catch(() => {});
-      return { isNewChat: false };
+
+      const domTitleAfterSwitch = getActiveGeminiChatTitleInDom();
+      if (
+        targetChatTitle &&
+        domTitleAfterSwitch &&
+        normalizeCompareText(domTitleAfterSwitch) !== normalizeCompareText(targetChatTitle)
+      ) {
+        await renameGeminiConversationInDom(targetChatTitle, window.location.href, docId, {
+          isDeepResearch: isDeepResearchOrder,
+          isActiveTabChat: true,
+        });
+      }
+      return { isNewChat: false, targetChatTitle, isDeepResearchOrder };
     }
 
-    // Case 3: No chat exists yet for this video -> Open a new chat inside the Notebook "Huellas de la Humanidad"
-    const existingMessagesInCurrentTab = getModelResponseElements().length;
-    const normNotebook = normalizeCompareText(notebookName);
+    // Case 3: No chat exists yet for this video & mode:
+    // - If current tab is ALREADY an empty new chat (no messages and no chatId) and we want a standard chat (or Deep Research), reuse it directly!
+    if (existingMessagesInCurrentTab === 0 && !currentChatId && isDeepResearchOrder) {
+      window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
+      return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
+    }
 
-    // Look for Notebook / Gem / Project "Huellas de la Humanidad" in the sidebar
+    // - For Deep Research (enableDeepResearch === true): MUST open a separate standard Gemini chat ("New chat" / "Nuevo chat") so Deep Research tool is available and separated from the Main Chat!
+    if (isDeepResearchOrder) {
+      const newChatBtns = document.querySelectorAll(
+        'button[data-test-id="new-chat-button"], a[data-test-id="new-chat-button"], button[aria-label*="New chat" i], button[aria-label*="Nuevo chat" i], button[aria-label*="Nueva conversación" i], a[href="/app"]'
+      );
+      let clickedNewChatForDeep = false;
+      for (const btn of newChatBtns) {
+        if (isElementVisibleInDom(btn)) {
+          reportStatus(
+            'WORKING',
+            `🔬 Creando chat aparte "${targetChatTitle}" para la investigación con Deep Research...`,
+            { stageNumber: payload.stageNumber }
+          );
+          btn.click();
+          clickedNewChatForDeep = true;
+          await sleep(1300);
+          break;
+        }
+      }
+      if (!clickedNewChatForDeep && (existingMessagesInCurrentTab > 0 || currentChatId)) {
+        window.location.href = 'https://gemini.google.com/app';
+        await sleep(1500);
+      }
+      window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
+      return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
+    }
+
+    // - For Main Chat (enableDeepResearch === false):
+    //   Only click the Notebook/Gem "Huellas de la Humanidad" or "New chat" ONCE when creating the Main Chat for the very first time!
+    const normNotebook = normalizeCompareText(notebookName);
     const sidebarLinks = Array.from(
       document.querySelectorAll('a, button, [role="button"], [role="listitem"], [role="treeitem"]')
     );
@@ -1529,7 +2092,7 @@
       if (txt === normNotebook || (txt.includes('huellas de la humanidad') && txt.length < 45)) {
         reportStatus(
           'WORKING',
-          `📓 Entrando al Notebook "${notebookName}" para crear el chat de "${targetVideoName}"...`,
+          `📓 Entrando al Notebook "${notebookName}" para crear el chat único "${targetChatTitle}"...`,
           { stageNumber: payload.stageNumber }
         );
         el.click();
@@ -1539,7 +2102,6 @@
       }
     }
 
-    // If current tab still has messages from another video (e.g. Video 76), click "New chat" / "Nuevo chat"
     if (!notebookClicked && (existingMessagesInCurrentTab > 0 || currentChatId)) {
       const newChatBtns = document.querySelectorAll(
         'button[data-test-id="new-chat-button"], a[data-test-id="new-chat-button"], button[aria-label*="New chat" i], button[aria-label*="Nuevo chat" i], button[aria-label*="Nueva conversación" i], a[href="/app"]'
@@ -1548,7 +2110,7 @@
         if (isElementVisibleInDom(btn)) {
           reportStatus(
             'WORKING',
-            `✨ Creando nueva conversación exclusiva para "${targetVideoName}"...`,
+            `✨ Creando conversación única para "${targetChatTitle}"...`,
             { stageNumber: payload.stageNumber }
           );
           btn.click();
@@ -1558,7 +2120,8 @@
       }
     }
 
-    return { isNewChat: true };
+    window.__HUELLAS_CURRENT_TAB_CHAT_OWNER__ = desiredOwnerToken;
+    return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
   }
 
   function executeSinglePromptOrder(payload) {
@@ -1694,35 +2257,31 @@
             }
           }
 
+          const resolvedTargetChatTitle =
+            (chatState && chatState.targetChatTitle) ||
+            (payload.enableDeepResearch
+              ? payload.deepResearchVideoName ||
+                (payload.videoName
+                  ? `${stripDeepResearchSuffix(payload.videoName)}_Deep Research`
+                  : '')
+              : stripDeepResearchSuffix(payload.videoName || ''));
+
           watchForNewResponse(initialCount, initialLastText, {
             stageNumber: payload.stageNumber,
             taskType: payload.taskType || 'STAGE_GENERATION',
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
+            targetChatTitle: resolvedTargetChatTitle,
+            docId: payload.docId || '',
           });
 
-          // If this was the first prompt of the video, capture the newly assigned chat URL and rename the chat to payload.videoName
-          if (payload.videoName || payload.docId) {
-            setTimeout(async () => {
-              const chatId = extractChatIdFromUrl(window.location.href);
-              if (chatId) {
-                chrome.runtime
-                  .sendMessage({
-                    type: 'GEMINI_CHAT_LINKED',
-                    docId: payload.docId,
-                    geminiChatUrl: window.location.href,
-                    geminiChatTitle: payload.videoName || getActiveGeminiChatTitleInDom(),
-                  })
-                  .catch(() => {});
-                if (chatState && chatState.isNewChat && payload.videoName) {
-                  await renameGeminiConversationInDom(
-                    payload.videoName,
-                    window.location.href,
-                    payload.docId
-                  );
-                }
-              }
-            }, 3200);
+          // Poll for newly assigned chat URL (/app/<id> or /gem/<gemId>/<id>), link it, and rename the chat to resolvedTargetChatTitle
+          if (resolvedTargetChatTitle || payload.docId) {
+            scheduleNewChatLinkAndRename(
+              resolvedTargetChatTitle,
+              payload.docId || '',
+              Boolean(payload.enableDeepResearch)
+            );
           }
         } else {
           isBusyWithOrder = false;
@@ -1760,9 +2319,45 @@
     }
 
     if (msg.action === 'RENAME_GEMINI_CHAT') {
-      renameGeminiConversationInDom(msg.videoName, msg.geminiChatUrl, msg.docId).then((ok) => {
+      (async () => {
+        const baseName = stripDeepResearchSuffix(msg.videoName || '');
+        const deepName =
+          msg.deepResearchVideoName || (baseName ? `${baseName}_Deep Research` : '');
+        const currentTitle = getActiveGeminiChatTitleInDom();
+        const isCurrentlyInDeepChat = hasDeepResearchSuffix(currentTitle);
+
+        let ok = false;
+        if (isCurrentlyInDeepChat && deepName) {
+          ok = await renameGeminiConversationInDom(
+            deepName,
+            msg.geminiDeepResearchChatUrl || window.location.href,
+            msg.docId,
+            { isDeepResearch: true, isActiveTabChat: true }
+          );
+          if (baseName && msg.geminiChatUrl) {
+            await renameGeminiConversationInDom(baseName, msg.geminiChatUrl, msg.docId, {
+              isDeepResearch: false,
+              isActiveTabChat: false,
+            });
+          }
+        } else if (baseName) {
+          ok = await renameGeminiConversationInDom(
+            baseName,
+            msg.geminiChatUrl || window.location.href,
+            msg.docId,
+            { isDeepResearch: false, isActiveTabChat: true }
+          );
+          if (deepName && msg.geminiDeepResearchChatUrl) {
+            await renameGeminiConversationInDom(
+              deepName,
+              msg.geminiDeepResearchChatUrl,
+              msg.docId,
+              { isDeepResearch: true, isActiveTabChat: false }
+            );
+          }
+        }
         sendResponse({ handled: ok });
-      });
+      })();
       return true;
     }
 

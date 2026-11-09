@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:28 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:45 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4192,7 +4192,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return (!isGenericTitle ? rawTitle : effectiveDocFolderName) || rawTitle || '';
   }, [activeDoc?.title, effectiveDocFolderName]);
 
-  // Keep global Gemini context synchronized with the active documentary so every prompt goes to its single dedicated conversation inside "Huellas de la Humanidad"
+  // Keep global Gemini context synchronized with the active documentary so every prompt goes to its single dedicated conversation (or _Deep Research chat for Deep Research)
   useEffect(() => {
     if (!activeDoc) {
       setActiveGeminiDocContext(null);
@@ -4202,9 +4202,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       docId: activeDoc.id,
       videoName: currentCanonicalVideoName,
       geminiChatUrl: activeDoc.geminiChatUrl,
+      geminiDeepResearchChatUrl: activeDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
       notebookName: 'Huellas de la Humanidad',
     });
-  }, [activeDoc?.id, currentCanonicalVideoName, activeDoc?.geminiChatUrl]);
+  }, [
+    activeDoc?.id,
+    currentCanonicalVideoName,
+    activeDoc?.geminiChatUrl,
+    activeDoc?.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL,
+  ]);
 
   // Sync draft input when switching documentaries or selecting a folder (unless user is actively typing in the input)
   useEffect(() => {
@@ -4277,7 +4283,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         geminiChatTitle: serverFolderName,
       });
 
-      // Check if a Gemini conversation is already created/linked for this video
+      // Check if a Gemini conversation or tab is available for this video
       const vNum = extractDocVideoNumber(`${serverFolderName} ${doc.title || ''}`);
       const matchingTab = geminiTabs.find((t) => {
         if (doc.geminiChatUrl && t.url && t.url.split('?')[0] === doc.geminiChatUrl.split('?')[0]) {
@@ -4288,23 +4294,32 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         return false;
       });
-      const hasExistingGeminiChat = Boolean(doc.geminiChatUrl || matchingTab);
+      const canSendGeminiRename =
+        Boolean(extensionInstalled || isHuellasExtensionDetected()) &&
+        Boolean(
+          doc.geminiChatUrl ||
+            doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+            matchingTab ||
+            geminiTabs.length > 0
+        );
 
-      if (hasExistingGeminiChat && (extensionInstalled || isHuellasExtensionDetected())) {
+      if (canSendGeminiRename) {
         sendCommandToWebBridge('GEMINI', {
           action: 'RENAME_GEMINI_CHAT',
           docId: doc.id,
           videoName: serverFolderName,
+          deepResearchVideoName: `${serverFolderName}_Deep Research`,
           geminiChatUrl: doc.geminiChatUrl || matchingTab?.url || '',
+          geminiDeepResearchChatUrl: doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
           notebookName: 'Huellas de la Humanidad',
-          tabId: matchingTab?.id || selectedGeminiTabId,
+          tabId: matchingTab?.id || selectedGeminiTabId || geminiTabs[0]?.id,
         });
         setRealtimeRenameStatusMsg(
-          `✅ Sincronizado en tiempo real: Carpeta en Mac ("${serverFolderName}") y conversación en Gemini (Notebook "Huellas de la Humanidad") renombradas.`
+          `✅ Sincronizado: Carpeta en Mac ("${serverFolderName}") y chat en Gemini ("${serverFolderName}" / "${serverFolderName}_Deep Research") actualizados.`
         );
       } else {
         setRealtimeRenameStatusMsg(
-          `✅ Carpeta en Mac actualizada en tiempo real ("${serverFolderName}"). Como aún no hay chat en Gemini para este video, se creará automáticamente en el Notebook "Huellas de la Humanidad" con este nombre al enviar el primer prompt.`
+          `✅ Carpeta en Mac actualizada ("${serverFolderName}"). Al enviar el prompt en Gemini se nombrará "${serverFolderName}" (y "${serverFolderName}_Deep Research" para Deep Research).`
         );
       }
     } finally {
@@ -7973,20 +7988,39 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       } else if (msg.type === 'GEMINI_CHAT_LINKED') {
         setExtensionInstalled(true);
-        const linkedChatUrl = String(msg.chatUrl || '').trim();
-        const linkedChatTitle = String(msg.chatTitle || '').trim();
+        const linkedChatUrl = String(msg.geminiChatUrl || msg.chatUrl || '').trim();
+        const linkedChatTitle = String(msg.geminiChatTitle || msg.chatTitle || '').trim();
+        const isDeepResearchChat =
+          Boolean(msg.isDeepResearch) || /_\s*deep\s*research$/i.test(linkedChatTitle);
         const targetDocId = String(msg.docId || '').trim();
         const currentDoc = activeDocRef.current || activeDoc;
         if (currentDoc && (!targetDocId || targetDocId === currentDoc.id)) {
-          const patch: Partial<DocumentaryProject> = {};
-          if (linkedChatUrl && linkedChatUrl !== currentDoc.geminiChatUrl) {
-            patch.geminiChatUrl = linkedChatUrl;
-          }
-          if (linkedChatTitle && linkedChatTitle !== currentDoc.geminiChatTitle) {
-            patch.geminiChatTitle = linkedChatTitle;
-          }
-          if (Object.keys(patch).length > 0) {
-            updateActiveDoc(patch);
+          if (isDeepResearchChat) {
+            const prevDeepUrl = currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '';
+            const prevDeepTitle = currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_TITLE || '';
+            if (
+              (linkedChatUrl && linkedChatUrl !== prevDeepUrl) ||
+              (linkedChatTitle && linkedChatTitle !== prevDeepTitle)
+            ) {
+              updateActiveDoc({
+                promptConfig: {
+                  ...(currentDoc.promptConfig || {}),
+                  ...(linkedChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: linkedChatUrl } : {}),
+                  ...(linkedChatTitle ? { GEMINI_DEEP_RESEARCH_CHAT_TITLE: linkedChatTitle } : {}),
+                },
+              });
+            }
+          } else {
+            const patch: Partial<DocumentaryProject> = {};
+            if (linkedChatUrl && linkedChatUrl !== currentDoc.geminiChatUrl) {
+              patch.geminiChatUrl = linkedChatUrl;
+            }
+            if (linkedChatTitle && linkedChatTitle !== currentDoc.geminiChatTitle) {
+              patch.geminiChatTitle = linkedChatTitle;
+            }
+            if (Object.keys(patch).length > 0) {
+              updateActiveDoc(patch);
+            }
           }
         }
       } else if (msg.type === 'BRIDGE_STATUS') {
