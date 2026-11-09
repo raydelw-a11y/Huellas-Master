@@ -3472,58 +3472,97 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const target = { tabId: rnTabId };
       let attached = false;
       let prevActiveTabId = null;
-      const locate = async (step) => {
+      const locate = async (step, clickInDom = false) => {
         const res = await chrome.scripting
           .executeScript({
             target: { tabId: rnTabId },
-            args: [step, wantChatId, wantNb, newTitle, Boolean(message.proven)],
-            func: (op, chatId, nbPath, title, proven) => {
+            world: 'MAIN',
+            args: [step, wantChatId, wantNb, newTitle, Boolean(message.proven), Boolean(clickInDom)],
+            func: (op, chatId, nbPath, title, proven, doClick) => {
               const vis = (el) => {
                 if (!el) return false;
                 const r = el.getBoundingClientRect();
                 return r.width > 2 && r.height > 2;
               };
-              const center = (el) => {
+              const act = (el) => {
                 const r = el.getBoundingClientRect();
+                if (doClick) {
+                  try {
+                    el.click();
+                  } catch {}
+                }
                 return { found: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
               };
               const path = location.pathname.replace(/\/$/, '');
               const curChat = (path.match(/\/app\/([a-zA-Z0-9_-]{6,})$/) || [])[1] || '';
               const activeNb = document.querySelector('a[href*="/notebook/"][aria-current="page"]');
-              const activeNbPath = activeNb ? new URL(activeNb.getAttribute('href'), location.origin).pathname : '';
-              const inside = curChat === chatId && (activeNbPath === nbPath || (!activeNbPath && proven));
-              if (!inside) return { found: false, notInside: true, curChat, activeNbPath };
+              const activeNbHref = activeNb ? activeNb.getAttribute('href') || '' : '';
+              const activeNbUuid = (activeNbHref.match(/\/notebook\/([a-zA-Z0-9_-]+)/) || [])[1] || '';
+              const wantNbUuid = (String(nbPath || '').match(/\/notebook\/([a-zA-Z0-9_-]+)/) || [])[1] || '';
+              const inside =
+                curChat === chatId &&
+                Boolean(wantNbUuid) &&
+                (proven || !activeNbUuid || activeNbUuid === wantNbUuid);
+              if (!inside) return { found: false, notInside: true, curChat, activeNbUuid, wantNbUuid };
               if (op === 'TRIGGER') {
                 const b = Array.from(
-                  document.querySelectorAll('button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i]')
+                  document.querySelectorAll(
+                    'button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i], button[aria-label*="acciones de conversación" i], button[aria-label*="opciones de conversación" i], [data-test-id="conversation-actions-button"], button[data-test-id="conversation-title"]'
+                  )
                 ).find(vis);
-                return b ? center(b) : { found: false };
+                return b ? act(b) : { found: false };
               }
               if (op === 'RENAME_ITEM') {
-                const it = Array.from(document.querySelectorAll('[data-test-id="rename-button"]')).find(vis);
-                return it ? center(it) : { found: false };
+                const it = Array.from(
+                  document.querySelectorAll('[data-test-id="rename-button"], [role="menuitem"]')
+                ).find(
+                  (el) =>
+                    vis(el) &&
+                    ((el.getAttribute('data-test-id') || '') === 'rename-button' ||
+                      /^(rename|cambiar(?:\s+el)?\s+nombre|renombrar)$/i.test((el.innerText || '').trim()))
+                );
+                return it ? act(it) : { found: false };
               }
               if (op === 'INPUT') {
                 const inp = Array.from(
-                  document.querySelectorAll('input[aria-label="Rename this chat"], [data-test-id="edit-title-input"] input, input[aria-label*="rename" i], input[aria-label*="cambiar nombre" i]')
+                  document.querySelectorAll(
+                    'input[aria-label="Rename this chat"], [data-test-id="edit-title-input"] input, input[aria-label*="rename" i], input[aria-label*="cambiar nombre" i], [role="dialog"] input, mat-dialog-container input'
+                  )
                 ).find(vis);
                 if (!inp) return { found: false };
                 inp.focus();
                 try {
-                  inp.select();
+                  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                  if (setter) setter.call(inp, title);
+                  else inp.value = title;
+                  inp.dispatchEvent(
+                    new InputEvent('input', {
+                      bubbles: true,
+                      cancelable: true,
+                      composed: true,
+                      data: title,
+                      inputType: 'insertText',
+                    })
+                  );
+                  inp.dispatchEvent(new Event('change', { bubbles: true }));
                 } catch {}
-                return center(inp);
+                const r = inp.getBoundingClientRect();
+                return { found: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
               }
               if (op === 'CONFIRM') {
-                const dlg = document.querySelector('[data-test-id="edit-title-input"]')?.closest('[role="dialog"], mat-dialog-container, .mat-mdc-dialog-container') || document;
+                const dlg =
+                  document
+                    .querySelector('[data-test-id="edit-title-input"], input[aria-label="Rename this chat"]')
+                    ?.closest('[role="dialog"], mat-dialog-container, .mat-mdc-dialog-container') || document;
                 const btn = Array.from(dlg.querySelectorAll('button')).find(
-                  (b) => vis(b) && !b.disabled && /^(rename|cambiar nombre|renombrar|guardar|save)$/i.test((b.innerText || '').trim())
+                  (b) => vis(b) && !b.disabled && /^(rename|cambiar(?:\s+el)?\s+nombre|renombrar|guardar|save)$/i.test((b.innerText || '').trim())
                 );
-                return btn ? center(btn) : { found: false };
+                return btn ? act(btn) : { found: false };
               }
               if (op === 'VERIFY') {
                 const t = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-                return { found: true, done: t === title, title: t };
+                const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                return { found: true, done: norm(t) === norm(title), title: t };
               }
               return { found: false };
             },
@@ -3531,10 +3570,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           .catch(() => []);
         return (res && res[0] && res[0].result) || { found: false };
       };
-      const waitLocate = async (step, tries = 10) => {
+      const waitLocate = async (step, tries = 10, clickInDom = false) => {
         let r = null;
         for (let i = 0; i < tries; i++) {
-          r = await locate(step);
+          r = await locate(step, clickInDom);
           if (r.found || r.notInside) return r;
           await sleep(150);
         }
@@ -3554,6 +3593,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ ok: true, already: true });
           return;
         }
+
+        // Fast MAIN-world rename pass (works even when DevTools/CDP is already attached to the tab)
+        let verified = false;
+        const mTrig = await waitLocate('TRIGGER', 8, true);
+        if (mTrig.found) {
+          await sleep(250);
+          const mItem = await waitLocate('RENAME_ITEM', 8, true);
+          if (mItem.found) {
+            await sleep(300);
+            const mInp = await waitLocate('INPUT', 8, false);
+            if (mInp.found) {
+              await sleep(220);
+              const mConf = await waitLocate('CONFIRM', 8, true);
+              if (mConf.found) {
+                for (let i = 0; i < 10 && !verified; i++) {
+                  await sleep(220);
+                  const v = await locate('VERIFY');
+                  verified = Boolean(v.done);
+                }
+              }
+            }
+          }
+        }
+        if (verified) {
+          sendResponse({ ok: true });
+          return;
+        }
+
+        // Fallback: Hardware CDP pass if MAIN-world click did not complete the rename
         try {
           const t = await chrome.tabs.get(rnTabId);
           if (t && !t.active) {
@@ -3563,40 +3631,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await sleep(250);
           }
         } catch {}
-        await chrome.debugger.attach(target, '1.3');
-        attached = true;
-        await sleep(450);
+        try {
+          await chrome.debugger.attach(target, '1.3');
+          attached = true;
+          await sleep(400);
+        } catch {}
 
-        const trig = await waitLocate('TRIGGER');
-        if (!trig.found) throw new Error(trig.notInside ? 'fuera del Notebook' : 'menú de la conversación no encontrado');
-        await dispatchHardwareClick(target, trig.x, trig.y);
-        const item = await waitLocate('RENAME_ITEM');
-        if (!item.found) throw new Error('opción Rename no encontrada');
-        await dispatchHardwareClick(target, item.x, item.y);
-        const inp = await waitLocate('INPUT');
-        if (!inp.found) throw new Error('campo de nombre no encontrado');
-        // select-all + trusted typing replaces the old title
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-          type: 'rawKeyDown', key: 'a', code: 'KeyA', modifiers: 4, windowsVirtualKeyCode: 65,
-        }).catch(() => {});
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-          type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 4, windowsVirtualKeyCode: 65,
-        }).catch(() => {});
-        await chrome.debugger.sendCommand(target, 'Input.insertText', { text: newTitle });
-        await sleep(300);
-        const confirm = await waitLocate('CONFIRM');
-        if (!confirm.found) throw new Error(confirm.notInside ? 'fuera del Notebook' : 'botón Rename no habilitado');
-        await dispatchHardwareClick(target, confirm.x, confirm.y);
-        let verified = false;
-        for (let i = 0; i < 12 && !verified; i++) {
+        if (attached) {
+          const trig = await waitLocate('TRIGGER', 8, false);
+          if (!trig.found) throw new Error(trig.notInside ? 'fuera del Notebook' : 'menú de la conversación no encontrado');
+          await dispatchHardwareClick(target, trig.x, trig.y);
+          const item = await waitLocate('RENAME_ITEM', 8, false);
+          if (!item.found) throw new Error('opción Rename no encontrada');
+          await dispatchHardwareClick(target, item.x, item.y);
+          const inp = await waitLocate('INPUT', 8, false);
+          if (!inp.found) throw new Error('campo de nombre no encontrado');
           await sleep(250);
-          const v = await locate('VERIFY');
-          verified = Boolean(v.done);
+          const confirm = await waitLocate('CONFIRM', 8, false);
+          if (!confirm.found) throw new Error(confirm.notInside ? 'fuera del Notebook' : 'botón Rename no habilitado');
+          await dispatchHardwareClick(target, confirm.x, confirm.y);
+          for (let i = 0; i < 12 && !verified; i++) {
+            await sleep(250);
+            const v = await locate('VERIFY');
+            verified = Boolean(v.done);
+          }
         }
         sendResponse({ ok: verified, error: verified ? '' : 'el título no cambió' });
       } catch (err) {
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+        if (attached) {
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+        }
         sendResponse({ ok: false, error: String(err?.message || err) });
       } finally {
         if (attached) await chrome.debugger.detach(target).catch(() => {});

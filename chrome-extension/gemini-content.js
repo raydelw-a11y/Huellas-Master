@@ -1222,19 +1222,16 @@
               }, 400);
             }
             if (meta && meta.targetChatTitle) {
-              const currentTitleNow = getActiveGeminiChatTitleInDom();
-              if (
-                !currentTitleNow ||
-                normalizeCompareText(currentTitleNow) !== normalizeCompareText(meta.targetChatTitle)
-              ) {
-                renameGeminiConversationInDom(
-                  meta.targetChatTitle,
-                  window.location.href,
-                  meta.docId,
+              const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+              if (normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)) {
+                linkAndRenameAfterSubmit(
                   {
-                    isDeepResearch: Boolean(meta.enableDeepResearch),
-                    isActiveTabChat: true,
-                  }
+                    ...(meta.chatState || {}),
+                    targetChatTitle: meta.targetChatTitle,
+                    isDeepResearchOrder: Boolean(meta.enableDeepResearch),
+                    isNewChat: false,
+                  },
+                  meta.docId || ''
                 ).finally(() => {
                   processNextQueuedPrompt();
                 });
@@ -2689,6 +2686,23 @@
           })
           .catch(() => {});
         reportStatus('COMPLETED', message, meta);
+        if (meta && meta.targetChatTitle) {
+          const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+          if (normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)) {
+            linkAndRenameAfterSubmit(
+              {
+                ...(meta.chatState || {}),
+                targetChatTitle: meta.targetChatTitle,
+                isDeepResearchOrder: true,
+                isNewChat: false,
+              },
+              meta.docId || ''
+            ).finally(() => {
+              processNextQueuedPrompt();
+            });
+            return;
+          }
+        }
       } else {
         reportStatus('ERROR', message, meta);
       }
@@ -2931,6 +2945,8 @@
         : baseVideoName
       : '';
     const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
+    const docId = String(payload.docId || '').trim();
+    const docKey = docId || normalizeCompareText(baseVideoName);
     const stage = { stageNumber: payload.stageNumber };
     const base = { targetChatTitle, isDeepResearchOrder };
 
@@ -2944,11 +2960,32 @@
     }
     await loadKnownNotebookChats(nbPath);
 
-    // Already inside this video's chat of the notebook (exact title + notebook membership)
+    const stored = getStoredDocChatEntry(docKey, baseVideoName) || {};
+    const linkedChatId =
+      getAppChatIdFromUrl(
+        isDeepResearchOrder
+          ? payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl
+          : payload.geminiChatUrl || stored.mainChatUrl
+      ) ||
+      (isDeepResearchOrder ? stored.deepResearchChatId : stored.mainChatId) ||
+      '';
+    const oppositeChatId =
+      getAppChatIdFromUrl(
+        isDeepResearchOrder
+          ? payload.geminiChatUrl || stored.mainChatUrl
+          : payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl
+      ) ||
+      (isDeepResearchOrder ? stored.mainChatId : stored.deepResearchChatId) ||
+      '';
+
+    // Already inside this video's chat of the notebook (exact title OR linked chatId + notebook membership)
     const curChatId = getAppChatIdFromUrl(window.location.href);
     if (curChatId && isInsideNotebook(nbPath) && targetChatTitle) {
       const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-      if (normalizeCompareText(docTitle) === normalizeCompareText(targetChatTitle)) {
+      const isSameLinkedChat = Boolean(
+        linkedChatId && curChatId === linkedChatId && (!oppositeChatId || curChatId !== oppositeChatId)
+      );
+      if (normalizeCompareText(docTitle) === normalizeCompareText(targetChatTitle) || isSameLinkedChat) {
         return { ...base, isNewChat: false, nbPath, chatId: curChatId };
       }
     }
@@ -2991,19 +3028,24 @@
     return { ...base, isNewChat: true, nbPath, chatId: '' };
   }
 
-  // Link + single rename of THIS order's chat, only while it is inside the notebook
+  // Link + rename of THIS order's chat, only while it is inside the notebook
   async function linkAndRenameAfterSubmit(chatState, docId) {
-    if (!chatState || !chatState.nbPath) return;
-    const nbPath = chatState.nbPath;
+    if (!chatState) return;
+    let nbPath = chatState.nbPath || '';
+    if (!nbPath) {
+      nbPath = await resolveNotebookPath('Huellas de la Humanidad');
+    }
+    if (!nbPath) return;
     const title = String(chatState.targetChatTitle || '').trim();
     const isDeep = Boolean(chatState.isDeepResearchOrder);
     const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 60000);
     if (!ok) return;
+    const chatId = getAppChatIdFromUrl(window.location.href);
+    if (!chatId) return;
     // A new chat sent from the notebook page's own composer belongs to the notebook
-    if (chatState.isNewChat) await rememberNotebookChat(nbPath, getAppChatIdFromUrl(window.location.href));
+    if (chatState.isNewChat) await rememberNotebookChat(nbPath, chatId);
     for (let i = 0; i < 25 && !isInsideNotebook(nbPath); i++) await sleep(200);
     if (!isInsideNotebook(nbPath)) return;
-    const chatId = getAppChatIdFromUrl(window.location.href);
     if (chatState.chatId && chatState.chatId !== chatId) return;
     const chatUrl = `https://gemini.google.com/app/${chatId}`;
     const baseVideoName = stripDeepResearchSuffix(title);
@@ -3020,8 +3062,8 @@
       .sendMessage({ type: 'GEMINI_CHAT_LINKED', docId, geminiChatUrl: chatUrl, geminiChatTitle: title, isDeepResearch: isDeep, notebookPath: nbPath })
       .catch(() => {});
     if (!title) return;
-    await sleep(chatState.isNewChat ? 7000 : 1500);
-    for (let attempt = 0; attempt < 2; attempt++) {
+    await sleep(chatState.isNewChat ? 5000 : 800);
+    for (let attempt = 0; attempt < 3; attempt++) {
       const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
       if (normalizeCompareText(docTitle) === normalizeCompareText(title)) return;
       if (!isInsideNotebook(nbPath) || getAppChatIdFromUrl(window.location.href) !== chatId) return;
@@ -3032,11 +3074,14 @@
           title,
           chatId,
           nbPath,
-          proven: knownNotebookChats.has(`${nbPath}|${chatId}`),
+          proven: knownNotebookChats.has(`${nbPath}|${chatId}`) || Boolean(chatState.isNewChat),
         });
       } catch {}
-      if (res && res.ok) return;
-      await sleep(8000);
+      if (res && res.ok) {
+        reportStatus('WORKING', `✏️ Conversación del Notebook renombrada a "${title}".`, { docId });
+        return;
+      }
+      await sleep(6000);
     }
   }
 
@@ -3090,6 +3135,7 @@
             docId: payload.docId || '',
             initialUserQueries: 0,
             resumeResearching: true,
+            chatState,
           });
           return;
         }
@@ -3272,6 +3318,7 @@
             docId: payload.docId || '',
             initialUserQueries,
             promptFingerprint,
+            chatState,
           });
 
           // Link the chat id once Gemini assigns /app/<chatId> inside the notebook, then rename ONLY that chat (once)
@@ -3339,6 +3386,28 @@
             });
             ok = Boolean(res && res.ok);
           } catch {}
+          if (ok) {
+            const chatUrl = `https://gemini.google.com/app/${chatId}`;
+            const docKey = msg.docId || normalizeCompareText(baseName);
+            if (docKey) {
+              saveStoredDocChatEntry(
+                docKey,
+                isDeepChat
+                  ? { baseVideoName: baseName, deepResearchChatId: chatId, deepResearchChatUrl: chatUrl, deepResearchChatTitle: newTitle }
+                  : { baseVideoName: baseName, mainChatId: chatId, mainChatUrl: chatUrl, mainChatTitle: newTitle }
+              );
+            }
+            chrome.runtime
+              .sendMessage({
+                type: 'GEMINI_CHAT_LINKED',
+                docId: msg.docId || '',
+                geminiChatUrl: chatUrl,
+                geminiChatTitle: newTitle,
+                isDeepResearch: isDeepChat,
+                notebookPath: nbPath,
+              })
+              .catch(() => {});
+          }
         }
         sendResponse({ handled: ok });
       })();
