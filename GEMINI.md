@@ -24,8 +24,9 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
    - **ESTÁ TERMINANTEMENTE PROHIBIDO** que el agente principal empiece a editar código o resolver el problema en solitario sin ejecutar este flujo completo.
    - En cuanto el usuario escriba `modo duo` o `modo trio`, debes ejecutar obligatoriamente esta secuencia inicial:
      1. Mostrar en el chat el encabezado visible: **`🤝 [MODO DUO ACTIVADO: Consultando Perspectiva Externa en Gemini Web (Argon High) + Invocando Agentes]`** (o `MODO TRIO`).
-     2. **Perspectiva Externa en Gemini Web (Chat Nuevo SIN Notebook, Argon en High)**:
-        - Mediante `chrome-devtools` MCP en la ventana de Gemini (`gemini.google.com`), abre un **chat nuevo limpio fuera de cualquier Notebook** (`https://gemini.google.com/app`), verifica/selecciona el modelo **Argon** con **Thinking Level en High** (sin Deep Research y fuera del Notebook para no mezclar chats de documentales), envía el problema del que se está hablando y espera hasta capturar su respuesta completa.
+     2. **Perspectiva Externa en Gemini Web (Misma Ventana Ya Abierta -> Chat Nuevo SIN Notebook, Argon en High)**:
+        - **PROHIBIDO abrir una ventana o pestaña nueva de Gemini (`new_page`) si ya hay una abierta**: usa `list_pages` y `select_page` en `chrome-devtools` MCP para reutilizar la ventana/pestaña de `gemini.google.com` que ya está abierta (solo abre una pestaña nueva si no existe ninguna de Gemini abierta).
+        - Dentro de esa misma ventana de Gemini ya abierta, inicia un **chat nuevo limpio por fuera de todos los Notebooks** (navegando a `https://gemini.google.com/app` o pulsando "New chat" fuera del Notebook), verifica/selecciona el modelo **Argon** con **Thinking Level en High**, envía el problema del que se está hablando y espera hasta capturar su respuesta completa.
      3. **Invocación de Subagentes con la Perspectiva Extra Incluida**:
         - Llama inmediatamente a `define_subagent` e `invoke_subagent` para lanzar los 2 (o 3) agentes pasándoles **el problema original + la respuesta obtenida de Gemini Web (Argon High)** como una perspectiva externa adicional para que la evalúen, la critiquen y la integren en su debate.
 
