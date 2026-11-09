@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 11) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 11;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 12) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 12;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -1030,6 +1030,10 @@
 
   function watchForNewResponse(initialCount, initialLastText, meta) {
     if (activeWatchTimer) clearInterval(activeWatchTimer);
+    if (meta && meta.enableDeepResearch) {
+      watchDeepResearchOrder(initialCount, initialLastText, meta);
+      return;
+    }
 
     let elapsedMs = 0;
     let stableTicks = 0;
@@ -1557,6 +1561,16 @@
   async function renameGeminiConversationInDom(newTitle, targetChatUrl, docId, options = {}) {
     const cleanNewTitle = String(newTitle || '').trim();
     if (!cleanNewTitle) return false;
+    // SAFETY (MODO TRIO consensus): only rename the CURRENT chat when its URL is /gem/<notebookGemId>/<expectedChatId>.
+    // Any call without strict notebook ids is refused, so a chat outside "Huellas de la Humanidad" can never be renamed.
+    const strictGemId = String(options.strictGemId || '');
+    const strictChatId = String(options.strictChatId || '');
+    const isStillOnExpectedChat = () => {
+      const p = parseGemUrl(window.location.href);
+      return Boolean(strictGemId && p.gemId === strictGemId && p.chatId && (!strictChatId || p.chatId === strictChatId));
+    };
+    if (!isStillOnExpectedChat()) return false;
+    targetChatUrl = window.location.href;
     const isDeepResearch =
       Boolean(options.isDeepResearch) || hasDeepResearchSuffix(cleanNewTitle);
     const baseVideoName = stripDeepResearchSuffix(cleanNewTitle);
@@ -1621,13 +1635,9 @@
         return true;
       }
 
-      // Locate target conversation row in sidebar:
-      // First try by targetChatUrl / active conversation, or by baseVideoName matching the same mode (Main vs Deep Research)
-      let sidebarItem =
-        findChatElementInSidebar(baseVideoName, targetChatUrl, isDeepResearch) ||
-        (options.isActiveTabChat !== false
-          ? findActiveOrFirstSidebarConversationItem(targetChatUrl)
-          : null);
+      // Locate target conversation row in sidebar ONLY by the exact current chat id (never by title or "selected" heuristics).
+      // If not found, the header "conversation actions" menu of the current chat is used (step 1B).
+      let sidebarItem = findChatElementInSidebar('', targetChatUrl, isDeepResearch);
 
       const findRenameMenuItemInOverlay = () => {
         const menuItems = Array.from(
@@ -1726,10 +1736,15 @@
       }
 
       if (!renameOptionEl) return false;
+      if (!isStillOnExpectedChat()) {
+        await closeOverlayMenusQuick();
+        return false;
+      }
 
       // 2. Click "Rename" / "Cambiar nombre" option
       fireMouseClick(renameOptionEl);
       await sleep(360);
+      if (!isStillOnExpectedChat()) return false;
 
       // 3. Also delegate input filling + confirm click to MAIN world (Angular Zone.js) AND execute in content script
       chrome.runtime
@@ -1745,11 +1760,14 @@
         (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
         !activeEl.closest('rich-textarea');
 
+      // Only inputs inside the rename dialog or inside the exact sidebar row (never a generic page input)
       const inputCandidates = Array.from(
         document.querySelectorAll(
-          'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, [role="dialog"] input, .conversation-items-container input, bard-sidenav input, .conversation-title-container input, input[aria-label*="name" i], input[aria-label*="nombre" i], input[aria-label*="title" i], input[aria-label*="título" i], input[type="text"]:not([readonly])'
+          'input[data-test-id="rename-input"], .mat-mdc-dialog-container input, mat-dialog-container input, [role="dialog"] input, .conversation-title-container input'
         )
-      ).filter((el) => el && el.offsetParent !== null && !el.closest('rich-textarea'));
+      )
+        .concat(sidebarItem ? Array.from((sidebarItem.closest('.conversation-items-container, [role="listitem"], mat-list-item') || sidebarItem).querySelectorAll('input')) : [])
+        .filter((el) => el && el.offsetParent !== null && !el.closest('rich-textarea'));
 
       const renameInput = isActiveRenameField ? activeEl : inputCandidates[0];
       if (!renameInput) return false;
@@ -1785,6 +1803,7 @@
       );
       renameInput.dispatchEvent(new Event('change', { bubbles: true }));
       await sleep(240);
+      if (!isStillOnExpectedChat()) return false;
 
       // 4. Click Save/Rename button in dialog or press Enter
       const saveBtns = Array.from(
@@ -1872,7 +1891,8 @@
     }
   }
 
-  function scheduleNewChatLinkAndRename(targetChatTitle, docId, isDeepResearchOrder) {
+  // LEGACY (unused): replaced by linkAndRenameAfterSubmit (single, notebook-scoped rename)
+  function legacyScheduleNewChatLinkAndRename(targetChatTitle, docId, isDeepResearchOrder) {
     const cleanTargetTitle = String(targetChatTitle || '').trim();
     const baseVideoName = stripDeepResearchSuffix(cleanTargetTitle);
     const docKey = docId || normalizeCompareText(baseVideoName);
@@ -1956,7 +1976,8 @@
     }, 1200);
   }
 
-  async function ensureCorrectVideoChatBeforePrompt(payload) {
+  // LEGACY (unused since MODO TRIO notebook-scoped flow): kept for reference only
+  async function legacyEnsureCorrectVideoChatBeforePrompt(payload) {
     const isDeepResearchOrder = Boolean(payload.enableDeepResearch);
     const rawBaseVideoName = stripDeepResearchSuffix(payload.videoName || '');
     const targetChatTitle = rawBaseVideoName
@@ -2221,6 +2242,509 @@
     return { isNewChat: true, targetChatTitle, isDeepResearchOrder };
   }
 
+  // ==========================================================================
+  // NOTEBOOK-SCOPED FLOW (MODO TRIO consensus: Opus + Gemini Pro + Gemini Flash)
+  // 1) Enter Notebook "Huellas de la Humanidad" (/gem/<gemId>)  2) look ONLY at its chats (/gem/<gemId>/<chatId>)
+  // 3) reuse "<Video>[_Deep Research]" (exact title or saved chat id) or create a new chat inside the notebook
+  // 4) single safe rename once the URL is /gem/<gemId>/<chatId>   5) navigation by URL is done by background.js
+  //    (chrome.tabs.update + resume) so a page reload never loses the order.
+  // ==========================================================================
+  function parseGemUrl(url) {
+    try {
+      const u = new URL(String(url || ''), 'https://gemini.google.com');
+      const m = u.pathname.match(/^\/(?:u\/\d+\/)?gem\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]{6,}))?\/?$/);
+      if (!m) return { gemId: '', chatId: '' };
+      return { gemId: m[1], chatId: m[2] || '' };
+    } catch {
+      return { gemId: '', chatId: '' };
+    }
+  }
+
+  function buildGemRootUrl(anyGemUrl) {
+    try {
+      const u = new URL(String(anyGemUrl || ''), 'https://gemini.google.com');
+      const m = u.pathname.match(/^(\/(?:u\/\d+\/)?gem\/[a-zA-Z0-9_-]+)/);
+      return m ? `https://gemini.google.com${m[1]}` : '';
+    } catch {
+      return '';
+    }
+  }
+
+  async function closeOverlayMenusQuick() {
+    try {
+      document.querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing').forEach((b) => b.click());
+      (document.activeElement || document.body).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+      );
+    } catch {}
+    await sleep(150);
+  }
+
+  async function getSavedNotebookInfo() {
+    let url = '';
+    try {
+      const st = await chrome.storage.local.get('huellasNotebookUrl');
+      url = (st && st.huellasNotebookUrl) || '';
+    } catch {}
+    if (!url) {
+      try {
+        url = localStorage.getItem('huellas_gemini_notebook_url') || '';
+      } catch {}
+    }
+    const rootUrl = buildGemRootUrl(url);
+    const gemId = parseGemUrl(rootUrl).gemId;
+    return gemId ? { gemId, rootUrl } : { gemId: '', rootUrl: '' };
+  }
+
+  async function saveNotebookRootUrl(anyGemUrl) {
+    const rootUrl = buildGemRootUrl(anyGemUrl);
+    if (!rootUrl) return;
+    try {
+      await chrome.storage.local.set({ huellasNotebookUrl: rootUrl });
+    } catch {}
+    try {
+      localStorage.setItem('huellas_gemini_notebook_url', rootUrl);
+    } catch {}
+  }
+
+  function countChatMessages() {
+    return (
+      getModelResponseElements().length +
+      document.querySelectorAll('user-query, [data-message-author-role="user"]').length
+    );
+  }
+
+  async function waitForUrl(pred, timeoutMs = 6000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (pred(window.location.href)) return true;
+      await sleep(200);
+    }
+    return pred(window.location.href);
+  }
+
+  // Chats that belong to the notebook: ONLY links whose href is /gem/<gemId>/<chatId>
+  function listNotebookChats(gemId) {
+    const out = [];
+    const seen = new Set();
+    document.querySelectorAll('a[href*="/gem/"]').forEach((a) => {
+      const p = parseGemUrl(a.getAttribute('href'));
+      if (!gemId || p.gemId !== gemId || !p.chatId || seen.has(p.chatId)) return;
+      seen.add(p.chatId);
+      const titleEl = a.querySelector('.conversation-title, [class*="title"]') || a;
+      out.push({
+        el: a,
+        chatId: p.chatId,
+        title: (titleEl.innerText || titleEl.textContent || '').replace(/\s+/g, ' ').trim(),
+      });
+    });
+    return out;
+  }
+
+  function findNotebookRootLink(gemId) {
+    return (
+      Array.from(document.querySelectorAll('a[href*="/gem/"]')).find((a) => {
+        const p = parseGemUrl(a.getAttribute('href'));
+        return p.gemId === gemId && !p.chatId;
+      }) || null
+    );
+  }
+
+  async function requestNavigateAndResume(url, payload) {
+    const resumeCount = Number(payload.__resumeCount || 0);
+    if (resumeCount >= 3) return false;
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: 'GEMINI_NAVIGATE_AND_RESUME',
+        url,
+        order: { ...payload, __resumeCount: resumeCount + 1 },
+      });
+      return Boolean(res && res.ok);
+    } catch {
+      return false;
+    }
+  }
+
+  async function openNotebookViaSidebar(notebookName) {
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: 'GEMINI_HARDWARE_OPEN_NOTEBOOK_NEW_CHAT',
+        notebookName,
+      });
+      if (!res || !res.ok) return '';
+    } catch {
+      return '';
+    }
+    const ok = await waitForUrl((u) => Boolean(parseGemUrl(u).gemId), 6000);
+    if (!ok) return '';
+    await saveNotebookRootUrl(window.location.href);
+    return parseGemUrl(window.location.href).gemId;
+  }
+
+  async function ensureCorrectVideoChatBeforePrompt(payload) {
+    const isDeepResearchOrder = Boolean(payload.enableDeepResearch);
+    const baseVideoName = stripDeepResearchSuffix(payload.videoName || '');
+    const targetChatTitle = baseVideoName
+      ? isDeepResearchOrder
+        ? `${baseVideoName}_Deep Research`
+        : baseVideoName
+      : '';
+    const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
+    const docId = String(payload.docId || '').trim();
+    const docKey = docId || normalizeCompareText(baseVideoName);
+    const stage = { stageNumber: payload.stageNumber };
+
+    // STEP 1: be inside the Notebook "Huellas de la Humanidad"
+    let nb = await getSavedNotebookInfo();
+    let cur = parseGemUrl(window.location.href);
+
+    if (!nb.gemId || cur.gemId !== nb.gemId) {
+      reportStatus('WORKING', `📓 Entrando al Notebook "${notebookName}"...`, stage);
+      let entered = false;
+      if (nb.gemId) {
+        // SPA click on the notebook link if visible (no reload)
+        const rootLink = findNotebookRootLink(nb.gemId);
+        if (rootLink) {
+          rootLink.click();
+          entered = await waitForUrl((u) => parseGemUrl(u).gemId === nb.gemId, 5000);
+        }
+      } else {
+        const gid = await openNotebookViaSidebar(notebookName);
+        if (gid) {
+          nb = await getSavedNotebookInfo();
+          entered = parseGemUrl(window.location.href).gemId === nb.gemId;
+        }
+      }
+      if (!entered) {
+        if (nb.gemId && (await requestNavigateAndResume(nb.rootUrl, payload))) {
+          return { navigating: true };
+        }
+        return {
+          abort: true,
+          reason: nb.gemId
+            ? `No se pudo entrar al Notebook "${notebookName}".`
+            : `No se encontró el Notebook "${notebookName}" en la barra lateral de Gemini. Ábrelo una vez manualmente en esta pestaña (la extensión aprenderá su dirección) y vuelve a intentarlo.`,
+        };
+      }
+      cur = parseGemUrl(window.location.href);
+      await sleep(900);
+    }
+
+    // STEP 2: look ONLY at the notebook's chats for this video's conversation
+    const stored = getStoredDocChatEntry(docKey, baseVideoName) || {};
+    const storedUrl = String(
+      (isDeepResearchOrder
+        ? payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl
+        : payload.geminiChatUrl || stored.mainChatUrl) || ''
+    );
+    const oppositeUrl = String(
+      (isDeepResearchOrder
+        ? payload.geminiChatUrl || stored.mainChatUrl
+        : payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl) || ''
+    );
+    const sp = parseGemUrl(storedUrl);
+    const oppositeChatId = parseGemUrl(oppositeUrl).chatId;
+    let targetChatId = sp.gemId === nb.gemId && sp.chatId !== oppositeChatId ? sp.chatId : '';
+    const notebookChats = listNotebookChats(nb.gemId);
+    if (!targetChatId && targetChatTitle) {
+      const wanted = normalizeCompareText(targetChatTitle);
+      const match = notebookChats.find(
+        (c) => c.chatId !== oppositeChatId && normalizeCompareText(c.title) === wanted
+      );
+      if (match) targetChatId = match.chatId;
+    }
+    try {
+      console.log('[Huellas] Notebook chats:', { gemId: nb.gemId, targetChatTitle, targetChatId, chats: notebookChats.map((c) => `${c.title} (${c.chatId})`) });
+    } catch {}
+
+    if (targetChatId) {
+      if (cur.chatId === targetChatId) {
+        return { isNewChat: false, targetChatTitle, isDeepResearchOrder, gemId: nb.gemId, chatId: targetChatId };
+      }
+      reportStatus('WORKING', `🔍 Abriendo la conversación "${targetChatTitle}" dentro del Notebook...`, stage);
+      const link = notebookChats.find((c) => c.chatId === targetChatId);
+      if (link) {
+        link.el.click();
+        const ok = await waitForUrl((u) => {
+          const p = parseGemUrl(u);
+          return p.gemId === nb.gemId && p.chatId === targetChatId;
+        }, 6000);
+        if (ok) {
+          await sleep(1500);
+          return { isNewChat: false, targetChatTitle, isDeepResearchOrder, gemId: nb.gemId, chatId: targetChatId };
+        }
+      }
+      const chatUrl = `${nb.rootUrl}/${targetChatId}`;
+      if (await requestNavigateAndResume(chatUrl, payload)) return { navigating: true };
+      return { abort: true, reason: `No se pudo abrir la conversación "${targetChatTitle}" del Notebook.` };
+    }
+
+    // STEP 3: create a NEW chat inside the notebook
+    if (cur.gemId === nb.gemId && !cur.chatId && countChatMessages() === 0) {
+      return { isNewChat: true, targetChatTitle, isDeepResearchOrder, gemId: nb.gemId, chatId: '' };
+    }
+    reportStatus('WORKING', `✨ Creando la conversación "${targetChatTitle}" dentro del Notebook "${notebookName}"...`, stage);
+    const rootLink = findNotebookRootLink(nb.gemId);
+    if (rootLink) {
+      rootLink.click();
+      const ok = await waitForUrl((u) => {
+        const p = parseGemUrl(u);
+        return p.gemId === nb.gemId && !p.chatId;
+      }, 5000);
+      if (ok) {
+        for (let i = 0; i < 12 && countChatMessages() > 0; i++) await sleep(250);
+        if (countChatMessages() === 0) {
+          return { isNewChat: true, targetChatTitle, isDeepResearchOrder, gemId: nb.gemId, chatId: '' };
+        }
+      }
+    }
+    if (await requestNavigateAndResume(nb.rootUrl, payload)) return { navigating: true };
+    return { abort: true, reason: 'No se pudo crear una conversación nueva dentro del Notebook.' };
+  }
+
+  // Single link + rename, only for the chat of THIS order inside the notebook
+  async function linkAndRenameAfterSubmit(chatState, docId) {
+    if (!chatState || !chatState.gemId) return;
+    const gemId = chatState.gemId;
+    const title = String(chatState.targetChatTitle || '').trim();
+    const isDeep = Boolean(chatState.isDeepResearchOrder);
+    const ok = await waitForUrl((u) => {
+      const p = parseGemUrl(u);
+      return p.gemId === gemId && Boolean(p.chatId);
+    }, 45000);
+    if (!ok) return;
+    const p = parseGemUrl(window.location.href);
+    if (chatState.chatId && p.chatId !== chatState.chatId) return;
+    const chatId = p.chatId;
+    const chatUrl = window.location.href.split(/[?#]/)[0];
+    const baseVideoName = stripDeepResearchSuffix(title);
+    const docKey = docId || normalizeCompareText(baseVideoName);
+    if (docKey) {
+      saveStoredDocChatEntry(
+        docKey,
+        isDeep
+          ? { baseVideoName, deepResearchChatId: chatId, deepResearchChatUrl: chatUrl, deepResearchChatTitle: title }
+          : { baseVideoName, mainChatId: chatId, mainChatUrl: chatUrl, mainChatTitle: title }
+      );
+    }
+    chrome.runtime
+      .sendMessage({ type: 'GEMINI_CHAT_LINKED', docId, geminiChatUrl: chatUrl, geminiChatTitle: title, isDeepResearch: isDeep })
+      .catch(() => {});
+    if (!title) return;
+    // Let Gemini assign its automatic title first, then rename ONCE (one retry)
+    await sleep(chatState.isNewChat ? 6000 : 1500);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const currentTitle = getActiveGeminiChatTitleInDom();
+      if (currentTitle && normalizeCompareText(currentTitle) === normalizeCompareText(title)) return;
+      const renamed = await renameGeminiConversationInDom(title, chatUrl, docId, {
+        isDeepResearch: isDeep,
+        strictGemId: gemId,
+        strictChatId: chatId,
+      });
+      if (renamed) return;
+      await sleep(8000);
+    }
+  }
+
+  // ---- Deep Research: plan -> "Start research" -> final report ----
+  const START_RESEARCH_RE =
+    /\b(iniciar\s+investigaci[oó]n|empezar\s+(?:a\s+)?investigar|comenzar\s+investigaci[oó]n|start\s+research|begin\s+research)\b/i;
+
+  function findStartResearchButtonScoped() {
+    const isUsable = (b) => {
+      if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+      if (b.closest('bard-sidenav, side-navigation, .cdk-overlay-container')) return false;
+      const r = b.getBoundingClientRect();
+      return r.width > 4 && r.height > 4;
+    };
+    const matches = (b) =>
+      START_RESEARCH_RE.test((b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim()) ||
+      START_RESEARCH_RE.test(b.getAttribute('aria-label') || '') ||
+      /start-research|confirm-research/i.test(b.getAttribute('data-test-id') || '');
+    const responses = getModelResponseElements();
+    const last = responses.length ? responses[responses.length - 1] : null;
+    const scopes = last ? [last, last.parentElement] : [];
+    for (const scope of scopes) {
+      if (!scope) continue;
+      const found = Array.from(scope.querySelectorAll('button, [role="button"]')).filter((b) => isUsable(b) && matches(b));
+      if (found.length) return found[found.length - 1];
+    }
+    // Fallback: the most recent matching button in the conversation (never sidebar/overlays)
+    const all = Array.from(document.querySelectorAll('button, [role="button"]')).filter((b) => isUsable(b) && matches(b));
+    return all.length ? all[all.length - 1] : null;
+  }
+
+  async function clickStartResearch() {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const btn = findStartResearchButtonScoped();
+      if (!btn) return true; // nothing to click (already started)
+      try {
+        btn.scrollIntoView({ block: 'center' });
+      } catch {}
+      await sleep(250);
+      let hw = null;
+      try {
+        hw = await chrome.runtime.sendMessage({ type: 'GEMINI_HARDWARE_CLICK_START_RESEARCH' });
+      } catch {}
+      if (!hw || !hw.clicked) {
+        try {
+          btn.click();
+        } catch {}
+      }
+      for (let i = 0; i < 15; i++) {
+        await sleep(200);
+        const still = findStartResearchButtonScoped();
+        if (!still || isDeepResearchActivelyBrowsing() || isGeminiStillGenerating()) return true;
+      }
+    }
+    return !findStartResearchButtonScoped();
+  }
+
+  function extractDeepResearchReport() {
+    const latest = extractLatestGeminiResponse();
+    let best = { text: String(latest.text || ''), images: latest.images || [], fromPanel: false };
+    const panelSel =
+      'immersive-panel, deep-research-immersive-panel, extended-response-panel, [class*="immersive"], [data-test-id*="immersive"], [class*="research-report"], [class*="deep-research-report"]';
+    document.querySelectorAll(panelSel).forEach((el) => {
+      if (el.closest('bard-sidenav, .cdk-overlay-container, rich-textarea')) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 50 || r.height < 50) return;
+      const t = (el.innerText || '').trim();
+      if (t.length > best.text.length) best = { text: t, images: best.images, fromPanel: true };
+    });
+    const scope = best.fromPanel ? document : latest.element || document;
+    const hasReportActions = Array.from(scope.querySelectorAll('button, [role="button"]')).some((b) => {
+      const s = `${b.innerText || ''} ${b.getAttribute('aria-label') || ''}`;
+      return /\b(export|exportar|docs|share|compartir|copy|copiar)\b/i.test(s);
+    });
+    return { ...best, hasReportActions };
+  }
+
+  function watchDeepResearchOrder(initialCount, initialLastText, meta) {
+    const startedAt = Date.now();
+    const MAX_TOTAL_MS = 60 * 60 * 1000;
+    const MAX_PLAN_WAIT_MS = 6 * 60 * 1000;
+    const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
+    let phase = 'WAIT_PLAN';
+    let planClickedAt = 0;
+    let planText = '';
+    let lastText = '';
+    let lastChangeAt = Date.now();
+    let responseSeenAt = 0;
+    let lastStatusAt = 0;
+    let busyStep = false;
+
+    const finish = (ok, text, images, message) => {
+      clearInterval(activeWatchTimer);
+      activeWatchTimer = null;
+      window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
+      isBusyWithOrder = false;
+      if (ok) {
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_RESPONSE_READY',
+            stageNumber: meta.stageNumber,
+            taskType: meta.taskType,
+            text,
+            images: images || [],
+          })
+          .catch(() => {});
+        reportStatus('COMPLETED', message, meta);
+      } else {
+        reportStatus('ERROR', message, meta);
+      }
+      processNextQueuedPrompt();
+    };
+
+    reportStatus('GENERATING', '🔬 Deep Research: esperando que Gemini cree el plan de investigación...', meta);
+
+    activeWatchTimer = setInterval(async () => {
+      if (busyStep) return;
+      const now = Date.now();
+      if (now - startedAt > MAX_TOTAL_MS) {
+        finish(false, '', [], '⛔ Deep Research superó 60 minutos sin un informe final. No se rellenó nada en la página.');
+        return;
+      }
+
+      if (phase === 'WAIT_PLAN') {
+        const submitted =
+          document.querySelectorAll('user-query, [data-message-author-role="user"]').length > initialUserQueries;
+        if (!submitted && now - startedAt < 20000) return;
+        const btn = findStartResearchButtonScoped();
+        if (btn) {
+          busyStep = true;
+          planText = extractDeepResearchReport().text || '';
+          reportStatus('GENERATING', '📋 Plan de investigación creado. Pulsando "Start research"...', meta);
+          const started = await clickStartResearch();
+          busyStep = false;
+          if (!started) {
+            finish(false, '', [], '⛔ Se creó el plan pero no se pudo pulsar "Start research" en Gemini. Púlsalo manualmente; no se rellenó nada.');
+            return;
+          }
+          phase = 'RESEARCHING';
+          planClickedAt = Date.now();
+          lastText = '';
+          lastChangeAt = Date.now();
+          reportStatus('GENERATING', '🚀 "Start research" pulsado. Gemini Deep Research está investigando (puede tardar varios minutos)...', meta);
+          return;
+        }
+        const latest = extractLatestGeminiResponse();
+        if (getModelResponseElements().length > initialCount || (latest.text && latest.text !== initialLastText)) {
+          if (!responseSeenAt) responseSeenAt = now;
+        }
+        const generating = isGeminiStillGenerating();
+        if (responseSeenAt && !generating && now - responseSeenAt > 150000) {
+          finish(false, '', [], '⛔ Gemini respondió sin crear un plan de Deep Research ("Start research" nunca apareció). No se rellenó nada; revisa que Deep research esté activo en el chat.');
+          return;
+        }
+        if (now - startedAt > MAX_PLAN_WAIT_MS) {
+          finish(false, '', [], '⛔ Gemini no creó el plan de investigación en 6 minutos. No se rellenó nada.');
+        }
+        return;
+      }
+
+      // phase === 'RESEARCHING'
+      if (findStartResearchButtonScoped() && now - planClickedAt > 8000) {
+        busyStep = true;
+        await clickStartResearch();
+        busyStep = false;
+      }
+      const generating = isGeminiStillGenerating() || isDeepResearchActivelyBrowsing();
+      const report = extractDeepResearchReport();
+      if (report.text !== lastText || generating) {
+        if (report.text !== lastText) lastText = report.text;
+        lastChangeAt = now;
+      }
+      if (now - lastStatusAt > 30000) {
+        lastStatusAt = now;
+        reportStatus(
+          'STREAMING',
+          `🔬 Deep Research en curso (${Math.round((now - planClickedAt) / 60000)} min · ${report.text.length} caracteres)...`,
+          { ...meta, previewText: report.text.slice(0, 220) }
+        );
+      }
+      const minLen = Math.max(1500, Math.round(planText.length * 1.3));
+      const stableMs = now - lastChangeAt;
+      const requiredStableMs = report.hasReportActions ? 15000 : 25000;
+      if (
+        now - planClickedAt >= 60000 &&
+        !generating &&
+        report.text &&
+        report.text !== planText &&
+        report.text.length >= minLen &&
+        stableMs >= requiredStableMs
+      ) {
+        finish(
+          true,
+          report.text,
+          report.images,
+          `✅ Informe de Deep Research capturado (${report.text.length} caracteres) y rellenado en Huellas Master.`
+        );
+      }
+    }, 1500);
+    window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = activeWatchTimer;
+  }
+
   function executeSinglePromptOrder(payload) {
     isBusyWithOrder = true;
     (async () => {
@@ -2235,8 +2759,22 @@
           await sleep(500);
         }
 
-        // 1B. Automatically detect/switch to the single conversation for this Video inside Notebook "Huellas de la Humanidad"
+        // 1B. Enter Notebook "Huellas de la Humanidad" and open/create this video's conversation (notebook-scoped)
         const chatState = await ensureCorrectVideoChatBeforePrompt(payload);
+        if (chatState && chatState.navigating) {
+          // background.js is reloading this tab to the notebook URL and will resend this order afterwards
+          isBusyWithOrder = false;
+          reportStatus('WORKING', '↪️ Navegando dentro del Notebook; la orden se reanudará automáticamente al cargar...', {
+            stageNumber: payload.stageNumber,
+          });
+          return;
+        }
+        if (chatState && chatState.abort) {
+          isBusyWithOrder = false;
+          reportStatus('ERROR', `⛔ ${chatState.reason}`, { stageNumber: payload.stageNumber });
+          processNextQueuedPrompt();
+          return;
+        }
 
         const useArgonLow =
           Boolean(payload.enableArgonLow) ||
@@ -2294,6 +2832,16 @@
               { stageNumber: payload.stageNumber }
             );
           }
+        }
+
+        // Final guard: never send if the tab left the notebook while configuring
+        if (chatState && chatState.gemId && parseGemUrl(window.location.href).gemId !== chatState.gemId) {
+          isBusyWithOrder = false;
+          reportStatus('ERROR', '⛔ La pestaña de Gemini salió del Notebook "Huellas de la Humanidad" antes de enviar; no se envió el prompt.', {
+            stageNumber: payload.stageNumber,
+          });
+          processNextQueuedPrompt();
+          return;
         }
 
         const inputEl = findPromptInput();
@@ -2408,13 +2956,9 @@
             promptFingerprint,
           });
 
-          // Poll for newly assigned chat URL (/app/<id> or /gem/<gemId>/<id>), link it, and rename the chat to resolvedTargetChatTitle
-          if (resolvedTargetChatTitle || payload.docId) {
-            scheduleNewChatLinkAndRename(
-              resolvedTargetChatTitle,
-              payload.docId || '',
-              Boolean(payload.enableDeepResearch)
-            );
+          // Link the chat id once Gemini assigns /gem/<gemId>/<chatId>, then rename ONLY that chat (once)
+          if (chatState && chatState.gemId) {
+            linkAndRenameAfterSubmit(chatState, payload.docId || '').catch(() => {});
           }
         } else {
           isBusyWithOrder = false;
@@ -2452,6 +2996,31 @@
     }
 
     if (msg.action === 'RENAME_GEMINI_CHAT') {
+      (async () => {
+        // Only the CURRENT chat, and only when it is inside the notebook (renameGeminiConversationInDom enforces it)
+        const nbInfo = await getSavedNotebookInfo();
+        const cur = parseGemUrl(window.location.href);
+        const baseName = stripDeepResearchSuffix(msg.videoName || '');
+        const deepName =
+          msg.deepResearchVideoName || (baseName ? `${baseName}_Deep Research` : '');
+        const isDeepChat =
+          Boolean(cur.chatId) &&
+          (parseGemUrl(msg.geminiDeepResearchChatUrl || '').chatId === cur.chatId ||
+            hasDeepResearchSuffix(getActiveGeminiChatTitleInDom()));
+        let ok = false;
+        if (nbInfo.gemId && cur.gemId === nbInfo.gemId && cur.chatId) {
+          ok = await renameGeminiConversationInDom(isDeepChat ? deepName : baseName, window.location.href, msg.docId, {
+            isDeepResearch: isDeepChat,
+            strictGemId: nbInfo.gemId,
+            strictChatId: cur.chatId,
+          });
+        }
+        sendResponse({ handled: ok });
+      })();
+      return true;
+    }
+
+    if (msg.action === 'LEGACY_RENAME_GEMINI_CHAT_DISABLED') {
       (async () => {
         const baseName = stripDeepResearchSuffix(msg.videoName || '');
         const deepName =

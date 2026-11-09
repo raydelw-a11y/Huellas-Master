@@ -3127,13 +3127,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const notebookNameArg = String(message.notebookName || 'Huellas de la Humanidad').trim();
     (async () => {
       const target = { tabId: geminiTabId };
-      let debuggerAttached = false;
+      let debuggerAttached = false; // not needed: clicks happen once inside the page (no CDP infobar)
       try {
-        try {
-          await chrome.debugger.attach(target, '1.3');
-          debuggerAttached = true;
-        } catch {}
-
         // Step 1: Ensure sidebar is open and locate the Notebook/Gem "Huellas de la Humanidad" in MAIN world
         const runNotebookStep = async (phase) => {
           const res = await chrome.scripting
@@ -3302,16 +3297,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   };
                 }
 
-                // Fallback: if we have the saved /gem/<gemId> URL for "Huellas de la Humanidad", navigate directly to it so we stay 100% inside the Notebook!
-                let savedNbUrl = '';
-                try {
-                  savedNbUrl = localStorage.getItem('huellas_gemini_notebook_url') || '';
-                } catch {}
-                if (savedNbUrl && savedNbUrl.includes('/gem/')) {
-                  window.location.href = savedNbUrl;
-                  return { action: 'NAVIGATED_TO_SAVED_NOTEBOOK_URL', savedNotebookUrl: savedNbUrl };
-                }
-
+                // No direct navigation here (window.location.href would reload the page and kill the in-flight order).
+                // The content script asks background to navigate with chrome.tabs.update + resume instead.
                 return { action: 'NOTEBOOK_NOT_FOUND' };
               },
             })
@@ -3319,34 +3306,125 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return (res && res[0] && res[0].result) || null;
         };
 
-        const s1 = await runNotebookStep('OPEN_SIDEBAR');
-        if (s1?.target?.x && s1?.target?.y && debuggerAttached) {
-          await dispatchHardwareClick(target, s1.target.x, s1.target.y).catch(() => {});
-          await sleep(420);
-        }
+        // triggerInZone() already clicks inside the page: NO extra hardware click (a 2nd click toggles the sidebar closed)
+        await runNotebookStep('OPEN_SIDEBAR');
+        await sleep(450);
 
         let s3 = await runNotebookStep('CLICK_NOTEBOOK');
         if (!s3 || s3.action === 'NOTEBOOK_NOT_FOUND') {
-          const s2 = await runNotebookStep('EXPAND_GEMS');
-          if (s2?.target?.x && s2?.target?.y && debuggerAttached) {
-            await dispatchHardwareClick(target, s2.target.x, s2.target.y).catch(() => {});
-          }
-          await sleep(360);
+          await runNotebookStep('EXPAND_GEMS');
+          await sleep(450);
           s3 = await runNotebookStep('CLICK_NOTEBOOK');
         }
 
-        if (s3?.target?.x && s3?.target?.y && debuggerAttached) {
-          await dispatchHardwareClick(target, s3.target.x, s3.target.y).catch(() => {});
+        let gemRootUrl = '';
+        if (s3 && s3.action === 'CLICKED_NOTEBOOK') {
+          for (let i = 0; i < 20; i++) {
+            await sleep(250);
+            const t = await chrome.tabs.get(geminiTabId).catch(() => null);
+            const m = t && String(t.url || '').match(/^(https:\/\/gemini\.google\.com(?:\/u\/\d+)?\/gem\/[a-zA-Z0-9_-]+)/);
+            if (m) {
+              gemRootUrl = m[1];
+              break;
+            }
+          }
+          if (gemRootUrl) {
+            await chrome.storage.local.set({ huellasNotebookUrl: gemRootUrl }).catch(() => {});
+          }
         }
-        await sleep(1100);
 
-        sendResponse({ ok: true, result: s3 });
+        sendResponse({ ok: Boolean(gemRootUrl), gemRootUrl, result: s3 });
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
       } finally {
         if (debuggerAttached) {
           await chrome.debugger.detach(target).catch(() => {});
         }
+      }
+    })();
+    return true;
+  }
+
+  // Navigate the Gemini tab by URL (full load) and RESUME the same order after the page loads.
+  // The order is persisted in chrome.storage.session so it survives the reload and service-worker restarts.
+  if (message.type === 'GEMINI_NAVIGATE_AND_RESUME' && sender?.tab?.id) {
+    const navTabId = sender.tab.id;
+    const navUrl = String(message.url || '');
+    (async () => {
+      try {
+        if (!/^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?gem\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?$/.test(navUrl)) {
+          sendResponse({ ok: false, error: 'URL fuera del Notebook' });
+          return;
+        }
+        await chrome.storage.session.set({
+          [huellasGeminiResumeKey(navTabId)]: { order: message.order, createdAt: Date.now(), url: navUrl },
+        });
+        sendResponse({ ok: true });
+        await chrome.tabs.update(navTabId, { url: navUrl });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // One trusted (CDP) click on Deep Research's "Start research" button, measured AFTER attaching the debugger
+  if (message.type === 'GEMINI_HARDWARE_CLICK_START_RESEARCH' && sender?.tab?.id) {
+    const srTabId = sender.tab.id;
+    (async () => {
+      const target = { tabId: srTabId };
+      let attached = false;
+      try {
+        try {
+          await chrome.debugger.attach(target, '1.3');
+          attached = true;
+        } catch {}
+        if (!attached) {
+          sendResponse({ clicked: false, error: 'debugger no disponible' });
+          return;
+        }
+        await sleep(450); // debugger infobar resizes the viewport
+        const res = await chrome.scripting
+          .executeScript({
+            target: { tabId: srTabId },
+            func: () => {
+              const re =
+                /\b(iniciar\s+investigaci[oó]n|empezar\s+(?:a\s+)?investigar|comenzar\s+investigaci[oó]n|start\s+research|begin\s+research)\b/i;
+              const usable = (b) => {
+                if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+                if (b.closest('bard-sidenav, side-navigation, .cdk-overlay-container')) return false;
+                const r = b.getBoundingClientRect();
+                return r.width > 4 && r.height > 4;
+              };
+              const matches = (b) =>
+                re.test((b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim()) ||
+                re.test(b.getAttribute('aria-label') || '');
+              const responses = document.querySelectorAll('model-response, [data-message-author-role="model"]');
+              const last = responses.length ? responses[responses.length - 1] : null;
+              let btns = last ? Array.from(last.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b)) : [];
+              if (!btns.length) {
+                btns = Array.from(document.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b));
+              }
+              const btn = btns.length ? btns[btns.length - 1] : null;
+              if (!btn) return { found: false };
+              btn.scrollIntoView({ block: 'center' });
+              const r = btn.getBoundingClientRect();
+              return { found: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            },
+          })
+          .catch(() => []);
+        const loc = res && res[0] && res[0].result;
+        if (!loc || !loc.found) {
+          sendResponse({ clicked: false, error: 'botón no encontrado' });
+          return;
+        }
+        await dispatchHardwareClick(target, loc.x, loc.y).catch(() => {});
+        await sleep(300);
+        sendResponse({ clicked: true });
+      } catch (err) {
+        sendResponse({ clicked: false, error: String(err?.message || err) });
+      } finally {
+        if (attached) await chrome.debugger.detach(target).catch(() => {});
       }
     })();
     return true;
@@ -4190,4 +4268,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   return false;
+});
+
+// ============================================================================
+// GEMINI NOTEBOOK: resume an order after a URL navigation (MODO TRIO consensus)
+// The content script dies when the page reloads; the order is kept in chrome.storage.session
+// and re-sent once the Gemini tab finishes loading the notebook/chat URL.
+// ============================================================================
+function huellasGeminiResumeKey(tabId) {
+  return `huellasGeminiResume_${tabId}`;
+}
+
+async function resumeGeminiOrderIfPending(tabId, tabUrl) {
+  const key = huellasGeminiResumeKey(tabId);
+  let pending = null;
+  try {
+    const st = await chrome.storage.session.get(key);
+    pending = st && st[key];
+  } catch {}
+  if (!pending || !pending.order) return;
+  // Only resume once the tab actually reached the requested notebook/chat path
+  const wantPath = String(pending.url || '').replace(/^https:\/\/gemini\.google\.com/, '');
+  const gotPath = String(tabUrl || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0];
+  const wantGem = (wantPath.match(/\/gem\/([a-zA-Z0-9_-]+)/) || [])[1];
+  const gotGem = (gotPath.match(/\/gem\/([a-zA-Z0-9_-]+)/) || [])[1];
+  if (Date.now() - (pending.createdAt || 0) > 120000) {
+    await chrome.storage.session.remove(key).catch(() => {});
+    return;
+  }
+  // Intermediate URL (redirect / still loading): keep the order for the next "complete" event
+  if (!wantGem || wantGem !== gotGem) return;
+  await chrome.storage.session.remove(key).catch(() => {});
+  await sleep(2200);
+  await ensureScriptInjected(tabId, 'gemini-content.js');
+  await sleep(500);
+  chrome.tabs.sendMessage(tabId, { ...pending.order, target: 'GEMINI' }).catch(() => {});
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
+  const url = (tab && tab.url) || '';
+  if (!/^https:\/\/gemini\.google\.com\//.test(url)) return;
+  resumeGeminiOrderIfPending(tabId, url).catch(() => {});
 });

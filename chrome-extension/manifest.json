@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Flow Music)",
-  "version": "2.6.6",
+  "version": "2.6.7",
   "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow y Flow Music (flowmusic.app) abiertas en la misma ventana.",
   "permissions": [
     "tabs",
     "scripting",
     "activeTab",
-    "debugger"
+    "debugger",
+    "storage"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
