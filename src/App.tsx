@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:12 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:52 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -838,7 +838,36 @@ interface Stage1PropositionPart {
   subtitle: string;
   summary: string;
   currentValue: string;
-  options: [string, string, string];
+  options: string[];
+}
+
+function parseSelectedTypologies(raw?: string): string[] {
+  if (!raw || !raw.trim()) return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(/\s*(?:\+|\|\||;)\s*/g)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function isTypologyOptionSelected(currentRaw: string | undefined, optionText: string): boolean {
+  const cleanOpt = String(optionText || '').trim();
+  if (!cleanOpt) return false;
+  const list = parseSelectedTypologies(currentRaw);
+  return list.includes(cleanOpt);
+}
+
+function toggleTypologySelection(currentRaw: string | undefined, optionText: string): string {
+  const cleanOpt = String(optionText || '').trim();
+  if (!cleanOpt) return String(currentRaw || '').trim();
+  const list = parseSelectedTypologies(currentRaw);
+  const nextList = list.includes(cleanOpt)
+    ? list.filter((item) => item !== cleanOpt)
+    : [...list, cleanOpt];
+  return nextList.join(' + ');
 }
 
 function parsePropositionSectionOptions(
@@ -861,11 +890,9 @@ function parsePropositionSectionOptions(
   }
 
   const extracted: string[] = [];
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 25; i++) {
     const optRegex = new RegExp(
-      `Opci[oó]n\\s*${i}(?:\\s*\\([^)]*\\))?\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*•]\\s*)?\\**Opci[oó]n\\s*${
-        i + 1
-      }|\\n\\s*PARTE\\s*\\d+|$)`,
+      `Opci[oó]n\\s*${i}(?:\\s*\\([^)]*\\))?\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*•]\\s*)?\\**Opci[oó]n\\s*\\d+|\\n\\s*PARTE\\s*\\d+|$)`,
       'i'
     );
     const optMatch = block.match(optRegex);
@@ -879,12 +906,48 @@ function parsePropositionSectionOptions(
         .replace(/^\*+|\*+$/g, '')
         .replace(/^\[|\]$/g, '')
         .trim();
-      if (cleaned && cleaned.length > 3) {
+      if (cleaned && cleaned.length > 3 && !extracted.includes(cleaned)) {
         extracted.push(cleaned);
       }
     }
   }
   return { summary, options: extracted };
+}
+
+function resolvePartOptionsList(
+  doc: DocumentaryProject,
+  partNum: number,
+  parsedOptions: string[],
+  defaultOptions: string[]
+): string[] {
+  if (parsedOptions.length > 0) {
+    return parsedOptions;
+  }
+  const jsonRaw = doc.promptConfig?.[`PROP_P${partNum}_OPTIONS_JSON`];
+  if (jsonRaw) {
+    try {
+      const parsedJson = JSON.parse(jsonRaw);
+      if (Array.isArray(parsedJson)) {
+        const cleanArr = parsedJson.map((s) => String(s || '').trim()).filter(Boolean);
+        if (cleanArr.length > 0) return Array.from(new Set(cleanArr));
+      }
+    } catch {}
+  }
+  const storedIndividual: string[] = [];
+  for (let i = 1; i <= 15; i++) {
+    const val = String(doc.promptConfig?.[`PROP_P${partNum}_OPT${i}`] || '').trim();
+    if (val && !storedIndividual.includes(val)) {
+      storedIndividual.push(val);
+    }
+  }
+  if (storedIndividual.length > 0) {
+    const merged = [...storedIndividual];
+    for (const defOpt of defaultOptions) {
+      if (!merged.includes(defOpt)) merged.push(defOpt);
+    }
+    return merged;
+  }
+  return defaultOptions;
 }
 
 function buildStage1PropositionParts(
@@ -912,17 +975,6 @@ function buildStage1PropositionParts(
       doc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
       ''
   ).trim();
-  const refDesc = String(
-    refVideo?.description || doc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || ''
-  ).trim();
-  const refTags =
-    refVideo && Array.isArray(refVideo.tags) && refVideo.tags.length > 0
-      ? refVideo.tags.join(', ')
-      : String(doc.promptConfig?.YOUTUBE_VIDEO_TAGS || '').trim();
-  const refStructure = String(
-    refVideo?.structureSummary || doc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || ''
-  ).trim();
-  const combinedText = `${researchText} ${doc.topic || ''} ${doc.title || ''} ${refTitle} ${refDesc} ${refTags} ${refStructure}`.toLowerCase();
   const durationMinutes = Math.max(10, Math.round((doc.targetDurationSeconds || 900) / 60));
 
   const topDoubt1 =
@@ -932,167 +984,132 @@ function buildStage1PropositionParts(
     topComments[1]?.text ||
     '¿Cuáles fueron las verdaderas causas y consecuencias humanas detrás de este acontecimiento?';
 
-  // IMPORTANT: Never use refTitle (the investigated reference video) as the subject of OUR documentary!
-  // The investigated video is used ONLY as a structural, psychological, and viral pattern guide.
-  const baseSubject = doc.topic?.trim()
-    ? doc.topic.trim()
-    : doc.title &&
-      !/^Video\s+\d+/i.test(doc.title.trim()) &&
-      !/^Documental\s+\d+/i.test(doc.title.trim()) &&
-      !/^Nuevo\s+Documental/i.test(doc.title.trim())
-    ? doc.title.trim()
-    : 'Nuestro nuevo documental original de Huellas de la Humanidad';
-
-  // Extract years or centuries ONLY from our own research/topic, NEVER from refTitle or refDesc
-  const detectedYears = Array.from(
-    new Set(
-      (`${researchText} ${doc.historicalTime || ''} ${doc.topic || ''}`.match(
-        /\b(?:Siglo\s+[IVXLCDM]+(?:\s*(?:a\.\s*C\.|d\.\s*C\.))?|(?:1[0-9]{3}|20[0-2][0-9])(?:\s*[–-]\s*(?:1[0-9]{3}|20[0-2][0-9]))?|\d{3,4}\s*(?:a\.\s*C\.|d\.\s*C\.))\b/gi
-      ) || [])
-        .map((m) => m.trim())
-        .filter(Boolean)
-    )
-  );
-
-  // --- PARTE 1: TIPOLOGÍA DEL VIDEO (ARQUETIPO UNIVERSAL BASADO EN PATRÓN VIRAL, SIN DUPLICAR TEMA) ---
+  // --- PARTE 1: TIPOLOGÍA DEL VIDEO (MULTI-SELECCIÓN · ARQUETIPOS UNIVERSALES BASADOS EN PATRONES VIRALES) ---
   const parsedP1 = parsePropositionSectionOptions(researchText, 1);
-  const defaultTypologyOptions: [string, string, string] = [
+  const defaultTypologyOptions: string[] = [
     '9. Crónica documental de crisis repetidas, rechazos históricos y giro contra todo pronóstico (Nueva tipología basada en patrón viral)',
+    '10. Arquetipo de imperios al borde de la liquidación, subastas históricas y resurgimiento (Nueva tipología basada en patrón de apertura)',
+    '11. Anatomía de errores fatales, secretos subestimados y rivalidad de titanes (Nueva tipología basada en patrón de tensión)',
     '1. Un suceso histórico',
     '4. Un misterio sin resolver',
+    '7. Una manipulación psicológica',
+    '6. Una conciencia o realidad colectiva',
+    '8. Una curiosidad',
   ];
-  const p1Options: [string, string, string] = [
-    parsedP1.options[0] || doc.promptConfig?.PROP_P1_OPT1 || defaultTypologyOptions[0],
-    parsedP1.options[1] || doc.promptConfig?.PROP_P1_OPT2 || defaultTypologyOptions[1],
-    parsedP1.options[2] || doc.promptConfig?.PROP_P1_OPT3 || defaultTypologyOptions[2],
-  ];
+  const p1Options = resolvePartOptionsList(doc, 1, parsedP1.options, defaultTypologyOptions);
   const p1Summary =
     parsedP1.summary ||
     (refTitle
-      ? `Extrae los patrones y detalles que hicieron que "${refTitle}" se viralizara en YouTube (sin duplicar su tema) para definir la tipología universal o crear una nueva tipología arquetípica para nuestro documental original.`
-      : 'La investigación determina qué tipología del protocolo se ajusta mejor al episodio o crea una nueva tipología arquetípica acorde con la estructura viral de nuestro documental.');
+      ? `Extrae todos los patrones virales que hicieron triunfar a "${refTitle}" en YouTube (sin duplicar su tema). Puedes seleccionar VARIAS tipologías combinadas al mismo tiempo para nuestro documental.`
+      : 'Permite seleccionar una o varias tipologías del protocolo combinadas con las nuevas tipologías arquetípicas creadas a partir de los patrones virales del video analizado.');
 
   // --- PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO ---
   const parsedP2 = parsePropositionSectionOptions(researchText, 2);
-  const defaultTopicOptions: [string, string, string] = [
-    `${baseSubject}: crónica histórica 100% original aplicando el patrón viral de caídas repetidas, rechazos y resurgimiento inesperado.`,
-    `Historia inédita para Huellas de la Humanidad: las decisiones críticas, los errores fatales y las pruebas documentales que cambiaron el destino de una época.`,
-    `Anatomía de una supervivencia histórica contra todo pronóstico: cómo un proyecto o civilización al borde del colapso transformó para siempre su legado.`,
+  const defaultTopicOptions: string[] = [
+    'El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.',
+    'La Porcelana Secreta de Meissen y el Alquimista Prisionero: falló en 2 hornos reales, fue rechazado 3 veces por las cortes europeas y rompió el monopolio milenario del oro blanco.',
+    'El Ferrocarril Imposible de los Andes (La Oroya): se declaró en bancarrota 2 veces, sobrevivió a 3 epidemias y perforó 60 túneles a casi 5 mil metros de altura contra todo pronóstico.',
+    'La Subasta de la Compañía del Mar del Sur y el Mayor Colapso Financiero del Siglo XVIII: cómo un imperio comercial que parecía indestructible se liquidó en una tarde arruinando hasta a Isaac Newton.',
+    'El Telégrafo Transatlántico de Cyrus Field: el cable submarino se rompió 2 veces en el fondo del océano, fue ridiculizado 3 veces por el Parlamento y terminó uniendo dos continentes en minutos.',
+    'El Secreto del Vidrio de Murano y los Artesanos Desterrados de Venecia: traicionados 2 veces, perseguidos por 3 decretos de muerte y creadores del monopolio más codiciado de Europa.',
   ];
-
-  const p2Options: [string, string, string] = [
-    parsedP2.options[0] || doc.promptConfig?.PROP_P2_OPT1 || defaultTopicOptions[0],
-    parsedP2.options[1] || doc.promptConfig?.PROP_P2_OPT2 || defaultTopicOptions[1],
-    parsedP2.options[2] || doc.promptConfig?.PROP_P2_OPT3 || defaultTopicOptions[2],
-  ];
+  const p2Options = resolvePartOptionsList(doc, 2, parsedP2.options, defaultTopicOptions);
   const p2Summary =
     parsedP2.summary ||
-    `Proposición de 3 temas históricos 100% originales y distintos al video investigado${
+    `Proposición de múltiples temas históricos 100% originales y distintos al video investigado${
       refTitle ? ` (usando "${refTitle}" únicamente como guía de estructura y patrones virales)` : ''
-    }, diseñados para atrapar a la audiencia de YouTube.`;
+    }, diseñados con los mismos gatillos de viralización en YouTube.`;
 
   // --- PARTE 3: TIEMPO / ÉPOCA ---
   const parsedP3 = parsePropositionSectionOptions(researchText, 3);
-  const defaultTimeOptions: [string, string, string] =
-    detectedYears.length > 0
-      ? [
-          `${detectedYears.slice(0, 3).join(' – ')} (Periodo histórico central de nuestro documental original)`,
-          `Año ${detectedYears[0]} y décadas decisivas del conflicto (Cronología puntual de los hechos)`,
-          `Marco histórico completo de origen, crisis y consolidación (${detectedYears.join(', ')})`,
-        ]
-      : [
-          'Época histórica principal determinada en el Paso 1 para nuestro documental original (Años en dígitos / Siglo en romanos)',
-          'Décadas críticas del conflicto y punto de inflexión de nuestra historia',
-          'Cronología extendida desde los antecedentes hasta el desenlace histórico',
-        ];
-  const p3Options: [string, string, string] = [
-    parsedP3.options[0] || doc.promptConfig?.PROP_P3_OPT1 || defaultTimeOptions[0],
-    parsedP3.options[1] || doc.promptConfig?.PROP_P3_OPT2 || defaultTimeOptions[1],
-    parsedP3.options[2] || doc.promptConfig?.PROP_P3_OPT3 || defaultTimeOptions[2],
+  const defaultTimeOptions: string[] = [
+    'Años 1879 – 1912 / Siglo XIX y principios del Siglo XX (Auge, fiebre extractiva, 30 años de apogeo y colapso repentino)',
+    'Años 1701 – 1719 / Principios del Siglo XVIII (Cautiverio, experimentos fallidos y nacimiento del imperio europeo)',
+    'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Las dos bancarrotas y la hazaña de ingeniería)',
+    'Año 1720 / Siglo XVIII (El año de la gran burbuja, la euforia colectiva y la subasta de liquidación)',
+    'Años 1854 – 1866 / Mediados del Siglo XIX (Doce años de expediciones fallidas, cables rotos y triunfo final)',
+    'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Tres siglos de aislamiento insular, espionaje industrial y persecución)',
   ];
+  const p3Options = resolvePartOptionsList(doc, 3, parsedP3.options, defaultTimeOptions);
   const p3Summary =
     parsedP3.summary ||
-    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) correspondiente a nuestro nuevo documental original.';
+    'Delimitación cronológica precisa (combinando años en dígitos y siglos en números romanos) para cada uno de los ángulos y temas propuestos.';
 
   // --- PARTE 4: LUGAR HISTÓRICO ---
   const parsedP4 = parsePropositionSectionOptions(researchText, 4);
-  const defaultLocationOptions: [string, string, string] = [
-    'Ciudad, País principal determinado en el Paso 1 para nuestro documental original',
-    'Sedes históricas clave donde se gestó el origen, la crisis y el punto de quiebre de nuestra historia',
-    'Epicentro geográfico y social donde impactaron las consecuencias históricas del episodio',
+  const defaultLocationOptions: string[] = [
+    'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y mercados de Londres, Inglaterra)',
+    'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
+    'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
+    'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
+    'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
+    'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
   ];
-  const p4Options: [string, string, string] = [
-    parsedP4.options[0] || doc.promptConfig?.PROP_P4_OPT1 || defaultLocationOptions[0],
-    parsedP4.options[1] || doc.promptConfig?.PROP_P4_OPT2 || defaultLocationOptions[1],
-    parsedP4.options[2] || doc.promptConfig?.PROP_P4_OPT3 || defaultLocationOptions[2],
-  ];
+  const p4Options = resolvePartOptionsList(doc, 4, parsedP4.options, defaultLocationOptions);
   const p4Summary =
     parsedP4.summary ||
-    'Escenarios geográficos e históricos principales (Ciudad, País) determinados para nuestro documental original.';
+    'Escenarios geográficos e históricos principales (Ciudad, País) determinados para cada propuesta de nuestro documental original.';
 
   // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL ---
   const parsedP5 = parsePropositionSectionOptions(researchText, 5);
-  const defaultHookOptions: [string, string, string] = [
-    `Clip 1 (6s sin voz): Escena cinematográfica del instante exacto de mayor tensión en nuestra historia original. Entrada de voz (00:16): La contradicción entre el colapso inminente que todos daban por hecho y el giro oculto que cambió la historia.`,
-    `Clip 1 (6s sin voz): Primer plano documental de los documentos y pruebas decisivas del caso en penumbra. Entrada de voz (00:16): Patrón viral de contraste numérico y rechazos sucesivos que desembocaron en un fenómeno histórico irrepetible.`,
-    `Clip 1 (6s sin voz): Reconstrucción atmosférica del escenario original antes de la crisis. Entrada de voz (00:16): La paradoja de quienes tuvieron el futuro frente a sus ojos y lo rechazaron sin sospechar lo que estaba por ocurrir.`,
+  const defaultHookOptions: string[] = [
+    'Patrón 1 (El Golpe de Martillo y la Liquidación Silenciosa): Clip 1 (6s sin voz) en sala de subastas en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción ridícula de su valor, el trabajo de 30 años y más de 200 sedes operativas cambia de manos sin que nadie en la sala levante la vista.',
+    'Patrón 2 (La Fórmula Numérica 2 Caídas / 3 Rechazos): Clip 1 (6s sin voz) de documentos lacrados arrojados al suelo de piedra. Entrada de voz (00:16): Se rompió 2 veces, fue rechazado 3 veces por quienes dominaban el mundo... y aun así terminó cambiando la historia para siempre.',
+    'Patrón 3 (El Secreto Subestimado por el Gigante): Clip 1 (6s sin voz) de un cuaderno de fórmulas manuscritas bajo lámpara de aceite. Entrada de voz (00:16): Tuvieron el secreto frente a sus ojos por una suma irrisoria y lo despreciaron tres veces, sin imaginar que estaban creando a su mayor rival.',
+    'Patrón 4 (La Caída de un Imperio que Parecía Indestructible): Clip 1 (6s sin voz) de una imponente fachada histórica vacía y cubierta de niebla. Entrada de voz (00:16): Llegó a controlar cientos de sedes y fortunas incalculables, pero un solo error de cálculo borró tres décadas de gloria en una tarde.',
+    'Patrón 5 (El Sacrificio de un Hombre Frente a la Ruina): Clip 1 (6s sin voz) de un creador exhausto recogiendo sus planos en un despacho vacío al anochecer. Entrada de voz (00:16): Cuando los abogados cerraron las carpetas, aquel hombre había perdido su propio nombre, pero la huella de su invención apenas comenzaba.',
+    'Patrón 6 (La Paradoja de la Complacencia y el Contraataque): Clip 1 (6s sin voz) de dos mapas estratégicos enfrentados sobre una mesa de caoba. Entrada de voz (00:16): Mientras el líder absoluto daba la batalla por ganada, en los callejones más pobres nacía la estrategia que daría vuelta el tablero.',
   ];
-  const p5Options: [string, string, string] = [
-    parsedP5.options[0] || doc.promptConfig?.PROP_P5_OPT1 || defaultHookOptions[0],
-    parsedP5.options[1] || doc.promptConfig?.PROP_P5_OPT2 || defaultHookOptions[1],
-    parsedP5.options[2] || doc.promptConfig?.PROP_P5_OPT3 || defaultHookOptions[2],
-  ];
+  const p5Options = resolvePartOptionsList(doc, 5, parsedP5.options, defaultHookOptions);
   const p5Summary =
     parsedP5.summary ||
-    'Diseño del impacto inicial en los primeros segundos (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en el segundo 16) aplicando el patrón de Hook del video guía a nuestra historia original.';
+    'Todos los patrones de Hook inicial detectados en el video analizado (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en 00:16) adaptados a nuestra historia original.';
 
   // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
   const parsedP6 = parsePropositionSectionOptions(researchText, 6);
-  const defaultEscaletaOptions: [string, string, string] = [
-    `Estructura en 5 Actos Progresivos (${durationMinutes} min): Acto I: El instante crítico y planteamiento · Acto II: Los orígenes desconocidos y primeras caídas · Acto III: Los rechazos y el punto de quiebre · Acto IV: La estrategia oculta y respuesta a la audiencia ("${topDoubt1.slice(0, 70)}...") · Acto V: El desenlace histórico.`,
-    `Estructura de Investigación Documental en 4 Bloques (${durationMinutes} min): Bloque 1: La escena del colapso · Bloque 2: Las causas profundas y errores ocultos · Bloque 3: El contraataque inesperado ("${topDoubt2.slice(0, 70)}...") · Bloque 4: El impacto definitivo en la historia.`,
-    `Estructura Cronológica de Alta Tensión (${durationMinutes} min): Recorrido documental acto por acto desde la primera gran crisis hasta la consolidación final, intercalando pruebas históricas y micro-ganchos de retención.`,
+  const defaultEscaletaOptions: string[] = [
+    `Escaleta 1 (Estructura de Subasta Inversa — In Media Res · ${durationMinutes} min): Intro 8s + Hook (00:08-02:30): El día de la liquidación total · Acto I (02:30-08:30): El origen humilde y la primera fórmula · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los 3 rechazos humillantes y la segunda quiebra · Acto IV (21:30-27:30): El giro estratégico audaz que salvó el imperio · Clímax y Outro 8s.`,
+    `Escaleta 2 (Estructura de Doble Caída y Triple Rechazo · ${durationMinutes} min): Intro 8s + Hook (8%) · Bloque 1 (20%): El hallazgo inicial y expansión de las primeras sedes · Bloque 2 (25%): Primera bancarrota, error de inventario y primer rechazo · Bloque 3 (22%): Segunda caída, subasta por centavos y tercer rechazo · Bloque 4 (17%): La reinvención radical en plena crisis · Cierre + Outro 8s (8%).`,
+    `Escaleta 3 (Estructura de Rivalidad de Titanes · ${durationMinutes} min): Intro 8s + Hook de contraste · Acto I: El gigante intocable frente al aspirante desconocido · Acto II: Los errores fatales de soberbia y complacencia ("${topDoubt1.slice(0, 65)}...") · Acto III: La guerra de precios, patentes y supervivencia · Acto IV: Cómo el rechazado se convirtió en el mayor rival de la historia · Outro 8s.`,
+    `Escaleta 4 (Estructura Forense de los 30 Años Perdidos · ${durationMinutes} min): Intro 8s + Hook · Investigación cronológica década por década de cómo un hombre construyó más de 200 instalaciones operativas y cómo tres decisiones financieras sellaron su destino antes del resurgimiento en manos nuevas · Outro 8s.`,
+    `Escaleta 5 (Estructura de Micro-Ganchos Cada 4 Minutos · ${durationMinutes} min): 6 bloques diseñados con un cliffhanger documental al cierre de cada bloque (1. El precio del secreto, 2. La trampa de la materia prima, 3. La oferta rechazada, 4. El juicio y la subasta, 5. La jugada maestra en la crisis, 6. El legado imborrable) + Intro 8s y Outro 8s.`,
+    `Escaleta 6 (Estructura Guiada por las Dudas y Reacciones de la Audiencia · ${durationMinutes} min): Responde en 5 actos orgánicos por qué los imperios caen por complacencia ("${topDoubt2.slice(0, 65)}..."), qué pasó con el fundador original tras perder 30 años de esfuerzo y cómo cambió la economía cotidiana + Intro 8s y Outro 8s.`,
   ];
-  const p6Options: [string, string, string] = [
-    parsedP6.options[0] || doc.promptConfig?.PROP_P6_OPT1 || defaultEscaletaOptions[0],
-    parsedP6.options[1] || doc.promptConfig?.PROP_P6_OPT2 || defaultEscaletaOptions[1],
-    parsedP6.options[2] || doc.promptConfig?.PROP_P6_OPT3 || defaultEscaletaOptions[2],
-  ];
+  const p6Options = resolvePartOptionsList(doc, 6, parsedP6.options, defaultEscaletaOptions);
   const p6Summary =
     parsedP6.summary ||
-    `Arquitectura narrativa dimensionada exactamente para ${durationMinutes} minutos, trasladando las proporciones y ritmo de retención del video guía a nuestro documental original.`;
+    `Múltiples arquitecturas narrativas dimensionadas para ${durationMinutes} minutos, trasladando las proporciones y ritmo de retención del video guía a nuestro documental original.`;
 
   // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
   const parsedP7 = parsePropositionSectionOptions(researchText, 7);
-  const defaultClimaxOptions: [string, string, string] = [
-    `Clímax: Revelación del momento decisivo en que nuestra historia revierte su destino contra todo pronóstico. Cierre reflexivo sobre la resiliencia y las decisiones que cambian el rumbo de la humanidad antes del Outro Oficial de 8s.`,
-    `Clímax: Desenlace documental que responde la gran incógnita central con datos históricos verificados. Cierre filosófico conectando las lecciones de este episodio con el presente, dando paso al Outro Oficial de 8s.`,
-    `Clímax: El contraste final entre quienes dieron todo por perdido y el impacto duradero que dejó en el mundo moderno. Cierre solemne antes de fundir con el Outro Oficial de 8s.`,
+  const defaultClimaxOptions: string[] = [
+    'Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.',
+    'Clímax 2 (La Paradoja del Rechazo): El instante histórico en que quienes rechazaron 3 veces aquel proyecto comprendieron que habían dejado escapar el negocio del siglo. Cierre solemne con el Slogan Oficial y Outro de 8s.',
+    'Clímax 3 (El Destino Humano del Fundador vs. Su Creación): El contraste conmovedor entre el creador que perdió 30 años de trabajo en un instante y la inmortalidad de la obra que sobrevivió a su ruina. Cierre reflexivo y Outro de 8s.',
+    'Clímax 4 (La Jugada que Cambió las Reglas para Siempre): Revelación de cómo transformar una debilidad humillante en la mayor ventaja competitiva de la época en plena crisis económica. Cierre filosófico y Outro de 8s.',
+    'Clímax 5 (El Impacto en la Vida Cotidiana y la Memoria Colectiva): Conexión directa con los recuerdos y testimonios de la audiencia sobre cómo estas disputas históricas moldearon las costumbres de pueblos y ciudades enteras. Outro de 8s.',
+    'Clímax 6 (Nadie Tiene el Éxito Garantizado): Reflexión documental final sobre por qué ningún imperio —por más de 250 sedes o siglos de poder que posea— es indestructible frente al paso del tiempo. Cierre con Slogan y Outro de 8s.',
   ];
-  const p7Options: [string, string, string] = [
-    parsedP7.options[0] || doc.promptConfig?.PROP_P7_OPT1 || defaultClimaxOptions[0],
-    parsedP7.options[1] || doc.promptConfig?.PROP_P7_OPT2 || defaultClimaxOptions[1],
-    parsedP7.options[2] || doc.promptConfig?.PROP_P7_OPT3 || defaultClimaxOptions[2],
-  ];
+  const p7Options = resolvePartOptionsList(doc, 7, parsedP7.options, defaultClimaxOptions);
   const p7Summary =
     parsedP7.summary ||
-    'Resolución de la contradicción central en el último tercio del documental y reflexión filosófica final antes de los 8 segundos de Outro Oficial de marca.';
+    'Opciones de desenlace y reflexión filosófica final extraídas de los patrones de cierre del video analizado antes de los 8 segundos de Outro Oficial de marca.';
 
   return [
     {
       partNumber: 1,
       id: 'typology',
-      title: 'Parte 1 · Tipología del Video (Etapa 1 del Protocolo)',
-      subtitle: 'Selecciona una opción del protocolo o la nueva tipología creada acorde con el documental',
+      title: 'Parte 1 · Tipología del Video (Etapa 1 del Protocolo — Permite Seleccionar Varias)',
+      subtitle: 'Haz clic en todas las opciones que desees combinar (selecciona una o varias tipologías a la vez)',
       summary: p1Summary,
-      currentValue: doc.typology || p1Options[0],
+      currentValue: doc.typology || p1Options.slice(0, 2).join(' + '),
       options: p1Options,
     },
     {
       partNumber: 2,
       id: 'topic',
       title: 'Parte 2 · Tema Central del Documental / Episodio',
-      subtitle: 'Se llena automáticamente en el campo Tema Central y puedes alternar entre las 3 opciones',
+      subtitle: `Se llena automáticamente en el campo Tema Central y puedes alternar entre las ${p2Options.length} opciones`,
       summary: p2Summary,
       currentValue: doc.topic || p2Options[0],
       options: p2Options,
@@ -1101,7 +1118,7 @@ function buildStage1PropositionParts(
       partNumber: 3,
       id: 'historicalTime',
       title: 'Parte 3 · Tiempo / Época (Años en dígitos o Siglo en romanos)',
-      subtitle: 'Se llena automáticamente en el campo Tiempo / Época y puedes alternar entre las 3 opciones',
+      subtitle: `Se llena automáticamente en el campo Tiempo / Época y puedes alternar entre las ${p3Options.length} opciones`,
       summary: p3Summary,
       currentValue: doc.historicalTime || p3Options[0],
       options: p3Options,
@@ -1110,7 +1127,7 @@ function buildStage1PropositionParts(
       partNumber: 4,
       id: 'historicalLocation',
       title: 'Parte 4 · Lugar Histórico (Ciudad, País)',
-      subtitle: 'Se llena automáticamente en el campo Lugar Histórico y puedes alternar entre las 3 opciones',
+      subtitle: `Se llena automáticamente en el campo Lugar Histórico y puedes alternar entre las ${p4Options.length} opciones`,
       summary: p4Summary,
       currentValue: doc.historicalLocation || p4Options[0],
       options: p4Options,
@@ -1119,7 +1136,7 @@ function buildStage1PropositionParts(
       partNumber: 5,
       id: 'hookAndAngle',
       title: 'Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
-      subtitle: 'Define cómo abre el documental en los primeros segundos y qué contradicción guía la investigación',
+      subtitle: `Define cómo abre el documental en los primeros segundos (${p5Options.length} patrones del video analizado)`,
       summary: p5Summary,
       currentValue: doc.promptConfig?.PROPOSICION_GANCHO || p5Options[0],
       options: p5Options,
@@ -1128,7 +1145,7 @@ function buildStage1PropositionParts(
       partNumber: 6,
       id: 'actsEscaleta',
       title: 'Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
-      subtitle: 'Define la estructura de bloques y cómo se responden las dudas ×N de la audiencia',
+      subtitle: `Define la estructura de bloques y cómo se responden las dudas ×N de la audiencia (${p6Options.length} opciones)`,
       summary: p6Summary,
       currentValue: doc.promptConfig?.PROPOSICION_ESCALETA || p6Options[0],
       options: p6Options,
@@ -1137,7 +1154,7 @@ function buildStage1PropositionParts(
       partNumber: 7,
       id: 'climaxAndClosure',
       title: 'Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo',
-      subtitle: 'Define el desenlace documental antes del Outro Oficial de 8 segundos',
+      subtitle: `Define el desenlace documental antes del Outro Oficial de 8 segundos (${p7Options.length} opciones)`,
       summary: p7Summary,
       currentValue: doc.promptConfig?.PROPOSICION_CLIMAX || p7Options[0],
       options: p7Options,
@@ -2321,9 +2338,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const p6 = parts[5];
     const p7 = parts[6];
 
+    const defaultCombinedTypology =
+      p1.options.length >= 2
+        ? `${p1.options[0]} + ${p1.options.find((o) => /^[1-8]\./.test(o)) || p1.options[1]}`
+        : p1.options[0] || '';
     const nextTypology =
       !docToInspect.typology?.trim() || preferExtractedValues
-        ? p1.options[0]
+        ? defaultCombinedTypology
         : docToInspect.typology;
     const nextTopic =
       !docToInspect.topic?.trim() || preferExtractedValues ? p2.options[0] : docToInspect.topic;
@@ -2335,6 +2356,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       !docToInspect.historicalLocation?.trim() || preferExtractedValues
         ? p4.options[0]
         : docToInspect.historicalLocation;
+
+    const dynamicPropConfig: Record<string, string> = {};
+    parts.forEach((partObj, idx) => {
+      const pNum = idx + 1;
+      dynamicPropConfig[`PROP_P${pNum}_OPTIONS_JSON`] = JSON.stringify(partObj.options);
+      partObj.options.forEach((optStr, optIdx) => {
+        dynamicPropConfig[`PROP_P${pNum}_OPT${optIdx + 1}`] = optStr;
+      });
+    });
 
     return {
       typology: nextTypology,
@@ -2368,27 +2398,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_CLIMAX
             ? p7.options[0]
             : docToInspect.promptConfig.PROPOSICION_CLIMAX,
-        PROP_P1_OPT1: p1.options[0],
-        PROP_P1_OPT2: p1.options[1],
-        PROP_P1_OPT3: p1.options[2],
-        PROP_P2_OPT1: p2.options[0],
-        PROP_P2_OPT2: p2.options[1],
-        PROP_P2_OPT3: p2.options[2],
-        PROP_P3_OPT1: p3.options[0],
-        PROP_P3_OPT2: p3.options[1],
-        PROP_P3_OPT3: p3.options[2],
-        PROP_P4_OPT1: p4.options[0],
-        PROP_P4_OPT2: p4.options[1],
-        PROP_P4_OPT3: p4.options[2],
-        PROP_P5_OPT1: p5.options[0],
-        PROP_P5_OPT2: p5.options[1],
-        PROP_P5_OPT3: p5.options[2],
-        PROP_P6_OPT1: p6.options[0],
-        PROP_P6_OPT2: p6.options[1],
-        PROP_P6_OPT3: p6.options[2],
-        PROP_P7_OPT1: p7.options[0],
-        PROP_P7_OPT2: p7.options[1],
-        PROP_P7_OPT3: p7.options[2],
+        ...dynamicPropConfig,
       },
     };
   };
@@ -10765,59 +10775,129 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                         <label className="block text-xs font-semibold text-slate-300">
-                          Tipología del Video (Etapa 1 del Protocolo)
+                          Tipología del Video (Etapa 1 del Protocolo — Permite Seleccionar Varias Opciones)
                         </label>
-                        <span className="text-[10px] text-emerald-400 font-semibold">
-                          Permite dejar en blanco · Se determina o crea nueva tras investigar
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            ✨ Selección múltiple activa ({parseSelectedTypologies(activeDoc.typology).length}{' '}
+                            seleccionadas)
+                          </span>
+                          {activeDoc.typology?.trim() && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateActiveDoc({
+                                  typology: '',
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    TIPOLOGIA_VIDEO: '',
+                                  },
+                                })
+                              }
+                              className="text-[10px] px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-semibold cursor-pointer"
+                            >
+                              Dejar en blanco
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {(() => {
+                        let storedJsonP1: string[] = [];
+                        try {
+                          if (activeDoc.promptConfig?.PROP_P1_OPTIONS_JSON) {
+                            const arr = JSON.parse(activeDoc.promptConfig.PROP_P1_OPTIONS_JSON);
+                            if (Array.isArray(arr)) storedJsonP1 = arr.map(String);
+                          }
+                        } catch {}
+                        const selectedList = parseSelectedTypologies(activeDoc.typology);
                         const extraTypologies = [
-                          activeDoc.typology,
+                          ...selectedList,
+                          ...storedJsonP1,
                           activeDoc.promptConfig?.PROP_P1_OPT1,
                           activeDoc.promptConfig?.PROP_P1_OPT2,
                           activeDoc.promptConfig?.PROP_P1_OPT3,
+                          activeDoc.promptConfig?.PROP_P1_OPT4,
+                          activeDoc.promptConfig?.PROP_P1_OPT5,
+                          activeDoc.promptConfig?.PROP_P1_OPT6,
                         ]
                           .map((v) => String(v || '').trim())
                           .filter((v) => v.length > 0 && !TYPOLOGIES.includes(v));
                         const uniqueExtraTypologies = Array.from(new Set(extraTypologies));
+                        const allSelectableTypologies = [
+                          ...uniqueExtraTypologies,
+                          ...TYPOLOGIES,
+                        ];
+
                         return (
-                          <select
-                            value={activeDoc.typology || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateActiveDoc({
-                                typology: val,
-                                promptConfig: {
-                                  ...(activeDoc.promptConfig || {}),
-                                  TIPOLOGIA_VIDEO: val,
-                                },
-                              });
-                            }}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
-                          >
-                            <option value="">
-                              — En blanco (La app determinará cuál poner o creará una nueva tras la investigación) —
-                            </option>
-                            {uniqueExtraTypologies.length > 0 && (
-                              <optgroup label="✨ Tipología Creada / Determinada para este Documental">
-                                {uniqueExtraTypologies.map((customT) => (
-                                  <option key={customT} value={customT}>
-                                    {customT}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            <optgroup label="📋 Opciones Oficiales del Protocolo (Etapa 1)">
-                              {TYPOLOGIES.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
+                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                            <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2">
+                              {selectedList.length > 0 ? (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[11px] font-bold text-amber-300 mr-1">
+                                    Activas ({selectedList.length}):
+                                  </span>
+                                  {selectedList.map((sel) => (
+                                    <span
+                                      key={sel}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-[11px] font-semibold"
+                                    >
+                                      ✓ {sel}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">
+                                  — En blanco (La app determinará cuáles poner o creará nuevas tras la investigación; haz clic abajo para marcar una o varias opciones) —
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                              {allSelectableTypologies.map((tOpt) => {
+                                const isChecked = isTypologyOptionSelected(activeDoc.typology, tOpt);
+                                const isCustom = !TYPOLOGIES.includes(tOpt);
+                                return (
+                                  <button
+                                    key={tOpt}
+                                    type="button"
+                                    onClick={() => {
+                                      const nextVal = toggleTypologySelection(
+                                        activeDoc.typology,
+                                        tOpt
+                                      );
+                                      updateActiveDoc({
+                                        typology: nextVal,
+                                        promptConfig: {
+                                          ...(activeDoc.promptConfig || {}),
+                                          TIPOLOGIA_VIDEO: nextVal,
+                                        },
+                                      });
+                                    }}
+                                    className={`text-left px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer flex items-start gap-2 ${
+                                      isChecked
+                                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-100 font-bold'
+                                        : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800 text-slate-300'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center text-[10px] shrink-0 border ${
+                                        isChecked
+                                          ? 'bg-emerald-400 border-emerald-300 text-slate-950 font-black'
+                                          : 'bg-slate-950 border-slate-700 text-transparent'
+                                      }`}
+                                    >
+                                      ✓
+                                    </span>
+                                    <span className="leading-snug">
+                                      {isCustom ? `✨ ${tOpt}` : tOpt}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })()}
                     </div>
@@ -11809,11 +11889,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         optionValue: string
                       ) => {
                         if (partId === 'typology') {
+                          const nextCombinedTypology = toggleTypologySelection(
+                            activeDoc.typology,
+                            optionValue
+                          );
                           updateActiveDoc({
-                            typology: optionValue,
+                            typology: nextCombinedTypology,
                             promptConfig: {
                               ...(activeDoc.promptConfig || {}),
-                              TIPOLOGIA_VIDEO: optionValue,
+                              TIPOLOGIA_VIDEO: nextCombinedTypology,
                             },
                           });
                         } else if (partId === 'topic') {
@@ -11868,7 +11952,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)&quot;</strong>, Gemini analizará el otro video sin usar Deep Research (con <strong>4 Argon · Thinking level: Low</strong>), llenará automáticamente <strong>🏛️ Definición Histórica y Continuidad</strong> y mostrará aquí las <strong>3 opciones seleccionables para cada parte</strong> antes de pasar al Paso 2.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)&quot;</strong>, Gemini analizará el otro video sin usar Deep Research (con <strong>4 Argon · Thinking level: Low</strong>), llenará automáticamente <strong>🏛️ Definición Histórica y Continuidad</strong> (permitiendo seleccionar varias tipologías) y mostrará aquí <strong>tantas opciones por cada parte como patrones extraiga del video analizado</strong> antes de pasar al Paso 2.
                           </div>
                         );
                       }
@@ -11882,11 +11966,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   ✓ Paso 1 Determinado · Campos Auto-Llenados
                                 </span>
                                 <h4 className="text-sm sm:text-base font-black text-amber-300">
-                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (3 Opciones para Cada Parte)
+                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Múltiples Opciones según Video Analizado)
                                 </h4>
                               </div>
                               <p className="text-xs text-slate-300">
-                                Se ha determinado automáticamente la Opción 1 para la <strong>Tipología del Video</strong>, <strong>Tema Central</strong>, <strong>Tiempo / Época</strong> y <strong>Lugar Histórico</strong>. Puedes elegir cualquiera de las <strong>3 opciones</strong> de cada parte antes de lanzar el <strong>Paso 2 (Investigación Profunda con Deep Research)</strong>:
+                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. En cada una de las 7 partes se muestran todas las opciones extraídas de los patrones virales del video analizado antes de lanzar el <strong>Paso 2 (Investigación Profunda con Deep Research)</strong>:
                               </p>
                             </div>
                             <button
@@ -11920,7 +12004,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     <div className="text-[11px] text-slate-400">{part.subtitle}</div>
                                   </div>
                                   <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 text-emerald-300 font-semibold">
-                                    3 opciones disponibles
+                                    {part.options.length} opciones disponibles
+                                    {part.id === 'typology'
+                                      ? ` · ${parseSelectedTypologies(activeDoc.typology).length} seleccionadas`
+                                      : ''}
                                   </span>
                                 </div>
 
@@ -11929,11 +12016,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   {part.summary}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                                   {part.options.map((optText, idx) => {
                                     const isSelected =
-                                      String(part.currentValue || '').trim() ===
-                                      String(optText || '').trim();
+                                      part.id === 'typology'
+                                        ? isTypologyOptionSelected(activeDoc.typology, optText)
+                                        : String(part.currentValue || '').trim() ===
+                                          String(optText || '').trim();
                                     return (
                                       <button
                                         key={idx}
@@ -11958,7 +12047,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             </span>
                                             {isSelected && (
                                               <span className="text-[10px] font-bold text-emerald-300">
-                                                ✓ Activa en Documental
+                                                {part.id === 'typology'
+                                                  ? '✓ Seleccionada (Multi)'
+                                                  : '✓ Activa en Documental'}
                                               </span>
                                             )}
                                           </div>

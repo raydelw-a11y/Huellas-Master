@@ -882,11 +882,101 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
   const isVideo77Doc =
     doc.id === 'doc-video-77-huellas' || /^Video\s*77\b/i.test(String(doc.title || '').trim());
-  const needsV77Reset =
-    isVideo77Doc && doc.promptConfig?.CLEAN_RESET_V77 !== '2026_11_08_1912';
+  const needsV77MultiUpdate =
+    isVideo77Doc && doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_08_1952';
 
-  if (needsV77Reset) {
-    const cleanedCfg: Record<string, string> = {
+  if (needsV77MultiUpdate) {
+    const p1Opts = [
+      '9. Crónica documental de crisis repetidas, rechazos históricos y giro contra todo pronóstico (Nueva tipología basada en patrón viral)',
+      '10. Arquetipo de imperios al borde de la liquidación, subastas históricas y resurgimiento (Nueva tipología basada en patrón de apertura)',
+      '11. Anatomía de errores fatales, secretos subestimados y rivalidad de titanes (Nueva tipología basada en patrón de tensión)',
+      '1. Un suceso histórico',
+      '4. Un misterio sin resolver',
+      '7. Una manipulación psicológica',
+      '6. Una conciencia o realidad colectiva',
+      '8. Una curiosidad',
+    ];
+    const p2Opts = [
+      'El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.',
+      'La Porcelana Secreta de Meissen y el Alquimista Prisionero: falló en 2 hornos reales, fue rechazado 3 veces por las cortes europeas y rompió el monopolio milenario del oro blanco.',
+      'El Ferrocarril Imposible de los Andes (La Oroya): se declaró en bancarrota 2 veces, sobrevivió a 3 epidemias y perforó 60 túneles a casi 5 mil metros de altura contra todo pronóstico.',
+      'La Subasta de la Compañía del Mar del Sur y el Mayor Colapso Financiero del Siglo XVIII: cómo un imperio comercial que parecía indestructible se liquidó en una tarde arruinando hasta a Isaac Newton.',
+      'El Telégrafo Transatlántico de Cyrus Field: el cable submarino se rompió 2 veces en el fondo del océano, fue ridiculizado 3 veces por el Parlamento y terminó uniendo dos continentes en minutos.',
+      'El Secreto del Vidrio de Murano y los Artesanos Desterrados de Venecia: traicionados 2 veces, perseguidos por 3 decretos de muerte y creadores del monopolio más codiciado de Europa.',
+    ];
+    const p3Opts = [
+      'Años 1879 – 1912 / Siglo XIX y principios del Siglo XX (Auge, fiebre extractiva, 30 años de apogeo y colapso repentino)',
+      'Años 1701 – 1719 / Principios del Siglo XVIII (Cautiverio, experimentos fallidos y nacimiento del imperio europeo)',
+      'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Las dos bancarrotas y la hazaña de ingeniería)',
+      'Año 1720 / Siglo XVIII (El año de la gran burbuja, la euforia colectiva y la subasta de liquidación)',
+      'Años 1854 – 1866 / Mediados del Siglo XIX (Doce años de expediciones fallidas, cables rotos y triunfo final)',
+      'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Tres siglos de aislamiento insular, espionaje industrial y persecución)',
+    ];
+    const p4Opts = [
+      'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y mercados de Londres, Inglaterra)',
+      'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
+      'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
+      'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
+      'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
+      'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
+    ];
+    const p5Opts = [
+      'Patrón 1 (El Golpe de Martillo y la Liquidación Silenciosa): Clip 1 (6s sin voz) en sala de subastas en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción ridícula de su valor, el trabajo de 30 años y más de 200 sedes operativas cambia de manos sin que nadie en la sala levante la vista.',
+      'Patrón 2 (La Fórmula Numérica 2 Caídas / 3 Rechazos): Clip 1 (6s sin voz) de documentos lacrados arrojados al suelo de piedra. Entrada de voz (00:16): Se rompió 2 veces, fue rechazado 3 veces por quienes dominaban el mundo... y aun así terminó cambiando la historia para siempre.',
+      'Patrón 3 (El Secreto Subestimado por el Gigante): Clip 1 (6s sin voz) de un cuaderno de fórmulas manuscritas bajo lámpara de aceite. Entrada de voz (00:16): Tuvieron el secreto frente a sus ojos por una suma irrisoria y lo despreciaron tres veces, sin imaginar que estaban creando a su mayor rival.',
+      'Patrón 4 (La Caída de un Imperio que Parecía Indestructible): Clip 1 (6s sin voz) de una imponente fachada histórica vacía y cubierta de niebla. Entrada de voz (00:16): Llegó a controlar cientos de sedes y fortunas incalculables, pero un solo error de cálculo borró tres décadas de gloria en una tarde.',
+      'Patrón 5 (El Sacrificio de un Hombre Frente a la Ruina): Clip 1 (6s sin voz) de un creador exhausto recogiendo sus planos en un despacho vacío al anochecer. Entrada de voz (00:16): Cuando los abogados cerraron las carpetas, aquel hombre había perdido su propio nombre, pero la huella de su invención apenas comenzaba.',
+      'Patrón 6 (La Paradoja de la Complacencia y el Contraataque): Clip 1 (6s sin voz) de dos mapas estratégicos enfrentados sobre una mesa de caoba. Entrada de voz (00:16): Mientras el líder absoluto daba la batalla por ganada, en los callejones más pobres nacía la estrategia que daría vuelta el tablero.',
+    ];
+    const p6Opts = [
+      'Escaleta 1 (Estructura de Subasta Inversa — In Media Res · 30 min): Intro 8s + Hook (00:08-02:30): El día de la liquidación total · Acto I (02:30-08:30): El origen humilde y la primera fórmula · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los 3 rechazos humillantes y la segunda quiebra · Acto IV (21:30-27:30): El giro estratégico audaz que salvó el imperio · Clímax y Outro 8s.',
+      'Escaleta 2 (Estructura de Doble Caída y Triple Rechazo · 30 min): Intro 8s + Hook (8%) · Bloque 1 (20%): El hallazgo inicial y expansión de las primeras sedes · Bloque 2 (25%): Primera bancarrota, error de inventario y primer rechazo · Bloque 3 (22%): Segunda caída, subasta por centavos y tercer rechazo · Bloque 4 (17%): La reinvención radical en plena crisis · Cierre + Outro 8s (8%).',
+      'Escaleta 3 (Estructura de Rivalidad de Titanes · 30 min): Intro 8s + Hook de contraste · Acto I: El gigante intocable frente al aspirante desconocido · Acto II: Los errores fatales de soberbia y complacencia · Acto III: La guerra de precios, patentes y supervivencia · Acto IV: Cómo el rechazado se convirtió en el mayor rival de la historia · Outro 8s.',
+      'Escaleta 4 (Estructura Forense de los 30 Años Perdidos · 30 min): Intro 8s + Hook · Investigación cronológica década por década de cómo un hombre construyó más de 200 instalaciones operativas y cómo tres decisiones financieras sellaron su destino antes del resurgimiento en manos nuevas · Outro 8s.',
+      'Escaleta 5 (Estructura de Micro-Ganchos Cada 4 Minutos · 30 min): 6 bloques diseñados con un cliffhanger documental al cierre de cada bloque (1. El precio del secreto, 2. La trampa de la materia prima, 3. La oferta rechazada, 4. El juicio y la subasta, 5. La jugada maestra en la crisis, 6. El legado imborrable) + Intro 8s y Outro 8s.',
+      'Escaleta 6 (Estructura Guiada por las Dudas y Reacciones de la Audiencia · 30 min): Responde en 5 actos orgánicos por qué los imperios caen por complacencia, qué pasó con el fundador original tras perder 30 años de esfuerzo y cómo cambió la economía cotidiana + Intro 8s y Outro 8s.',
+    ];
+    const p7Opts = [
+      'Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.',
+      'Clímax 2 (La Paradoja del Rechazo): El instante histórico en que quienes rechazaron 3 veces aquel proyecto comprendieron que habían dejado escapar el negocio del siglo. Cierre solemne con el Slogan Oficial y Outro de 8s.',
+      'Clímax 3 (El Destino Humano del Fundador vs. Su Creación): El contraste conmovedor entre el creador que perdió 30 años de trabajo en un instante y la inmortalidad de la obra que sobrevivió a su ruina. Cierre reflexivo y Outro de 8s.',
+      'Clímax 4 (La Jugada que Cambió las Reglas para Siempre): Revelación de cómo transformar una debilidad humillante en la mayor ventaja competitiva de la época en plena crisis económica. Cierre filosófico y Outro de 8s.',
+      'Clímax 5 (El Impacto en la Vida Cotidiana y la Memoria Colectiva): Conexión directa con los recuerdos y testimonios de la audiencia sobre cómo estas disputas históricas moldearon las costumbres de pueblos y ciudades enteras. Outro de 8s.',
+      'Clímax 6 (Nadie Tiene el Éxito Garantizado): Reflexión documental final sobre por qué ningún imperio —por más de 250 sedes o siglos de poder que posea— es indestructible frente al paso del tiempo. Cierre con Slogan y Outro de 8s.',
+    ];
+    const combinedTypology = `${p1Opts[0]} + ${p1Opts[3]} + ${p1Opts[5]}`;
+    const v77Paso1Report = [
+      '0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (MÚLTIPLES OPCIONES SEGÚN VIDEO ANALIZADO):',
+      'PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO):',
+      'Resumen de esta parte: Se extraen los arquetipos virales del video analizado ("Pepsi: Se rompió 2 veces, fue rechazada 3 veces…") sin duplicar su tema, permitiendo combinar varias tipologías a la vez.',
+      ...p1Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:',
+      'Resumen de esta parte: 6 propuestas de temas históricos 100% originales para "Huellas de la Humanidad" que aplican exactamente la fórmula viral de caídas repetidas, rechazos y giro inesperado.',
+      ...p2Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):',
+      'Resumen de esta parte: Delimitación cronológica precisa para cada una de las 6 propuestas originales.',
+      ...p3Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):',
+      'Resumen de esta parte: Escenarios geográficos principales (Ciudad, País) correspondientes a las 6 propuestas originales.',
+      ...p4Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):',
+      'Resumen de esta parte: 6 patrones de Hook extraídos de la apertura y descripción del video analizado adaptados a nuestro documental original.',
+      ...p5Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~30 MIN):',
+      'Resumen de esta parte: 6 arquitecturas narrativas calibradas a 30 minutos (Intro 8s + Clips de 8s + Outro 8s) basadas en el ritmo de retención del video guía.',
+      ...p6Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      'PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:',
+      'Resumen de esta parte: 6 estrategias de desenlace y reflexión final hacia el Outro Oficial de 8 segundos.',
+      ...p7Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
+      '',
+      '1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (USADO SOLO COMO GUÍA Y ESTRUCTURA):',
+      '- Patrón de Título (Contraste Numérico + Supervivencia): "Se rompió X veces, fue rechazada Y veces... y así nació...".',
+      '- Patrón de Apertura (In Media Res): Abre en el instante más oscuro (el golpe de martillo en la subasta, liquidando 30 años de esfuerzo y más de 250 instalaciones por una suma irrisoria mientras nadie levanta la vista).',
+      '- Patrón de Tensión y Comentarios: Demuestra que la complacencia es el verdadero enemigo de los imperios que parecen indestructibles.',
+    ].join('\n');
+
+    const updatedCfg: Record<string, string> = {
+      ...(doc.promptConfig || {}),
       TIPO_PRODUCCION: doc.promptConfig?.TIPO_PRODUCCION || 'REELS',
       SUB_OPCION_POST: doc.promptConfig?.SUB_OPCION_POST || 'EXPECTATIVA_ESTRENO',
       SUB_OPCION_REELS: doc.promptConfig?.SUB_OPCION_REELS || '16X9',
@@ -897,21 +987,41 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       DURACION_CLIPS_SEGUNDOS: doc.promptConfig?.DURACION_CLIPS_SEGUNDOS || '8',
       VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
       UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
-      CLEAN_RESET_V77: '2026_11_08_1912',
+      STAGE1_PART1_COMPLETED: 'SI',
+      YOUTUBE_SELECTED_LIBRARY_LINK: 'https://youtu.be/r5Uh1uDxrvY?is=ePIGX6c5Lnc1KHh4',
+      YOUTUBE_VIDEO_TITLE:
+        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+      YOUTUBE_VIDEO_CHANNEL: 'Marca Cruda',
+      ESTRUCTURA_VIRAL_TITULO:
+        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+      SELECTED_ANALYZED_VIDEO_TITLE:
+        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+      TIPOLOGIA_VIDEO: combinedTypology,
+      TEMA_VIDEO: p2Opts[0],
+      TIEMPO_EPOCA: p3Opts[0],
+      LUGAR_HISTORICO: p4Opts[0],
+      PROPOSICION_GANCHO: p5Opts[0],
+      ANGULO_CENTRAL: p5Opts[0],
+      PROPOSICION_ESCALETA: p6Opts[0],
+      PROPOSICION_CLIMAX: p7Opts[0],
+      PROP_P1_OPTIONS_JSON: JSON.stringify(p1Opts),
+      PROP_P2_OPTIONS_JSON: JSON.stringify(p2Opts),
+      PROP_P3_OPTIONS_JSON: JSON.stringify(p3Opts),
+      PROP_P4_OPTIONS_JSON: JSON.stringify(p4Opts),
+      PROP_P5_OPTIONS_JSON: JSON.stringify(p5Opts),
+      PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
+      PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
+      V77_MULTI_PASO1_UPDATED: '2026_11_08_1952',
     };
+
     return {
       ...doc,
-      typology: '',
-      topic: '',
-      historicalTime: '',
-      historicalLocation: '',
-      sectionsStructure: '',
-      deepResearchPrompt: '',
-      deepResearchResult: '',
-      voiceoverScript: '',
-      rawReferencePrompts: '',
-      references: [],
-      promptConfig: cleanedCfg,
+      typology: combinedTypology,
+      topic: p2Opts[0],
+      historicalTime: p3Opts[0],
+      historicalLocation: p4Opts[0],
+      deepResearchPrompt: v77Paso1Report,
+      promptConfig: updatedCfg,
     };
   }
 
@@ -1745,45 +1855,37 @@ ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECC
 - Queremos usar el video investigado EXCLUSIVAMENTE como guía, estructura y análisis para extraer los PATRONES y DETALLES que hicieron que se viralizara en YouTube (su arquetipo narrativo, su estructura de caídas y giros, su ritmo de capítulos, sus gatillos psicológicos y su fórmula de título/gancho) y aplicarlos a un documental 100% ORIGINAL de "Huellas de la Humanidad".
 - En la PARTE 1 (Tipología del Video), NUNCA pongas el nombre o tema del video investigado; define una tipología general/arquetípica del protocolo (o crea la Tipología #9 como un arquetipo narrativo viral reutilizable).
 
-Entrega obligatoriamente este informe estructurado con 3 opciones para cada parte de nuestro documental:
+Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4, 5, 6 o TANTAS OPCIONES COMO PATRONES, ÁNGULOS Y DETALLES DÉ EL VIDEO ANALIZADO, sin limitarte a 3) para cada parte de nuestro documental:
 
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (3 OPCIONES POR CADA PARTE):
-   Entrega obligatoriamente este bloque con EXACTAMENTE 3 opciones numeradas (Opción 1, Opción 2, Opción 3) para cada una de las 7 partes:
-   - PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO):
-     • Resumen de esta parte: [Explica qué patrón narrativo/psicológico hizo viral al video guía y qué tipología universal del protocolo o nueva tipología arquetípica debemos usar en nuestro documental original]
-     • Opción 1: [Opción de las 8 tipologías del protocolo O NUEVA tipología arquetípica universal (ej. "9. Crónica de fracasos repetidos, rechazos históricos y ascenso contra todo pronóstico") — PROHIBIDO mencionar el tema específico del video investigado]
-     • Opción 2: [Segunda opción de tipología del protocolo o nueva tipología arquetípica basada en el patrón de retención]
-     • Opción 3: [Tercera opción de tipología del protocolo o nueva tipología híbrida basada en el patrón viral]
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (TANTAS OPCIONES COMO PATRONES TENGA EL VIDEO ANALIZADO):
+   Entrega obligatoriamente este bloque con opciones numeradas (Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... tantas como salgan del análisis del video referente) para cada una de las 7 partes:
+   - PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO — PERMITE SELECCIONAR VARIAS OPCIONES):
+     • Resumen de esta parte: [Explica qué patrones narrativos/psicológicos hicieron viral al video guía y qué tipologías del protocolo y nuevas tipologías arquetípicas se pueden combinar en nuestro documental original]
+     • Opción 1: [Nueva tipología arquetípica universal #1 extraída del patrón central del video analizado — PROHIBIDO mencionar el tema específico del video investigado]
+     • Opción 2: [Nueva tipología arquetípica universal #2 extraída del patrón de apertura/subasta/crisis del video analizado]
+     • Opción 3: [Nueva tipología arquetípica universal #3 extraída del patrón de rivalidad/secreto del video analizado]
+     • Opción 4..N: [Agrega Opción 4, Opción 5, Opción 6... con todas las tipologías oficiales del protocolo (1 a 8) y nuevas tipologías arquetípicas adicionales que apliquen según el video analizado]
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
-     • Resumen de esta parte: [Explica cómo aplicamos la fórmula viral del video guía a un tema histórico 100% ORIGINAL y DISTINTO para "Huellas de la Humanidad"]
+     • Resumen de esta parte: [Explica cómo aplicamos la fórmula viral del video guía a múltiples temas históricos 100% ORIGINALES y DISTINTOS para "Huellas de la Humanidad"]
      • Opción 1: [Tema histórico 100% ORIGINAL y DIFERENTE al video investigado, diseñado con el mismo patrón de impacto, contraste numérico y tensión dramática]
      • Opción 2: [Segundo tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en hazañas, crisis ocultas o supervivencia humana]
      • Opción 3: [Tercer tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en un misterio, imperio o invención histórica olvidada]
+     • Opción 4..N: [Agrega Opción 4, Opción 5, Opción 6... con tantos temas históricos originales adicionales como ángulos y patrones virales se desprendan del video analizado]
    - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS):
-     • Resumen de esta parte: [Justificación del marco cronológico para nuestro nuevo documental original]
-     • Opción 1: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 1 de nuestro Tema Central original]
-     • Opción 2: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 2 de nuestro Tema Central original]
-     • Opción 3: [Años en dígitos y Siglo en números romanos correspondientes a la Opción 3 de nuestro Tema Central original]
+     • Resumen de esta parte: [Justificación del marco cronológico para cada propuesta original]
+     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con los años en dígitos y Siglo en números romanos para cada tema/ángulo propuesto]
    - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS):
      • Resumen de esta parte: [Justificación de los escenarios geográficos de nuestro nuevo documental original]
-     • Opción 1: [Ciudad, País principal correspondiente a la Opción 1 de nuestro Tema Central original]
-     • Opción 2: [Ciudad, País principal correspondiente a la Opción 2 de nuestro Tema Central original]
-     • Opción 3: [Ciudad, País principal correspondiente a la Opción 3 de nuestro Tema Central original]
+     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con la Ciudad, País principal correspondiente a cada propuesta original]
    - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
-     • Resumen de esta parte: [Cómo adaptamos el patrón de Hook de los primeros 30s del video guía a nuestro nuevo documental original]
-     • Opción 1: [Propuesta 1 de Hook visual/narrativo (00:08) y paradoja central para nuestro documental original]
-     • Opción 2: [Propuesta 2 de Hook de contraste numérico/histórico e intriga inmediata para nuestro documental original]
-     • Opción 3: [Propuesta 3 de Hook basado en una revelación histórica o incógnita de la audiencia para nuestro documental original]
+     • Resumen de esta parte: [Cómo adaptamos todos los patrones de Hook del video guía a nuestro nuevo documental original]
+     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las variantes de Hook visual/narrativo (00:08) y paradoja central extraídas de los patrones del video analizado]
    - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN):
      • Resumen de esta parte: [Cómo trasladamos los porcentajes y ritmo de bloques del video guía a nuestros ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
-     • Opción 1: [Propuesta 1 de calibración matemática por bloques (%) y minutos (~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s) replicando el ritmo de retención del video guía]
-     • Opción 2: [Propuesta 2 de calibración y desarrollo narrativo con micro-ganchos de crisis y superación cada 3-4 minutos]
-     • Opción 3: [Propuesta 3 de calibración y desarrollo investigativo de revelación progresiva hasta el clímax]
+     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las variantes de escaleta matemática por bloques (%) y minutos (~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s) según el video analizado]
    - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
      • Resumen de esta parte: [Estrategia de desenlace emocional e histórico hacia el Outro de 8s]
-     • Opción 1: [Propuesta 1 de clímax histórico y cierre reflexivo para nuestro documental original]
-     • Opción 2: [Propuesta 2 de clímax respondiendo la gran incógnita central y legado en la humanidad]
-     • Opción 3: [Propuesta 3 de giro final inolvidable y huella histórica antes del Outro de 8s]
+     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las opciones de clímax histórico y cierre reflexivo extraídas del video analizado]
 
 1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (QUÉ HIZO QUE SE VIRALIZARA Y CÓMO LO USAMOS DE GUÍA):
    - Desglose de los patrones exactos que hicieron viral al video investigado (estructura del Título, ritmo de capítulos en la Descripción, intención de los Tags, detonantes de Comentarios, porcentajes por bloque y gatillos psicológicos) y cómo funcionan como molde para nuestro documental de ~${(totalTargetSec / 60).toFixed(0)} minutos.`;
