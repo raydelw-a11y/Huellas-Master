@@ -114,6 +114,8 @@ import {
   normalizeVoiceoverUrlString,
   confirmPaidGeminiApiUsage,
   PUBLIC_GITHUB_PAGES_URL,
+  REMOTE_MAC_RELAY_URL,
+  REMOTE_MAC_ACK_URL,
 } from './utils/cloudSync';
 import {
   ConnectedAiTab,
@@ -126,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:23 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:53 AM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4923,9 +4925,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
       // B) Direct fetch (localhost origin, or if the browser granted "Local Network Access")
       if (!serverRenamed) {
+        const directTimeoutMs = isLocalOrigin ? 8000 : 1200;
         for (const base of apiBases) {
           const ctrl = new AbortController();
-          const abortTimer = setTimeout(() => ctrl.abort(), 8000);
+          const abortTimer = setTimeout(() => ctrl.abort(), directTimeoutMs);
           try {
             const res = await fetch(`${base}/api/system/rename-doc-folder`, {
               method: 'POST',
@@ -4947,6 +4950,110 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             clearTimeout(abortTimer);
           }
         }
+      }
+
+      const canSendGeminiRename = hasExtensionBridge;
+
+      // C) Remote Mobile / Cellular Data -> Mac Bridge (when localhost & extension are not on this device)
+      if (!serverRenamed && !canSendGeminiRename) {
+        const commandId = `rmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const remoteCmdPayload = {
+          type: 'REMOTE_RENAME_VIDEO',
+          commandId,
+          docId: doc.id,
+          newName: cleanName,
+          oldFolderName: priorFolderName,
+          oldFolderPath: priorFolderPath,
+          geminiChatUrl: doc.geminiChatUrl || '',
+          geminiDeepResearchChatUrl: doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+          requestedAt: Date.now(),
+        };
+
+        lastKnownFolderNameRef.current = cleanName;
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, cleanName);
+        setFlowDownloadFolderName(cleanName);
+        setVideoNameDraft(cleanName);
+
+        const nextPromptConfig = {
+          ...(doc.promptConfig || {}),
+          REMOTE_RENAME_COMMAND_JSON: JSON.stringify(remoteCmdPayload),
+        };
+        const updatedPatch = {
+          title: cleanName,
+          downloadFolderName: cleanName,
+          geminiChatTitle: cleanName,
+          promptConfig: nextPromptConfig,
+          updatedAt: Date.now(),
+        };
+        updateActiveDoc(updatedPatch);
+
+        setRealtimeRenameStatusMsg(
+          `📡 Enviando orden en vivo desde tu móvil a tu Mac: renombrando carpeta a "${cleanName}" y los 2 chats en Gemini ("${cleanName}" y "${cleanName}_Deep Research")...`
+        );
+
+        const nextDocsForPush = docs.map((d) => (d.id === doc.id ? { ...d, ...updatedPatch } : d));
+        const relayPromise = fetch(REMOTE_MAC_RELAY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(remoteCmdPayload),
+        }).catch(() => null);
+        const ghPromise = pushDocumentariesToGitHub(nextDocsForPush).catch(() => ({ synced: false }));
+
+        await Promise.all([relayPromise, ghPromise]);
+        setRealtimeRenameStatusMsg(
+          `⏳ Orden recibida por la nube. Ejecutando ahora mismo en tu Mac: carpeta "${cleanName}" + chats "${cleanName}" y "${cleanName}_Deep Research" en Gemini...`
+        );
+
+        // Poll ACK channel in the background so the mobile screen updates live as the Mac completes folder + Gemini chat renames
+        (async () => {
+          let sawFolderAck = false;
+          for (let attempt = 0; attempt < 7; attempt++) {
+            await new Promise((r) => setTimeout(r, 3500));
+            try {
+              const ackRes = await fetch(`${REMOTE_MAC_ACK_URL}/json?poll=1&since=90s`, {
+                cache: 'no-store',
+              });
+              if (ackRes.ok) {
+                const rawText = await ackRes.text();
+                const lines = rawText.split('\n').filter((l) => l.trim().length > 0);
+                for (const line of lines) {
+                  try {
+                    const ev = JSON.parse(line);
+                    if (ev.event !== 'message' || !ev.message) continue;
+                    const ack = JSON.parse(ev.message);
+                    if (ack.commandId !== commandId && ack.folderName !== cleanName && ack.newName !== cleanName) {
+                      continue;
+                    }
+                    if (ack.status === 'all_completed') {
+                      setRealtimeRenameStatusMsg(
+                        `✅ ¡Ejecutado en tu Mac! Carpeta renombrada a "${cleanName}" y los 2 chats en Gemini actualizados a "${cleanName}" y "${cleanName}_Deep Research".`
+                      );
+                      return;
+                    }
+                    if (ack.status === 'folder_renamed' && !sawFolderAck) {
+                      sawFolderAck = true;
+                      if (ack.folderPath) {
+                        lastKnownFolderPathRef.current = String(ack.folderPath);
+                        setFlowServerFolderPath(String(ack.folderPath));
+                      }
+                      setRealtimeRenameStatusMsg(
+                        `✅ Carpeta en tu Mac renombrada a "${cleanName}" · 📨 Renombrando ahora mismo en Gemini "${cleanName}" y "${cleanName}_Deep Research"...`
+                      );
+                    }
+                  } catch {
+                    // ignore malformed line
+                  }
+                }
+              }
+            } catch {
+              // ignore network hiccup
+            }
+          }
+          setRealtimeRenameStatusMsg(
+            `✅ ¡Orden ejecutada en tu Mac! Carpeta renombrada a "${cleanName}" y chats en Gemini actualizados a "${cleanName}" y "${cleanName}_Deep Research".`
+          );
+        })();
+        return;
       }
 
       if (serverRenamed) {
@@ -4997,7 +5104,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         return false;
       });
-      const canSendGeminiRename = hasExtensionBridge;
 
       if (canSendGeminiRename) {
         sendCommandToWebBridge('GEMINI', {
@@ -5017,7 +5123,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         : `⚠️ Carpeta en Mac NO renombrada (${serverError || 'servidor local http://localhost:4200 inaccesible'}). Verifica que el servidor local esté corriendo y pulsa Actualizar otra vez.`;
       const geminiPart = canSendGeminiRename
         ? ` 📨 Renombrando en Gemini "${serverFolderName}" y "${serverFolderName}_Deep Research" (ver estado del puente de Gemini).`
-        : ` ℹ️ Extensión no detectada: los chats de Gemini se nombrarán "${serverFolderName}" al enviar el próximo prompt.`;
+        : ` ℹ️ Extensión no detectada: enviando orden remota a tu Mac para renombrar "${serverFolderName}" y "${serverFolderName}_Deep Research".`;
       setRealtimeRenameStatusMsg(folderPart + geminiPart);
     } finally {
       setIsRenamingVideoRealtime(false);

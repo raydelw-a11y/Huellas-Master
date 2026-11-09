@@ -12940,6 +12940,7 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
   const videoName = String(req.body?.videoName || '').trim();
   const mainRenamed = Boolean(req.body?.mainRenamed);
   const deepRenamed = Boolean(req.body?.deepRenamed);
+  console.log('[RemoteRenameConfirm]', { commandId, docId, videoName, mainRenamed, deepRenamed });
   if (commandId) {
     pendingGeminiCommands.delete(commandId);
   }
@@ -12960,6 +12961,8 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
             ...(list[idx].promptConfig || {}),
             ...(commandId ? { REMOTE_RENAME_ACK_ID: commandId } : {}),
             REMOTE_RENAME_ACK_STATUS: 'all_completed',
+            REMOTE_RENAME_MAIN_OK: String(mainRenamed),
+            REMOTE_RENAME_DEEP_OK: String(deepRenamed),
           },
           updatedAt: new Date().toISOString(),
         };
@@ -12979,51 +12982,64 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
 });
 
 // Background watchers on Mac:
-// 1) Instant HTTPS relay poll (every 2s) so mobile cellular clicks execute on Mac in ~1s
-// 2) GitHub SHA watcher (every 4.5s) as a second guaranteed path
-let isPollingRemoteRelay = false;
-async function checkRemoteMacRelayCommands() {
-  if (isPollingRemoteRelay) return;
-  isPollingRemoteRelay = true;
+// 1) Persistent NDJSON stream (1 connection, <50ms latency, no 429 rate limits)
+// 2) Authenticated GitHub SHA watcher (every 3s, 5000 req/hr quota) as second guaranteed path
+function handleIncomingRemoteRelayLine(line: string) {
+  if (!line || !line.trim()) return;
   try {
-    const res = await fetch(`${REMOTE_MAC_RELAY_URL}/json?poll=1&since=60s`, {
-      headers: { 'Cache-Control': 'no-cache' },
-    }).catch(() => null);
-    if (res && res.ok) {
-      const rawText = await res.text();
-      const lines = rawText.split(/\r?\n/).filter(Boolean);
-      for (const line of lines) {
-        try {
-          const evt = JSON.parse(line);
-          if (evt?.event !== 'message' || !evt.message) continue;
-          const cmd = JSON.parse(evt.message);
-          if (
-            cmd &&
-            cmd.type === 'REMOTE_RENAME_VIDEO' &&
-            cmd.commandId &&
-            cmd.newName &&
-            !processedRemoteCommandIds.has(cmd.commandId)
-          ) {
-            processedRemoteCommandIds.add(cmd.commandId);
-            console.log(`[RemoteRelay] Executing mobile rename command ${cmd.commandId} -> "${cmd.newName}"`);
-            performMacFolderRenameCore({
-              docId: cmd.docId,
-              newName: cmd.newName,
-              oldFolderName: cmd.oldFolderName,
-              oldFolderPath: cmd.oldFolderPath,
-              commandId: cmd.commandId,
-              enqueueGeminiRename: true,
-            });
-          }
-        } catch {}
-      }
+    const evt = JSON.parse(line);
+    if (evt?.event !== 'message' || !evt.message) return;
+    const cmd = JSON.parse(evt.message);
+    if (
+      cmd &&
+      cmd.type === 'REMOTE_RENAME_VIDEO' &&
+      cmd.commandId &&
+      cmd.newName &&
+      !processedRemoteCommandIds.has(cmd.commandId)
+    ) {
+      processedRemoteCommandIds.add(cmd.commandId);
+      console.log(`[RemoteRelay] Executing mobile rename command ${cmd.commandId} -> "${cmd.newName}"`);
+      performMacFolderRenameCore({
+        docId: cmd.docId,
+        newName: cmd.newName,
+        oldFolderName: cmd.oldFolderName,
+        oldFolderPath: cmd.oldFolderPath,
+        commandId: cmd.commandId,
+        enqueueGeminiRename: true,
+      });
     }
-  } catch {
-  } finally {
-    isPollingRemoteRelay = false;
+  } catch {}
+}
+
+let isRemoteRelayStreamActive = false;
+async function startRemoteMacRelayStream() {
+  if (isRemoteRelayStreamActive) return;
+  isRemoteRelayStreamActive = true;
+  while (true) {
+    try {
+      const res = await fetch(`${REMOTE_MAC_RELAY_URL}/json?since=30s`, {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok && res.body) {
+        const reader = (res.body as any).getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            handleIncomingRemoteRelayLine(line);
+          }
+        }
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 8000));
   }
 }
-setInterval(checkRemoteMacRelayCommands, 2000);
+startRemoteMacRelayStream();
 
 let lastCheckedGitHubDocsSha = '';
 let isCheckingGitHubDocsSha = false;

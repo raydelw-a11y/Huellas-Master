@@ -2970,6 +2970,7 @@
       ) || null;
     if (!link) {
       await ensureGeminiSidebarOpen();
+      await expandSidebarNotebooksIfNeeded();
       link =
         Array.from(document.querySelectorAll('a[href*="/notebook/"]')).find(
           (a) => getNotebookPathFromUrl(a.getAttribute('href')) === nbPath
@@ -3591,16 +3592,10 @@
           return;
         }
         if (nav.ok) {
-          for (
-            let i = 0;
-            i < 25 &&
-            listNotebookPageChats().length === 0 &&
-            !document.querySelector('rich-textarea');
-            i++
-          ) {
-            await sleep(200);
+          for (let i = 0; i < 35 && listNotebookPageChats().length === 0; i++) {
+            await sleep(220);
           }
-          await sleep(600);
+          await sleep(450);
 
           // First check if a _Deep Research chat for this video exists in the Notebook and needs renaming
           let chats = listNotebookPageChats();
@@ -3628,10 +3623,10 @@
                   sendResponse({ handled: true, navigating: true });
                   return;
                 }
-                for (let i = 0; i < 20 && listNotebookPageChats().length === 0; i++) {
-                  await sleep(200);
+                for (let i = 0; i < 35 && listNotebookPageChats().length === 0; i++) {
+                  await sleep(220);
                 }
-                await sleep(500);
+                await sleep(450);
                 chats = listNotebookPageChats();
               }
             }
@@ -3640,7 +3635,8 @@
           // Now check if the Main chat for this video exists in the Notebook and needs renaming (or linking)
           const mainMatch = chats.find((c) => matchesVideoChatTitle(c.title, false));
           if (mainMatch && baseName) {
-            if (normalizeCompareText(mainMatch.title) === normalizeCompareText(baseName) && mainRenamed) {
+            if (normalizeCompareText(mainMatch.title) === normalizeCompareText(baseName)) {
+              mainRenamed = true;
               anyRenamed = true;
             } else {
               mainMatch.btn.click();
