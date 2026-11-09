@@ -19,8 +19,30 @@ export default defineConfig(({ command }) => {
     year: 'numeric',
   });
 
+  const buildVersionId = `${buildDate.slice(0, 2)}${buildDate.slice(3, 5)}${String(
+    now.getHours()
+  ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+
   return {
-    plugins: [react(), tailwindcss(), viteSingleFile()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(command === 'build' ? [viteSingleFile()] : []),
+      {
+        name: 'inject-build-version-meta',
+        transformIndexHtml(html) {
+          return html
+            .replace(
+              /(<meta\s+name="app-build-version"\s+content=")[^"]+("\s*\/?>)/i,
+              `$1${buildVersionId}$2`
+            )
+            .replace(
+              /(var\s+CURRENT_BUILD\s*=\s*')[^']+(';)/i,
+              `$1${buildVersionId}$2`
+            );
+        },
+      },
+    ],
     define: command === 'build'
       ? {
           __BUILD_TIMESTAMP__: JSON.stringify(`${buildTime} - ${buildDate}`),
