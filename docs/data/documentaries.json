@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-09T12:01:13.868Z",
+    "updatedAt": "2026-11-09T12:03:01.744Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -33,8 +33,10 @@
       "PROPOSICION_ESCALETA": "Escaleta 1 (Estructura de Subasta Inversa — In Media Res · 30 min): Intro 8s + Hook (00:08-02:30): El día de la liquidación total · Acto I (02:30-08:30): El origen humilde y la primera fórmula · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los 3 rechazos humillantes y la segunda quiebra · Acto IV (21:30-27:30): El giro estratégico audaz que salvó el imperio · Clímax y Outro 8s.",
       "PROPOSICION_CLIMAX": "Clímax 1 (La Lección de la Subasta y el Martillo): Volvemos a la sala de subastas del inicio para revelar qué ocurrió exactamente después de aquel golpe de martillo y cómo de las cenizas nació una potencia mundial. Reflexión sobre el peligro de la complacencia antes del Outro de 8s.",
       "V77_MULTI_PASO1_UPDATED": "2026_11_08_2200_CONCORDANT",
-      "REMOTE_RENAME_ACK_ID": "cmd_rename_1794225652678_t26uz",
-      "REMOTE_RENAME_ACK_STATUS": "all_completed"
+      "REMOTE_RENAME_ACK_ID": "cmd_rename_1794225779442_yg1rz",
+      "REMOTE_RENAME_ACK_STATUS": "all_completed",
+      "REMOTE_RENAME_MAIN_OK": "true",
+      "REMOTE_RENAME_DEEP_OK": "true"
     },
     "compiledMasterPrompt": "",
     "topic": "El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.",
