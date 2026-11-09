@@ -2847,12 +2847,17 @@
 
   function findNotebookLinkByName(notebookName) {
     const wanted = normalizeCompareText(notebookName);
-    return (
-      Array.from(document.querySelectorAll('a[href*="/notebook/"]')).find((a) => {
-        if (!getNotebookPathFromUrl(a.getAttribute('href'))) return false;
-        return normalizeCompareText(a.innerText || a.textContent || '') === wanted;
-      }) || null
+    const links = Array.from(document.querySelectorAll('a[href*="/notebook/"]')).filter((a) =>
+      Boolean(getNotebookPathFromUrl(a.getAttribute('href')))
     );
+    const textOf = (a) => normalizeCompareText(a.innerText || a.textContent || '');
+    const exact = links.find((a) => textOf(a) === wanted);
+    if (exact) return exact;
+    const partial = links.filter((a) => {
+      const t = textOf(a);
+      return t && wanted && (t.includes(wanted) || wanted.includes(t));
+    });
+    return partial.length === 1 ? partial[0] : null; // only when unambiguous
   }
 
   async function resolveNotebookPath(notebookName) {
@@ -3382,7 +3387,15 @@
 
     if (msg.action === 'RENAME_GEMINI_CHAT') {
       (async () => {
+        // Wait (max ~60 s) for another order to finish instead of aborting silently
+        for (let w = 0; w < 120 && (isBusyWithOrder || isGeminiStillGenerating()); w++) {
+          if (w === 0) {
+            reportStatus('WORKING', '⏳ Renombrado de chats en espera: Gemini está terminando otra orden...', { docId: msg.docId });
+          }
+          await sleep(500);
+        }
         if (isBusyWithOrder || isGeminiStillGenerating()) {
+          reportStatus('ERROR', '⛔ No se renombraron los chats en Gemini: sigue ocupado con otra orden. Pulsa "Actualizar" cuando termine.', { docId: msg.docId });
           sendResponse({ handled: false, busy: true });
           return;
         }
@@ -3396,6 +3409,11 @@
         const docKey = docId || normalizeCompareText(baseName) || normalizeCompareText(oldBaseName);
 
         if (!nbPath || !baseName) {
+          reportStatus(
+            'ERROR',
+            `⛔ No se renombraron los chats: ${!nbPath ? `no se encontró el Notebook "${notebookName}" en Gemini` : 'nombre de video vacío'}.`,
+            { docId }
+          );
           sendResponse({ handled: false });
           return;
         }
@@ -3448,17 +3466,20 @@
             .replace(/\s*-\s*Google Gemini\s*$/i, '')
             .trim();
           let renamedOk = normalizeCompareText(curDocTitle) === normalizeCompareText(targetTitle);
-          if (!renamedOk) {
+          for (let attempt = 0; attempt < 2 && !renamedOk; attempt++) {
+            let res = null;
             try {
-              const res = await chrome.runtime.sendMessage({
+              res = await chrome.runtime.sendMessage({
                 type: 'GEMINI_HARDWARE_RENAME_CURRENT_CHAT',
                 title: targetTitle,
                 chatId: curChatId,
                 nbPath,
                 proven: true,
               });
-              renamedOk = Boolean(res && res.ok);
             } catch {}
+            renamedOk = Boolean(res && res.ok);
+            if (renamedOk || (res && res.error === 'el chat no está dentro del Notebook')) break;
+            if (attempt === 0) await sleep(1500);
           }
           if (renamedOk) {
             const chatUrl = `https://gemini.google.com/app/${curChatId}`;
@@ -3500,6 +3521,8 @@
         };
 
         let anyRenamed = false;
+        let mainRenamed = false;
+        let deepRenamed = false;
 
         // 1. If the tab is currently open on one of this video's chats, rename it immediately in place
         const curChatId = getAppChatIdFromUrl(window.location.href);
@@ -3517,10 +3540,10 @@
 
           if (isCurrentVideoDeep && deepName) {
             const r = await renameCurrentOpenAppChat(deepName, true);
-            if (r) anyRenamed = true;
+            if (r) { anyRenamed = true; deepRenamed = true; }
           } else if (isCurrentVideoMain && baseName) {
             const r = await renameCurrentOpenAppChat(baseName, false);
-            if (r) anyRenamed = true;
+            if (r) { anyRenamed = true; mainRenamed = true; }
           }
         }
 
@@ -3559,7 +3582,7 @@
             if (opened) {
               await sleep(1100);
               const r = await renameCurrentOpenAppChat(deepName, true);
-              if (r) anyRenamed = true;
+              if (r) { anyRenamed = true; deepRenamed = true; }
               // Return to Notebook page to check the Main chat as well
               const backNav = await goToNotebookPage(nbPath, {
                 ...msg,
@@ -3586,11 +3609,47 @@
             if (opened) {
               await sleep(1100);
               const r = await renameCurrentOpenAppChat(baseName, false);
-              if (r) anyRenamed = true;
+              if (r) { anyRenamed = true; mainRenamed = true; }
             }
           }
         }
 
+        // Fallback: open the known main chat (/app/<id>) directly if it was not found by title in the Notebook
+        if (
+          !mainRenamed &&
+          knownMainChatId &&
+          !msg.__huellasDirectMainTried &&
+          getAppChatIdFromUrl(window.location.href) !== knownMainChatId
+        ) {
+          const navDirect = await requestNavigateAndResume(`https://gemini.google.com/app/${knownMainChatId}`, {
+            ...msg,
+            target: 'GEMINI',
+            action: 'RENAME_GEMINI_CHAT',
+            __huellasDirectMainTried: true,
+          });
+          if (navDirect) {
+            sendResponse({ handled: true, navigating: true });
+            return;
+          }
+        }
+        let seenTitles = '';
+        try {
+          seenTitles = listNotebookPageChats().map((c) => c.title).slice(0, 8).join(' | ');
+          console.log('[Huellas RENAME] main:', mainRenamed, 'deep:', deepRenamed, 'chats:', seenTitles);
+        } catch {}
+        if (anyRenamed) {
+          reportStatus(
+            'WORKING',
+            `✅ Gemini: ${mainRenamed ? `chat principal → "${baseName}"` : 'chat principal no encontrado'}${deepRenamed ? ` · Deep Research → "${deepName}"` : ''}.`,
+            { docId }
+          );
+        } else {
+          reportStatus(
+            'ERROR',
+            `⛔ No se encontró en el Notebook ningún chat de "${oldBaseName || baseName}"${videoNum ? ` (Video ${videoNum})` : ''} para renombrar.${seenTitles ? ` Chats visibles: ${seenTitles}` : ''}`,
+            { docId }
+          );
+        }
         sendResponse({ handled: anyRenamed });
       })();
       return true;

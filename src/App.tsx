@@ -117,6 +117,7 @@ import {
 } from './utils/cloudSync';
 import {
   ConnectedAiTab,
+  callLocalApiViaExtension,
   isHuellasExtensionDetected,
   pingHuellasExtension,
   sendCommandToWebBridge,
@@ -125,7 +126,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:58 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:23 AM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4839,7 +4840,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   ]);
 
   // Sync draft input when switching documentaries or selecting a folder (unless user is actively typing in the input)
+  const lastDraftDocIdRef = useRef<string>('');
   useEffect(() => {
+    if (activeDoc?.id && lastDraftDocIdRef.current !== activeDoc.id) {
+      lastDraftDocIdRef.current = activeDoc.id;
+      isTypingVideoNameRef.current = false;
+    }
     if (isTypingVideoNameRef.current) return;
     setVideoNameDraft(currentCanonicalVideoName);
     if (effectiveDocFolderName) {
@@ -4885,62 +4891,99 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       let serverFolderName = cleanName;
       let serverFolderPath = priorFolderPath;
       let serverPreviousName = priorFolderName;
+      let serverRenamed = false;
+      let serverError = '';
+      const renameBody = {
+        docId: doc.id,
+        newName: cleanName,
+        oldFolderPath: priorFolderPath,
+        oldFolderName: priorFolderName,
+      };
+      const applyRenameData = (data: any): boolean => {
+        if (!data?.ok || !data.folderName) {
+          if (data?.error) serverError = String(data.error);
+          return false;
+        }
+        serverFolderName = String(data.folderName);
+        serverFolderPath = String(data.folderPath || serverFolderPath);
+        if (data.previousFolderName) serverPreviousName = String(data.previousFolderName);
+        return true;
+      };
 
-      for (const base of apiBases) {
-        try {
-          const res = await fetch(`${base}/api/system/rename-doc-folder`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              docId: doc.id,
-              newName: cleanName,
-              oldFolderPath: priorFolderPath,
-              oldFolderName: priorFolderName,
-            }),
-          });
-          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
-            const data = await res.json();
-            if (data?.ok && data.folderName) {
-              serverFolderName = String(data.folderName);
-              serverFolderPath = String(data.folderPath || serverFolderPath);
-              if (data.previousFolderName) {
-                serverPreviousName = String(data.previousFolderName);
+      // A) Public page (github.io / onrender): go through the extension first (its service worker can reach localhost:4200)
+      const hasExtensionBridge = Boolean(extensionInstalled || isHuellasExtensionDetected());
+      if (!isLocalOrigin && hasExtensionBridge) {
+        const viaExt = await callLocalApiViaExtension('/api/system/rename-doc-folder', 'POST', renameBody);
+        if (viaExt.ok && applyRenameData(viaExt.data)) {
+          serverRenamed = true;
+        } else {
+          serverError = viaExt.data?.error || viaExt.error || serverError;
+        }
+      }
+
+      // B) Direct fetch (localhost origin, or if the browser granted "Local Network Access")
+      if (!serverRenamed) {
+        for (const base of apiBases) {
+          const ctrl = new AbortController();
+          const abortTimer = setTimeout(() => ctrl.abort(), 8000);
+          try {
+            const res = await fetch(`${base}/api/system/rename-doc-folder`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(renameBody),
+              signal: ctrl.signal,
+            });
+            if ((res.headers.get('content-type') || '').includes('application/json')) {
+              const data = await res.json();
+              if (res.ok && applyRenameData(data)) {
+                serverRenamed = true;
+                break;
               }
-              break;
+              if (!serverError) serverError = `HTTP ${res.status}`;
             }
+          } catch (e: any) {
+            if (!serverError) serverError = String(e?.message || e);
+          } finally {
+            clearTimeout(abortTimer);
           }
-        } catch {}
+        }
       }
 
-      // Clear any stale browser FileSystemDirectoryHandle if the folder name changed so it never reverts back to the old name
-      if (
-        flowDownloadDirHandleRef.current &&
-        flowDownloadDirHandleRef.current.name &&
-        flowDownloadDirHandleRef.current.name.trim() !== serverFolderName
-      ) {
-        flowDownloadDirHandleRef.current = null;
-      }
-      if (priorFolderName && priorFolderName !== serverFolderName) {
-        await clearDirHandleFromIndexedDB(doc.id);
-      }
-
-      lastKnownFolderNameRef.current = serverFolderName;
-      lastKnownFolderPathRef.current = serverFolderPath;
-      localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, serverFolderName);
-      if (serverFolderPath) {
-        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, serverFolderPath);
-      }
-      setFlowDownloadFolderName(serverFolderName);
-      if (serverFolderPath) {
-        setFlowServerFolderPath(serverFolderPath);
+      if (serverRenamed) {
+        // Clear any stale browser FileSystemDirectoryHandle if the folder name changed so it never reverts back to the old name
+        if (
+          flowDownloadDirHandleRef.current &&
+          flowDownloadDirHandleRef.current.name &&
+          flowDownloadDirHandleRef.current.name.trim() !== serverFolderName
+        ) {
+          flowDownloadDirHandleRef.current = null;
+        }
+        if (priorFolderName && priorFolderName !== serverFolderName) {
+          await clearDirHandleFromIndexedDB(doc.id);
+        }
+        lastKnownFolderNameRef.current = serverFolderName;
+        lastKnownFolderPathRef.current = serverFolderPath;
+        localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY, serverFolderName);
+        if (serverFolderPath) {
+          localStorage.setItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY, serverFolderPath);
+        }
+        setFlowDownloadFolderName(serverFolderName);
+        if (serverFolderPath) {
+          setFlowServerFolderPath(serverFolderPath);
+        }
       }
       setVideoNameDraft(serverFolderName);
 
+      // Never mark the folder as renamed if the local server did not physically rename it
       updateActiveDoc({
         title: serverFolderName,
-        downloadFolderName: serverFolderName,
-        ...(serverFolderPath ? { downloadFolderPath: serverFolderPath } : {}),
         geminiChatTitle: serverFolderName,
+        ...(serverRenamed
+          ? {
+              downloadFolderName: serverFolderName,
+              ...(serverFolderPath ? { downloadFolderPath: serverFolderPath } : {}),
+            }
+          : {}),
       });
 
       // Always send RENAME_GEMINI_CHAT when extension is available (background.js locates the Gemini tab directly)
@@ -4954,7 +4997,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         return false;
       });
-      const canSendGeminiRename = Boolean(extensionInstalled || isHuellasExtensionDetected());
+      const canSendGeminiRename = hasExtensionBridge;
 
       if (canSendGeminiRename) {
         sendCommandToWebBridge('GEMINI', {
@@ -4968,14 +5011,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           notebookName: 'Huellas de la Humanidad',
           tabId: matchingTab?.id || selectedGeminiTabId || geminiTabs[0]?.id,
         });
-        setRealtimeRenameStatusMsg(
-          `✅ Sincronizado: Carpeta en Mac ("${serverFolderName}") y chats asociados en Gemini ("${serverFolderName}" / "${serverFolderName}_Deep Research") actualizados.`
-        );
-      } else {
-        setRealtimeRenameStatusMsg(
-          `✅ Carpeta en Mac actualizada ("${serverFolderName}"). Al enviar el prompt en Gemini se nombrará "${serverFolderName}" (y "${serverFolderName}_Deep Research" para Deep Research).`
-        );
       }
+      const folderPart = serverRenamed
+        ? `✅ Carpeta en Mac renombrada a "${serverFolderName}".`
+        : `⚠️ Carpeta en Mac NO renombrada (${serverError || 'servidor local http://localhost:4200 inaccesible'}). Verifica que el servidor local esté corriendo y pulsa Actualizar otra vez.`;
+      const geminiPart = canSendGeminiRename
+        ? ` 📨 Renombrando en Gemini "${serverFolderName}" y "${serverFolderName}_Deep Research" (ver estado del puente de Gemini).`
+        : ` ℹ️ Extensión no detectada: los chats de Gemini se nombrarán "${serverFolderName}" al enviar el próximo prompt.`;
+      setRealtimeRenameStatusMsg(folderPart + geminiPart);
     } finally {
       setIsRenamingVideoRealtime(false);
     }
@@ -5005,16 +5048,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
     isTypingVideoNameRef.current = true;
     setVideoNameDraft(rawNextValue);
-    const trimmed = rawNextValue.trim();
+    // The rename of Mac folder + Gemini chats runs ONLY when the user clicks "Actualizar"
     if (renameDebounceTimerRef.current) {
       clearTimeout(renameDebounceTimerRef.current);
+      renameDebounceTimerRef.current = null;
     }
-    renameDebounceTimerRef.current = setTimeout(() => {
-      isTypingVideoNameRef.current = false;
-      if (trimmed) {
-        executeRealtimeVideoFolderAndGeminiRename(trimmed);
-      }
-    }, 850);
   };
 
   // Apply the chosen single folder name & path to the active documentary so Stage 1, Stage 5, Stage 8 & Editor always match
@@ -11137,30 +11175,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   type="text"
                   value={isTypingVideoNameRef.current ? videoNameDraft : videoNameDraft || activeDoc.title}
                   onChange={(e) => handleVideoNameRealtimeChange(e.target.value)}
-                  onBlur={() => {
-                    isTypingVideoNameRef.current = false;
-                    if (renameDebounceTimerRef.current) {
-                      clearTimeout(renameDebounceTimerRef.current);
-                    }
-                    if (videoNameDraft.trim()) {
-                      executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
-                    }
-                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      isTypingVideoNameRef.current = false;
-                      if (renameDebounceTimerRef.current) {
-                        clearTimeout(renameDebounceTimerRef.current);
-                      }
-                      if (videoNameDraft.trim()) {
-                        executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
-                      }
-                    }
+                    if (e.key === 'Enter') e.preventDefault();
                   }}
                   className="flex-1 min-w-0 sm:min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
                   placeholder="Título del Documental..."
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    isTypingVideoNameRef.current = false;
+                    if (videoNameDraft.trim()) {
+                      executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
+                    }
+                  }}
+                  disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
+                  className="shrink-0 px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Actualizar el nombre en la carpeta de la Mac y en los chats de Gemini"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
+                  {isRenamingVideoRealtime ? '...' : 'Actualizar'}
+                </button>
                 <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
                   {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado'}
                 </span>
@@ -11529,26 +11564,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         type="text"
                         value={videoNameDraft}
                         onChange={(e) => handleVideoNameRealtimeChange(e.target.value)}
-                        onBlur={() => {
-                          isTypingVideoNameRef.current = false;
-                          if (renameDebounceTimerRef.current) {
-                            clearTimeout(renameDebounceTimerRef.current);
-                          }
-                          if (videoNameDraft.trim()) {
-                            executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
-                          }
-                        }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            isTypingVideoNameRef.current = false;
-                            if (renameDebounceTimerRef.current) {
-                              clearTimeout(renameDebounceTimerRef.current);
-                            }
-                            if (videoNameDraft.trim()) {
-                              executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
-                            }
-                          }
+                          if (e.key === 'Enter') e.preventDefault();
                         }}
                         placeholder="Ej: Video 77 — El Misterio Oculto de..."
                         className="flex-1 bg-slate-900/95 border border-emerald-500/40 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none transition"

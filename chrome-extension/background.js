@@ -2014,6 +2014,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Proxy seguro app pública (github.io / onrender) -> servidor local (evita el bloqueo Local Network Access del navegador)
+  if (message.type === 'HUELLAS_LOCAL_API') {
+    const apiPath = String(message.path || '');
+    const method = String(message.method || 'GET').toUpperCase();
+    const ALLOWED_LOCAL_API_PATHS = new Set(['/api/system/rename-doc-folder']);
+    if (!ALLOWED_LOCAL_API_PATHS.has(apiPath) || (method !== 'GET' && method !== 'POST')) {
+      sendResponse({ ok: false, status: 403, error: 'ruta local no permitida' });
+      return false;
+    }
+    (async () => {
+      let lastErr = '';
+      for (const base of ['http://localhost:4200', 'http://127.0.0.1:4200']) {
+        try {
+          const res = await fetch(`${base}${apiPath}`, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method === 'POST' ? JSON.stringify(message.body || {}) : undefined,
+            cache: 'no-store',
+          });
+          const ct = res.headers.get('content-type') || '';
+          const data = ct.includes('application/json') ? await res.json().catch(() => null) : null;
+          sendResponse({ ok: res.ok, status: res.status, data });
+          return;
+        } catch (e) {
+          lastErr = String(e?.message || e);
+        }
+      }
+      sendResponse({ ok: false, status: 0, error: lastErr || 'servidor local http://localhost:4200 no disponible' });
+    })();
+    return true;
+  }
+
   // 2. Command execution strictly within the SAME Chrome window
   if (message.type === 'HUELLAS_COMMAND') {
     const targetService =

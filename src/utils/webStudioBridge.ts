@@ -38,6 +38,7 @@ export interface WebBridgeCommandPayload {
     | 'FOCUS_TAB';
   docId?: string;
   videoName?: string;
+  oldVideoName?: string;
   deepResearchVideoName?: string;
   geminiChatUrl?: string;
   geminiDeepResearchChatUrl?: string;
@@ -192,6 +193,47 @@ export function sendCommandToWebBridge(
     );
   }
   return requestId;
+}
+
+export interface LocalApiProxyResult {
+  ok: boolean;
+  status: number;
+  data?: any;
+  error?: string;
+}
+
+// Llama al servidor local (http://localhost:4200) a través de la extensión cuando el fetch directo
+// desde la página pública está bloqueado (Local Network Access / Private Network Access)
+export function callLocalApiViaExtension(
+  path: string,
+  method: 'GET' | 'POST',
+  body?: unknown,
+  timeoutMs = 20000
+): Promise<LocalApiProxyResult> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !isHuellasExtensionDetected()) {
+      resolve({ ok: false, status: 0, error: 'extensión Huellas no detectada' });
+      return;
+    }
+    const requestId = `api-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const onMsg = (ev: MessageEvent) => {
+      const d = ev.data;
+      if (ev.source !== window || !d || d.source !== 'HUELLAS_EXTENSION') return;
+      if (d.type !== 'HUELLAS_LOCAL_API_RESULT' || d.requestId !== requestId) return;
+      window.removeEventListener('message', onMsg);
+      clearTimeout(timer);
+      resolve({ ok: Boolean(d.ok), status: Number(d.status) || 0, data: d.data, error: d.error });
+    };
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      resolve({ ok: false, status: 0, error: 'timeout esperando a la extensión' });
+    }, timeoutMs);
+    window.addEventListener('message', onMsg);
+    window.postMessage(
+      { source: 'HUELLAS_APP', type: 'HUELLAS_LOCAL_API', requestId, path, method, body },
+      '*'
+    );
+  });
 }
 
 export const CHROME_EXTENSION_FOLDER_PATH =

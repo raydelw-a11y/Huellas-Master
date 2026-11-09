@@ -66,6 +66,30 @@
       return;
     }
 
+    // Proxy app pública -> servidor local (http://localhost:4200) a través de la extensión
+    if (data.type === 'HUELLAS_LOCAL_API') {
+      const reply = (resp) =>
+        window.postMessage(
+          { source: 'HUELLAS_EXTENSION', type: 'HUELLAS_LOCAL_API_RESULT', requestId: data.requestId, ...resp },
+          '*'
+        );
+      try {
+        chrome.runtime.sendMessage(
+          { type: 'HUELLAS_LOCAL_API', path: data.path, method: data.method, body: data.body },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reply({ ok: false, status: 0, error: chrome.runtime.lastError.message });
+              return;
+            }
+            reply(response || { ok: false, status: 0, error: 'sin respuesta de la extensión' });
+          }
+        );
+      } catch (err) {
+        reply({ ok: false, status: 0, error: String(err?.message || err) });
+      }
+      return;
+    }
+
     if (data.type === 'HUELLAS_COMMAND') {
       try {
         const cleanPayload = { ...(data.payload || {}) };
