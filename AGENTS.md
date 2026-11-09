@@ -20,11 +20,14 @@ El usuario trabaja simultáneamente en **varias conversaciones en paralelo sobre
 
 Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MODO TRIO`** / **`modo trio`**), con o sin `/boost` o `/teamwork` delante:
 
-0. **REGLA INQUEBRANTABLE DE PRIMER PASO (`PASO 0 OBLIGATORIO — PROHIBIDO TRABAJAR SOLO`)**:
-   - **ESTÁ TERMINANTEMENTE PROHIBIDO** que el agente principal empiece a llamar a `read_file`, `edit_file`, `run_command` o `call_mcp_tool` por su cuenta sin haber lanzado antes a los subagentes.
-   - En el **primerísimo paso** del turno en que el usuario escriba `modo duo` o `modo trio`, debes:
-     1. Mostrar en el chat el encabezado visible: **`🤝 [MODO DUO ACTIVADO: Invocando Agente 1 + Agente 2 para debatir]`** (o `MODO TRIO`).
-     2. Llamar **inmediatamente** a `define_subagent` e `invoke_subagent` para crear y lanzar los 2 (o 3) agentes en ese primer turno.
+0. **REGLA INQUEBRANTABLE DE PRIMER PASO (`PASO 0 OBLIGATORIO — PERSPECTIVA EXTERNA EN GEMINI WEB + SUBAGENTES`)**:
+   - **ESTÁ TERMINANTEMENTE PROHIBIDO** que el agente principal empiece a editar código o resolver el problema en solitario sin ejecutar este flujo completo.
+   - En cuanto el usuario escriba `modo duo` o `modo trio`, debes ejecutar obligatoriamente esta secuencia inicial:
+     1. Mostrar en el chat el encabezado visible: **`🤝 [MODO DUO ACTIVADO: Consultando Perspectiva Externa en Gemini Web (Argon High) + Invocando Agentes]`** (o `MODO TRIO`).
+     2. **Perspectiva Externa en Gemini Web (Chat Nuevo SIN Notebook, Argon en High)**:
+        - Mediante `chrome-devtools` MCP en la ventana de Gemini (`gemini.google.com`), abre un **chat nuevo limpio fuera de cualquier Notebook** (`https://gemini.google.com/app`), verifica/selecciona el modelo **Argon** con **Thinking Level en High** (sin Deep Research y fuera del Notebook para no mezclar chats de documentales), envía el problema del que se está hablando y espera hasta capturar su respuesta completa.
+     3. **Invocación de Subagentes con la Perspectiva Extra Incluida**:
+        - Llama inmediatamente a `define_subagent` e `invoke_subagent` para lanzar los 2 (o 3) agentes pasándoles **el problema original + la respuesta obtenida de Gemini Web (Argon High)** como una perspectiva externa adicional para que la evalúen, la critiquen y la integren en su debate.
 
 1. **Activación Automática de Subagentes con Modelos Distintos (`define_subagent`, `invoke_subagent`, `send_message`)**:
    - **En `MODO DUO`**:
