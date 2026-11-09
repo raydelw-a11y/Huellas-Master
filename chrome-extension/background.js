@@ -2094,6 +2094,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           : payload.focusTab === true;
 
       if (!targetTab) {
+        if (action === 'RENAME_GEMINI_CHAT') {
+          sendResponse({ ok: false, noTab: true });
+          return;
+        }
         broadcastToHuellasTabsInSameWindow(senderWindowId, {
           type: 'BRIDGE_STATUS',
           service: targetService,

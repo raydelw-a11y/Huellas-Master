@@ -2861,9 +2861,14 @@
       const st = await chrome.storage.local.get('huellasNotebookPath');
       saved = getNotebookPathFromUrl((st && st.huellasNotebookPath) || '');
     } catch {}
-    const link = findNotebookLinkByName(notebookName);
+    let link = findNotebookLinkByName(notebookName);
+    if (!link && !saved) {
+      await ensureGeminiSidebarOpen();
+      link = findNotebookLinkByName(notebookName);
+    }
     const fromLink = link ? getNotebookPathFromUrl(link.getAttribute('href')) : '';
-    const path = fromLink || saved;
+    const currentNbPath = getNotebookPathFromUrl(window.location.href);
+    const path = fromLink || currentNbPath || saved;
     if (path && path !== saved) {
       try {
         await chrome.storage.local.set({ huellasNotebookPath: path });
@@ -2923,10 +2928,17 @@
 
   async function goToNotebookPage(nbPath, payload) {
     if (getNotebookPathFromUrl(window.location.href) === nbPath) return { ok: true };
-    const link =
+    let link =
       Array.from(document.querySelectorAll('a[href*="/notebook/"]')).find(
         (a) => getNotebookPathFromUrl(a.getAttribute('href')) === nbPath
       ) || null;
+    if (!link) {
+      await ensureGeminiSidebarOpen();
+      link =
+        Array.from(document.querySelectorAll('a[href*="/notebook/"]')).find(
+          (a) => getNotebookPathFromUrl(a.getAttribute('href')) === nbPath
+        ) || null;
+    }
     if (link) {
       link.click(); // Angular routerLink: SPA navigation, content script survives
       const ok = await waitForUrl((u) => getNotebookPathFromUrl(u) === nbPath, 6000);
@@ -3000,15 +3012,23 @@
     }
     await sleep(800);
 
-    // STEP 3: find "<Video>[_Deep Research]" by EXACT title in the notebook's "Past chats"
+    // STEP 3: find "<Video>[_Deep Research]" by title or video number in the notebook's "Past chats"
     const chats = listNotebookPageChats();
     try {
       console.log('[Huellas] Chats del Notebook:', chats.map((c) => c.title));
     } catch {}
     const wanted = normalizeCompareText(targetChatTitle);
-    const match = targetChatTitle ? chats.find((c) => normalizeCompareText(c.title) === wanted) : null;
+    const storedWantedTitle = normalizeCompareText(
+      isDeepResearchOrder ? stored.deepResearchChatTitle || '' : stored.mainChatTitle || ''
+    );
+    const match =
+      (targetChatTitle && chats.find((c) => normalizeCompareText(c.title) === wanted)) ||
+      (storedWantedTitle && chats.find((c) => normalizeCompareText(c.title) === storedWantedTitle)) ||
+      (baseVideoName &&
+        chats.find((c) => doesTitleMatchTargetVideo(c.title, baseVideoName, isDeepResearchOrder))) ||
+      null;
     if (match) {
-      reportStatus('WORKING', `🔍 Abriendo "${targetChatTitle}" dentro del Notebook...`, stage);
+      reportStatus('WORKING', `🔍 Abriendo "${targetChatTitle || match.title}" dentro del Notebook...`, stage);
       match.btn.click();
       const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 10000);
       if (ok) {
@@ -3362,54 +3382,216 @@
 
     if (msg.action === 'RENAME_GEMINI_CHAT') {
       (async () => {
-        // Only the CURRENT chat, and only when it belongs to the notebook "Huellas de la Humanidad"
-        const nbPath = await resolveNotebookPath(String(msg.notebookName || 'Huellas de la Humanidad'));
-        const chatId = getAppChatIdFromUrl(window.location.href);
+        if (isBusyWithOrder || isGeminiStillGenerating()) {
+          sendResponse({ handled: false, busy: true });
+          return;
+        }
+        const notebookName = String(msg.notebookName || 'Huellas de la Humanidad').trim();
+        const nbPath = await resolveNotebookPath(notebookName);
         const baseName = stripDeepResearchSuffix(msg.videoName || '');
         const deepName =
           msg.deepResearchVideoName || (baseName ? `${baseName}_Deep Research` : '');
-        const isDeepChat =
-          Boolean(chatId) &&
-          (getAppChatIdFromUrl(msg.geminiDeepResearchChatUrl || '') === chatId ||
-            /_\s*deep\s*research\s*-\s*google gemini$/i.test(document.title || ''));
-        let ok = false;
-        const newTitle = isDeepChat ? deepName : baseName;
-        if (nbPath) await loadKnownNotebookChats(nbPath);
-        if (nbPath && chatId && newTitle && isInsideNotebook(nbPath)) {
-          try {
-            const res = await chrome.runtime.sendMessage({
-              type: 'GEMINI_HARDWARE_RENAME_CURRENT_CHAT',
-              title: newTitle,
-              chatId,
-              nbPath,
-              proven: knownNotebookChats.has(`${nbPath}|${chatId}`),
-            });
-            ok = Boolean(res && res.ok);
-          } catch {}
-          if (ok) {
-            const chatUrl = `https://gemini.google.com/app/${chatId}`;
-            const docKey = msg.docId || normalizeCompareText(baseName);
+        const oldBaseName = stripDeepResearchSuffix(msg.oldVideoName || '');
+        const docId = String(msg.docId || '').trim();
+        const docKey = docId || normalizeCompareText(baseName) || normalizeCompareText(oldBaseName);
+
+        if (!nbPath || !baseName) {
+          sendResponse({ handled: false });
+          return;
+        }
+        await loadKnownNotebookChats(nbPath);
+
+        const stored = getStoredDocChatEntry(docKey, oldBaseName || baseName) || {};
+        const knownMainChatId =
+          getAppChatIdFromUrl(msg.geminiChatUrl || stored.mainChatUrl || '') ||
+          stored.mainChatId ||
+          '';
+        const knownDeepChatId =
+          getAppChatIdFromUrl(msg.geminiDeepResearchChatUrl || stored.deepResearchChatUrl || '') ||
+          stored.deepResearchChatId ||
+          '';
+        const videoNum =
+          extractVideoNumberToken(baseName) ||
+          extractVideoNumberToken(oldBaseName) ||
+          extractVideoNumberToken(stored.baseVideoName || '') ||
+          extractVideoNumberToken(stored.mainChatTitle || '');
+
+        const matchesVideoChatTitle = (rawCandTitle, wantDeep) => {
+          const cand = String(rawCandTitle || '')
+            .replace(/\s*-\s*Google Gemini\s*$/i, '')
+            .trim();
+          if (!cand) return false;
+          if (hasDeepResearchSuffix(cand) !== Boolean(wantDeep)) return false;
+          const candBase = stripDeepResearchSuffix(cand);
+          const normCand = normalizeCompareText(candBase);
+          if (!normCand) return false;
+          const knownBases = [
+            baseName,
+            oldBaseName,
+            stored.baseVideoName,
+            stripDeepResearchSuffix(stored.mainChatTitle || ''),
+            stripDeepResearchSuffix(stored.deepResearchChatTitle || ''),
+          ]
+            .map(normalizeCompareText)
+            .filter(Boolean);
+          if (knownBases.includes(normCand)) return true;
+          const candNum = extractVideoNumberToken(candBase);
+          if (videoNum && candNum && candNum === videoNum) return true;
+          return false;
+        };
+
+        const renameCurrentOpenAppChat = async (targetTitle, isDeep) => {
+          const curChatId = getAppChatIdFromUrl(window.location.href);
+          if (!curChatId || !targetTitle) return false;
+          await rememberNotebookChat(nbPath, curChatId);
+          const curDocTitle = (document.title || '')
+            .replace(/\s*-\s*Google Gemini\s*$/i, '')
+            .trim();
+          let renamedOk = normalizeCompareText(curDocTitle) === normalizeCompareText(targetTitle);
+          if (!renamedOk) {
+            try {
+              const res = await chrome.runtime.sendMessage({
+                type: 'GEMINI_HARDWARE_RENAME_CURRENT_CHAT',
+                title: targetTitle,
+                chatId: curChatId,
+                nbPath,
+                proven: true,
+              });
+              renamedOk = Boolean(res && res.ok);
+            } catch {}
+          }
+          if (renamedOk) {
+            const chatUrl = `https://gemini.google.com/app/${curChatId}`;
             if (docKey) {
               saveStoredDocChatEntry(
                 docKey,
-                isDeepChat
-                  ? { baseVideoName: baseName, deepResearchChatId: chatId, deepResearchChatUrl: chatUrl, deepResearchChatTitle: newTitle }
-                  : { baseVideoName: baseName, mainChatId: chatId, mainChatUrl: chatUrl, mainChatTitle: newTitle }
+                isDeep
+                  ? {
+                      baseVideoName: baseName,
+                      deepResearchChatId: curChatId,
+                      deepResearchChatUrl: chatUrl,
+                      deepResearchChatTitle: targetTitle,
+                    }
+                  : {
+                      baseVideoName: baseName,
+                      mainChatId: curChatId,
+                      mainChatUrl: chatUrl,
+                      mainChatTitle: targetTitle,
+                    }
               );
             }
             chrome.runtime
               .sendMessage({
                 type: 'GEMINI_CHAT_LINKED',
-                docId: msg.docId || '',
+                docId,
                 geminiChatUrl: chatUrl,
-                geminiChatTitle: newTitle,
-                isDeepResearch: isDeepChat,
+                geminiChatTitle: targetTitle,
+                isDeepResearch: Boolean(isDeep),
                 notebookPath: nbPath,
               })
               .catch(() => {});
+            reportStatus(
+              'WORKING',
+              `✏️ Conversación del Notebook actualizada a "${targetTitle}".`,
+              { docId }
+            );
+          }
+          return renamedOk;
+        };
+
+        let anyRenamed = false;
+
+        // 1. If the tab is currently open on one of this video's chats, rename it immediately in place
+        const curChatId = getAppChatIdFromUrl(window.location.href);
+        if (curChatId) {
+          const curDocTitle =
+            (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim() ||
+            getActiveGeminiChatTitleInDom();
+          const isCurrentVideoDeep =
+            (knownDeepChatId && curChatId === knownDeepChatId) ||
+            (isInsideNotebook(nbPath) && matchesVideoChatTitle(curDocTitle, true));
+          const isCurrentVideoMain =
+            !isCurrentVideoDeep &&
+            ((knownMainChatId && curChatId === knownMainChatId) ||
+              (isInsideNotebook(nbPath) && matchesVideoChatTitle(curDocTitle, false)));
+
+          if (isCurrentVideoDeep && deepName) {
+            const r = await renameCurrentOpenAppChat(deepName, true);
+            if (r) anyRenamed = true;
+          } else if (isCurrentVideoMain && baseName) {
+            const r = await renameCurrentOpenAppChat(baseName, false);
+            if (r) anyRenamed = true;
           }
         }
-        sendResponse({ handled: ok });
+
+        // 2. Enter the Notebook "Huellas de la Humanidad" and check its chat list so both the Main chat and _Deep Research chat (if created) get renamed
+        const nav = await goToNotebookPage(nbPath, {
+          ...msg,
+          target: 'GEMINI',
+          action: 'RENAME_GEMINI_CHAT',
+        });
+        if (nav.navigating) {
+          sendResponse({ handled: true, navigating: true });
+          return;
+        }
+        if (nav.ok) {
+          for (
+            let i = 0;
+            i < 25 &&
+            listNotebookPageChats().length === 0 &&
+            !document.querySelector('rich-textarea');
+            i++
+          ) {
+            await sleep(200);
+          }
+          await sleep(600);
+
+          // First check if a _Deep Research chat for this video exists in the Notebook and needs renaming
+          let chats = listNotebookPageChats();
+          const deepMatch = chats.find((c) => matchesVideoChatTitle(c.title, true));
+          if (
+            deepMatch &&
+            deepName &&
+            normalizeCompareText(deepMatch.title) !== normalizeCompareText(deepName)
+          ) {
+            deepMatch.btn.click();
+            const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
+            if (opened) {
+              await sleep(1100);
+              const r = await renameCurrentOpenAppChat(deepName, true);
+              if (r) anyRenamed = true;
+              // Return to Notebook page to check the Main chat as well
+              const backNav = await goToNotebookPage(nbPath, {
+                ...msg,
+                target: 'GEMINI',
+                action: 'RENAME_GEMINI_CHAT',
+              });
+              if (backNav.navigating) {
+                sendResponse({ handled: true, navigating: true });
+                return;
+              }
+              for (let i = 0; i < 20 && listNotebookPageChats().length === 0; i++) {
+                await sleep(200);
+              }
+              await sleep(500);
+              chats = listNotebookPageChats();
+            }
+          }
+
+          // Now check if the Main chat for this video exists in the Notebook and needs renaming (or linking)
+          const mainMatch = chats.find((c) => matchesVideoChatTitle(c.title, false));
+          if (mainMatch && baseName) {
+            mainMatch.btn.click();
+            const opened = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 9000);
+            if (opened) {
+              await sleep(1100);
+              const r = await renameCurrentOpenAppChat(baseName, false);
+              if (r) anyRenamed = true;
+            }
+          }
+        }
+
+        sendResponse({ handled: anyRenamed });
       })();
       return true;
     }

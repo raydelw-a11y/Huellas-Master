@@ -12562,25 +12562,57 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
     const hasIcloudDir = fs.existsSync(icloudVideosDir);
 
+    // 1. Look up existing documentary record FIRST before overwriting it so we never lose its current folder path/name
+    let docsList: any[] = [];
+    let docIdx = -1;
+    let storedDoc: any = null;
+    if (docId) {
+      try {
+        docsList = readDocumentaries();
+        docIdx = docsList.findIndex((d) => d && d.id === docId);
+        if (docIdx !== -1) {
+          storedDoc = docsList[docIdx];
+        }
+      } catch {}
+    }
+
+    const candidatePaths = [
+      typeof oldFolderPath === 'string' ? oldFolderPath.trim() : '',
+      typeof storedDoc?.downloadFolderPath === 'string' ? storedDoc.downloadFolderPath.trim() : '',
+      hasIcloudDir && typeof oldFolderName === 'string' && oldFolderName.trim()
+        ? path.join(icloudVideosDir, oldFolderName.trim())
+        : '',
+      hasIcloudDir && typeof storedDoc?.downloadFolderName === 'string' && storedDoc.downloadFolderName.trim()
+        ? path.join(icloudVideosDir, storedDoc.downloadFolderName.trim())
+        : '',
+      hasIcloudDir && typeof storedDoc?.title === 'string' && storedDoc.title.trim()
+        ? path.join(icloudVideosDir, storedDoc.title.trim())
+        : '',
+    ].filter(Boolean);
+
     let existingFolderPath = '';
-    if (oldFolderPath && typeof oldFolderPath === 'string' && fs.existsSync(oldFolderPath)) {
-      existingFolderPath = oldFolderPath;
-    } else if (
-      hasIcloudDir &&
-      oldFolderName &&
-      typeof oldFolderName === 'string' &&
-      fs.existsSync(path.join(icloudVideosDir, oldFolderName))
-    ) {
-      existingFolderPath = path.join(icloudVideosDir, oldFolderName);
-    } else if (hasIcloudDir) {
-      // Try matching by "Video XX" prefix in iCloud Videos directory
-      const numMatch =
-        safeFolderName.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i) ||
-        String(oldFolderName || '').match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
+    for (const cand of candidatePaths) {
+      if (cand && fs.existsSync(cand)) {
+        existingFolderPath = cand;
+        break;
+      }
+    }
+
+    if (!existingFolderPath && hasIcloudDir) {
+      // Try matching by "Video XX" prefix in iCloud Videos directory using old name, stored doc, or new name
+      const combinedForNum = [
+        oldFolderName,
+        storedDoc?.downloadFolderName,
+        storedDoc?.title,
+        safeFolderName,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const numMatch = combinedForNum.match(/\b(?:video|ep\.?|episodio|documental)\s*0*(\d+)\b/i);
       if (numMatch) {
         const targetNum = numMatch[1];
         const prefixRegex = new RegExp(
-          `^(?:video|ep\\.?|episodio|documental)\\s*0*${targetNum}(?:\\b|\\s|_|-|$)`,
+          `^(?:video|ep\\.?|episodio|documental)\\s*0*${targetNum}(?:\\b|\\s|_|-|—|$)`,
           'i'
         );
         const entries = fs.readdirSync(icloudVideosDir, { withFileTypes: true });
@@ -12590,6 +12622,10 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
         }
       }
     }
+
+    const previousFolderName = existingFolderPath
+      ? path.basename(existingFolderPath)
+      : String(storedDoc?.downloadFolderName || storedDoc?.title || oldFolderName || '').trim();
 
     const parentDir = existingFolderPath
       ? path.dirname(existingFolderPath)
@@ -12624,8 +12660,8 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
       const subfolders = [
         '01_Guion_y_SEO',
         '02_Audio',
-        '03_Miniaturas',
         '04_Referencias',
+        '03_Miniaturas',
         '05_Clips_Video',
         '06_Video_Final',
         '07_Viral_Clips',
@@ -12647,8 +12683,8 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
     // Also update documentary record on disk if docId is provided
     if (docId) {
       try {
-        const list = readDocumentaries();
-        const idx = list.findIndex((d) => d.id === docId);
+        const list = docsList.length > 0 ? docsList : readDocumentaries();
+        const idx = list.findIndex((d) => d && d.id === docId);
         if (idx !== -1) {
           list[idx] = {
             ...list[idx],
@@ -12669,6 +12705,7 @@ app.post('/api/system/rename-doc-folder', (req, res) => {
       ok: true,
       folderName: safeFolderName,
       folderPath: newFolderPath,
+      previousFolderName,
       renamedFrom: existingFolderPath || null,
       wasRenamed,
       wasCreated,
