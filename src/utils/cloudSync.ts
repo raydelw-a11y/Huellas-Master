@@ -1740,7 +1740,14 @@ export function buildStagePromptText(
   const c1Dur = clip1Sec;
   const voiceEntrySec = c1Dur + 2;
   const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
-  const youtubeViralLink = (doc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
+  const youtubeViralLink = (
+    doc.promptConfig?.YOUTUBE_VIRAL_LINK ||
+    doc.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK ||
+    ''
+  ).trim();
+  const selectedAnalyzedVideoId = (
+    doc.promptConfig?.SELECTED_ANALYZED_VIDEO_ID || ''
+  ).trim();
   const youtubeCommentsResearchBlock = (
     doc.promptConfig?.YOUTUBE_COMMENTS_RESEARCH_BLOCK || ''
   ).trim();
@@ -1888,7 +1895,13 @@ Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4
      • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las opciones de clímax histórico y cierre reflexivo extraídas del video analizado]
 
 1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (QUÉ HIZO QUE SE VIRALIZARA Y CÓMO LO USAMOS DE GUÍA):
-   - Desglose de los patrones exactos que hicieron viral al video investigado (estructura del Título, ritmo de capítulos en la Descripción, intención de los Tags, detonantes de Comentarios, porcentajes por bloque y gatillos psicológicos) y cómo funcionan como molde para nuestro documental de ~${(totalTargetSec / 60).toFixed(0)} minutos.`;
+   - Desglose de los patrones exactos que hicieron viral al video investigado (estructura del Título, ritmo de capítulos en la Descripción, intención de los Tags, detonantes de Comentarios, porcentajes por bloque y gatillos psicológicos) y cómo funcionan como molde para nuestro documental de ~${(totalTargetSec / 60).toFixed(0)} minutos.
+
+2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL (SEGÚN TEMA, PARTES, DESENLACE, TRAMA E HISTORIA):
+   - Evalúa la complejidad del tema histórico propuesto, la densidad y número de partes/actos, el desarrollo de la trama, la fuerza del clímax/desenlace y el alcance cronológico de la historia para recomendar la duración total óptima del documental entre las opciones oficiales del estudio (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hora, 7200s = 2 horas).
+   - RECOMENDACIÓN_DURACIÓN_TOTAL: [Escribe exactamente uno de estos valores en segundos: 600 | 900 | 1200 | 1800 | 3600 | 7200]
+   - DURACIÓN TOTAL SUGERIDA: [Ej: 15 minutos (900s) o 20 minutos (1200s)]
+   - JUSTIFICACIÓN DE DURACIÓN (SEGÚN TEMA, PARTES, TRAMA, DESENLACE E HISTORIA): [Explica por qué esa duración exacta es la ideal según: 1) Tema e Historia, 2) Cantidad y ritmo de Partes/Actos, 3) Desarrollo de la Trama y giros, y 4) Construcción del Clímax y Desenlace].`;
   } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
@@ -1903,14 +1916,25 @@ Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4
     const chosenEscaletaProp = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
     const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
     const part1AnalysisText = (doc.deepResearchPrompt || '').trim();
+    const referenceVideoLabel =
+      selectedStructureTitle ||
+      youtubeVideoTitle ||
+      youtubeViralLink ||
+      selectedAnalyzedVideoId;
 
     stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".
-Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 ARGON THINKING LEVEL: HIGH), utilizando la 🏛️ Definición Histórica y Continuidad y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
+Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 ARGON THINKING LEVEL: HIGH), utilizando la 🏛️ Definición Histórica y Continuidad, el 📚 Video Analizado de la Biblioteca seleccionado en el Paso 1 y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
 
 ================================================================================
-🏛️ DEFINICIÓN HISTÓRICA, CONTINUIDAD Y CALIBRACIÓN MATEMÁTICA DETERMINADAS EN FASE 1
+🏛️ DEFINICIÓN HISTÓRICA, VIDEO REFERENTE DE BIBLIOTECA Y CALIBRACIÓN DETERMINADAS EN FASE 1
 ================================================================================
-- Tipología del protocolo determinada: ${cleanTypology || 'Por confirmar en la investigación'}
+${
+  referenceVideoLabel
+    ? `- 📚 Video Analizado de la Biblioteca / Referente Estructural seleccionado en Paso 1 (FORMA PARTE DE ESTA INVESTIGACIÓN DEEP RESEARCH): "${referenceVideoLabel}"${
+        selectedAnalyzedVideoId ? ` [ID: ${selectedAnalyzedVideoId}]` : ''
+      }${youtubeViralLink ? ` (${youtubeViralLink})` : ''}\n`
+    : ''
+}- Tipología del protocolo determinada: ${cleanTypology || 'Por confirmar en la investigación'}
 - Tema central del documental determinado: ${cleanTopic || 'Por confirmar en la investigación'}
 - Tiempo / Época histórica determinada: ${cleanTime || 'Por confirmar en la investigación'}
 - Lugar histórico determinado (Ciudad, País): ${cleanLoc || 'Por confirmar en la investigación'}
@@ -1934,9 +1958,9 @@ ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECC
 ================================================================================
 🔬 TAREA DE INVESTIGACIÓN PROFUNDA (4 ARGON · THINKING LEVEL: HIGH + DEEP RESEARCH)
 ================================================================================
-Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, época, lugar y estructura ya determinados arriba, y entrégala en estas 4 secciones claras:
-1. DESGLOSE MATEMÁTICO Y ESTRUCTURAL POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN CON INTRO 8S Y OUTRO 8S):
-   - Mapa exacto de los bloques narrativos con su porcentaje (%), rango de tiempo exacto y micro-ganchos de retención adaptados a la estructura del video referente.
+Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, época, lugar y estructura ya determinados arriba, integrando directamente el Video Analizado de la Biblioteca seleccionado en el Paso 1 como molde estructural y de retención (sin copiar su tema), y entrégala en estas 4 secciones claras:
+1. DESGLOSE MATEMÁTICO Y ESTRUCTURAL POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN CON INTRO 8S Y OUTRO 8S + PATRONES DEL VIDEO ANALIZADO EN PASO 1):
+   - Mapa exacto de los bloques narrativos con su porcentaje (%), rango de tiempo exacto, puntos de giro y micro-ganchos de retención calibrados según el video referente seleccionado en el Paso 1.
 2. RECUENTO HISTÓRICO CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES DOCUMENTADAS:
    - Desarrollo profundo acto por acto con fechas exactas, cifras reales, leyes, contratos, precios de la época, detalles sensoriales verificados (olores, sonidos, texturas, arquitectura) y respuestas históricas a las dudas de la audiencia.
 3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (FUENTES PRIMARIAS, ARCHIVOS Y CRÓNICAS):

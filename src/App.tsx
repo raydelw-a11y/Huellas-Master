@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:35 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:26 AM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1332,6 +1332,222 @@ function buildStage1PropositionParts(
   ];
 }
 
+interface Stage1DurationSuggestion {
+  recommendedSeconds: number;
+  recommendedMinutes: number;
+  recommendedLabel: string;
+  alternativeSeconds: number;
+  alternativeLabel: string;
+  estimatedClipsCount: number;
+  effectiveNarrationSeconds: number;
+  clipUnitSeconds: number;
+  source: 'AI_AND_HEURISTIC' | 'MULTIFACTOR_HEURISTIC';
+  factors: {
+    temaEHistoria: string;
+    partesYActos: string;
+    tramaYGiros: string;
+    desenlaceYClimax: string;
+  };
+  summaryJustification: string;
+}
+
+function computeStage1RecommendedDuration(
+  doc: DocumentaryProject,
+  refVideo?: {
+    videoId?: string;
+    title?: string;
+    description?: string;
+    tags?: string[];
+    structureSummary?: string;
+  } | null,
+  propositionParts?: Stage1PropositionPart[]
+): Stage1DurationSuggestion {
+  const VALID_TIERS = [600, 900, 1200, 1800, 3600, 7200];
+  const TIER_LABELS: Record<number, string> = {
+    600: '10 minutos (600s)',
+    900: '15 minutos (900s)',
+    1200: '20 minutos (1200s)',
+    1800: '30 minutos (1800s)',
+    3600: '1 hora (3600s)',
+    7200: '2 horas (7200s)',
+  };
+  const snapToValidTier = (sec: number): number => {
+    return VALID_TIERS.reduce((best, curr) =>
+      Math.abs(curr - sec) < Math.abs(best - sec) ? curr : best
+    );
+  };
+
+  const parts = propositionParts || buildStage1PropositionParts(doc, refVideo, []);
+  const rawStep1Text = String(doc.deepResearchPrompt || '').trim();
+  const topicText = String(doc.topic || parts[1]?.currentValue || '').trim();
+  const typologyText = String(doc.typology || parts[0]?.currentValue || '').trim();
+  const timeText = String(doc.historicalTime || parts[2]?.currentValue || '').trim();
+  const locText = String(doc.historicalLocation || parts[3]?.currentValue || '').trim();
+  const hookText = String(
+    doc.promptConfig?.PROPOSICION_GANCHO || parts[4]?.currentValue || ''
+  ).trim();
+  const escaletaText = String(
+    doc.promptConfig?.PROPOSICION_ESCALETA || parts[5]?.currentValue || ''
+  ).trim();
+  const climaxText = String(
+    doc.promptConfig?.PROPOSICION_CLIMAX || parts[6]?.currentValue || ''
+  ).trim();
+
+  // 1. Check explicit AI recommendation from Paso 1 text
+  let aiSuggestedSec: number | null = null;
+  let aiJustification = '';
+  const explicitSecMatch = rawStep1Text.match(
+    /RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL\s*:\s*(\d{3,4})/i
+  );
+  if (explicitSecMatch?.[1]) {
+    aiSuggestedSec = snapToValidTier(parseInt(explicitSecMatch[1], 10));
+  } else {
+    const textSuggestedMatch = rawStep1Text.match(
+      /DURACI[OÓ]N\s+TOTAL\s+SUGERIDA[^:\n]*:\s*([^\n]+)/i
+    );
+    if (textSuggestedMatch?.[1]) {
+      const line = textSuggestedMatch[1];
+      const secMatch = line.match(/\b(600|900|1200|1800|3600|7200)\s*s?\b/i);
+      const minMatch = line.match(/\b(10|15|20|30|60|120)\s*(?:min|minutos)\b/i);
+      const hourMatch = line.match(/\b(1|2)\s*hora/i);
+      if (secMatch?.[1]) {
+        aiSuggestedSec = snapToValidTier(parseInt(secMatch[1], 10));
+      } else if (minMatch?.[1]) {
+        aiSuggestedSec = snapToValidTier(parseInt(minMatch[1], 10) * 60);
+      } else if (hourMatch?.[1]) {
+        aiSuggestedSec = snapToValidTier(parseInt(hourMatch[1], 10) * 3600);
+      }
+    }
+  }
+  const justifMatch = rawStep1Text.match(
+    /JUSTIFICACI[OÓ]N\s+DE\s+DURACI[OÓ]N[^:\n]*:\s*([^\n]+(?:\n(?!\s*(?:[-*•]?\s*RECOMENDACI|\d+\.|===))[^\n]+)*)/i
+  );
+  if (justifMatch?.[1]) {
+    aiJustification = justifMatch[1].replace(/\s+/g, ' ').trim();
+  }
+
+  // 2. Multi-Factor Analysis of Tema, Partes/Actos, Trama, Desenlace e Historia
+  let complexityScore = 0; // 0-2 -> 600s/900s, 3-5 -> 1200s (20m), 6-8 -> 1800s (30m), 9+ -> 3600s (1h)
+
+  // Factor A: Tema e Historia (Alcance cronológico y geográfico)
+  const yearsMatched = timeText.match(/\b(1\d{3}|20\d{2})\b/g) || [];
+  let yearSpan = 0;
+  if (yearsMatched.length >= 2) {
+    const nums = yearsMatched.map((y) => parseInt(y, 10)).filter((n) => !Number.isNaN(n));
+    yearSpan = Math.max(...nums) - Math.min(...nums);
+  }
+  const hasMultiCentury = /siglos?\s+[xvi]+\s+(?:al|y)\s+siglo/i.test(timeText);
+  const hasMultiLocations = (locText.match(/\/| y |,/g) || []).length >= 2;
+  if (yearSpan >= 25 || hasMultiCentury) {
+    complexityScore += 2;
+  } else if (yearSpan >= 8) {
+    complexityScore += 1;
+  }
+  if (hasMultiLocations) {
+    complexityScore += 1;
+  }
+
+  // Factor B: Partes y Escaleta por Actos (Densidad estructural)
+  const actsCountMatch =
+    escaletaText.match(/\b(?:Acto\s+[IVX\d]+|Bloque\s+\d+|\d+\s+bloques|\d+\s+actos)\b/gi) || [];
+  const detectedActsCount = Math.max(
+    4,
+    actsCountMatch.length >= 4 ? actsCountMatch.length : /6\s+bloques/i.test(escaletaText) ? 6 : 5
+  );
+  if (detectedActsCount >= 5 || /in\s+media\s+res|doble\s+ca[ií]da|micro-ganchos/i.test(escaletaText)) {
+    complexityScore += 2;
+  } else {
+    complexityScore += 1;
+  }
+
+  // Factor C: Trama y Giros (Caídas, rechazos, rivalidad y tipologías combinadas)
+  const selectedTypologiesCount = parseSelectedTypologies(typologyText).length;
+  const hasMultipleTurningPoints =
+    /2\s+veces|3\s+veces|doble\s+ca[ií]da|triple\s+rechazo|bancarrota|subasta|saboteado|traicionados/i.test(
+      `${topicText} ${hookText}`
+    );
+  if (selectedTypologiesCount >= 2) complexityScore += 1;
+  if (hasMultipleTurningPoints) complexityScore += 2;
+
+  // Factor D: Desenlace y Clímax + Estructura del Video Referente
+  const hasLayeredClimax =
+    /resurgimiento|paradoja|legado|sacrificio|revelaci[oó]n|imperio/i.test(climaxText);
+  if (hasLayeredClimax) complexityScore += 1;
+
+  let heuristicSec = 900;
+  if (complexityScore >= 7) {
+    heuristicSec = 1800; // 30 min
+  } else if (complexityScore >= 4) {
+    heuristicSec = 1200; // 20 min
+  } else if (complexityScore >= 2) {
+    heuristicSec = 900; // 15 min
+  } else {
+    heuristicSec = 600; // 10 min
+  }
+
+  const recommendedSeconds = aiSuggestedSec || heuristicSec;
+  const recommendedMinutes = Math.round(recommendedSeconds / 60);
+  const recommendedLabel = TIER_LABELS[recommendedSeconds] || `${recommendedMinutes} minutos (${recommendedSeconds}s)`;
+
+  const alternativeSeconds =
+    recommendedSeconds === 1200
+      ? 1800
+      : recommendedSeconds === 1800
+      ? 1200
+      : recommendedSeconds === 900
+      ? 1200
+      : 900;
+  const alternativeLabel = TIER_LABELS[alternativeSeconds] || `${Math.round(alternativeSeconds / 60)} minutos (${alternativeSeconds}s)`;
+
+  const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
+  const fixedIntroSec = 8;
+  const fixedOutroSec = 8;
+  const clip1TimelineSec =
+    doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? clip1Sec + 2 : Math.max(8, clip1Sec);
+  const effectiveNarrationSeconds = Math.max(
+    20,
+    recommendedSeconds - fixedIntroSec - clip1TimelineSec - fixedOutroSec
+  );
+  const estimatedClipsCount =
+    1 + Math.ceil((recommendedSeconds - fixedIntroSec - fixedOutroSec - clip1TimelineSec) / standardClipSec);
+
+  const shortTopic = topicText.split(':')[0]?.trim() || 'el tema histórico seleccionado';
+  const factors = {
+    temaEHistoria: `Arco histórico sobre "${shortTopic}" (${
+      yearSpan > 0 ? `${yearSpan} años de recorrido cronológico` : timeText || 'época histórica definida'
+    }) en ${locText.split('(')[0]?.trim() || 'múltiples escenarios'}.`,
+    partesYActos: `Estructura dividida en Intro (8s) + Hook + ${detectedActsCount} bloques/actos narrativos + Outro (8s) (~${estimatedClipsCount} clips de ${standardClipSec}s).`,
+    tramaYGiros: hasMultipleTurningPoints
+      ? `Trama de alta densidad con múltiples puntos de giro (caídas, rechazos y contraataque estratégico) que requiere respirar sin apresurar las transiciones.`
+      : `Trama progresiva combinando ${selectedTypologiesCount} tipología(s) del protocolo con tensión documental sostenida.`,
+    desenlaceYClimax: `Clímax de doble impacto (resolución del conflicto histórico + reflexión de legado humano antes del Outro oficial de 8s).`,
+  };
+
+  const summaryJustification =
+    aiJustification ||
+    `Para desarrollar "${shortTopic}" con sus ${detectedActsCount} actos, giros de trama (${
+      yearSpan > 0 ? `${yearSpan} años de historia` : 'arco completo'
+    }) y un desenlace sólido sin perder retención, la duración óptima sugerida es ${recommendedLabel} (~${estimatedClipsCount} clips y ${Math.round(
+      effectiveNarrationSeconds / 60
+    )} min de narración efectiva)${
+      refVideo?.title ? `, alineada con el ritmo estructural de "${refVideo.title}"` : ''
+    }.`;
+
+  return {
+    recommendedSeconds,
+    recommendedMinutes,
+    recommendedLabel,
+    alternativeSeconds,
+    alternativeLabel,
+    estimatedClipsCount,
+    effectiveNarrationSeconds,
+    clipUnitSeconds: standardClipSec,
+    source: aiSuggestedSec ? 'AI_AND_HEURISTIC' : 'MULTIFACTOR_HEURISTIC',
+    factors,
+    summaryJustification,
+  };
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('huellas_master_auth') === 'true';
@@ -2202,6 +2418,83 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     );
   };
 
+  const resolveSelectedLibraryVideoForDoc = (
+    docToCheck: DocumentaryProject | null | undefined,
+    libraryList: any[] = analyzedVideosLibrary,
+    fallbackSelectedId = ''
+  ): any | null => {
+    if (!docToCheck || !Array.isArray(libraryList) || libraryList.length === 0) return null;
+    const cfg = docToCheck.promptConfig || {};
+    if (cfg.SELECTED_ANALYZED_VIDEO_CLEARED === 'SI' && !fallbackSelectedId && !cfg.SELECTED_ANALYZED_VIDEO_ID) {
+      return null;
+    }
+
+    const explicitId = String(cfg.SELECTED_ANALYZED_VIDEO_ID || fallbackSelectedId || '').trim();
+    if (explicitId) {
+      const byId = libraryList.find(
+        (v: any) =>
+          v &&
+          (String(v.videoId || '') === explicitId ||
+            String(v.id || '') === explicitId ||
+            String(v.realYoutubeId || '') === explicitId)
+      );
+      if (byId) return byId;
+    }
+
+    const linkCandidate = String(
+      cfg.YOUTUBE_SELECTED_LIBRARY_LINK ||
+        cfg.YOUTUBE_EXTRACTED_FOR_LINK ||
+        cfg.YOUTUBE_VIRAL_LINK ||
+        ''
+    ).trim();
+    if (linkCandidate) {
+      const byLink = findAlreadyInvestigatedLibraryVideo(linkCandidate, libraryList);
+      if (byLink) return byLink;
+    }
+
+    const titleCandidate = String(
+      cfg.SELECTED_ANALYZED_VIDEO_TITLE ||
+        cfg.ESTRUCTURA_VIRAL_TITULO ||
+        cfg.YOUTUBE_VIDEO_TITLE ||
+        ''
+    )
+      .trim()
+      .toLowerCase();
+    if (titleCandidate) {
+      const byTitle = libraryList.find(
+        (v: any) => v && String(v.title || '').trim().toLowerCase() === titleCandidate
+      );
+      if (byTitle) return byTitle;
+    }
+
+    const combinedStep1Context = `${String(docToCheck.deepResearchPrompt || '')}\n${String(
+      docToCheck.sectionsStructure || ''
+    )}`.toLowerCase();
+    const hasCompletedOrStartedStep1 = Boolean(
+      cfg.STAGE1_PART1_COMPLETED === 'SI' ||
+        (docToCheck.deepResearchPrompt || '').trim() ||
+        (docToCheck.deepResearchResult || '').trim()
+    );
+    if (combinedStep1Context.trim()) {
+      const byMention = libraryList.find((v: any) => {
+        if (!v) return false;
+        const vTitle = String(v.title || '').trim().toLowerCase();
+        const vYtId = String(v.realYoutubeId || v.videoId || '').trim().toLowerCase();
+        return (
+          (vTitle.length >= 12 && combinedStep1Context.includes(vTitle)) ||
+          (vYtId.length >= 8 && combinedStep1Context.includes(vYtId))
+        );
+      });
+      if (byMention) return byMention;
+    }
+
+    if (hasCompletedOrStartedStep1 && libraryList.length === 1) {
+      return libraryList[0];
+    }
+
+    return null;
+  };
+
   const normalizeAnalyzedVideoEntries = (rawList: any[]) => {
     const normalized = (Array.isArray(rawList) ? rawList : []).map((v: any) => {
       const seedMatch = STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.find(
@@ -2298,7 +2591,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ]);
               }
               const matchedId = String(
-                data.matchedLibraryEntry?.videoId || data.matchedLibraryEntry?.id || ''
+                data.matchedLibraryEntry?.videoId ||
+                  data.matchedLibraryEntry?.id ||
+                  extractYoutubeVideoIdClient(customVideoUrl) ||
+                  ''
               );
               if (matchedId) {
                 setSelectedAnalyzedVideoId(matchedId);
@@ -2326,6 +2622,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 // Clear the pasted link text box once investigated so the video is selected in the library dropdown as the single active video
                 const savedPromptConfig: Record<string, string> = {
                   ...(curDoc?.promptConfig || {}),
+                  SELECTED_ANALYZED_VIDEO_ID: matchedId,
+                  SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
                   YOUTUBE_VIRAL_LINK: '',
                   YOUTUBE_SELECTED_LIBRARY_LINK: customVideoUrl,
                   YOUTUBE_VIDEO_TITLE: extractedTitle,
@@ -2395,6 +2693,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const curDoc = activeDocRef.current || activeDoc;
                 const savedPromptConfig: Record<string, string> = {
                   ...(curDoc?.promptConfig || {}),
+                  SELECTED_ANALYZED_VIDEO_ID: ytId,
+                  SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
                   YOUTUBE_VIRAL_LINK: '',
                   YOUTUBE_SELECTED_LIBRARY_LINK: customVideoUrl,
                   YOUTUBE_VIDEO_TITLE: fallbackTitle,
@@ -2484,8 +2784,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     preferExtractedValues = false,
     phase: 'PART1' | 'PART2' = 'PART1'
   ): Partial<DocumentaryProject> => {
-    const selectedVideoObj =
-      analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) || null;
+    const selectedVideoObj = resolveSelectedLibraryVideoForDoc(
+      docToInspect,
+      analyzedVideosLibrary,
+      selectedAnalyzedVideoId
+    );
     const selectedComments = deduplicatedCommentsList.filter((c) =>
       selectedResearchCommentIds.includes(c.id)
     );
@@ -2536,18 +2839,63 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       });
     });
 
+    const docAfterStep1Preview: DocumentaryProject = {
+      ...tempDoc,
+      typology: nextTypology,
+      topic: nextTopic,
+      historicalTime: nextHistoricalTime,
+      historicalLocation: nextHistoricalLocation,
+    };
+    const durationSuggestion = computeStage1RecommendedDuration(
+      docAfterStep1Preview,
+      selectedVideoObj,
+      parts
+    );
+    const shouldAutoApplyRecommendedDuration =
+      phase === 'PART1' && docToInspect.promptConfig?.DURACION_MANUAL_CONFIRMADA !== 'SI';
+    const nextTargetDurationSeconds = shouldAutoApplyRecommendedDuration
+      ? durationSuggestion.recommendedSeconds
+      : docToInspect.targetDurationSeconds || durationSuggestion.recommendedSeconds;
+
+    const persistentVideoConfigPatch: Record<string, string> = selectedVideoObj
+      ? {
+          SELECTED_ANALYZED_VIDEO_ID: String(selectedVideoObj.videoId || selectedVideoObj.id || ''),
+          SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+          YOUTUBE_SELECTED_LIBRARY_LINK: String(
+            selectedVideoObj.url || selectedVideoObj.videoId || ''
+          ),
+          ESTRUCTURA_VIRAL_RESUMEN: String(selectedVideoObj.structureSummary || ''),
+          ESTRUCTURA_VIRAL_TITULO: String(selectedVideoObj.title || ''),
+          SELECTED_ANALYZED_VIDEO_SUMMARY: String(selectedVideoObj.structureSummary || ''),
+          SELECTED_ANALYZED_VIDEO_TITLE: String(selectedVideoObj.title || ''),
+          YOUTUBE_VIDEO_TITLE: String(selectedVideoObj.title || ''),
+          YOUTUBE_VIDEO_DESCRIPTION: String(selectedVideoObj.description || ''),
+          YOUTUBE_VIDEO_TAGS: Array.isArray(selectedVideoObj.tags)
+            ? selectedVideoObj.tags.join(', ')
+            : String(docToInspect.promptConfig?.YOUTUBE_VIDEO_TAGS || ''),
+          YOUTUBE_VIDEO_CHANNEL: String(
+            selectedVideoObj.channelTitle || docToInspect.promptConfig?.YOUTUBE_VIDEO_CHANNEL || ''
+          ),
+        }
+      : {};
+
     return {
       typology: nextTypology,
       topic: nextTopic,
       historicalTime: nextHistoricalTime,
       historicalLocation: nextHistoricalLocation,
+      targetDurationSeconds: nextTargetDurationSeconds,
       ...(phase === 'PART1'
         ? { deepResearchPrompt: effectiveResearch }
         : { deepResearchResult: effectiveResearch }),
       promptConfig: {
         ...(docToInspect.promptConfig || {}),
+        ...persistentVideoConfigPatch,
         STAGE1_PART1_COMPLETED: 'SI',
         ...(phase === 'PART2' ? { INVESTIGACION_COMPLETADA: 'SI' } : {}),
+        DURACION_TOTAL_SEGUNDOS: String(nextTargetDurationSeconds),
+        SUGGESTED_DURATION_SECONDS: String(durationSuggestion.recommendedSeconds),
+        SUGGESTED_DURATION_REASON: durationSuggestion.summaryJustification,
         TIPOLOGIA_VIDEO: nextTypology,
         TEMA_VIDEO: nextTopic,
         TIEMPO_EPOCA: nextHistoricalTime,
@@ -2578,6 +2926,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       loadStage1AnalyzedVideosAndComments(false);
     }
   }, [mainView, activeStage]);
+
+  // Keep selectedAnalyzedVideoId and activeDoc.promptConfig persistently synchronized per documentary
+  useEffect(() => {
+    if (!activeDoc) return;
+    const matched = resolveSelectedLibraryVideoForDoc(activeDoc, analyzedVideosLibrary, '');
+    if (matched) {
+      const matchedId = String(matched.videoId || matched.id || '');
+      if (matchedId && selectedAnalyzedVideoId !== matchedId) {
+        setSelectedAnalyzedVideoId(matchedId);
+      }
+      const cfg = activeDoc.promptConfig || {};
+      const needsPromptConfigSync =
+        cfg.SELECTED_ANALYZED_VIDEO_ID !== matchedId ||
+        !cfg.ESTRUCTURA_VIRAL_RESUMEN ||
+        !cfg.SELECTED_ANALYZED_VIDEO_TITLE;
+      if (matchedId && needsPromptConfigSync) {
+        updateActiveDoc({
+          promptConfig: {
+            ...cfg,
+            SELECTED_ANALYZED_VIDEO_ID: matchedId,
+            SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+            YOUTUBE_SELECTED_LIBRARY_LINK: String(matched.url || matchedId),
+            ESTRUCTURA_VIRAL_RESUMEN: String(matched.structureSummary || ''),
+            ESTRUCTURA_VIRAL_TITULO: String(matched.title || ''),
+            SELECTED_ANALYZED_VIDEO_SUMMARY: String(matched.structureSummary || ''),
+            SELECTED_ANALYZED_VIDEO_TITLE: String(matched.title || ''),
+            YOUTUBE_VIDEO_TITLE: String(matched.title || ''),
+            YOUTUBE_VIDEO_DESCRIPTION: String(matched.description || ''),
+            YOUTUBE_VIDEO_TAGS: Array.isArray(matched.tags)
+              ? matched.tags.join(', ')
+              : String(cfg.YOUTUBE_VIDEO_TAGS || ''),
+            YOUTUBE_VIDEO_CHANNEL: String(matched.channelTitle || cfg.YOUTUBE_VIDEO_CHANNEL || ''),
+          },
+        });
+      }
+    } else if (analyzedVideosLibrary.length > 0 && selectedAnalyzedVideoId) {
+      setSelectedAnalyzedVideoId('');
+    }
+  }, [
+    activeDoc?.id,
+    analyzedVideosLibrary,
+    activeDoc?.promptConfig?.SELECTED_ANALYZED_VIDEO_ID,
+    activeDoc?.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK,
+    activeDoc?.deepResearchPrompt,
+  ]);
 
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
@@ -3734,8 +4127,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           .then((r) => r.json())
           .then((d) => {
             if (d?.ok && Array.isArray(d.videos)) {
-              setAnalyzedVideosLibrary(d.videos);
-              if (d.entry?.id) setSelectedAnalyzedVideoId(d.entry.id);
+              const normVids = normalizeAnalyzedVideoEntries(d.videos);
+              setAnalyzedVideosLibrary(normVids);
+              const entryId = String(d.entry?.videoId || d.entry?.id || '');
+              if (entryId) {
+                setSelectedAnalyzedVideoId(entryId);
+                updateActiveDoc({
+                  promptConfig: {
+                    ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
+                    SELECTED_ANALYZED_VIDEO_ID: entryId,
+                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+                    YOUTUBE_SELECTED_LIBRARY_LINK: String(d.entry?.url || ytLink || entryId),
+                    ESTRUCTURA_VIRAL_RESUMEN: String(d.entry?.structureSummary || text.slice(0, 4500)),
+                    ESTRUCTURA_VIRAL_TITULO: String(d.entry?.title || activeDoc.topic || ytLink),
+                    SELECTED_ANALYZED_VIDEO_SUMMARY: String(d.entry?.structureSummary || text.slice(0, 4500)),
+                    SELECTED_ANALYZED_VIDEO_TITLE: String(d.entry?.title || activeDoc.topic || ytLink),
+                  },
+                });
+              }
             }
           })
           .catch(() => {});
@@ -3775,8 +4184,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           .then((r) => r.json())
           .then((d) => {
             if (d?.ok && Array.isArray(d.videos)) {
-              setAnalyzedVideosLibrary(d.videos);
-              if (d.entry?.id) setSelectedAnalyzedVideoId(d.entry.id);
+              const normVids = normalizeAnalyzedVideoEntries(d.videos);
+              setAnalyzedVideosLibrary(normVids);
+              const entryId = String(d.entry?.videoId || d.entry?.id || '');
+              if (entryId) {
+                setSelectedAnalyzedVideoId(entryId);
+                updateActiveDoc({
+                  promptConfig: {
+                    ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
+                    SELECTED_ANALYZED_VIDEO_ID: entryId,
+                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+                    YOUTUBE_SELECTED_LIBRARY_LINK: String(d.entry?.url || ytLink || entryId),
+                    ESTRUCTURA_VIRAL_RESUMEN: String(d.entry?.structureSummary || text.slice(0, 4500)),
+                    ESTRUCTURA_VIRAL_TITULO: String(d.entry?.title || activeDoc.topic || ytLink),
+                    SELECTED_ANALYZED_VIDEO_SUMMARY: String(d.entry?.structureSummary || text.slice(0, 4500)),
+                    SELECTED_ANALYZED_VIDEO_TITLE: String(d.entry?.title || activeDoc.topic || ytLink),
+                  },
+                });
+              }
             }
           })
           .catch(() => {});
@@ -8697,22 +9122,100 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       });
     }
     const orientationForThumb = getDefaultThumbnailOrientation(currentDoc);
+    const matchedLibVideoForStage1 =
+      stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3
+        ? resolveSelectedLibraryVideoForDoc(
+            currentDoc,
+            analyzedVideosLibrary,
+            selectedAnalyzedVideoId
+          )
+        : null;
+    const lockedVideoPromptPatch: Record<string, string> = matchedLibVideoForStage1
+      ? {
+          SELECTED_ANALYZED_VIDEO_ID: String(
+            matchedLibVideoForStage1.videoId || matchedLibVideoForStage1.id || ''
+          ),
+          SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+          YOUTUBE_SELECTED_LIBRARY_LINK: String(
+            matchedLibVideoForStage1.url || matchedLibVideoForStage1.videoId || ''
+          ),
+          ESTRUCTURA_VIRAL_RESUMEN: String(
+            matchedLibVideoForStage1.structureSummary ||
+              currentDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN ||
+              ''
+          ),
+          ESTRUCTURA_VIRAL_TITULO: String(
+            matchedLibVideoForStage1.title ||
+              currentDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+              ''
+          ),
+          SELECTED_ANALYZED_VIDEO_SUMMARY: String(
+            matchedLibVideoForStage1.structureSummary ||
+              currentDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY ||
+              ''
+          ),
+          SELECTED_ANALYZED_VIDEO_TITLE: String(
+            matchedLibVideoForStage1.title ||
+              currentDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE ||
+              ''
+          ),
+          YOUTUBE_VIDEO_TITLE: String(
+            matchedLibVideoForStage1.title || currentDoc.promptConfig?.YOUTUBE_VIDEO_TITLE || ''
+          ),
+          YOUTUBE_VIDEO_DESCRIPTION: String(
+            matchedLibVideoForStage1.description ||
+              currentDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION ||
+              ''
+          ),
+          YOUTUBE_VIDEO_TAGS: Array.isArray(matchedLibVideoForStage1.tags)
+            ? matchedLibVideoForStage1.tags.join(', ')
+            : String(currentDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || ''),
+          YOUTUBE_VIDEO_CHANNEL: String(
+            matchedLibVideoForStage1.channelTitle ||
+              currentDoc.promptConfig?.YOUTUBE_VIDEO_CHANNEL ||
+              ''
+          ),
+        }
+      : {};
+    if (matchedLibVideoForStage1?.videoId && selectedAnalyzedVideoId !== matchedLibVideoForStage1.videoId) {
+      setSelectedAnalyzedVideoId(String(matchedLibVideoForStage1.videoId));
+    }
+
+    const enrichedCurrentDoc: DocumentaryProject =
+      Object.keys(lockedVideoPromptPatch).length > 0
+        ? {
+            ...currentDoc,
+            promptConfig: {
+              ...(currentDoc.promptConfig || {}),
+              ...lockedVideoPromptPatch,
+            },
+          }
+        : currentDoc;
+
     const docForPayload =
       stageNum === 5
         ? {
-            ...currentDoc,
+            ...enrichedCurrentDoc,
             thumbnailOrientation: orientationForThumb,
             thumbnailTextOverlay: workingOverlay,
           }
-        : currentDoc;
+        : enrichedCurrentDoc;
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // When starting research in Stage 1 (Parte 1 or Parte 2), automatically paste the compiled prompt into its text box!
+    // When starting research in Stage 1 (Parte 1 or Parte 2), automatically paste the compiled prompt into its text box and persist the selected library video!
     if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       updateActiveDoc({
         sectionsStructure: promptText,
+        ...(Object.keys(lockedVideoPromptPatch).length > 0
+          ? {
+              promptConfig: {
+                ...(baseDoc.promptConfig || {}),
+                ...lockedVideoPromptPatch,
+              },
+            }
+          : {}),
       });
     }
 
@@ -11328,6 +11831,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               promptConfig: {
                                 ...(activeDoc.promptConfig || {}),
                                 DURACION_TOTAL_SEGUNDOS: String(nextSec),
+                                DURACION_MANUAL_CONFIRMADA: 'SI',
                               },
                             });
                           }}
@@ -11436,6 +11940,122 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </select>
                       </div>
                     </div>
+
+                    {/* SUGERENCIA INTELIGENTE DE DURACIÓN TOTAL TRAS EL PASO 1 (SEGÚN TEMA, PARTES, DESENLACE, TRAMA E HISTORIA) */}
+                    {(() => {
+                      const hasStep1Completed = Boolean(
+                        (activeDoc.deepResearchPrompt || '').trim() ||
+                          (activeDoc.deepResearchResult || '').trim() ||
+                          activeDoc.promptConfig?.STAGE1_PART1_COMPLETED === 'SI'
+                      );
+                      if (!hasStep1Completed) {
+                        return (
+                          <div className="bg-slate-950/70 border border-slate-800/90 rounded-xl p-3 text-[11px] text-slate-400">
+                            💡 <strong>Sugerencia de Duración Total tras el Paso 1:</strong> En cuanto ejecutes el{' '}
+                            <strong className="text-amber-300">Paso 1</strong>, la app analizará el{' '}
+                            <strong>tema, partes/actos, trama, desenlace e historia</strong> y te sugerirá aquí la duración total óptima del documental.
+                          </div>
+                        );
+                      }
+                      const refVideoForDur = resolveSelectedLibraryVideoForDoc(
+                        activeDoc,
+                        analyzedVideosLibrary,
+                        selectedAnalyzedVideoId
+                      );
+                      const durRec = computeStage1RecommendedDuration(activeDoc, refVideoForDur);
+                      const isRecommendedActive =
+                        Number(activeDoc.targetDurationSeconds || 900) === durRec.recommendedSeconds;
+                      const isAlternativeActive =
+                        Number(activeDoc.targetDurationSeconds || 900) === durRec.alternativeSeconds;
+
+                      return (
+                        <div className="bg-gradient-to-br from-amber-500/15 via-slate-950 to-emerald-950/30 border-2 border-amber-500/50 rounded-xl p-4 space-y-3 shadow-lg">
+                          <div className="flex items-start justify-between flex-wrap gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                                  ⏱️ Duración Sugerida tras Paso 1
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black">
+                                  Recomendado: {durRec.recommendedLabel}
+                                </span>
+                                <span className="text-[11px] text-slate-300 font-semibold">
+                                  (~{durRec.estimatedClipsCount} clips de {durRec.clipUnitSeconds}s · ~
+                                  {Math.round(durRec.effectiveNarrationSeconds / 60)} min narrados)
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-200 leading-relaxed">
+                                {durRec.summaryJustification}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateActiveDoc({
+                                    targetDurationSeconds: durRec.recommendedSeconds,
+                                    promptConfig: {
+                                      ...(activeDoc.promptConfig || {}),
+                                      DURACION_TOTAL_SEGUNDOS: String(durRec.recommendedSeconds),
+                                      DURACION_MANUAL_CONFIRMADA: 'SI',
+                                    },
+                                  })
+                                }
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black cursor-pointer transition ${
+                                  isRecommendedActive
+                                    ? 'bg-emerald-500 text-slate-950 shadow shadow-emerald-500/30'
+                                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow shadow-amber-500/25'
+                                }`}
+                              >
+                                {isRecommendedActive
+                                  ? `✓ Duración Sugerida Activa (${durRec.recommendedMinutes} min)`
+                                  : `⚡ Aplicar Sugerida: ${durRec.recommendedLabel}`}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateActiveDoc({
+                                    targetDurationSeconds: durRec.alternativeSeconds,
+                                    promptConfig: {
+                                      ...(activeDoc.promptConfig || {}),
+                                      DURACION_TOTAL_SEGUNDOS: String(durRec.alternativeSeconds),
+                                      DURACION_MANUAL_CONFIRMADA: 'SI',
+                                    },
+                                  })
+                                }
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border transition ${
+                                  isAlternativeActive
+                                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
+                                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+                                }`}
+                              >
+                                Alternativa: {durRec.alternativeLabel}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-300">
+                              <strong className="text-amber-300">🏛️ Según Tema e Historia:</strong>{' '}
+                              {durRec.factors.temaEHistoria}
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-300">
+                              <strong className="text-emerald-300">📐 Según Partes y Actos:</strong>{' '}
+                              {durRec.factors.partesYActos}
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-300">
+                              <strong className="text-purple-300">🎭 Según Trama y Giros:</strong>{' '}
+                              {durRec.factors.tramaYGiros}
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-300">
+                              <strong className="text-sky-300">🏁 Según Desenlace y Clímax:</strong>{' '}
+                              {durRec.factors.desenlaceYClimax}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -11472,66 +12092,91 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     {/* Dropdown de Videos Analizados Previamente */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Seleccionar Estructura de Video Analizado Previamente ({analyzedVideosLibrary.length}{' '}
-                        en biblioteca — solo 1 video por investigación)
-                      </label>
-                      <select
-                        value={selectedAnalyzedVideoId}
-                        onChange={(e) => {
-                          const nextId = e.target.value;
-                          setSelectedAnalyzedVideoId(nextId);
-                          const found = analyzedVideosLibrary.find((v) => v.videoId === nextId);
-                          if (found) {
-                            // Rule 2: Only 1 video can be used. Selecting from library clears any pasted link in the text box.
-                            updateActiveDoc({
-                              promptConfig: {
-                                ...(activeDoc.promptConfig || {}),
-                                YOUTUBE_VIRAL_LINK: '',
-                                YOUTUBE_SELECTED_LIBRARY_LINK: found.url || found.videoId,
-                                ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
-                                ESTRUCTURA_VIRAL_TITULO: found.title,
-                                SELECTED_ANALYZED_VIDEO_SUMMARY: found.structureSummary,
-                                SELECTED_ANALYZED_VIDEO_TITLE: found.title,
-                                YOUTUBE_VIDEO_TITLE: found.title,
-                                YOUTUBE_VIDEO_DESCRIPTION: found.description || '',
-                                YOUTUBE_VIDEO_TAGS: Array.isArray(found.tags)
-                                  ? found.tags.join(', ')
-                                  : '',
-                                YOUTUBE_VIDEO_CHANNEL: found.channelTitle || '',
-                              },
-                            });
-                          } else {
-                            updateActiveDoc({
-                              promptConfig: {
-                                ...(activeDoc.promptConfig || {}),
-                                YOUTUBE_VIRAL_LINK: '',
-                                YOUTUBE_SELECTED_LIBRARY_LINK: '',
-                                ESTRUCTURA_VIRAL_RESUMEN: '',
-                                ESTRUCTURA_VIRAL_TITULO: '',
-                                SELECTED_ANALYZED_VIDEO_SUMMARY: '',
-                                SELECTED_ANALYZED_VIDEO_TITLE: '',
-                                YOUTUBE_VIDEO_TITLE: '',
-                                YOUTUBE_VIDEO_DESCRIPTION: '',
-                                YOUTUBE_VIDEO_TAGS: '',
-                                YOUTUBE_VIDEO_CHANNEL: '',
-                              },
-                            });
-                          }
-                        }}
-                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
-                      >
-                        <option value="">
-                          -- Selecciona un video analizado previamente de la lista --
-                        </option>
-                        {analyzedVideosLibrary.map((v) => (
-                          <option key={v.videoId} value={v.videoId}>
-                            🎬 {v.title} ({v.channelTitle})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {(() => {
+                      const effectiveSelectedVideoObj = resolveSelectedLibraryVideoForDoc(
+                        activeDoc,
+                        analyzedVideosLibrary,
+                        selectedAnalyzedVideoId
+                      );
+                      const effectiveSelectedVideoId =
+                        selectedAnalyzedVideoId || effectiveSelectedVideoObj?.videoId || '';
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            Seleccionar Estructura de Video Analizado Previamente ({analyzedVideosLibrary.length}{' '}
+                            en biblioteca — queda seleccionado para este documental en Paso 1 y Paso 2)
+                          </label>
+                          <select
+                            value={effectiveSelectedVideoId}
+                            onChange={(e) => {
+                              const nextId = e.target.value;
+                              setSelectedAnalyzedVideoId(nextId);
+                              const found = analyzedVideosLibrary.find((v) => v.videoId === nextId);
+                              if (found) {
+                                // Rule 2: Only 1 video can be used. Selecting from library clears any pasted link in the text box and locks it for this documentary.
+                                updateActiveDoc({
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    SELECTED_ANALYZED_VIDEO_ID: String(found.videoId || found.id || ''),
+                                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+                                    YOUTUBE_VIRAL_LINK: '',
+                                    YOUTUBE_SELECTED_LIBRARY_LINK: found.url || found.videoId,
+                                    ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
+                                    ESTRUCTURA_VIRAL_TITULO: found.title,
+                                    SELECTED_ANALYZED_VIDEO_SUMMARY: found.structureSummary,
+                                    SELECTED_ANALYZED_VIDEO_TITLE: found.title,
+                                    YOUTUBE_VIDEO_TITLE: found.title,
+                                    YOUTUBE_VIDEO_DESCRIPTION: found.description || '',
+                                    YOUTUBE_VIDEO_TAGS: Array.isArray(found.tags)
+                                      ? found.tags.join(', ')
+                                      : '',
+                                    YOUTUBE_VIDEO_CHANNEL: found.channelTitle || '',
+                                  },
+                                });
+                              } else {
+                                updateActiveDoc({
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    SELECTED_ANALYZED_VIDEO_ID: '',
+                                    SELECTED_ANALYZED_VIDEO_CLEARED: 'SI',
+                                    YOUTUBE_VIRAL_LINK: '',
+                                    YOUTUBE_SELECTED_LIBRARY_LINK: '',
+                                    ESTRUCTURA_VIRAL_RESUMEN: '',
+                                    ESTRUCTURA_VIRAL_TITULO: '',
+                                    SELECTED_ANALYZED_VIDEO_SUMMARY: '',
+                                    SELECTED_ANALYZED_VIDEO_TITLE: '',
+                                    YOUTUBE_VIDEO_TITLE: '',
+                                    YOUTUBE_VIDEO_DESCRIPTION: '',
+                                    YOUTUBE_VIDEO_TAGS: '',
+                                    YOUTUBE_VIDEO_CHANNEL: '',
+                                  },
+                                });
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
+                          >
+                            <option value="">
+                              -- Selecciona un video analizado previamente de la lista --
+                            </option>
+                            {analyzedVideosLibrary.map((v) => (
+                              <option key={v.videoId} value={v.videoId}>
+                                🎬 {v.title} ({v.channelTitle})
+                              </option>
+                            ))}
+                          </select>
+                          {effectiveSelectedVideoObj && (
+                            <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
+                              <span>
+                                🔒 <strong>Fijado para {activeDoc.title}:</strong> &quot;{effectiveSelectedVideoObj.title}&quot; permanece seleccionado tras el Paso 1 y forma parte de la investigación <strong>Deep Research en el Paso 2</strong>.
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-black text-[10px]">
+                                ✓ Paso 1 + Paso 2 (Deep Research)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Input para pegar un Link de YouTube adicional o nuevo */}
                     {(() => {
@@ -11680,9 +12325,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                     {/* EXPLICACIÓN DE LA INVESTIGACIÓN DEL VIDEO SELECCIONADO + BARRA VISUAL DE TIEMPOS */}
                     {(() => {
-                      const activeVideo = selectedAnalyzedVideoId
-                        ? analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId)
-                        : null;
+                      const activeVideo = resolveSelectedLibraryVideoForDoc(
+                        activeDoc,
+                        analyzedVideosLibrary,
+                        selectedAnalyzedVideoId
+                      );
                       if (!activeVideo) return null;
                       const videoTagsList =
                         Array.isArray(activeVideo.tags) && activeVideo.tags.length > 0
@@ -12134,9 +12781,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           (activeDoc.deepResearchResult || '').trim() ||
                           activeDoc.promptConfig?.STAGE1_PART1_COMPLETED === 'SI'
                       );
-                      const selectedVideoObj =
-                        analyzedVideosLibrary.find((v) => v.videoId === selectedAnalyzedVideoId) ||
-                        null;
+                      const selectedVideoObj = resolveSelectedLibraryVideoForDoc(
+                        activeDoc,
+                        analyzedVideosLibrary,
+                        selectedAnalyzedVideoId
+                      );
                       const selectedComments = deduplicatedCommentsList.filter((c) =>
                         selectedResearchCommentIds.includes(c.id)
                       );
@@ -12144,6 +12793,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         activeDoc,
                         selectedVideoObj,
                         selectedComments
+                      );
+                      const step1DurationRec = computeStage1RecommendedDuration(
+                        activeDoc,
+                        selectedVideoObj,
+                        propositionParts
                       );
 
                       const handleSelectPropositionOption = (
@@ -12305,6 +12959,53 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </button>
                           </div>
 
+                          {/* BANNER DE DURACIÓN TOTAL SUGERIDA TRAS EL PASO 1 + VIDEO DE BIBLIOTECA VINCULADO */}
+                          <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-3">
+                            <div className="space-y-1 max-w-3xl">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
+                                  ⏱️ Duración Sugerida tras Paso 1: {step1DurationRec.recommendedLabel}
+                                </span>
+                                <span className="text-[11px] font-bold text-emerald-300">
+                                  (~{step1DurationRec.estimatedClipsCount} clips · ~
+                                  {Math.round(step1DurationRec.effectiveNarrationSeconds / 60)} min narrados)
+                                </span>
+                                {selectedVideoObj && (
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-400/40 text-purple-200 text-[10px] font-bold">
+                                    📚 Video Biblioteca Seleccionado: {selectedVideoObj.title}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-300 leading-relaxed">
+                                {step1DurationRec.summaryJustification}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateActiveDoc({
+                                  targetDurationSeconds: step1DurationRec.recommendedSeconds,
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    DURACION_TOTAL_SEGUNDOS: String(step1DurationRec.recommendedSeconds),
+                                    DURACION_MANUAL_CONFIRMADA: 'SI',
+                                  },
+                                })
+                              }
+                              className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer shrink-0 transition ${
+                                Number(activeDoc.targetDurationSeconds || 900) ===
+                                step1DurationRec.recommendedSeconds
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                              }`}
+                            >
+                              {Number(activeDoc.targetDurationSeconds || 900) ===
+                              step1DurationRec.recommendedSeconds
+                                ? `✓ Duración Activa: ${step1DurationRec.recommendedLabel}`
+                                : `⚡ Aplicar ${step1DurationRec.recommendedLabel}`}
+                            </button>
+                          </div>
+
                           <div className="space-y-4">
                             {propositionParts.map((part) => (
                               <div
@@ -12402,12 +13103,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <span className="px-2.5 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold">
                             🧠 4 Argon · Thinking level: High (Extra thorough) + 🔬 Feature Deep Research Activo
                           </span>
+                          {(() => {
+                            const refVidStep2 = resolveSelectedLibraryVideoForDoc(
+                              activeDoc,
+                              analyzedVideosLibrary,
+                              selectedAnalyzedVideoId
+                            );
+                            if (!refVidStep2) return null;
+                            return (
+                              <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold">
+                                📚 Incluye Video Analizado: &quot;{refVidStep2.title}&quot;
+                              </span>
+                            );
+                          })()}
                         </div>
                         <h4 className="font-extrabold text-slate-100 text-sm sm:text-base">
                           2º Investigación Profunda con el Feature de Gemini Deep Research y Thinking Level en High
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed">
-                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, selecciona en el menú <strong>&quot;Argon&quot; → &quot;4 Argon&quot; → &quot;Thinking level&quot; → &quot;High&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
+                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, selecciona en el menú <strong>&quot;Argon&quot; → &quot;4 Argon&quot; → &quot;Thinking level&quot; → &quot;High&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
                         </p>
                       </div>
 
@@ -12445,8 +13159,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <button
                             type="button"
                             onClick={() => {
-                              const selectedVideoObj = analyzedVideosLibrary.find(
-                                (v) => v.videoId === selectedAnalyzedVideoId
+                              const selectedVideoObj = resolveSelectedLibraryVideoForDoc(
+                                activeDoc,
+                                analyzedVideosLibrary,
+                                selectedAnalyzedVideoId
                               );
                               const selectedCommentsText = deduplicatedCommentsList
                                 .filter((c) => selectedResearchCommentIds.includes(c.id))
@@ -12459,6 +13175,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ...activeDoc,
                                 promptConfig: {
                                   ...(activeDoc.promptConfig || {}),
+                                  ...(selectedVideoObj
+                                    ? {
+                                        SELECTED_ANALYZED_VIDEO_ID: String(
+                                          selectedVideoObj.videoId || selectedVideoObj.id || ''
+                                        ),
+                                        SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
+                                        YOUTUBE_SELECTED_LIBRARY_LINK: String(
+                                          selectedVideoObj.url || selectedVideoObj.videoId || ''
+                                        ),
+                                      }
+                                    : {}),
                                   ESTRUCTURA_VIRAL_RESUMEN:
                                     selectedVideoObj?.structureSummary ||
                                     activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN ||
@@ -12466,6 +13193,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   ESTRUCTURA_VIRAL_TITULO:
                                     selectedVideoObj?.title ||
                                     activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
+                                    '',
+                                  SELECTED_ANALYZED_VIDEO_SUMMARY:
+                                    selectedVideoObj?.structureSummary ||
+                                    activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY ||
+                                    '',
+                                  SELECTED_ANALYZED_VIDEO_TITLE:
+                                    selectedVideoObj?.title ||
+                                    activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE ||
                                     '',
                                   YOUTUBE_VIDEO_TITLE:
                                     selectedVideoObj?.title ||
