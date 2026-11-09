@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:52 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:15 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -10641,6 +10641,56 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           📂 Seleccionar Carpeta de Descarga del Documental
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            `¿Estás seguro de que deseas limpiar toda la Etapa 1 de "${activeDoc.title}"?\n\nSe borrarán:\n• Definición Histórica (Tipología, Tema Central, Tiempo/Época, Lugar y Continuidad)\n• Video Analizado Seleccionado, Link pegado y Comentarios marcados\n• Resumen por Partes de la Proposición (Paso 1)\n• Prompt de Investigación y Resultado de Investigación Profunda (Paso 2)\n• Prompt Maestro Compilado\n\n(Se conservará el Nombre del Video y su Carpeta de Descarga).`
+                          );
+                          if (!confirmed) return;
+                          setSelectedAnalyzedVideoId('');
+                          setSelectedResearchCommentIds([]);
+                          const prevCfg = { ...(activeDoc.promptConfig || {}) };
+                          const cleanedCfg: Record<string, string> = {
+                            TIPO_PRODUCCION: prevCfg.TIPO_PRODUCCION || activeDoc.productionFormat || 'DOCUMENTAL_LARGO',
+                            SUB_OPCION_POST: prevCfg.SUB_OPCION_POST || 'SOLO_IMAGEN',
+                            SUB_OPCION_REELS: prevCfg.SUB_OPCION_REELS || 'VERTICAL_9_16_NARRADO',
+                            SINCRONIZACION_CLIP_1: prevCfg.SINCRONIZACION_CLIP_1 || activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
+                            TEXTO_PANTALLA_CLIP_1: prevCfg.TEXTO_PANTALLA_CLIP_1 || activeDoc.clip1OnScreenTextMode || 'CON_TEXTO_PANTALLA',
+                            DURACION_CLIP_1: prevCfg.DURACION_CLIP_1 || String(activeDoc.clip1DurationSeconds || 6),
+                            DURACION_CLIPS: prevCfg.DURACION_CLIPS || activeDoc.clipDurationMode || '8_SEGUNDOS',
+                            DURACION_CLIPS_SEGUNDOS:
+                              prevCfg.DURACION_CLIPS_SEGUNDOS ||
+                              (activeDoc.clipDurationMode === '8_SEGUNDOS' ? '8' : '10'),
+                            DURACION_TOTAL_SEGUNDOS:
+                              prevCfg.DURACION_TOTAL_SEGUNDOS ||
+                              String(activeDoc.targetDurationSeconds || 900),
+                            VOZ_NARRATIVA_EN_CLIPS:
+                              prevCfg.VOZ_NARRATIVA_EN_CLIPS ||
+                              activeDoc.clipVoiceMode ||
+                              'MUDO_SOLO_AMBIENTE',
+                            UBICACION_INTRO_MARCA: prevCfg.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00',
+                            CLEAN_RESET_V77: '2026_11_08_1912',
+                            V77_MULTI_PASO1_UPDATED: '2026_11_08_1952',
+                          };
+                          updateActiveDoc({
+                            typology: '',
+                            topic: '',
+                            historicalTime: '',
+                            historicalLocation: '',
+                            sectionsStructure: '',
+                            deepResearchPrompt: '',
+                            deepResearchResult: '',
+                            compiledMasterPrompt: '',
+                            promptConfig: cleanedCfg,
+                          });
+                        }}
+                        className="px-3.5 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/50 text-rose-300 font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer transition shadow-md"
+                        title="Limpiar todos los campos, opciones e investigaciones de la Etapa 1 de este documental"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-400" />
+                        <span>Limpiar Etapa 1</span>
+                      </button>
                     </div>
                   </div>
 
