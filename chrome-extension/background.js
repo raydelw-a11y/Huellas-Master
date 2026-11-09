@@ -2063,8 +2063,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      let preferredServiceTab = null;
+      if (targetService === 'GEMINI') {
+        // Prefer the Gemini tab already on the Notebook "Huellas de la Humanidad" (never hijack another notebook's chat)
+        let nbPath = '';
+        try {
+          const st = await chrome.storage.local.get('huellasNotebookPath');
+          nbPath = (st && st.huellasNotebookPath) || '';
+        } catch {}
+        const pathOf = (u) => {
+          try {
+            return new URL(u).pathname.replace(/\/$/, '');
+          } catch {
+            return '';
+          }
+        };
+        preferredServiceTab =
+          (nbPath && serviceTabs.find((t) => pathOf(t.url || '') === nbPath)) ||
+          serviceTabs.find((t) => t.id === payload.tabId) ||
+          serviceTabs.find((t) => /^\/(?:u\/\d+\/)?notebook\//.test(pathOf(t.url || ''))) ||
+          serviceTabs.find((t) => /^\/(?:u\/\d+\/)?app\/?$/.test(pathOf(t.url || ''))) ||
+          null;
+      }
       let targetTab =
-        serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
+        preferredServiceTab || serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       const shouldFocusTargetTab =
         targetService === 'GEMINI' || targetService === 'FLOW' || targetService === 'SUNO'
@@ -3393,7 +3415,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             target: { tabId: srTabId },
             func: () => {
               const re =
-                /\b(iniciar\s+investigaci[oó]n|empezar\s+(?:a\s+)?investigar|comenzar\s+investigaci[oó]n|start\s+research|begin\s+research)\b/i;
+                /\b((?:iniciar|empezar|comenzar)\s+(?:la\s+|a\s+)?investiga(?:ci[oó]n|r)|start\s+(?:the\s+)?research|begin\s+research)\b/i;
               const usable = (b) => {
                 if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
                 if (b.closest('bard-sidenav, side-navigation, .cdk-overlay-container')) return false;
@@ -3405,7 +3427,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 re.test(b.getAttribute('aria-label') || '');
               const responses = document.querySelectorAll('model-response, [data-message-author-role="model"]');
               const last = responses.length ? responses[responses.length - 1] : null;
-              let btns = last ? Array.from(last.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b)) : [];
+              const widgets = document.querySelectorAll('deep-research-confirmation-widget');
+              const lastWidget = widgets.length ? widgets[widgets.length - 1] : null;
+              let btns = lastWidget ? Array.from(lastWidget.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b)) : [];
+              if (!btns.length && last) {
+                btns = Array.from(last.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b));
+              }
               if (!btns.length) {
                 btns = Array.from(document.querySelectorAll('button, [role="button"]')).filter((b) => usable(b) && matches(b));
               }
@@ -3449,8 +3476,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const res = await chrome.scripting
           .executeScript({
             target: { tabId: rnTabId },
-            args: [step, wantChatId, wantNb, newTitle],
-            func: (op, chatId, nbPath, title) => {
+            args: [step, wantChatId, wantNb, newTitle, Boolean(message.proven)],
+            func: (op, chatId, nbPath, title, proven) => {
               const vis = (el) => {
                 if (!el) return false;
                 const r = el.getBoundingClientRect();
@@ -3464,7 +3491,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               const curChat = (path.match(/\/app\/([a-zA-Z0-9_-]{6,})$/) || [])[1] || '';
               const activeNb = document.querySelector('a[href*="/notebook/"][aria-current="page"]');
               const activeNbPath = activeNb ? new URL(activeNb.getAttribute('href'), location.origin).pathname : '';
-              const inside = curChat === chatId && activeNbPath === nbPath;
+              const inside = curChat === chatId && (activeNbPath === nbPath || (!activeNbPath && proven));
               if (!inside) return { found: false, notInside: true, curChat, activeNbPath };
               if (op === 'TRIGGER') {
                 const b = Array.from(
@@ -3830,16 +3857,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   return /research|investig/i.test(ph);
                 };
 
-                const getOverlayMenuItems = () =>
-                  Array.from(
-                    document.querySelectorAll(
-                      '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitemcheckbox"], .cdk-overlay-container [role="option"], .cdk-overlay-container [role="listitem"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container mat-list-item, .cdk-overlay-container mat-list-option, .cdk-overlay-container li, .cdk-overlay-container button'
-                    )
-                  ).filter((el) => {
-                    if (!el || el.offsetParent === null) return false;
-                    const r = el.getBoundingClientRect();
-                    return r.width > 10 && r.height > 10;
+                // Gemini renders menus in BOTH .cdk-overlay-container (e.g. "Upload & tools") and the top-layer
+                // .cdk-overlay-popover (e.g. mode picker / Thinking level) with <gem-menu-item> rows (verified live).
+                const OVERLAY_ROOT_SEL = '.cdk-overlay-container, .cdk-overlay-popover';
+                const getOverlayMenuItems = () => {
+                  const out = [];
+                  document.querySelectorAll(OVERLAY_ROOT_SEL).forEach((root) => {
+                    root
+                      .querySelectorAll(
+                        '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="listitem"], .mat-mdc-menu-item, gem-menu-item, mat-list-item, mat-list-option, li, button'
+                      )
+                      .forEach((el) => {
+                        if (out.includes(el)) return;
+                        const r = el.getBoundingClientRect();
+                        if (r.width > 10 && r.height > 10) out.push(el);
+                      });
                   });
+                  return out;
+                };
 
                 // Generic text search inside overlays: smallest visible element whose text matches, lifted to its clickable row
                 const findOverlayItemByText = (re) => {
@@ -3848,8 +3883,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   );
                   const pool = fromItems.length
                     ? fromItems
-                    : Array.from(document.querySelectorAll('.cdk-overlay-container *')).filter((el) => {
-                        if (el.offsetParent === null) return false;
+                    : Array.from(document.querySelectorAll('.cdk-overlay-container *, .cdk-overlay-popover *')).filter((el) => {
+                        const rr = el.getBoundingClientRect();
+                        if (rr.width < 3 || rr.height < 3) return false;
                         const t = (el.innerText || '').replace(/\s+/g, ' ').trim();
                         return t.length > 0 && t.length < 60 && re.test(t);
                       });
@@ -3862,7 +3898,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   const best = pool[0];
                   return (
                     best.closest(
-                      '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], .mat-mdc-menu-item, mat-list-item, li, button'
+                      'gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], .mat-mdc-menu-item, mat-list-item, li, button'
                     ) || best
                   );
                 };
@@ -3896,9 +3932,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (op === 'COUNT_OPEN_MENUS') {
                   return {
                     count: Array.from(
-                      document.querySelectorAll('.cdk-overlay-container .mat-mdc-menu-panel, .cdk-overlay-container [role="menu"]')
-                    ).filter((el) => el.offsetParent !== null).length,
+                      document.querySelectorAll(
+                        '.cdk-overlay-container .mat-mdc-menu-panel, .cdk-overlay-container [role="menu"], .cdk-overlay-popover [role="menu"], .cdk-overlay-popover gem-menu'
+                      )
+                    ).filter((el) => {
+                      const r = el.getBoundingClientRect();
+                      return r.width > 2 && r.height > 2;
+                    }).length,
                   };
+                }
+
+                if (op === 'READ_MODE_LABEL') {
+                  const sw = document.querySelector('[data-test-id="bard-mode-menu-button"]');
+                  return { label: (sw && (sw.getAttribute('aria-label') || sw.innerText)) || '' };
                 }
 
                 if (op === 'CHECK_DEEP_RESEARCH_CHIP') {
@@ -3933,13 +3979,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 if (op === 'FIND_AND_OPEN_PLUS_MENU') {
+                  // Verified live: the composer "+" is button[aria-label="Upload & tools"] inside .input-area
+                  const exactPlus = Array.from(
+                    document.querySelectorAll(
+                      'button[aria-label="Upload & tools"], button[aria-label*="Upload & tools" i], button[aria-label*="Subir y herramientas" i], button[aria-label*="herramientas" i][aria-haspopup]'
+                    )
+                  ).find((b) => {
+                    const r = b.getBoundingClientRect();
+                    return r.width > 4 && r.height > 4 && !b.closest('bard-sidenav, side-navigation, [role="navigation"], .cdk-overlay-container, .cdk-overlay-popover');
+                  });
+                  if (exactPlus) return triggerAngularElement(exactPlus, false);
                   const inputEl = document.querySelector(
                     'rich-textarea div.ql-editor, div[contenteditable="true"][role="textbox"], rich-textarea'
                   );
                   const inputRect = inputEl ? inputEl.getBoundingClientRect() : null;
                   const allBtns = Array.from(
                     document.querySelectorAll('button, [role="button"]')
-                  ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+                  ).filter(
+                    (el) =>
+                      el &&
+                      el.offsetParent !== null &&
+                      !el.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation, [role="navigation"]')
+                  );
 
                   let plusBtn = null;
                   if (inputRect) {
@@ -4196,6 +4257,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // --- PART 1: MODEL "4 Argon" + "Thinking level" -> Low / High (with verification) ---
         let thinkingOk = false;
         let thinkingVerified = false;
+        // The mode picker announces the current state ("Open mode picker, currently Argon High"): use it first
+        const modeMatchesTarget = async () => {
+          const ml = await runMainStep('READ_MODE_LABEL');
+          const label = String((ml && ml.label) || '');
+          const re = targetLevel === 'HIGH' ? /\bargon\b[^,]*\bhigh\b/i : /\bargon\b[^,]*\blow\b/i;
+          return re.test(label);
+        };
+        if (await modeMatchesTarget()) {
+          thinkingOk = true;
+          thinkingVerified = true;
+        }
         for (let attempt = 1; attempt <= 3 && !thinkingOk; attempt++) {
           await closeMenus();
           let menu = await openModelMenu();
@@ -4226,6 +4298,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (!opt.alreadyChecked) {
             await hardwareHoverAndClick(opt.x, opt.y);
             await sleep(450);
+          }
+          await closeMenus();
+          if (await modeMatchesTarget()) {
+            thinkingOk = true;
+            thinkingVerified = true;
+            break;
           }
           // VERIFY by reopening the menu and reading the checked option
           await closeMenus();

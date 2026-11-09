@@ -2548,8 +2548,9 @@
   }
 
   // ---- Deep Research: plan -> "Start research" -> final report ----
+  // Verified live: Spanish UI shows "Empezar la investigación" inside <deep-research-confirmation-widget>
   const START_RESEARCH_RE =
-    /\b(iniciar\s+investigaci[oó]n|empezar\s+(?:a\s+)?investigar|comenzar\s+investigaci[oó]n|start\s+research|begin\s+research)\b/i;
+    /\b((?:iniciar|empezar|comenzar)\s+(?:la\s+|a\s+)?investiga(?:ci[oó]n|r)|start\s+(?:the\s+)?research|begin\s+research)\b/i;
 
   function findStartResearchButtonScoped() {
     const isUsable = (b) => {
@@ -2564,7 +2565,9 @@
       /start-research|confirm-research/i.test(b.getAttribute('data-test-id') || '');
     const responses = getModelResponseElements();
     const last = responses.length ? responses[responses.length - 1] : null;
-    const scopes = last ? [last, last.parentElement] : [];
+    const widgets = Array.from(document.querySelectorAll('deep-research-confirmation-widget'));
+    const lastWidget = widgets.length ? widgets[widgets.length - 1] : null;
+    const scopes = [lastWidget, ...(last ? [last, last.parentElement] : [])];
     for (const scope of scopes) {
       if (!scope) continue;
       const found = Array.from(scope.querySelectorAll('button, [role="button"]')).filter((b) => isUsable(b) && matches(b));
@@ -2629,6 +2632,10 @@
     let phase = 'WAIT_PLAN';
     let planClickedAt = 0;
     let planText = '';
+    if (meta && meta.resumeResearching) {
+      phase = 'RESEARCHING';
+      planClickedAt = Date.now() - 60000;
+    }
     let lastText = '';
     let lastChangeAt = Date.now();
     let responseSeenAt = 0;
@@ -2809,11 +2816,39 @@
     return path;
   }
 
-  // Strict membership: notebook page itself, or an /app/<id> chat while that notebook is the active one
+  // Chats proven to belong to the notebook (opened from / created in its own page). Needed because Gemini collapses
+  // the sidebar (and its aria-current notebook link) when the Deep Research report panel is open.
+  const knownNotebookChats = new Set();
+  async function loadKnownNotebookChats(nbPath) {
+    try {
+      const key = `huellasNbChats_${nbPath}`;
+      const st = await chrome.storage.local.get(key);
+      (Array.isArray(st && st[key]) ? st[key] : []).forEach((id) => knownNotebookChats.add(`${nbPath}|${id}`));
+    } catch {}
+  }
+  async function rememberNotebookChat(nbPath, chatId) {
+    if (!nbPath || !chatId) return;
+    knownNotebookChats.add(`${nbPath}|${chatId}`);
+    try {
+      const key = `huellasNbChats_${nbPath}`;
+      const st = await chrome.storage.local.get(key);
+      const arr = Array.isArray(st && st[key]) ? st[key] : [];
+      if (!arr.includes(chatId)) {
+        arr.push(chatId);
+        await chrome.storage.local.set({ [key]: arr.slice(-200) });
+      }
+    } catch {}
+  }
+
+  // Strict membership: notebook page itself, or an /app/<id> chat that is the active notebook's or a proven notebook chat
   function isInsideNotebook(nbPath) {
     if (!nbPath) return false;
     if (getNotebookPathFromUrl(window.location.href) === nbPath) return true;
-    return Boolean(getAppChatIdFromUrl(window.location.href)) && getActiveNotebookPath() === nbPath;
+    const chatId = getAppChatIdFromUrl(window.location.href);
+    if (!chatId) return false;
+    const active = getActiveNotebookPath();
+    if (active) return active === nbPath;
+    return knownNotebookChats.has(`${nbPath}|${chatId}`);
   }
 
   function listNotebookPageChats() {
@@ -2865,6 +2900,7 @@
         reason: `No se encontró el Notebook "${notebookName}" en la barra lateral de Gemini (sección Notebooks).`,
       };
     }
+    await loadKnownNotebookChats(nbPath);
 
     // Already inside this video's chat of the notebook (exact title + notebook membership)
     const curChatId = getAppChatIdFromUrl(window.location.href);
@@ -2895,12 +2931,14 @@
     if (match) {
       reportStatus('WORKING', `🔍 Abriendo "${targetChatTitle}" dentro del Notebook...`, stage);
       match.btn.click();
-      const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 8000);
+      const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 10000);
       if (ok) {
-        for (let i = 0; i < 15 && getActiveNotebookPath() !== nbPath; i++) await sleep(200);
+        // Opened from the notebook's own "Past chats" list => proven notebook chat
+        const openedId = getAppChatIdFromUrl(window.location.href);
+        await rememberNotebookChat(nbPath, openedId);
         await sleep(1500);
         if (isInsideNotebook(nbPath)) {
-          return { ...base, isNewChat: false, nbPath, chatId: getAppChatIdFromUrl(window.location.href) };
+          return { ...base, isNewChat: false, nbPath, chatId: openedId };
         }
       }
       return { abort: true, reason: `Se encontró "${targetChatTitle}" en el Notebook pero no se pudo abrir.` };
@@ -2919,7 +2957,9 @@
     const isDeep = Boolean(chatState.isDeepResearchOrder);
     const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 60000);
     if (!ok) return;
-    for (let i = 0; i < 25 && getActiveNotebookPath() !== nbPath; i++) await sleep(200);
+    // A new chat sent from the notebook page's own composer belongs to the notebook
+    if (chatState.isNewChat) await rememberNotebookChat(nbPath, getAppChatIdFromUrl(window.location.href));
+    for (let i = 0; i < 25 && !isInsideNotebook(nbPath); i++) await sleep(200);
     if (!isInsideNotebook(nbPath)) return;
     const chatId = getAppChatIdFromUrl(window.location.href);
     if (chatState.chatId && chatState.chatId !== chatId) return;
@@ -2950,6 +2990,7 @@
           title,
           chatId,
           nbPath,
+          proven: knownNotebookChats.has(`${nbPath}|${chatId}`),
         });
       } catch {}
       if (res && res.ok) return;
@@ -2985,6 +3026,29 @@
           isBusyWithOrder = false;
           reportStatus('ERROR', `⛔ ${chatState.reason}`, { stageNumber: payload.stageNumber });
           processNextQueuedPrompt();
+          return;
+        }
+
+        // A Deep Research is ALREADY running in this notebook chat: attach to it instead of sending a new prompt
+        if (
+          payload.enableDeepResearch &&
+          chatState &&
+          !chatState.isNewChat &&
+          (isGeminiStillGenerating() || isDeepResearchActivelyBrowsing())
+        ) {
+          reportStatus('GENERATING', '🔬 Ya hay una investigación de Deep Research en curso en este chat del Notebook; esperando su informe final...', {
+            stageNumber: payload.stageNumber,
+          });
+          watchDeepResearchOrder(getModelResponseElements().length, extractLatestGeminiResponse().text, {
+            stageNumber: payload.stageNumber,
+            taskType: payload.taskType || 'STAGE_GENERATION',
+            enableHighModel: true,
+            enableDeepResearch: true,
+            targetChatTitle: chatState.targetChatTitle,
+            docId: payload.docId || '',
+            initialUserQueries: 0,
+            resumeResearching: true,
+          });
           return;
         }
 
@@ -3221,6 +3285,7 @@
             /_\s*deep\s*research\s*-\s*google gemini$/i.test(document.title || ''));
         let ok = false;
         const newTitle = isDeepChat ? deepName : baseName;
+        if (nbPath) await loadKnownNotebookChats(nbPath);
         if (nbPath && chatId && newTitle && isInsideNotebook(nbPath)) {
           try {
             const res = await chrome.runtime.sendMessage({
@@ -3228,6 +3293,7 @@
               title: newTitle,
               chatId,
               nbPath,
+              proven: knownNotebookChats.has(`${nbPath}|${chatId}`),
             });
             ok = Boolean(res && res.ok);
           } catch {}
