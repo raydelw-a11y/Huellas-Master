@@ -3352,7 +3352,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const navUrl = String(message.url || '');
     (async () => {
       try {
-        if (!/^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?gem\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?$/.test(navUrl)) {
+        if (
+          !/^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?(?:notebook\/[a-zA-Z0-9_-]+|app\/[a-zA-Z0-9_-]{6,}|gem\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?)$/.test(
+            navUrl
+          )
+        ) {
           sendResponse({ ok: false, error: 'URL fuera del Notebook' });
           return;
         }
@@ -3425,6 +3429,151 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ clicked: false, error: String(err?.message || err) });
       } finally {
         if (attached) await chrome.debugger.detach(target).catch(() => {});
+      }
+    })();
+    return true;
+  }
+
+  // Rename the CURRENT Gemini chat via its header menu (selectors verified live), only if it is
+  // /app/<chatId> AND the notebook nbPath is the active one (aria-current) -> never a chat outside the notebook.
+  if (message.type === 'GEMINI_HARDWARE_RENAME_CURRENT_CHAT' && sender?.tab?.id) {
+    const rnTabId = sender.tab.id;
+    const newTitle = String(message.title || '').trim();
+    const wantChatId = String(message.chatId || '');
+    const wantNb = String(message.nbPath || '');
+    (async () => {
+      const target = { tabId: rnTabId };
+      let attached = false;
+      let prevActiveTabId = null;
+      const locate = async (step) => {
+        const res = await chrome.scripting
+          .executeScript({
+            target: { tabId: rnTabId },
+            args: [step, wantChatId, wantNb, newTitle],
+            func: (op, chatId, nbPath, title) => {
+              const vis = (el) => {
+                if (!el) return false;
+                const r = el.getBoundingClientRect();
+                return r.width > 2 && r.height > 2;
+              };
+              const center = (el) => {
+                const r = el.getBoundingClientRect();
+                return { found: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+              };
+              const path = location.pathname.replace(/\/$/, '');
+              const curChat = (path.match(/\/app\/([a-zA-Z0-9_-]{6,})$/) || [])[1] || '';
+              const activeNb = document.querySelector('a[href*="/notebook/"][aria-current="page"]');
+              const activeNbPath = activeNb ? new URL(activeNb.getAttribute('href'), location.origin).pathname : '';
+              const inside = curChat === chatId && activeNbPath === nbPath;
+              if (!inside) return { found: false, notInside: true, curChat, activeNbPath };
+              if (op === 'TRIGGER') {
+                const b = Array.from(
+                  document.querySelectorAll('button[aria-label*="conversation actions" i], button[aria-label*="acciones de la conversación" i]')
+                ).find(vis);
+                return b ? center(b) : { found: false };
+              }
+              if (op === 'RENAME_ITEM') {
+                const it = Array.from(document.querySelectorAll('[data-test-id="rename-button"]')).find(vis);
+                return it ? center(it) : { found: false };
+              }
+              if (op === 'INPUT') {
+                const inp = Array.from(
+                  document.querySelectorAll('input[aria-label="Rename this chat"], [data-test-id="edit-title-input"] input, input[aria-label*="rename" i], input[aria-label*="cambiar nombre" i]')
+                ).find(vis);
+                if (!inp) return { found: false };
+                inp.focus();
+                try {
+                  inp.select();
+                } catch {}
+                return center(inp);
+              }
+              if (op === 'CONFIRM') {
+                const dlg = document.querySelector('[data-test-id="edit-title-input"]')?.closest('[role="dialog"], mat-dialog-container, .mat-mdc-dialog-container') || document;
+                const btn = Array.from(dlg.querySelectorAll('button')).find(
+                  (b) => vis(b) && !b.disabled && /^(rename|cambiar nombre|renombrar|guardar|save)$/i.test((b.innerText || '').trim())
+                );
+                return btn ? center(btn) : { found: false };
+              }
+              if (op === 'VERIFY') {
+                const t = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+                return { found: true, done: t === title, title: t };
+              }
+              return { found: false };
+            },
+          })
+          .catch(() => []);
+        return (res && res[0] && res[0].result) || { found: false };
+      };
+      const waitLocate = async (step, tries = 10) => {
+        let r = null;
+        for (let i = 0; i < tries; i++) {
+          r = await locate(step);
+          if (r.found || r.notInside) return r;
+          await sleep(150);
+        }
+        return r || { found: false };
+      };
+      try {
+        if (!newTitle || !wantChatId || !wantNb) {
+          sendResponse({ ok: false, error: 'parámetros incompletos' });
+          return;
+        }
+        const pre = await locate('VERIFY');
+        if (pre.notInside) {
+          sendResponse({ ok: false, error: 'el chat no está dentro del Notebook' });
+          return;
+        }
+        if (pre.done) {
+          sendResponse({ ok: true, already: true });
+          return;
+        }
+        try {
+          const t = await chrome.tabs.get(rnTabId);
+          if (t && !t.active) {
+            const act = await chrome.tabs.query({ windowId: t.windowId, active: true });
+            if (act && act[0]) prevActiveTabId = act[0].id;
+            await chrome.tabs.update(rnTabId, { active: true });
+            await sleep(250);
+          }
+        } catch {}
+        await chrome.debugger.attach(target, '1.3');
+        attached = true;
+        await sleep(450);
+
+        const trig = await waitLocate('TRIGGER');
+        if (!trig.found) throw new Error(trig.notInside ? 'fuera del Notebook' : 'menú de la conversación no encontrado');
+        await dispatchHardwareClick(target, trig.x, trig.y);
+        const item = await waitLocate('RENAME_ITEM');
+        if (!item.found) throw new Error('opción Rename no encontrada');
+        await dispatchHardwareClick(target, item.x, item.y);
+        const inp = await waitLocate('INPUT');
+        if (!inp.found) throw new Error('campo de nombre no encontrado');
+        // select-all + trusted typing replaces the old title
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+          type: 'rawKeyDown', key: 'a', code: 'KeyA', modifiers: 4, windowsVirtualKeyCode: 65,
+        }).catch(() => {});
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+          type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 4, windowsVirtualKeyCode: 65,
+        }).catch(() => {});
+        await chrome.debugger.sendCommand(target, 'Input.insertText', { text: newTitle });
+        await sleep(300);
+        const confirm = await waitLocate('CONFIRM');
+        if (!confirm.found) throw new Error(confirm.notInside ? 'fuera del Notebook' : 'botón Rename no habilitado');
+        await dispatchHardwareClick(target, confirm.x, confirm.y);
+        let verified = false;
+        for (let i = 0; i < 12 && !verified; i++) {
+          await sleep(250);
+          const v = await locate('VERIFY');
+          verified = Boolean(v.done);
+        }
+        sendResponse({ ok: verified, error: verified ? '' : 'el título no cambió' });
+      } catch (err) {
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      } finally {
+        if (attached) await chrome.debugger.detach(target).catch(() => {});
+        if (prevActiveTabId) await chrome.tabs.update(prevActiveTabId, { active: true }).catch(() => {});
       }
     })();
     return true;
@@ -4288,16 +4437,14 @@ async function resumeGeminiOrderIfPending(tabId, tabUrl) {
   } catch {}
   if (!pending || !pending.order) return;
   // Only resume once the tab actually reached the requested notebook/chat path
-  const wantPath = String(pending.url || '').replace(/^https:\/\/gemini\.google\.com/, '');
-  const gotPath = String(tabUrl || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0];
-  const wantGem = (wantPath.match(/\/gem\/([a-zA-Z0-9_-]+)/) || [])[1];
-  const gotGem = (gotPath.match(/\/gem\/([a-zA-Z0-9_-]+)/) || [])[1];
+  const wantPath = String(pending.url || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0].replace(/\/$/, '');
+  const gotPath = String(tabUrl || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0].replace(/\/$/, '');
   if (Date.now() - (pending.createdAt || 0) > 120000) {
     await chrome.storage.session.remove(key).catch(() => {});
     return;
   }
   // Intermediate URL (redirect / still loading): keep the order for the next "complete" event
-  if (!wantGem || wantGem !== gotGem) return;
+  if (!wantPath || wantPath !== gotPath) return;
   await chrome.storage.session.remove(key).catch(() => {});
   await sleep(2200);
   await ensureScriptInjected(tabId, 'gemini-content.js');

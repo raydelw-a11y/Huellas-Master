@@ -125,7 +125,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:01 PM - 11/08/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:36 PM - 11/08/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -8159,12 +8159,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'GEMINI_CHAT_LINKED') {
         setExtensionInstalled(true);
         const rawLinkedChatUrl = String(msg.geminiChatUrl || msg.chatUrl || '').trim();
-        // Only chats inside the Notebook "Huellas de la Humanidad" (/gem/<gemId>/<chatId>) are ever linked
-        const linkedChatUrl = /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?gem\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]{6,}/.test(
-          rawLinkedChatUrl
-        )
-          ? rawLinkedChatUrl
-          : '';
+        // Only chats confirmed inside the Notebook "Huellas de la Humanidad" are ever linked
+        // (the extension sends notebookPath only after verifying notebook membership)
+        const linkedChatUrl =
+          /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(rawLinkedChatUrl) &&
+          /^\/(?:u\/\d+\/)?notebook\/[a-zA-Z0-9_-]+$/.test(String(msg.notebookPath || ''))
+            ? rawLinkedChatUrl
+            : '';
         if (rawLinkedChatUrl && !linkedChatUrl) return;
         const linkedChatTitle = String(msg.geminiChatTitle || msg.chatTitle || '').trim();
         const isDeepResearchChat =
