@@ -3534,40 +3534,67 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   return node;
                 };
 
+                const DR_RE = /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i;
+
                 const findActiveDeepResearchChip = () => {
                   const root = getComposerRoot() || document;
                   const nodes = Array.from(
-                    root.querySelectorAll('button, [role="button"], mat-chip, mat-chip-option, [class*="chip"], span, div')
+                    root.querySelectorAll('button, [role="button"], mat-chip, mat-chip-option, [class*="chip"]')
                   ).filter(
                     (el) =>
                       el.offsetParent !== null &&
                       !el.closest('.cdk-overlay-container') &&
                       !el.closest('bard-sidenav, side-navigation, conversations-list, model-response, message-content, user-query')
                   );
-                  return (
-                    nodes.find((el) => {
-                      const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                      const a = (el.getAttribute('aria-label') || '').trim();
-                      const named =
-                        /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
-                        /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a);
-                      if (!named) return false;
-                      // Must look ACTIVE/selected (zero-state suggestion chips with the same name are NOT active)
-                      const cls = String(el.className || '') + ' ' + String(el.parentElement?.className || '');
-                      return (
-                        el.getAttribute('aria-pressed') === 'true' ||
-                        el.getAttribute('aria-checked') === 'true' ||
-                        el.getAttribute('aria-selected') === 'true' ||
-                        /\b(deselect|remove|quitar|desactivar|close)\b/i.test(a) ||
-                        /(selected|is-selected|active|highlighted|--on\b)/i.test(cls) ||
-                        Boolean(
-                          (el.closest('button, [role="button"], mat-chip, mat-chip-option') || el).querySelector(
-                            'mat-icon[fonticon="close"], mat-icon[data-mat-icon-name="close"], [aria-label*="deselect" i], [aria-label*="remove" i], [aria-label*="quitar" i]'
-                          )
-                        )
-                      );
-                    }) || null
+                  // STRICT: only an explicit "deselect/remove Deep research" control or a pressed/checked toggle counts.
+                  // (The start screen shows a SUGGESTION button "Deep Research" with an icon; that one is NOT active.)
+                  for (const el of nodes) {
+                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const a = (el.getAttribute('aria-label') || el.getAttribute('mattooltip') || '').trim();
+                    if (DR_RE.test(a) && /\b(deselect|remove|quitar|desactivar|deseleccionar|cancel)\b/i.test(a)) return el;
+                    const named = /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) || DR_RE.test(a);
+                    if (!named) continue;
+                    if (el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-checked') === 'true')
+                      return el;
+                    const holder = el.closest('mat-chip, mat-chip-option, [class*="chip"]') || el.parentElement || el;
+                    const closeCtl = holder.querySelector(
+                      '[aria-label*="deselect" i], [aria-label*="remove" i], [aria-label*="quitar" i], [aria-label*="deseleccionar" i], mat-icon[fonticon="close"], mat-icon[data-mat-icon-name="close"]'
+                    );
+                    if (closeCtl && closeCtl !== el) return holder;
+                  }
+                  return null;
+                };
+
+                const findDeepResearchSuggestionButton = () => {
+                  const root = getComposerRoot()?.parentElement || document;
+                  const nodes = Array.from(root.querySelectorAll('button, [role="button"], mat-chip, mat-chip-option')).filter(
+                    (el) =>
+                      el.offsetParent !== null &&
+                      !el.closest('.cdk-overlay-container') &&
+                      !el.closest('bard-sidenav, side-navigation, conversations-list, model-response, message-content, user-query')
                   );
+                  return (
+                    nodes.find((el) =>
+                      /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(
+                        (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+                      )
+                    ) || null
+                  );
+                };
+
+                const dumpComposerState = () => {
+                  const ed = document.querySelector('rich-textarea .ql-editor, div.ql-editor[contenteditable="true"]');
+                  const root = getComposerRoot()?.parentElement || document;
+                  const ctl = Array.from(root.querySelectorAll('button, [role="button"], mat-chip, [class*="chip"]'))
+                    .filter((el) => el.offsetParent !== null && !el.closest('.cdk-overlay-container, bard-sidenav, model-response, user-query'))
+                    .map((el) => {
+                      const t = (el.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 24);
+                      const a = (el.getAttribute('aria-label') || '').slice(0, 40);
+                      return t || a ? `${t}${a ? `{${a}}` : ''}` : '';
+                    })
+                    .filter(Boolean)
+                    .slice(0, 14);
+                  return `placeholder="${(ed && (ed.getAttribute('data-placeholder') || '')) || ''}" controles=[${ctl.join(' | ')}]`;
                 };
 
                 const isResearchPlaceholder = () => {
@@ -3579,13 +3606,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const getOverlayMenuItems = () =>
                   Array.from(
                     document.querySelectorAll(
-                      '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="option"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container button'
+                      '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitemcheckbox"], .cdk-overlay-container [role="option"], .cdk-overlay-container [role="listitem"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container mat-list-item, .cdk-overlay-container mat-list-option, .cdk-overlay-container li, .cdk-overlay-container button'
                     )
                   ).filter((el) => {
                     if (!el || el.offsetParent === null) return false;
                     const r = el.getBoundingClientRect();
                     return r.width > 10 && r.height > 10;
                   });
+
+                // Generic text search inside overlays: smallest visible element whose text matches, lifted to its clickable row
+                const findOverlayItemByText = (re) => {
+                  const fromItems = getOverlayMenuItems().filter((el) =>
+                    re.test((el.innerText || el.textContent || '').replace(/\s+/g, ' '))
+                  );
+                  const pool = fromItems.length
+                    ? fromItems
+                    : Array.from(document.querySelectorAll('.cdk-overlay-container *')).filter((el) => {
+                        if (el.offsetParent === null) return false;
+                        const t = (el.innerText || '').replace(/\s+/g, ' ').trim();
+                        return t.length > 0 && t.length < 60 && re.test(t);
+                      });
+                  if (!pool.length) return null;
+                  pool.sort((a, b) => {
+                    const ra = a.getBoundingClientRect();
+                    const rb = b.getBoundingClientRect();
+                    return ra.width * ra.height - rb.width * rb.height;
+                  });
+                  const best = pool[0];
+                  return (
+                    best.closest(
+                      '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], .mat-mdc-menu-item, mat-list-item, li, button'
+                    ) || best
+                  );
+                };
 
                 if (op === 'CLOSE_MENUS') {
                   const backdrops = Array.from(
@@ -3713,41 +3766,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 if (op === 'FIND_MORE_TOOLS_IN_OVERLAY') {
-                  const items = getOverlayMenuItems();
-                  const directDeep = items.find((el) =>
-                    /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(
-                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
-                    )
-                  );
+                  const directDeep = findOverlayItemByText(DR_RE);
                   if (directDeep) {
                     return {
                       directDeepResearch: true,
                       ...triggerAngularElement(directDeep, false),
                     };
                   }
-                  const moreTools = items.find((el) =>
-                    /\b(more\s+tools|m[aá]s\s+herramientas)\b/i.test(
-                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
-                    )
-                  );
+                  const moreTools = findOverlayItemByText(/\b(more\s+tools|m[aá]s\s+herramientas|tools|herramientas)\b/i);
                   return moreTools
                     ? {
                         directDeepResearch: false,
                         ...triggerAngularElement(moreTools, true),
                       }
-                    : { found: false };
+                    : {
+                        found: false,
+                        items: getOverlayMenuItems().map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 30)),
+                      };
                 }
 
                 if (op === 'FIND_DEEP_RESEARCH_IN_OVERLAY') {
-                  const items = getOverlayMenuItems();
-                  const deepItem = items.find((el) =>
-                    /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(
-                      (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
-                    )
-                  );
+                  const deepItem = findOverlayItemByText(DR_RE);
                   return deepItem
                     ? { ...triggerAngularElement(deepItem, false), alreadyChecked: isItemChecked(deepItem) }
-                    : { found: false, items: items.map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40)) };
+                    : {
+                        found: false,
+                        items: getOverlayMenuItems().map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 30)),
+                      };
+                }
+
+                if (op === 'FIND_DR_SUGGESTION_BUTTON') {
+                  const btn = findDeepResearchSuggestionButton();
+                  return btn ? triggerAngularElement(btn, false) : { found: false };
+                }
+
+                if (op === 'DUMP_COMPOSER') {
+                  return { dump: dumpComposerState() };
                 }
 
                 if (op === 'FIND_AND_OPEN_MODEL_SWITCHER') {
@@ -3982,42 +4036,79 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } else if (initialChip?.active) {
           deepResearchOk = true;
         } else {
+          const waitChipActive = async (rounds = 10) => {
+            for (let i = 0; i < rounds; i++) {
+              await sleep(180);
+              const chk = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
+              if (chk?.active) return true;
+            }
+            return false;
+          };
+          let clickedOnce = false;
           for (let attempt = 1; attempt <= 3 && !deepResearchOk; attempt++) {
             await closeMenus();
             const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
+            let deepInfo = null;
             if (!plusInfo?.found) {
               diag.push(`D${attempt}: botón "+" no encontrado`);
-              await sleep(400);
-              continue;
-            }
-            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
-            const moreTools = await waitFound('FIND_MORE_TOOLS_IN_OVERLAY', '', 8, 140);
-            if (!moreTools.found) {
-              diag.push(`D${attempt}: menú "+" no abrió / sin "More tools"`);
-              continue;
-            }
-            let deepInfo = null;
-            if (moreTools.directDeepResearch) {
-              deepInfo = moreTools;
             } else {
-              await hardwareHoverOnly(moreTools.x, moreTools.y);
-              deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 140);
-              if (!deepInfo.found) {
-                await hardwareHoverAndClick(moreTools.x, moreTools.y);
-                deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 150);
+              await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+              const moreTools = await waitFound('FIND_MORE_TOOLS_IN_OVERLAY', '', 8, 140);
+              if (!moreTools.found) {
+                diag.push(`D${attempt}: menú "+" sin "More tools" [${(moreTools.items || []).join(' | ')}]`);
+              } else if (moreTools.directDeepResearch) {
+                deepInfo = moreTools;
+              } else {
+                await hardwareHoverOnly(moreTools.x, moreTools.y);
+                deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 140);
+                if (!deepInfo.found) {
+                  await hardwareHoverAndClick(moreTools.x, moreTools.y);
+                  deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 150);
+                }
+                if (!deepInfo.found) {
+                  diag.push(`D${attempt}: "Deep research" no apareció en submenú [${(deepInfo.items || []).join(' | ')}]`);
+                  deepInfo = null;
+                }
               }
             }
-            if (!deepInfo || !deepInfo.found) {
-              diag.push(`D${attempt}: "Deep research" no apareció [${(deepInfo?.items || []).join(' | ')}]`);
+
+            if (deepInfo && deepInfo.found) {
+              if (deepInfo.alreadyChecked) {
+                // Item is already selected: do NOT click again (that would turn it OFF)
+                deepResearchOk = true;
+                break;
+              }
+              if (clickedOnce) {
+                // A previous click may have worked but the chip wasn't detectable: avoid toggling it back off
+                diag.push(`D${attempt}: reintento tras clic previo`);
+              }
+              await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
+              clickedOnce = true;
+              if (await waitChipActive(10)) {
+                deepResearchOk = true;
+                break;
+              }
+              diag.push(`D${attempt}: clic en menú hecho pero Deep Research no quedó activo`);
               continue;
             }
-            await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
-            for (let i = 0; i < 10 && !deepResearchOk; i++) {
-              await sleep(180);
-              const chk = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
-              if (chk?.active) deepResearchOk = true;
+
+            // Route 3: the "Deep Research" suggestion button shown next to the composer
+            await closeMenus();
+            const sugg = await runMainStep('FIND_DR_SUGGESTION_BUTTON');
+            if (sugg?.found) {
+              await hardwareHoverAndClick(sugg.x, sugg.y);
+              clickedOnce = true;
+              if (await waitChipActive(10)) {
+                deepResearchOk = true;
+                diag.push(`D${attempt}: activado con el botón sugerido "Deep Research"`);
+                break;
+              }
+              diag.push(`D${attempt}: botón sugerido pulsado pero sin confirmación`);
             }
-            if (!deepResearchOk) diag.push(`D${attempt}: clic hecho pero chip Deep Research no detectado`);
+          }
+          if (!deepResearchOk) {
+            const dump = await runMainStep('DUMP_COMPOSER');
+            if (dump?.dump) diag.push(`Estado: ${dump.dump}`);
           }
         }
 

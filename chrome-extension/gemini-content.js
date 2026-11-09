@@ -926,8 +926,9 @@
 
       // enableDeepResearch === true:
       if (activeDeepResearchChip) {
-        // Already active!
-        return true;
+        // A button named "Deep research" exists, but it may be the start-screen SUGGESTION (not active):
+        // never claim success from this loose check.
+        return false;
       }
 
       // Open "+" menu on the left of "Ask Gemini" (Photo 2)
@@ -1013,7 +1014,8 @@
           result.diag.push('Thinking: aplicado vía fallback DOM');
         } catch {}
       }
-      if (!result.deepResearchOk && enableDeepResearch) {
+      if (!result.deepResearchOk && enableDeepResearch && !hwConfig) {
+        // Only when the background hardware step was unreachable (its own 3 routes + strict verification already ran otherwise)
         try {
           const ok = await ensureDeepResearchToggle();
           if (ok) {
@@ -1206,6 +1208,15 @@
               `¡Respuesta completa de Gemini Web capturada (${resolvedText.length} caracteres) y enviada a Huellas Master!`,
               meta
             );
+            if (isDeepResearch && !hasClickedStartResearchPlan) {
+              setTimeout(() => {
+                reportStatus(
+                  'ERROR',
+                  '⚠️ Atención: se pidió Deep Research pero Gemini respondió SIN mostrar el plan de investigación ("Start research"). Probablemente Deep Research no quedó activo en este chat; revisa la pestaña de Gemini.',
+                  meta
+                );
+              }, 400);
+            }
             if (meta && meta.targetChatTitle) {
               const currentTitleNow = getActiveGeminiChatTitleInDom();
               if (
