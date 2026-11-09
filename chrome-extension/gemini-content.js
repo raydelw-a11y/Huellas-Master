@@ -2606,6 +2606,37 @@
 
   function extractDeepResearchReport() {
     const latest = extractLatestGeminiResponse();
+    // Verified live: the report is rendered ONLY inside <deep-research-immersive-panel> (inside <immersive-panel>).
+    // Never use generic [class*="immersive"] containers: one of them wraps the whole chat history.
+    const panels = Array.from(document.querySelectorAll('deep-research-immersive-panel')).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 50 && r.height > 50;
+    });
+    const panel = panels.length ? panels[panels.length - 1] : null;
+    if (panel) {
+      // Verified live: the clean report body is the panel's message-content / .markdown-main-panel
+      // (the panel's root also contains toolbar text like "Contents · Share & Export · Create").
+      const bodies = Array.from(panel.querySelectorAll('.markdown-main-panel, message-content')).filter(
+        (b) => !b.closest('[class*="thinking" i], thinking-panel, [data-test-id*="thinking" i]')
+      );
+      let body = null;
+      bodies.forEach((b) => {
+        if (!body || (b.innerText || '').length > (body.innerText || '').length) body = b;
+      });
+      // Live innerText keeps paragraphs/line breaks (a detached clone would lose them). While the research is
+      // still running the panel only holds "thinking" logs, so no body is found and nothing is captured.
+      const text = body ? (body.innerText || '').trim() : '';
+      const hasReportActions = Array.from(panel.querySelectorAll('button, [role="button"]')).some((b) => {
+        const s = `${b.innerText || ''} ${b.getAttribute('aria-label') || ''}`;
+        return /\b(export|exportar|docs|share|compartir|copy|copiar|download|descargar)\b/i.test(s);
+      });
+      return { text, images: latest.images || [], fromPanel: true, hasReportActions };
+    }
+    return { text: String(latest.text || ''), images: latest.images || [], fromPanel: false, hasReportActions: false };
+  }
+
+  function extractDeepResearchReport_unused() {
+    const latest = extractLatestGeminiResponse();
     let best = { text: String(latest.text || ''), images: latest.images || [], fromPanel: false };
     const panelSel =
       'immersive-panel, deep-research-immersive-panel, extended-response-panel, [class*="immersive"], [data-test-id*="immersive"], [class*="research-report"], [class*="deep-research-report"]';
@@ -2719,6 +2750,17 @@
       }
       const generating = isGeminiStillGenerating() || isDeepResearchActivelyBrowsing();
       const report = extractDeepResearchReport();
+      // If the report panel is closed, reopen it from the response chip (verified live: <immersive-entry-chip>)
+      if (!report.fromPanel && now - (watchDeepResearchOrder.__lastChipClick || 0) > 20000) {
+        const chips = Array.from(document.querySelectorAll('immersive-entry-chip'));
+        const chip = chips.length ? chips[chips.length - 1] : null;
+        if (chip) {
+          watchDeepResearchOrder.__lastChipClick = now;
+          try {
+            (chip.querySelector('button, [role="button"], a') || chip).click();
+          } catch {}
+        }
+      }
       if (report.text !== lastText || generating) {
         if (report.text !== lastText) lastText = report.text;
         lastChangeAt = now;
