@@ -888,7 +888,7 @@
       // Check if Deep research is already active as a chip/button in the prompt input bar (outside overlay menus)
       const nonOverlayCandidates = Array.from(
         document.querySelectorAll(
-          'mat-chip, mat-chip-option, button, [role="button"], [role="checkbox"], [role="switch"], . tool-chip'
+          'mat-chip, mat-chip-option, button, [role="button"], [role="checkbox"], [role="switch"], .tool-chip'
         )
       ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
 
@@ -927,7 +927,7 @@
       // enableDeepResearch === true:
       if (activeDeepResearchChip) {
         // Already active!
-        return;
+        return true;
       }
 
       // Open "+" menu on the left of "Ask Gemini" (Photo 2)
@@ -975,14 +975,17 @@
         if (deepResearchItem) {
           triggerHoverAndClick(deepResearchItem, true);
           await sleep(320);
+          return true;
         } else {
           await closeAnyOpenOverlayMenus();
         }
       }
+      return false;
     };
 
+    const result = { thinkingOk: false, deepResearchOk: !enableDeepResearch, diag: [] };
     try {
-      // Primary: Use ABA-Note style Main World NgZone + chrome.debugger hardware mouse sequence
+      // Primary: CDP hardware mouse sequence (one trusted click per target) + DOM verification in background.js
       let hwConfig = null;
       try {
         hwConfig = await chrome.runtime.sendMessage({
@@ -992,15 +995,35 @@
           enableArgonLow: Boolean(enableArgonLow),
         });
       } catch {}
-
-      // Fallback / verification in DOM if hardware sequence did not complete both checks
-      if (!hwConfig || !hwConfig.ok || !hwConfig.deepResearchOk) {
-        await ensureDeepResearchToggle();
+      if (hwConfig) {
+        result.thinkingOk = Boolean(hwConfig.thinkingOk);
+        result.deepResearchOk = Boolean(hwConfig.deepResearchOk);
+        result.diag = Array.isArray(hwConfig.diag) ? hwConfig.diag : [];
+        result.debuggerAttached = Boolean(hwConfig.debuggerAttached);
+        try {
+          console.log('[Huellas] Configuración Gemini (hardware):', hwConfig);
+        } catch {}
       }
-      if (!hwConfig || !hwConfig.ok || !hwConfig.thinkingOk) {
-        await ensureArgon4AndThinkingLevel();
+
+      // Fallbacks ONLY when the hardware step could not complete (model first, then tool)
+      if (!result.thinkingOk) {
+        try {
+          await ensureArgon4AndThinkingLevel();
+          result.thinkingOk = true;
+          result.diag.push('Thinking: aplicado vía fallback DOM');
+        } catch {}
+      }
+      if (!result.deepResearchOk && enableDeepResearch) {
+        try {
+          const ok = await ensureDeepResearchToggle();
+          if (ok) {
+            result.deepResearchOk = true;
+            result.diag.push('Deep Research: aplicado vía fallback DOM');
+          }
+        } catch {}
       }
     } catch {}
+    return result;
   }
 
   function watchForNewResponse(initialCount, initialLastText, meta) {
@@ -2224,12 +2247,42 @@
                 }...`,
             { stageNumber: payload.stageNumber }
           );
-          await configureGeminiModelAndDeepResearch(
+          const cfgResult = await configureGeminiModelAndDeepResearch(
             Boolean(payload.enableHighModel),
             Boolean(payload.enableDeepResearch),
             useArgonLow
           );
           lastConfiguredModelMode = desiredModeKey;
+
+          const levelLabel = useArgonLow ? 'Low' : 'High';
+          const diagText =
+            cfgResult && Array.isArray(cfgResult.diag) && cfgResult.diag.length > 0
+              ? ` [${cfgResult.diag.join(' · ')}]`
+              : '';
+          // Never run the Deep Research phase without the Deep Research tool actually active
+          if (payload.enableDeepResearch && cfgResult && !cfgResult.deepResearchOk) {
+            isBusyWithOrder = false;
+            reportStatus(
+              'ERROR',
+              `⛔ No se pudo activar "Deep research" en Gemini (+ → More tools → Deep research), así que NO se envió el prompt para no investigar sin Deep Research.${
+                cfgResult.debuggerAttached === false
+                  ? ' La extensión no pudo usar chrome.debugger (cierra DevTools en la pestaña de Gemini y recarga la extensión).'
+                  : ''
+              }${diagText}`,
+              { stageNumber: payload.stageNumber }
+            );
+            processNextQueuedPrompt();
+            return;
+          }
+          if (cfgResult) {
+            reportStatus(
+              'WORKING',
+              `✅ Gemini configurado: 4 Argon · Thinking level: ${levelLabel}${
+                cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar)'
+              }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${diagText}`,
+              { stageNumber: payload.stageNumber }
+            );
+          }
         }
 
         const inputEl = findPromptInput();

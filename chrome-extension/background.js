@@ -3384,10 +3384,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         try {
           await chrome.debugger.attach(target, '1.3');
           debuggerAttached = true;
-        } catch {}
+        } catch {
+          // Possibly already attached by this extension: probe if commands still work
+          try {
+            await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+            debuggerAttached = true;
+          } catch {}
+        }
+        // The "is debugging this browser" infobar resizes the viewport: wait before measuring coordinates
+        await sleep(debuggerAttached ? 450 : 120);
+
+        const diag = [];
+
+        // Synthetic fallback (only used when chrome.debugger is unavailable): ONE event sequence at a point
+        const syntheticAt = async (x, y, withClick) => {
+          await chrome.scripting
+            .executeScript({
+              target: { tabId: geminiTabId },
+              world: 'MAIN',
+              args: [x, y, Boolean(withClick)],
+              func: (px, py, doClick) => {
+                const el = document.elementFromPoint(px, py);
+                if (!el) return false;
+                const opts = { bubbles: true, cancelable: true, clientX: px, clientY: py, view: window };
+                try {
+                  el.dispatchEvent(new PointerEvent('pointerover', opts));
+                  el.dispatchEvent(new PointerEvent('pointerenter', opts));
+                  el.dispatchEvent(new MouseEvent('mouseover', opts));
+                  el.dispatchEvent(new MouseEvent('mouseenter', opts));
+                  el.dispatchEvent(new PointerEvent('pointermove', opts));
+                  el.dispatchEvent(new MouseEvent('mousemove', opts));
+                  if (doClick) {
+                    el.dispatchEvent(new PointerEvent('pointerdown', opts));
+                    el.dispatchEvent(new MouseEvent('mousedown', opts));
+                    el.dispatchEvent(new PointerEvent('pointerup', opts));
+                    el.dispatchEvent(new MouseEvent('mouseup', opts));
+                    el.click();
+                  }
+                } catch {}
+                return true;
+              },
+            })
+            .catch(() => {});
+        };
 
         const hardwareHoverOnly = async (x, y) => {
-          if (!debuggerAttached || !x || !y) return;
+          if (!x || !y) return;
+          if (!debuggerAttached) {
+            await syntheticAt(x, y, false);
+            await sleep(60);
+            return;
+          }
           await chrome.debugger
             .sendCommand(target, 'Input.dispatchMouseEvent', {
               type: 'mouseMoved',
@@ -3408,8 +3455,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await sleep(60);
         };
 
+        // EXACTLY ONE click per target (never synthetic + hardware on the same element, which toggles menus closed)
         const hardwareHoverAndClick = async (x, y) => {
-          if (!debuggerAttached || !x || !y) return;
+          if (!x || !y) return;
+          if (!debuggerAttached) {
+            await syntheticAt(x, y, true);
+            return;
+          }
           await hardwareHoverOnly(x, y);
           await dispatchHardwareClick(target, x, y).catch(() => {});
         };
@@ -3422,90 +3474,106 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               world: 'MAIN',
               args: [stepName, stepArg],
               func: (op, argVal) => {
-                const findNgZone = () => {
-                  const els = document.querySelectorAll('*');
-                  for (let i = 0; i < Math.min(els.length, 600); i++) {
-                    const c = els[i].__ngContext__;
-                    if (!c) continue;
-                    const arr = Array.isArray(c) ? c : [c];
-                    for (const v of arr) {
-                      if (v && v._zone && typeof v._zone.run === 'function') return v._zone;
-                      if (v && v.ngZone && typeof v.ngZone.run === 'function') return v.ngZone;
-                    }
-                  }
-                  return null;
-                };
-
-                const triggerAngularElement = (el, openSubmenuOnly = false) => {
+                // PURE LOCATOR: returns center coordinates only. All clicks/hovers are done ONCE by the caller
+                // (CDP hardware events), so menus are never toggled open+closed by a double click.
+                const triggerAngularElement = (el) => {
                   if (!el) return null;
-                  const zone = findNgZone();
+                  try {
+                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                  } catch {}
                   const r = el.getBoundingClientRect();
-                  const cx = Math.round(r.left + r.width / 2);
-                  const cy = Math.round(r.top + r.height / 2);
-
-                  const executeInZone = () => {
-                    // Inspect Angular Ivy __ngContext__ for MatMenuTrigger / directive instances (ABA Note technique)
-                    const nodesToInspect = [el, el.parentElement, ...Array.from(el.children || [])].filter(
-                      Boolean
-                    );
-                    for (const node of nodesToInspect) {
-                      const ctx = node.__ngContext__;
-                      if (!ctx) continue;
-                      const arr = Array.isArray(ctx) ? ctx : [ctx];
-                      for (const item of arr) {
-                        if (!item || typeof item !== 'object') continue;
-                        if (typeof item.openMenu === 'function') {
-                          try {
-                            item.openMenu();
-                          } catch {}
-                        }
-                        if (typeof item._handleMouseEnter === 'function') {
-                          try {
-                            item._handleMouseEnter({ target: el, currentTarget: el });
-                          } catch {}
-                        }
-                      }
-                    }
-
-                    const opts = {
-                      bubbles: true,
-                      cancelable: true,
-                      clientX: cx,
-                      clientY: cy,
-                      view: window,
-                    };
-                    try {
-                      el.dispatchEvent(new PointerEvent('pointerover', opts));
-                      el.dispatchEvent(new PointerEvent('pointerenter', opts));
-                      el.dispatchEvent(new MouseEvent('mouseover', opts));
-                      el.dispatchEvent(new MouseEvent('mouseenter', opts));
-                      el.dispatchEvent(new PointerEvent('pointermove', opts));
-                      el.dispatchEvent(new MouseEvent('mousemove', opts));
-                      if (!openSubmenuOnly) {
-                        el.dispatchEvent(new PointerEvent('pointerdown', opts));
-                        el.dispatchEvent(new MouseEvent('mousedown', opts));
-                        el.dispatchEvent(new PointerEvent('pointerup', opts));
-                        el.dispatchEvent(new MouseEvent('mouseup', opts));
-                        el.click();
-                      }
-                    } catch {
-                      if (!openSubmenuOnly) {
-                        try {
-                          el.click();
-                        } catch {}
-                      }
-                    }
-                  };
-
-                  if (zone) zone.run(executeInZone);
-                  else executeInZone();
-
                   return {
                     found: true,
-                    x: cx,
-                    y: cy,
-                    text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim(),
+                    x: Math.round(r.left + r.width / 2),
+                    y: Math.round(r.top + r.height / 2),
+                    text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
                   };
+                };
+
+                const isItemChecked = (el) => {
+                  if (!el) return false;
+                  if (el.getAttribute('aria-checked') === 'true') return true;
+                  if (el.getAttribute('aria-selected') === 'true') return true;
+                  if (el.getAttribute('aria-current') === 'true') return true;
+                  const cls = String(el.className || '');
+                  if (/\b(is-selected|selected|checked|active|mat-mdc-menu-item-highlighted-selected)\b/.test(cls))
+                    return true;
+                  const icons = Array.from(el.querySelectorAll('mat-icon, .material-symbols-outlined, .google-symbols'));
+                  if (
+                    icons.some((ic) => {
+                      const n = (
+                        ic.getAttribute('fonticon') ||
+                        ic.getAttribute('data-mat-icon-name') ||
+                        ic.textContent ||
+                        ''
+                      )
+                        .trim()
+                        .toLowerCase();
+                      if (!/^(check|done|check_circle|radio_button_checked)$/.test(n)) return false;
+                      const cs = getComputedStyle(ic);
+                      return cs.visibility !== 'hidden' && cs.opacity !== '0' && cs.display !== 'none';
+                    })
+                  )
+                    return true;
+                  return /^\s*[✓✔]/.test(el.innerText || '');
+                };
+
+                const getComposerRoot = () => {
+                  const input = document.querySelector(
+                    'rich-textarea, div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"]'
+                  );
+                  if (!input) return null;
+                  let node = input;
+                  for (let i = 0; i < 9 && node.parentElement; i++) {
+                    node = node.parentElement;
+                    const tag = node.tagName.toLowerCase();
+                    if (tag === 'input-area-v2' || tag === 'input-container' || tag === 'fieldset') return node;
+                    if (/input-area|input-container|text-input-field/i.test(String(node.className || '')) && i >= 2)
+                      return node;
+                  }
+                  return node;
+                };
+
+                const findActiveDeepResearchChip = () => {
+                  const root = getComposerRoot() || document;
+                  const nodes = Array.from(
+                    root.querySelectorAll('button, [role="button"], mat-chip, mat-chip-option, [class*="chip"], span, div')
+                  ).filter(
+                    (el) =>
+                      el.offsetParent !== null &&
+                      !el.closest('.cdk-overlay-container') &&
+                      !el.closest('bard-sidenav, side-navigation, conversations-list, model-response, message-content, user-query')
+                  );
+                  return (
+                    nodes.find((el) => {
+                      const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      const a = (el.getAttribute('aria-label') || '').trim();
+                      const named =
+                        /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
+                        /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a);
+                      if (!named) return false;
+                      // Must look ACTIVE/selected (zero-state suggestion chips with the same name are NOT active)
+                      const cls = String(el.className || '') + ' ' + String(el.parentElement?.className || '');
+                      return (
+                        el.getAttribute('aria-pressed') === 'true' ||
+                        el.getAttribute('aria-checked') === 'true' ||
+                        el.getAttribute('aria-selected') === 'true' ||
+                        /\b(deselect|remove|quitar|desactivar|close)\b/i.test(a) ||
+                        /(selected|is-selected|active|highlighted|--on\b)/i.test(cls) ||
+                        Boolean(
+                          (el.closest('button, [role="button"], mat-chip, mat-chip-option') || el).querySelector(
+                            'mat-icon[fonticon="close"], mat-icon[data-mat-icon-name="close"], [aria-label*="deselect" i], [aria-label*="remove" i], [aria-label*="quitar" i]'
+                          )
+                        )
+                      );
+                    }) || null
+                  );
+                };
+
+                const isResearchPlaceholder = () => {
+                  const ed = document.querySelector('rich-textarea .ql-editor, div.ql-editor[contenteditable="true"]');
+                  const ph = (ed && (ed.getAttribute('data-placeholder') || ed.getAttribute('aria-label'))) || '';
+                  return /research|investig/i.test(ph);
                 };
 
                 const getOverlayMenuItems = () =>
@@ -3528,57 +3596,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       b.click();
                     } catch {}
                   });
-                  document.dispatchEvent(
-                    new KeyboardEvent('keydown', {
-                      key: 'Escape',
-                      code: 'Escape',
-                      keyCode: 27,
-                      bubbles: true,
-                    })
-                  );
-                  return { closed: true };
+                  // CDK OverlayKeyboardDispatcher listens on document.body (keydown on document never reaches it)
+                  const escTarget = document.activeElement || document.body;
+                  try {
+                    escTarget.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        key: 'Escape',
+                        code: 'Escape',
+                        keyCode: 27,
+                        which: 27,
+                        bubbles: true,
+                        cancelable: true,
+                      })
+                    );
+                  } catch {}
+                  return { closed: true, openMenus: document.querySelectorAll('.cdk-overlay-container .mat-mdc-menu-panel').length };
+                }
+
+                if (op === 'COUNT_OPEN_MENUS') {
+                  return {
+                    count: Array.from(
+                      document.querySelectorAll('.cdk-overlay-container .mat-mdc-menu-panel, .cdk-overlay-container [role="menu"]')
+                    ).filter((el) => el.offsetParent !== null).length,
+                  };
                 }
 
                 if (op === 'CHECK_DEEP_RESEARCH_CHIP') {
-                  const nonOverlay = Array.from(
-                    document.querySelectorAll(
-                      'mat-chip, mat-chip-option, button, [role="button"], [role="checkbox"], [role="switch"], .tool-chip, toolbox-drawer *, .input-area *'
-                    )
-                  ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
-
-                  const chip = nonOverlay.find((el) => {
-                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                    const a = (el.getAttribute('aria-label') || '').trim();
-                    const matches =
-                      /^(?:deep\s*research|investigaci[oó]n\s+profunda)$/i.test(t) ||
-                      /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(a);
-                    if (!matches) return false;
-                    return (
-                      el.tagName.toLowerCase().includes('chip') ||
-                      el.getAttribute('aria-pressed') === 'true' ||
-                      el.getAttribute('aria-checked') === 'true' ||
-                      el.classList.contains('selected') ||
-                      el.classList.contains('active') ||
-                      el.classList.contains('mdc-evolution-chip--selected') ||
-                      el.classList.contains('mat-mdc-chip-selected') ||
-                      Boolean(
-                        el.querySelector(
-                          '[aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [aria-label*="desactivar" i], mat-icon'
-                        )
-                      )
-                    );
-                  });
-
-                  if (!chip) return { active: false };
+                  const chip = findActiveDeepResearchChip();
+                  const placeholderSaysResearch = isResearchPlaceholder();
+                  if (!chip) return { active: placeholderSaysResearch, viaPlaceholder: placeholderSaysResearch };
                   const removeBtn =
                     chip.querySelector(
-                      'button, [aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [matChipRemove]'
+                      'button, [aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [aria-label*="deselect" i], [matChipRemove]'
                     ) || chip;
                   const r = removeBtn.getBoundingClientRect();
                   return {
                     active: true,
+                    text: (chip.innerText || '').trim().slice(0, 40),
                     x: Math.round(r.left + r.width / 2),
                     y: Math.round(r.top + r.height / 2),
+                  };
+                }
+
+                if (op === 'READ_THINKING_OPTIONS') {
+                  // Called while the "Thinking level" sub-menu is open: report which option is checked
+                  const items = getOverlayMenuItems();
+                  const read = (re) => {
+                    const it = items.find((el) => re.test((el.innerText || '').replace(/\s+/g, ' ').trim()));
+                    return it ? isItemChecked(it) : null;
+                  };
+                  return {
+                    low: read(/^(?:[✓✔]\s*)?(?:low|bajo)\b/i),
+                    medium: read(/^(?:[✓✔]\s*)?(?:medium|medio)\b/i),
+                    high: read(/^(?:[✓✔]\s*)?(?:high|alto)\b/i),
                   };
                 }
 
@@ -3675,7 +3745,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
                     )
                   );
-                  return deepItem ? triggerAngularElement(deepItem, false) : { found: false };
+                  return deepItem
+                    ? { ...triggerAngularElement(deepItem, false), alreadyChecked: isItemChecked(deepItem) }
+                    : { found: false, items: items.map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40)) };
                 }
 
                 if (op === 'FIND_AND_OPEN_MODEL_SWITCHER') {
@@ -3776,7 +3848,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                           !/thinking\s*level|high|medium|pro|flash|argon/i.test(txt)
                         );
                       });
-                  return option ? triggerAngularElement(option, false) : { found: false };
+                  return option
+                    ? { ...triggerAngularElement(option, false), alreadyChecked: isItemChecked(option) }
+                    : { found: false, items: items.map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40)) };
                 }
 
                 return { found: false };
@@ -3786,103 +3860,179 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return (res && res[0] && res[0].result) || { found: false };
         };
 
-        // --- PART A: CONFIGURE DEEP RESEARCH (+ -> More tools -> Deep research) ---
-        await runMainStep('CLOSE_MENUS');
-        await sleep(160);
+        const pressEscape = async () => {
+          if (!debuggerAttached) return;
+          const base = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base })
+            .catch(() => {});
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base })
+            .catch(() => {});
+        };
 
-        const chipState = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
-        if (!enableDeepResearch && chipState?.active) {
-          await hardwareHoverAndClick(chipState.x, chipState.y);
-          await sleep(280);
-        } else if (enableDeepResearch && !chipState?.active) {
-          const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
-          if (plusInfo?.found) {
-            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
-            await sleep(420);
-
-            let moreToolsInfo = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
-            if (!moreToolsInfo?.found) {
-              await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
-              await sleep(420);
-              moreToolsInfo = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
-            }
-
-            if (moreToolsInfo?.found) {
-              if (moreToolsInfo.directDeepResearch) {
-                await hardwareHoverAndClick(moreToolsInfo.x, moreToolsInfo.y);
-                await sleep(380);
-              } else {
-                // Hover & click "... More tools >" to open its sub-menu (Canvas / Deep research / Guided Learning)
-                await hardwareHoverOnly(moreToolsInfo.x, moreToolsInfo.y);
-                await sleep(260);
-                let deepInfo = await runMainStep('FIND_DEEP_RESEARCH_IN_OVERLAY');
-                if (!deepInfo?.found) {
-                  await hardwareHoverAndClick(moreToolsInfo.x, moreToolsInfo.y);
-                  await sleep(360);
-                  deepInfo = await runMainStep('FIND_DEEP_RESEARCH_IN_OVERLAY');
-                }
-                if (deepInfo?.found) {
-                  await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
-                  await sleep(380);
-                }
-              }
-            }
+        const closeMenus = async () => {
+          for (let i = 0; i < 3; i++) {
+            const open = await runMainStep('COUNT_OPEN_MENUS');
+            if (!open || !open.count) return;
+            await pressEscape();
+            await sleep(120);
+            await runMainStep('CLOSE_MENUS');
+            await sleep(160);
           }
-        }
+        };
 
-        // --- PART B: CONFIGURE MODEL "4 Argon" + "Thinking level" ("Low" or "High") ---
-        await runMainStep('CLOSE_MENUS');
-        await sleep(180);
-
-        const switcherInfo = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
-        if (switcherInfo?.found) {
-          await hardwareHoverAndClick(switcherInfo.x, switcherInfo.y);
-          await sleep(400);
-
-          if (!switcherInfo.isAlreadyArgon) {
-            const argon4Info = await runMainStep('FIND_ARGON4_IN_OVERLAY');
-            if (argon4Info?.found) {
-              await hardwareHoverAndClick(argon4Info.x, argon4Info.y);
-              await sleep(420);
-            }
-            // Re-open switcher menu if selecting "4 Argon" closed it
-            const checkThinking = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
-            if (!checkThinking?.found) {
-              const reopenSwitcher = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
-              if (reopenSwitcher?.found) {
-                await hardwareHoverAndClick(reopenSwitcher.x, reopenSwitcher.y);
-                await sleep(400);
-              }
-            }
+        // Poll a locator step until it is found (menus animate in ~150-250ms)
+        const waitFound = async (op, arg = '', tries = 8, delay = 140) => {
+          let res = null;
+          for (let i = 0; i < tries; i++) {
+            res = await runMainStep(op, arg);
+            if (res && res.found) return res;
+            await sleep(delay);
           }
+          return res || { found: false };
+        };
 
-          let thinkingMenuInfo = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
-          if (!thinkingMenuInfo?.found) {
-            await hardwareHoverAndClick(switcherInfo.x, switcherInfo.y);
+        const openModelMenu = async () => {
+          const sw = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
+          if (!sw || !sw.found) return null;
+          await hardwareHoverAndClick(sw.x, sw.y);
+          const th = await waitFound('FIND_THINKING_LEVEL_IN_OVERLAY', '', 8, 140);
+          return { sw, thinkingFound: Boolean(th && th.found), th };
+        };
+
+        const openThinkingSubmenu = async (th) => {
+          await hardwareHoverOnly(th.x, th.y);
+          let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
+          if (!opt.found) {
+            // Clicking a sub-menu trigger also opens it (and never closes the parent menu)
+            await hardwareHoverAndClick(th.x, th.y);
+            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 150);
+          }
+          return opt;
+        };
+
+        // --- PART 1: MODEL "4 Argon" + "Thinking level" -> Low / High (with verification) ---
+        let thinkingOk = false;
+        let thinkingVerified = false;
+        for (let attempt = 1; attempt <= 3 && !thinkingOk; attempt++) {
+          await closeMenus();
+          let menu = await openModelMenu();
+          if (!menu) {
+            diag.push(`T${attempt}: switcher no encontrado`);
             await sleep(400);
-            thinkingMenuInfo = await runMainStep('FIND_THINKING_LEVEL_IN_OVERLAY');
+            continue;
           }
+          if (!menu.sw.isAlreadyArgon) {
+            const a4 = await waitFound('FIND_ARGON4_IN_OVERLAY', '', 6, 140);
+            if (a4.found) {
+              await hardwareHoverAndClick(a4.x, a4.y);
+              await sleep(450);
+            }
+            await closeMenus();
+            menu = await openModelMenu();
+            if (!menu) continue;
+          }
+          if (!menu.thinkingFound) {
+            diag.push(`T${attempt}: "Thinking level" no apareció (label=${menu.sw.label || ''})`);
+            continue;
+          }
+          const opt = await openThinkingSubmenu(menu.th);
+          if (!opt.found) {
+            diag.push(`T${attempt}: opción ${targetLevel} no encontrada [${(opt.items || []).join(' | ')}]`);
+            continue;
+          }
+          if (!opt.alreadyChecked) {
+            await hardwareHoverAndClick(opt.x, opt.y);
+            await sleep(450);
+          }
+          // VERIFY by reopening the menu and reading the checked option
+          await closeMenus();
+          const vMenu = await openModelMenu();
+          if (vMenu && vMenu.thinkingFound) {
+            await hardwareHoverOnly(vMenu.th.x, vMenu.th.y);
+            await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
+            const state = await runMainStep('READ_THINKING_OPTIONS');
+            const want = targetLevel === 'HIGH' ? state?.high : state?.low;
+            if (want === true) {
+              thinkingOk = true;
+              thinkingVerified = true;
+            } else if (want === null || (state?.high !== true && state?.low !== true && state?.medium !== true)) {
+              // Checked state not readable in DOM: trust the single click
+              thinkingOk = true;
+            } else {
+              diag.push(`T${attempt}: verificación falló (low=${state?.low}, medium=${state?.medium}, high=${state?.high})`);
+            }
+          } else {
+            thinkingOk = true;
+          }
+        }
+        await closeMenus();
 
-          if (thinkingMenuInfo?.found) {
-            await hardwareHoverOnly(thinkingMenuInfo.x, thinkingMenuInfo.y);
-            await sleep(260);
-            let levelOptionInfo = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
-            if (!levelOptionInfo?.found) {
-              await hardwareHoverAndClick(thinkingMenuInfo.x, thinkingMenuInfo.y);
-              await sleep(360);
-              levelOptionInfo = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
+        // --- PART 2: DEEP RESEARCH (+ -> More tools -> Deep research) with verification ---
+        let deepResearchOk = false;
+        const initialChip = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
+        if (!enableDeepResearch) {
+          if (initialChip?.active && initialChip.x) {
+            await hardwareHoverAndClick(initialChip.x, initialChip.y);
+            await sleep(350);
+          }
+          const after = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
+          deepResearchOk = !after?.active;
+        } else if (initialChip?.active) {
+          deepResearchOk = true;
+        } else {
+          for (let attempt = 1; attempt <= 3 && !deepResearchOk; attempt++) {
+            await closeMenus();
+            const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
+            if (!plusInfo?.found) {
+              diag.push(`D${attempt}: botón "+" no encontrado`);
+              await sleep(400);
+              continue;
             }
-            if (levelOptionInfo?.found) {
-              await hardwareHoverAndClick(levelOptionInfo.x, levelOptionInfo.y);
-              await sleep(340);
+            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+            const moreTools = await waitFound('FIND_MORE_TOOLS_IN_OVERLAY', '', 8, 140);
+            if (!moreTools.found) {
+              diag.push(`D${attempt}: menú "+" no abrió / sin "More tools"`);
+              continue;
             }
+            let deepInfo = null;
+            if (moreTools.directDeepResearch) {
+              deepInfo = moreTools;
+            } else {
+              await hardwareHoverOnly(moreTools.x, moreTools.y);
+              deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 140);
+              if (!deepInfo.found) {
+                await hardwareHoverAndClick(moreTools.x, moreTools.y);
+                deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 150);
+              }
+            }
+            if (!deepInfo || !deepInfo.found) {
+              diag.push(`D${attempt}: "Deep research" no apareció [${(deepInfo?.items || []).join(' | ')}]`);
+              continue;
+            }
+            await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
+            for (let i = 0; i < 10 && !deepResearchOk; i++) {
+              await sleep(180);
+              const chk = await runMainStep('CHECK_DEEP_RESEARCH_CHIP');
+              if (chk?.active) deepResearchOk = true;
+            }
+            if (!deepResearchOk) diag.push(`D${attempt}: clic hecho pero chip Deep Research no detectado`);
           }
         }
 
-        await runMainStep('CLOSE_MENUS');
-        await sleep(140);
+        await closeMenus();
 
-        sendResponse({ ok: true, targetLevel, enableDeepResearch });
+        sendResponse({
+          ok: true,
+          targetLevel,
+          enableDeepResearch,
+          thinkingOk,
+          thinkingVerified,
+          deepResearchOk,
+          debuggerAttached,
+          diag,
+        });
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
       } finally {
