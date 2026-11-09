@@ -887,7 +887,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     String(doc.promptConfig?.TEMA_VIDEO || '').includes('Imperio del Caucho');
   const needsV77MultiUpdate =
     isVideo77Doc &&
-    (hasCauchoStaleData || doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_09_PENICILINA_RESTORED');
+    (hasCauchoStaleData || doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_09_PENICILINA_PEPSI_SYNCED');
 
   if (needsV77MultiUpdate) {
     const p1Opts = [
@@ -1002,14 +1002,23 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
       UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       STAGE1_PART1_COMPLETED: 'SI',
+      SELECTED_ANALYZED_VIDEO_ID: 'r5Uh1uDxrvY',
+      SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
       YOUTUBE_SELECTED_LIBRARY_LINK: 'https://youtu.be/r5Uh1uDxrvY?is=ePIGX6c5Lnc1KHh4',
       YOUTUBE_VIDEO_TITLE:
         'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
       YOUTUBE_VIDEO_CHANNEL: 'Marca Cruda',
+      YOUTUBE_VIDEO_DESCRIPTION:
+        'El martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.',
+      YOUTUBE_VIDEO_TAGS: 'pepsi cola, pepsi vs coca-cola, pepsi',
       ESTRUCTURA_VIRAL_TITULO:
         'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+      ESTRUCTURA_VIRAL_RESUMEN:
+        '📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)\n\n🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi\n\n📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\nEl martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.\n\n💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).\n\n🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.',
       SELECTED_ANALYZED_VIDEO_TITLE:
         'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+      SELECTED_ANALYZED_VIDEO_SUMMARY:
+        '📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)\n\n🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi\n\n📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\nEl martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.\n\n💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).\n\n🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.',
       TIPOLOGIA_VIDEO: combinedTypology,
       TEMA_VIDEO: p2Opts[0],
       TIEMPO_EPOCA: p3Opts[0],
@@ -1026,7 +1035,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
       PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
       GEMINI_DEEP_RESEARCH_CHAT_URL: 'https://gemini.google.com/app/2ee2ceda5a43912d',
-      V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_RESTORED',
+      V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_PEPSI_SYNCED',
     };
 
     return {

@@ -8885,8 +8885,15 @@ function loadAnalyzedVideosLibrary(): AnalyzedVideoLibraryEntry[] {
 }
 
 function saveAnalyzedVideosLibrary(list: AnalyzedVideoLibraryEntry[]): void {
+  const raw = JSON.stringify(list, null, 2);
   try {
-    fs.writeFileSync(ANALYZED_VIDEOS_LIBRARY_FILE, JSON.stringify(list, null, 2), 'utf8');
+    fs.writeFileSync(ANALYZED_VIDEOS_LIBRARY_FILE, raw, 'utf8');
+  } catch {}
+  try {
+    const docsDataDir = path.join(process.cwd(), 'docs', 'data');
+    if (fs.existsSync(docsDataDir)) {
+      fs.writeFileSync(path.join(docsDataDir, 'analyzed_videos_library.json'), raw, 'utf8');
+    }
   } catch {}
 }
 

@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:24 AM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:11 PM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1810,6 +1810,268 @@ export default function App() {
   const STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK = useMemo(
     () => [
       {
+        id: 'vid_r5Uh1uDxrvY',
+        videoId: 'r5Uh1uDxrvY',
+        realYoutubeId: 'r5Uh1uDxrvY',
+        url: 'https://youtu.be/r5Uh1uDxrvY?is=ePIGX6c5Lnc1KHh4',
+        title:
+          'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+        channelTitle: 'Marca Cruda',
+        channelName: 'Marca Cruda',
+        description: `El martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.
+
+Nadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. 
+
+Este relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.
+
+🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.`,
+        tags: ['pepsi cola', 'pepsi vs coca-cola', 'pepsi'],
+        analyzedAt: '2026-11-09T00:22:24.989Z',
+        commentsCount: 21,
+        structureSummary: `📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)
+
+🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi
+
+📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:
+El martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.
+
+Nadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. 
+
+Este relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.
+
+🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.
+
+💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).
+
+🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.`,
+        structuralBlocks: [
+          {
+            name: 'Intro (8s) + Hook Viral',
+            pct: 8,
+            description: 'Apertura magnética en los primeros segundos y promesa narrativa.',
+          },
+          {
+            name: 'Acto I: Planteamiento Histórico',
+            pct: 20,
+            description: 'Contexto de época, lugar y contradicción inicial.',
+          },
+          {
+            name: 'Acto II: Desarrollo y Tensión',
+            pct: 25,
+            description: 'Progresión narrativa con micro-ganchos de retención.',
+          },
+          {
+            name: 'Acto III: Revelación Central',
+            pct: 22,
+            description: 'Giro dramático y hallazgos documentales.',
+          },
+          {
+            name: 'Acto IV: Impacto y Legado',
+            pct: 17,
+            description: 'Resolución histórica de las preguntas planteadas.',
+          },
+          {
+            name: 'Cierre + Outro Oficial (8s)',
+            pct: 8,
+            description: 'Reflexión final, Slogan y Outro Oficial de 8s.',
+          },
+        ],
+        comments: [
+          {
+            id: 'analyzed_video-5-mw8iodsk',
+            text: 'esta buena la historia',
+            author: '@masalladelmitodocs',
+            likes: 4,
+            repeatCount: 4,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-10-mw8iodsk',
+            text: 'Que gran historia yo ❤ Pepsi',
+            author: '@interesocultoyt',
+            likes: 5,
+            repeatCount: 2,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-8-mw8iodsk',
+            text: '¡Qué manera tan magistral de narrar la caída de un gigante! 🏛️📉 Es impactante ver cómo 30 años de esfuerzo pueden esfumarse por decisiones equivocadas. Este tipo de análisis nos recuerda que en los negocios la complacencia es el verdadero enemigo. ¡Excelente trabajo de investigación y guión! 👏 repitiendo el video para asimilar cada detalle. 💯🔥',
+            author: '@ImperiosComerciales1',
+            likes: 6,
+            repeatCount: 1,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-16-mw8iodsk',
+            text: '¿Qué idioma es ese?',
+            author: '@jorgeanayacollante1867',
+            likes: 0,
+            repeatCount: 1,
+            category: 'question',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-1-mw8iodsk',
+            text: 'Pepsi también compro en uruguay a la mejor agua tónica, Paso de los Toros',
+            author: '@Alexxx1x1x',
+            likes: 11,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-2-mw8iodsk',
+            text: 'Cozumel,Quintana Roo;México. Y tomo Pepsi!!',
+            author: '@fernandogarma6933',
+            likes: 4,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-3-mw8iodsk',
+            text: 'Muy bueno! Lastima que tan corto',
+            author: '@seba_k_bello',
+            likes: 2,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-4-mw8iodsk',
+            text: 'Una grandiosa video 😮',
+            author: '@sergiorechegonzalez4521',
+            likes: 2,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-15-mw8iodsk',
+            text: '100% Pepsi. Me encanta.',
+            author: '@LuisJimenez-sh8qt',
+            likes: 1,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-6-mw8iodsk',
+            text: 'Muchas Gracias',
+            author: '@digdisenoindustrial',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-7-mw8iodsk',
+            text: 'Video muy entretenido',
+            author: '@VESTIGIO-k6p',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-9-mw8iodsk',
+            text: 'Excelente ❤',
+            author: '@jeancarlosadames4319',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-11-mw8iodsk',
+            text: 'Tengo una pollería, y estoy buscando trabajar con alguna marca en exclusividad, y justamente Pepsi me llama mucho la atención para esto.',
+            author: '@monchirodriguez667',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-12-mw8iodsk',
+            text: 'Aser pograma de gaceoza " la pava" viya nueva del arde ovispo Ja hen, hila tradision tan prosa de "la casera" iso muncho des troso dela Ecomomía.❤ munchas garcias 🙏',
+            author: '@JuanManuel-b4j',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-13-mw8iodsk',
+            text: 'wena!!!!!',
+            author: '@guionsecretoz',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+          {
+            id: 'analyzed_video-14-mw8iodsk',
+            text: 'Poza de agua GUAZACAPAN Y TOMO PEPSI',
+            author: '@Guazacapaneco',
+            likes: 0,
+            repeatCount: 1,
+            category: 'comment',
+            sourceType: 'analyzed_video',
+            videoTitle:
+              'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
+            videoId: 'r5Uh1uDxrvY',
+          },
+        ],
+      },
+      {
         id: 'vid_clqshy5NB7I',
         videoId: 'clqshy5NB7I',
         realYoutubeId: 'clqshy5NB7I',
@@ -2734,6 +2996,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           } catch {}
         }
       }
+      let loadedFromApi = false;
       for (const base of apiBases) {
         try {
           const resLib = await fetch(`${base}/api/youtube/analyzed-videos`);
@@ -2752,9 +3015,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ) {
               setAnalyzedVideosDeduplicatedComments(dataLib.analyzedVideosComments);
             }
+            loadedFromApi = true;
             break;
           }
         } catch {}
+      }
+
+      if (!loadedFromApi) {
+        const basePath = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+        const staticLibCandidates = [
+          `${basePath}data/analyzed_videos_library.json?_t=${Date.now()}`,
+          `data/analyzed_videos_library.json?_t=${Date.now()}`,
+        ];
+        for (const sUrl of staticLibCandidates) {
+          try {
+            const sRes = await fetch(sUrl, { cache: 'no-store' });
+            if (sRes.ok) {
+              const sJson = await sRes.json();
+              if (Array.isArray(sJson) && sJson.length > 0) {
+                setAnalyzedVideosLibrary(normalizeAnalyzedVideoEntries(sJson));
+                break;
+              }
+            }
+          } catch {}
+        }
+        const staticChannelCommentsCandidates = [
+          `${basePath}data/huellas_channel_comments_cache.json?_t=${Date.now()}`,
+          `data/huellas_channel_comments_cache.json?_t=${Date.now()}`,
+        ];
+        for (const cUrl of staticChannelCommentsCandidates) {
+          try {
+            const cRes = await fetch(cUrl, { cache: 'no-store' });
+            if (cRes.ok) {
+              const cJson = await cRes.json();
+              const commentsArr = Array.isArray(cJson?.comments)
+                ? cJson.comments
+                : Array.isArray(cJson)
+                ? cJson
+                : [];
+              if (commentsArr.length > 0) {
+                setChannelDeduplicatedComments(commentsArr);
+                break;
+              }
+            }
+          } catch {}
+        }
       }
     } catch {} finally {
       setStage1LoadingLibrary(false);
