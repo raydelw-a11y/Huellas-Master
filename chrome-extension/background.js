@@ -4626,6 +4626,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
+  if (message.type === 'GEMINI_RESPONSE_READY') {
+    // Remote (mobile) orders: persist result directly in the local server even if no Huellas tab is open
+    forwardRemoteStageResultIfAny(message, sender).catch(() => {});
+  }
   if (
     message.type === 'BRIDGE_STATUS' ||
     message.type === 'GEMINI_RESPONSE_READY' ||
@@ -4727,20 +4731,93 @@ async function runPendingGeminiCommandOrder(cmd) {
   if (!cmd || !cmd.action) return;
   const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
   let targetTab = geminiTabs[0] || null;
+  if (cmd.remoteStage) {
+    let nbPath = '';
+    try {
+      const st = await chrome.storage.local.get('huellasNotebookPath');
+      nbPath = (st && st.huellasNotebookPath) || '';
+    } catch {}
+    const pathOf = (u) => {
+      try {
+        return new URL(u).pathname.replace(/\/$/, '');
+      } catch {
+        return '';
+      }
+    };
+    targetTab =
+      (nbPath && geminiTabs.find((t) => pathOf(t.url || '') === nbPath)) ||
+      geminiTabs.find((t) => /^\/(?:u\/\d+\/)?notebook\//.test(pathOf(t.url || ''))) ||
+      geminiTabs.find((t) => /^\/(?:u\/\d+\/)?app\/?$/.test(pathOf(t.url || ''))) ||
+      geminiTabs[0] ||
+      null;
+  }
   if (!targetTab || !targetTab.id) {
     targetTab = await chrome.tabs.create({
       url: 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f',
       active: false,
     });
-    await sleep(3200);
+    for (let w = 0; w < 25; w++) {
+      await sleep(300);
+      const info = await chrome.tabs.get(targetTab.id).catch(() => null);
+      if (info && info.status === 'complete') break;
+    }
+    await sleep(2500);
   }
   const tabId = targetTab.id;
+  if (cmd.remoteStage) {
+    await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+    await chrome.storage.local
+      .set({
+        [`huellasRemoteStage_${tabId}`]: {
+          commandId: cmd.remoteCommandId || cmd.commandId,
+          docId: cmd.docId,
+          stageNumber: cmd.stageNumber,
+          startedAt: Date.now(),
+        },
+      })
+      .catch(() => {});
+  }
   await ensureScriptInjected(tabId, 'gemini-content.js');
   await sleep(250);
   await chrome.tabs.sendMessage(tabId, {
     target: 'GEMINI',
     ...cmd,
   });
+}
+
+async function forwardRemoteStageResultIfAny(message, sender) {
+  const tabId = sender?.tab?.id;
+  if (!tabId) return;
+  const key = `huellasRemoteStage_${tabId}`;
+  let info = null;
+  try {
+    const st = await chrome.storage.local.get(key);
+    info = st && st[key];
+  } catch {}
+  if (!info || !info.commandId) return;
+  if (Date.now() - Number(info.startedAt || 0) > 2 * 60 * 60 * 1000) {
+    await chrome.storage.local.remove(key).catch(() => {});
+    return;
+  }
+  const body = JSON.stringify({
+    remoteCommandId: info.commandId,
+    docId: info.docId,
+    stageNumber: message.stageNumber || info.stageNumber,
+    text: message.text || '',
+    chatUrl: sender?.tab?.url || '',
+  });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const r = await fetch('http://localhost:4200/api/gemini-web/remote-stage-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (r.ok) break;
+    } catch {}
+    await sleep(5000 * (attempt + 1));
+  }
+  await chrome.storage.local.remove(key).catch(() => {});
 }
 
 async function inspectGeminiTabLatestResponse(tabId) {

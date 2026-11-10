@@ -9751,6 +9751,73 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
 
     if (!extensionInstalled && !isHuellasExtensionDetected()) {
+      const isLocalOriginForRemote =
+        typeof window !== 'undefined' &&
+        /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+      const isRemoteResearchStage =
+        stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3;
+      // MÓVIL (GitHub Pages, sin extensión): enviar la orden a la Mac vía ntfy (aviso ligero) + GitHub (prompt completo)
+      if (!isLocalOriginForRemote && isRemoteResearchStage) {
+        const isPart1Remote = stageNum === 10;
+        const remoteHigh = isPart1Remote ? false : options?.enableHighModel ?? true;
+        const remoteDeep = isPart1Remote ? false : options?.enableDeepResearch ?? true;
+        const commandId = `rgs_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const remoteTrigger = {
+          type: 'REMOTE_GEMINI_STAGE',
+          commandId,
+          docId: currentDoc.id,
+          stageNumber: stageNum,
+          requestedAt: Date.now(),
+        };
+        const remoteFullCmd = {
+          ...remoteTrigger,
+          prompt: promptText,
+          taskType: isPart1Remote ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
+          enableHighModel: remoteHigh,
+          enableArgonLow: !remoteHigh,
+          enableDeepResearch: remoteDeep,
+          videoName: currentDoc.title || '',
+          deepResearchVideoName: `${currentDoc.title || ''}_Deep Research`,
+          geminiChatUrl: currentDoc.geminiChatUrl || '',
+          geminiDeepResearchChatUrl: currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+        };
+        const remotePatch: Partial<DocumentaryProject> = {
+          sectionsStructure: promptText,
+          promptConfig: {
+            ...(baseDoc.promptConfig || {}),
+            ...lockedVideoPromptPatch,
+            REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+          },
+          updatedAt: Date.now() as any,
+        };
+        updateActiveDoc(remotePatch);
+        setBridgeStatusType('WORKING');
+        setBridgeStatusMsg(
+          isPart1Remote
+            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Argon Low)...'
+            : '📡 Enviando Paso 2 desde tu móvil a tu Mac: Deep Research + Thinking High. El informe aparecerá aquí al terminar (10–20 min).'
+        );
+        const nextDocsForRemote = documentaries.map((d) =>
+          d.id === currentDoc.id ? { ...d, ...remotePatch } : d
+        );
+        pushDocumentariesToGitHub(nextDocsForRemote as any)
+          .catch(() => null)
+          .then(() =>
+            fetch(REMOTE_MAC_RELAY_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(remoteTrigger),
+            }).catch(() => null)
+          )
+          .then(() => {
+            setBridgeStatusMsg(
+              isPart1Remote
+                ? '⏳ Orden enviada a tu Mac. Ejecutando Paso 1 en Gemini Web...'
+                : '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
+            );
+          });
+        return;
+      }
       setBridgeStatusType('WORKING');
       setBridgeStatusMsg(
         '📋 Prompt pegado en su cuadro de texto y copiado al portapapeles. Activa la Extensión Puente para envío 100% automático a Gemini Web.'

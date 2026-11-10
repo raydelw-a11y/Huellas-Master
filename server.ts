@@ -422,6 +422,35 @@ function mergeServerDocObjects(winner: any, other: any) {
       }
     }
   } catch {}
+  try {
+    const oStage = other.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+    const wStage = baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+    const reqAt = (r: any) => {
+      try {
+        return Number(JSON.parse(r)?.requestedAt || 0);
+      } catch {
+        return 0;
+      }
+    };
+    const pc: any = { ...(baseWinner.promptConfig || {}) };
+    if (oStage && reqAt(oStage) > reqAt(wStage)) pc.REMOTE_GEMINI_STAGE_COMMAND_JSON = oStage;
+    for (const k of ['REMOTE_GEMINI_STAGE_ACK_ID', 'REMOTE_GEMINI_STAGE_STATUS']) {
+      if (!pc[k] && other.promptConfig?.[k]) pc[k] = other.promptConfig[k];
+    }
+    baseWinner = { ...baseWinner, promptConfig: pc };
+    for (const k of [
+      'deepResearchResult',
+      'deepResearchPrompt',
+      'voiceoverScript',
+      'rawClipsText',
+      'rawReferencePrompts',
+      'sectionsStructure',
+    ]) {
+      const wv = baseWinner[k];
+      const ov = other[k];
+      if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
+    }
+  } catch {}
   if (!Array.isArray(baseWinner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
     return baseWinner;
   }
@@ -12584,8 +12613,8 @@ const REMOTE_MAC_ACK_URL = 'https://ntfy.sh/huellas_master_mac_ack_v77_9a8b7c';
 interface PendingGeminiCommandItem {
   commandId: string;
   docId: string;
-  action: 'RENAME_GEMINI_CHAT';
-  oldVideoName: string;
+  action: 'RENAME_GEMINI_CHAT' | 'SEND_PROMPT';
+  oldVideoName?: string;
   videoName: string;
   deepResearchVideoName: string;
   geminiChatUrl?: string;
@@ -12593,6 +12622,8 @@ interface PendingGeminiCommandItem {
   notebookName: string;
   createdAt: number;
   claimedAt?: number;
+  remoteStage?: boolean;
+  [extra: string]: any;
 }
 
 const pendingGeminiCommands = new Map<string, PendingGeminiCommandItem>();
@@ -12795,7 +12826,7 @@ function performMacFolderRenameCore(params: {
     const targetDocId = String(docId || updatedDocRecord?.id || '');
     // Replace any un-claimed earlier rename command for the same docId
     for (const [k, v] of pendingGeminiCommands.entries()) {
-      if (v.docId === targetDocId) {
+      if (v.docId === targetDocId && v.action === 'RENAME_GEMINI_CHAT') {
         pendingGeminiCommands.delete(k);
       }
     }
@@ -12914,8 +12945,13 @@ app.get('/api/extension/fingerprint', (req, res) => {
   const now = Date.now();
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
   for (const [k, cmd] of pendingGeminiCommands.entries()) {
-    if (now - cmd.createdAt > 180000) {
+    const ttlMs = cmd.remoteStage ? 2 * 60 * 60 * 1000 : 180000;
+    if (now - cmd.createdAt > ttlMs) {
       pendingGeminiCommands.delete(k);
+      continue;
+    }
+    if (cmd.remoteStage) {
+      if (!cmd.claimedAt) pendingCommandsList.push(cmd);
       continue;
     }
     if (!cmd.claimedAt || now - cmd.claimedAt > 25000) {
@@ -12992,12 +13028,163 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
 // Background watchers on Mac:
 // 1) Persistent NDJSON stream (1 connection, <50ms latency, no 429 rate limits)
 // 2) Authenticated GitHub SHA watcher (every 3s, 5000 req/hr quota) as second guaranteed path
+// ===== Remote Gemini Stage (Paso 1 / Paso 2 Deep Research launched from mobile) =====
+function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
+  try {
+    const raw = doc?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+    if (!raw) return false;
+    const cmd = JSON.parse(raw);
+    if (!cmd?.commandId || !cmd.prompt) return false;
+    if (processedRemoteCommandIds.has(cmd.commandId)) return false;
+    if (doc.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === cmd.commandId) return false;
+    if (Date.now() - Number(cmd.requestedAt || 0) > 2 * 60 * 60 * 1000) return false;
+    processedRemoteCommandIds.add(cmd.commandId);
+    const safePrompt = String(cmd.prompt)
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((l: string) => l.trim())
+      .filter(Boolean)
+      .join('   |   ');
+    const highModel = cmd.enableHighModel !== false;
+    pendingGeminiCommands.set(cmd.commandId, {
+      commandId: cmd.commandId,
+      docId: String(doc.id || cmd.docId || ''),
+      action: 'SEND_PROMPT',
+      prompt: safePrompt,
+      stageNumber: Number(cmd.stageNumber) || 1,
+      taskType: cmd.taskType || 'STAGE_GENERATION',
+      enableHighModel: highModel,
+      enableArgonLow: !highModel,
+      preferredModel: highModel ? 'ARGON_4_HIGH' : 'ARGON_4_LOW',
+      thinkingLevel: highModel ? 'HIGH' : 'LOW',
+      enableDeepResearch: Boolean(cmd.enableDeepResearch),
+      skipModelSwitch: false,
+      autoSubmit: true,
+      focusTab: false,
+      videoName: String(cmd.videoName || doc.title || ''),
+      deepResearchVideoName: String(cmd.deepResearchVideoName || `${doc.title || ''}_Deep Research`),
+      geminiChatUrl: String(cmd.geminiChatUrl || doc.geminiChatUrl || ''),
+      geminiDeepResearchChatUrl: String(
+        cmd.geminiDeepResearchChatUrl || doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+      ),
+      notebookName: 'Huellas de la Humanidad',
+      createdAt: Date.now(),
+      remoteStage: true,
+      remoteCommandId: cmd.commandId,
+    });
+    // Persist idempotency (survives server restarts) + status for the phone
+    try {
+      const list = readDocumentaries();
+      const idx = list.findIndex((d) => d && d.id === doc.id);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          promptConfig: {
+            ...(list[idx].promptConfig || {}),
+            REMOTE_GEMINI_STAGE_ACK_ID: cmd.commandId,
+            REMOTE_GEMINI_STAGE_STATUS: 'running',
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        writeDocumentaries(list);
+      }
+    } catch {}
+    console.log(`[RemoteGeminiStage] Encolado ${cmd.commandId} (etapa ${cmd.stageNumber}) para ${doc.id}`);
+    publishRemoteMacAck({ commandId: cmd.commandId, docId: doc.id, status: 'gemini_stage_running' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function handleRemoteGeminiStageTrigger(trigger: any) {
+  const commandId = String(trigger?.commandId || '');
+  const docId = String(trigger?.docId || '');
+  if (!commandId || !docId || processedRemoteCommandIds.has(commandId)) return;
+  // The full prompt travels through GitHub (ntfy only carries a tiny wake-up ping)
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const local = readDocumentaries().find((d) => d && d.id === docId);
+    try {
+      const raw = local?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+      if (raw && JSON.parse(raw)?.commandId === commandId) {
+        enqueueRemoteGeminiStageFromDoc(local);
+        return;
+      }
+    } catch {}
+    await syncDocumentariesWithGitHubServer(true).catch(() => null);
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
+
+app.post('/api/gemini-web/remote-stage-result', (req, res) => {
+  const remoteCommandId = String(req.body?.remoteCommandId || '').trim();
+  const docId = String(req.body?.docId || '').trim();
+  const stageNumber = Number(req.body?.stageNumber) || 1;
+  const text = String(req.body?.text || '');
+  const trimmed = text.trim();
+  if (remoteCommandId) pendingGeminiCommands.delete(remoteCommandId);
+  const isError =
+    trimmed.length < 400 &&
+    /encountering an error|something went wrong|algo sali[oó] mal|se produjo un error|try something else/i.test(trimmed);
+  if (!docId || trimmed.length < 50 || isError) {
+    try {
+      const list = readDocumentaries();
+      const idx = list.findIndex((d) => d && d.id === docId);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          promptConfig: {
+            ...(list[idx].promptConfig || {}),
+            REMOTE_GEMINI_STAGE_STATUS: 'failed',
+            REMOTE_GEMINI_STAGE_ERROR: isError ? trimmed.slice(0, 300) : 'Respuesta vacía de Gemini',
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        writeDocumentaries(list);
+      }
+    } catch {}
+    publishRemoteMacAck({ commandId: remoteCommandId, docId, status: 'gemini_stage_failed' });
+    res.json({ ok: false, error: isError ? 'gemini_error' : 'empty' });
+    return;
+  }
+  try {
+    const list = readDocumentaries();
+    const idx = list.findIndex((d) => d && d.id === docId);
+    if (idx !== -1) {
+      const isPart1 = stageNumber === 10;
+      list[idx] = {
+        ...list[idx],
+        ...(isPart1 ? { deepResearchPrompt: text } : { deepResearchResult: text }),
+        promptConfig: {
+          ...(list[idx].promptConfig || {}),
+          REMOTE_GEMINI_STAGE_STATUS: 'completed',
+          REMOTE_GEMINI_STAGE_ERROR: '',
+          ...(remoteCommandId ? { REMOTE_GEMINI_STAGE_ACK_ID: remoteCommandId } : {}),
+          ...(isPart1 ? {} : { DEEP_RESEARCH_RESULT_UPDATED_AT: String(Date.now()) }),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      writeDocumentaries(list);
+      console.log(`[RemoteGeminiStage] Resultado guardado (${text.length} chars) en ${docId}`);
+    }
+  } catch (e) {
+    console.warn('[RemoteGeminiStage] Error guardando resultado:', e);
+  }
+  publishRemoteMacAck({ commandId: remoteCommandId, docId, status: 'gemini_stage_completed' });
+  res.json({ ok: true });
+});
+
 function handleIncomingRemoteRelayLine(line: string) {
   if (!line || !line.trim()) return;
   try {
     const evt = JSON.parse(line);
     if (evt?.event !== 'message' || !evt.message) return;
     const cmd = JSON.parse(evt.message);
+    if (cmd && cmd.type === 'REMOTE_GEMINI_STAGE' && cmd.commandId && cmd.docId) {
+      console.log(`[RemoteRelay] Orden remota de Gemini (etapa ${cmd.stageNumber}) ${cmd.commandId}`);
+      handleRemoteGeminiStageTrigger(cmd).catch(() => {});
+      return;
+    }
     if (
       cmd &&
       cmd.type === 'REMOTE_RENAME_VIDEO' &&
@@ -13064,6 +13251,9 @@ async function checkGitHubRemoteRenameCommands() {
     }
     const docs = readDocumentaries();
     for (const d of docs) {
+      if (d?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON) {
+        enqueueRemoteGeminiStageFromDoc(d);
+      }
       const rawCmd = d?.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
       if (!rawCmd) continue;
       try {
