@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:11 PM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:10 PM - 11/09/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4478,10 +4478,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         false,
         'PART2'
       );
-      const patch: Partial<DocumentaryProject> = {
-        ...propositionPatch,
-        deepResearchResult: text,
-      };
+      const trimmedResearch = String(text || '').trim();
+      const looksLikeGeminiError =
+        trimmedResearch.length < 400 &&
+        /encountering an error|something went wrong|algo sali[oó] mal|se produjo un error|try something else|intentar otra cosa/i.test(
+          trimmedResearch
+        );
+      const patch: Partial<DocumentaryProject> = { ...propositionPatch };
+      if (trimmedResearch.length > 50 && !looksLikeGeminiError) {
+        patch.deepResearchResult = text;
+      } else if (looksLikeGeminiError) {
+        console.warn(
+          '[DeepResearch] Gemini devolvió un error (sin informe). No se sobrescribe deepResearchResult.'
+        );
+      }
       if (parsedRefs.length > 0 && (!activeDoc.references || activeDoc.references.length === 0)) {
         patch.references = parsedRefs;
         patch.rawReferencePrompts = parsedRefs.map((r) => `${r.tag}: ${r.prompt}`).join('\n\n');

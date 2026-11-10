@@ -1401,6 +1401,22 @@ function mergeTwoDocumentaryObjects(
     audioTracks: mergedAudioTracks,
   };
 
+  // Preserve long text fields (Deep Research, scripts…) when the winner has them blank
+  for (const k of [
+    'deepResearchResult',
+    'deepResearchPrompt',
+    'voiceoverScript',
+    'rawClipsText',
+    'rawReferencePrompts',
+    'sectionsStructure',
+  ] as const) {
+    const wv = (baseWinner as any)[k];
+    const ov = (oNorm as any)[k];
+    if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
+      (baseWinner as any)[k] = ov;
+    }
+  }
+
   // Preserve newer remote rename command & title even if device clocks differ by a few seconds
   try {
     const wCmdRaw = wNorm.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
