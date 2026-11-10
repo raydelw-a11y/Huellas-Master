@@ -4627,12 +4627,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
   if (message.type === 'GEMINI_RESPONSE_READY') {
-    // Remote (mobile) orders: persist result directly in the local server even if no Huellas tab is open
-    forwardRemoteStageResultIfAny(message, sender).catch(() => {});
+    // Remote (mobile) orders: persist result ONLY in the local server (never applied to the Mac app's active doc).
+    // If the server is unreachable, fall back to broadcasting with docId + isRemoteOrder so nothing is lost.
+    (async () => {
+      const outcome = await forwardRemoteStageResultIfAny(message, sender).catch(() => null);
+      if (outcome && outcome.isRemote) {
+        if (!outcome.saved) {
+          broadcastToHuellasTabsInSameWindow(senderWindowId, {
+            ...message,
+            docId: message.docId || outcome.docId,
+            isRemoteOrder: true,
+          });
+        }
+        return;
+      }
+      broadcastToHuellasTabsInSameWindow(senderWindowId, message);
+    })();
+    sendResponse({ ok: true });
+    return true;
   }
   if (
     message.type === 'BRIDGE_STATUS' ||
-    message.type === 'GEMINI_RESPONSE_READY' ||
     message.type === 'GEMINI_CHAT_LINKED' ||
     message.type === 'FLOW_MEDIA_READY' ||
     message.type === 'FLOW_VIDEO_CAPTURED' ||
@@ -4811,17 +4826,18 @@ async function runPendingGeminiCommandOrder(cmd) {
 
 async function forwardRemoteStageResultIfAny(message, sender) {
   const tabId = sender?.tab?.id;
-  if (!tabId) return;
+  if (!tabId) return { isRemote: false };
   const key = `huellasRemoteStage_${tabId}`;
   let info = null;
   try {
     const st = await chrome.storage.local.get(key);
     info = st && st[key];
   } catch {}
-  if (!info || !info.commandId) return;
+  if (!info || !info.commandId) return { isRemote: false };
+  // Consume the tab marker right away so a later LOCAL order in this tab never inherits the remote docId
+  await chrome.storage.local.remove(key).catch(() => {});
   if (Date.now() - Number(info.startedAt || 0) > 2 * 60 * 60 * 1000) {
-    await chrome.storage.local.remove(key).catch(() => {});
-    return;
+    return { isRemote: false };
   }
   const body = JSON.stringify({
     remoteCommandId: info.commandId,
@@ -4830,18 +4846,22 @@ async function forwardRemoteStageResultIfAny(message, sender) {
     text: message.text || '',
     chatUrl: sender?.tab?.url || '',
   });
-  for (let attempt = 0; attempt < 6; attempt++) {
+  let saved = false;
+  for (let attempt = 0; attempt < 6 && !saved; attempt++) {
     try {
       const r = await fetch('http://localhost:4200/api/gemini-web/remote-stage-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
       });
-      if (r.ok) break;
+      if (r.ok) {
+        saved = true;
+        break;
+      }
     } catch {}
     await sleep(5000 * (attempt + 1));
   }
-  await chrome.storage.local.remove(key).catch(() => {});
+  return { isRemote: true, saved, docId: info.docId };
 }
 
 async function inspectGeminiTabLatestResponse(tabId) {

@@ -9188,6 +9188,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const targetStage = Number(msg.stageNumber) || activeStage;
         const text = String(msg.text || '');
         const images = Array.isArray(msg.images) ? msg.images : [];
+        // Never apply a result that belongs to ANOTHER documentary to the active one
+        const msgDocId = String(msg.docId || '').trim();
+        const viewingDocId = (activeDocRef.current || activeDoc)?.id || '';
+        if (msgDocId && viewingDocId && msgDocId !== viewingDocId) {
+          const isResearchResult = [1, 2, 3, 10].includes(targetStage);
+          if (isResearchResult && text.trim()) {
+            // Persist directly in the server for the right doc (no stale React state), then refresh
+            fetch('/api/gemini-web/remote-stage-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ docId: msgDocId, stageNumber: targetStage, text }),
+            })
+              .then(() => silentRealtimeSync())
+              .catch(() => {});
+          }
+          const otherTitle = documentaries.find((d) => d.id === msgDocId)?.title || msgDocId;
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(
+            isResearchResult
+              ? `✅ Resultado de Gemini guardado en segundo plano en "${otherTitle}" (no en el documental que estás viendo).`
+              : `ℹ️ Gemini terminó una orden de "${otherTitle}"; ábrelo para revisarla.`
+          );
+          return;
+        }
         const bundle = msg.stage11Bundle as
           | {
               youtube?: string;
@@ -12005,6 +12029,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             UBICACION_INTRO_MARCA: prevCfg.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00',
                             CLEAN_RESET_V77: '2026_11_08_1912',
                             V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_RESTORED',
+                            // Tombstone: sync merges must not resurrect the Stage 1 texts cleared now
+                            STAGE1_CLEARED_AT: String(Date.now()),
                           };
                           updateActiveDoc({
                             typology: '',

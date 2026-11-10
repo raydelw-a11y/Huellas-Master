@@ -1201,6 +1201,7 @@
               .sendMessage({
                 type: 'GEMINI_RESPONSE_READY',
                 stageNumber: meta.stageNumber,
+                docId: (meta && meta.docId) || '',
                 taskType: meta.taskType,
                 text: resolvedText,
                 images: finalLatest.images.length > 0 ? finalLatest.images : latest.images,
@@ -1263,6 +1264,7 @@
             .sendMessage({
               type: 'GEMINI_RESPONSE_READY',
               stageNumber: meta.stageNumber,
+              docId: (meta && meta.docId) || '',
               taskType: meta.taskType,
               text: finalLatest.text,
               images: finalLatest.images,
@@ -2680,6 +2682,7 @@
           .sendMessage({
             type: 'GEMINI_RESPONSE_READY',
             stageNumber: meta.stageNumber,
+            docId: (meta && meta.docId) || '',
             taskType: meta.taskType,
             text,
             images: images || [],

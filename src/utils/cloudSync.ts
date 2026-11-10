@@ -1401,7 +1401,22 @@ function mergeTwoDocumentaryObjects(
     audioTracks: mergedAudioTracks,
   };
 
-  // Preserve long text fields (Deep Research, scripts…) when the winner has them blank
+  // Preserve long text fields (Deep Research, scripts…) when the winner has them blank,
+  // unless they were intentionally cleared ("Limpiar Etapa 1" tombstone) after the other copy was saved
+  const toMs = (v: any) => (typeof v === 'number' ? v : Date.parse(String(v || '')) || Number(v) || 0);
+  const stage1ClearedAt = Math.max(
+    Number(baseWinner.promptConfig?.STAGE1_CLEARED_AT || 0),
+    Number(oNorm.promptConfig?.STAGE1_CLEARED_AT || 0)
+  );
+  if (stage1ClearedAt > 0) {
+    baseWinner = {
+      ...baseWinner,
+      promptConfig: { ...(baseWinner.promptConfig || {}), STAGE1_CLEARED_AT: String(stage1ClearedAt) },
+    };
+  }
+  const otherSavedAt = toMs((oNorm as any).updatedAt || (oNorm as any).createdAt);
+  const stage1Tombstoned = stage1ClearedAt > 0 && stage1ClearedAt >= otherSavedAt;
+  const STAGE1_TEXT_KEYS = ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'];
   for (const k of [
     'deepResearchResult',
     'deepResearchPrompt',
@@ -1410,6 +1425,7 @@ function mergeTwoDocumentaryObjects(
     'rawReferencePrompts',
     'sectionsStructure',
   ] as const) {
+    if (stage1Tombstoned && STAGE1_TEXT_KEYS.includes(k)) continue;
     const wv = (baseWinner as any)[k];
     const ov = (oNorm as any)[k];
     if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
@@ -1523,21 +1539,26 @@ export function mergeDocumentariesLists(
           (l.title === 'Nuevo Documental — Huellas de la Humanidad' &&
             (!l.clips || l.clips.length === 0)));
       if (canonical77 && isLocal77Candidate) {
+        // Respect "Limpiar Etapa 1" tombstone: cleared local Stage 1 fields must not be refilled from the canonical copy
+        const local77Cleared = Number(normalized.promptConfig?.STAGE1_CLEARED_AT || 0) > 0;
+        const pick77 = (k: keyof DocumentaryProject) =>
+          local77Cleared ? (normalized as any)[k] ?? '' : (normalized as any)[k] || (canonical77 as any)[k];
         byId.set('doc-video-77-huellas', {
           ...canonical77,
+          ...(local77Cleared ? { promptConfig: { ...(canonical77.promptConfig || {}), ...(normalized.promptConfig || {}) } } : {}),
           title:
             normalized.title && normalized.title !== 'Nuevo Documental — Huellas de la Humanidad'
               ? normalized.title
               : canonical77.title,
-          topic: normalized.topic || canonical77.topic,
-          typology: normalized.typology || canonical77.typology,
-          historicalTime: normalized.historicalTime || canonical77.historicalTime,
-          historicalLocation: normalized.historicalLocation || canonical77.historicalLocation,
+          topic: pick77('topic'),
+          typology: pick77('typology'),
+          historicalTime: pick77('historicalTime'),
+          historicalLocation: pick77('historicalLocation'),
           targetDurationSeconds:
             normalized.targetDurationSeconds || canonical77.targetDurationSeconds,
-          sectionsStructure: normalized.sectionsStructure || canonical77.sectionsStructure,
-          deepResearchPrompt: normalized.deepResearchPrompt || canonical77.deepResearchPrompt,
-          deepResearchResult: normalized.deepResearchResult || canonical77.deepResearchResult,
+          sectionsStructure: pick77('sectionsStructure'),
+          deepResearchPrompt: pick77('deepResearchPrompt'),
+          deepResearchResult: pick77('deepResearchResult'),
           voiceoverScript: normalized.voiceoverScript || canonical77.voiceoverScript,
           downloadFolderName: normalized.downloadFolderName || canonical77.downloadFolderName,
           downloadFolderPath: normalized.downloadFolderPath || canonical77.downloadFolderPath,

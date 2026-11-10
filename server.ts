@@ -438,6 +438,16 @@ function mergeServerDocObjects(winner: any, other: any) {
       if (!pc[k] && other.promptConfig?.[k]) pc[k] = other.promptConfig[k];
     }
     baseWinner = { ...baseWinner, promptConfig: pc };
+    // "Limpiar Etapa 1" tombstone: never resurrect Stage 1 texts from a copy saved before the clear
+    const toMs = (v: any) => (typeof v === 'number' ? v : Date.parse(String(v || '')) || Number(v) || 0);
+    const clearedAt = Math.max(
+      Number(baseWinner.promptConfig?.STAGE1_CLEARED_AT || 0),
+      Number(other.promptConfig?.STAGE1_CLEARED_AT || 0)
+    );
+    if (clearedAt > 0) {
+      baseWinner.promptConfig = { ...(baseWinner.promptConfig || {}), STAGE1_CLEARED_AT: String(clearedAt) };
+    }
+    const stage1Tombstoned = clearedAt > 0 && clearedAt >= toMs(other.updatedAt || other.createdAt);
     for (const k of [
       'deepResearchResult',
       'deepResearchPrompt',
@@ -446,6 +456,7 @@ function mergeServerDocObjects(winner: any, other: any) {
       'rawReferencePrompts',
       'sectionsStructure',
     ]) {
+      if (stage1Tombstoned && ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'].includes(k)) continue;
       const wv = baseWinner[k];
       const ov = other[k];
       if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
@@ -12661,6 +12672,24 @@ function performMacFolderRenameCore(params: {
     '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
   const hasIcloudDir = fs.existsSync(icloudVideosDir);
 
+  // Path sandbox: only folders directly inside the iCloud Videos dir or data/projects may be touched
+  if (!safeFolderName || safeFolderName === '.' || safeFolderName === '..' || /[\0]/.test(safeFolderName)) {
+    throw new Error('Nombre de carpeta inválido.');
+  }
+  const realOrResolve = (p: string) => {
+    try {
+      return fs.existsSync(p) ? fs.realpathSync(p) : path.resolve(p);
+    } catch {
+      return path.resolve(p);
+    }
+  };
+  const allowedRoots = [icloudVideosDir, path.join(DATA_DIR, 'projects')].map(realOrResolve);
+  const isPathPermitted = (p: string) => {
+    if (!p) return false;
+    const r = realOrResolve(p);
+    return allowedRoots.some((root) => r !== root && r.startsWith(root + path.sep));
+  };
+
   // 1. Look up existing documentary record FIRST before overwriting it so we never lose its current folder path/name
   let docsList: any[] = [];
   let docIdx = -1;
@@ -12687,7 +12716,7 @@ function performMacFolderRenameCore(params: {
     hasIcloudDir && typeof storedDoc?.title === 'string' && storedDoc.title.trim()
       ? path.join(icloudVideosDir, storedDoc.title.trim())
       : '',
-  ].filter(Boolean);
+  ].filter((p) => Boolean(p) && isPathPermitted(p));
 
   let existingFolderPath = '';
   for (const cand of candidatePaths) {
@@ -12737,6 +12766,9 @@ function performMacFolderRenameCore(params: {
   }
 
   const newFolderPath = path.join(parentDir, safeFolderName);
+  if (!isPathPermitted(newFolderPath)) {
+    throw new Error('Ruta de destino fuera de la carpeta de documentales.');
+  }
   let wasRenamed = false;
   let wasCreated = false;
 
@@ -13185,25 +13217,44 @@ function handleIncomingRemoteRelayLine(line: string) {
       handleRemoteGeminiStageTrigger(cmd).catch(() => {});
       return;
     }
-    if (
-      cmd &&
-      cmd.type === 'REMOTE_RENAME_VIDEO' &&
-      cmd.commandId &&
-      cmd.newName &&
-      !processedRemoteCommandIds.has(cmd.commandId)
-    ) {
-      processedRemoteCommandIds.add(cmd.commandId);
-      console.log(`[RemoteRelay] Executing mobile rename command ${cmd.commandId} -> "${cmd.newName}"`);
-      performMacFolderRenameCore({
-        docId: cmd.docId,
-        newName: cmd.newName,
-        oldFolderName: cmd.oldFolderName,
-        oldFolderPath: cmd.oldFolderPath,
-        commandId: cmd.commandId,
-        enqueueGeminiRename: true,
-      });
+    // ntfy is a PUBLIC topic: treat rename messages only as a wake-up ping. The real order
+    // (newName / paths) is read from REMOTE_RENAME_COMMAND_JSON in GitHub (write access needs the token).
+    if (cmd && cmd.type === 'REMOTE_RENAME_VIDEO' && cmd.commandId && cmd.docId) {
+      handleRemoteRenameTrigger(cmd).catch(() => {});
     }
   } catch {}
+}
+
+async function handleRemoteRenameTrigger(trigger: any) {
+  const commandId = String(trigger?.commandId || '').trim();
+  const docId = String(trigger?.docId || '').trim();
+  if (!commandId || !docId || processedRemoteCommandIds.has(commandId)) return;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const local = readDocumentaries().find((d) => d && d.id === docId);
+    try {
+      const raw = local?.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
+      const verified = raw ? JSON.parse(raw) : null;
+      if (verified?.commandId === commandId && verified.newName) {
+        if (processedRemoteCommandIds.has(commandId)) return;
+        if (local.promptConfig?.REMOTE_RENAME_ACK_ID === commandId) return;
+        if (Date.now() - Number(verified.requestedAt || 0) > 24 * 60 * 60 * 1000) return;
+        processedRemoteCommandIds.add(commandId);
+        console.log(`[RemoteRelay] Rename ${commandId} verificado en GitHub -> "${verified.newName}"`);
+        performMacFolderRenameCore({
+          docId: local.id,
+          newName: verified.newName,
+          oldFolderName: verified.oldFolderName,
+          oldFolderPath: verified.oldFolderPath,
+          commandId,
+          enqueueGeminiRename: true,
+        });
+        return;
+      }
+    } catch {}
+    await syncDocumentariesWithGitHubServer(true).catch(() => null);
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  console.warn(`[RemoteRelay] Rename ${commandId} ignorado: no coincide con ninguna orden en GitHub.`);
 }
 
 let isRemoteRelayStreamActive = false;
