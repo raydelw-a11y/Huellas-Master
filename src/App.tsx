@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:52 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:57 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -9309,6 +9309,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         if (msg.status === 'ERROR') {
           setBridgeStatusType('ERROR');
+          try {
+            sessionStorage.removeItem('huellas_ai_busy_until');
+          } catch {}
           pendingStage11QueueRef.current = [];
           setAiGenerating(false);
           setThumbnailGeneratingOption(null);

@@ -356,7 +356,7 @@ async function createTemporaryTabInAppWindow(targetUrl) {
   };
 }
 
-(async function initExistingHuellasTabsOnce() {
+async function initExistingHuellasTabsOnce() {
   try {
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
@@ -379,7 +379,17 @@ async function createTemporaryTabInAppWindow(targetUrl) {
       }
     }
   } catch {}
-})();
+}
+
+initExistingHuellasTabsOnce();
+try {
+  chrome.runtime.onInstalled.addListener(() => {
+    initExistingHuellasTabsOnce();
+  });
+  chrome.runtime.onStartup.addListener(() => {
+    initExistingHuellasTabsOnce();
+  });
+} catch {}
 
 async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
   try {
