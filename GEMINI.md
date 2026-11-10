@@ -23,7 +23,9 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
 0. **REGLA INQUEBRANTABLE DE PRIMER PASO (`PASO 0 OBLIGATORIO — PERSPECTIVA EXTERNA EN GEMINI WEB + SUBAGENTES`)**:
    - **ESTÁ TERMINANTEMENTE PROHIBIDO** que el agente principal empiece a editar código o resolver el problema en solitario sin ejecutar este flujo completo.
    - En cuanto el usuario escriba `modo duo` o `modo trio`, debes ejecutar obligatoriamente esta secuencia inicial:
-     1. Mostrar en el chat el encabezado visible: **`🤝 [MODO DUO ACTIVADO: Consultando Perspectiva Externa en Gemini Web (Argon High) + Invocando Agentes]`** (o `MODO TRIO`).
+     1. Mostrar en el chat el encabezado visible **`🤝 [MODO DUO ACTIVADO: Consultando Perspectiva Externa en Gemini Web (Argon High) + Invocando Agentes]`** (o `MODO TRIO`) **junto con la escena animada de los robots debatiendo en vivo dentro del chat**:
+        - Copia el contenido de `public/debate_robots_template.html` (personalizando opcionalmente los textos de `dialogueTurns` con los argumentos reales del debate) al archivo de artefacto `<appDataDir>/brain/<conversation-id>/debate_robots.html` usando `write_file` con `ArtifactMetadata: { Summary: "Sala de Debate Robótico en Vivo", UserFacing: true, RequestFeedback: false }` e incrusta en tu respuesta del chat la etiqueta:
+          `<agent-embed src="file:///<appDataDir>/brain/<conversation-id>/debate_robots.html"></agent-embed>`
      2. **Perspectiva Externa en Gemini Web (Ventana Nueva Temporal -> Chat Limpio SIN Notebook, Argon en High -> Cerrar Ventana al Terminar)**:
         - **Método directo sin bloqueo de popup (`POST http://localhost:4200/api/gemini-web/ask-external`)**: Para que funcione al 100% incluso cuando el usuario trabaja desde el móvil sin tocar la ventana principal de Gemini donde está el documental, envía el problema mediante `run_command`:
           `curl -s --max-time 300 -X POST http://localhost:4200/api/gemini-web/ask-external -H "Content-Type: application/json" -d '{"prompt": "..."}'`
