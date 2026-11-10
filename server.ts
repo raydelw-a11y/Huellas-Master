@@ -1425,15 +1425,60 @@ function parseServerTtsRetryDelayMs(err: any, attempt: number): number {
   return Math.min(75000, 18000 + attempt * 10000);
 }
 
+function cleanServerVoiceoverNarrationOnly(rawText: string): string {
+  if (!rawText) return '';
+  let s = String(rawText).replace(/\r\n/g, '\n').trim();
+  s = s.replace(/^```(?:[a-zA-Z0-9_-]+)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  s = s.replace(
+    /\(\s*(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?[^)]*|(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Hook\s+Visual|Sin\s+voz|Entrada\s+(?:exacta\s+)?de\s+la\s+voz|Foley|SFX|Efecto\s+de\s+sonido|M[uú]sica\s+de\s+fondo|Sonido\s+(?:seco|ambiente)|Texto\s+en\s+pantalla|Fin\s+del\s+guion|Cierre\s+institucional)[^)]*)\s*\)/gi,
+    ''
+  );
+  s = s.replace(
+    /\[\s*(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\||[-–—:])[^[\]]*|(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Hook\s+Visual|Sin\s+voz|Entrada\s+(?:exacta\s+)?de\s+la\s+voz|P[aá]rrafo\s+(?:\d+|final)|Slogan\s+(?:Completo|Corto)|Cierre\s+en\s+p[aá]rrafo|Foley|SFX|M[uú]sica|Texto\s+en\s+pantalla|Narrador|Voz\s+en\s+off|Locutor)[^[\]]*)\s*\]\s*:?\s*/gi,
+    ''
+  );
+  const outLines: string[] = [];
+  for (const rawLine of s.split('\n')) {
+    let l = rawLine.trim();
+    if (!l) continue;
+    const plain = l.replace(/^#{1,6}\s+/, '').replace(/^\*+|\*+$/g, '').trim();
+    if (
+      /^(?:[-—*]+\s*)?(?:ETAPA\s+\d+|PASO\s+\d+[A-Z]?|GUION\s+DE\s+(?:LA\s+)?VOZ\s+EN\s+OFF|GUION\s+NARRATIVO|VOZ\s+EN\s+OFF\s+COMPLETA|LOCUCI[OÓ]N\s+DOCUMENTAL)(?:\s*[:—\-|(].*)?$/i.test(
+        plain
+      )
+    ) {
+      continue;
+    }
+    if (/^(?:BLOQUE|SECCI[OÓ]N|CAP[IÍ]TULO|PARTE)\s+\d+\s*(?:[:.\-—|(].*)?$/i.test(plain)) continue;
+    if (/^ACTO\s+(?:[IVXLC]+|\d+)\s*(?:[:.\-—|(].*)?$/i.test(plain)) continue;
+    if (/^[-—*_]{3,}$/.test(plain)) continue;
+    if (/^\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\|.*)?$/i.test(plain)) continue;
+    if (
+      /^(?:[-—*•]+\s*)?(?:Caracteres\s+Totales|Palabras\s+Totales|Conteo\s+de\s+(?:palabras|caracteres)|Extensi[oó]n\s+(?:total|estimada|aproximada|final)|Pausas\s+Narrativas\s*:|Duraci[oó]n\s+Total\s+Estimada|Tiempo\s+Neto\s+de\s+Voz|Reporte\s+al\s+pie|¿Deseas\s+(?:pasar|continuar|que\s+proceda|avanzar)|¿Est[aá]s\s+listo\s+para\s+(?:pasar|proceder)|Por\s+favor\s+confirma\s+si\s+el\s+guion)/i.test(
+        plain
+      )
+    ) {
+      continue;
+    }
+    l = l.replace(/^#{1,6}\s+/, '');
+    l = l.replace(/^\s*(?:\*+)?(?:Narrador|Voz\s+en\s+[Oo]ff|Locutor|Audio|Voiceover)\s*(?:\*+)?\s*:\s*/i, '');
+    l = l.replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\||[-–—:])\s*/, '');
+    l = l.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/\s{2,}/g, ' ').trim();
+    if (l) outLines.push(l);
+  }
+  return outLines.join('\n\n');
+}
+
 function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
-  if (!rawText) return [];
+  const sanitized = cleanServerVoiceoverNarrationOnly(rawText);
+  if (!sanitized) return [];
   const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
   const rawSegments: TextOrPauseSegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = pauseRegex.exec(rawText)) !== null) {
-    const textBefore = rawText.slice(lastIndex, match.index);
+  while ((match = pauseRegex.exec(sanitized)) !== null) {
+    const textBefore = sanitized.slice(lastIndex, match.index);
     if (textBefore.trim()) {
       rawSegments.push({ type: 'text', text: textBefore.trim() });
     }
@@ -1456,7 +1501,7 @@ function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
     lastIndex = match.index + match[0].length;
   }
 
-  const remainingText = rawText.slice(lastIndex);
+  const remainingText = sanitized.slice(lastIndex);
   if (remainingText.trim()) {
     rawSegments.push({ type: 'text', text: remainingText.trim() });
   }
@@ -1710,7 +1755,12 @@ app.post('/api/tts', async (req, res) => {
       return;
     }
 
-    const segments = parseTextWithPauses(text);
+    const cleanedScriptForTts = cleanServerVoiceoverNarrationOnly(text);
+    if (!cleanedScriptForTts) {
+      res.status(400).json({ error: 'El guion no contiene texto narrable válido.' });
+      return;
+    }
+    const segments = parseTextWithPauses(cleanedScriptForTts);
     const hasPauses = segments.some((s) => s.type === 'pause');
 
     let buffer: Buffer;
@@ -1718,7 +1768,7 @@ app.post('/api/tts', async (req, res) => {
 
     if (!hasPauses) {
       const result = await synthesizeSpeechCore({
-        text,
+        text: cleanedScriptForTts,
         voice,
         style,
         speed,
@@ -2318,24 +2368,32 @@ Genera la ETAPA 3 completa:
       const FIXED_OUTRO_SEC = 8;
       const effectiveVoiceEntrySec =
         introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + FIXED_INTRO_SEC : voiceEntrySec;
-      const targetChars = Math.round(
-        Math.max(10, (doc.targetDurationSeconds || 120) - FIXED_OUTRO_SEC - effectiveVoiceEntrySec) * 13.5
+      const totalDurSec = Math.max(30, Number(doc.targetDurationSeconds) || 900);
+      const totalMinLabel = Number.isInteger(totalDurSec / 60)
+        ? String(totalDurSec / 60)
+        : (totalDurSec / 60).toFixed(1);
+      const estPauseSec =
+        totalDurSec >= 300
+          ? Math.min(45, Math.max(8, Math.round((totalDurSec / 60) * 1.35)))
+          : Math.max(2, Math.round(totalDurSec * 0.04));
+      const netSpeechSec = Math.max(
+        10,
+        totalDurSec - FIXED_OUTRO_SEC - effectiveVoiceEntrySec - estPauseSec
       );
+      const targetWords = Math.max(25, Math.round(netSpeechSec * (147 / 60)));
+      const minWords = Math.max(20, Math.round(targetWords * 0.92));
+      const maxWords = Math.max(30, Math.round(targetWords * 1.06));
+      const targetChars = Math.round(targetWords * 6.05);
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
+Duración Total Seleccionada en Etapa 1: ${totalMinLabel} MINUTOS (${totalDurSec} segundos)
 Estructura e Investigación previa:
 ${doc.sectionsStructure || ''}
 ${doc.deepResearchResult || ''}
 
-Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
-- Sincronización de Entrada de Voz: ${
-        introPlacement === 'INTRO_INICIO_00'
-          ? `El documental abre en 00:00 - 00:08 con el Intro Oficial de Marca de 8s (Intro.mp4), seguido por la ventana sin voz del Hook (${voiceEntrySec}s); por lo tanto, la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.`
-          : doc.clip1SyncMode === 'VOZ_EN_CLIP_2'
-          ? `El Clip 1 dura ${c1Dur}s (00:00 - 00:0${c1Dur}) sin voz y los primeros 2s del Clip 2 (00:0${c1Dur} - 00:0${voiceEntrySec}) tampoco llevan voz; por lo tanto, los primeros ${voiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${voiceEntrySec} del video (que es el segundo 2 del segundo clip).`
-          : `El Clip 1 de ${c1Dur}s se ralentiza en edición a ${voiceEntrySec}s (00:00 - 00:0${voiceEntrySec}) sin voz; la voz narrativa entra en el segundo ${voiceEntrySec} del video (al inicio del Clip 2).`
-      }
-- La duración total del guion NO tiene que ser exacta al segundo, sino APROXIMADA a la duración pedida (~${doc.targetDurationSeconds || 120}s).
+Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas reglas inquebrantables:
+- PRESUPUESTO ESTRICTO DE DURACIÓN Y PALABRAS (${totalMinLabel} MINUTOS REALES EN VOXFLOW): Nuestro motor TTS (Charon) narra a 147 palabras por minuto. Descontando ${effectiveVoiceEntrySec}s iniciales sin voz, ${FIXED_OUTRO_SEC}s de Outro y ~${estPauseSec}s de pausas, TODO EL GUION COMPLETO DEBE TENER OBLIGATORIAMENTE ENTRE ${minWords} Y ${maxWords} PALABRAS (objetivo exacto: ~${targetWords} palabras / ~${targetChars} caracteres). PROHIBIDO superar ${maxWords} palabras.
+- FORMATO 100% PURO DE VOZ NARRATIVA (CERO ENCABEZADOS NI MINUTOS/SEGUNDOS): Entrega ÚNICA Y EXCLUSIVAMENTE el texto hablado exacto que leerá el locutor (más las etiquetas [pausa: Xs]). PROHIBIDO escribir títulos ("ETAPA 4..."), nombres de bloques, marcas de tiempo como "(00:00 - 00:08...)", "(00:16...)" o "(19:52 - 20:00...)", acotaciones entre paréntesis ni conteos al pie.
 - Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
 - Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
@@ -2343,8 +2401,7 @@ Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
         introPlacement === 'INTRO_POST_SLOGAN'
           ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
           : ''
-      }, y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
-- Extensión aproximada calibrada: ~${targetChars} caracteres.`;
+      }, y cierra el guion en párrafo aparte con la llamada a comentarios y el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."`;
     } else if (stageNumber === 5) {
       const thumbOrientation =
         doc.thumbnailOrientation ||
@@ -13695,7 +13752,12 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
 
       list[idx] = {
         ...list[idx],
-        ...([101, 115, 12].includes(stageNumber) ? {} : { [fieldKey]: text }),
+        ...([101, 115, 12].includes(stageNumber)
+          ? {}
+          : {
+              [fieldKey]:
+                stageNumber === 4 ? cleanServerVoiceoverNarrationOnly(text) : text,
+            }),
         ...extraPatch,
         ...(nextDeepChatUrl ? { geminiDeepResearchChatUrl: nextDeepChatUrl } : {}),
         ...(nextMainChatUrl ? { geminiChatUrl: nextMainChatUrl } : {}),

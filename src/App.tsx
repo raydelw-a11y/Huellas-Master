@@ -77,6 +77,9 @@ import {
   syncAndAuditProductionClips,
   extractPausesInfo,
   stripPauseTags,
+  cleanVoiceoverNarrationOnly,
+  computeCalibratedVoiceoverBudget,
+  CALIBRATED_TTS_WORDS_PER_SEC,
   parseTimelineTextToSentences,
   ensureOperationalHeaderInRawClips,
   buildRawClipsTextWithHeader,
@@ -129,7 +132,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:34 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:06 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4587,7 +4590,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           .catch(() => {});
       }
     } else if (stageNum === 4) {
-      const normalizedScript = normalizeQuantitiesToMil(text);
+      const normalizedScript = cleanVoiceoverNarrationOnly(normalizeQuantitiesToMil(text));
       const autoTl = buildSmartClientTimeline(normalizedScript, activeDoc);
       updateActiveDoc({
         voiceoverScript: normalizedScript,
@@ -4942,6 +4945,35 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   useEffect(() => {
     pingHuellasExtension();
   }, []);
+
+  // Auto-clean any stage headers, MM:SS timestamp cues, or technical parentheticals from voiceoverScript so VoxFlow & Timeline never read them aloud
+  useEffect(() => {
+    if (!activeDoc?.voiceoverScript) return;
+    const rawVo = activeDoc.voiceoverScript;
+    const hasTechnicalCues =
+      /(?:^|\n)\s*(?:#{1,6}\s+)?(?:\*+\s*)?(?:ETAPA\s+\d+|GUION\s+DE\s+(?:LA\s+)?VOZ\s+EN\s+OFF|Caracteres\s+Totales|Duraci[oó]n\s+Total\s+Estimada)/i.test(
+        rawVo
+      ) ||
+      /\(\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a|])/i.test(rawVo) ||
+      /\(\s*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Entrada\s+(?:exacta\s+)?de\s+la\s+voz)/i.test(
+        rawVo
+      );
+    if (!hasTechnicalCues) return;
+    const cleanedVo = cleanVoiceoverNarrationOnly(rawVo);
+    if (cleanedVo && cleanedVo !== rawVo.trim()) {
+      const autoTl = buildSmartClientTimeline(cleanedVo, activeDoc);
+      updateActiveDoc({
+        voiceoverScript: cleanedVo,
+        ...(autoTl.sentences.length > 0
+          ? {
+              timelineSentences: autoTl.sentences,
+              timelineFormattedText: autoTl.formatted,
+              correctedSrt: autoTl.srt,
+            }
+          : {}),
+      });
+    }
+  }, [activeDoc?.id, activeDoc?.voiceoverScript]);
 
   // Automatically strip any unwanted Stage 12 closing chatter ("¡Metadata completada!...") and recover complete Stage 9 sections (YouTube, Facebook, Comentario Fijado, Tags) from the active Gemini tab
   useEffect(() => {
@@ -10493,7 +10525,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? 10
         : standardClipSec;
 
-    const cleanRaw = (rawScript || '').trim();
+    const cleanRaw = cleanVoiceoverNarrationOnly(rawScript || '');
     if (!cleanRaw) {
       return { sentences: [], formatted: '', srt: '' };
     }
@@ -10738,12 +10770,45 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
-    if (!activeDoc || !textToSpeak.trim()) {
+    const sanitizedScript = cleanVoiceoverNarrationOnly(textToSpeak || '');
+    if (!activeDoc || !sanitizedScript.trim()) {
       alert('Escribe o pega primero el texto del guion para generar la voz.');
       return;
     }
+
+    const isFullDocScript = (textToSpeak || '').trim() === (activeDoc.voiceoverScript || '').trim();
+    if (isFullDocScript && sanitizedScript !== (activeDoc.voiceoverScript || '').trim()) {
+      updateActiveDoc({ voiceoverScript: sanitizedScript });
+    }
+
+    if (isFullDocScript) {
+      const pInfo = extractPausesInfo(sanitizedScript);
+      const cleanWords = stripPauseTags(sanitizedScript)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+      const introPlacement = activeDoc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+      const { voiceEntrySec } = getStage1ClipDurations(activeDoc);
+      const effEntrySec = introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
+      const budget = computeCalibratedVoiceoverBudget(
+        activeDoc.targetDurationSeconds || 900,
+        effEntrySec,
+        8
+      );
+      const estTotalVideoSec = Math.round(
+        cleanWords / CALIBRATED_TTS_WORDS_PER_SEC + pInfo.totalSeconds + effEntrySec + 8
+      );
+      if (estTotalVideoSec > budget.totalDurationSec * 1.22) {
+        const estMin = (estTotalVideoSec / 60).toFixed(1);
+        const proceedOversized = window.confirm(
+          `⚠️ El documental está configurado en Etapa 1 para ${budget.totalMinutesLabel} minutos (~${budget.targetWords} palabras), pero el guion actual tiene ${cleanWords} palabras y generará aproximadamente ${estMin} minutos de video.\n\n• Pulsa "Cancelar" para ajustarlo primero a ${budget.totalMinutesLabel} minutos con el botón "🎯 Ajustar Guion a ${budget.totalMinutesLabel} min en Gemini".\n• Pulsa "Aceptar" solo si deseas sintetizar igualmente los ${estMin} minutos.`
+        );
+        if (!proceedOversized) return;
+      }
+    }
+
     setTtsGenerating(true);
-    setTtsProgressMsg('🎙️ Preparando bloques de locución y control de cuota Tier 1 (10/min)...');
+    setTtsProgressMsg('🎙️ Preparando bloques limpios de locución y control de cuota Tier 1 (10/min)...');
     try {
       let data: TTSRecord | null = null;
       if (!isCloudMode) {
@@ -10755,7 +10820,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              text: textToSpeak,
+              text: sanitizedScript,
               voice: activeDoc.selectedVoice || 'Charon',
               style: activeDoc.selectedStyle || 'dramatic',
               speed: activeDoc.selectedSpeed || 'medium',
@@ -10777,7 +10842,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
       if (!data) {
         data = await synthesizeTtsClientSide({
-          text: textToSpeak,
+          text: sanitizedScript,
           voice: activeDoc.selectedVoice || 'Charon',
           style: activeDoc.selectedStyle || 'dramatic',
           speed: activeDoc.selectedSpeed || 'medium',
@@ -11149,25 +11214,74 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     triggerFileDownload(lines.join('\n'), `${safeTitle}_Expediente_Completo.txt`, 'text/plain;charset=utf-8');
   };
 
-  // Voiceover metrics calculation for Stage 4 (recognizes [1s], [2s], [2], [2}, [pausa: 2s], etc.)
+  // Voiceover metrics calculation for Stage 4 (calibrated to empirical 147 WPM of Charon in Gemini 3.8 Flash TTS)
   const voiceoverMetrics = useMemo(() => {
+    const introPlacement = activeDoc?.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+    const { voiceEntrySec } = activeDoc
+      ? getStage1ClipDurations(activeDoc)
+      : { voiceEntrySec: 8 };
+    const effectiveVoiceEntrySec =
+      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
+    const budget = computeCalibratedVoiceoverBudget(
+      activeDoc?.targetDurationSeconds || 900,
+      effectiveVoiceEntrySec,
+      8
+    );
+    const formatMmSs = (sec: number) => {
+      const s = Math.max(0, Math.round(sec));
+      const mm = Math.floor(s / 60);
+      const ss = s % 60;
+      return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    };
+
     const raw = activeDoc?.voiceoverScript || '';
-    if (!raw.trim())
-      return { cleanChars: 0, words: 0, pauseCount: 0, pauseSeconds: 0, spokenSeconds: 0, totalSeconds: 0 };
-    const pauseInfo = extractPausesInfo(raw);
-    const cleanText = stripPauseTags(raw).trim();
+    if (!raw.trim()) {
+      return {
+        cleanChars: 0,
+        words: 0,
+        pauseCount: 0,
+        pauseSeconds: 0,
+        spokenSeconds: 0,
+        totalSeconds: 0,
+        estimatedVideoSeconds: 0,
+        formattedAudioDuration: '00:00',
+        formattedVideoDuration: '00:00',
+        formattedTargetDuration: formatMmSs(budget.totalDurationSec),
+        budget,
+        isOverTarget: false,
+        isUnderTarget: false,
+      };
+    }
+    const sanitized = cleanVoiceoverNarrationOnly(raw);
+    const pauseInfo = extractPausesInfo(sanitized);
+    const cleanText = stripPauseTags(sanitized).trim();
     const cleanChars = cleanText.length;
     const words = cleanText ? cleanText.split(/\s+/).filter(Boolean).length : 0;
-    const spokenSeconds = Math.round(cleanChars / 15); // 15 chars/sec standard
+    const spokenSeconds = Math.round(words / CALIBRATED_TTS_WORDS_PER_SEC);
+    const totalSeconds = Math.round(spokenSeconds + pauseInfo.totalSeconds);
+    const estimatedVideoSeconds = Math.round(totalSeconds + effectiveVoiceEntrySec + 8);
     return {
       cleanChars,
       words,
       pauseCount: pauseInfo.count,
       pauseSeconds: pauseInfo.totalSeconds,
       spokenSeconds,
-      totalSeconds: Math.round(spokenSeconds + pauseInfo.totalSeconds),
+      totalSeconds,
+      estimatedVideoSeconds,
+      formattedAudioDuration: formatMmSs(totalSeconds),
+      formattedVideoDuration: formatMmSs(estimatedVideoSeconds),
+      formattedTargetDuration: formatMmSs(budget.totalDurationSec),
+      budget,
+      isOverTarget: estimatedVideoSeconds > budget.totalDurationSec * 1.15,
+      isUnderTarget: words > 40 && estimatedVideoSeconds < budget.totalDurationSec * 0.8,
     };
-  }, [activeDoc?.voiceoverScript]);
+  }, [
+    activeDoc?.voiceoverScript,
+    activeDoc?.targetDurationSeconds,
+    activeDoc?.clip1DurationSeconds,
+    activeDoc?.clip1SyncMode,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
+  ]);
 
   // ============================================================================
   // PASSWORD SCREEN (ACCESO PRIVADO)
@@ -14260,6 +14374,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating ? 'Redactando Guion...' : '✨ Redactar Guion con Gemini'}
                       </button>
+                      {(activeDoc.voiceoverScript || '').trim().length > 80 && (
+                        <button
+                          type="button"
+                          disabled={aiGenerating}
+                          onClick={() =>
+                            handleSendStageToGeminiWeb(4, undefined, {
+                              overridePromptConfig: { RECALIBRATE_SCRIPT_TO_DURATION: 'SI' },
+                            })
+                          }
+                          title="Reescribe y calibra el guion actual en Gemini Web para que dure exactamente los minutos elegidos en Etapa 1 sin encabezados ni marcas de tiempo"
+                          className="px-3 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 disabled:opacity-50 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          🎯 Ajustar a {voiceoverMetrics.budget.totalMinutesLabel} min (~{voiceoverMetrics.budget.targetWords} pal.)
+                        </button>
+                      )}
                       <button
                         onClick={() => copyText(activeDoc.voiceoverScript, 'copy-vo')}
                         className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 cursor-pointer"
@@ -14275,20 +14404,80 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
 
                   {/* Voiceover Metrics Bar */}
-                  <div className="flex items-center justify-end flex-wrap gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs">
-                    <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300">
+                  <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-800 text-xs">
+                    <div className="text-[11px] font-mono text-slate-400">
+                      Objetivo Etapa 1:{' '}
+                      <strong className="text-sky-300">
+                        {voiceoverMetrics.formattedTargetDuration} min (~{voiceoverMetrics.budget.targetWords} palabras)
+                      </strong>
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300 flex-wrap">
                       <span>
-                        Palabras: <strong className="text-amber-300">{voiceoverMetrics.words}</strong>
+                        Palabras:{' '}
+                        <strong
+                          className={
+                            voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget
+                              ? 'text-rose-400'
+                              : 'text-amber-300'
+                          }
+                        >
+                          {voiceoverMetrics.words}
+                        </strong>
                       </span>
                       <span>
-                        Caracteres: <strong className="text-amber-300">{voiceoverMetrics.cleanChars}</strong>
+                        Pausas:{' '}
+                        <strong className="text-amber-300">
+                          {voiceoverMetrics.pauseCount} ({voiceoverMetrics.pauseSeconds}s)
+                        </strong>
                       </span>
                       <span>
-                        Duración Est.:{' '}
-                        <strong className="text-emerald-400">{voiceoverMetrics.totalSeconds}s</strong>
+                        Audio Voz:{' '}
+                        <strong className="text-emerald-400">
+                          {voiceoverMetrics.formattedAudioDuration} min
+                        </strong>
+                      </span>
+                      <span>
+                        Video Total Est.:{' '}
+                        <strong
+                          className={
+                            voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget
+                              ? 'text-rose-400'
+                              : 'text-emerald-400'
+                          }
+                        >
+                          {voiceoverMetrics.formattedVideoDuration} min
+                        </strong>
                       </span>
                     </div>
                   </div>
+
+                  {(voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget) && (
+                    <div className="bg-rose-500/10 border border-rose-500/40 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3 text-xs">
+                      <div className="text-rose-200 space-y-0.5">
+                        <div className="font-bold">
+                          ⚠️ Duración estimada del guion ({voiceoverMetrics.formattedVideoDuration} min · {voiceoverMetrics.words} palabras) distinta a los {voiceoverMetrics.budget.totalMinutesLabel} minutos seleccionados en Etapa 1 (~{voiceoverMetrics.budget.targetWords} palabras)
+                        </div>
+                        <div className="text-[11px] text-rose-200/80">
+                          Pulsa el botón para que Gemini condense y calibre este guion a ~{voiceoverMetrics.budget.targetWords} palabras exactas ({voiceoverMetrics.budget.totalMinutesLabel} min reales en VoxFlow, 100% limpio sin encabezados ni marcas de minutos/segundos) antes de generar la voz.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={aiGenerating}
+                        onClick={() =>
+                          handleSendStageToGeminiWeb(4, undefined, {
+                            overridePromptConfig: { RECALIBRATE_SCRIPT_TO_DURATION: 'SI' },
+                          })
+                        }
+                        className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow cursor-pointer shrink-0"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        {aiGenerating
+                          ? 'Calibrando guion en Gemini...'
+                          : `🎯 Ajustar Guion a ${voiceoverMetrics.budget.totalMinutesLabel} min ahora`}
+                      </button>
+                    </div>
+                  )}
 
                   <textarea
                     rows={10}

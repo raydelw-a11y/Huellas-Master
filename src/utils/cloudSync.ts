@@ -7,6 +7,8 @@ import {
   ensureOperationalHeaderInRawClips,
   getStage1ClipDurations,
   stripPauseTags,
+  cleanVoiceoverNarrationOnly,
+  computeCalibratedVoiceoverBudget,
   normalizeClip1Line1Format,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
@@ -2176,9 +2178,15 @@ Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, é
     const FIXED_OUTRO_SEC = 8;
     const effectiveVoiceEntrySec =
       introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + FIXED_INTRO_SEC : voiceEntrySec;
-    const targetChars = Math.round(
-      Math.max(10, (doc.targetDurationSeconds || 120) - FIXED_OUTRO_SEC - effectiveVoiceEntrySec) * 13.5
+    const budget = computeCalibratedVoiceoverBudget(
+      doc.targetDurationSeconds || 900,
+      effectiveVoiceEntrySec,
+      FIXED_OUTRO_SEC
     );
+    const perActWords6 = Math.max(40, Math.round(budget.targetWords / 6));
+    const isRecalibratingExisting =
+      doc.promptConfig?.RECALIBRATE_SCRIPT_TO_DURATION === 'SI' &&
+      Boolean((doc.voiceoverScript || '').trim());
     const chosenHookProp = (
       doc.promptConfig?.PROPOSICION_GANCHO ||
       doc.promptConfig?.CONTRADICCION_CENTRAL ||
@@ -2194,26 +2202,57 @@ Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, é
             chosenActsProp ? `- Escaleta y Desarrollo por Actos: ${chosenActsProp}\n` : ''
           }${chosenClimaxProp ? `- Clímax y Cierre Reflexivo: ${chosenClimaxProp}\n` : ''}`
         : '';
-    stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
+
+    if (isRecalibratingExisting) {
+      const cleanedCurrent = cleanVoiceoverNarrationOnly(doc.voiceoverScript || '');
+      const currentWords = stripPauseTags(cleanedCurrent)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+      stagePrompt = `Actúa como historiador y editor jefe de guiones documentales de "Huellas de la Humanidad".
+En la Etapa 1 este documental fue configurado para una DURACIÓN TOTAL DE ${budget.totalMinutesLabel} MINUTOS (${budget.totalDurationSec} segundos).
+Sin embargo, el borrador actual del guion tiene ${currentWords} palabras, lo que al sintetizarse en nuestro motor TTS real (Charon, 147 palabras/minuto) produce un audio muy distinto a los ${budget.totalMinutesLabel} minutos pedidos.
+
+REESCRIBE Y CALIBRA este guion histórico para que cumpla EXACTAMENTE la duración de ${budget.totalMinutesLabel} minutos:
+- PRESUPUESTO ESTRICTO E INQUEBRANTABLE DE PALABRAS: El guion completo entregado DEBE tener ENTRE ${budget.minWords} Y ${budget.maxWords} PALABRAS en total (objetivo exacto: ~${budget.targetWords} palabras, ~${budget.targetChars} caracteres; si divides la historia en 6 bloques internos, destina ~${perActWords6} palabras por bloque). PROHIBIDO superar ${budget.maxWords} palabras o quedar por debajo de ${budget.minWords} palabras.
+- Conserva intactos todos los hitos históricos principales, fechas, nombres reales, tensión dramática, micro-ganchos y rigor documental del relato original, condensando descripciones redundantes sin amputar ningún acto de la historia.
+- Conserva obligatoriamente:
+  1) La primera oración en tríada cerrada con punto ("Año [dígitos], [Lugar, Ciudad, País]. [Premisa intrigante].").
+  2) El Párrafo 2 independiente con el Slogan Completo ("En los próximos minutos... Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros.")${
+    introPlacement === 'INTRO_POST_SLOGAN' ? ' seguido inmediatamente de [pausa: 8s]' : ''
+  }.
+  3) Etiquetas de pausa estratégicas [pausa: 1.5s] o [pausa: 2s] (~${budget.estPauseSec}s de pausas en total).
+  4) El párrafo final con "Déjanos saber en los comentarios..." cerrando con "Cada historia deja una huella. Aquí seguimos sus rastros.".
+- Años siempre en dígitos, siglos y monarcas en números romanos, miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación (!).
+- FORMATO DE ENTREGA 100% LIMPIO PARA VOXFLOW (PROHIBIDO BASURA TÉCNICA): Entrega ÚNICA Y EXCLUSIVAMENTE las palabras exactas que el narrador pronunciará en voz alta (con las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO incluir encabezados ("ETAPA 4..."), títulos de bloques o capítulos, marcas de minutos y segundos como "(00:00 - 00:08...)", "(00:16...)" o "(19:52 - 20:00...)", acotaciones entre paréntesis "(Intro...)", "(Clip 1...)", "(Outro...)" ni conteos o comentarios al pie. Tu primera palabra debe ser directamente "Año ..." (o la fecha inicial) y tus últimas palabras deben ser "...Aquí seguimos sus rastros.".
+
+GUION ACTUAL A CALIBRAR A ${budget.totalMinutesLabel} MINUTOS (~${budget.targetWords} PALABRAS):
+"""
+${cleanedCurrent}
+"""`;
+    } else {
+      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
 Tipología: ${doc.typology || 'Documental Histórico'}${chosenPropositionBlock}
+Duración Total Seleccionada en Etapa 1: ${budget.totalMinutesLabel} MINUTOS (${budget.totalDurationSec} segundos)
 Definición Histórica y Calibración (Paso 1):
 ${doc.deepResearchPrompt || ''}
 Investigación Profunda (Paso 2 — Deep Research):
 ${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}
 
-Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
-- Los primeros ${effectiveVoiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.
+Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas reglas inquebrantables:
+- PRESUPUESTO ESTRICTO DE DURACIÓN Y PALABRAS (${budget.totalMinutesLabel} MINUTOS REALES EN VOXFLOW): Nuestro motor TTS (Charon) narra a 147 palabras por minuto. Descontando ${effectiveVoiceEntrySec}s iniciales sin voz, ${FIXED_OUTRO_SEC}s de Outro final y ~${budget.estPauseSec}s de etiquetas [pausa: Xs], el tiempo neto de voz hablada es ~${budget.netSpeechSec}s. Por lo tanto, TODO EL GUION COMPLETO DEBE TENER OBLIGATORIAMENTE ENTRE ${budget.minWords} Y ${budget.maxWords} PALABRAS (objetivo exacto: ~${budget.targetWords} palabras / ~${budget.targetChars} caracteres; ~${perActWords6} palabras por cada uno de los 6 bloques internos). Selecciona con maestría narrativa los hechos más potentes del dossier de investigación: QUEDA TERMINANTEMENTE PROHIBIDO superar ${budget.maxWords} palabras para que el audio jamás se dispare por encima de los ${budget.totalMinutesLabel} minutos seleccionados.
+- FORMATO 100% PURO DE VOZ NARRATIVA (CERO ENCABEZADOS NI MINUTOS/SEGUNDOS): Entrega ÚNICA Y EXCLUSIVAMENTE el texto hablado exacto que leerá el locutor (más las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO escribir títulos como "ETAPA 4: GUION DE LA VOZ EN OFF", nombres de actos/bloques, rangos o marcas de tiempo como "(00:00 - 00:08 | Intro...)", "(00:08 - 00:16 | Clip 1...)", "(00:16 | Entrada...)" o "(19:52 - 20:00 | Outro...)", acotaciones de sonido/cámara entre paréntesis ni reportes de conteo de palabras/caracteres al pie. Empieza directamente con la primera palabra hablada ("Año ...") y termina directamente con "...Aquí seguimos sus rastros.".
 - Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
 - Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
 - Si es documental largo, incluye antes del segundo 30 el Slogan Completo en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
-      introPlacement === 'INTRO_POST_SLOGAN'
-        ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
-        : ''
-    }.
-- Cierra con el lema: "Cada historia deja una huella. Aquí seguimos sus rastros."
-- Extensión aproximada calibrada: ~${targetChars} caracteres.`;
+        introPlacement === 'INTRO_POST_SLOGAN'
+          ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
+          : ''
+      }.
+- Cierra en párrafo aparte con "Déjanos saber en los comentarios..." y el lema final: "Cada historia deja una huella. Aquí seguimos sus rastros."`;
+    }
   } else if (stageNumber === 5) {
     const thumbOrientation =
       doc.thumbnailOrientation ||
@@ -3110,7 +3149,7 @@ export async function synthesizeTtsClientSide(params: {
   if (!apiKey) {
     throw new Error('Configura primero tu Gemini API Key para generar audio TTS.');
   }
-  const rawInput = (params.text || '').trim();
+  const rawInput = cleanVoiceoverNarrationOnly(params.text || '');
   const cleanText = stripPauseTags(rawInput).trim();
   if (!cleanText) {
     throw new Error('El texto del guion está vacío.');

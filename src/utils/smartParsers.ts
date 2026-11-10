@@ -450,6 +450,145 @@ export function stripPauseTags(rawText: string): string {
   return rawText.replace(re, '');
 }
 
+/**
+ * Limpia el guion de voz en off dejando EXCLUSIVAMENTE el texto narrable y las etiquetas [pausa: Xs].
+ * Elimina encabezados de etapa/bloque ("ETAPA 4: GUION..."), rangos de minutos/segundos ("(00:00 - 00:08 | Intro...)"),
+ * acotaciones técnicas ("(00:16 | Entrada exacta...)", "(19:52 - 20:00 | Outro...)", "[Párrafo 1]:", "Narrador:")
+ * y reportes finales de conteo o despedida de la IA, para que VoxFlow jamás los pronuncie.
+ */
+export function cleanVoiceoverNarrationOnly(rawText: string): string {
+  if (!rawText) return '';
+  let s = String(rawText).replace(/\r\n/g, '\n').trim();
+  s = s.replace(/^```(?:[a-zA-Z0-9_-]+)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+
+  // 1. Eliminar paréntesis con marcas MM:SS o acotaciones técnicas de edición/sonido
+  s = s.replace(
+    /\(\s*(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?[^)]*|(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Hook\s+Visual|Sin\s+voz|Entrada\s+(?:exacta\s+)?de\s+la\s+voz|Foley|SFX|Efecto\s+de\s+sonido|M[uú]sica\s+de\s+fondo|Sonido\s+(?:seco|ambiente)|Texto\s+en\s+pantalla|Fin\s+del\s+guion|Cierre\s+institucional)[^)]*)\s*\)/gi,
+    ''
+  );
+
+  // 2. Eliminar corchetes de estructura/etiquetas técnicas (preservando intactas [pausa: Xs] / [1.5s])
+  s = s.replace(
+    /\[\s*(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\||[-–—:])[^[\]]*|(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Hook\s+Visual|Sin\s+voz|Entrada\s+(?:exacta\s+)?de\s+la\s+voz|P[aá]rrafo\s+(?:\d+|final)|Slogan\s+(?:Completo|Corto)|Cierre\s+en\s+p[aá]rrafo|Foley|SFX|M[uú]sica|Texto\s+en\s+pantalla|Narrador|Voz\s+en\s+off|Locutor)[^[\]]*)\s*\]\s*:?\s*/gi,
+    ''
+  );
+
+  const outLines: string[] = [];
+  for (const rawLine of s.split('\n')) {
+    let l = rawLine.trim();
+    if (!l) continue;
+    const plain = l
+      .replace(/^#{1,6}\s+/, '')
+      .replace(/^\*+|\*+$/g, '')
+      .trim();
+
+    // Encabezados de etapa o guion
+    if (
+      /^(?:[-—*]+\s*)?(?:ETAPA\s+\d+|PASO\s+\d+[A-Z]?|GUION\s+DE\s+(?:LA\s+)?VOZ\s+EN\s+OFF|GUION\s+NARRATIVO|VOZ\s+EN\s+OFF\s+COMPLETA|LOCUCI[OÓ]N\s+DOCUMENTAL)(?:\s*[:—\-|(].*)?$/i.test(
+        plain
+      )
+    ) {
+      continue;
+    }
+    // Títulos sueltos de bloques / secciones / capítulos / actos ("Acto I:...", pero NUNCA "Acto seguido,...")
+    if (/^(?:BLOQUE|SECCI[OÓ]N|CAP[IÍ]TULO|PARTE)\s+\d+\s*(?:[:.\-—|(].*)?$/i.test(plain)) {
+      continue;
+    }
+    if (/^ACTO\s+(?:[IVXLC]+|\d+)\s*(?:[:.\-—|(].*)?$/i.test(plain)) {
+      continue;
+    }
+    if (/^[-—*_]{3,}$/.test(plain)) {
+      continue;
+    }
+    // Líneas formadas únicamente por un rango o marca de tiempo
+    if (
+      /^\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\|.*)?$/i.test(
+        plain
+      )
+    ) {
+      continue;
+    }
+    // Reportes finales de conteo / duración o preguntas de cierre de la IA
+    if (
+      /^(?:[-—*•]+\s*)?(?:Caracteres\s+Totales|Palabras\s+Totales|Conteo\s+de\s+(?:palabras|caracteres)|Extensi[oó]n\s+(?:total|estimada|aproximada|final)|Pausas\s+Narrativas\s*:|Duraci[oó]n\s+Total\s+Estimada|Tiempo\s+Neto\s+de\s+Voz|Reporte\s+al\s+pie|¿Deseas\s+(?:pasar|continuar|que\s+proceda|avanzar)|¿Est[aá]s\s+listo\s+para\s+(?:pasar|proceder)|Por\s+favor\s+confirma\s+si\s+el\s+guion)/i.test(
+        plain
+      )
+    ) {
+      continue;
+    }
+
+    l = l.replace(/^#{1,6}\s+/, '');
+    l = l.replace(
+      /^\s*(?:\*+)?(?:Narrador|Voz\s+en\s+[Oo]ff|Locutor|Audio|Voiceover)\s*(?:\*+)?\s*:\s*/i,
+      ''
+    );
+    l = l.replace(
+      /^\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—]\s*\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:\||[-–—:])\s*/,
+      ''
+    );
+    l = l
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (l) outLines.push(l);
+  }
+
+  return outLines.join('\n\n');
+}
+
+// Velocidad real medida empíricamente en Gemini 3.8 Flash TTS (Charon, español neutro documental): ~147 palabras/min (2.45 palabras/seg)
+export const CALIBRATED_TTS_WORDS_PER_MINUTE = 147;
+export const CALIBRATED_TTS_WORDS_PER_SEC = CALIBRATED_TTS_WORDS_PER_MINUTE / 60; // 2.45
+
+export function computeCalibratedVoiceoverBudget(
+  targetDurationSeconds: number,
+  effectiveVoiceEntrySec: number = 16,
+  fixedOutroSec: number = 8
+): {
+  totalDurationSec: number;
+  totalMinutesLabel: string;
+  effectiveVoiceEntrySec: number;
+  fixedOutroSec: number;
+  estPauseSec: number;
+  netSpeechSec: number;
+  targetWords: number;
+  minWords: number;
+  maxWords: number;
+  targetChars: number;
+} {
+  const totalDurationSec = Math.max(30, Number(targetDurationSeconds) || 900);
+  const totalMin = totalDurationSec / 60;
+  const totalMinutesLabel = Number.isInteger(totalMin)
+    ? `${totalMin}`
+    : totalMin.toFixed(1);
+  const estPauseSec =
+    totalDurationSec >= 300
+      ? Math.min(45, Math.max(8, Math.round(totalMin * 1.35)))
+      : Math.max(2, Math.round(totalDurationSec * 0.04));
+  const netSpeechSec = Math.max(
+    10,
+    totalDurationSec - effectiveVoiceEntrySec - fixedOutroSec - estPauseSec
+  );
+  const targetWords = Math.max(25, Math.round(netSpeechSec * CALIBRATED_TTS_WORDS_PER_SEC));
+  const minWords = Math.max(20, Math.round(targetWords * 0.92));
+  const maxWords = Math.max(30, Math.round(targetWords * 1.06));
+  const targetChars = Math.round(targetWords * 6.05);
+  return {
+    totalDurationSec,
+    totalMinutesLabel,
+    effectiveVoiceEntrySec,
+    fixedOutroSec,
+    estPauseSec,
+    netSpeechSec,
+    targetWords,
+    minWords,
+    maxWords,
+    targetChars,
+  };
+}
+
 // Sincronizar los 3 insumos de la Sección 8 (Producción):
 // 1) Voz Narrativa Raw con Pausas, 2) Voz con Timestamps, 3) Prompts de Imágenes y Clips
 export function syncAndAuditProductionClips(
