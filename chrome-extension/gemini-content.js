@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 12) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 12;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 13) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 13;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -3870,10 +3870,23 @@
           }
 
           await configureGeminiModelAndDeepResearch(true, false, false);
-          await sleep(350);
+          await sleep(450);
+
+          // Re-query inputEl AFTER model switching because Angular recreates <rich-textarea>
+          for (let i = 0; i < 20; i++) {
+            const fresh = findPromptInput();
+            if (fresh) {
+              inputEl = fresh;
+              break;
+            }
+            await sleep(250);
+          }
 
           const initialCount = getModelResponseElements().length;
           const initialLastText = (extractLatestGeminiResponse().text || '').trim();
+          const initialUserQueries = document.querySelectorAll(
+            'user-query, [data-message-author-role="user"]'
+          ).length;
 
           setInputText(inputEl, rawPrompt);
           chrome.runtime
@@ -3884,12 +3897,24 @@
             })
             .catch(() => {});
 
-          for (let attempt = 0; attempt < 14; attempt++) {
-            await sleep(attempt === 0 ? 350 : 400);
+          let hasSeenInputPopulated = false;
+          for (let attempt = 0; attempt < 16; attempt++) {
+            await sleep(attempt === 0 ? 400 : 450);
             const curCount = getModelResponseElements().length;
+            const curUserQueries = document.querySelectorAll(
+              'user-query, [data-message-author-role="user"]'
+            ).length;
             const curInput = findPromptInput() || inputEl;
             const rem = (curInput.value ?? curInput.innerText ?? curInput.textContent ?? '').trim();
-            if (isGeminiStillGenerating() || curCount > initialCount || rem.length < 5) {
+            if (rem.length >= 10) {
+              hasSeenInputPopulated = true;
+            }
+            if (
+              isGeminiStillGenerating() ||
+              curCount > initialCount ||
+              curUserQueries > initialUserQueries ||
+              (hasSeenInputPopulated && rem.length < 5)
+            ) {
               break;
             }
             let sendBtn = findSendButton();
@@ -3902,11 +3927,13 @@
                   autoSubmit: true,
                 })
                 .catch(() => {});
-              await sleep(180);
+              await sleep(220);
               sendBtn = findSendButton();
             }
             if (sendBtn) {
               try {
+                sendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                sendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                 sendBtn.click();
               } catch {}
             } else {

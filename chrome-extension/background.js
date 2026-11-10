@@ -4779,19 +4779,45 @@ async function inspectGeminiTabLatestResponse(tabId) {
         const nodes = document.querySelectorAll('model-response, [data-message-author-role="model"]');
         const count = nodes.length;
         let text = '';
+        let hasActionBar = false;
         if (count > 0) {
-          const clone = nodes[count - 1].cloneNode(true);
-          clone
-            .querySelectorAll(
-              'model-thoughts, .thoughts-container, .thoughts-content, [data-test-id*="thought" i], message-actions, .response-container-footer, .response-container-header, button'
+          const lastNode = nodes[count - 1];
+          hasActionBar = Boolean(
+            lastNode.querySelector(
+              'message-actions, .message-actions, button[aria-label*="Copiar" i], button[aria-label*="Copy" i], mat-icon[fonticon*="thumb_up" i], mat-icon[data-mat-icon-name*="thumb_up" i], mat-icon[fonticon*="content_copy" i], mat-icon[data-mat-icon-name*="content_copy" i]'
             )
-            .forEach((n) => n.remove());
-          text = (clone.innerText || clone.textContent || '').trim();
+          );
+          const msgContents = Array.from(
+            lastNode.querySelectorAll('message-content, .model-response-text')
+          ).filter(
+            (n, idx, arr) =>
+              !n.closest('model-thoughts, .thoughts-container, .thoughts-content, [data-test-id*="thought" i]') &&
+              !arr.some((other) => other !== n && other.contains(n))
+          );
+          if (msgContents.length > 0) {
+            text = msgContents
+              .map((mc) => {
+                const c = mc.cloneNode(true);
+                c.querySelectorAll(
+                  'model-thoughts, .thoughts-container, .thoughts-content, [data-test-id*="thought" i], message-actions, .message-actions, button, script, style, svg'
+                ).forEach((el) => el.remove());
+                return (c.innerText || c.textContent || '').trim();
+              })
+              .filter(Boolean)
+              .join('\n\n')
+              .replace(/^(?:Gemini said|Gemini dijo)\s*/i, '')
+              .trim();
+          }
+          // If <model-response> exists but <message-content> is still empty, Argon High is still in the thinking phase
+          if (!text && !hasActionBar) {
+            generating = true;
+          }
         }
         return {
           generating,
           count,
           text,
+          hasActionBar,
           url: window.location.href,
         };
       },
@@ -4857,47 +4883,41 @@ async function runExternalGeminiAskOrder(task) {
       tabId = createdTab.id;
     }
 
+    // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app
+    for (let w = 0; w < 25; w++) {
+      await sleep(400);
+      const tInfo = await chrome.tabs.get(tabId).catch(() => null);
+      if (tInfo && tInfo.status === 'complete' && /^https:\/\/gemini\.google\.com\/app/.test(tInfo.url || '')) {
+        break;
+      }
+    }
+    await sleep(2200);
+    await ensureScriptInjected(tabId, 'gemini-content.js');
+    await sleep(600);
+
     const orderPayload = {
       target: 'GEMINI',
       action: 'ASK_EXTERNAL_ARGON_HIGH',
       requestId: task.id,
       prompt: task.prompt,
     };
-    const key = huellasGeminiResumeKey(tabId);
-    await chrome.storage.session.set({
-      [key]: {
-        url: 'https://gemini.google.com/app',
-        createdAt: Date.now(),
-        order: orderPayload,
-      },
-    });
-
-    await sleep(4800);
-    try {
-      const st = await chrome.storage.session.get(key);
-      if (st && st[key]) {
-        await chrome.storage.session.remove(key).catch(() => {});
-        await ensureScriptInjected(tabId, 'gemini-content.js');
-        await sleep(500);
-        chrome.tabs.sendMessage(tabId, orderPayload).catch(() => {});
-      }
-    } catch {}
+    await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => {});
 
     let stableDoneTicks = 0;
     let lastText = '';
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 85; i++) {
       await sleep(2000);
       if (!pendingExternalCheckActive(task.id)) break;
       const snap = await inspectGeminiTabLatestResponse(tabId);
       if (!snap) continue;
-      if (snap.count > 0 && !snap.generating && snap.text.length > 40) {
+      if (snap.count > 0 && !snap.generating && snap.text.length > 60) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;
         } else {
           lastText = snap.text;
           stableDoneTicks = 1;
         }
-        if (stableDoneTicks >= 2) {
+        if (stableDoneTicks >= 2 || snap.hasActionBar) {
           await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
