@@ -65,6 +65,9 @@
         <button id="btnTrio" onclick="setMode('trio')" class="px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] transition">
           TRIO
         </button>
+        <button id="btnCuatro" onclick="setMode('cuatro')" class="px-2 py-0.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--muted-foreground)] transition">
+          CUATRO
+        </button>
         <button onclick="nextTurn()" class="px-2 py-0.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--foreground)] hover:opacity-80 transition">
           ⏭️
         </button>
@@ -108,6 +111,24 @@
           </div>
           <span class="text-xs font-bold text-cyan-400 leading-tight truncate max-w-full">Web Carbon</span>
           <span id="status0" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🎙️ Habla</span>
+        </div>
+
+        <div id="robotCard4" onclick="selectSpeaker(4)" style="display: none;" class="cursor-pointer flex flex-col items-center py-1 px-1 rounded-lg border border-transparent transition">
+          <div id="robotWrap4" class="robot-idle">
+            <svg width="48" height="52" viewBox="0 0 80 86">
+              <circle cx="40" cy="8" r="4.5" fill="none" stroke="#fb7185" stroke-width="2" />
+              <line x1="40" y1="12.5" x2="40" y2="16" stroke="#fb7185" stroke-width="2.5" />
+              <rect x="16" y="16" width="48" height="34" rx="10" fill="#3f1020" stroke="#fb7185" stroke-width="2.5" />
+              <rect x="22" y="22" width="36" height="14" rx="5" fill="#1f0710" />
+              <circle cx="31" cy="29" r="3.5" fill="#fda4af" />
+              <circle cx="49" cy="29" r="3.5" fill="#fda4af" />
+              <g id="mouth4" transform="translate(31, 39)"></g>
+              <rect x="22" y="53" width="36" height="22" rx="6" fill="#3f1020" stroke="#fb7185" stroke-width="2" />
+              <circle cx="40" cy="64" r="5.5" fill="#f43f5e" class="core-pulse" />
+            </svg>
+          </div>
+          <span class="text-xs font-bold text-rose-400 leading-tight truncate max-w-full">ChatGPT Web</span>
+          <span id="status4" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🌐 Contrasta</span>
         </div>
 
         <div id="robotCard1" onclick="selectSpeaker(1)" class="cursor-pointer flex flex-col items-center py-1 px-1 rounded-lg border border-transparent transition">
@@ -170,46 +191,61 @@
   </div>
 
   <script>
-    const dialogueTurns = [
-      {
+    const allDialogueTurns = {
+      0: {
         speaker: 0,
         target: 1,
         badge: '🌐 Web Carbon',
         badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
         text: '"Perspectiva externa lista desde ventana limpia fuera de Notebooks con 4 Carbon en High."',
-        statuses: ['🎙️ Habla', '👀 Oye', '🧠 Analiza', '⚡ Audita']
+        statuses: ['🎙️ Habla', '👀 Oye', '🧠 Analiza', '⚡ Audita', '🌐 Contrasta']
       },
-      {
+      4: {
+        speaker: 4,
+        target: 1,
+        badge: '🤖 ChatGPT Web',
+        badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        text: '"Segunda perspectiva web independiente desde ChatGPT lista para contrastar supuestos y arquitectura."',
+        statuses: ['✅ Listo', '👀 Recibe', '🧠 Compara', '⚡ Audita', '🎙️ Habla']
+      },
+      1: {
         speaker: 1,
         target: 2,
         badge: '🟣 Carbon High',
         badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-        text: '"Estructuro la arquitectura principal y contrasto la solución con Web Carbon y Argon High."',
-        statuses: ['✅ Listo', '🎙️ Rebate', '👀 Evalúa', '⚡ Audita']
+        text: '"Estructuro la arquitectura principal e integro las perspectivas web con Argon High y Flash."',
+        statuses: ['✅ Listo', '🎙️ Rebate', '👀 Evalúa', '⚡ Audita', '✅ Listo']
       },
-      {
+      2: {
         speaker: 2,
         target: 3,
         badge: '💎 Argon High',
         badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-        text: '"Analizando a fondo sin interrupciones y debatiendo las propuestas en Ronda 2."',
-        statuses: ['✅ Listo', '🤝 Evalúa', '🎙️ Habla', '👀 Oye']
+        text: '"Analizando a fondo sin interrupciones y debatiendo todas las propuestas en Ronda 2."',
+        statuses: ['✅ Listo', '🤝 Evalúa', '🎙️ Habla', '👀 Oye', '✅ Listo']
       },
-      {
+      3: {
         speaker: 3,
         target: 1,
         badge: '⚡ 3.8 Flash',
         badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
         text: '"¡Casos borde y líneas verificadas! Tras el debate cruzado llegamos a consenso unánime."',
-        statuses: ['✅ Consenso', '✅ Consenso', '✅ Consenso', '🎙️ Veredicto']
+        statuses: ['✅ Consenso', '✅ Consenso', '✅ Consenso', '🎙️ Veredicto', '✅ Consenso']
       }
-    ];
+    };
 
-    const xCoordsTrio = [75, 225, 375, 525];
-    const xCoordsDuo = [100, 300, 500, 300];
+    const modeTurnOrder = {
+      duo: [0, 1, 2],
+      trio: [0, 1, 2, 3],
+      cuatro: [0, 4, 1, 2, 3]
+    };
+
+    const xCoordsCuatro = [60, 300, 420, 540, 180];
+    const xCoordsTrio = [75, 225, 375, 525, 75];
+    const xCoordsDuo = [100, 300, 500, 300, 100];
     let currentTurnIndex = 0;
     let currentMode = 'trio';
-    const mouthColors = ['#22d3ee', '#c084fc', '#34d399', '#fbbf24'];
+    const mouthColors = ['#22d3ee', '#c084fc', '#34d399', '#fbbf24', '#fb7185'];
 
     function renderEqualizerHTML(color) {
       return `
@@ -225,18 +261,26 @@
     }
 
     function updateScene() {
-      const turn = dialogueTurns[currentTurnIndex];
+      const order = modeTurnOrder[currentMode] || modeTurnOrder.trio;
+      if (currentTurnIndex >= order.length) currentTurnIndex = 0;
+      const speakerId = order[currentTurnIndex];
+      const turn = allDialogueTurns[speakerId];
+      let targetId = turn.target;
+      if (currentMode === 'duo' && targetId === 3) targetId = 1;
+      if (speakerId === 0 && currentMode === 'cuatro') targetId = 4;
+
       const badgeEl = document.getElementById('speakerBadge');
       badgeEl.className = `px-2 py-0.5 rounded text-xs font-bold shrink-0 border ${turn.badgeClass}`;
       badgeEl.textContent = turn.badge;
       document.getElementById('speechText').textContent = turn.text;
-      document.getElementById('turnCounter').textContent = `Ronda ${currentTurnIndex + 1}/${currentMode === 'trio' ? 4 : 3}`;
+      document.getElementById('turnCounter').textContent = `Ronda ${currentTurnIndex + 1}/${order.length}`;
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         const wrap = document.getElementById(`robotWrap${i}`);
         const card = document.getElementById(`robotCard${i}`);
         const mouth = document.getElementById(`mouth${i}`);
         const status = document.getElementById(`status${i}`);
+        if (!wrap || !card || !mouth || !status) continue;
 
         if (i === turn.speaker) {
           wrap.className = 'robot-speaking';
@@ -252,46 +296,62 @@
         status.textContent = turn.statuses[i];
       }
 
-      const coords = currentMode === 'trio' ? xCoordsTrio : xCoordsDuo;
+      const coords = currentMode === 'cuatro' ? xCoordsCuatro : currentMode === 'trio' ? xCoordsTrio : xCoordsDuo;
       const x1 = coords[turn.speaker];
-      const x2 = coords[turn.target];
+      const x2 = coords[targetId];
       const midX = (x1 + x2) / 2;
       document.getElementById('activeBeamPath').setAttribute('d', `M ${x1} 48 Q ${midX} 10 ${x2} 48`);
     }
 
     function nextTurn() {
-      const maxTurns = currentMode === 'trio' ? 4 : 3;
-      currentTurnIndex = (currentTurnIndex + 1) % maxTurns;
+      const order = modeTurnOrder[currentMode] || modeTurnOrder.trio;
+      currentTurnIndex = (currentTurnIndex + 1) % order.length;
       updateScene();
     }
 
-    function selectSpeaker(idx) {
-      currentTurnIndex = idx;
-      updateScene();
+    function selectSpeaker(robotId) {
+      const order = modeTurnOrder[currentMode] || modeTurnOrder.trio;
+      const idx = order.indexOf(robotId);
+      if (idx >= 0) {
+        currentTurnIndex = idx;
+        updateScene();
+      }
     }
 
     function setMode(mode) {
       currentMode = mode;
       const card3 = document.getElementById('robotCard3');
+      const card4 = document.getElementById('robotCard4');
       const grid = document.getElementById('robotsGrid');
       const btnDuo = document.getElementById('btnDuo');
       const btnTrio = document.getElementById('btnTrio');
+      const btnCuatro = document.getElementById('btnCuatro');
       const title = document.getElementById('modeTitle');
+
+      const activeBtn = 'px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] transition';
+      const inactiveBtn = 'px-2 py-0.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--muted-foreground)] transition';
+
+      btnDuo.className = mode === 'duo' ? activeBtn : inactiveBtn;
+      btnTrio.className = mode === 'trio' ? activeBtn : inactiveBtn;
+      if (btnCuatro) btnCuatro.className = mode === 'cuatro' ? activeBtn : inactiveBtn;
 
       if (mode === 'duo') {
         card3.style.display = 'none';
+        card4.style.display = 'none';
         grid.className = 'relative z-10 grid grid-cols-3 gap-1 items-center';
         title.textContent = '🤝 MODO DUO — Debate en Vivo';
-        btnDuo.className = 'px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] transition';
-        btnTrio.className = 'px-2 py-0.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--muted-foreground)] transition';
-        if (currentTurnIndex >= 3) currentTurnIndex = 0;
+      } else if (mode === 'cuatro') {
+        card3.style.display = 'flex';
+        card4.style.display = 'flex';
+        grid.className = 'relative z-10 grid grid-cols-5 gap-1 items-center';
+        title.textContent = '🤝 MODO CUATRO — Debate en Vivo (Gemini + ChatGPT)';
       } else {
         card3.style.display = 'flex';
+        card4.style.display = 'none';
         grid.className = 'relative z-10 grid grid-cols-4 gap-1 items-center';
         title.textContent = '🤝 MODO TRIO — Debate en Vivo';
-        btnTrio.className = 'px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] transition';
-        btnDuo.className = 'px-2 py-0.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--muted-foreground)] transition';
       }
+      currentTurnIndex = 0;
       updateScene();
     }
 

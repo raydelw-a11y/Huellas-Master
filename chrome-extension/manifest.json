@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Huellas Master — Puente Web Gratis (Gemini, Google Flow & Flow Music)",
-  "version": "2.7.1",
-  "description": "Conecta Huellas Master con las pestañas de Gemini Web, Google Flow y Flow Music (flowmusic.app) abiertas en la misma ventana.",
+  "name": "Huellas Master — Puente Web Gratis (Gemini, ChatGPT, Google Flow & Flow Music)",
+  "version": "2.8.0",
+  "description": "Conecta Huellas Master con Gemini Web, ChatGPT Web (MODO CUATRO), Google Flow y Flow Music (flowmusic.app).",
   "permissions": [
     "tabs",
     "scripting",
@@ -12,6 +12,9 @@
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
+    "https://chatgpt.com/*",
+    "https://*.chatgpt.com/*",
+    "https://chat.openai.com/*",
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",
@@ -53,6 +56,14 @@
         "https://gemini.google.com/*"
       ],
       "js": ["gemini-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["chatgpt-content.js"],
       "run_at": "document_idle"
     },
     {

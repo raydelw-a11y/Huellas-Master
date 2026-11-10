@@ -212,15 +212,129 @@ async function ensureScriptInjected(tabId, scriptFile) {
   } catch {}
 }
 
-function isHuellasUrl(url) {
+function isStrictHuellasStudioAppUrl(url, title = '') {
   if (!url) return false;
-  return (
-    url.startsWith('http://localhost:') ||
-    url.startsWith('http://127.0.0.1:') ||
-    url.includes('.onrender.com') ||
-    url.startsWith('https://raydelw-a11y.github.io') ||
-    url.includes('huellasdelahumanidad.com')
-  );
+  const lowerUrl = String(url).toLowerCase();
+  const lowerTitle = String(title || '').toLowerCase();
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):(4200|5173)(\/|$|\?|#)/i.test(lowerUrl)) {
+    return true;
+  }
+  if (lowerUrl.startsWith('https://raydelw-a11y.github.io/huellas-master')) {
+    return true;
+  }
+  if (
+    lowerUrl.includes('.onrender.com') &&
+    (lowerUrl.includes('huellas') || lowerTitle.includes('huellas'))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isHuellasUrl(url, title = '') {
+  if (!url) return false;
+  if (isStrictHuellasStudioAppUrl(url, title)) return true;
+  return String(url).toLowerCase().includes('huellasdelahumanidad.com');
+}
+
+async function getHuellasBrowserProfilePresence() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const appTabs = tabs.filter((t) => t && t.id && isStrictHuellasStudioAppUrl(t.url, t.title));
+    appTabs.sort((a, b) => Number(Boolean(b.active)) - Number(Boolean(a.active)) || (b.id || 0) - (a.id || 0));
+    const appTab = appTabs[0] || null;
+
+    const notebookTabs = tabs.filter(
+      (t) => t && t.id && /^https:\/\/gemini\.google\.com\/(u\/\d+\/)?notebook\//i.test(t.url || '')
+    );
+    const siteTabs = tabs.filter(
+      (t) => t && t.id && String(t.url || '').toLowerCase().includes('huellasdelahumanidad.com')
+    );
+    const workspaceTab = notebookTabs[0] || siteTabs[0] || null;
+    const anchorTab = appTab || workspaceTab || null;
+
+    return {
+      hasAppWindow: Boolean(appTab),
+      hasWorkspace: Boolean(appTab || workspaceTab),
+      anchorTab,
+      anchorWindowId: anchorTab && typeof anchorTab.windowId === 'number' ? anchorTab.windowId : null,
+    };
+  } catch {
+    return {
+      hasAppWindow: false,
+      hasWorkspace: false,
+      anchorTab: null,
+      anchorWindowId: null,
+    };
+  }
+}
+
+async function createTemporaryExternalWindowInAppBrowser(targetUrl) {
+  const presence = await getHuellasBrowserProfilePresence();
+  if (!presence.hasAppWindow && !presence.hasWorkspace) {
+    throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+  }
+
+  let appWin = null;
+  if (typeof presence.anchorWindowId === 'number') {
+    appWin = await chrome.windows.get(presence.anchorWindowId).catch(() => null);
+  }
+
+  let createdWin = null;
+  if (
+    appWin &&
+    appWin.state !== 'minimized' &&
+    appWin.state !== 'fullscreen' &&
+    typeof appWin.left === 'number' &&
+    typeof appWin.top === 'number' &&
+    typeof appWin.width === 'number' &&
+    typeof appWin.height === 'number'
+  ) {
+    createdWin = await chrome.windows
+      .create({
+        url: targetUrl,
+        focused: false,
+        type: 'normal',
+        left: Math.max(0, Math.round(appWin.left + 36)),
+        top: Math.max(24, Math.round(appWin.top + 36)),
+        width: Math.min(Math.max(960, Math.round(appWin.width - 72)), 1320),
+        height: Math.min(Math.max(700, Math.round(appWin.height - 60)), 940),
+      })
+      .catch(() => null);
+  }
+
+  if (!createdWin) {
+    createdWin = await chrome.windows
+      .create({
+        url: targetUrl,
+        focused: false,
+        type: 'normal',
+      })
+      .catch(() => null);
+  }
+
+  let createdWindowId = null;
+  let tabId = null;
+  if (createdWin && createdWin.id) {
+    createdWindowId = createdWin.id;
+    if (Array.isArray(createdWin.tabs) && createdWin.tabs[0] && createdWin.tabs[0].id) {
+      tabId = createdWin.tabs[0].id;
+    } else {
+      const winTabs = await chrome.tabs.query({ windowId: createdWin.id }).catch(() => []);
+      if (winTabs[0] && winTabs[0].id) tabId = winTabs[0].id;
+    }
+  }
+
+  if (!tabId) {
+    const createdTab = await chrome.tabs.create({
+      url: targetUrl,
+      active: false,
+      ...(typeof presence.anchorWindowId === 'number' ? { windowId: presence.anchorWindowId } : {}),
+    });
+    tabId = createdTab.id;
+  }
+
+  return { createdWindowId, tabId, anchorWindowId: presence.anchorWindowId, hasAppWindow: presence.hasAppWindow };
 }
 
 (async function initExistingHuellasTabsOnce() {
@@ -4838,6 +4952,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === 'EXTERNAL_CHATGPT_ASK_RESULT') {
+    (async () => {
+      await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      }).catch(() => {});
+      await cleanupActiveExternalAskWindow(message.requestId, sender?.tab?.windowId, sender?.tab?.id);
+    })();
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'CHATGPT_MAIN_WORLD_INJECT_AND_SUBMIT' && sender?.tab?.id) {
+    const tabId = sender.tab.id;
+    const rawPrompt = String(message.prompt || '');
+    (async () => {
+      const ok = await forceSubmitPromptInChatGptTab(tabId, rawPrompt);
+      sendResponse({ ok });
+    })();
+    return true;
+  }
+
   if (message.type === 'REMOTE_RENAME_COMPLETED') {
     fetch('http://localhost:4200/api/system/confirm-remote-rename', {
       method: 'POST',
@@ -4994,6 +5131,9 @@ async function runPendingGeminiCommandOrder(cmd) {
       null;
   }
   if (!targetTab || !targetTab.id) {
+    const initialUrl = targetChatId
+      ? `https://gemini.google.com/app/${targetChatId}`
+      : 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
     targetTab = await chrome.tabs.create({
       url: initialUrl,
       active: false,
@@ -5026,9 +5166,6 @@ async function runPendingGeminiCommandOrder(cmd) {
           startedAt: Date.now(),
         },
       })
-    const initialUrl = targetChatId
-      ? `https://gemini.google.com/app/${targetChatId}`
-      : 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
       .catch(() => {});
   }
   await ensureScriptInjected(tabId, 'gemini-content.js');
@@ -5058,6 +5195,8 @@ async function forwardRemoteStageResultIfAny(message, sender) {
     remoteCommandId: info.commandId,
     docId: info.docId,
     stageNumber: message.stageNumber || info.stageNumber,
+    isDeepResearch: Boolean(info.isDeepResearch),
+    replacesDeletedChat: Boolean(info.replacesDeletedChat),
     text: message.text || '',
     chatUrl: sender?.tab?.url || '',
   });
@@ -5081,8 +5220,6 @@ async function forwardRemoteStageResultIfAny(message, sender) {
 
 async function inspectGeminiTabLatestResponse(tabId) {
   try {
-    isDeepResearch: Boolean(info.isDeepResearch),
-    replacesDeletedChat: Boolean(info.replacesDeletedChat),
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => {
@@ -5497,37 +5634,21 @@ async function runExternalGeminiAskOrder(task) {
   let createdWindowId = null;
   let tabId = null;
   try {
-    const createdWin = await chrome.windows
-      .create({
-        url: 'https://gemini.google.com/app',
-        focused: false,
-        type: 'normal',
-      })
-      .catch(() => null);
-
-    if (createdWin && createdWin.id) {
-      createdWindowId = createdWin.id;
-      if (Array.isArray(createdWin.tabs) && createdWin.tabs[0] && createdWin.tabs[0].id) {
-        tabId = createdWin.tabs[0].id;
-      } else {
-        const winTabs = await chrome.tabs.query({ windowId: createdWin.id });
-        if (winTabs[0] && winTabs[0].id) tabId = winTabs[0].id;
-      }
-    }
-
-    if (!tabId) {
-      const createdTab = await chrome.tabs.create({
-        url: 'https://gemini.google.com/app',
-        active: false,
-      });
-      tabId = createdTab.id;
-    }
+    const opened = await createTemporaryExternalWindowInAppBrowser('https://gemini.google.com/app');
+    createdWindowId = opened.createdWindowId;
+    tabId = opened.tabId;
 
     await registerActiveExternalAskWindow(task.id, createdWindowId, tabId);
     fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: task.id, windowId: createdWindowId, tabId }),
+      body: JSON.stringify({
+        id: task.id,
+        windowId: createdWindowId,
+        tabId,
+        hasAppWindow: opened.hasAppWindow,
+        hasWorkspace: true,
+      }),
     }).catch(() => {});
 
     // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app AND mounts the composer
@@ -5641,25 +5762,537 @@ function pendingExternalCheckActive(_id) {
   return true;
 }
 
+async function inspectChatGptTabLatestResponse(tabId) {
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const isVis = (el) => {
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const url = window.location.href || '';
+        let blockReason = '';
+        if (/\/auth\/login|auth0\.openai\.com|auth\.openai\.com/i.test(url)) {
+          blockReason = 'ChatGPT Web requiere iniciar sesión en Google Chrome (https://chatgpt.com/).';
+        } else if (
+          document.querySelector(
+            'iframe[src*="challenges.cloudflare.com" i], iframe[src*="turnstile" i], #challenge-running, #cf-challenge-running, [data-testid*="captcha" i]'
+          )
+        ) {
+          blockReason =
+            'ChatGPT Web mostró una verificación de seguridad en el navegador. Complétala manualmente o usa el prompt copiable.';
+        }
+
+        const composerSelectors = [
+          '#prompt-textarea[contenteditable="true"]',
+          'div#prompt-textarea',
+          'textarea#prompt-textarea',
+          'div.ProseMirror[contenteditable="true"]',
+          '[data-testid="composer-text-input"] [contenteditable="true"]',
+          'form textarea[placeholder]',
+        ];
+        let composer = null;
+        for (const s of composerSelectors) {
+          const el = document.querySelector(s);
+          if (isVis(el)) {
+            composer = el;
+            break;
+          }
+        }
+
+        if (!blockReason && !composer) {
+          const loginBtn = Array.from(document.querySelectorAll('button, a')).find((el) => {
+            if (!isVis(el)) return false;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            const testId = el.getAttribute('data-testid') || '';
+            return (
+              testId === 'login-button' ||
+              testId === 'welcome-login-button' ||
+              /^(log\s*in|iniciar\s+sesi[oó]n)$/i.test(t)
+            );
+          });
+          if (loginBtn) {
+            blockReason =
+              'No hay sesión iniciada en ChatGPT Web en Chrome. Inicia sesión en https://chatgpt.com/ e inténtalo de nuevo.';
+          }
+        }
+
+        const stopSelectors = [
+          'button[data-testid="stop-button"]',
+          'button[aria-label*="Stop streaming" i]',
+          'button[aria-label*="Stop generating" i]',
+          'button[aria-label*="Detener" i]',
+        ];
+        let generating = false;
+        for (const s of stopSelectors) {
+          if (isVis(document.querySelector(s))) {
+            generating = true;
+            break;
+          }
+        }
+        if (!generating && document.querySelector('.result-streaming, [data-is-streaming="true"]')) {
+          generating = true;
+        }
+
+        let verifiedModel = 'ChatGPT Web';
+        const modelBtn =
+          document.querySelector('button[data-testid="model-switcher-dropdown-button"]') ||
+          document.querySelector('[data-testid="model-switcher-dropdown-button"]');
+        if (isVis(modelBtn)) {
+          const txt = (modelBtn.innerText || modelBtn.textContent || '').replace(/\s+/g, ' ').trim();
+          if (txt) verifiedModel = txt;
+        }
+
+        const nodes = Array.from(
+          document.querySelectorAll(
+            '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
+          )
+        ).filter((el, idx, arr) => arr.indexOf(el) === idx);
+
+        let text = '';
+        if (nodes.length > 0) {
+          const lastNode = nodes[nodes.length - 1];
+          const markdownBlocks = Array.from(lastNode.querySelectorAll('.markdown, .prose')).filter(
+            (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
+          );
+          if (markdownBlocks.length > 0) {
+            text = markdownBlocks
+              .map((b) => {
+                const clone = b.cloneNode(true);
+                clone
+                  .querySelectorAll('button, [role="button"], .copy-code-button, [data-testid*="copy" i]')
+                  .forEach((el) => el.remove());
+                return (clone.innerText || clone.textContent || '').trim();
+              })
+              .filter(Boolean)
+              .join('\n\n')
+              .trim();
+          } else {
+            const clone = lastNode.cloneNode(true);
+            clone
+              .querySelectorAll('button, [role="button"], [data-testid*="thought" i]')
+              .forEach((el) => el.remove());
+            text = (clone.innerText || clone.textContent || '').trim();
+          }
+        }
+
+        return {
+          url,
+          blockReason,
+          hasComposer: Boolean(composer),
+          userQueries: document.querySelectorAll('[data-message-author-role="user"]').length,
+          generating,
+          verifiedModel,
+          count: nodes.length,
+          text,
+        };
+      },
+    });
+    return (res && res[0] && res[0].result) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function forceSubmitPromptInChatGptTab(tabId, promptText) {
+  try {
+    const mainRes = await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        args: [String(promptText || '')],
+        func: (rawText) => {
+          const isVis = (el) => {
+            if (!el) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const composerSelectors = [
+            '#prompt-textarea[contenteditable="true"]',
+            'div#prompt-textarea',
+            'textarea#prompt-textarea',
+            'div.ProseMirror[contenteditable="true"]',
+            '[data-testid="composer-text-input"] [contenteditable="true"]',
+            'form textarea[placeholder]',
+          ];
+          let inputEl = null;
+          for (const s of composerSelectors) {
+            const el = document.querySelector(s);
+            if (isVis(el)) {
+              inputEl = el;
+              break;
+            }
+          }
+          if (!inputEl) return { ok: false };
+          inputEl.focus();
+
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            const setter = Object.getOwnPropertyDescriptor(
+              window.HTMLTextAreaElement.prototype,
+              'value'
+            )?.set;
+            if (setter) setter.call(inputEl, rawText);
+            else inputEl.value = rawText;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            try {
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(inputEl);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('insertText', false, rawText);
+            } catch {}
+            const cur = (inputEl.innerText || inputEl.textContent || '').trim();
+            if (!cur || cur.length < Math.min(10, rawText.length)) {
+              inputEl.innerHTML = '';
+              const p = document.createElement('p');
+              p.textContent = rawText;
+              inputEl.appendChild(p);
+            }
+            inputEl.dispatchEvent(
+              new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+            );
+          }
+
+          const findSend = () => {
+            const sels = [
+              'button[data-testid="send-button"]',
+              'button[aria-label*="Send prompt" i]',
+              'button[aria-label*="Enviar mensaje" i]',
+              'button[aria-label*="Enviar prompt" i]',
+              'button[aria-label="Send" i]',
+              'form button[type="submit"]',
+            ];
+            for (const s of sels) {
+              const b = document.querySelector(s);
+              if (b && isVis(b) && !b.disabled && b.getAttribute('aria-disabled') !== 'true') return b;
+            }
+            return null;
+          };
+
+          const sendBtn = findSend();
+          if (sendBtn) {
+            sendBtn.click();
+          } else {
+            setTimeout(() => {
+              const delayedBtn = findSend();
+              if (delayedBtn) delayedBtn.click();
+            }, 120);
+          }
+
+          const r = inputEl.getBoundingClientRect();
+          const sb = sendBtn ? sendBtn.getBoundingClientRect() : null;
+          return {
+            ok: true,
+            inputX: Math.round(r.left + Math.min(80, Math.max(12, r.width / 3))),
+            inputY: Math.round(r.top + Math.max(10, r.height / 2)),
+            sendX: sb ? Math.round(sb.left + sb.width / 2) : 0,
+            sendY: sb ? Math.round(sb.top + sb.height / 2) : 0,
+          };
+        },
+      })
+      .catch(() => null);
+
+    await sleep(650);
+    const snapAfterMain = await inspectChatGptTabLatestResponse(tabId);
+    if (
+      snapAfterMain &&
+      (snapAfterMain.userQueries > 0 || snapAfterMain.count > 0 || snapAfterMain.generating)
+    ) {
+      return true;
+    }
+
+    // Hardware CDP fallback for unfocused background windows
+    const coords = (mainRes && mainRes[0] && mainRes[0].result) || null;
+    const target = { tabId };
+    let attached = false;
+    try {
+      await chrome.debugger.attach(target, '1.3');
+      attached = true;
+    } catch {
+      try {
+        await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+        attached = true;
+      } catch {}
+    }
+    if (attached) {
+      try {
+        await sleep(200);
+        if (coords && coords.inputX > 0 && coords.inputY > 0) {
+          await dispatchHardwareClick(target, coords.inputX, coords.inputY).catch(() => {});
+          await sleep(120);
+        }
+        await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const el =
+                document.querySelector('#prompt-textarea[contenteditable="true"]') ||
+                document.querySelector('div#prompt-textarea') ||
+                document.querySelector('textarea#prompt-textarea') ||
+                document.querySelector('div.ProseMirror[contenteditable="true"]');
+              if (!el) return;
+              el.focus();
+              if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                el.value = '';
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              } else {
+                try {
+                  const sel = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(el);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  document.execCommand('delete', false);
+                } catch {}
+              }
+            },
+          })
+          .catch(() => {});
+        await sleep(80);
+        await chrome.debugger
+          .sendCommand(target, 'Input.insertText', { text: String(promptText || '') })
+          .catch(() => {});
+        await sleep(280);
+
+        const btnCoordsRes = await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const sels = [
+                'button[data-testid="send-button"]',
+                'button[aria-label*="Send prompt" i]',
+                'button[aria-label*="Enviar mensaje" i]',
+                'form button[type="submit"]',
+              ];
+              for (const s of sels) {
+                const b = document.querySelector(s);
+                if (b && !b.disabled && b.getAttribute('aria-disabled') !== 'true') {
+                  const r = b.getBoundingClientRect();
+                  if (r.width > 0 && r.height > 0) {
+                    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+                  }
+                }
+              }
+              return null;
+            },
+          })
+          .catch(() => null);
+        const btnCoords = (btnCoordsRes && btnCoordsRes[0] && btnCoordsRes[0].result) || null;
+        if (btnCoords && btnCoords.x > 0 && btnCoords.y > 0) {
+          await dispatchHardwareClick(target, btnCoords.x, btnCoords.y).catch(() => {});
+        } else {
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', {
+              type: 'rawKeyDown',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+              text: '\r',
+              unmodifiedText: '\r',
+            })
+            .catch(() => {});
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', {
+              type: 'keyUp',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+            })
+            .catch(() => {});
+        }
+        await sleep(450);
+      } finally {
+        await chrome.debugger.detach(target).catch(() => {});
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runExternalChatGptAskOrder(task) {
+  if (!task || !task.id || !task.prompt) return;
+  activeExternalAskCount += 1;
+  let createdWindowId = null;
+  let tabId = null;
+  try {
+    const opened = await createTemporaryExternalWindowInAppBrowser('https://chatgpt.com/');
+    createdWindowId = opened.createdWindowId;
+    tabId = opened.tabId;
+
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId);
+    fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: task.id,
+        windowId: createdWindowId,
+        tabId,
+        hasAppWindow: opened.hasAppWindow,
+        hasWorkspace: true,
+      }),
+    }).catch(() => {});
+
+    for (let w = 0; w < 35; w++) {
+      await sleep(400);
+      const tInfo = await chrome.tabs.get(tabId).catch(() => null);
+      if (tInfo && tInfo.status === 'complete' && /^https:\/\/(chatgpt\.com|chat\.openai\.com)/i.test(tInfo.url || '')) {
+        const snapReady = await inspectChatGptTabLatestResponse(tabId);
+        if (snapReady && snapReady.blockReason && w >= 4) {
+          await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              error: snapReady.blockReason,
+            }),
+          }).catch(() => {});
+          return;
+        }
+        if (snapReady && snapReady.hasComposer) {
+          break;
+        }
+      }
+    }
+    await sleep(500);
+
+    const checkBlock = await inspectChatGptTabLatestResponse(tabId);
+    if (checkBlock && checkBlock.blockReason) {
+      await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: task.id,
+          ok: false,
+          error: checkBlock.blockReason,
+        }),
+      }).catch(() => {});
+      return;
+    }
+
+    const orderPayload = {
+      target: 'CHATGPT',
+      action: 'ASK_EXTERNAL_CHATGPT',
+      requestId: task.id,
+      prompt: task.prompt,
+    };
+    let deliveredAck = false;
+    for (let tryIdx = 0; tryIdx < 8; tryIdx++) {
+      await ensureScriptInjected(tabId, 'chatgpt-content.js');
+      await sleep(350);
+      const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
+      if (ack && ack.handled) {
+        deliveredAck = true;
+        break;
+      }
+      await sleep(400);
+    }
+
+    if (!deliveredAck) {
+      await forceSubmitPromptInChatGptTab(tabId, task.prompt);
+    }
+
+    let stableDoneTicks = 0;
+    let lastText = '';
+    for (let i = 0; i < 150; i++) {
+      await sleep(2000);
+      if (!pendingExternalCheckActive(task.id)) break;
+      const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tStillExists) break;
+      const snap = await inspectChatGptTabLatestResponse(tabId);
+      if (!snap) continue;
+      if (snap.blockReason) {
+        await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            error: snap.blockReason,
+          }),
+        }).catch(() => {});
+        return;
+      }
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+        await forceSubmitPromptInChatGptTab(tabId, task.prompt);
+        continue;
+      }
+      if (snap.count > 0 && !snap.generating && snap.text.trim().length > 2) {
+        if (snap.text === lastText) {
+          stableDoneTicks += 1;
+        } else {
+          lastText = snap.text;
+          stableDoneTicks = 1;
+        }
+        if (stableDoneTicks >= 3) {
+          await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: true,
+              verifiedModel: snap.verifiedModel || 'ChatGPT Web',
+              response: snap.text,
+              chatUrl: snap.url,
+            }),
+          }).catch(() => {});
+          return;
+        }
+      } else {
+        lastText = snap.text || '';
+        stableDoneTicks = 0;
+      }
+    }
+  } finally {
+    activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId);
+  }
+}
+
 async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
   if (isCheckingExtFingerprint) return;
   isCheckingExtFingerprint = true;
   try {
-    const res = await fetch(
-      `http://localhost:4200/api/extension/fingerprint${isStartup ? '?ack=1' : ''}`,
-      { cache: 'no-store' }
-    );
+    const presence = await getHuellasBrowserProfilePresence();
+    const qs = `?hasAppWindow=${presence.hasAppWindow ? '1' : '0'}&hasWorkspace=${
+      presence.hasWorkspace ? '1' : '0'
+    }${isStartup ? '&ack=1' : ''}`;
+    const res = await fetch(`http://localhost:4200/api/extension/fingerprint${qs}`, {
+      cache: 'no-store',
+    });
     if (!res.ok) return;
     const data = await res.json();
+    const canClaimInThisBrowser =
+      presence.hasAppWindow || (presence.hasWorkspace && Boolean(data?.allowWorkspaceFallback));
 
-    if (Array.isArray(data?.pendingGeminiCommands) && data.pendingGeminiCommands.length > 0) {
+    if (
+      canClaimInThisBrowser &&
+      Array.isArray(data?.pendingGeminiCommands) &&
+      data.pendingGeminiCommands.length > 0
+    ) {
       for (const cmd of data.pendingGeminiCommands) {
         if (!cmd || !cmd.commandId || claimedGeminiCommandIds.has(cmd.commandId)) continue;
         claimedGeminiCommandIds.add(cmd.commandId);
         fetch('http://localhost:4200/api/extension/claim-gemini-command', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commandId: cmd.commandId }),
+          body: JSON.stringify({
+            commandId: cmd.commandId,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
         }).catch(() => {});
         runPendingGeminiCommandOrder(cmd).catch((err) => {
           console.warn('[Huellas Bridge] Error ejecutando comando remoto en Gemini:', err);
@@ -5668,28 +6301,75 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
     }
 
     if (
+      canClaimInThisBrowser &&
       data?.pendingExternalGeminiAsk &&
       data.pendingExternalGeminiAsk.id &&
       !claimedExternalAskIds.has(data.pendingExternalGeminiAsk.id)
     ) {
       const task = data.pendingExternalGeminiAsk;
       claimedExternalAskIds.add(task.id);
-      fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
+      const claimRes = await fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: task.id }),
-      }).catch(() => {});
-      runExternalGeminiAskOrder(task).catch((err) => {
-        fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requestId: task.id,
-            ok: false,
-            error: String(err?.message || err),
-          }),
-        }).catch(() => {});
-      });
+        body: JSON.stringify({
+          id: task.id,
+          hasAppWindow: presence.hasAppWindow,
+          hasWorkspace: presence.hasWorkspace,
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => null);
+      if (claimRes && claimRes.ok) {
+        runExternalGeminiAskOrder(task).catch((err) => {
+          fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              error: String(err?.message || err),
+            }),
+          }).catch(() => {});
+        });
+      } else {
+        claimedExternalAskIds.delete(task.id);
+      }
+    }
+
+    if (
+      canClaimInThisBrowser &&
+      data?.pendingExternalChatGptAsk &&
+      data.pendingExternalChatGptAsk.id &&
+      !claimedExternalAskIds.has(data.pendingExternalChatGptAsk.id)
+    ) {
+      const chatGptTask = data.pendingExternalChatGptAsk;
+      claimedExternalAskIds.add(chatGptTask.id);
+      const claimRes = await fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: chatGptTask.id,
+          hasAppWindow: presence.hasAppWindow,
+          hasWorkspace: presence.hasWorkspace,
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => null);
+      if (claimRes && claimRes.ok) {
+        runExternalChatGptAskOrder(chatGptTask).catch((err) => {
+          fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: chatGptTask.id,
+              ok: false,
+              error: String(err?.message || err),
+            }),
+          }).catch(() => {});
+        });
+      } else {
+        claimedExternalAskIds.delete(chatGptTask.id);
+      }
     }
 
     // Sweep any orphaned temporary Gemini windows whose server-side ask-external request already finished, timed out, or restarted
@@ -5752,58 +6432,6 @@ setInterval(() => {
 // The content script dies when the page reloads; the order is kept in chrome.storage.session
 // and re-sent once the Gemini tab finishes loading the notebook/chat URL.
 // ============================================================================
-function huellasGeminiResumeKey(tabId) {
-  return `huellasGeminiResume_${tabId}`;
-}
-
-async function resumeGeminiOrderIfPending(tabId, tabUrl) {
-  const key = huellasGeminiResumeKey(tabId);
-  let pending = null;
-  try {
-    const st = await chrome.storage.session.get(key);
-    pending = st && st[key];
-  } catch {}
-  if (!pending || !pending.order) return;
-  const normalizeGeminiPath = (u) =>
-    String(u || '')
-      .replace(/^https:\/\/gemini\.google\.com/, '')
-      .split(/[?#]/)[0]
-      .replace(/^\/u\/\d+(?=\/)/, '')
-      .replace(/\/$/, '');
-  const wantPath = normalizeGeminiPath(pending.url);
-  const gotPath = normalizeGeminiPath(tabUrl);
-  if (Date.now() - (pending.createdAt || 0) > 120000) {
-    await chrome.storage.session.remove(key).catch(() => {});
-    return;
-  }
-  const redirectedFromDeletedAppChat =
-    /^\/app\/[a-zA-Z0-9_-]{6,}$/i.test(wantPath) &&
-    (gotPath === '/app' || /^\/notebook\//i.test(gotPath)) &&
-    Date.now() - (pending.createdAt || 0) > 1200;
-  if (!wantPath || (wantPath !== gotPath && !redirectedFromDeletedAppChat)) return;
-  await chrome.storage.session.remove(key).catch(() => {});
-  await sleep(2200);
-  await ensureScriptInjected(tabId, 'gemini-content.js');
-  await sleep(500);
-  const resumedOrder = redirectedFromDeletedAppChat
-    ? {
-        ...pending.order,
-        __directChatNotFound: true,
-        replacesDeletedChat: true,
-        ...(pending.order.enableDeepResearch
-          ? { geminiDeepResearchChatUrl: '' }
-          : { geminiChatUrl: '' }),
-      }
-    : pending.order;
-  chrome.tabs.sendMessage(tabId, { ...resumedOrder, target: 'GEMINI' }).catch(() => {});
-}
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') return;
-  const url = (tab && tab.url) || '';
-  if (!/^https:\/\/gemini\.google\.com\//.test(url)) return;
-  resumeGeminiOrderIfPending(tabId, url).catch(() => {});
-});
 function extractGeminiAppChatId(url = '') {
   const m = String(url || '').match(/gemini\.google\.com\/(?:u\/\d+\/)?app\/([a-zA-Z0-9_-]{6,})/i);
   return m ? m[1] : '';
@@ -6019,3 +6647,55 @@ async function prePositionGeminiTabForOrder(targetTab, payload) {
   };
 }
 
+function huellasGeminiResumeKey(tabId) {
+  return `huellasGeminiResume_${tabId}`;
+}
+
+async function resumeGeminiOrderIfPending(tabId, tabUrl) {
+  const key = huellasGeminiResumeKey(tabId);
+  let pending = null;
+  try {
+    const st = await chrome.storage.session.get(key);
+    pending = st && st[key];
+  } catch {}
+  if (!pending || !pending.order) return;
+  const normalizeGeminiPath = (u) =>
+    String(u || '')
+      .replace(/^https:\/\/gemini\.google\.com/, '')
+      .split(/[?#]/)[0]
+      .replace(/^\/u\/\d+(?=\/)/, '')
+      .replace(/\/$/, '');
+  const wantPath = normalizeGeminiPath(pending.url);
+  const gotPath = normalizeGeminiPath(tabUrl);
+  if (Date.now() - (pending.createdAt || 0) > 120000) {
+    await chrome.storage.session.remove(key).catch(() => {});
+    return;
+  }
+  const redirectedFromDeletedAppChat =
+    /^\/app\/[a-zA-Z0-9_-]{6,}$/i.test(wantPath) &&
+    (gotPath === '/app' || /^\/notebook\//i.test(gotPath)) &&
+    Date.now() - (pending.createdAt || 0) > 1200;
+  if (!wantPath || (wantPath !== gotPath && !redirectedFromDeletedAppChat)) return;
+  await chrome.storage.session.remove(key).catch(() => {});
+  await sleep(2200);
+  await ensureScriptInjected(tabId, 'gemini-content.js');
+  await sleep(500);
+  const resumedOrder = redirectedFromDeletedAppChat
+    ? {
+        ...pending.order,
+        __directChatNotFound: true,
+        replacesDeletedChat: true,
+        ...(pending.order.enableDeepResearch
+          ? { geminiDeepResearchChatUrl: '' }
+          : { geminiChatUrl: '' }),
+      }
+    : pending.order;
+  chrome.tabs.sendMessage(tabId, { ...resumedOrder, target: 'GEMINI' }).catch(() => {});
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
+  const url = (tab && tab.url) || '';
+  if (!/^https:\/\/gemini\.google\.com\//.test(url)) return;
+  resumeGeminiOrderIfPending(tabId, url).catch(() => {});
+});

@@ -13054,6 +13054,75 @@ interface PendingExternalGeminiAsk {
 }
 
 const pendingExternalGeminiAsks = new Map<string, PendingExternalGeminiAsk>();
+const pendingExternalChatGptAsks = new Map<string, PendingExternalGeminiAsk>();
+let lastHuellasAppWindowPollAt = 0;
+
+function runAppleScriptInRunningChromiumBrowsers(buildScriptForBrowser: (browserApp: string) => string) {
+  if (process.platform !== 'darwin') return;
+  const candidateBrowsers = [
+    'Google Chrome',
+    'Brave Browser',
+    'Microsoft Edge',
+    'Google Chrome Canary',
+    'Chromium',
+  ];
+  execFile(
+    'osascript',
+    ['-e', 'tell application "System Events" to get name of every process whose background only is false'],
+    (_err, stdout) => {
+      const runningText = String(stdout || '');
+      const activeBrowsers = candidateBrowsers.filter((b) => runningText.includes(b));
+      const targets = activeBrowsers.length > 0 ? activeBrowsers : ['Google Chrome'];
+      const tryNext = (idx: number, pass: 1 | 2) => {
+        if (idx >= targets.length) {
+          if (pass === 1) tryNext(0, 2);
+          return;
+        }
+        const browserApp = targets[idx];
+        const script = buildScriptForBrowser(browserApp).replace(/__PASS_MODE__/g, String(pass));
+        execFile('osascript', ['-e', script], (_e, out) => {
+          if (String(out || '').trim() === 'MATCHED') return;
+          tryNext(idx + 1, pass);
+        });
+      };
+      tryNext(0, 1);
+    }
+  );
+}
+
+function wakeExtensionInHuellasAppBrowser() {
+  runAppleScriptInRunningChromiumBrowsers(
+    (browserApp) => `tell application "${browserApp}"
+      repeat with w in windows
+        set matchedWin to false
+        set detectedExtId to "kbfeckjlcogkccfplkmgenalgnmojclf"
+        repeat with t in tabs of w
+          set u to URL of t
+          if u starts with "chrome://extensions/?id=" then
+            set tid to text 25 thru -1 of u
+            if (length of tid) ≥ 32 then
+              set detectedExtId to text 1 thru 32 of tid
+            end if
+          end if
+          if __PASS_MODE__ is 1 then
+            if (u starts with "http://localhost:4200") or (u starts with "http://127.0.0.1:4200") or (u starts with "http://localhost:5173") or (u starts with "http://127.0.0.1:5173") or (u contains "raydelw-a11y.github.io/Huellas-Master") or (u contains "raydelw-a11y.github.io/huellas-master") or ((u contains ".onrender.com") and (u contains "huellas")) then
+              set matchedWin to true
+            end if
+          else
+            if (u starts with "https://gemini.google.com/notebook/") or (u contains "huellasdelahumanidad.com") then
+              set matchedWin to true
+            end if
+          end if
+        end repeat
+        if matchedWin then
+          make new tab at end of tabs of w with properties {URL:"chrome-extension://" & detectedExtId & "/reloader.html?wake=1"}
+          return "MATCHED"
+        end if
+      end repeat
+      return "NO_MATCH"
+    end tell`
+  );
+}
 
 function closeTemporaryGeminiWindowFailsafe(opts: {
   windowId?: number | null;
@@ -13070,52 +13139,110 @@ function closeTemporaryGeminiWindowFailsafe(opts: {
 
   // Give chrome.windows.remove() 850ms to close it cleanly first; if still open (e.g. extension reloaded/slept), close ONLY that 1-tab /app window
   setTimeout(() => {
-    const script = `tell application "Google Chrome"
-      repeat with w in windows
-        if (count of tabs of w) is 1 then
-          set t1 to tab 1 of w
-          set u1 to URL of t1
-          if u1 starts with "https://gemini.google.com/app" and u1 does not contain "/notebook/" then
-            if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
-              close w
-              exit repeat
+    runAppleScriptInRunningChromiumBrowsers(
+      (browserApp) => `tell application "${browserApp}"
+        repeat with w in windows
+          if (count of tabs of w) is 1 then
+            set t1 to tab 1 of w
+            set u1 to URL of t1
+            if u1 starts with "https://gemini.google.com/app" and u1 does not contain "/notebook/" then
+              if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
+                close w
+                return "MATCHED"
+              end if
             end if
           end if
-        end if
-      end repeat
-    end tell`;
-    execFile('osascript', ['-e', script], () => {});
+        end repeat
+        return "NO_MATCH"
+      end tell`
+    );
+  }, 850);
+}
+
+function closeTemporaryChatGptWindowFailsafe(opts: {
+  windowId?: number | null;
+  tabId?: number | null;
+  chatUrl?: string;
+}) {
+  if (process.platform !== 'darwin') return;
+  const winIdNum = Number(opts.windowId) || 0;
+  const tabIdNum = Number(opts.tabId) || 0;
+  const cleanChatUrl = String(opts.chatUrl || '')
+    .trim()
+    .replace(/["'\\]/g, '');
+  if (!winIdNum && !tabIdNum && !cleanChatUrl) return;
+
+  setTimeout(() => {
+    runAppleScriptInRunningChromiumBrowsers(
+      (browserApp) => `tell application "${browserApp}"
+        repeat with w in windows
+          if (count of tabs of w) is 1 then
+            set t1 to tab 1 of w
+            set u1 to URL of t1
+            if u1 starts with "https://chatgpt.com" or u1 starts with "https://chat.openai.com" then
+              if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
+                close w
+                return "MATCHED"
+              end if
+            end if
+          end if
+        end repeat
+        return "NO_MATCH"
+      end tell`
+    );
   }, 850);
 }
 
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
-  if (req.query.ack === '1') {
-    lastExtensionAckAt = Date.now();
+  const now = Date.now();
+  const hasAppWindow = req.query.hasAppWindow === '1';
+  const hasWorkspace = req.query.hasWorkspace === '1';
+  if (hasAppWindow) {
+    lastHuellasAppWindowPollAt = now;
+  }
+  const allowWorkspaceFallback = now - lastHuellasAppWindowPollAt > 15000;
+  const canDeliverOrdersToCaller = hasAppWindow || (allowWorkspaceFallback && hasWorkspace);
+
+  if (req.query.ack === '1' && (canDeliverOrdersToCaller || req.query.hasAppWindow === undefined)) {
+    lastExtensionAckAt = now;
     lastExtensionAckFingerprint = fp;
   }
   let nextExternalAsk: { id: string; prompt: string } | null = null;
-  for (const item of pendingExternalGeminiAsks.values()) {
-    if (!item.claimed) {
-      nextExternalAsk = { id: item.id, prompt: item.prompt };
-      break;
+  let nextExternalChatGptAsk: { id: string; prompt: string } | null = null;
+  if (canDeliverOrdersToCaller) {
+    for (const item of pendingExternalGeminiAsks.values()) {
+      if (!item.claimed) {
+        nextExternalAsk = { id: item.id, prompt: item.prompt };
+        break;
+      }
+    }
+    for (const item of pendingExternalChatGptAsks.values()) {
+      if (!item.claimed) {
+        nextExternalChatGptAsk = { id: item.id, prompt: item.prompt };
+        break;
+      }
     }
   }
-  const activeExternalAskIds = Array.from(pendingExternalGeminiAsks.keys());
-  const now = Date.now();
+  const activeExternalAskIds = [
+    ...Array.from(pendingExternalGeminiAsks.keys()),
+    ...Array.from(pendingExternalChatGptAsks.keys()),
+  ];
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
-  for (const [k, cmd] of pendingGeminiCommands.entries()) {
-    const ttlMs = cmd.remoteStage ? 2 * 60 * 60 * 1000 : 180000;
-    if (now - cmd.createdAt > ttlMs) {
-      pendingGeminiCommands.delete(k);
-      continue;
-    }
-    if (cmd.remoteStage) {
-      if (!cmd.claimedAt) pendingCommandsList.push(cmd);
-      continue;
-    }
-    if (!cmd.claimedAt || now - cmd.claimedAt > 25000) {
-      pendingCommandsList.push(cmd);
+  if (canDeliverOrdersToCaller) {
+    for (const [k, cmd] of pendingGeminiCommands.entries()) {
+      const ttlMs = cmd.remoteStage ? 2 * 60 * 60 * 1000 : 180000;
+      if (now - cmd.createdAt > ttlMs) {
+        pendingGeminiCommands.delete(k);
+        continue;
+      }
+      if (cmd.remoteStage) {
+        if (!cmd.claimedAt) pendingCommandsList.push(cmd);
+        continue;
+      }
+      if (!cmd.claimedAt || now - cmd.claimedAt > 25000) {
+        pendingCommandsList.push(cmd);
+      }
     }
   }
   res.json({
@@ -13123,7 +13250,9 @@ app.get('/api/extension/fingerprint', (req, res) => {
     fingerprint: fp,
     lastAckAt: lastExtensionAckAt,
     lastAckFingerprint: lastExtensionAckFingerprint,
+    allowWorkspaceFallback,
     pendingExternalGeminiAsk: nextExternalAsk,
+    pendingExternalChatGptAsk: nextExternalChatGptAsk,
     activeExternalAskIds,
     pendingGeminiCommands: pendingCommandsList,
   });
@@ -13414,6 +13543,26 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
       } else if (stageNumber === 11 || stageNumber === 111) {
         extraPatch.rawMetadataText = text;
       }
+      const existingMainUrl = String(
+        list[idx].geminiChatUrl || list[idx].promptConfig?.GEMINI_CHAT_URL || ''
+      ).trim();
+      const existingDeepUrl = String(
+        list[idx].geminiDeepResearchChatUrl || list[idx].promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+      ).trim();
+      const replacesDeletedChat = Boolean(req.body?.replacesDeletedChat);
+      const nextMainChatUrl =
+        !isDeepResearch && validChatUrl && validChatUrl !== existingDeepUrl
+          ? existingMainUrl && !replacesDeletedChat
+            ? existingMainUrl
+            : validChatUrl
+          : existingMainUrl;
+      const nextDeepChatUrl =
+        isDeepResearch && validDrChatUrl && validDrChatUrl !== existingMainUrl
+          ? existingDeepUrl && !replacesDeletedChat
+            ? existingDeepUrl
+            : validDrChatUrl
+          : existingDeepUrl;
+
       list[idx] = {
         ...list[idx],
         ...([101, 115, 12].includes(stageNumber) ? {} : { [fieldKey]: text }),
@@ -13442,70 +13591,6 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
   res.json({ ok: true });
 });
 
-function handleIncomingRemoteRelayLine(line: string) {
-  if (!line || !line.trim()) return;
-  try {
-    const evt = JSON.parse(line);
-    if (evt?.event !== 'message' || !evt.message) return;
-    const cmd = JSON.parse(evt.message);
-    if (cmd && cmd.type === 'REMOTE_GEMINI_STAGE' && cmd.commandId && cmd.docId) {
-      console.log(`[RemoteRelay] Orden remota de Gemini (etapa ${cmd.stageNumber}) ${cmd.commandId}`);
-      handleRemoteGeminiStageTrigger(cmd).catch(() => {});
-      return;
-    }
-    // ntfy is a PUBLIC topic: treat rename messages only as a wake-up ping. The real order
-    // (newName / paths) is read from REMOTE_RENAME_COMMAND_JSON in GitHub (write access needs the token).
-    if (cmd && cmd.type === 'REMOTE_RENAME_VIDEO' && cmd.commandId && cmd.docId) {
-      handleRemoteRenameTrigger(cmd).catch(() => {});
-    }
-  } catch {}
-      const existingMainUrl = String(
-        list[idx].geminiChatUrl || list[idx].promptConfig?.GEMINI_CHAT_URL || ''
-      ).trim();
-      const existingDeepUrl = String(
-        list[idx].geminiDeepResearchChatUrl || list[idx].promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
-      ).trim();
-      const replacesDeletedChat = Boolean(req.body?.replacesDeletedChat);
-      const nextMainChatUrl =
-        !isDeepResearch && validChatUrl && validChatUrl !== existingDeepUrl
-          ? existingMainUrl && !replacesDeletedChat
-            ? existingMainUrl
-            : validChatUrl
-          : existingMainUrl;
-      const nextDeepChatUrl =
-        isDeepResearch && validDrChatUrl && validDrChatUrl !== existingMainUrl
-          ? existingDeepUrl && !replacesDeletedChat
-            ? existingDeepUrl
-            : validDrChatUrl
-          : existingDeepUrl;
-
-}
-
-async function handleRemoteRenameTrigger(trigger: any) {
-  const commandId = String(trigger?.commandId || '').trim();
-  const docId = String(trigger?.docId || '').trim();
-  if (!commandId || !docId || processedRemoteCommandIds.has(commandId)) return;
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const local = readDocumentaries().find((d) => d && d.id === docId);
-    try {
-      const raw = local?.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
-      const verified = raw ? JSON.parse(raw) : null;
-      if (verified?.commandId === commandId && verified.newName) {
-        if (processedRemoteCommandIds.has(commandId)) return;
-        if (local.promptConfig?.REMOTE_RENAME_ACK_ID === commandId) return;
-        if (Date.now() - Number(verified.requestedAt || 0) > 24 * 60 * 60 * 1000) return;
-        processedRemoteCommandIds.add(commandId);
-        console.log(`[RemoteRelay] Rename ${commandId} verificado en GitHub -> "${verified.newName}"`);
-        performMacFolderRenameCore({
-          docId: local.id,
-          newName: verified.newName,
-          oldFolderName: verified.oldFolderName,
-          oldFolderPath: verified.oldFolderPath,
-          commandId,
-          enqueueGeminiRename: true,
-        });
-        return;
-      }
 app.post('/api/gemini-web/link-chat', (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
@@ -13578,6 +13663,50 @@ app.post('/api/gemini-web/link-chat', (req, res) => {
   }
 });
 
+function handleIncomingRemoteRelayLine(line: string) {
+  if (!line || !line.trim()) return;
+  try {
+    const evt = JSON.parse(line);
+    if (evt?.event !== 'message' || !evt.message) return;
+    const cmd = JSON.parse(evt.message);
+    if (cmd && cmd.type === 'REMOTE_GEMINI_STAGE' && cmd.commandId && cmd.docId) {
+      console.log(`[RemoteRelay] Orden remota de Gemini (etapa ${cmd.stageNumber}) ${cmd.commandId}`);
+      handleRemoteGeminiStageTrigger(cmd).catch(() => {});
+      return;
+    }
+    // ntfy is a PUBLIC topic: treat rename messages only as a wake-up ping. The real order
+    // (newName / paths) is read from REMOTE_RENAME_COMMAND_JSON in GitHub (write access needs the token).
+    if (cmd && cmd.type === 'REMOTE_RENAME_VIDEO' && cmd.commandId && cmd.docId) {
+      handleRemoteRenameTrigger(cmd).catch(() => {});
+    }
+  } catch {}
+}
+
+async function handleRemoteRenameTrigger(trigger: any) {
+  const commandId = String(trigger?.commandId || '').trim();
+  const docId = String(trigger?.docId || '').trim();
+  if (!commandId || !docId || processedRemoteCommandIds.has(commandId)) return;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const local = readDocumentaries().find((d) => d && d.id === docId);
+    try {
+      const raw = local?.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
+      const verified = raw ? JSON.parse(raw) : null;
+      if (verified?.commandId === commandId && verified.newName) {
+        if (processedRemoteCommandIds.has(commandId)) return;
+        if (local.promptConfig?.REMOTE_RENAME_ACK_ID === commandId) return;
+        if (Date.now() - Number(verified.requestedAt || 0) > 24 * 60 * 60 * 1000) return;
+        processedRemoteCommandIds.add(commandId);
+        console.log(`[RemoteRelay] Rename ${commandId} verificado en GitHub -> "${verified.newName}"`);
+        performMacFolderRenameCore({
+          docId: local.id,
+          newName: verified.newName,
+          oldFolderName: verified.oldFolderName,
+          oldFolderPath: verified.oldFolderPath,
+          commandId,
+          enqueueGeminiRename: true,
+        });
+        return;
+      }
     } catch {}
     await syncDocumentariesWithGitHubServer(true).catch(() => null);
     await new Promise((r) => setTimeout(r, 2500));
@@ -13671,9 +13800,25 @@ app.post('/api/gemini-web/ask-external-claim', (req, res) => {
     res.status(404).json({ ok: false, error: 'not_found' });
     return;
   }
-  item.claimed = true;
-  if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
-  if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+  const isAttachingWindow = req.body?.windowId !== undefined || req.body?.tabId !== undefined;
+  if (!isAttachingWindow) {
+    const hasAppWindow = Boolean(req.body?.hasAppWindow);
+    const hasWorkspace = Boolean(req.body?.hasWorkspace);
+    const allowFallback = Date.now() - lastHuellasAppWindowPollAt > 15000;
+    if (!hasAppWindow && !(allowFallback && hasWorkspace)) {
+      res.status(409).json({ ok: false, error: 'wrong_browser_profile' });
+      return;
+    }
+    if (item.claimed) {
+      res.status(409).json({ ok: false, error: 'already_claimed' });
+      return;
+    }
+    item.claimed = true;
+  } else {
+    item.claimed = true;
+    if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
+    if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+  }
   res.json({ ok: true, id });
 });
 
@@ -13763,14 +13908,131 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
     setTimeout(() => {
       const current = pendingExternalGeminiAsks.get(id);
       if (current && !current.claimed) {
-        exec(
-          `osascript -e 'tell application "Google Chrome"
-            if (count of windows) > 0 then
-              make new tab at end of tabs of window 1 with properties {URL:"chrome-extension://kbfeckjlcogkccfplkmgenalgnmojclf/reloader.html?wake=1"}
-            end if
-          end tell'`,
-          () => {}
-        );
+        wakeExtensionInHuellasAppBrowser();
+      }
+    }, 1200);
+  });
+
+  const outcome = await resultPromise;
+  res.status(outcome.ok ? 200 : 504).json(outcome);
+});
+
+app.post('/api/chatgpt-web/ask-external-claim', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  const item = pendingExternalChatGptAsks.get(id);
+  if (!item) {
+    res.json({ ok: false, error: 'not_found' });
+    return;
+  }
+  const isAttachingWindow = req.body?.windowId !== undefined || req.body?.tabId !== undefined;
+  if (!isAttachingWindow) {
+    const hasAppWindow = Boolean(req.body?.hasAppWindow);
+    const hasWorkspace = Boolean(req.body?.hasWorkspace);
+    const allowFallback = Date.now() - lastHuellasAppWindowPollAt > 15000;
+    if (!hasAppWindow && !(allowFallback && hasWorkspace)) {
+      res.status(409).json({ ok: false, error: 'wrong_browser_profile' });
+      return;
+    }
+    if (item.claimed) {
+      res.status(409).json({ ok: false, error: 'already_claimed' });
+      return;
+    }
+    item.claimed = true;
+  } else {
+    item.claimed = true;
+    if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
+    if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+  }
+  res.json({ ok: true, id });
+});
+
+app.post('/api/chatgpt-web/ask-external-result', (req, res) => {
+  const id = String(req.body?.requestId || req.body?.id || '').trim();
+  const chatUrl = String(req.body?.chatUrl || '').trim();
+  const item = pendingExternalChatGptAsks.get(id);
+  if (!item) {
+    if (chatUrl) {
+      closeTemporaryChatGptWindowFailsafe({ chatUrl });
+    }
+    res.json({ ok: false, error: 'already_resolved_or_not_found' });
+    return;
+  }
+  clearTimeout(item.timer);
+  pendingExternalChatGptAsks.delete(id);
+  item.chatUrl = chatUrl || item.chatUrl;
+  closeTemporaryChatGptWindowFailsafe({
+    windowId: item.windowId,
+    tabId: item.tabId,
+    chatUrl: item.chatUrl,
+  });
+  item.resolve({
+    ok: Boolean(req.body?.ok !== false),
+    verifiedModel: req.body?.verifiedModel ? String(req.body.verifiedModel) : undefined,
+    response: String(req.body?.response || req.body?.text || ''),
+    chatUrl,
+    error: req.body?.error ? String(req.body.error) : undefined,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/chatgpt-web/ask-external', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) {
+    res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
+    return;
+  }
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
+  const id = `ext_gpt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const resultPromise = new Promise<{
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }>((resolve) => {
+    const timer = setTimeout(() => {
+      const expired = pendingExternalChatGptAsks.get(id);
+      pendingExternalChatGptAsks.delete(id);
+      if (expired) {
+        closeTemporaryChatGptWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de ChatGPT Web tras ${Math.round(timeoutMs / 1000)}s.`,
+      });
+    }, timeoutMs);
+    pendingExternalChatGptAsks.set(id, {
+      id,
+      prompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      const aborted = pendingExternalChatGptAsks.get(id);
+      if (aborted) {
+        clearTimeout(aborted.timer);
+        pendingExternalChatGptAsks.delete(id);
+        closeTemporaryChatGptWindowFailsafe({
+          windowId: aborted.windowId,
+          tabId: aborted.tabId,
+          chatUrl: aborted.chatUrl,
+        });
+      }
+    });
+
+    setTimeout(() => {
+      const current = pendingExternalChatGptAsks.get(id);
+      if (current && !current.claimed) {
+        wakeExtensionInHuellasAppBrowser();
       }
     }, 1200);
   });
@@ -13782,6 +14044,7 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
 app.post('/api/extension/reload', (_req, res) => {
   extensionManualReloadCounter += 1;
   const fp = computeChromeExtensionFingerprint();
+  wakeExtensionInHuellasAppBrowser();
   res.json({
     ok: true,
     fingerprint: fp,
