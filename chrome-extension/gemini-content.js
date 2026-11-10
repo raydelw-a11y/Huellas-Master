@@ -2655,7 +2655,7 @@
   }
 
   function watchDeepResearchOrder(initialCount, initialLastText, meta) {
-    const startedAt = Date.now();
+    const startedAt = Number(meta && meta.resumeStartedAt) || Date.now();
     const MAX_TOTAL_MS = 60 * 60 * 1000;
     const MAX_PLAN_WAIT_MS = 6 * 60 * 1000;
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
@@ -2677,6 +2677,9 @@
       activeWatchTimer = null;
       window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
       isBusyWithOrder = false;
+      chrome.storage.local
+        .remove(['huellasDeepResearchActiveUntil', 'huellasActiveDeepResearch'])
+        .catch(() => {});
       if (ok) {
         chrome.runtime
           .sendMessage({
@@ -2690,21 +2693,21 @@
           .catch(() => {});
         reportStatus('COMPLETED', message, meta);
         if (meta && meta.targetChatTitle) {
-          const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-          if (normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)) {
-            linkAndRenameAfterSubmit(
-              {
-                ...(meta.chatState || {}),
-                targetChatTitle: meta.targetChatTitle,
-                isDeepResearchOrder: true,
-                isNewChat: false,
-              },
-              meta.docId || ''
-            ).finally(() => {
-              processNextQueuedPrompt();
-            });
-            return;
-          }
+          // ALWAYS re-rename after the report: Gemini replaces the title with its own auto-title when research
+          // finishes, and document.title may already show our name only locally (not saved in Gemini).
+          linkAndRenameAfterSubmit(
+            {
+              ...(meta.chatState || {}),
+              targetChatTitle: meta.targetChatTitle,
+              isDeepResearchOrder: true,
+              isNewChat: false,
+              forceRename: true,
+            },
+            meta.docId || ''
+          ).finally(() => {
+            processNextQueuedPrompt();
+          });
+          return;
         }
       } else {
         reportStatus('ERROR', message, meta);
@@ -2712,11 +2715,41 @@
       processNextQueuedPrompt();
     };
 
+    // Persist the running order so the watcher can resume if this tab reloads/re-injects during the research
+    const persistActiveOrder = () => {
+      const chatPath = /^\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(window.location.pathname)
+        ? window.location.pathname
+        : '';
+      chrome.storage.local
+        .set({
+          huellasDeepResearchActiveUntil: startedAt + MAX_TOTAL_MS + 5 * 60 * 1000,
+          huellasActiveDeepResearch: {
+            startedAt,
+            chatPath,
+            phase,
+            meta: {
+              stageNumber: meta && meta.stageNumber,
+              taskType: meta && meta.taskType,
+              docId: (meta && meta.docId) || '',
+              targetChatTitle: (meta && meta.targetChatTitle) || '',
+              chatState: (meta && meta.chatState) || {},
+            },
+          },
+        })
+        .catch(() => {});
+    };
+    persistActiveOrder();
+    let lastPersistAt = Date.now();
+
     reportStatus('GENERATING', '🔬 Deep Research: esperando que Gemini cree el plan de investigación...', meta);
 
     activeWatchTimer = setInterval(async () => {
       if (busyStep) return;
       const now = Date.now();
+      if (now - lastPersistAt > 20000) {
+        lastPersistAt = now;
+        persistActiveOrder();
+      }
       if (now - startedAt > MAX_TOTAL_MS) {
         finish(false, '', [], '⛔ Deep Research superó 60 minutos sin un informe final. No se rellenó nada en la página.');
         return;
@@ -3102,11 +3135,12 @@
     if (!ok) return;
     const chatId = getAppChatIdFromUrl(window.location.href);
     if (!chatId) return;
-    // A new chat sent from the notebook page's own composer belongs to the notebook
-    if (chatState.isNewChat) await rememberNotebookChat(nbPath, chatId);
+    // A new chat sent from the notebook page's own composer belongs to the notebook (same for the chat our
+    // Deep Research order just produced: forceRename comes from the watcher that ran inside this chat)
+    if (chatState.isNewChat || chatState.forceRename) await rememberNotebookChat(nbPath, chatId);
     for (let i = 0; i < 25 && !isInsideNotebook(nbPath); i++) await sleep(200);
     if (!isInsideNotebook(nbPath)) return;
-    if (chatState.chatId && chatState.chatId !== chatId) return;
+    if (chatState.chatId && chatState.chatId !== chatId && !chatState.forceRename) return;
     const chatUrl = `https://gemini.google.com/app/${chatId}`;
     const baseVideoName = stripDeepResearchSuffix(title);
     const docKey = docId || normalizeCompareText(baseVideoName);
@@ -3125,7 +3159,8 @@
     await sleep(chatState.isNewChat ? 5000 : 800);
     for (let attempt = 0; attempt < 3; attempt++) {
       const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-      if (normalizeCompareText(docTitle) === normalizeCompareText(title)) return;
+      // document.title can show our name only locally; with forceRename always perform the real rename
+      if (!chatState.forceRename && normalizeCompareText(docTitle) === normalizeCompareText(title)) return;
       if (!isInsideNotebook(nbPath) || getAppChatIdFromUrl(window.location.href) !== chatId) return;
       let res = null;
       try {
@@ -4053,4 +4088,22 @@
       }
     } catch {}
   }, 350);
+
+  // Resume a Deep Research watcher that was interrupted by a reload/re-injection of this tab
+  setTimeout(async () => {
+    try {
+      if (activeWatchTimer || isBusyWithOrder) return;
+      const st = await chrome.storage.local.get(['huellasDeepResearchActiveUntil', 'huellasActiveDeepResearch']);
+      const rec = st && st.huellasActiveDeepResearch;
+      if (!rec || !(Number(st.huellasDeepResearchActiveUntil) > Date.now())) return;
+      if (!rec.chatPath || rec.chatPath !== window.location.pathname) return;
+      isBusyWithOrder = true;
+      reportStatus('GENERATING', '🔄 Reanudando la espera del informe de Deep Research tras recargar la pestaña...', rec.meta || {});
+      watchDeepResearchOrder(getModelResponseElements().length, extractLatestGeminiResponse().text, {
+        ...(rec.meta || {}),
+        resumeResearching: true,
+        resumeStartedAt: Number(rec.startedAt) || Date.now(),
+      });
+    } catch {}
+  }, 2500);
 })();

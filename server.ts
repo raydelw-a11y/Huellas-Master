@@ -13184,15 +13184,26 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
     const idx = list.findIndex((d) => d && d.id === docId);
     if (idx !== -1) {
       const isPart1 = stageNumber === 10;
+      const fieldKey = isPart1 ? 'deepResearchPrompt' : 'deepResearchResult';
+      const onlyIfEmpty = Boolean(req.body?.onlyIfEmpty);
+      const chatUrl = String(req.body?.chatUrl || '').trim();
+      const validDrChatUrl =
+        !isPart1 && /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(chatUrl) ? chatUrl : '';
+      if (onlyIfEmpty && String(list[idx][fieldKey] || '').trim()) {
+        res.json({ ok: true, skipped: 'already_filled' });
+        return;
+      }
       list[idx] = {
         ...list[idx],
-        ...(isPart1 ? { deepResearchPrompt: text } : { deepResearchResult: text }),
+        [fieldKey]: text,
+        ...(validDrChatUrl ? { geminiDeepResearchChatUrl: validDrChatUrl } : {}),
         promptConfig: {
           ...(list[idx].promptConfig || {}),
           REMOTE_GEMINI_STAGE_STATUS: 'completed',
           REMOTE_GEMINI_STAGE_ERROR: '',
           ...(remoteCommandId ? { REMOTE_GEMINI_STAGE_ACK_ID: remoteCommandId } : {}),
           ...(isPart1 ? {} : { DEEP_RESEARCH_RESULT_UPDATED_AT: String(Date.now()) }),
+          ...(validDrChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: validDrChatUrl } : {}),
         },
         updatedAt: new Date().toISOString(),
       };

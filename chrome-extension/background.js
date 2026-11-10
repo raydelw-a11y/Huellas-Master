@@ -252,12 +252,19 @@ async function broadcastToHuellasTabsInSameWindow(windowId, payload) {
   try {
     const queryOpts = typeof windowId === 'number' ? { windowId } : {};
     const tabs = await chrome.tabs.query(queryOpts);
-    for (const tab of tabs) {
-      if (tab.id && isHuellasUrl(tab.url)) {
-        chrome.tabs.sendMessage(tab.id, payload).catch(() => {});
-      }
+    let huellasTabs = tabs.filter((t) => t.id && isHuellasUrl(t.url));
+    // Gemini may live in another window / macOS Space: fall back to every Huellas tab so results are never lost
+    if (huellasTabs.length === 0 && typeof windowId === 'number') {
+      const allTabs = await chrome.tabs.query({});
+      huellasTabs = allTabs.filter((t) => t.id && isHuellasUrl(t.url));
     }
-  } catch {}
+    for (const tab of huellasTabs) {
+      chrome.tabs.sendMessage(tab.id, payload).catch(() => {});
+    }
+    return huellasTabs.length;
+  } catch {
+    return 0;
+  }
 }
 
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
@@ -3660,7 +3667,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const docMatches = Boolean(docT) && norm(docT) === targetNorm;
                 return {
                   found: true,
-                  done: domMatches || (!domTitle && docMatches),
+                  // Only the real Gemini title counts (document.title can be changed locally without saving)
+                  done: domMatches,
                   domTitle,
                   docTitle: docT,
                 };
@@ -4642,6 +4650,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       broadcastToHuellasTabsInSameWindow(senderWindowId, message);
+      // Local orders: idempotent backup in the Mac server (only fills an EMPTY field), so a reloaded/closed
+      // app tab can never lose a 25-min Deep Research report
+      const stageNum = Number(message.stageNumber) || 0;
+      if (message.docId && [1, 2, 3, 10].includes(stageNum) && String(message.text || '').trim().length > 400) {
+        fetch('http://localhost:4200/api/gemini-web/remote-stage-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            docId: message.docId,
+            stageNumber: stageNum,
+            text: message.text,
+            onlyIfEmpty: true,
+            chatUrl: sender?.tab?.url || '',
+          }),
+        }).catch(() => {});
+      }
     })();
     sendResponse({ ok: true });
     return true;
@@ -5156,6 +5180,11 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
     }
 
     if (nextFp !== currentExtFingerprint && activeExternalAskCount === 0) {
+      // Never reload the extension while a Deep Research watcher is running (it would kill the content script)
+      try {
+        const st = await chrome.storage.local.get('huellasDeepResearchActiveUntil');
+        if (Number(st && st.huellasDeepResearchActiveUntil) > Date.now()) return;
+      } catch {}
       currentExtFingerprint = nextFp;
       try {
         await chrome.storage.local.set({ huellasExtFingerprint: nextFp });

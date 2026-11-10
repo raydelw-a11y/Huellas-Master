@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:49 PM - 11/09/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:27 AM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -3801,7 +3801,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 activeEl.tagName === 'TEXTAREA' ||
                 (activeEl as HTMLElement).isContentEditable) &&
               Date.now() - lastLocalEditAtRef.current < 5000;
-            if (!isTypingInField) {
+            // Never auto-reload while a Gemini order (e.g. 25-min Deep Research) is waiting for its result
+            const aiBusyUntil = Number(sessionStorage.getItem('huellas_ai_busy_until') || 0);
+            if (!isTypingInField && !(aiBusyUntil > Date.now())) {
               serverCodeVersionRef.current = nextCodeVer;
               try {
                 const docsRes = await fetch('/api/documentaries', { cache: 'no-store' }).catch(
@@ -9181,6 +9183,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       } else if (msg.type === 'GEMINI_RESPONSE_READY') {
         setExtensionInstalled(true);
+        try {
+          sessionStorage.removeItem('huellas_ai_busy_until');
+        } catch {}
         if (pendingStage11QueueRef.current.length === 0) {
           setAiGenerating(false);
         }
@@ -9193,23 +9198,53 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const viewingDocId = (activeDocRef.current || activeDoc)?.id || '';
         if (msgDocId && viewingDocId && msgDocId !== viewingDocId) {
           const isResearchResult = [1, 2, 3, 10].includes(targetStage);
-          if (isResearchResult && text.trim()) {
-            // Persist directly in the server for the right doc (no stale React state), then refresh
-            fetch('/api/gemini-web/remote-stage-result', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ docId: msgDocId, stageNumber: targetStage, text }),
-            })
-              .then(() => silentRealtimeSync())
-              .catch(() => {});
-          }
           const otherTitle = documentaries.find((d) => d.id === msgDocId)?.title || msgDocId;
-          setBridgeStatusType('SUCCESS');
-          setBridgeStatusMsg(
-            isResearchResult
-              ? `✅ Resultado de Gemini guardado en segundo plano en "${otherTitle}" (no en el documental que estás viendo).`
-              : `ℹ️ Gemini terminó una orden de "${otherTitle}"; ábrelo para revisarla.`
-          );
+          if (isResearchResult && text.trim()) {
+            const fieldKey = targetStage === 10 ? 'deepResearchPrompt' : 'deepResearchResult';
+            const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+            if (isLocalHost) {
+              // Mac local server: persist directly for the right doc (no stale React state), then refresh
+              fetch('/api/gemini-web/remote-stage-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ docId: msgDocId, stageNumber: targetStage, text }),
+              })
+                .then((r) => {
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  silentRealtimeSync();
+                  setBridgeStatusType('SUCCESS');
+                  setBridgeStatusMsg(`✅ Resultado de Gemini guardado en segundo plano en "${otherTitle}".`);
+                })
+                .catch(() => {
+                  setBridgeStatusType('ERROR');
+                  setBridgeStatusMsg(`⛔ No se pudo guardar el resultado de "${otherTitle}". Ábrelo y usa Recuperar.`);
+                });
+            } else {
+              // GitHub Pages (no backend): update that doc in state and push to GitHub
+              setDocumentaries((prev) => {
+                const next = prev.map((d) =>
+                  d.id === msgDocId
+                    ? ({ ...d, [fieldKey]: text, updatedAt: new Date().toISOString() } as DocumentaryProject)
+                    : d
+                );
+                pushDocumentariesToGitHub(next as any)
+                  .then(() => {
+                    setBridgeStatusType('SUCCESS');
+                    setBridgeStatusMsg(`✅ Resultado de Gemini guardado en segundo plano en "${otherTitle}".`);
+                  })
+                  .catch(() => {
+                    setBridgeStatusType('ERROR');
+                    setBridgeStatusMsg(`⛔ No se pudo subir el resultado de "${otherTitle}" a la nube.`);
+                  });
+                return next;
+              });
+            }
+            setBridgeStatusType('WORKING');
+            setBridgeStatusMsg(`💾 Guardando el resultado de Gemini en "${otherTitle}"...`);
+          } else {
+            setBridgeStatusType('SUCCESS');
+            setBridgeStatusMsg(`ℹ️ Gemini terminó una orden de "${otherTitle}"; ábrelo para revisarla.`);
+          }
           return;
         }
         const bundle = msg.stage11Bundle as
@@ -9872,6 +9907,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       : false;
 
     setAiGenerating(true);
+    try {
+      sessionStorage.setItem(
+        'huellas_ai_busy_until',
+        String(Date.now() + (useDeepResearch ? 70 : 10) * 60 * 1000)
+      );
+    } catch {}
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       isStage1Part1Low

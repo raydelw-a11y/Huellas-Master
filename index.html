@@ -35,6 +35,9 @@
                 var m = html.match(/name="app-build-version"\s+content="([^"]+)"/);
                 var remoteVer = m && m[1] ? m[1].trim() : '';
                 if (remoteVer && remoteVer !== CURRENT_BUILD) {
+                  // Defer the update while a Gemini order (Deep Research) awaits its result (flag auto-expires)
+                  var aiBusyUntil = Number(sessionStorage.getItem('huellas_ai_busy_until') || 0);
+                  if (aiBusyUntil > Date.now()) return;
                   var lastReloaded = sessionStorage.getItem('hm_reloaded_ver');
                   if (lastReloaded !== remoteVer) {
                     sessionStorage.setItem('hm_reloaded_ver', remoteVer);
