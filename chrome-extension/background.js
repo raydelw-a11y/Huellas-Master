@@ -337,6 +337,25 @@ async function createTemporaryExternalWindowInAppBrowser(targetUrl) {
   return { createdWindowId, tabId, anchorWindowId: presence.anchorWindowId, hasAppWindow: presence.hasAppWindow };
 }
 
+async function createTemporaryTabInAppWindow(targetUrl) {
+  const presence = await getHuellasBrowserProfilePresence();
+  if (!presence.hasAppWindow && !presence.hasWorkspace) {
+    throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+  }
+  const createOpts = {
+    url: targetUrl,
+    active: false,
+    ...(typeof presence.anchorWindowId === 'number' ? { windowId: presence.anchorWindowId } : {}),
+  };
+  const createdTab = await chrome.tabs.create(createOpts);
+  return {
+    createdWindowId: null,
+    tabId: createdTab.id,
+    anchorWindowId: presence.anchorWindowId,
+    hasAppWindow: presence.hasAppWindow,
+  };
+}
+
 (async function initExistingHuellasTabsOnce() {
   try {
     const tabs = await chrome.tabs.query({});
@@ -2179,8 +2198,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const action = payload.action;
 
     (async () => {
+      try {
       const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(senderWindowId);
-      const serviceTabs =
+      let serviceTabs =
         targetService === 'FLOW'
           ? flowTabs
           : targetService === 'SUNO'
@@ -2786,12 +2806,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await ensureScriptInjected(targetTab.id, 'gemini-content.js');
         }
 
-        chrome.tabs
-          .sendMessage(targetTab.id, {
-            target: targetService,
-            ...finalDispatchPayload,
-          })
-          .catch(() => {});
+        let deliveredToTab = false;
+        for (let sendTry = 0; sendTry < 4 && !deliveredToTab; sendTry++) {
+          if (sendTry > 0) {
+            await sleep(300);
+            await ensureScriptInjected(targetTab.id, contentScriptFile);
+            await sleep(120);
+          }
+          try {
+            await chrome.tabs.sendMessage(targetTab.id, {
+              target: targetService,
+              ...finalDispatchPayload,
+            });
+            deliveredToTab = true;
+          } catch {}
+        }
 
         // MAIN-world network hook + React Fiber scanner + prompt submitter for Flow Music (flowmusic.app)
         if (targetService === 'SUNO' && action === 'SEND_PROMPT') {
@@ -2991,6 +3020,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ok: false,
           error: 'No se encontró la pestaña en esta ventana.',
         });
+      }
+      } catch (cmdErr) {
+        console.error('[Huellas HUELLAS_COMMAND] Error:', cmdErr);
+        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+          type: 'BRIDGE_STATUS',
+          service: targetService,
+          status: 'ERROR',
+          message: `⚠️ Error en puente de extensión (${targetService}): ${String(
+            cmdErr?.message || cmdErr
+          )}`,
+        });
+        sendResponse({ ok: false, error: String(cmdErr?.message || cmdErr) });
       }
     })();
 
@@ -4957,9 +4998,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message),
+        body: JSON.stringify({
+          ...message,
+          tabId: sender?.tab?.id || null,
+        }),
       }).catch(() => {});
-      await cleanupActiveExternalAskWindow(message.requestId, sender?.tab?.windowId, sender?.tab?.id);
+      await cleanupActiveExternalAskWindow(message.requestId, null, sender?.tab?.id);
     })();
     sendResponse({ ok: true });
     return false;
@@ -4999,7 +5043,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================================================
-// AUTO-RELOAD WATCHER & EXTERNAL GEMINI WEB BRIDGE (MODO DUO / TRIO)
+// AUTO-RELOAD WATCHER & EXTERNAL GEMINI / CHATGPT BRIDGE (MODO DUO / TRIO / CUATRO)
 // ============================================================================
 let currentExtFingerprint = '';
 let isCheckingExtFingerprint = false;
@@ -5009,6 +5053,13 @@ let activeExternalAskTabId = null;
 const activeExternalAskMap = new Map();
 const claimedExternalAskIds = new Set();
 const claimedGeminiCommandIds = new Set();
+let externalAskStorageChain = Promise.resolve();
+
+function withExternalAskStorageLock(fn) {
+  const next = externalAskStorageChain.then(fn, fn);
+  externalAskStorageChain = next.catch(() => {});
+  return next;
+}
 
 async function getStoredExternalAskMap() {
   try {
@@ -5027,59 +5078,80 @@ async function registerActiveExternalAskWindow(requestId, windowId, tabId) {
   if (!requestId) return;
   const entry = { requestId, windowId: windowId || null, tabId: tabId || null, startedAt: Date.now() };
   activeExternalAskMap.set(requestId, entry);
-  activeExternalAskWindowId = windowId || null;
-  activeExternalAskTabId = tabId || null;
-  const map = await getStoredExternalAskMap();
-  map[requestId] = entry;
-  await chrome.storage.local
-    .set({ huellasActiveExternalAsks: map, huellasActiveExternalAsk: entry })
-    .catch(() => {});
+  if (windowId) activeExternalAskWindowId = windowId;
+  if (tabId) activeExternalAskTabId = tabId;
+  await withExternalAskStorageLock(async () => {
+    const map = await getStoredExternalAskMap();
+    map[requestId] = entry;
+    await chrome.storage.local
+      .set({ huellasActiveExternalAsks: map, huellasActiveExternalAsk: entry })
+      .catch(() => {});
+  });
 }
 
 async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId) {
-  const map = await getStoredExternalAskMap();
-  const memEntry = requestId ? activeExternalAskMap.get(requestId) : null;
-  const storedEntry = requestId ? map[requestId] : null;
-  const winId =
-    (memEntry && memEntry.windowId) ||
-    (storedEntry && storedEntry.windowId) ||
-    fallbackWinId ||
-    (!requestId ? activeExternalAskWindowId : null) ||
-    null;
-  const tId =
-    (memEntry && memEntry.tabId) ||
-    (storedEntry && storedEntry.tabId) ||
-    fallbackTabId ||
-    (!requestId ? activeExternalAskTabId : null) ||
-    null;
+  const { winId, tId, remainingCount } = await withExternalAskStorageLock(async () => {
+    const map = await getStoredExternalAskMap();
+    const memEntry = requestId ? activeExternalAskMap.get(requestId) : null;
+    const storedEntry = requestId ? map[requestId] : null;
+    const resolvedWinId =
+      (memEntry && memEntry.windowId) ||
+      (storedEntry && storedEntry.windowId) ||
+      fallbackWinId ||
+      (!requestId ? activeExternalAskWindowId : null) ||
+      null;
+    const resolvedTabId =
+      (memEntry && memEntry.tabId) ||
+      (storedEntry && storedEntry.tabId) ||
+      fallbackTabId ||
+      (!requestId ? activeExternalAskTabId : null) ||
+      null;
 
-  if (requestId) {
-    activeExternalAskMap.delete(requestId);
-    delete map[requestId];
-  }
-  if (activeExternalAskWindowId === winId) activeExternalAskWindowId = null;
-  if (activeExternalAskTabId === tId) activeExternalAskTabId = null;
+    if (requestId) {
+      activeExternalAskMap.delete(requestId);
+      delete map[requestId];
+    }
+    if (activeExternalAskWindowId === resolvedWinId) activeExternalAskWindowId = null;
+    if (activeExternalAskTabId === resolvedTabId) activeExternalAskTabId = null;
 
-  await chrome.storage.local
-    .set({ huellasActiveExternalAsks: map })
-    .catch(() => {});
-  await chrome.storage.local.remove('huellasActiveExternalAsk').catch(() => {});
+    await chrome.storage.local
+      .set({ huellasActiveExternalAsks: map })
+      .catch(() => {});
+    await chrome.storage.local.remove('huellasActiveExternalAsk').catch(() => {});
+    return {
+      winId: resolvedWinId,
+      tId: resolvedTabId,
+      remainingCount: Object.keys(map).length + activeExternalAskMap.size,
+    };
+  });
 
   if (tId) {
     await chrome.debugger.detach({ tabId: tId }).catch(() => {});
   }
   if (winId) {
-    await chrome.windows.remove(winId).catch(() => {});
+    const winTabs = await chrome.tabs.query({ windowId: winId }).catch(() => []);
+    const isSafeSingleTemporaryWindow =
+      winTabs.length === 1 &&
+      !winTabs.some((t) => isHuellasUrl(t.url, t.title) || /\/notebook\//i.test(t.url || ''));
+    if (isSafeSingleTemporaryWindow) {
+      await chrome.windows.remove(winId).catch(() => {});
+    }
   }
   if (tId) {
-    const stillOpen = await chrome.tabs.get(tId).catch(() => null);
-    if (stillOpen) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const stillOpen = await chrome.tabs.get(tId).catch(() => null);
+      if (!stillOpen) break;
+      // Never close the user's Huellas Master or Notebook tab by accident
+      if (isHuellasUrl(stillOpen.url, stillOpen.title) || /\/notebook\//i.test(stillOpen.url || '')) {
+        break;
+      }
       await chrome.tabs.remove(tId).catch(() => {});
+      await sleep(180);
     }
   }
 
-  // If an extension reload was deferred while this temporary window was running, execute it safely once none remain
-  if (Object.keys(map).length === 0 && activeExternalAskMap.size === 0) {
+  // If an extension reload was deferred while this temporary tab/window was running, execute it safely once none remain
+  if (remainingCount === 0) {
     try {
       const st = await chrome.storage.local.get('huellasPendingDeferredReload');
       if (st && st.huellasPendingDeferredReload) {
@@ -6132,17 +6204,17 @@ async function runExternalChatGptAskOrder(task) {
   let createdWindowId = null;
   let tabId = null;
   try {
-    const opened = await createTemporaryExternalWindowInAppBrowser('https://chatgpt.com/');
-    createdWindowId = opened.createdWindowId;
+    const opened = await createTemporaryTabInAppWindow('https://chatgpt.com/');
+    createdWindowId = null;
     tabId = opened.tabId;
 
-    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId);
-    fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
+    await registerActiveExternalAskWindow(task.id, null, tabId);
+    await fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: task.id,
-        windowId: createdWindowId,
+        windowId: null,
         tabId,
         hasAppWindow: opened.hasAppWindow,
         hasWorkspace: true,
@@ -6161,6 +6233,8 @@ async function runExternalChatGptAskOrder(task) {
             body: JSON.stringify({
               requestId: task.id,
               ok: false,
+              tabId,
+              chatUrl: snapReady.url || tInfo.url || '',
               error: snapReady.blockReason,
             }),
           }).catch(() => {});
@@ -6181,6 +6255,8 @@ async function runExternalChatGptAskOrder(task) {
         body: JSON.stringify({
           requestId: task.id,
           ok: false,
+          tabId,
+          chatUrl: checkBlock.url || '',
           error: checkBlock.blockReason,
         }),
       }).catch(() => {});
@@ -6225,6 +6301,8 @@ async function runExternalChatGptAskOrder(task) {
           body: JSON.stringify({
             requestId: task.id,
             ok: false,
+            tabId,
+            chatUrl: snap.url || '',
             error: snap.blockReason,
           }),
         }).catch(() => {});
@@ -6248,6 +6326,7 @@ async function runExternalChatGptAskOrder(task) {
             body: JSON.stringify({
               requestId: task.id,
               ok: true,
+              tabId,
               verifiedModel: snap.verifiedModel || 'ChatGPT Web',
               response: snap.text,
               chatUrl: snap.url,
@@ -6262,7 +6341,7 @@ async function runExternalChatGptAskOrder(task) {
     }
   } finally {
     activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
-    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId);
+    await cleanupActiveExternalAskWindow(task.id, null, tabId);
   }
 }
 

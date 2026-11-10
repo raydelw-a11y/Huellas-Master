@@ -13177,16 +13177,20 @@ function closeTemporaryChatGptWindowFailsafe(opts: {
     runAppleScriptInRunningChromiumBrowsers(
       (browserApp) => `tell application "${browserApp}"
         repeat with w in windows
-          if (count of tabs of w) is 1 then
-            set t1 to tab 1 of w
-            set u1 to URL of t1
-            if u1 starts with "https://chatgpt.com" or u1 starts with "https://chat.openai.com" then
-              if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
-                close w
+          set tabCount to (count of tabs of w)
+          repeat with t in tabs of w
+            set u to URL of t
+            if u starts with "https://chatgpt.com" or u starts with "https://chat.openai.com" then
+              if (${tabIdNum} > 0 and (id of t) is ${tabIdNum}) or (${winIdNum} > 0 and (id of w) is ${winIdNum} and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://chatgpt.com/" and u is "${cleanChatUrl}") then
+                if tabCount is 1 then
+                  close w
+                else
+                  close t
+                end if
                 return "MATCHED"
               end if
             end if
-          end if
+          end repeat
         end repeat
         return "NO_MATCH"
       end tell`
@@ -13950,10 +13954,12 @@ app.post('/api/chatgpt-web/ask-external-claim', (req, res) => {
 app.post('/api/chatgpt-web/ask-external-result', (req, res) => {
   const id = String(req.body?.requestId || req.body?.id || '').trim();
   const chatUrl = String(req.body?.chatUrl || '').trim();
+  const bodyTabId = Number(req.body?.tabId) || null;
+  const bodyWinId = Number(req.body?.windowId) || null;
   const item = pendingExternalChatGptAsks.get(id);
   if (!item) {
-    if (chatUrl) {
-      closeTemporaryChatGptWindowFailsafe({ chatUrl });
+    if (chatUrl || bodyTabId || bodyWinId) {
+      closeTemporaryChatGptWindowFailsafe({ windowId: bodyWinId, tabId: bodyTabId, chatUrl });
     }
     res.json({ ok: false, error: 'already_resolved_or_not_found' });
     return;
@@ -13962,8 +13968,8 @@ app.post('/api/chatgpt-web/ask-external-result', (req, res) => {
   pendingExternalChatGptAsks.delete(id);
   item.chatUrl = chatUrl || item.chatUrl;
   closeTemporaryChatGptWindowFailsafe({
-    windowId: item.windowId,
-    tabId: item.tabId,
+    windowId: item.windowId || bodyWinId,
+    tabId: item.tabId || bodyTabId,
     chatUrl: item.chatUrl,
   });
   item.resolve({
