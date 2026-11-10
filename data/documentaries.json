@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-10T10:29:04.159Z",
+    "updatedAt": "2026-11-10T19:35:18.588Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -55,8 +55,8 @@
       "DURACION_TOTAL_SEGUNDOS": "1200",
       "DURACION_MANUAL_CONFIRMADA": "SI",
       "INVESTIGACION_COMPLETADA": "",
-      "REMOTE_GEMINI_STAGE_STATUS": "completed",
-      "REMOTE_GEMINI_STAGE_ERROR": "",
+      "REMOTE_GEMINI_STAGE_STATUS": "failed",
+      "REMOTE_GEMINI_STAGE_ERROR": "Respuesta vacía de Gemini",
       "DEEP_RESEARCH_RESULT_UPDATED_AT": "1794306490834"
     },
     "compiledMasterPrompt": "",
