@@ -12980,11 +12980,47 @@ interface PendingExternalGeminiAsk {
   prompt: string;
   createdAt: number;
   claimed: boolean;
+  windowId?: number | null;
+  tabId?: number | null;
+  chatUrl?: string;
   resolve: (result: { ok: boolean; response?: string; chatUrl?: string; error?: string }) => void;
   timer: ReturnType<typeof setTimeout>;
 }
 
 const pendingExternalGeminiAsks = new Map<string, PendingExternalGeminiAsk>();
+
+function closeTemporaryGeminiWindowFailsafe(opts: {
+  windowId?: number | null;
+  tabId?: number | null;
+  chatUrl?: string;
+}) {
+  if (process.platform !== 'darwin') return;
+  const winIdNum = Number(opts.windowId) || 0;
+  const tabIdNum = Number(opts.tabId) || 0;
+  const cleanChatUrl = String(opts.chatUrl || '')
+    .trim()
+    .replace(/["'\\]/g, '');
+  if (!winIdNum && !tabIdNum && !cleanChatUrl) return;
+
+  // Give chrome.windows.remove() 850ms to close it cleanly first; if still open (e.g. extension reloaded/slept), close ONLY that 1-tab /app window
+  setTimeout(() => {
+    const script = `tell application "Google Chrome"
+      repeat with w in windows
+        if (count of tabs of w) is 1 then
+          set t1 to tab 1 of w
+          set u1 to URL of t1
+          if u1 starts with "https://gemini.google.com/app" and u1 does not contain "/notebook/" then
+            if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
+              close w
+              exit repeat
+            end if
+          end if
+        end if
+      end repeat
+    end tell`;
+    execFile('osascript', ['-e', script], () => {});
+  }, 850);
+}
 
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
@@ -12999,6 +13035,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
       break;
     }
   }
+  const activeExternalAskIds = Array.from(pendingExternalGeminiAsks.keys());
   const now = Date.now();
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
   for (const [k, cmd] of pendingGeminiCommands.entries()) {
@@ -13021,6 +13058,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
     lastAckAt: lastExtensionAckAt,
     lastAckFingerprint: lastExtensionAckFingerprint,
     pendingExternalGeminiAsk: nextExternalAsk,
+    activeExternalAskIds,
     pendingGeminiCommands: pendingCommandsList,
   });
 });
@@ -13467,22 +13505,34 @@ app.post('/api/gemini-web/ask-external-claim', (req, res) => {
     return;
   }
   item.claimed = true;
+  if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
+  if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
   res.json({ ok: true, id });
 });
 
 app.post('/api/gemini-web/ask-external-result', (req, res) => {
   const id = String(req.body?.requestId || req.body?.id || '').trim();
+  const chatUrl = String(req.body?.chatUrl || '').trim();
   const item = pendingExternalGeminiAsks.get(id);
   if (!item) {
+    if (chatUrl) {
+      closeTemporaryGeminiWindowFailsafe({ chatUrl });
+    }
     res.json({ ok: false, error: 'already_resolved_or_not_found' });
     return;
   }
   clearTimeout(item.timer);
   pendingExternalGeminiAsks.delete(id);
+  item.chatUrl = chatUrl || item.chatUrl;
+  closeTemporaryGeminiWindowFailsafe({
+    windowId: item.windowId,
+    tabId: item.tabId,
+    chatUrl: item.chatUrl,
+  });
   item.resolve({
     ok: Boolean(req.body?.ok !== false),
     response: String(req.body?.response || req.body?.text || ''),
-    chatUrl: String(req.body?.chatUrl || ''),
+    chatUrl,
     error: req.body?.error ? String(req.body.error) : undefined,
   });
   res.json({ ok: true });
@@ -13499,7 +13549,15 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
 
   const resultPromise = new Promise<{ ok: boolean; response?: string; chatUrl?: string; error?: string }>((resolve) => {
     const timer = setTimeout(() => {
+      const expired = pendingExternalGeminiAsks.get(id);
       pendingExternalGeminiAsks.delete(id);
+      if (expired) {
+        closeTemporaryGeminiWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
       resolve({
         ok: false,
         error: `Timeout esperando respuesta de Gemini Web tras ${Math.round(timeoutMs / 1000)}s.`,
@@ -13512,6 +13570,20 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
       claimed: false,
       resolve,
       timer,
+    });
+
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      const aborted = pendingExternalGeminiAsks.get(id);
+      if (aborted) {
+        clearTimeout(aborted.timer);
+        pendingExternalGeminiAsks.delete(id);
+        closeTemporaryGeminiWindowFailsafe({
+          windowId: aborted.windowId,
+          tabId: aborted.tabId,
+          chatUrl: aborted.chatUrl,
+        });
+      }
     });
 
     setTimeout(() => {

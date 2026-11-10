@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:41 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:53 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();

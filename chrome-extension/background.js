@@ -4789,24 +4789,91 @@ let isCheckingExtFingerprint = false;
 let activeExternalAskCount = 0;
 let activeExternalAskWindowId = null;
 let activeExternalAskTabId = null;
+const activeExternalAskMap = new Map();
 const claimedExternalAskIds = new Set();
 const claimedGeminiCommandIds = new Set();
 
-async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId) {
-  let stored = null;
+async function getStoredExternalAskMap() {
   try {
-    const st = await chrome.storage.local.get('huellasActiveExternalAsk');
-    stored = st && st.huellasActiveExternalAsk;
-  } catch {}
-  const winId = activeExternalAskWindowId || (stored && stored.windowId) || fallbackWinId || null;
-  const tId = activeExternalAskTabId || (stored && stored.tabId) || fallbackTabId || null;
-  activeExternalAskWindowId = null;
-  activeExternalAskTabId = null;
+    const st = await chrome.storage.local.get(['huellasActiveExternalAsks', 'huellasActiveExternalAsk']);
+    const map = { ...((st && st.huellasActiveExternalAsks) || {}) };
+    if (st && st.huellasActiveExternalAsk && st.huellasActiveExternalAsk.requestId) {
+      map[st.huellasActiveExternalAsk.requestId] = st.huellasActiveExternalAsk;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+async function registerActiveExternalAskWindow(requestId, windowId, tabId) {
+  if (!requestId) return;
+  const entry = { requestId, windowId: windowId || null, tabId: tabId || null, startedAt: Date.now() };
+  activeExternalAskMap.set(requestId, entry);
+  activeExternalAskWindowId = windowId || null;
+  activeExternalAskTabId = tabId || null;
+  const map = await getStoredExternalAskMap();
+  map[requestId] = entry;
+  await chrome.storage.local
+    .set({ huellasActiveExternalAsks: map, huellasActiveExternalAsk: entry })
+    .catch(() => {});
+}
+
+async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId) {
+  const map = await getStoredExternalAskMap();
+  const memEntry = requestId ? activeExternalAskMap.get(requestId) : null;
+  const storedEntry = requestId ? map[requestId] : null;
+  const winId =
+    (memEntry && memEntry.windowId) ||
+    (storedEntry && storedEntry.windowId) ||
+    fallbackWinId ||
+    (!requestId ? activeExternalAskWindowId : null) ||
+    null;
+  const tId =
+    (memEntry && memEntry.tabId) ||
+    (storedEntry && storedEntry.tabId) ||
+    fallbackTabId ||
+    (!requestId ? activeExternalAskTabId : null) ||
+    null;
+
+  if (requestId) {
+    activeExternalAskMap.delete(requestId);
+    delete map[requestId];
+  }
+  if (activeExternalAskWindowId === winId) activeExternalAskWindowId = null;
+  if (activeExternalAskTabId === tId) activeExternalAskTabId = null;
+
+  await chrome.storage.local
+    .set({ huellasActiveExternalAsks: map })
+    .catch(() => {});
   await chrome.storage.local.remove('huellasActiveExternalAsk').catch(() => {});
+
+  if (tId) {
+    await chrome.debugger.detach({ tabId: tId }).catch(() => {});
+  }
   if (winId) {
     await chrome.windows.remove(winId).catch(() => {});
-  } else if (tId) {
-    await chrome.tabs.remove(tId).catch(() => {});
+  }
+  if (tId) {
+    const stillOpen = await chrome.tabs.get(tId).catch(() => null);
+    if (stillOpen) {
+      await chrome.tabs.remove(tId).catch(() => {});
+    }
+  }
+
+  // If an extension reload was deferred while this temporary window was running, execute it safely once none remain
+  if (Object.keys(map).length === 0 && activeExternalAskMap.size === 0) {
+    try {
+      const st = await chrome.storage.local.get('huellasPendingDeferredReload');
+      if (st && st.huellasPendingDeferredReload) {
+        await chrome.storage.local.remove('huellasPendingDeferredReload');
+        setTimeout(() => {
+          try {
+            chrome.runtime.reload();
+          } catch {}
+        }, 250);
+      }
+    } catch {}
   }
 }
 
@@ -5339,18 +5406,12 @@ async function runExternalGeminiAskOrder(task) {
       tabId = createdTab.id;
     }
 
-    activeExternalAskWindowId = createdWindowId;
-    activeExternalAskTabId = tabId;
-    await chrome.storage.local
-      .set({
-        huellasActiveExternalAsk: {
-          requestId: task.id,
-          windowId: createdWindowId,
-          tabId,
-          startedAt: Date.now(),
-        },
-      })
-      .catch(() => {});
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId);
+    fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: task.id, windowId: createdWindowId, tabId }),
+    }).catch(() => {});
 
     // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app AND mounts the composer
     for (let w = 0; w < 35; w++) {
@@ -5491,6 +5552,20 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       });
     }
 
+    // Sweep any orphaned temporary Gemini windows whose server-side ask-external request already finished, timed out, or restarted
+    const serverActiveAskIds = new Set(Array.isArray(data?.activeExternalAskIds) ? data.activeExternalAskIds : []);
+    const storedAsksMap = await getStoredExternalAskMap();
+    const nowMs = Date.now();
+    let hasRunningExternalAsk = activeExternalAskCount > 0;
+    for (const [reqId, info] of Object.entries(storedAsksMap)) {
+      const ageMs = nowMs - Number((info && info.startedAt) || 0);
+      if (serverActiveAskIds.has(reqId) && ageMs < 360000) {
+        hasRunningExternalAsk = true;
+      } else if (ageMs > 5000 && !activeExternalAskMap.has(reqId)) {
+        await cleanupActiveExternalAskWindow(reqId, info && info.windowId, info && info.tabId);
+      }
+    }
+
     const nextFp = String(data?.fingerprint || '').trim();
     if (!nextFp) return;
 
@@ -5509,7 +5584,7 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       return;
     }
 
-    if (nextFp !== currentExtFingerprint && activeExternalAskCount === 0) {
+    if (nextFp !== currentExtFingerprint && !hasRunningExternalAsk) {
       // Never reload the extension while a Deep Research watcher is running (it would kill the content script)
       try {
         const st = await chrome.storage.local.get('huellasDeepResearchActiveUntil');
