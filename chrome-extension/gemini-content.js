@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 18) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 18;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 19) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 19;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -280,17 +280,91 @@
       text = cleanDomFragmentToText(el);
     }
 
-    // Extract any generated images inside this response
+    // Extract any generated images inside this response (strictly excluding user attachments, spinners, and icons)
     const imgs = Array.from(el.querySelectorAll('img'))
       .filter((img) => {
+        if (img.closest('user-query, model-thoughts, .thoughts-container')) return false;
+        if (img.classList && img.classList.contains('gem-attachment-style-img')) return false;
         const src = img.src || '';
+        if (
+          !src ||
+          src.includes(' avatar') ||
+          src.includes('gstatic.com/lamda') ||
+          src.includes('fonts.gstatic.com') ||
+          src.startsWith('data:image/svg')
+        ) {
+          return false;
+        }
+        if (!img.complete) return false;
         const w = img.naturalWidth || img.width || 0;
-        if (!src || src.includes(' avatar') || src.includes('gstatic.com/lamda')) return false;
-        return w === 0 || w >= 120;
+        const inGenContainer = Boolean(
+          img.closest('generated-image, single-image, [class*="generated-image" i], [data-test-id*="image" i]')
+        );
+        return inGenContainer ? w >= 120 : w >= 200;
       })
       .map((img) => img.src);
 
     return { text, images: imgs };
+  }
+
+  function hasPendingImageGenerationInResponse(el) {
+    if (!el) return false;
+    const incompleteImgs = Array.from(el.querySelectorAll('img')).some((img) => {
+      if (img.closest('user-query, model-thoughts')) return false;
+      const src = img.src || '';
+      if (src.includes('gstatic.com/lamda') || src.includes('fonts.gstatic.com')) return false;
+      return !img.complete || (img.closest('generated-image, single-image') && (img.naturalWidth || 0) < 120);
+    });
+    if (incompleteImgs) return true;
+    const genContainers = Array.from(
+      el.querySelectorAll(
+        'generated-image, single-image, [class*="generated-image" i], [class*="image-generation" i], mat-progress-spinner, mat-spinner, [role="progressbar"], [class*="shimmer" i], [class*="skeleton" i]'
+      )
+    ).filter((n) => !n.closest('model-thoughts, user-query') && n.offsetParent !== null);
+    if (genContainers.length === 0) return false;
+    const loadedGenImg = Array.from(el.querySelectorAll('img')).some(
+      (img) =>
+        !img.closest('user-query, model-thoughts') &&
+        img.complete &&
+        (img.naturalWidth || img.width || 0) >= 180
+    );
+    return !loadedGenImg;
+  }
+
+  async function convertGeminiImageUrlToDataUrl(src) {
+    const raw = String(src || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('data:image/')) return raw;
+
+    if (raw.startsWith('blob:')) {
+      try {
+        const resp = await fetch(raw);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(blob);
+          });
+          if (dataUrl) return dataUrl;
+        }
+      } catch {}
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+      try {
+        const bgRes = await chrome.runtime.sendMessage({
+          type: 'FETCH_IMAGE_BASE64',
+          url: raw,
+        });
+        if (bgRes && bgRes.ok && bgRes.dataUrl) {
+          return bgRes.dataUrl;
+        }
+      } catch {}
+    }
+
+    return raw;
   }
 
   function hasResponseFooterActionBar(el) {
@@ -622,7 +696,9 @@
   async function configureGeminiModelAndDeepResearch(
     enableHighModel,
     enableDeepResearch,
-    enableArgonLow
+    enableArgonLow,
+    enableCreateImage = false,
+    aspectRatio = ''
   ) {
     const wantHigh = Boolean(enableHighModel) && !Boolean(enableArgonLow);
     const targetLevel = wantHigh ? 'HIGH' : 'LOW';
@@ -1030,7 +1106,12 @@
       return false;
     };
 
-    const result = { thinkingOk: false, deepResearchOk: !enableDeepResearch, diag: [] };
+    const result = {
+      thinkingOk: false,
+      deepResearchOk: !enableDeepResearch,
+      createImageOk: !enableCreateImage,
+      diag: [],
+    };
     try {
       // Primary: CDP hardware mouse sequence (one trusted click per target) + DOM verification in background.js
       let hwConfig = null;
@@ -1039,6 +1120,8 @@
           type: 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS',
           enableHighModel: wantHigh,
           enableDeepResearch: Boolean(enableDeepResearch),
+          enableCreateImage: Boolean(enableCreateImage),
+          aspectRatio: String(aspectRatio || ''),
           enableArgonLow: !wantHigh,
           enableCarbonLow: !wantHigh,
           thinkingLevel: targetLevel,
@@ -1049,6 +1132,7 @@
         result.thinkingVerified = Boolean(hwConfig.thinkingVerified);
         result.verifiedModel = String(hwConfig.verifiedModel || '');
         result.deepResearchOk = Boolean(hwConfig.deepResearchOk);
+        result.createImageOk = Boolean(hwConfig.createImageOk);
         result.diag = Array.isArray(hwConfig.diag) ? hwConfig.diag : [];
         result.debuggerAttached = Boolean(hwConfig.debuggerAttached);
         try {
@@ -1093,6 +1177,7 @@
     let planClickedAtMs = 0;
     let textAtPlanClick = '';
     const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
+    const isImageOrder = Boolean(meta && (meta.enableCreateImage || meta.mediaType === 'THUMBNAILS'));
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
     const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
     const maxTimeoutMs = isDeepResearch ? 1200000 : 180000; // 20 min for Deep Research, 3 min normal
@@ -1101,6 +1186,10 @@
       'GENERATING',
       isDeepResearch
         ? '🔬 Gemini Web (4 Carbon · Thinking: Low + Deep Research) preparando el Plan de Investigación...'
+        : isImageOrder
+        ? `🖼️ Gemini Web (Create image + Logo Oficial) está creando la Miniatura Opción ${
+            (meta && meta.optionLabel) || 'A'
+          }...`
         : 'Gemini Web (4 Carbon · Low) está redactando la respuesta...',
       meta
     );
@@ -1198,8 +1287,39 @@
         const isLongMetadataStage = stageNum === 111 || stageNum === 112 || stageNum === 11;
         const semanticallyComplete = isStageResponseSemanticallyComplete(stageNum, latest.text);
         const hasFooterActions = hasResponseFooterActionBar(latest.element);
+        const pendingImageGen = isImageOrder && hasPendingImageGenerationInResponse(latest.element);
 
-        if (!stillStreaming && latest.text === lastObservedText && latest.text.length > 10) {
+        if (isImageOrder) {
+          if (
+            !stillStreaming &&
+            !pendingImageGen &&
+            latest.images.length > 0 &&
+            latest.text === lastObservedText
+          ) {
+            stableTicks++;
+          } else if (
+            !stillStreaming &&
+            !pendingImageGen &&
+            latest.images.length === 0 &&
+            hasFooterActions &&
+            elapsedMs >= 10000 &&
+            latest.text === lastObservedText &&
+            latest.text.length > 10
+          ) {
+            // Gemini finished without producing an image (e.g., policy refusal text)
+            stableTicks++;
+          } else {
+            stableTicks = 0;
+            lastObservedText = latest.text;
+            reportStatus(
+              'STREAMING',
+              latest.images.length > 0
+                ? '🖼️ Imagen detectada en Gemini Web, verificando resolución final...'
+                : '🖼️ Gemini Web (Create image) renderizando la miniatura con el Logo Oficial...',
+              meta
+            );
+          }
+        } else if (!stillStreaming && latest.text === lastObservedText && latest.text.length > 10) {
           stableTicks++;
         } else if (!stillStreaming && latest.images.length > 0 && latest.text === lastObservedText) {
           stableTicks++;
@@ -1217,7 +1337,7 @@
         }
 
         // For Stage 9 YouTube/Facebook metadata (~3000 chars), do not cut off mid-stream in background tabs before the closing #Hashtags / Slogan arrive
-        let requiredStableTicks = isDeepResearch ? 5 : 4;
+        let requiredStableTicks = isDeepResearch ? 5 : isImageOrder ? 3 : 4;
         if (isLongMetadataStage && !semanticallyComplete && elapsedMs < 65000) {
           requiredStableTicks = hasFooterActions ? 10 : 18;
         }
@@ -1226,8 +1346,92 @@
           clearInterval(activeWatchTimer);
           activeWatchTimer = null;
           window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
-          setTimeout(() => {
+          setTimeout(async () => {
             const finalLatest = extractLatestGeminiResponse();
+
+            if (isImageOrder) {
+              // Turn off "Create image" ("Images" chip) so subsequent text prompts run normally
+              chrome.runtime
+                .sendMessage({ type: 'GEMINI_MAIN_WORLD_DESELECT_CREATE_IMAGE' })
+                .catch(() => {});
+
+              const allImgs =
+                finalLatest.images.length > 0 ? finalLatest.images : latest.images;
+              const optLabel = (meta && meta.optionLabel) || 'A';
+
+              if (allImgs.length > 0) {
+                const rawImgUrl = allImgs[allImgs.length - 1];
+                const dataUrl = await convertGeminiImageUrlToDataUrl(rawImgUrl);
+                isBusyWithOrder = false;
+                chrome.runtime
+                  .sendMessage({
+                    type: 'FLOW_THUMBNAIL_CAPTURED',
+                    provider: 'GEMINI',
+                    option: optLabel,
+                    imageDataUrl: dataUrl,
+                    imageUrl: rawImgUrl,
+                    docId: (meta && meta.docId) || '',
+                  })
+                  .catch(() => {});
+                reportStatus(
+                  'COMPLETED',
+                  `🖼️ ¡Miniatura Opción ${optLabel} generada en Gemini Web (Create image + Logo Oficial) e importada a Huellas Master!`,
+                  meta
+                );
+              } else {
+                const refusalText = (finalLatest.text || latest.text || '').trim();
+                isBusyWithOrder = false;
+                chrome.runtime
+                  .sendMessage({
+                    type: 'FLOW_GENERATION_FAILED',
+                    provider: 'GEMINI',
+                    mediaType: 'THUMBNAILS',
+                    optionLabel: optLabel,
+                    attempt: Number(meta && meta.attempt) || 1,
+                    prompt: (meta && meta.rawPrompt) || '',
+                    errorText: refusalText.slice(0, 240) || 'Gemini Web no devolvió imagen',
+                    isProminentPeopleError:
+                      /prominent\s+people|public\s+figure|real\s+person|personas?\s+reales|figuras?\s+p[uú]blicas/i.test(
+                        refusalText
+                      ),
+                    docId: (meta && meta.docId) || '',
+                  })
+                  .catch(() => {});
+                reportStatus(
+                  'ERROR',
+                  `⚠️ Gemini Web respondió sin generar la imagen${
+                    refusalText ? `: "${refusalText.slice(0, 140)}"` : ''
+                  }`,
+                  meta
+                );
+              }
+
+              if (meta && meta.targetChatTitle) {
+                const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+                const wasNewlyCreatedChat = Boolean(meta.chatState && meta.chatState.isNewChat);
+                if (
+                  wasNewlyCreatedChat ||
+                  normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)
+                ) {
+                  linkAndRenameAfterSubmit(
+                    {
+                      ...(meta.chatState || {}),
+                      targetChatTitle: meta.targetChatTitle,
+                      isDeepResearchOrder: false,
+                      isNewChat: false,
+                      forceRename: wasNewlyCreatedChat,
+                    },
+                    meta.docId || ''
+                  ).finally(() => {
+                    processNextQueuedPrompt();
+                  });
+                  return;
+                }
+              }
+              processNextQueuedPrompt();
+              return;
+            }
+
             const isStage11Family =
               stageNum === 11 ||
               stageNum === 111 ||
@@ -3495,23 +3699,32 @@
         }
 
         // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
+        const wantCreateImage = Boolean(payload.enableCreateImage || payload.mediaType === 'THUMBNAILS');
         const desiredModeKey = payload.enableDeepResearch
           ? 'CARBON4_LOW_DEEP_RESEARCH'
+          : wantCreateImage
+          ? 'CARBON4_LOW_CREATE_IMAGE'
           : 'CARBON4_LOW';
 
-        // 2. Always verify & configure 4 Carbon + Thinking Level: Low + Deep Research in DOM (especially after chat navigation)
+        // 2. Always verify & configure 4 Carbon + Thinking Level: Low + Deep Research / Create image in DOM
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
             `⚡ Configurando Gemini Web en 4 Carbon (Thinking: Low)${
-              payload.enableDeepResearch ? ' + Deep Research activo' : ''
+              payload.enableDeepResearch
+                ? ' + Deep Research activo'
+                : wantCreateImage
+                ? ' + herramienta Create image activa'
+                : ''
             }...`,
             { stageNumber: payload.stageNumber }
           );
           const cfgResult = await configureGeminiModelAndDeepResearch(
             false,
             Boolean(payload.enableDeepResearch),
-            true
+            true,
+            wantCreateImage,
+            String(payload.aspectRatio || '')
           );
           lastConfiguredModelMode = desiredModeKey;
 
@@ -3535,12 +3748,25 @@
             processNextQueuedPrompt();
             return;
           }
+          // Never send a Thumbnail image order without the Create image tool active
+          if (wantCreateImage && cfgResult && !cfgResult.createImageOk) {
+            isBusyWithOrder = false;
+            reportStatus(
+              'ERROR',
+              `⛔ No se pudo activar la herramienta "Create image" en Gemini (+ → Create image), así que NO se envió el prompt para evitar respuestas de solo texto.${diagText}`,
+              { stageNumber: payload.stageNumber }
+            );
+            processNextQueuedPrompt();
+            return;
+          }
           if (cfgResult) {
             reportStatus(
               'WORKING',
               `✅ Gemini configurado: 4 Carbon · Thinking level: ${levelLabel}${
                 cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar)'
-              }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${diagText}`,
+              }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${
+                wantCreateImage ? ` · Create image ${cfgResult.createImageOk ? '✓' : '✗'}` : ''
+              }${diagText}`,
               { stageNumber: payload.stageNumber }
             );
           }
@@ -3565,6 +3791,36 @@
           );
           processNextQueuedPrompt();
           return;
+        }
+
+        // 2B. If Official Logo image is provided (Thumbnail generation), attach it into Gemini's composer and wait until uploaded
+        if (payload.logoDataUrl) {
+          reportStatus(
+            'WORKING',
+            '🖼️ Adjuntando Logo Oficial "Huellas de la Humanidad" en Gemini Web...',
+            { stageNumber: payload.stageNumber }
+          );
+          let attachRes = null;
+          try {
+            attachRes = await chrome.runtime.sendMessage({
+              type: 'GEMINI_MAIN_WORLD_ATTACH_IMAGE',
+              dataUrl: payload.logoDataUrl,
+              fileName: 'logo_huellas_de_la_humanidad.png',
+            });
+          } catch {}
+          if (!attachRes || !attachRes.ok) {
+            isBusyWithOrder = false;
+            reportStatus(
+              'ERROR',
+              `⛔ No se pudo adjuntar la imagen del Logo Oficial en Gemini Web (${
+                (attachRes && attachRes.error) || 'error al pegar imagen'
+              }).`,
+              { stageNumber: payload.stageNumber }
+            );
+            processNextQueuedPrompt();
+            return;
+          }
+          await sleep(450);
         }
 
         const initialResponses = getModelResponseElements();
@@ -3662,6 +3918,11 @@
             taskType: payload.taskType || 'STAGE_GENERATION',
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
+            enableCreateImage: wantCreateImage,
+            mediaType: payload.mediaType,
+            optionLabel: payload.optionLabel || 'A',
+            attempt: payload.attempt || 1,
+            rawPrompt,
             targetChatTitle: resolvedTargetChatTitle,
             docId: payload.docId || '',
             initialUserQueries,
@@ -4101,6 +4362,40 @@
           }
         }
         sendResponse({ handled: ok });
+      })();
+      return true;
+    }
+
+    if (msg.action === 'SCAN_GEMINI_THUMBNAILS' || msg.action === 'GRAB_LAST_MEDIA') {
+      (async () => {
+        const responses = getModelResponseElements();
+        let foundUrl = '';
+        for (let i = responses.length - 1; i >= 0; i--) {
+          const extracted = extractCleanResponseFromElement(responses[i]);
+          if (extracted.images && extracted.images.length > 0) {
+            foundUrl = extracted.images[extracted.images.length - 1];
+            break;
+          }
+        }
+        if (!foundUrl) {
+          reportStatus('ERROR', '⚠️ No se encontró ninguna miniatura generada en este chat de Gemini Web.');
+          sendResponse({ handled: false });
+          return;
+        }
+        const dataUrl = await convertGeminiImageUrlToDataUrl(foundUrl);
+        const optLabel = msg.optionLabel || 'A';
+        chrome.runtime
+          .sendMessage({
+            type: 'FLOW_THUMBNAIL_CAPTURED',
+            provider: 'GEMINI',
+            option: optLabel,
+            imageDataUrl: dataUrl,
+            imageUrl: foundUrl,
+            docId: msg.docId || '',
+          })
+          .catch(() => {});
+        reportStatus('COMPLETED', `🖼️ Miniatura capturada desde Gemini Web e importada a Huellas Master.`);
+        sendResponse({ handled: true });
       })();
       return true;
     }

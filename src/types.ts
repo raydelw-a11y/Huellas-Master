@@ -309,6 +309,7 @@ export interface DocumentaryProject {
 
   // Etapa 10: Miniatura Oficial (Nano Banana 2.1)
   thumbnailOrientation?: 'HORIZONTAL_16X9' | 'VERTICAL_9X16';
+  thumbnailPsychVariant?: 'A' | 'B' | 'C';
   thumbnailTextOptions?: string[];
   thumbnailPrompt: string;
   thumbnailTextOverlay: string;

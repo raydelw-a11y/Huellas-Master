@@ -3981,6 +3981,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         !Boolean(message.enableCarbonLow) &&
         !Boolean(message.enableArgonLow));
     const enableDeepResearch = Boolean(message.enableDeepResearch);
+    const enableCreateImage = Boolean(message.enableCreateImage);
+    const aspectRatio = String(message.aspectRatio || '').trim();
     const targetLevel = wantHigh ? 'HIGH' : 'LOW';
 
     (async () => {
@@ -4407,6 +4409,100 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     x: Math.round(r.left + r.width / 2),
                     y: Math.round(r.top + r.height / 2),
                   };
+                }
+
+                if (op === 'CHECK_CREATE_IMAGE_CHIP') {
+                  const root = getComposerRoot() || document;
+                  const nodes = Array.from(
+                    root.querySelectorAll('button, [role="button"], mat-chip, mat-chip-option, [class*="chip"]')
+                  ).filter(
+                    (el) =>
+                      el.offsetParent !== null &&
+                      !el.closest('.cdk-overlay-container, .cdk-overlay-popover') &&
+                      !el.closest('bard-sidenav, side-navigation, conversations-list, model-response, message-content, user-query')
+                  );
+                  let chip = null;
+                  for (const el of nodes) {
+                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const a = (el.getAttribute('aria-label') || el.getAttribute('mattooltip') || '').trim();
+                    if (
+                      /\b(deselect|remove|quitar|desactivar|deseleccionar|cancel)\b/i.test(a) &&
+                      /\b(create\s*images?|images?|crear\s*im[aá]gen(?:es)?|im[aá]gen(?:es)?)\b/i.test(a)
+                    ) {
+                      chip = el;
+                      break;
+                    }
+                    const named = /^(?:create\s*images?|images|crear\s*im[aá]gen(?:es)?|im[aá]genes)$/i.test(t);
+                    if (!named) continue;
+                    if (
+                      el.getAttribute('aria-pressed') === 'true' ||
+                      el.getAttribute('aria-checked') === 'true' ||
+                      /\bmat-tonal-button\b/i.test(String(el.className || ''))
+                    ) {
+                      chip = el;
+                      break;
+                    }
+                    const holder = el.closest('mat-chip, mat-chip-option, [class*="chip"]') || el.parentElement || el;
+                    const closeCtl = holder.querySelector(
+                      '[aria-label*="deselect" i], [aria-label*="remove" i], [aria-label*="quitar" i], [aria-label*="deseleccionar" i], mat-icon[fonticon="close"], mat-icon[data-mat-icon-name="close"]'
+                    );
+                    if (closeCtl && closeCtl !== el) {
+                      chip = holder;
+                      break;
+                    }
+                  }
+                  const ed = document.querySelector('rich-textarea .ql-editor, div.ql-editor[contenteditable="true"]');
+                  const ph = (ed && (ed.getAttribute('data-placeholder') || ed.getAttribute('aria-label'))) || '';
+                  const placeholderSaysImage = /describe\s+your\s+image|describe\s+tu\s+imagen/i.test(ph);
+                  if (!chip) return { active: placeholderSaysImage, viaPlaceholder: placeholderSaysImage };
+                  const removeBtn =
+                    chip.querySelector(
+                      'button, [aria-label*="deselect" i], [aria-label*="remove" i], [aria-label*="close" i], [aria-label*="quitar" i], [matChipRemove]'
+                    ) || chip;
+                  const r = removeBtn.getBoundingClientRect();
+                  return {
+                    active: true,
+                    text: (chip.innerText || chip.getAttribute('aria-label') || '').trim().slice(0, 40),
+                    x: Math.round(r.left + r.width / 2),
+                    y: Math.round(r.top + r.height / 2),
+                  };
+                }
+
+                if (op === 'FIND_CREATE_IMAGE_IN_OVERLAY') {
+                  const createImgItem = findOverlayItemByText(/\b(create\s*images?|crear\s*im[aá]gen(?:es)?)\b/i);
+                  return createImgItem
+                    ? { ...triggerAngularElement(createImgItem, false), alreadyChecked: isItemChecked(createImgItem) }
+                    : {
+                        found: false,
+                        items: getOverlayMenuItems().map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 30)),
+                      };
+                }
+
+                if (op === 'FIND_ASPECT_RATIO_BUTTON') {
+                  const root = getComposerRoot() || document;
+                  const btns = Array.from(root.querySelectorAll('button, [role="button"]')).filter(
+                    (el) =>
+                      el.offsetParent !== null &&
+                      !el.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, model-response, user-query')
+                  );
+                  const arBtn = btns.find((el) => {
+                    const t = `${el.innerText || el.textContent || ''} ${el.getAttribute('aria-label') || ''}`
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    return /\b(aspect\s*ratio|relaci[oó]n\s*de\s*aspecto|16\s*:\s*9|9\s*:\s*16|1\s*:\s*1|4\s*:\s*3|3\s*:\s*4)\b/i.test(t);
+                  });
+                  return arBtn ? triggerAngularElement(arBtn, false) : { found: false };
+                }
+
+                if (op === 'FIND_ASPECT_RATIO_OPTION_IN_OVERLAY') {
+                  const wantVertical = argVal === '9:16';
+                  const ratioRe = wantVertical
+                    ? /\b(9\s*:\s*16|portrait|vertical)\b/i
+                    : /\b(16\s*:\s*9|widescreen|landscape|horizontal)\b/i;
+                  const item = findOverlayItemByText(ratioRe);
+                  return item
+                    ? { ...triggerAngularElement(item, false), alreadyChecked: isItemChecked(item) }
+                    : { found: false };
                 }
 
                 if (op === 'READ_THINKING_OPTIONS') {
@@ -4859,14 +4955,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         await closeMenus();
 
+        // --- PART 3: CREATE IMAGE (+ -> Create image) with verification & auto-cleanup when disabled ---
+        let createImageOk = false;
+        const initialImgChip = await runMainStep('CHECK_CREATE_IMAGE_CHIP');
+        if (!enableCreateImage) {
+          if (initialImgChip?.active && initialImgChip.x) {
+            await hardwareHoverAndClick(initialImgChip.x, initialImgChip.y);
+            await sleep(320);
+          }
+          const afterImg = await runMainStep('CHECK_CREATE_IMAGE_CHIP');
+          createImageOk = !afterImg?.active;
+        } else if (initialImgChip?.active) {
+          createImageOk = true;
+        } else {
+          const waitImgChipActive = async (rounds = 10) => {
+            for (let i = 0; i < rounds; i++) {
+              await sleep(160);
+              const chk = await runMainStep('CHECK_CREATE_IMAGE_CHIP');
+              if (chk?.active) return true;
+            }
+            return false;
+          };
+          for (let attempt = 1; attempt <= 3 && !createImageOk; attempt++) {
+            await closeMenus();
+            const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
+            if (!plusInfo?.found) {
+              diag.push(`I${attempt}: botón "+" no encontrado`);
+              continue;
+            }
+            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+            let createImgInfo = await waitFound('FIND_CREATE_IMAGE_IN_OVERLAY', '', 8, 130);
+            if (!createImgInfo.found) {
+              const moreTools = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
+              if (moreTools?.found && !moreTools.directDeepResearch) {
+                await hardwareHoverOnly(moreTools.x, moreTools.y);
+                createImgInfo = await waitFound('FIND_CREATE_IMAGE_IN_OVERLAY', '', 5, 130);
+              }
+            }
+            if (!createImgInfo?.found) {
+              diag.push(`I${attempt}: "Create image" no apareció en menú "+" [${(createImgInfo?.items || []).join(' | ')}]`);
+              continue;
+            }
+            if (createImgInfo.alreadyChecked) {
+              createImageOk = true;
+              break;
+            }
+            await hardwareHoverAndClick(createImgInfo.x, createImgInfo.y);
+            if (await waitImgChipActive(10)) {
+              createImageOk = true;
+              break;
+            }
+            diag.push(`I${attempt}: clic en "Create image" hecho pero el chip "Images" no quedó activo`);
+          }
+        }
+
+        // Optional native Aspect ratio selection ("16:9" vs "9:16") inside Create image mode
+        if (enableCreateImage && createImageOk && (aspectRatio === '16:9' || aspectRatio === '9:16')) {
+          await closeMenus();
+          const arBtn = await runMainStep('FIND_ASPECT_RATIO_BUTTON');
+          if (arBtn?.found && !new RegExp(aspectRatio.replace(':', '\\s*:\\s*')).test(arBtn.text || '')) {
+            await hardwareHoverAndClick(arBtn.x, arBtn.y);
+            const arOpt = await waitFound('FIND_ASPECT_RATIO_OPTION_IN_OVERLAY', aspectRatio, 6, 120);
+            if (arOpt?.found && !arOpt.alreadyChecked) {
+              await hardwareHoverAndClick(arOpt.x, arOpt.y);
+              await sleep(220);
+            }
+            await closeMenus();
+          }
+        }
+
+        await closeMenus();
+
         sendResponse({
           ok: true,
           targetLevel,
           enableDeepResearch,
+          enableCreateImage,
           thinkingOk,
           thinkingVerified,
           verifiedModel: verifiedModelLabel,
           deepResearchOk,
+          createImageOk,
           debuggerAttached,
           diag,
         });
@@ -4932,6 +5101,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'FLOW_VIDEO_CAPTURED' ||
     message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||
     message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
+    message.type === 'GEMINI_THUMBNAIL_CAPTURED' ||
     message.type === 'FLOW_REFERENCE_CAPTURED' ||
     message.type === 'FLOW_GENERATION_FAILED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
@@ -4948,6 +5118,216 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });
+    return true;
+  }
+
+  // 4B. Attach Official Logo image (DataURL or URL) into Gemini Web's composer via MAIN-world ClipboardEvent('paste')
+  if (message.type === 'GEMINI_MAIN_WORLD_ATTACH_IMAGE' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    const rawImageSource = String(message.dataUrl || '').trim();
+    const fileName = String(message.fileName || 'logo_huellas_de_la_humanidad.png').trim();
+    (async () => {
+      try {
+        let resolvedDataUrl = rawImageSource;
+        if (resolvedDataUrl && !resolvedDataUrl.startsWith('data:')) {
+          const resp = await fetch(resolvedDataUrl, { credentials: 'include' }).catch(() => null);
+          if (resp && resp.ok) {
+            const buf = await resp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            const mime = (resp.headers.get('content-type') || 'image/png').split(';')[0].trim() || 'image/png';
+            resolvedDataUrl = `data:${mime};base64,${btoa(binary)}`;
+          }
+        }
+
+        if (!resolvedDataUrl || !resolvedDataUrl.startsWith('data:')) {
+          sendResponse({ ok: false, error: 'Logo DataURL inválido o vacío' });
+          return;
+        }
+
+        const pasteRes = await chrome.scripting
+          .executeScript({
+            target: { tabId: geminiTabId },
+            world: 'MAIN',
+            args: [resolvedDataUrl, fileName],
+            func: (dataUrlStr, fname) => {
+              try {
+                // Remove any leftover attachments in the composer first so we attach cleanly
+                document
+                  .querySelectorAll(
+                    'button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], button[aria-label*="remove attachment" i]'
+                  )
+                  .forEach((b) => {
+                    try {
+                      b.click();
+                    } catch {}
+                  });
+
+                const ed = document.querySelector(
+                  'rich-textarea .ql-editor, div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"]'
+                );
+                if (!ed) return { pasted: false, error: 'Editor no encontrado' };
+                ed.focus();
+
+                const commaIdx = dataUrlStr.indexOf(',');
+                if (commaIdx === -1) return { pasted: false, error: 'Formato DataURL inválido' };
+                const header = dataUrlStr.slice(0, commaIdx);
+                const b64 = dataUrlStr.slice(commaIdx + 1);
+                const mimeMatch = header.match(/data:([^;]+)/i);
+                const mime = (mimeMatch && mimeMatch[1]) || 'image/png';
+
+                const bin = atob(b64);
+                const arr = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+
+                const file = new File([arr], fname || 'logo_huellas.png', { type: mime });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const pasteEv = new ClipboardEvent('paste', {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  clipboardData: dt,
+                });
+                ed.dispatchEvent(pasteEv);
+                return { pasted: true };
+              } catch (e) {
+                return { pasted: false, error: String(e?.message || e) };
+              }
+            },
+          })
+          .catch(() => []);
+
+        const firstOut = (pasteRes && pasteRes[0] && pasteRes[0].result) || { pasted: false };
+        if (!firstOut.pasted) {
+          sendResponse({ ok: false, error: firstOut.error || 'No se pudo pegar la imagen del logo' });
+          return;
+        }
+
+        // Poll up to ~10 seconds until the attachment preview chip is visible and upload progress spinners finish
+        let attached = false;
+        let uploadReady = false;
+        for (let i = 0; i < 40; i++) {
+          await sleep(250);
+          const chkRes = await chrome.scripting
+            .executeScript({
+              target: { tabId: geminiTabId },
+              world: 'MAIN',
+              func: () => {
+                const root =
+                  document.querySelector('input-area-v2, .input-area-container, .input-area') || document;
+                const hasImg =
+                  root.querySelectorAll(
+                    'img.gem-attachment-style-img, button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], [class*="attachment"] img'
+                  ).length > 0;
+                const uploading =
+                  root.querySelectorAll(
+                    'mat-progress-spinner, mat-spinner, [role="progressbar"], [class*="upload-progress" i], [class*="loading-spinner" i]'
+                  ).length > 0;
+                return { hasImg, uploading };
+              },
+            })
+            .catch(() => []);
+          const st = (chkRes && chkRes[0] && chkRes[0].result) || {};
+          if (st.hasImg) {
+            attached = true;
+            if (!st.uploading && i >= 2) {
+              uploadReady = true;
+              break;
+            }
+          }
+        }
+
+        sendResponse({ ok: attached, ready: uploadReady });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // 4C. Deselect "Create image" ("Images" chip) in Gemini Web composer after image generation finishes
+  if (message.type === 'GEMINI_MAIN_WORLD_DESELECT_CREATE_IMAGE' && sender?.tab?.id) {
+    const geminiTabId = sender.tab.id;
+    chrome.scripting
+      .executeScript({
+        target: { tabId: geminiTabId },
+        world: 'MAIN',
+        func: () => {
+          const root =
+            document.querySelector('input-area-v2, .input-area-container, .input-area') || document;
+          const desel = Array.from(root.querySelectorAll('button, [role="button"]')).find((b) => {
+            const a = (b.getAttribute('aria-label') || '').trim();
+            return (
+              /\b(deselect|remove|quitar|desactivar|deseleccionar)\b/i.test(a) &&
+              /\b(create\s*images?|images?|crear\s*im[aá]gen(?:es)?|im[aá]gen(?:es)?)\b/i.test(a)
+            );
+          });
+          if (desel) {
+            try {
+              desel.click();
+              return true;
+            } catch {}
+          }
+          return false;
+        },
+      })
+      .catch(() => {});
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  // 4D. Fetch generated Gemini image URL (with high-res upgrade for googleusercontent.com) as permanent base64 DataURL
+  if (message.type === 'FETCH_IMAGE_BASE64' && message.url) {
+    (async () => {
+      try {
+        const origUrl = String(message.url || '').trim();
+        const candidateUrls = [];
+        if (/googleusercontent\.com\//i.test(origUrl)) {
+          const upgraded = origUrl.replace(/=(?:s\d+|w\d+(?:-h\d+)?)(?:-[a-zA-Z0-9-]+)?(?=$|[?#])/, '=s2048');
+          if (upgraded && upgraded !== origUrl) candidateUrls.push(upgraded);
+        }
+        candidateUrls.push(origUrl);
+
+        let resp = null;
+        for (const u of candidateUrls) {
+          resp = await fetch(u, { credentials: 'include' }).catch(() => null);
+          if (!resp || !resp.ok) {
+            resp = await fetch(u, { credentials: 'omit' }).catch(() => null);
+          }
+          if (resp && resp.ok) break;
+        }
+        if (!resp || !resp.ok) throw new Error(`HTTP ${resp ? resp.status : 0}`);
+
+        const buf = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        const b64 = btoa(binary);
+        let rawMime = (resp.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        if (!rawMime || rawMime.includes('octet-stream') || !rawMime.startsWith('image/')) {
+          if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+            rawMime = 'image/png';
+          } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+            rawMime = 'image/jpeg';
+          } else if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+            rawMime = 'image/webp';
+          } else {
+            rawMime = 'image/png';
+          }
+        }
+        sendResponse({ ok: true, dataUrl: `data:${rawMime};base64,${b64}` });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
     return true;
   }
 

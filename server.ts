@@ -11,6 +11,7 @@ import speech from '@google-cloud/speech';
 import textToSpeech from '@google-cloud/text-to-speech';
 import { createServer as createViteServer } from 'vite';
 import ffmpegStatic from 'ffmpeg-static';
+import { autoFitVoiceoverScriptToDuration } from './src/utils/smartParsers';
 
 // Load local .env first
 dotenv.config();
@@ -1748,6 +1749,8 @@ app.post('/api/tts', async (req, res) => {
       consistencyMode = true,
       label = '',
       customStyleDescription,
+      targetDurationSeconds,
+      docContext,
     } = req.body;
 
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -1755,7 +1758,10 @@ app.post('/api/tts', async (req, res) => {
       return;
     }
 
-    const cleanedScriptForTts = cleanServerVoiceoverNarrationOnly(text);
+    const durationTarget = docContext || (Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null);
+    const cleanedScriptForTts = durationTarget
+      ? autoFitVoiceoverScriptToDuration(text, durationTarget)
+      : cleanServerVoiceoverNarrationOnly(text);
     if (!cleanedScriptForTts) {
       res.status(400).json({ error: 'El guion no contiene texto narrable válido.' });
       return;
@@ -13756,7 +13762,9 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           ? {}
           : {
               [fieldKey]:
-                stageNumber === 4 ? cleanServerVoiceoverNarrationOnly(text) : text,
+                stageNumber === 4
+                  ? autoFitVoiceoverScriptToDuration(text, list[idx])
+                  : text,
             }),
         ...extraPatch,
         ...(nextDeepChatUrl ? { geminiDeepResearchChatUrl: nextDeepChatUrl } : {}),

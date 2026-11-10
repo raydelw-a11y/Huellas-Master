@@ -79,6 +79,7 @@ import {
   stripPauseTags,
   cleanVoiceoverNarrationOnly,
   computeCalibratedVoiceoverBudget,
+  autoFitVoiceoverScriptToDuration,
   CALIBRATED_TTS_WORDS_PER_SEC,
   parseTimelineTextToSentences,
   ensureOperationalHeaderInRawClips,
@@ -132,7 +133,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:06 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:23 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -531,6 +532,24 @@ function getDefaultThumbnailOrientation(
     : 'HORIZONTAL_16X9';
 }
 
+function parseThumbnailOverlayLines(overlayText: string): string[] {
+  return String(overlayText || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim().replace(/"/g, "'"))
+    .filter((line) => line.length > 0);
+}
+
+function formatThumbnailOverlayClause(overlayText: string, positionOnlyPhrase: string): string {
+  const lines = parseThumbnailOverlayLines(overlayText);
+  if (lines.length === 0) return '';
+  if (lines.length === 1) {
+    return `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} reading "${lines[0]}"`;
+  }
+  const lineSpecs = lines.map((line, idx) => `Line ${idx + 1}: "${line}"`).join(' / ');
+  return `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} stacked across ${lines.length} exact separate lines (${lineSpecs})`;
+}
+
 function buildOrUpdateThumbnailPrompt(
   currentPrompt: string,
   orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
@@ -538,14 +557,13 @@ function buildOrUpdateThumbnailPrompt(
   doc?: DocumentaryProject | null
 ): string {
   const isVertical = orientation === 'VERTICAL_9X16';
-  const cleanText = (overlayText || '').trim();
+  const overlayLines = parseThumbnailOverlayLines(overlayText);
+  const hasCleanText = overlayLines.length > 0;
   const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
   const positionOnlyPhrase = isVertical
     ? 'centered and middle-justified right in the middle center of the image'
     : 'positioned in the bottom-left area of the image';
-  const textPositionClause = cleanText
-    ? `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} reading "${cleanText}"`
-    : '';
+  const textPositionClause = formatThumbnailOverlayClause(overlayText, positionOnlyPhrase);
   const rightLogoClause = isVertical
     ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
     : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
@@ -587,14 +605,13 @@ function buildOrUpdateThumbnailPrompt(
     );
   }
 
-  // 2. Update or insert text overlay ONLY if cleanText was explicitly typed in the field
-  // If cleanText is empty, preserve whatever text is already inside the pasted prompt without adding "[TEXTO EN PANTALLA]"
+  // 2. Update or insert text overlay ONLY if cleanText was explicitly typed in the field (supports 1 or multiple stacked lines)
   const textOverlayRegex =
-    /bold high-contrast cinematic documentary typography text overlay[^,.;]*reading\s*["“”']([^"“”']*)["“”']/i;
+    /bold high-contrast cinematic documentary typography text overlay\s+(?:centered and middle-justified right in the middle center of the image|positioned in the bottom-left area of the image|[^,.;]*?)\s+(?:stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”']([^"“”']*)["“”'])/i;
   const genericTextOverlayRegex =
-    /(?:bold\s+)?(?:high-contrast\s+)?(?:cinematic\s+)?(?:documentary\s+)?(?:typography\s+)?text(?:\s+overlay)?\s+(?:centered|positioned|placed|in the bottom-left|in the middle|in the center)[^,.;]*reading\s*["“”']([^"“”']*)["“”']/i;
+    /(?:bold\s+)?(?:high-contrast\s+)?(?:cinematic\s+)?(?:documentary\s+)?(?:typography\s+)?text(?:\s+overlay)?\s+(?:centered|positioned|placed|in the bottom-left|in the middle|in the center)[^,.;]*(?:stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”']([^"“”']*)["“”'])/i;
 
-  if (cleanText) {
+  if (hasCleanText) {
     if (textOverlayRegex.test(prompt)) {
       prompt = prompt.replace(textOverlayRegex, textPositionClause);
     } else if (genericTextOverlayRegex.test(prompt)) {
@@ -612,12 +629,14 @@ function buildOrUpdateThumbnailPrompt(
       }
     }
   } else if (textOverlayRegex.test(prompt)) {
-    // Si el campo está vacío pero había un bloque generado antes con texto real, solo ajusta su posición (16:9 vs 9:16) conservando su texto
-    prompt = prompt.replace(
-      textOverlayRegex,
-      (_, existingText) =>
-        `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} reading "${existingText}"`
-    );
+    // Si el campo está vacío pero había un bloque generado antes con texto real, solo ajusta su posición (16:9 vs 9:16) conservando su texto/líneas
+    prompt = prompt.replace(textOverlayRegex, (fullMatch) => {
+      const tailMatch = fullMatch.match(
+        /(stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”'][^"“”']*["“”'])/i
+      );
+      const preservedTail = tailMatch ? tailMatch[1] : 'reading ""';
+      return `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} ${preservedTail}`;
+    });
   }
 
   // 3. Update or insert top-right 5% logo ("8K" for horizontal vs "HD" for vertical)
@@ -664,12 +683,15 @@ function buildPsychologicalThumbnailVariantPrompt(
   doc?: DocumentaryProject | null
 ): string {
   const isVertical = orientation === 'VERTICAL_9X16';
-  const cleanText = (overlayText || '').trim() || getDefaultCuriosityGapHooks(doc)[0];
+  const effectiveRawOverlay =
+    parseThumbnailOverlayLines(overlayText).length > 0
+      ? overlayText
+      : getDefaultCuriosityGapHooks(doc)[0];
   const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
   const positionOnlyPhrase = isVertical
     ? 'centered and middle-justified right in the middle center of the image'
     : 'positioned in the bottom-left area of the image';
-  const textPositionClause = `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} reading "${cleanText}"`;
+  const textPositionClause = formatThumbnailOverlayClause(effectiveRawOverlay, positionOnlyPhrase);
   const rightLogoClause = isVertical
     ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
     : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
@@ -4467,6 +4489,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
 
   const pendingStage11QueueRef = useRef<number[]>([]);
+  const autoExpandedShortScriptRef = useRef<Record<string, boolean>>({});
 
   const applyGeneratedStageText = (
     stageNum: number,
@@ -4590,10 +4613,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           .catch(() => {});
       }
     } else if (stageNum === 4) {
-      const normalizedScript = cleanVoiceoverNarrationOnly(normalizeQuantitiesToMil(text));
+      const normalizedScript = autoFitVoiceoverScriptToDuration(
+        normalizeQuantitiesToMil(text),
+        activeDoc
+      );
       const autoTl = buildSmartClientTimeline(normalizedScript, activeDoc);
       updateActiveDoc({
         voiceoverScript: normalizedScript,
+        promptConfig: {
+          ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
+          RECALIBRATE_SCRIPT_TO_DURATION: 'NO',
+        },
         ...(autoTl.sentences.length > 0
           ? {
               timelineSentences: autoTl.sentences,
@@ -4602,6 +4632,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             }
           : {}),
       });
+
+      // If Gemini returned an abnormally short draft (<78% of desired duration), trigger 1 automatic expansion pass
+      const { effectiveVoiceEntrySec, targetDurationSec } = getStage1ClipDurations(activeDoc);
+      const pInfo = extractPausesInfo(normalizedScript);
+      const budget = computeCalibratedVoiceoverBudget(
+        targetDurationSec,
+        effectiveVoiceEntrySec,
+        8,
+        pInfo.count > 0 ? pInfo.totalSeconds : undefined
+      );
+      const spokenWords = stripPauseTags(normalizedScript)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+      const expandGuardKey = `${activeDoc.id}:${targetDurationSec}`;
+      if (
+        spokenWords >= 60 &&
+        spokenWords < Math.round(budget.targetWords * 0.78) &&
+        !autoExpandedShortScriptRef.current[expandGuardKey]
+      ) {
+        autoExpandedShortScriptRef.current[expandGuardKey] = true;
+        setTimeout(() => {
+          handleSendStageToGeminiWeb(4, undefined, {
+            overridePromptConfig: { RECALIBRATE_SCRIPT_TO_DURATION: 'SI' },
+          });
+        }, 900);
+      }
     } else if (stageNum === 5) {
       const patch: Partial<DocumentaryProject> = {
         thumbnailOrientation: orientationForThumb,
@@ -4946,24 +5003,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     pingHuellasExtension();
   }, []);
 
-  // Auto-clean any stage headers, MM:SS timestamp cues, or technical parentheticals from voiceoverScript so VoxFlow & Timeline never read them aloud
+  // Auto-clean stage headers/MM:SS cues AND automatically fit voiceoverScript to the desired Stage 1 duration
   useEffect(() => {
     if (!activeDoc?.voiceoverScript) return;
+    if (
+      typeof document !== 'undefined' &&
+      document.activeElement?.tagName === 'TEXTAREA' &&
+      (document.activeElement as HTMLTextAreaElement).dataset?.voiceoverEditor === 'true'
+    ) {
+      return;
+    }
     const rawVo = activeDoc.voiceoverScript;
-    const hasTechnicalCues =
-      /(?:^|\n)\s*(?:#{1,6}\s+)?(?:\*+\s*)?(?:ETAPA\s+\d+|GUION\s+DE\s+(?:LA\s+)?VOZ\s+EN\s+OFF|Caracteres\s+Totales|Duraci[oó]n\s+Total\s+Estimada)/i.test(
-        rawVo
-      ) ||
-      /\(\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–—a|])/i.test(rawVo) ||
-      /\(\s*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+\d+|Entrada\s+(?:exacta\s+)?de\s+la\s+voz)/i.test(
-        rawVo
-      );
-    if (!hasTechnicalCues) return;
-    const cleanedVo = cleanVoiceoverNarrationOnly(rawVo);
-    if (cleanedVo && cleanedVo !== rawVo.trim()) {
-      const autoTl = buildSmartClientTimeline(cleanedVo, activeDoc);
+    const fittedVo = autoFitVoiceoverScriptToDuration(rawVo, activeDoc);
+    if (fittedVo && fittedVo !== rawVo.trim()) {
+      const autoTl = buildSmartClientTimeline(fittedVo, activeDoc);
       updateActiveDoc({
-        voiceoverScript: cleanedVo,
+        voiceoverScript: fittedVo,
         ...(autoTl.sentences.length > 0
           ? {
               timelineSentences: autoTl.sentences,
@@ -4973,7 +5028,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           : {}),
       });
     }
-  }, [activeDoc?.id, activeDoc?.voiceoverScript]);
+  }, [
+    activeDoc?.id,
+    activeDoc?.voiceoverScript,
+    activeDoc?.targetDurationSeconds,
+    activeDoc?.clip1DurationSeconds,
+    activeDoc?.clip1SyncMode,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
+  ]);
 
   // Automatically strip any unwanted Stage 12 closing chatter ("¡Metadata completada!...") and recover complete Stage 9 sections (YouTube, Facebook, Comentario Fijado, Tags) from the active Gemini tab
   useEffect(() => {
@@ -8874,10 +8936,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
-  // ITEM 5: Send Stage 5 Prompt + Official Logo to Logged-In Google Flow & Auto-Import into Our Site + 03_Miniaturas Subfolder (No API, No Tab Switch)
+  // ITEM 5: Send Stage 5 Prompt + Official Logo to Logged-In Gemini Web (Create image tool) & Auto-Import into Our Site + 03_Miniaturas Subfolder
   const handleSendThumbnailsToFlowAndCapture = async (
-    optionLabel: 'A' | 'B' | 'C' = 'A',
-    usePsychVariant: boolean = true
+    optionLabel?: 'A' | 'B' | 'C',
+    usePsychVariant: boolean = false
   ) => {
     if (!activeDoc) return;
     if (!officialLogoUrl || !officialLogoUrl.trim()) {
@@ -8886,24 +8948,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       );
       return;
     }
+    const effectiveOptionLabel: 'A' | 'B' | 'C' =
+      optionLabel ||
+      (activeDoc.thumbnailPsychVariant === 'B'
+        ? 'B'
+        : activeDoc.thumbnailPsychVariant === 'C'
+        ? 'C'
+        : 'A');
     const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
-    const effectiveOverlay =
-      (activeDoc.thumbnailTextOverlay || '').trim() ||
-      getDefaultCuriosityGapHooks(activeDoc)[
-        optionLabel === 'B' ? 1 : optionLabel === 'C' ? 2 : 0
-      ];
+    const hasTypedLines = parseThumbnailOverlayLines(activeDoc.thumbnailTextOverlay || '').length > 0;
+    const effectiveOverlay = hasTypedLines
+      ? activeDoc.thumbnailTextOverlay
+      : getDefaultCuriosityGapHooks(activeDoc)[
+          effectiveOptionLabel === 'B' ? 1 : effectiveOptionLabel === 'C' ? 2 : 0
+        ];
 
     const existingPrompt = (activeDoc.thumbnailPrompt || '').trim();
     const promptText = usePsychVariant
       ? buildPsychologicalThumbnailVariantPrompt(
-          optionLabel,
+          effectiveOptionLabel,
           currentOrientation,
           effectiveOverlay,
           activeDoc
         )
-      : existingPrompt ||
-        buildPsychologicalThumbnailVariantPrompt(
-          optionLabel,
+      : existingPrompt
+      ? buildOrUpdateThumbnailPrompt(
+          existingPrompt,
+          currentOrientation,
+          effectiveOverlay,
+          activeDoc
+        )
+      : buildPsychologicalThumbnailVariantPrompt(
+          effectiveOptionLabel,
           currentOrientation,
           effectiveOverlay,
           activeDoc
@@ -8912,6 +8988,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     updateActiveDoc({
       thumbnailTextOverlay: effectiveOverlay,
       thumbnailOrientation: currentOrientation,
+      thumbnailPsychVariant: effectiveOptionLabel,
       thumbnailPrompt: promptText,
     });
 
@@ -8933,22 +9010,42 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const folderLabel =
       flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
 
-    setThumbnailGeneratingOption(optionLabel);
+    setThumbnailGeneratingOption(effectiveOptionLabel);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Prompt + Logo Oficial a tu cuenta de Google Flow en segundo plano (sin cambiar de ventana) y esperando para importar automáticamente Miniatura_Opcion_${optionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
+      `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (herramienta Create image en el chat del documental) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
 
-    // Send Prompt + Official Logo DataURL to logged-in Google Flow tab in background without switching tabs
-    sendCommandToWebBridge('FLOW', {
+    const targetVideoBaseName = String(currentCanonicalVideoName || activeDoc.title || '')
+      .replace(/_\s*Deep\s*Research$/i, '')
+      .trim();
+
+    // Send Prompt + Official Logo DataURL to logged-in Gemini Web chat with Create image tool active
+    sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
+      docId: activeDoc.id,
+      videoName: targetVideoBaseName,
+      deepResearchVideoName: targetVideoBaseName ? `${targetVideoBaseName}_Deep Research` : '',
+      geminiChatUrl: getDocMainChatUrl(activeDoc),
+      geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(activeDoc),
+      notebookName: 'Huellas de la Humanidad',
       prompt: promptText,
       logoDataUrl: officialLogoUrl,
+      aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
+      stageNumber: 505,
+      taskType: 'THUMBNAIL_IMAGE_GENERATION',
+      enableHighModel: false,
+      enableArgonLow: true,
+      enableCarbonLow: true,
+      preferredModel: 'CARBON_4_LOW',
+      thinkingLevel: 'LOW',
+      enableDeepResearch: false,
+      enableCreateImage: true,
       mediaType: 'THUMBNAILS',
-      optionLabel,
+      optionLabel: effectiveOptionLabel,
       autoSubmit: true,
       focusTab: false,
-      tabId: selectedFlowTabId,
+      tabId: selectedGeminiTabId,
     });
   };
 
@@ -9645,30 +9742,52 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             updateActiveDoc({ thumbnailPrompt: safeThumbPrompt });
             const opt: 'A' | 'B' | 'C' =
               msg.optionLabel === 'B' ? 'B' : msg.optionLabel === 'C' ? 'C' : 'A';
-            const statusMsg = `🛡️ Google Flow bloqueó la Miniatura (${
+            const statusMsg = `🛡️ Gemini Web bloqueó la Miniatura (${
               msg.isProminentPeopleError ? 'Prominent People' : 'Política'
-            }). Prompt reajustado automáticamente para evadir el filtro y reenviando Opción ${opt} (Intento #${nextAttempt})...`;
+            }). Prompt reajustado automáticamente para evadir el filtro y reenviando Opción ${opt} en Gemini Web (Intento #${nextAttempt})...`;
             setBridgeStatusType('WORKING');
             setBridgeStatusMsg(statusMsg);
             setFlowStatusLog(statusMsg);
+            const retryVideoBaseName = String(currentDoc.title || '')
+              .replace(/_\s*Deep\s*Research$/i, '')
+              .trim();
+            const retryOrientation = getDefaultThumbnailOrientation(currentDoc);
             setTimeout(() => {
-              sendCommandToWebBridge('FLOW', {
+              sendCommandToWebBridge('GEMINI', {
                 action: 'SEND_PROMPT',
+                docId: currentDoc.id,
+                videoName: retryVideoBaseName,
+                deepResearchVideoName: retryVideoBaseName
+                  ? `${retryVideoBaseName}_Deep Research`
+                  : '',
+                geminiChatUrl: getDocMainChatUrl(currentDoc),
+                geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(currentDoc),
+                notebookName: 'Huellas de la Humanidad',
                 prompt: safeThumbPrompt,
                 logoDataUrl: officialLogoUrl,
+                aspectRatio: retryOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
+                stageNumber: 505,
+                taskType: 'THUMBNAIL_IMAGE_GENERATION',
+                enableHighModel: false,
+                enableArgonLow: true,
+                enableCarbonLow: true,
+                preferredModel: 'CARBON_4_LOW',
+                thinkingLevel: 'LOW',
+                enableDeepResearch: false,
+                enableCreateImage: true,
                 mediaType: 'THUMBNAILS',
                 optionLabel: opt,
                 attempt: nextAttempt,
                 autoSubmit: true,
                 focusTab: false,
-                tabId: selectedFlowTabId,
+                tabId: selectedGeminiTabId,
               });
             }, 1200);
           } else {
             setThumbnailGeneratingOption(null);
             setBridgeStatusType('ERROR');
             setBridgeStatusMsg(
-              `⚠️ Google Flow rechazó la miniatura tras ${prevAttempt} intentos. Ajusta el prompt o presiona "Evadir Filtro".`
+              `⚠️ Gemini Web rechazó la miniatura tras ${prevAttempt} intentos. Ajusta el prompt y vuelve a intentarlo.`
             );
           }
         } else if (currentDoc && Array.isArray(currentDoc.clips)) {
@@ -9713,23 +9832,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'FLOW_CLIP_IMAGE_CAPTURED') {
         // Ignorar imágenes estáticas de clips para evitar que se guarde Imagen_Clip_XX.png en 05_Clips_Video o reemplace el video real
         setExtensionInstalled(true);
-      } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED') {
-        // ITEM 5: Auto-import captured Thumbnail A/B/C from Google Flow into our site & save into 03_Miniaturas inside Root Folder
+      } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED' || msg.type === 'GEMINI_THUMBNAIL_CAPTURED') {
+        // ITEM 5: Auto-import captured Thumbnail A/B/C from Gemini Web into our site & save into 03_Miniaturas inside Root Folder
         setExtensionInstalled(true);
         setThumbnailGeneratingOption(null);
         const opt: 'A' | 'B' | 'C' =
           msg.option === 'B' ? 'B' : msg.option === 'C' ? 'C' : 'A';
         const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        const sourceLabel = msg.provider === 'GEMINI' || msg.type === 'GEMINI_THUMBNAIL_CAPTURED' ? 'Gemini Web' : 'Gemini Web';
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
           updateActiveDoc({ thumbnailImageUrl: dataUrl, thumbnailReady: true });
           const thumbFileName = `Miniatura_Opcion_${opt}.png`;
           await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
+          await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
           const folderLabel =
             flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
-            `🖼️ ¡Miniatura Opción ${opt} importada automáticamente desde Google Flow y guardada en "${folderLabel}/03_Miniaturas/${thumbFileName}"!`
+            `🖼️ ¡Miniatura Opción ${opt} importada automáticamente desde ${sourceLabel} y guardada en "${folderLabel}/03_Miniaturas/${thumbFileName}"!`
           );
           handleAuditThumbnailPsychology(opt, dataUrl);
         }
@@ -9984,6 +10105,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? {
             ...enrichedCurrentDoc,
             thumbnailOrientation: orientationForThumb,
+            thumbnailPsychVariant:
+              enrichedCurrentDoc.thumbnailPsychVariant === 'B'
+                ? ('B' as const)
+                : enrichedCurrentDoc.thumbnailPsychVariant === 'C'
+                ? ('C' as const)
+                : ('A' as const),
             thumbnailTextOverlay: workingOverlay,
           }
         : enrichedCurrentDoc;
@@ -10770,45 +10897,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
-    const sanitizedScript = cleanVoiceoverNarrationOnly(textToSpeak || '');
-    if (!activeDoc || !sanitizedScript.trim()) {
+    if (!activeDoc) return;
+    const isFullDocScript = (textToSpeak || '').trim() === (activeDoc.voiceoverScript || '').trim();
+    const sanitizedScript = isFullDocScript
+      ? autoFitVoiceoverScriptToDuration(textToSpeak || '', activeDoc)
+      : cleanVoiceoverNarrationOnly(textToSpeak || '');
+    if (!sanitizedScript.trim()) {
       alert('Escribe o pega primero el texto del guion para generar la voz.');
       return;
     }
 
-    const isFullDocScript = (textToSpeak || '').trim() === (activeDoc.voiceoverScript || '').trim();
     if (isFullDocScript && sanitizedScript !== (activeDoc.voiceoverScript || '').trim()) {
       updateActiveDoc({ voiceoverScript: sanitizedScript });
     }
 
-    if (isFullDocScript) {
-      const pInfo = extractPausesInfo(sanitizedScript);
-      const cleanWords = stripPauseTags(sanitizedScript)
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean).length;
-      const introPlacement = activeDoc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
-      const { voiceEntrySec } = getStage1ClipDurations(activeDoc);
-      const effEntrySec = introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
-      const budget = computeCalibratedVoiceoverBudget(
-        activeDoc.targetDurationSeconds || 900,
-        effEntrySec,
-        8
-      );
-      const estTotalVideoSec = Math.round(
-        cleanWords / CALIBRATED_TTS_WORDS_PER_SEC + pInfo.totalSeconds + effEntrySec + 8
-      );
-      if (estTotalVideoSec > budget.totalDurationSec * 1.22) {
-        const estMin = (estTotalVideoSec / 60).toFixed(1);
-        const proceedOversized = window.confirm(
-          `⚠️ El documental está configurado en Etapa 1 para ${budget.totalMinutesLabel} minutos (~${budget.targetWords} palabras), pero el guion actual tiene ${cleanWords} palabras y generará aproximadamente ${estMin} minutos de video.\n\n• Pulsa "Cancelar" para ajustarlo primero a ${budget.totalMinutesLabel} minutos con el botón "🎯 Ajustar Guion a ${budget.totalMinutesLabel} min en Gemini".\n• Pulsa "Aceptar" solo si deseas sintetizar igualmente los ${estMin} minutos.`
-        );
-        if (!proceedOversized) return;
-      }
-    }
-
     setTtsGenerating(true);
-    setTtsProgressMsg('🎙️ Preparando bloques limpios de locución y control de cuota Tier 1 (10/min)...');
+    setTtsProgressMsg('🎙️ Preparando locución calibrada a la duración elegida y control de cuota Tier 1 (10/min)...');
     try {
       let data: TTSRecord | null = null;
       if (!isCloudMode) {
@@ -10827,6 +10931,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               language: activeDoc.selectedLanguage || 'es-la',
               consistencyMode: true,
               label: labelTitle || getVoiceoverAudioName(activeDoc.title),
+              ...(isFullDocScript
+                ? {
+                    targetDurationSeconds: activeDoc.targetDurationSeconds,
+                    docContext: {
+                      targetDurationSeconds: activeDoc.targetDurationSeconds,
+                      clip1DurationSeconds: activeDoc.clip1DurationSeconds,
+                      clip1SyncMode: activeDoc.clip1SyncMode,
+                      promptConfig: activeDoc.promptConfig,
+                    },
+                  }
+                : {}),
             }),
           });
           if ((res.headers.get('content-type') || '').includes('application/json')) {
@@ -10848,6 +10963,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           speed: activeDoc.selectedSpeed || 'medium',
           language: activeDoc.selectedLanguage || 'es-la',
           label: labelTitle || getVoiceoverAudioName(activeDoc.title),
+          ...(isFullDocScript ? { docContext: activeDoc } : {}),
           onProgress: (msg) => setTtsProgressMsg(msg),
         });
       }
@@ -10871,7 +10987,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
       // AUTOMATICALLY extract timeline right when VoxFlow audio is created!
       const measuredDur = data.audioUrl ? await measureAudioDurationInBrowser(data.audioUrl) : 0;
-      const scriptSource = (activeDoc.voiceoverScript || textToSpeak).trim();
+      const scriptSource = isFullDocScript
+        ? sanitizedScript
+        : (activeDoc.voiceoverScript || sanitizedScript).trim();
       const autoTl = buildSmartClientTimeline(
         scriptSource,
         activeDoc,
@@ -10879,6 +10997,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       );
 
       updateActiveDoc({
+        ...(isFullDocScript ? { voiceoverScript: sanitizedScript } : {}),
         audioTracks: updatedTracks,
         masterAudioUrl: data.audioUrl,
         ...(autoTl.sentences.length > 0
@@ -11216,19 +11335,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Voiceover metrics calculation for Stage 4 (calibrated to empirical 147 WPM of Charon in Gemini 3.8 Flash TTS)
   const voiceoverMetrics = useMemo(() => {
-    const introPlacement = activeDoc?.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
-    const { voiceEntrySec } = activeDoc
+    const { effectiveVoiceEntrySec, targetDurationSec } = activeDoc
       ? getStage1ClipDurations(activeDoc)
-      : { voiceEntrySec: 8 };
-    const effectiveVoiceEntrySec =
-      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
-    const budget = computeCalibratedVoiceoverBudget(
-      activeDoc?.targetDurationSeconds || 900,
-      effectiveVoiceEntrySec,
-      8
-    );
+      : { effectiveVoiceEntrySec: 16, targetDurationSec: 900 };
     const formatMmSs = (sec: number) => {
-      const s = Math.max(0, Math.round(sec));
+      const s = Math.max(0, Math.round(Number(sec) || 0));
       const mm = Math.floor(s / 60);
       const ss = s % 60;
       return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
@@ -11236,6 +11347,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const raw = activeDoc?.voiceoverScript || '';
     if (!raw.trim()) {
+      const emptyBudget = computeCalibratedVoiceoverBudget(
+        targetDurationSec,
+        effectiveVoiceEntrySec,
+        8
+      );
       return {
         cleanChars: 0,
         words: 0,
@@ -11246,14 +11362,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         estimatedVideoSeconds: 0,
         formattedAudioDuration: '00:00',
         formattedVideoDuration: '00:00',
-        formattedTargetDuration: formatMmSs(budget.totalDurationSec),
-        budget,
+        formattedTargetDuration: formatMmSs(emptyBudget.totalDurationSec),
+        budget: emptyBudget,
         isOverTarget: false,
         isUnderTarget: false,
       };
     }
     const sanitized = cleanVoiceoverNarrationOnly(raw);
     const pauseInfo = extractPausesInfo(sanitized);
+    const budget = computeCalibratedVoiceoverBudget(
+      targetDurationSec,
+      effectiveVoiceEntrySec,
+      8,
+      pauseInfo.count > 0 ? pauseInfo.totalSeconds : undefined
+    );
     const cleanText = stripPauseTags(sanitized).trim();
     const cleanChars = cleanText.length;
     const words = cleanText ? cleanText.split(/\s+/).filter(Boolean).length : 0;
@@ -14954,7 +15076,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             =============================================================== */}
             {activeStage === 5 && (() => {
               const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
-              const hasOverlayText = Boolean((activeDoc.thumbnailTextOverlay || '').trim());
+              const selectedPsychVariant: 'A' | 'B' | 'C' =
+                activeDoc.thumbnailPsychVariant === 'B'
+                  ? 'B'
+                  : activeDoc.thumbnailPsychVariant === 'C'
+                  ? 'C'
+                  : 'A';
+              const overlayLineCount = parseThumbnailOverlayLines(
+                activeDoc.thumbnailTextOverlay || ''
+              ).length;
+              const hasOverlayText = overlayLineCount > 0;
 
               const handleSelectThumbnailOrientation = (
                 newOrientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16'
@@ -14968,6 +15099,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 updateActiveDoc({
                   thumbnailOrientation: newOrientation,
                   thumbnailPrompt: updatedPrompt,
+                });
+              };
+
+              const handleSelectThumbnailPsychVariant = (newVariant: 'A' | 'B' | 'C') => {
+                const built = buildPsychologicalThumbnailVariantPrompt(
+                  newVariant,
+                  currentOrientation,
+                  activeDoc.thumbnailTextOverlay || '',
+                  activeDoc
+                );
+                updateActiveDoc({
+                  thumbnailPsychVariant: newVariant,
+                  thumbnailOrientation: currentOrientation,
+                  thumbnailPrompt: built,
                 });
               };
 
@@ -15122,7 +15267,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           : 'bg-amber-500/5 border-amber-500/50'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                         <label
                           htmlFor="thumbnail-text-overlay-input"
                           className="text-xs font-bold text-amber-300 flex items-center gap-2"
@@ -15135,20 +15280,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 : 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
                             }`}
                           >
-                            {hasOverlayText ? '✓ Listo' : 'Obligatorio antes de generar'}
+                            {hasOverlayText
+                              ? overlayLineCount >= 2
+                                ? `✓ ${overlayLineCount} líneas configuradas`
+                                : '✓ 1 línea lista'
+                              : 'Obligatorio antes de generar'}
                           </span>
                         </label>
                         <span className="text-[11px] text-slate-400">
-                          1 a 3 palabras contundentes (sin repetir Título ni Texto de los primeros 8s)
+                          Presiona <strong className="text-amber-300">Enter</strong> para saltar de línea (2 o más líneas exactas en la miniatura)
                         </span>
                       </div>
-                      <input
+                      <textarea
                         id="thumbnail-text-overlay-input"
-                        type="text"
+                        rows={3}
                         value={activeDoc.thumbnailTextOverlay || ''}
                         onChange={(e) => handleChangeThumbnailTextOverlay(e.target.value)}
-                        placeholder="Ej. EL SECRETO PROHIBIDO"
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-300 outline-none"
+                        placeholder={'Ej. Línea 1: EL SECRETO\nLínea 2: PROHIBIDO'}
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-300 outline-none resize-y leading-snug"
                       />
                       {(activeDoc.thumbnailTextOptions || []).length > 0 && (
                         <div className="mt-2.5 space-y-1.5">
@@ -15263,14 +15412,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
 
-                    {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DE ALTO CTR (A / B / C) */}
+                    {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DE ALTO CTR SELECCIONABLES (A / B / C) */}
                     <div className="space-y-2 bg-slate-950/90 border border-indigo-500/30 rounded-xl p-3.5">
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <span className="text-xs font-extrabold text-indigo-300">
                           🧠 3. Disparadores Neuropsicológicos del Clic (Regla de 13ms + Rostro + Curiosity Gap):
                         </span>
-                        <span className="text-[10px] text-slate-400">
-                          Selecciona un ángulo psicológico o envíalo directo a Google Flow
+                        <span className="text-[11px] text-amber-400 font-semibold">
+                          Click para seleccionar ángulo e insertarlo en el prompt
                         </span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -15290,56 +15439,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             title: 'Opción C: Escala + Peligro',
                             desc: 'Rostro humano vulnerable en shock frente a la magnitud colosal del suceso en alto contraste.',
                           },
-                        ].map((item) => (
-                          <div
-                            key={item.opt}
-                            className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-lg p-2.5 flex flex-col justify-between gap-2"
-                          >
-                            <div>
-                              <div className="text-[11px] font-black text-amber-300">{item.title}</div>
-                              <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const overlay =
-                                    (activeDoc.thumbnailTextOverlay || '').trim() ||
-                                    getDefaultCuriosityGapHooks(activeDoc)[0];
-                                  const built = buildPsychologicalThumbnailVariantPrompt(
-                                    item.opt,
-                                    currentOrientation,
-                                    overlay,
-                                    activeDoc
-                                  );
-                                  updateActiveDoc({
-                                    thumbnailTextOverlay: overlay,
-                                    thumbnailPrompt: built,
-                                  });
-                                }}
-                                className="flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 text-[10px] font-bold cursor-pointer"
-                              >
-                                Ver Prompt {item.opt}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={thumbnailGeneratingOption !== null}
-                                onClick={() => handleSendThumbnailsToFlowAndCapture(item.opt, true)}
-                                className={`flex-1 py-1 px-2 rounded text-[10px] font-black cursor-pointer disabled:opacity-60 ${
-                                  officialLogoUrl
-                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
-                                    : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
-                                }`}
-                              >
-                                {!officialLogoUrl
-                                  ? '🔒 Logo Req.'
-                                  : thumbnailGeneratingOption === item.opt
-                                  ? `⏳ Creando ${item.opt}...`
-                                  : `🚀 Crear ${item.opt}`}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                        ].map((item) => {
+                          const isSelectedTrigger = selectedPsychVariant === item.opt;
+                          return (
+                            <button
+                              key={item.opt}
+                              type="button"
+                              onClick={() => handleSelectThumbnailPsychVariant(item.opt)}
+                              className={`text-left rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                                isSelectedTrigger
+                                  ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
+                                  : 'bg-slate-900/90 border-slate-800 hover:border-amber-500/40'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
+                                  <span
+                                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                      isSelectedTrigger ? 'bg-amber-400' : 'bg-slate-600'
+                                    }`}
+                                  />
+                                  {item.title}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-300 leading-snug">{item.desc}</p>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -15352,7 +15478,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <button
                             type="button"
                             disabled={thumbnailGeneratingOption !== null}
-                            onClick={() => handleSendThumbnailsToFlowAndCapture('A', false)}
+                            onClick={() =>
+                              handleSendThumbnailsToFlowAndCapture(selectedPsychVariant, false)
+                            }
                             className={`text-xs px-2.5 py-1 rounded font-black cursor-pointer shadow disabled:opacity-60 ${
                               officialLogoUrl
                                 ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
@@ -15360,29 +15488,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             }`}
                             title={
                               officialLogoUrl
-                                ? 'Crea la miniatura usando exactamente el prompt escrito abajo, sin cambiar de ventana, e impórtala automáticamente aquí y en tu carpeta única'
+                                ? 'Envía el prompt actual y la imagen del Logo Oficial a Gemini Web activando la herramienta Create image e importa la miniatura automáticamente'
                                 : '🔒 Primero debes subir el Logo Oficial arriba'
                             }
                           >
                             {!officialLogoUrl
                               ? '🔒 Subir Logo para Crear Miniatura'
                               : thumbnailGeneratingOption
-                              ? '⏳ Creando e Importando Miniatura...'
-                              : '🖼️ Crear Miniatura con Prompt Actual'}
+                              ? '⏳ Creando Miniatura en Gemini Web...'
+                              : '🖼️ Crear Miniatura en Gemini Web'}
                           </button>
                           <button
                             type="button"
                             onClick={async () => {
                               await ensureSingleDownloadFolderReadyOnGesture();
-                              sendCommandToWebBridge('FLOW', {
-                                action: 'SCAN_FLOW_THUMBNAILS',
-                                tabId: selectedFlowTabId,
+                              sendCommandToWebBridge('GEMINI', {
+                                action: 'SCAN_GEMINI_THUMBNAILS',
+                                docId: activeDoc.id,
+                                optionLabel: selectedPsychVariant,
+                                tabId: selectedGeminiTabId,
                               });
                             }}
                             className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
-                            title="Captura las últimas imágenes de la pestaña abierta de Google Flow y las guarda en tu carpeta única"
+                            title="Captura la última miniatura generada en el chat abierto de Gemini Web y la guarda en tu carpeta única"
                           >
-                            🔍 Capturar Miniaturas de Flow
+                            🔍 Capturar Miniatura de Gemini
                           </button>
                           <button
                             onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
@@ -15482,7 +15612,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         />
                       ) : (
                         <span className="text-xs text-slate-500 px-4 text-center">
-                          Haz clic en &quot;🚀 Crear A / B / C&quot; o &quot;🖼️ Crear Miniatura con Prompt Actual&quot; para generar e importar la miniatura automáticamente aquí (sin cambiar de ventana)
+                          Selecciona el disparador neuropsicológico y haz clic en &quot;🖼️ Crear Miniatura en Gemini Web&quot; para generar la miniatura con Create image + nuestro Logo Oficial e importarla aquí automáticamente
                         </span>
                       )}
                     </div>
@@ -15491,7 +15621,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     {Object.keys(capturedThumbnailsMap).length > 0 && (
                       <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                         <span className="text-[11px] font-bold text-amber-300 block">
-                          Miniaturas Capturadas de Google Flow (Haz clic para elegir como ganadora):
+                          Miniaturas Capturadas de Gemini Web (Haz clic para elegir como ganadora):
                         </span>
                         <div className="grid grid-cols-3 gap-2">
                           {(['A', 'B', 'C'] as const).map((opt) => {

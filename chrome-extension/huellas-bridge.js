@@ -163,6 +163,8 @@
       message.type === 'FLOW_VIDEO_CAPTURED' ||
       message.type === 'FLOW_CLIP_IMAGE_CAPTURED' ||
       message.type === 'FLOW_THUMBNAIL_CAPTURED' ||
+      message.type === 'GEMINI_THUMBNAIL_CAPTURED' ||
+      message.type === 'FLOW_GENERATION_FAILED' ||
       message.type === 'FLOW_REFERENCE_CAPTURED' ||
       message.type === 'SUNO_AUDIO_CAPTURED' ||
       message.type === 'HUELLAS_CONNECTED_TABS_UPDATE' ||

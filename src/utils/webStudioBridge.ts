@@ -31,6 +31,7 @@ export interface WebBridgeCommandPayload {
     | 'GRAB_LAST_MEDIA'
     | 'SCAN_FLOW_VIDEOS'
     | 'SCAN_FLOW_THUMBNAILS'
+    | 'SCAN_GEMINI_THUMBNAILS'
     | 'SCAN_FLOW_REFERENCES'
     | 'SCAN_SUNO_TRACKS'
     | 'STOP_FLOW_WATCHER'
@@ -54,6 +55,7 @@ export interface WebBridgeCommandPayload {
   preferredModel?: string;
   thinkingLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   enableDeepResearch?: boolean;
+  enableCreateImage?: boolean;
   skipModelSwitch?: boolean;
   clipNumber?: number | string;
   clipId?: string;

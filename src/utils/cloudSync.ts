@@ -9,6 +9,7 @@ import {
   stripPauseTags,
   cleanVoiceoverNarrationOnly,
   computeCalibratedVoiceoverBudget,
+  autoFitVoiceoverScriptToDuration,
   normalizeClip1Line1Format,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
@@ -2258,7 +2259,35 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
       doc.thumbnailOrientation ||
       (doc.productionType === 'REEL_9X16' ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9');
     const isThumbHorizontal = thumbOrientation === 'HORIZONTAL_16X9';
-    const overlayText = (doc.thumbnailTextOverlay || '').trim() || 'EL SECRETO OCULTO';
+    const overlayLines = String(doc.thumbnailTextOverlay || '')
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((l) => l.trim().replace(/"/g, "'"))
+      .filter(Boolean);
+    const effectiveLines = overlayLines.length > 0 ? overlayLines : ['EL SECRETO OCULTO'];
+    const overlayPositionPhrase = isThumbHorizontal
+      ? 'positioned in the bottom-left area of the image'
+      : 'centered and middle-justified right in the middle center of the image';
+    const overlayEnglishClause =
+      effectiveLines.length === 1
+        ? `bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "${effectiveLines[0]}"`
+        : `bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across ${
+            effectiveLines.length
+          } exact separate lines (${effectiveLines
+            .map((line, idx) => `Line ${idx + 1}: "${line}"`)
+            .join(' / ')})`;
+    const overlaySpanishSummary =
+      effectiveLines.length === 1
+        ? `"${effectiveLines[0]}"`
+        : `${effectiveLines.length} líneas separadas -> ${effectiveLines
+            .map((l, idx) => `Línea ${idx + 1}: "${l}"`)
+            .join(' | ')}`;
+    const psychVariant =
+      doc.thumbnailPsychVariant === 'B'
+        ? 'B (Curiosity Gap: el segundo exacto antes del desastre o traición oculta que obliga al cerebro a hacer clic)'
+        : doc.thumbnailPsychVariant === 'C'
+        ? 'C (Escala + Peligro: rostro humano vulnerable en shock frente a la magnitud colosal del suceso en alto contraste)'
+        : 'A (Rostro + Shock 13ms: primer plano 60%, contacto visual directo a cámara, ojos muy abiertos y luz cálida vs. fondo frío)';
     const refsContext = Array.isArray(doc.references)
       ? doc.references
           .slice(0, 6)
@@ -2284,7 +2313,8 @@ ${refsContext}
 Primeras escenas visuales del documental (Clips):
 ${clipsContext}
 Orientación: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
-Texto en pantalla obligatorio (Curiosity Gap): "${overlayText}"
+Disparador Neuropsicológico Seleccionado: Opción ${psychVariant}
+Texto en pantalla obligatorio (Curiosity Gap): ${overlaySpanishSummary}
 
 REGLA CRÍTICA DE FIDELIDAD TEMÁTICA: Si el campo "Título" contiene el nombre de un video anterior o provisional (ej. "Video 75..."), IGNÓRALO y basa la escena visual de la miniatura 100% en el Guion REAL, los Personajes (@Referencias) y las escenas de los Clips de arriba.
 
@@ -2297,11 +2327,7 @@ APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN
    - Inicia el prompt en inglés con: "Thumbnail: Create an image in ${
      isThumbHorizontal ? '16:9 horizontal aspect ratio' : '9:16 vertical aspect ratio'
    } "
-   - ${
-     isThumbHorizontal
-       ? `Incluye textualmente: 'bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image reading "${overlayText}"'`
-       : `Incluye textualmente: 'bold high-contrast cinematic documentary typography text overlay centered and middle-justified right in the middle center of the image reading "${overlayText}"'`
-   }
+   - Incluye textualmente: '${overlayEnglishClause}'
    - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${
      isThumbHorizontal ? '8K' : 'HD'
    }" in metallic gold'
@@ -3143,13 +3169,18 @@ export async function synthesizeTtsClientSide(params: {
   speed: string;
   language: string;
   label: string;
+  docContext?: any;
+  targetDurationSeconds?: number;
   onProgress?: (msg: string) => void;
 }): Promise<TTSRecord & { audioBlob?: Blob }> {
   const apiKey = getBrowserGeminiKey();
   if (!apiKey) {
     throw new Error('Configura primero tu Gemini API Key para generar audio TTS.');
   }
-  const rawInput = cleanVoiceoverNarrationOnly(params.text || '');
+  const durationTarget = params.docContext || params.targetDurationSeconds;
+  const rawInput = durationTarget
+    ? autoFitVoiceoverScriptToDuration(params.text || '', durationTarget)
+    : cleanVoiceoverNarrationOnly(params.text || '');
   const cleanText = stripPauseTags(rawInput).trim();
   if (!cleanText) {
     throw new Error('El texto del guion está vacío.');

@@ -211,6 +211,9 @@ export function buildRawClipsTextWithHeader(
 export function getStage1ClipDurations(doc?: any): {
   clip1Sec: number;
   standardClipSec: number;
+  voiceEntrySec: number;
+  effectiveVoiceEntrySec: number;
+  targetDurationSec: number;
 } {
   const rawClip1 =
     Number(doc?.clip1DurationSeconds) ||
@@ -241,7 +244,24 @@ export function getStage1ClipDurations(doc?: any): {
   ) {
     standardClipSec = 10;
   }
-  return { clip1Sec, standardClipSec };
+
+  const voiceEntrySec = clip1Sec + 2;
+  const introPlacement = doc?.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+  const effectiveVoiceEntrySec =
+    introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
+  const rawTargetDur =
+    Number(doc?.targetDurationSeconds) ||
+    parseInt(String(doc?.promptConfig?.DURACION_TOTAL_SEGUNDOS || ''), 10);
+  const targetDurationSec =
+    Number.isFinite(rawTargetDur) && rawTargetDur >= 30 ? rawTargetDur : 900;
+
+  return {
+    clip1Sec,
+    standardClipSec,
+    voiceEntrySec,
+    effectiveVoiceEntrySec,
+    targetDurationSec,
+  };
 }
 
 // ============================================================================
@@ -545,7 +565,8 @@ export const CALIBRATED_TTS_WORDS_PER_SEC = CALIBRATED_TTS_WORDS_PER_MINUTE / 60
 export function computeCalibratedVoiceoverBudget(
   targetDurationSeconds: number,
   effectiveVoiceEntrySec: number = 16,
-  fixedOutroSec: number = 8
+  fixedOutroSec: number = 8,
+  actualPauseSeconds?: number
 ): {
   totalDurationSec: number;
   totalMinutesLabel: string;
@@ -558,18 +579,33 @@ export function computeCalibratedVoiceoverBudget(
   maxWords: number;
   targetChars: number;
 } {
-  const totalDurationSec = Math.max(30, Number(targetDurationSeconds) || 900);
+  const rawDur = Number(targetDurationSeconds);
+  const totalDurationSec = Math.max(30, Number.isFinite(rawDur) && rawDur > 0 ? rawDur : 900);
+  const safeEntrySec =
+    Number.isFinite(Number(effectiveVoiceEntrySec)) && Number(effectiveVoiceEntrySec) >= 0
+      ? Number(effectiveVoiceEntrySec)
+      : 16;
+  const safeOutroSec =
+    Number.isFinite(Number(fixedOutroSec)) && Number(fixedOutroSec) >= 0
+      ? Number(fixedOutroSec)
+      : 8;
   const totalMin = totalDurationSec / 60;
   const totalMinutesLabel = Number.isInteger(totalMin)
     ? `${totalMin}`
     : totalMin.toFixed(1);
-  const estPauseSec =
+  const defaultPauseSec =
     totalDurationSec >= 300
       ? Math.min(45, Math.max(8, Math.round(totalMin * 1.35)))
       : Math.max(2, Math.round(totalDurationSec * 0.04));
+  const estPauseSec =
+    actualPauseSeconds !== undefined &&
+    Number.isFinite(Number(actualPauseSeconds)) &&
+    Number(actualPauseSeconds) >= 0
+      ? Number(actualPauseSeconds)
+      : defaultPauseSec;
   const netSpeechSec = Math.max(
     10,
-    totalDurationSec - effectiveVoiceEntrySec - fixedOutroSec - estPauseSec
+    totalDurationSec - safeEntrySec - safeOutroSec - estPauseSec
   );
   const targetWords = Math.max(25, Math.round(netSpeechSec * CALIBRATED_TTS_WORDS_PER_SEC));
   const minWords = Math.max(20, Math.round(targetWords * 0.92));
@@ -578,8 +614,8 @@ export function computeCalibratedVoiceoverBudget(
   return {
     totalDurationSec,
     totalMinutesLabel,
-    effectiveVoiceEntrySec,
-    fixedOutroSec,
+    effectiveVoiceEntrySec: safeEntrySec,
+    fixedOutroSec: safeOutroSec,
     estPauseSec,
     netSpeechSec,
     targetWords,
@@ -587,6 +623,334 @@ export function computeCalibratedVoiceoverBudget(
     maxWords,
     targetChars,
   };
+}
+
+function splitParagraphIntoSentencesWithPauses(paragraph: string): string[] {
+  const pauseTokens: string[] = [];
+  const pauseRe = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
+  let masked = paragraph.replace(pauseRe, (m) => {
+    const idx = pauseTokens.length;
+    pauseTokens.push(m);
+    return `⟪PAUSE_${idx}⟫`;
+  });
+
+  // Protect common abbreviations ("St. Mary", "Dr. Fleming", "Sr.", "EE. UU.") so they never split mid-sentence
+  masked = masked.replace(
+    /\b(St|Dr|Dra|Sr|Sra|Prof|Gral|Cap|Cnel|Mons|Sto|Sta|Av|EE|UU|Jr|Inc|Ltd|vs|ej|aprox)\.\s+/gi,
+    '$1\u0000 '
+  );
+  masked = masked.replace(/\s+(⟪PAUSE_\d+⟫)/g, ' $1');
+
+  const rawParts = masked
+    .split(/(?<=[.?!]["»”)]?(?:\s+⟪PAUSE_\d+⟫)*)\s+(?=[¿¡"«“A-ZÁÉÍÓÚÑ0-9])/g)
+    .map((part) =>
+      part
+        .replace(/\u0000/g, '.')
+        .replace(/⟪PAUSE_(\d+)⟫/g, (_, idx) => pauseTokens[Number(idx)] || '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+    )
+    .filter(Boolean);
+
+  return rawParts.length > 0
+    ? rawParts
+    : [
+        paragraph
+          .replace(/\s{2,}/g, ' ')
+          .trim(),
+      ].filter(Boolean);
+}
+
+/**
+ * Ajusta automáticamente el guion narrativo a la duración elegida en Etapa 1:
+ * 1) Limpia encabezados, marcas MM:SS, acotaciones técnicas y cierres de IA (`cleanVoiceoverNarrationOnly`).
+ * 2) Calcula el presupuesto real de palabras según la duración objetivo del documental (147 WPM en Charon).
+ * 3) Si el guion excede la duración objetivo (> maxWords), condensa proporcionalmente las oraciones secundarias
+ *    a lo largo de todos los párrafos del cuerpo, preservando intactos el Gancho en Tríada, el Slogan Completo,
+ *    la cronología de cada párrafo, los nombres propios, las preguntas de retención, todas las etiquetas [pausa: Xs]
+ *    y el Cierre Institucional.
+ */
+export function autoFitVoiceoverScriptToDuration(
+  rawText: string,
+  docOrTargetSec?: any
+): string {
+  const cleaned = cleanVoiceoverNarrationOnly(rawText);
+  if (!cleaned) return '';
+
+  let targetDurationSec = 900;
+  let effectiveVoiceEntrySec = 16;
+  if (typeof docOrTargetSec === 'number' && Number.isFinite(docOrTargetSec) && docOrTargetSec > 0) {
+    targetDurationSec = docOrTargetSec;
+  } else if (docOrTargetSec && typeof docOrTargetSec === 'object') {
+    const durs = getStage1ClipDurations(docOrTargetSec);
+    targetDurationSec = durs.targetDurationSec;
+    effectiveVoiceEntrySec = durs.effectiveVoiceEntrySec;
+  }
+
+  const countSpokenWords = (txt: string): number => {
+    const plain = stripPauseTags(txt).trim();
+    return plain ? plain.split(/\s+/).filter(Boolean).length : 0;
+  };
+
+  const pauseInfo = extractPausesInfo(cleaned);
+  const budget = computeCalibratedVoiceoverBudget(
+    targetDurationSec,
+    effectiveVoiceEntrySec,
+    8,
+    pauseInfo.count > 0 ? pauseInfo.totalSeconds : undefined
+  );
+
+  let currentWords = countSpokenWords(cleaned);
+  if (currentWords <= budget.maxWords) {
+    return cleaned;
+  }
+
+  const paragraphs = cleaned
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) return cleaned;
+
+  // Single-block fallback if script had no line breaks
+  if (paragraphs.length <= 2) {
+    const allSents = splitParagraphIntoSentencesWithPauses(paragraphs.join(' '));
+    if (allSents.length <= 3) return cleaned;
+    const kept = [...allSents];
+    while (kept.length > 3 && countSpokenWords(kept.join(' ')) > budget.targetWords) {
+      const midIdx = Math.floor(kept.length / 2);
+      kept.splice(midIdx, 1);
+    }
+    return kept.join(' ');
+  }
+
+  const headCount =
+    paragraphs.length > 3 &&
+    /En los pr[oó]ximos minutos|Cada historia deja una huella|Aqu[ií] seguimos sus rastros/i.test(
+      paragraphs[1]
+    )
+      ? 2
+      : 1;
+
+  let tailCount = 1;
+  if (
+    paragraphs.length > headCount + 2 &&
+    /D[eé]janos saber en los comentarios|Cada historia deja una huella/i.test(
+      paragraphs[paragraphs.length - 2]
+    )
+  ) {
+    tailCount = 2;
+  }
+
+  const headParas = paragraphs.slice(0, headCount);
+  const tailParas = paragraphs.slice(paragraphs.length - tailCount);
+  const bodyRaw = paragraphs.slice(headCount, paragraphs.length - tailCount);
+  if (bodyRaw.length === 0) return cleaned;
+
+  interface SentenceEntry {
+    text: string;
+    words: number;
+    hasPause: boolean;
+    pauseTags: string[];
+    keepScore: number;
+    dropped: boolean;
+  }
+
+  const seenProperNames = new Set<string>();
+  const properNameGlobalRe =
+    /\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})\b/g;
+  const nonPersonTwoWords =
+    /^(Segunda Guerra|Primera Guerra|Gran Bretaña|Estados Unidos|Reino Unido|Nueva York|Edad Media|Guerra Mundial|Cruz Roja|Casa Blanca|Hospital St|Enfermería Radcliffe|Año \d)/i;
+
+  for (const hp of headParas) {
+    let mName: RegExpExecArray | null;
+    while ((mName = properNameGlobalRe.exec(hp)) !== null) {
+      seenProperNames.add(mName[1].toLowerCase());
+    }
+  }
+
+  const pauseExtractRe = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
+  const bodyModels = bodyRaw.map((p) => {
+    const rawSents = splitParagraphIntoSentencesWithPauses(p);
+    const sentences: SentenceEntry[] = rawSents.map((s, idx) => {
+      const pauseMatches = s.match(pauseExtractRe) || [];
+      const hasPause = pauseMatches.length > 0;
+      const w = countSpokenWords(s);
+      const isFirst = idx === 0;
+      const isLast = idx === rawSents.length - 1;
+      const isQuestion = /\?/.test(s);
+      const hasExactDateOrYear = /\b\d{4}\b/.test(s);
+
+      let introducesNewProperName = false;
+      const strippedLeadWord = s.replace(/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+/, '');
+      let mName: RegExpExecArray | null;
+      properNameGlobalRe.lastIndex = 0;
+      while ((mName = properNameGlobalRe.exec(strippedLeadWord)) !== null) {
+        const candidate = mName[1];
+        if (!nonPersonTwoWords.test(candidate)) {
+          const key = candidate.toLowerCase();
+          if (!seenProperNames.has(key)) {
+            seenProperNames.add(key);
+            introducesNewProperName = true;
+          }
+        }
+      }
+
+      const hasPivot =
+        /^(Sin embargo|Pero|No obstante|Fue entonces|El resultado|Lo que nadie|Nadie imaginaba|Al quinto|Al cabo|Contra todo|El \d{1,2} de [a-záéíóú]+)/i.test(
+          s
+        );
+      const hasActionEnding =
+        /(detuvo en seco|expiró|perdió la vida|cambió para siempre|descubrió|reveló|hundió la aguja|estalló|colapsó|sentenció|firmó|ordenó)/i.test(
+          s
+        );
+
+      let keepScore = 320;
+      if (isFirst) keepScore = 1000;
+      else if (isQuestion) keepScore = 960;
+      else if (introducesNewProperName) keepScore = 925;
+      else if (isLast && hasPause) keepScore = 910;
+      else if (hasPause) keepScore = 880;
+      else if (isLast && (hasPivot || hasActionEnding)) keepScore = 840;
+      else if (hasPivot) keepScore = 700;
+      else if (idx === 1) keepScore = 610;
+      else if (isLast) keepScore = 580;
+      else if (hasExactDateOrYear) keepScore = 520;
+
+      return {
+        text: s,
+        words: w,
+        hasPause,
+        pauseTags: pauseMatches,
+        keepScore,
+        dropped: false,
+      };
+    });
+
+    return {
+      sentences,
+      droppedParagraph: false,
+    };
+  });
+
+  const transferPauseBeforeDrop = (sents: SentenceEntry[], dropIdx: number) => {
+    const target = sents[dropIdx];
+    if (!target.hasPause || target.pauseTags.length === 0) return;
+    for (let j = dropIdx - 1; j >= 0; j--) {
+      if (!sents[j].dropped) {
+        if (!sents[j].hasPause) {
+          sents[j].text = `${sents[j].text} ${target.pauseTags.join(' ')}`.trim();
+          sents[j].hasPause = true;
+          sents[j].pauseTags = [...target.pauseTags];
+        }
+        return;
+      }
+    }
+    for (let j = dropIdx + 1; j < sents.length; j++) {
+      if (!sents[j].dropped) {
+        if (!sents[j].hasPause) {
+          sents[j].text = `${sents[j].text} ${target.pauseTags.join(' ')}`.trim();
+          sents[j].hasPause = true;
+          sents[j].pauseTags = [...target.pauseTags];
+        }
+        return;
+      }
+    }
+  };
+
+  // Pass 1: Uniform proportional sentence condensation across all body paragraphs (preserving >= 2 sentences per paragraph)
+  while (currentWords > budget.targetWords) {
+    let bestP = -1;
+    let bestS = -1;
+    let lowestEffScore = Infinity;
+
+    for (let pIdx = 0; pIdx < bodyModels.length; pIdx++) {
+      const pm = bodyModels[pIdx];
+      const activeCount = pm.sentences.filter((s) => !s.dropped).length;
+      if (activeCount <= 2) continue;
+      const droppedRatio =
+        pm.sentences.filter((s) => s.dropped).length / Math.max(1, pm.sentences.length);
+
+      for (let sIdx = 1; sIdx < pm.sentences.length; sIdx++) {
+        const st = pm.sentences[sIdx];
+        if (st.dropped) continue;
+        const effScore = st.keepScore + droppedRatio * 240;
+        if (effScore < lowestEffScore) {
+          lowestEffScore = effScore;
+          bestP = pIdx;
+          bestS = sIdx;
+        }
+      }
+    }
+
+    if (bestP === -1 || bestS === -1) break;
+    const chosen = bodyModels[bestP].sentences[bestS];
+    transferPauseBeforeDrop(bodyModels[bestP].sentences, bestS);
+    chosen.dropped = true;
+    currentWords -= chosen.words;
+  }
+
+  // Pass 2: Only for extreme compression ratios (e.g. 35-min draft into 5-min video), allow reducing to 1 anchor sentence per paragraph
+  while (currentWords > budget.targetWords) {
+    let bestP = -1;
+    let bestS = -1;
+    let lowestScore = Infinity;
+
+    for (let pIdx = 0; pIdx < bodyModels.length; pIdx++) {
+      const pm = bodyModels[pIdx];
+      const activeCount = pm.sentences.filter((s) => !s.dropped).length;
+      if (activeCount <= 1) continue;
+      for (let sIdx = 1; sIdx < pm.sentences.length; sIdx++) {
+        const st = pm.sentences[sIdx];
+        if (st.dropped) continue;
+        if (st.keepScore < lowestScore) {
+          lowestScore = st.keepScore;
+          bestP = pIdx;
+          bestS = sIdx;
+        }
+      }
+    }
+
+    if (bestP === -1 || bestS === -1) break;
+    const chosen = bodyModels[bestP].sentences[bestS];
+    transferPauseBeforeDrop(bodyModels[bestP].sentences, bestS);
+    chosen.dropped = true;
+    currentWords -= chosen.words;
+  }
+
+  // Pass 3: Ultra-short target fallback (e.g. Shorts <= 3 min from a feature-length draft): drop evenly spaced non-pause middle paragraphs
+  while (currentWords > budget.targetWords) {
+    const activeBodyIndices = bodyModels
+      .map((pm, idx) => ({ pm, idx }))
+      .filter(
+        ({ pm, idx }) =>
+          !pm.droppedParagraph &&
+          idx > 0 &&
+          idx < bodyModels.length - 1 &&
+          !pm.sentences.some((s) => !s.dropped && s.hasPause)
+      );
+    if (activeBodyIndices.length <= 2) break;
+    const midPick = activeBodyIndices[Math.floor(activeBodyIndices.length / 2)];
+    const paraWords = midPick.pm.sentences
+      .filter((s) => !s.dropped)
+      .reduce((acc, s) => acc + s.words, 0);
+    midPick.pm.droppedParagraph = true;
+    currentWords -= paraWords;
+  }
+
+  const rebuiltBody = bodyModels
+    .filter((pm) => !pm.droppedParagraph)
+    .map((pm) =>
+      pm.sentences
+        .filter((s) => !s.dropped)
+        .map((s) => s.text)
+        .join(' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+    )
+    .filter(Boolean);
+
+  return [...headParas, ...rebuiltBody, ...tailParas].join('\n\n');
 }
 
 // Sincronizar los 3 insumos de la Sección 8 (Producción):
