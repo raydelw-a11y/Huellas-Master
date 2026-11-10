@@ -4687,11 +4687,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'EXTERNAL_GEMINI_ASK_RESULT') {
-    fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
-    }).catch(() => {});
+    (async () => {
+      await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      }).catch(() => {});
+      await cleanupActiveExternalAskWindow(message.requestId, sender?.tab?.windowId, sender?.tab?.id);
+    })();
     sendResponse({ ok: true });
     return false;
   }
@@ -4724,8 +4727,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================================================
 let currentExtFingerprint = '';
 let isCheckingExtFingerprint = false;
+let activeExternalAskCount = 0;
+let activeExternalAskWindowId = null;
+let activeExternalAskTabId = null;
 const claimedExternalAskIds = new Set();
 const claimedGeminiCommandIds = new Set();
+
+async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId) {
+  let stored = null;
+  try {
+    const st = await chrome.storage.local.get('huellasActiveExternalAsk');
+    stored = st && st.huellasActiveExternalAsk;
+  } catch {}
+  const winId = activeExternalAskWindowId || (stored && stored.windowId) || fallbackWinId || null;
+  const tId = activeExternalAskTabId || (stored && stored.tabId) || fallbackTabId || null;
+  activeExternalAskWindowId = null;
+  activeExternalAskTabId = null;
+  await chrome.storage.local.remove('huellasActiveExternalAsk').catch(() => {});
+  if (winId) {
+    await chrome.windows.remove(winId).catch(() => {});
+  } else if (tId) {
+    await chrome.tabs.remove(tId).catch(() => {});
+  }
+}
 
 async function runPendingGeminiCommandOrder(cmd) {
   if (!cmd || !cmd.action) return;
@@ -4908,8 +4932,12 @@ async function inspectGeminiTabLatestResponse(tabId) {
 async function runExternalGeminiAskOrder(task) {
   if (task.prompt === '__READ_CURRENT__') {
     const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-    const targetTab = geminiTabs[0] || null;
-    if (!targetTab || !targetTab.id) {
+    const preferredTab =
+      (activeExternalAskTabId && geminiTabs.find((t) => t.id === activeExternalAskTabId)) ||
+      geminiTabs[geminiTabs.length - 1] ||
+      geminiTabs[0] ||
+      null;
+    if (!preferredTab || !preferredTab.id) {
       await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4917,7 +4945,7 @@ async function runExternalGeminiAskOrder(task) {
       }).catch(() => {});
       return;
     }
-    const snap = await inspectGeminiTabLatestResponse(targetTab.id);
+    const snap = await inspectGeminiTabLatestResponse(preferredTab.id);
     await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -4925,12 +4953,13 @@ async function runExternalGeminiAskOrder(task) {
         requestId: task.id,
         ok: Boolean(snap && snap.text),
         response: (snap && snap.text) || '',
-        chatUrl: (snap && snap.url) || targetTab.url || '',
+        chatUrl: (snap && snap.url) || preferredTab.url || '',
       }),
     }).catch(() => {});
     return;
   }
 
+  activeExternalAskCount += 1;
   let createdWindowId = null;
   let tabId = null;
   try {
@@ -4960,6 +4989,19 @@ async function runExternalGeminiAskOrder(task) {
       tabId = createdTab.id;
     }
 
+    activeExternalAskWindowId = createdWindowId;
+    activeExternalAskTabId = tabId;
+    await chrome.storage.local
+      .set({
+        huellasActiveExternalAsk: {
+          requestId: task.id,
+          windowId: createdWindowId,
+          tabId,
+          startedAt: Date.now(),
+        },
+      })
+      .catch(() => {});
+
     // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app
     for (let w = 0; w < 25; w++) {
       await sleep(400);
@@ -4985,6 +5027,8 @@ async function runExternalGeminiAskOrder(task) {
     for (let i = 0; i < 150; i++) {
       await sleep(2000);
       if (!pendingExternalCheckActive(task.id)) break;
+      const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tStillExists) break;
       const snap = await inspectGeminiTabLatestResponse(tabId);
       if (!snap) continue;
       if (snap.count > 0 && !snap.generating && snap.text.length > 60) {
@@ -5013,11 +5057,8 @@ async function runExternalGeminiAskOrder(task) {
       }
     }
   } finally {
-    if (createdWindowId) {
-      await chrome.windows.remove(createdWindowId).catch(() => {});
-    } else if (tabId) {
-      await chrome.tabs.remove(tabId).catch(() => {});
-    }
+    activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId);
   }
 }
 
@@ -5094,7 +5135,7 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       return;
     }
 
-    if (nextFp !== currentExtFingerprint) {
+    if (nextFp !== currentExtFingerprint && activeExternalAskCount === 0) {
       currentExtFingerprint = nextFp;
       try {
         await chrome.storage.local.set({ huellasExtFingerprint: nextFp });

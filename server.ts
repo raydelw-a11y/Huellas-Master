@@ -13346,13 +13346,13 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
         exec(
           `osascript -e 'tell application "Google Chrome"
             if (count of windows) > 0 then
-              make new tab at end of tabs of window 1 with properties {URL:"chrome-extension://kbfeckjlcogkccfplkmgenalgnmojclf/reloader.html"}
+              make new tab at end of tabs of window 1 with properties {URL:"chrome-extension://kbfeckjlcogkccfplkmgenalgnmojclf/reloader.html?wake=1"}
             end if
           end tell'`,
           () => {}
         );
       }
-    }, 3200);
+    }, 1200);
   });
 
   const outcome = await resultPromise;
