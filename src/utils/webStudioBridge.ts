@@ -149,16 +149,18 @@ export function sendCommandToWebBridge(
     .trim();
   const deepResearchName = rawBaseName ? `${rawBaseName}_Deep Research` : '';
 
+  const sameDocAsCtx = Boolean(ctx && (!payload.docId || payload.docId === ctx.docId));
   const enrichedPayload: WebBridgeCommandPayload =
-    targetService === 'GEMINI' && ctx
+    targetService === 'GEMINI' && ctx && sameDocAsCtx
       ? {
-          docId: ctx.docId,
-          videoName: rawBaseName || ctx.videoName,
-          deepResearchVideoName: deepResearchName,
-          geminiChatUrl: ctx.geminiChatUrl || '',
-          geminiDeepResearchChatUrl: ctx.geminiDeepResearchChatUrl || '',
-          notebookName: ctx.notebookName || 'Huellas de la Humanidad',
           ...payload,
+          docId: payload.docId || ctx.docId,
+          videoName: rawBaseName || ctx.videoName,
+          deepResearchVideoName: payload.deepResearchVideoName || deepResearchName,
+          geminiChatUrl: payload.geminiChatUrl || ctx.geminiChatUrl || '',
+          geminiDeepResearchChatUrl:
+            payload.geminiDeepResearchChatUrl || ctx.geminiDeepResearchChatUrl || '',
+          notebookName: payload.notebookName || ctx.notebookName || 'Huellas de la Humanidad',
         }
       : {
           ...payload,

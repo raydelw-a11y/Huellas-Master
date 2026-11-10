@@ -2104,24 +2104,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       let preferredServiceTab = null;
       if (targetService === 'GEMINI') {
-        // Prefer the Gemini tab already on the Notebook "Huellas de la Humanidad" (never hijack another notebook's chat)
+        serviceTabs = await filterOutExternalAskTabs(serviceTabs);
+        // Prefer the Gemini tab already on the target chatId or on the Notebook "Huellas de la Humanidad"
         let nbPath = '';
         try {
           const st = await chrome.storage.local.get('huellasNotebookPath');
           nbPath = (st && st.huellasNotebookPath) || '';
         } catch {}
+        const { targetChatId } = await resolveDesiredGeminiChatTarget(payload);
         const pathOf = (u) => {
           try {
-            return new URL(u).pathname.replace(/\/$/, '');
+            return new URL(u).pathname.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '');
           } catch {
             return '';
           }
         };
         preferredServiceTab =
-          (nbPath && serviceTabs.find((t) => pathOf(t.url || '') === nbPath)) ||
+          (targetChatId &&
+            serviceTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
           serviceTabs.find((t) => t.id === payload.tabId) ||
-          serviceTabs.find((t) => /^\/(?:u\/\d+\/)?notebook\//.test(pathOf(t.url || ''))) ||
-          serviceTabs.find((t) => /^\/(?:u\/\d+\/)?app\/?$/.test(pathOf(t.url || ''))) ||
+          (nbPath &&
+            serviceTabs.find(
+              (t) => pathOf(t.url || '') === nbPath.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '')
+            )) ||
+          serviceTabs.find((t) => /^\/notebook\//.test(pathOf(t.url || ''))) ||
+          serviceTabs.find((t) => /^\/app\//.test(pathOf(t.url || ''))) ||
+          serviceTabs.find((t) => /^\/app\/?$/.test(pathOf(t.url || ''))) ||
           null;
       }
       let targetTab =
@@ -2656,14 +2664,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
+        let finalDispatchPayload = payload;
         if (targetService === 'GEMINI') {
+          if (action === 'SEND_PROMPT') {
+            finalDispatchPayload = await prePositionGeminiTabForOrder(targetTab, payload);
+          }
           await ensureScriptInjected(targetTab.id, 'gemini-content.js');
         }
 
         chrome.tabs
           .sendMessage(targetTab.id, {
             target: targetService,
-            ...payload,
+            ...finalDispatchPayload,
           })
           .catch(() => {});
 
@@ -4759,6 +4771,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'FLOW_GENERATION_FAILED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
   ) {
+    if (message.type === 'GEMINI_CHAT_LINKED') {
+      saveChatLinkInBackgroundRegistry(message).catch(() => {});
+      if (message.docId && message.geminiChatUrl) {
+        fetch('http://localhost:4200/api/gemini-web/link-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message),
+        }).catch(() => {});
+      }
+    }
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });
     return true;
@@ -4937,9 +4959,15 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
 
 async function runPendingGeminiCommandOrder(cmd) {
   if (!cmd || !cmd.action) return;
-  const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-  let targetTab = geminiTabs[0] || null;
-  if (cmd.remoteStage) {
+  const rawGeminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+  const geminiTabs = await filterOutExternalAskTabs(rawGeminiTabs);
+  const { targetChatId } = await resolveDesiredGeminiChatTarget(cmd);
+  let targetTab =
+    (targetChatId &&
+      geminiTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
+    geminiTabs[0] ||
+    null;
+  if (cmd.remoteStage && (!targetTab || (targetChatId && extractGeminiAppChatId(targetTab.url || '') !== targetChatId))) {
     let nbPath = '';
     try {
       const st = await chrome.storage.local.get('huellasNotebookPath');
@@ -4947,49 +4975,67 @@ async function runPendingGeminiCommandOrder(cmd) {
     } catch {}
     const pathOf = (u) => {
       try {
-        return new URL(u).pathname.replace(/\/$/, '');
+        return new URL(u).pathname.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '');
       } catch {
         return '';
       }
     };
     targetTab =
-      (nbPath && geminiTabs.find((t) => pathOf(t.url || '') === nbPath)) ||
-      geminiTabs.find((t) => /^\/(?:u\/\d+\/)?notebook\//.test(pathOf(t.url || ''))) ||
-      geminiTabs.find((t) => /^\/(?:u\/\d+\/)?app\/?$/.test(pathOf(t.url || ''))) ||
+      (targetChatId &&
+        geminiTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
+      (nbPath &&
+        geminiTabs.find(
+          (t) => pathOf(t.url || '') === nbPath.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '')
+        )) ||
+      geminiTabs.find((t) => /^\/notebook\//.test(pathOf(t.url || ''))) ||
+      geminiTabs.find((t) => /^\/app\//.test(pathOf(t.url || ''))) ||
+      geminiTabs.find((t) => /^\/app\/?$/.test(pathOf(t.url || ''))) ||
       geminiTabs[0] ||
       null;
   }
   if (!targetTab || !targetTab.id) {
     targetTab = await chrome.tabs.create({
-      url: 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f',
+      url: initialUrl,
       active: false,
     });
     for (let w = 0; w < 25; w++) {
       await sleep(300);
       const info = await chrome.tabs.get(targetTab.id).catch(() => null);
-      if (info && info.status === 'complete') break;
+      if (info && info.status === 'complete') {
+        targetTab = info;
+        break;
+      }
     }
-    await sleep(2500);
+    await sleep(2200);
   }
   const tabId = targetTab.id;
-  if (cmd.remoteStage) {
+  let finalCmd = cmd;
+  if (cmd.action === 'SEND_PROMPT') {
+    finalCmd = await prePositionGeminiTabForOrder(targetTab, cmd);
+  }
+  if (finalCmd.remoteStage) {
     await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
     await chrome.storage.local
       .set({
         [`huellasRemoteStage_${tabId}`]: {
-          commandId: cmd.remoteCommandId || cmd.commandId,
-          docId: cmd.docId,
-          stageNumber: cmd.stageNumber,
+          commandId: finalCmd.remoteCommandId || finalCmd.commandId,
+          docId: finalCmd.docId,
+          stageNumber: finalCmd.stageNumber,
+          isDeepResearch: Boolean(finalCmd.enableDeepResearch),
+          replacesDeletedChat: Boolean(finalCmd.replacesDeletedChat),
           startedAt: Date.now(),
         },
       })
+    const initialUrl = targetChatId
+      ? `https://gemini.google.com/app/${targetChatId}`
+      : 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
       .catch(() => {});
   }
   await ensureScriptInjected(tabId, 'gemini-content.js');
   await sleep(250);
   await chrome.tabs.sendMessage(tabId, {
     target: 'GEMINI',
-    ...cmd,
+    ...finalCmd,
   });
 }
 
@@ -5035,6 +5081,8 @@ async function forwardRemoteStageResultIfAny(message, sender) {
 
 async function inspectGeminiTabLatestResponse(tabId) {
   try {
+    isDeepResearch: Boolean(info.isDeepResearch),
+    replacesDeletedChat: Boolean(info.replacesDeletedChat),
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => {
@@ -5716,20 +5764,38 @@ async function resumeGeminiOrderIfPending(tabId, tabUrl) {
     pending = st && st[key];
   } catch {}
   if (!pending || !pending.order) return;
-  // Only resume once the tab actually reached the requested notebook/chat path
-  const wantPath = String(pending.url || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0].replace(/\/$/, '');
-  const gotPath = String(tabUrl || '').replace(/^https:\/\/gemini\.google\.com/, '').split(/[?#]/)[0].replace(/\/$/, '');
+  const normalizeGeminiPath = (u) =>
+    String(u || '')
+      .replace(/^https:\/\/gemini\.google\.com/, '')
+      .split(/[?#]/)[0]
+      .replace(/^\/u\/\d+(?=\/)/, '')
+      .replace(/\/$/, '');
+  const wantPath = normalizeGeminiPath(pending.url);
+  const gotPath = normalizeGeminiPath(tabUrl);
   if (Date.now() - (pending.createdAt || 0) > 120000) {
     await chrome.storage.session.remove(key).catch(() => {});
     return;
   }
-  // Intermediate URL (redirect / still loading): keep the order for the next "complete" event
-  if (!wantPath || wantPath !== gotPath) return;
+  const redirectedFromDeletedAppChat =
+    /^\/app\/[a-zA-Z0-9_-]{6,}$/i.test(wantPath) &&
+    (gotPath === '/app' || /^\/notebook\//i.test(gotPath)) &&
+    Date.now() - (pending.createdAt || 0) > 1200;
+  if (!wantPath || (wantPath !== gotPath && !redirectedFromDeletedAppChat)) return;
   await chrome.storage.session.remove(key).catch(() => {});
   await sleep(2200);
   await ensureScriptInjected(tabId, 'gemini-content.js');
   await sleep(500);
-  chrome.tabs.sendMessage(tabId, { ...pending.order, target: 'GEMINI' }).catch(() => {});
+  const resumedOrder = redirectedFromDeletedAppChat
+    ? {
+        ...pending.order,
+        __directChatNotFound: true,
+        replacesDeletedChat: true,
+        ...(pending.order.enableDeepResearch
+          ? { geminiDeepResearchChatUrl: '' }
+          : { geminiChatUrl: '' }),
+      }
+    : pending.order;
+  chrome.tabs.sendMessage(tabId, { ...resumedOrder, target: 'GEMINI' }).catch(() => {});
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -5738,3 +5804,218 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!/^https:\/\/gemini\.google\.com\//.test(url)) return;
   resumeGeminiOrderIfPending(tabId, url).catch(() => {});
 });
+function extractGeminiAppChatId(url = '') {
+  const m = String(url || '').match(/gemini\.google\.com\/(?:u\/\d+\/)?app\/([a-zA-Z0-9_-]{6,})/i);
+  return m ? m[1] : '';
+}
+
+function buildGeminiAppUrlPreservingAccount(currentUrl = '', chatId = '') {
+  const acct = String(currentUrl || '').match(/gemini\.google\.com(\/u\/\d+)\//i);
+  const prefix = acct ? acct[1] : '';
+  return `https://gemini.google.com${prefix}/app/${chatId}`;
+}
+
+function normalizeDocTitleKeyBg(text = '') {
+  return String(text || '')
+    .normalize('NFKC')
+    .replace(/_?\s*deep\s*research$/i, '')
+    .replace(/[\u2012\u2013\u2014\u2015]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+async function filterOutExternalAskTabs(tabs) {
+  if (!Array.isArray(tabs) || tabs.length === 0) return [];
+  const excludedTabIds = new Set();
+  const excludedWinIds = new Set();
+  if (activeExternalAskTabId) excludedTabIds.add(activeExternalAskTabId);
+  if (activeExternalAskWindowId) excludedWinIds.add(activeExternalAskWindowId);
+  for (const v of activeExternalAskMap.values()) {
+    if (v && v.tabId) excludedTabIds.add(v.tabId);
+    if (v && v.windowId) excludedWinIds.add(v.windowId);
+  }
+  try {
+    const map = await getStoredExternalAskMap();
+    for (const v of Object.values(map || {})) {
+      if (v && v.tabId) excludedTabIds.add(v.tabId);
+      if (v && v.windowId) excludedWinIds.add(v.windowId);
+    }
+  } catch {}
+  return tabs.filter((t) => t && !excludedTabIds.has(t.id) && !excludedWinIds.has(t.windowId));
+}
+
+async function recordNotebookChatInStorage(nbPath, chatId) {
+  if (!nbPath || !chatId) return;
+  try {
+    const key = `huellasNbChats_${nbPath}`;
+    const st = await chrome.storage.local.get(key);
+    const arr = Array.isArray(st && st[key]) ? st[key] : [];
+    if (!arr.includes(chatId)) {
+      arr.push(chatId);
+      await chrome.storage.local.set({ [key]: arr.slice(-200) });
+    }
+  } catch {}
+}
+
+async function saveChatLinkInBackgroundRegistry(msg) {
+  if (!msg) return;
+  const chatId = extractGeminiAppChatId(msg.geminiChatUrl || msg.chatUrl || '');
+  if (!chatId) return;
+  const chatUrl = `https://gemini.google.com/app/${chatId}`;
+  const isDeep = Boolean(msg.isDeepResearch) || /_\s*deep\s*research$/i.test(String(msg.geminiChatTitle || ''));
+  const replacesDeletedChat = Boolean(msg.replacesDeletedChat);
+  const docKey = msg.docId ? `doc:${msg.docId}` : '';
+  const nameKey = msg.geminiChatTitle ? `name:${normalizeDocTitleKeyBg(msg.geminiChatTitle)}` : '';
+  try {
+    const st = await chrome.storage.local.get(['huellas_doc_chats_registry_v2', 'huellasNotebookPath']);
+    const reg = { ...((st && st.huellas_doc_chats_registry_v2) || {}) };
+    const nbPath = msg.notebookPath || (st && st.huellasNotebookPath) || '';
+    if (nbPath) await recordNotebookChatInStorage(nbPath, chatId);
+    const prev = (docKey && reg[docKey]) || (nameKey && reg[nameKey]) || {};
+    const next = { ...prev, updatedAt: Date.now() };
+    if (isDeep) {
+      if (prev.mainChatId && prev.mainChatId === chatId) return;
+      if (!prev.deepResearchChatId || replacesDeletedChat) {
+        next.deepResearchChatId = chatId;
+        next.deepResearchChatUrl = chatUrl;
+      }
+    } else {
+      if (prev.deepResearchChatId && prev.deepResearchChatId === chatId) return;
+      if (!prev.mainChatId || replacesDeletedChat) {
+        next.mainChatId = chatId;
+        next.mainChatUrl = chatUrl;
+      }
+    }
+    if (docKey) reg[docKey] = next;
+    if (nameKey) reg[nameKey] = next;
+    await chrome.storage.local.set({ huellas_doc_chats_registry_v2: reg });
+  } catch {}
+}
+
+async function resolveDesiredGeminiChatTarget(payload) {
+  const isDeepResearch = Boolean(payload && payload.enableDeepResearch) === true;
+  let regEntry = {};
+  try {
+    const st = await chrome.storage.local.get('huellas_doc_chats_registry_v2');
+    const reg = (st && st.huellas_doc_chats_registry_v2) || {};
+    const docKey = payload?.docId ? `doc:${payload.docId}` : '';
+    const nameKey = payload?.videoName ? `name:${normalizeDocTitleKeyBg(payload.videoName)}` : '';
+    regEntry = (docKey && reg[docKey]) || (nameKey && reg[nameKey]) || {};
+  } catch {}
+
+  // Authoritative payload URLs from App.tsx / server.ts always take priority over cached local registry
+  const mainChatId =
+    extractGeminiAppChatId(payload?.geminiChatUrl) ||
+    extractGeminiAppChatId(regEntry.mainChatUrl) ||
+    regEntry.mainChatId ||
+    '';
+  const deepChatId =
+    extractGeminiAppChatId(payload?.geminiDeepResearchChatUrl) ||
+    extractGeminiAppChatId(regEntry.deepResearchChatUrl) ||
+    regEntry.deepResearchChatId ||
+    '';
+
+  let targetChatId = isDeepResearch ? deepChatId : mainChatId;
+  const oppositeChatId = isDeepResearch ? mainChatId : deepChatId;
+  if (targetChatId && oppositeChatId && targetChatId === oppositeChatId) {
+    if (isDeepResearch) targetChatId = '';
+  }
+  return { isDeepResearch, targetChatId, oppositeChatId };
+}
+
+function waitForGeminiTabLoadComplete(tabId, timeoutMs = 16000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        chrome.tabs.onUpdated.removeListener(listener);
+      } catch {}
+      resolve(val);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        finish(true);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function prePositionGeminiTabForOrder(targetTab, payload) {
+  if (!targetTab || !targetTab.id || !payload || payload.__directChatNotFound) return payload;
+  const { isDeepResearch, targetChatId } = await resolveDesiredGeminiChatTarget(payload);
+  let nbPath = '/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
+  try {
+    const st = await chrome.storage.local.get('huellasNotebookPath');
+    if (st && st.huellasNotebookPath) nbPath = st.huellasNotebookPath;
+  } catch {}
+
+  if (!targetChatId) return payload;
+
+  // Ensure the Notebook guard in gemini-content.js recognizes this linked chat even if the left sidebar is collapsed
+  await recordNotebookChatInStorage(nbPath, targetChatId);
+  // Self-heal background registry with authoritative payload URL
+  await saveChatLinkInBackgroundRegistry({
+    docId: payload.docId,
+    geminiChatTitle: isDeepResearch ? `${payload.videoName || ''}_Deep Research` : payload.videoName || '',
+    geminiChatUrl: `https://gemini.google.com/app/${targetChatId}`,
+    isDeepResearch,
+    replacesDeletedChat: true,
+    notebookPath: nbPath,
+  });
+
+  const freshTab = (await chrome.tabs.get(targetTab.id).catch(() => null)) || targetTab;
+  const currentChatId = extractGeminiAppChatId(freshTab.url || '');
+  if (currentChatId === targetChatId) {
+    return payload;
+  }
+
+  const targetUrl = buildGeminiAppUrlPreservingAccount(freshTab.url || '', targetChatId);
+  await chrome.tabs.update(targetTab.id, { url: targetUrl }).catch(() => {});
+  await waitForGeminiTabLoadComplete(targetTab.id, 16000);
+  await sleep(1400);
+
+  const afterTab = await chrome.tabs.get(targetTab.id).catch(() => null);
+  const landedChatId = extractGeminiAppChatId((afterTab && afterTab.url) || '');
+  if (landedChatId === targetChatId) {
+    targetTab.url = afterTab.url;
+    return payload;
+  }
+
+  // Google redirected away (e.g. to /app because the user manually deleted that chat in Gemini):
+  // clean stale chatId and navigate to the Notebook root so a fresh chat can be created cleanly without hanging!
+  try {
+    const st = await chrome.storage.local.get('huellas_doc_chats_registry_v2');
+    const reg = { ...((st && st.huellas_doc_chats_registry_v2) || {}) };
+    for (const k of Object.keys(reg)) {
+      if (isDeepResearch && reg[k]?.deepResearchChatId === targetChatId) {
+        delete reg[k].deepResearchChatId;
+        delete reg[k].deepResearchChatUrl;
+      } else if (!isDeepResearch && reg[k]?.mainChatId === targetChatId) {
+        delete reg[k].mainChatId;
+        delete reg[k].mainChatUrl;
+      }
+    }
+    await chrome.storage.local.set({ huellas_doc_chats_registry_v2: reg });
+  } catch {}
+
+  const acctMatch = String((afterTab && afterTab.url) || freshTab.url || '').match(/gemini\.google\.com(\/u\/\d+)\//i);
+  const acctPrefix = acctMatch ? acctMatch[1] : '';
+  const cleanNbPath = nbPath.replace(/^\/u\/\d+(?=\/)/, '');
+  await chrome.tabs.update(targetTab.id, { url: `https://gemini.google.com${acctPrefix}${cleanNbPath}` }).catch(() => {});
+  await waitForGeminiTabLoadComplete(targetTab.id, 15000);
+  await sleep(1200);
+
+  return {
+    ...payload,
+    __directChatNotFound: true,
+    replacesDeletedChat: true,
+    ...(isDeepResearch ? { geminiDeepResearchChatUrl: '' } : { geminiChatUrl: '' }),
+  };
+}
+

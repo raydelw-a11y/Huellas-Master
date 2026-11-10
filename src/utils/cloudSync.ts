@@ -1034,7 +1034,10 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       PROP_P5_OPTIONS_JSON: JSON.stringify(p5Opts),
       PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
       PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
-      GEMINI_DEEP_RESEARCH_CHAT_URL: 'https://gemini.google.com/app/2ee2ceda5a43912d',
+      GEMINI_DEEP_RESEARCH_CHAT_URL:
+        (doc as any).geminiDeepResearchChatUrl ||
+        doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+        'https://gemini.google.com/app/f346b10e556e2341',
       V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_PEPSI_SYNCED',
     };
 
@@ -1045,7 +1048,9 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       geminiChatTitle: 'Video 77 — La Penicilina',
       geminiChatUrl: doc.geminiChatUrl || 'https://gemini.google.com/app/03cabb86628532c8',
       geminiDeepResearchChatUrl:
-        doc.geminiDeepResearchChatUrl || 'https://gemini.google.com/app/2ee2ceda5a43912d',
+        (doc as any).geminiDeepResearchChatUrl ||
+        doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+        'https://gemini.google.com/app/f346b10e556e2341',
       targetDurationSeconds: 1200,
       typology: combinedTypology,
       topic: p2Opts[0],
@@ -1457,6 +1462,45 @@ function mergeTwoDocumentaryObjects(
     }
   }
 
+  // Always preserve linked Gemini Main & Deep Research chat URLs across snapshots so stale saves never wipe them
+  const winnerMainChatUrl = String(
+    (baseWinner as any).geminiChatUrl || baseWinner.promptConfig?.GEMINI_CHAT_URL || ''
+  ).trim();
+  const otherMainChatUrl = String(
+    (oNorm as any).geminiChatUrl || oNorm.promptConfig?.GEMINI_CHAT_URL || ''
+  ).trim();
+  const resolvedMainChatUrl = winnerMainChatUrl || otherMainChatUrl;
+
+  const winnerDeepChatUrl = String(
+    (baseWinner as any).geminiDeepResearchChatUrl ||
+      baseWinner.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+      ''
+  ).trim();
+  const otherDeepChatUrl = String(
+    (oNorm as any).geminiDeepResearchChatUrl ||
+      oNorm.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+      ''
+  ).trim();
+  let resolvedDeepChatUrl = winnerDeepChatUrl || otherDeepChatUrl;
+  if (resolvedMainChatUrl && resolvedDeepChatUrl && resolvedMainChatUrl === resolvedDeepChatUrl) {
+    resolvedDeepChatUrl = '';
+  }
+  if (resolvedMainChatUrl || resolvedDeepChatUrl || (!(baseWinner as any).geminiChatTitle && (oNorm as any).geminiChatTitle)) {
+    baseWinner = {
+      ...baseWinner,
+      ...(resolvedMainChatUrl ? { geminiChatUrl: resolvedMainChatUrl } : {}),
+      ...(resolvedDeepChatUrl ? { geminiDeepResearchChatUrl: resolvedDeepChatUrl } : {}),
+      ...(!(baseWinner as any).geminiChatTitle && (oNorm as any).geminiChatTitle
+        ? { geminiChatTitle: (oNorm as any).geminiChatTitle }
+        : {}),
+      promptConfig: {
+        ...(baseWinner.promptConfig || {}),
+        ...(resolvedMainChatUrl ? { GEMINI_CHAT_URL: resolvedMainChatUrl } : {}),
+        ...(resolvedDeepChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: resolvedDeepChatUrl } : {}),
+      },
+    } as any;
+  }
+
   // Preserve newer remote rename command & title even if device clocks differ by a few seconds
   try {
     const wCmdRaw = wNorm.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
@@ -1586,7 +1630,14 @@ export function mergeDocumentariesLists(
           voiceoverScript: normalized.voiceoverScript || canonical77.voiceoverScript,
           downloadFolderName: normalized.downloadFolderName || canonical77.downloadFolderName,
           downloadFolderPath: normalized.downloadFolderPath || canonical77.downloadFolderPath,
-        });
+          geminiChatTitle: (normalized as any).geminiChatTitle || (canonical77 as any).geminiChatTitle,
+          geminiChatUrl: normalized.geminiChatUrl || canonical77.geminiChatUrl,
+          geminiDeepResearchChatUrl:
+            (normalized as any).geminiDeepResearchChatUrl ||
+            normalized.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+            (canonical77 as any).geminiDeepResearchChatUrl ||
+            canonical77.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL,
+        } as any);
       } else {
         byId.set(l.id, normalized);
       }

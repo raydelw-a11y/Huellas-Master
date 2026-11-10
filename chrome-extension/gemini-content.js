@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 17) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 17;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 18) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 18;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -1274,13 +1274,18 @@
             }
             if (meta && meta.targetChatTitle) {
               const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-              if (normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)) {
+              const wasNewlyCreatedChat = Boolean(meta.chatState && meta.chatState.isNewChat);
+              if (
+                wasNewlyCreatedChat ||
+                normalizeCompareText(docTitleNow) !== normalizeCompareText(meta.targetChatTitle)
+              ) {
                 linkAndRenameAfterSubmit(
                   {
                     ...(meta.chatState || {}),
                     targetChatTitle: meta.targetChatTitle,
                     isDeepResearchOrder: Boolean(meta.enableDeepResearch),
                     isNewChat: false,
+                    forceRename: wasNewlyCreatedChat,
                   },
                   meta.docId || ''
                 ).finally(() => {
@@ -1352,15 +1357,61 @@
     return window.__HUELLAS_DOC_CHAT_MAP__ || {};
   }
 
-  function saveStoredDocChatEntry(docKey, partialEntry) {
-    if (!docKey) return;
+  function saveStoredDocChatEntry(docKey, partialEntry, opts = {}) {
+    if (!docKey || !partialEntry) return;
     try {
       const map = loadStoredDocChatMap();
-      map[docKey] = {
-        ...(map[docKey] || {}),
-        ...partialEntry,
-        updatedAt: Date.now(),
-      };
+      const existing = map[docKey] || {};
+      const canOverwriteExisting = Boolean(
+        opts.replacesDeletedChat || opts.authoritativeFromPayload
+      );
+      const next = { ...existing };
+
+      if (partialEntry.docId) next.docId = partialEntry.docId;
+      if (partialEntry.baseVideoName) next.baseVideoName = partialEntry.baseVideoName;
+
+      // Guard MAIN slot: never collide with DEEP_RESEARCH slot and never overwrite an existing mainChatId unless authorized
+      if (partialEntry.mainChatId) {
+        const incomingMainId = String(partialEntry.mainChatId).trim();
+        const currentDeepId = String(
+          partialEntry.deepResearchChatId || existing.deepResearchChatId || ''
+        ).trim();
+        if (incomingMainId && incomingMainId !== currentDeepId) {
+          if (!existing.mainChatId || existing.mainChatId === incomingMainId || canOverwriteExisting) {
+            next.mainChatId = incomingMainId;
+            if (partialEntry.mainChatUrl) next.mainChatUrl = partialEntry.mainChatUrl;
+            if (partialEntry.mainChatTitle) next.mainChatTitle = partialEntry.mainChatTitle;
+          }
+        }
+      } else if (partialEntry.mainChatTitle && existing.mainChatId) {
+        next.mainChatTitle = partialEntry.mainChatTitle;
+      }
+
+      // Guard DEEP_RESEARCH slot: never collide with MAIN slot and never overwrite an existing deepResearchChatId unless authorized
+      if (partialEntry.deepResearchChatId) {
+        const incomingDeepId = String(partialEntry.deepResearchChatId).trim();
+        const currentMainId = String(next.mainChatId || existing.mainChatId || '').trim();
+        if (incomingDeepId && incomingDeepId !== currentMainId) {
+          if (
+            !existing.deepResearchChatId ||
+            existing.deepResearchChatId === incomingDeepId ||
+            canOverwriteExisting
+          ) {
+            next.deepResearchChatId = incomingDeepId;
+            if (partialEntry.deepResearchChatUrl) {
+              next.deepResearchChatUrl = partialEntry.deepResearchChatUrl;
+            }
+            if (partialEntry.deepResearchChatTitle) {
+              next.deepResearchChatTitle = partialEntry.deepResearchChatTitle;
+            }
+          }
+        }
+      } else if (partialEntry.deepResearchChatTitle && existing.deepResearchChatId) {
+        next.deepResearchChatTitle = partialEntry.deepResearchChatTitle;
+      }
+
+      next.updatedAt = Date.now();
+      map[docKey] = next;
       window.__HUELLAS_DOC_CHAT_MAP__ = map;
       localStorage.setItem(DOC_CHATS_STORAGE_KEY, JSON.stringify(map));
     } catch {}
@@ -1370,15 +1421,19 @@
     const map = loadStoredDocChatMap();
     if (docKey && map[docKey]) return map[docKey];
     const normBase = normalizeCompareText(baseVideoName);
-    if (normBase && map[normBase]) return map[normBase];
+    if (normBase && map[normBase]) {
+      const candidate = map[normBase];
+      if (!docKey || !candidate.docId || candidate.docId === docKey) return candidate;
+    }
     const vNum = extractVideoNumberToken(baseVideoName);
     if (vNum) {
       for (const k of Object.keys(map)) {
         const entry = map[k];
+        if (!entry) continue;
+        if (docKey && entry.docId && entry.docId !== docKey) continue;
         if (
-          entry &&
-          (extractVideoNumberToken(entry.baseVideoName || '') === vNum ||
-            extractVideoNumberToken(entry.mainChatTitle || '') === vNum)
+          extractVideoNumberToken(entry.baseVideoName || '') === vNum ||
+          extractVideoNumberToken(entry.mainChatTitle || '') === vNum
         ) {
           return entry;
         }
@@ -3072,20 +3127,26 @@
   }
 
   async function ensureCorrectVideoChatBeforePrompt(payload) {
-    const isDeepResearchOrder = Boolean(payload.enableDeepResearch);
+    // STRICT 2-SLOT RULE PER DOCUMENTARY:
+    //  - DEEP_RESEARCH slot: ONLY when payload.enableDeepResearch === true (Stage 1 Deep Research)
+    //  - MAIN slot: ALL other calls of the video across Stages 1-12 (Stage 1 Part 1, Stage 2 Script, Stages 3-12, custom prompts)
+    const isDeepResearchOrder = Boolean(payload.enableDeepResearch) === true;
     const baseVideoName = stripDeepResearchSuffix(payload.videoName || '');
     const targetChatTitle = baseVideoName
       ? isDeepResearchOrder
-        ? `${baseVideoName}_Deep Research`
+        ? stripDeepResearchSuffix(payload.deepResearchVideoName || '')
+          ? `${stripDeepResearchSuffix(payload.deepResearchVideoName)}_Deep Research`
+          : `${baseVideoName}_Deep Research`
         : baseVideoName
       : '';
     const notebookName = String(payload.notebookName || 'Huellas de la Humanidad').trim();
     const docId = String(payload.docId || '').trim();
     const docKey = docId || normalizeCompareText(baseVideoName);
     const stage = { stageNumber: payload.stageNumber };
-    const base = { targetChatTitle, isDeepResearchOrder };
+    const replacesDeletedChat = Boolean(payload.__directChatNotFound || payload.replacesDeletedChat);
+    const base = { targetChatTitle, isDeepResearchOrder, replacesDeletedChat };
 
-    // STEP 1: the notebook "Huellas de la Humanidad"
+    // STEP 1: Resolve Notebook "Huellas de la Humanidad" path and load proven notebook chat IDs
     const nbPath = await resolveNotebookPath(notebookName);
     if (!nbPath) {
       return {
@@ -3095,78 +3156,203 @@
     }
     await loadKnownNotebookChats(nbPath);
 
-    const stored = getStoredDocChatEntry(docKey, baseVideoName) || {};
-    const linkedChatId =
-      getAppChatIdFromUrl(
-        isDeepResearchOrder
-          ? payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl
-          : payload.geminiChatUrl || stored.mainChatUrl
-      ) ||
-      (isDeepResearchOrder ? stored.deepResearchChatId : stored.mainChatId) ||
-      '';
-    const oppositeChatId =
-      getAppChatIdFromUrl(
-        isDeepResearchOrder
-          ? payload.geminiChatUrl || stored.mainChatUrl
-          : payload.geminiDeepResearchChatUrl || stored.deepResearchChatUrl
-      ) ||
-      (isDeepResearchOrder ? stored.mainChatId : stored.deepResearchChatId) ||
-      '';
-
-    // Already inside this video's chat of the notebook (exact title OR linked chatId + notebook membership)
-    const curChatId = getAppChatIdFromUrl(window.location.href);
-    if (curChatId && isInsideNotebook(nbPath) && targetChatTitle) {
-      const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
-      const isSameLinkedChat = Boolean(
-        linkedChatId && curChatId === linkedChatId && (!oppositeChatId || curChatId !== oppositeChatId)
+    // Payload URLs from Huellas Master (App.tsx / server.ts) are authoritative over stale localStorage
+    const payloadMainChatId = getAppChatIdFromUrl(payload.geminiChatUrl || '');
+    const payloadDeepChatId = getAppChatIdFromUrl(payload.geminiDeepResearchChatUrl || '');
+    if (docKey && !replacesDeletedChat && (payloadMainChatId || payloadDeepChatId)) {
+      saveStoredDocChatEntry(
+        docKey,
+        {
+          docId: docId || undefined,
+          baseVideoName: baseVideoName || undefined,
+          ...(payloadMainChatId
+            ? {
+                mainChatId: payloadMainChatId,
+                mainChatUrl: `https://gemini.google.com/app/${payloadMainChatId}`,
+                ...(baseVideoName ? { mainChatTitle: baseVideoName } : {}),
+              }
+            : {}),
+          ...(payloadDeepChatId
+            ? {
+                deepResearchChatId: payloadDeepChatId,
+                deepResearchChatUrl: `https://gemini.google.com/app/${payloadDeepChatId}`,
+                ...(baseVideoName ? { deepResearchChatTitle: `${baseVideoName}_Deep Research` } : {}),
+              }
+            : {}),
+        },
+        { authoritativeFromPayload: true }
       );
-      if (normalizeCompareText(docTitle) === normalizeCompareText(targetChatTitle) || isSameLinkedChat) {
+    }
+
+    const stored = getStoredDocChatEntry(docKey, baseVideoName) || {};
+    const oppositeChatId =
+      (isDeepResearchOrder
+        ? payloadMainChatId || getAppChatIdFromUrl(stored.mainChatUrl) || stored.mainChatId
+        : payloadDeepChatId || getAppChatIdFromUrl(stored.deepResearchChatUrl) || stored.deepResearchChatId) ||
+      '';
+    const rawLinkedChatId = replacesDeletedChat
+      ? ''
+      : (isDeepResearchOrder
+          ? payloadDeepChatId || getAppChatIdFromUrl(stored.deepResearchChatUrl) || stored.deepResearchChatId
+          : payloadMainChatId || getAppChatIdFromUrl(stored.mainChatUrl) || stored.mainChatId) || '';
+    const linkedChatId =
+      rawLinkedChatId && (!oppositeChatId || rawLinkedChatId !== oppositeChatId) ? rawLinkedChatId : '';
+
+    const curChatId = getAppChatIdFromUrl(window.location.href);
+
+    // LEVEL 1 (ID-First Fast Path): Already parked on the exact linked chat ID (e.g. pre-positioned by background.js)
+    if (linkedChatId && curChatId === linkedChatId) {
+      await rememberNotebookChat(nbPath, curChatId);
+      for (let i = 0; i < 20 && !findPromptInput(); i++) {
+        await sleep(200);
+      }
+      reportStatus(
+        'WORKING',
+        `🎯 Usando chat vinculado "${targetChatTitle || curChatId}" (${
+          isDeepResearchOrder ? 'Deep Research' : 'Chat Principal del Video'
+        })...`,
+        stage
+      );
+      return { ...base, isNewChat: false, nbPath, chatId: curChatId };
+    }
+
+    // LEVEL 2 (Direct ID Navigation Fallback): Never detour through the Notebook list when linkedChatId is already known!
+    if (linkedChatId && curChatId !== linkedChatId && (Number(payload.__directIdNavCount) || 0) < 2) {
+      await rememberNotebookChat(nbPath, linkedChatId);
+      const acctMatch = window.location.pathname.match(/^\/u\/\d+/);
+      const acctPrefix = acctMatch ? acctMatch[0] : '';
+      const directChatUrl = `https://gemini.google.com${acctPrefix}/app/${linkedChatId}`;
+      reportStatus(
+        'WORKING',
+        `↪️ Abriendo chat existente "${targetChatTitle || linkedChatId}" (${
+          isDeepResearchOrder ? 'Deep Research' : 'Chat Principal del Video'
+        })...`,
+        stage
+      );
+      if (
+        await requestNavigateAndResume(directChatUrl, {
+          ...payload,
+          __directIdNavCount: (Number(payload.__directIdNavCount) || 0) + 1,
+        })
+      ) {
+        return { navigating: true };
+      }
+    }
+
+    // Secondary in-place check ONLY when no linkedChatId exists yet (e.g. user manually opened the matching Notebook chat)
+    if (
+      !linkedChatId &&
+      curChatId &&
+      (!oppositeChatId || curChatId !== oppositeChatId) &&
+      isInsideNotebook(nbPath) &&
+      targetChatTitle
+    ) {
+      const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
+      if (
+        hasDeepResearchSuffix(docTitle) === isDeepResearchOrder &&
+        normalizeCompareText(docTitle) === normalizeCompareText(targetChatTitle)
+      ) {
+        await rememberNotebookChat(nbPath, curChatId);
         return { ...base, isNewChat: false, nbPath, chatId: curChatId };
       }
     }
 
-    // STEP 2: open the notebook page and look ONLY at its own chat list
+    // LEVEL 3 (Hydrated Notebook Search): Executed ONLY when no linkedChatId exists (first run of slot or deleted chat 404)
     reportStatus('WORKING', `📓 Entrando al Notebook "${notebookName}"...`, stage);
     const nav = await goToNotebookPage(nbPath, payload);
     if (nav.navigating) return { navigating: true };
     if (!nav.ok) return { abort: true, reason: `No se pudo abrir el Notebook "${notebookName}".` };
-    for (let i = 0; i < 25 && listNotebookPageChats().length === 0 && !document.querySelector('rich-textarea'); i++) {
-      await sleep(200);
-    }
-    await sleep(800);
 
-    // STEP 3: find "<Video>[_Deep Research]" by title or video number in the notebook's "Past chats"
+    // Wait for <project-chat-row> list to hydrate and stabilize (do NOT abort early on <rich-textarea>, which mounts first!)
+    let prevChatCount = -1;
+    let stableNonEmptyTicks = 0;
+    for (let i = 0; i < 18; i++) {
+      const countNow = listNotebookPageChats().length;
+      if (countNow > 0 && countNow === prevChatCount) {
+        stableNonEmptyTicks++;
+        if (stableNonEmptyTicks >= 2) break;
+      } else {
+        stableNonEmptyTicks = 0;
+      }
+      prevChatCount = countNow;
+      await sleep(250);
+    }
+    await sleep(350);
+
+    // Find "<Video>[_Deep Research]" strictly matching the requested slot (never mixing _Deep Research with Main)
     const chats = listNotebookPageChats();
     try {
-      console.log('[Huellas] Chats del Notebook:', chats.map((c) => c.title));
+      console.log('[Huellas] Chats hidratados del Notebook:', chats.map((c) => c.title));
     } catch {}
+    const slotChats = chats.filter((c) => hasDeepResearchSuffix(c.title) === isDeepResearchOrder);
     const wanted = normalizeCompareText(targetChatTitle);
     const storedWantedTitle = normalizeCompareText(
       isDeepResearchOrder ? stored.deepResearchChatTitle || '' : stored.mainChatTitle || ''
     );
+    const legacyPreviousTitle = !isDeepResearchOrder
+      ? normalizeCompareText(stripDeepResearchSuffix(payload.oldVideoName || payload.previousChatTitle || ''))
+      : '';
     const match =
-      (targetChatTitle && chats.find((c) => normalizeCompareText(c.title) === wanted)) ||
-      (storedWantedTitle && chats.find((c) => normalizeCompareText(c.title) === storedWantedTitle)) ||
+      (wanted && slotChats.find((c) => normalizeCompareText(c.title) === wanted)) ||
+      (storedWantedTitle && slotChats.find((c) => normalizeCompareText(c.title) === storedWantedTitle)) ||
+      (legacyPreviousTitle && slotChats.find((c) => normalizeCompareText(c.title) === legacyPreviousTitle)) ||
       (baseVideoName &&
-        chats.find((c) => doesTitleMatchTargetVideo(c.title, baseVideoName, isDeepResearchOrder))) ||
+        slotChats.find((c) => doesTitleMatchTargetVideo(c.title, baseVideoName, isDeepResearchOrder))) ||
       null;
     if (match) {
       reportStatus('WORKING', `🔍 Abriendo "${targetChatTitle || match.title}" dentro del Notebook...`, stage);
       match.btn.click();
       const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 10000);
       if (ok) {
-        // Opened from the notebook's own "Past chats" list => proven notebook chat
         const openedId = getAppChatIdFromUrl(window.location.href);
-        await rememberNotebookChat(nbPath, openedId);
-        await sleep(1500);
-        if (isInsideNotebook(nbPath)) {
-          return { ...base, isNewChat: false, nbPath, chatId: openedId };
+        if (openedId && (!oppositeChatId || openedId !== oppositeChatId)) {
+          await rememberNotebookChat(nbPath, openedId);
+          const openedUrl = `https://gemini.google.com/app/${openedId}`;
+          if (docKey) {
+            saveStoredDocChatEntry(
+              docKey,
+              isDeepResearchOrder
+                ? {
+                    docId: docId || undefined,
+                    baseVideoName,
+                    deepResearchChatId: openedId,
+                    deepResearchChatUrl: openedUrl,
+                    deepResearchChatTitle: targetChatTitle || match.title,
+                  }
+                : {
+                    docId: docId || undefined,
+                    baseVideoName,
+                    mainChatId: openedId,
+                    mainChatUrl: openedUrl,
+                    mainChatTitle: targetChatTitle || match.title,
+                  },
+              { replacesDeletedChat }
+            );
+          }
+          chrome.runtime
+            .sendMessage({
+              type: 'GEMINI_CHAT_LINKED',
+              docId,
+              geminiChatUrl: openedUrl,
+              geminiChatTitle: targetChatTitle || match.title,
+              isDeepResearch: isDeepResearchOrder,
+              notebookPath: nbPath,
+              replacesDeletedChat,
+            })
+            .catch(() => {});
+          for (let i = 0; i < 15 && !findPromptInput(); i++) {
+            await sleep(200);
+          }
+          await sleep(400);
+          if (isInsideNotebook(nbPath)) {
+            return { ...base, isNewChat: false, nbPath, chatId: openedId };
+          }
         }
       }
       return { abort: true, reason: `Se encontró "${targetChatTitle}" en el Notebook pero no se pudo abrir.` };
     }
 
-    // STEP 4: not found -> new chat from the notebook page's own composer (created INSIDE the notebook)
+    // LEVEL 4: Genuinely not found anywhere -> create a single new chat inside the Notebook composer
     reportStatus('WORKING', `✨ Creando "${targetChatTitle}" dentro del Notebook "${notebookName}"...`, stage);
     return { ...base, isNewChat: true, nbPath, chatId: '' };
   }
@@ -3181,13 +3367,15 @@
     if (!nbPath) return;
     const title = String(chatState.targetChatTitle || '').trim();
     const isDeep = Boolean(chatState.isDeepResearchOrder);
+    const replacesDeletedChat = Boolean(chatState.replacesDeletedChat);
     const ok = await waitForUrl((u) => Boolean(getAppChatIdFromUrl(u)), 60000);
     if (!ok) return;
     const chatId = getAppChatIdFromUrl(window.location.href);
     if (!chatId) return;
-    // A new chat sent from the notebook page's own composer belongs to the notebook (same for the chat our
-    // Deep Research order just produced: forceRename comes from the watcher that ran inside this chat)
-    if (chatState.isNewChat || chatState.forceRename) await rememberNotebookChat(nbPath, chatId);
+    // A new chat sent from the notebook page's own composer belongs to the notebook (same for an already-verified chatId)
+    if (chatState.isNewChat || chatState.forceRename || chatState.chatId === chatId) {
+      await rememberNotebookChat(nbPath, chatId);
+    }
     for (let i = 0; i < 25 && !isInsideNotebook(nbPath); i++) await sleep(200);
     if (!isInsideNotebook(nbPath)) return;
     if (chatState.chatId && chatState.chatId !== chatId && !chatState.forceRename) return;
@@ -3198,12 +3386,33 @@
       saveStoredDocChatEntry(
         docKey,
         isDeep
-          ? { baseVideoName, deepResearchChatId: chatId, deepResearchChatUrl: chatUrl, deepResearchChatTitle: title }
-          : { baseVideoName, mainChatId: chatId, mainChatUrl: chatUrl, mainChatTitle: title }
+          ? {
+              docId: docId || undefined,
+              baseVideoName,
+              deepResearchChatId: chatId,
+              deepResearchChatUrl: chatUrl,
+              deepResearchChatTitle: title,
+            }
+          : {
+              docId: docId || undefined,
+              baseVideoName,
+              mainChatId: chatId,
+              mainChatUrl: chatUrl,
+              mainChatTitle: title,
+            },
+        { replacesDeletedChat }
       );
     }
     chrome.runtime
-      .sendMessage({ type: 'GEMINI_CHAT_LINKED', docId, geminiChatUrl: chatUrl, geminiChatTitle: title, isDeepResearch: isDeep, notebookPath: nbPath })
+      .sendMessage({
+        type: 'GEMINI_CHAT_LINKED',
+        docId,
+        geminiChatUrl: chatUrl,
+        geminiChatTitle: title,
+        isDeepResearch: isDeep,
+        notebookPath: nbPath,
+        replacesDeletedChat,
+      })
       .catch(() => {});
     if (!title) return;
     await sleep(chatState.isNewChat ? 5000 : 800);

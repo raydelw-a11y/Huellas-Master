@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:56 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:19 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -5232,6 +5232,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return (!isGenericTitle ? rawTitle : effectiveDocFolderName) || rawTitle || '';
   }, [activeDoc?.title, effectiveDocFolderName]);
 
+  const getDocMainChatUrl = (doc?: DocumentaryProject | null): string =>
+    String(doc?.geminiChatUrl || doc?.promptConfig?.GEMINI_CHAT_URL || '').trim();
+
+  const getDocDeepResearchChatUrl = (doc?: DocumentaryProject | null): string => {
+    const mainUrl = getDocMainChatUrl(doc);
+    const deepUrl = String(
+      (doc as any)?.geminiDeepResearchChatUrl || doc?.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+    ).trim();
+    return deepUrl && deepUrl !== mainUrl ? deepUrl : '';
+  };
+
   // Keep global Gemini context synchronized with the active documentary so every prompt goes to its single dedicated conversation (or _Deep Research chat for Deep Research)
   useEffect(() => {
     if (!activeDoc) {
@@ -5241,14 +5252,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setActiveGeminiDocContext({
       docId: activeDoc.id,
       videoName: currentCanonicalVideoName,
-      geminiChatUrl: activeDoc.geminiChatUrl,
-      geminiDeepResearchChatUrl: activeDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+      geminiChatUrl: getDocMainChatUrl(activeDoc),
+      geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(activeDoc),
       notebookName: 'Huellas de la Humanidad',
     });
   }, [
     activeDoc?.id,
     currentCanonicalVideoName,
     activeDoc?.geminiChatUrl,
+    (activeDoc as any)?.geminiDeepResearchChatUrl,
+    activeDoc?.promptConfig?.GEMINI_CHAT_URL,
     activeDoc?.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL,
   ]);
 
@@ -5375,8 +5388,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           newName: cleanName,
           oldFolderName: priorFolderName,
           oldFolderPath: priorFolderPath,
-          geminiChatUrl: doc.geminiChatUrl || '',
-          geminiDeepResearchChatUrl: doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+          geminiChatUrl: getDocMainChatUrl(doc),
+          geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(doc),
           requestedAt: Date.now(),
         };
 
@@ -5523,8 +5536,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           oldVideoName: serverPreviousName || priorFolderName,
           videoName: serverFolderName,
           deepResearchVideoName: `${serverFolderName}_Deep Research`,
-          geminiChatUrl: doc.geminiChatUrl || matchingTab?.url || '',
-          geminiDeepResearchChatUrl: doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+          geminiChatUrl: getDocMainChatUrl(doc) || matchingTab?.url || '',
+          geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(doc),
           notebookName: 'Huellas de la Humanidad',
           tabId: matchingTab?.id || selectedGeminiTabId || geminiTabs[0]?.id,
         });
@@ -9210,48 +9223,80 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       } else if (msg.type === 'GEMINI_CHAT_LINKED') {
         setExtensionInstalled(true);
-        const rawLinkedChatUrl = String(msg.geminiChatUrl || msg.chatUrl || '').trim();
-        // Only chats confirmed inside the Notebook "Huellas de la Humanidad" are ever linked
-        // (the extension sends notebookPath only after verifying notebook membership)
-        const linkedChatUrl =
-          /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(rawLinkedChatUrl) &&
-          /^\/(?:u\/\d+\/)?notebook\/[a-zA-Z0-9_-]+$/.test(String(msg.notebookPath || ''))
-            ? rawLinkedChatUrl
-            : '';
+        const rawLinkedChatUrl = String(msg.geminiChatUrl || msg.chatUrl || '').trim().split(/[?#]/)[0];
+        const hasValidAppUrl = /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(
+          rawLinkedChatUrl
+        );
+        const hasValidNotebookOrProven =
+          !msg.notebookPath || /^\/(?:u\/\d+\/)?notebook\/[a-zA-Z0-9_-]+$/.test(String(msg.notebookPath || ''));
+        const linkedChatUrl = hasValidAppUrl && hasValidNotebookOrProven ? rawLinkedChatUrl : '';
         if (rawLinkedChatUrl && !linkedChatUrl) return;
         const linkedChatTitle = String(msg.geminiChatTitle || msg.chatTitle || '').trim();
         const isDeepResearchChat =
           Boolean(msg.isDeepResearch) || /_\s*deep\s*research$/i.test(linkedChatTitle);
+        const replacesDeletedChat = Boolean(msg.replacesDeletedChat);
         const targetDocId = String(msg.docId || '').trim();
         const currentDoc = activeDocRef.current || activeDoc;
-        if (currentDoc && (!targetDocId || targetDocId === currentDoc.id)) {
+
+        const buildDocChatPatch = (doc: DocumentaryProject): Partial<DocumentaryProject> | null => {
+          const existingMainUrl = getDocMainChatUrl(doc);
+          const existingDeepUrl = getDocDeepResearchChatUrl(doc);
           if (isDeepResearchChat) {
-            const prevDeepUrl = currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '';
-            const prevDeepTitle = currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_TITLE || '';
-            if (
-              (linkedChatUrl && linkedChatUrl !== prevDeepUrl) ||
-              (linkedChatTitle && linkedChatTitle !== prevDeepTitle)
-            ) {
-              updateActiveDoc({
-                promptConfig: {
-                  ...(currentDoc.promptConfig || {}),
-                  ...(linkedChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: linkedChatUrl } : {}),
-                  ...(linkedChatTitle ? { GEMINI_DEEP_RESEARCH_CHAT_TITLE: linkedChatTitle } : {}),
-                },
-              });
+            if (linkedChatUrl && existingMainUrl && linkedChatUrl === existingMainUrl) return null;
+            if (linkedChatUrl && existingDeepUrl && linkedChatUrl !== existingDeepUrl && !replacesDeletedChat) {
+              return null;
             }
-          } else {
-            const patch: Partial<DocumentaryProject> = {};
-            if (linkedChatUrl && linkedChatUrl !== currentDoc.geminiChatUrl) {
-              patch.geminiChatUrl = linkedChatUrl;
+            const prevDeepTitle = doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_TITLE || '';
+            const nextDeepUrl = linkedChatUrl || existingDeepUrl;
+            if (nextDeepUrl === existingDeepUrl && (!linkedChatTitle || linkedChatTitle === prevDeepTitle)) {
+              return null;
             }
-            if (linkedChatTitle && linkedChatTitle !== currentDoc.geminiChatTitle) {
-              patch.geminiChatTitle = linkedChatTitle;
-            }
-            if (Object.keys(patch).length > 0) {
-              updateActiveDoc(patch);
-            }
+            return {
+              ...(nextDeepUrl ? ({ geminiDeepResearchChatUrl: nextDeepUrl } as any) : {}),
+              promptConfig: {
+                ...(doc.promptConfig || {}),
+                ...(nextDeepUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: nextDeepUrl } : {}),
+                ...(linkedChatTitle ? { GEMINI_DEEP_RESEARCH_CHAT_TITLE: linkedChatTitle } : {}),
+              },
+            };
           }
+          if (linkedChatUrl && existingDeepUrl && linkedChatUrl === existingDeepUrl) return null;
+          // Never overwrite an already linked Main Chat URL unless the previous chat was deleted in Google
+          const effectiveMainUrl =
+            existingMainUrl && !replacesDeletedChat ? existingMainUrl : linkedChatUrl || existingMainUrl;
+          const urlChanged = Boolean(effectiveMainUrl && effectiveMainUrl !== doc.geminiChatUrl);
+          const cfgUrlChanged = Boolean(
+            effectiveMainUrl && effectiveMainUrl !== doc.promptConfig?.GEMINI_CHAT_URL
+          );
+          const titleChanged = Boolean(linkedChatTitle && linkedChatTitle !== doc.geminiChatTitle);
+          if (!urlChanged && !cfgUrlChanged && !titleChanged) return null;
+          return {
+            ...(effectiveMainUrl ? { geminiChatUrl: effectiveMainUrl } : {}),
+            ...(titleChanged ? { geminiChatTitle: linkedChatTitle } : {}),
+            ...(effectiveMainUrl
+              ? {
+                  promptConfig: {
+                    ...(doc.promptConfig || {}),
+                    GEMINI_CHAT_URL: effectiveMainUrl,
+                  },
+                }
+              : {}),
+          };
+        };
+
+        if (currentDoc && (!targetDocId || targetDocId === currentDoc.id)) {
+          const patch = buildDocChatPatch(currentDoc);
+          if (patch) {
+            updateActiveDoc(patch);
+          }
+        } else if (targetDocId) {
+          setDocumentaries((prev) =>
+            prev.map((d) => {
+              if (d.id !== targetDocId) return d;
+              const patch = buildDocChatPatch(d);
+              return patch ? ({ ...d, ...patch, updatedAt: new Date().toISOString() } as DocumentaryProject) : d;
+            })
+          );
         }
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
@@ -9956,8 +10001,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           enableDeepResearch: remoteDeep,
           videoName: currentDoc.title || '',
           deepResearchVideoName: `${currentDoc.title || ''}_Deep Research`,
-          geminiChatUrl: currentDoc.geminiChatUrl || '',
-          geminiDeepResearchChatUrl: currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
+          geminiChatUrl: getDocMainChatUrl(currentDoc),
+          geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(currentDoc),
         };
         const remotePatch: Partial<DocumentaryProject> = {
           ...(isRemoteResearchStage ? { sectionsStructure: promptText } : {}),
@@ -10034,8 +10079,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: Low + Deep Research activo (con Auto-Iniciar Plan)...`
         : `⚡ Enviando prompt a Gemini Web en modo 4 Carbon (Thinking level: Low)...`
     );
+    const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
+      .replace(/_\s*Deep\s*Research$/i, '')
+      .trim();
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
+      docId: currentDoc.id,
+      videoName: targetVideoBaseName,
+      deepResearchVideoName: targetVideoBaseName ? `${targetVideoBaseName}_Deep Research` : '',
+      geminiChatUrl: getDocMainChatUrl(currentDoc),
+      geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(currentDoc),
+      notebookName: 'Huellas de la Humanidad',
       prompt: promptText,
       stageNumber: stageNum,
       taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
@@ -12226,6 +12280,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             UBICACION_INTRO_MARCA: prevCfg.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00',
                             CLEAN_RESET_V77: '2026_11_08_1912',
                             V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_RESTORED',
+                            ...(prevCfg.GEMINI_CHAT_URL ? { GEMINI_CHAT_URL: prevCfg.GEMINI_CHAT_URL } : {}),
+                            ...(getDocDeepResearchChatUrl(activeDoc)
+                              ? { GEMINI_DEEP_RESEARCH_CHAT_URL: getDocDeepResearchChatUrl(activeDoc) }
+                              : {}),
+                            ...(prevCfg.GEMINI_DEEP_RESEARCH_CHAT_TITLE
+                              ? { GEMINI_DEEP_RESEARCH_CHAT_TITLE: prevCfg.GEMINI_DEEP_RESEARCH_CHAT_TITLE }
+                              : {}),
                             // Tombstone: sync merges must not resurrect the Stage 1 texts cleared now
                             STAGE1_CLEARED_AT: String(Date.now()),
                           };

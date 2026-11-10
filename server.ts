@@ -486,6 +486,36 @@ function mergeServerDocObjects(winner: any, other: any) {
       const ov = other[k];
       if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
     }
+
+    // Preserve linked Gemini Main & Deep Research chat URLs across server merges
+    const winMainUrl = String(baseWinner.geminiChatUrl || baseWinner.promptConfig?.GEMINI_CHAT_URL || '').trim();
+    const othMainUrl = String(other.geminiChatUrl || other.promptConfig?.GEMINI_CHAT_URL || '').trim();
+    const mergedMainUrl = winMainUrl || othMainUrl;
+
+    const winDeepUrl = String(
+      baseWinner.geminiDeepResearchChatUrl || baseWinner.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+    ).trim();
+    const othDeepUrl = String(
+      other.geminiDeepResearchChatUrl || other.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+    ).trim();
+    let mergedDeepUrl = winDeepUrl || othDeepUrl;
+    if (mergedMainUrl && mergedDeepUrl && mergedMainUrl === mergedDeepUrl) {
+      mergedDeepUrl = '';
+    }
+    if (mergedMainUrl) {
+      baseWinner.geminiChatUrl = mergedMainUrl;
+      baseWinner.promptConfig = { ...(baseWinner.promptConfig || {}), GEMINI_CHAT_URL: mergedMainUrl };
+    }
+    if (mergedDeepUrl) {
+      baseWinner.geminiDeepResearchChatUrl = mergedDeepUrl;
+      baseWinner.promptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        GEMINI_DEEP_RESEARCH_CHAT_URL: mergedDeepUrl,
+      };
+    }
+    if ((!baseWinner.geminiChatTitle || !String(baseWinner.geminiChatTitle).trim()) && other.geminiChatTitle) {
+      baseWinner.geminiChatTitle = other.geminiChatTitle;
+    }
   } catch {}
   if (!Array.isArray(baseWinner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
     return baseWinner;
@@ -1014,12 +1044,42 @@ app.put('/api/documentaries/:id', (req, res) => {
       updatedAt: new Date().toISOString(),
     };
   } else {
+    const diskMainUrl = String(
+      currentDiskDoc.geminiChatUrl || currentDiskDoc.promptConfig?.GEMINI_CHAT_URL || ''
+    ).trim();
+    const incMainUrl = String(
+      incomingBody.geminiChatUrl || incomingBody.promptConfig?.GEMINI_CHAT_URL || ''
+    ).trim();
+    const finalMainUrl = incMainUrl || diskMainUrl;
+
+    const diskDeepUrl = String(
+      currentDiskDoc.geminiDeepResearchChatUrl ||
+        currentDiskDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+        ''
+    ).trim();
+    const incDeepUrl = String(
+      incomingBody.geminiDeepResearchChatUrl ||
+        incomingBody.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+        ''
+    ).trim();
+    const finalDeepUrl =
+      (incDeepUrl || diskDeepUrl) && (incDeepUrl || diskDeepUrl) !== finalMainUrl
+        ? incDeepUrl || diskDeepUrl
+        : '';
+
     updated = {
       ...currentDiskDoc,
       ...incomingBody,
+      ...(finalMainUrl ? { geminiChatUrl: finalMainUrl } : {}),
+      ...(finalDeepUrl ? { geminiDeepResearchChatUrl: finalDeepUrl } : {}),
+      ...(!incomingBody.geminiChatTitle && currentDiskDoc.geminiChatTitle
+        ? { geminiChatTitle: currentDiskDoc.geminiChatTitle }
+        : {}),
       promptConfig: {
         ...(currentDiskDoc.promptConfig || {}),
         ...(incomingBody.promptConfig || {}),
+        ...(finalMainUrl ? { GEMINI_CHAT_URL: finalMainUrl } : {}),
+        ...(finalDeepUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: finalDeepUrl } : {}),
       },
       id: currentDiskDoc.id,
       updatedAt: new Date().toISOString(),
@@ -13164,9 +13224,14 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       focusTab: false,
       videoName: String(cmd.videoName || doc.title || ''),
       deepResearchVideoName: String(cmd.deepResearchVideoName || `${doc.title || ''}_Deep Research`),
-      geminiChatUrl: String(cmd.geminiChatUrl || doc.geminiChatUrl || ''),
+      geminiChatUrl: String(
+        doc.geminiChatUrl || doc.promptConfig?.GEMINI_CHAT_URL || cmd.geminiChatUrl || ''
+      ),
       geminiDeepResearchChatUrl: String(
-        cmd.geminiDeepResearchChatUrl || doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+        doc.geminiDeepResearchChatUrl ||
+          doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
+          cmd.geminiDeepResearchChatUrl ||
+          ''
       ),
       notebookName: 'Huellas de la Humanidad',
       createdAt: Date.now(),
@@ -13253,7 +13318,10 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
     const idx = list.findIndex((d) => d && d.id === docId);
     if (idx !== -1) {
       const isPart1 = stageNumber === 10;
-      const isDeepResearch = stageNumber === 1 || stageNumber === 2 || stageNumber === 3;
+      const isDeepResearch =
+        req.body?.isDeepResearch !== undefined
+          ? Boolean(req.body.isDeepResearch)
+          : stageNumber === 1 || stageNumber === 2 || stageNumber === 3;
       const STAGE_FIELD_MAP: Record<number, string> = {
         1: 'deepResearchResult',
         2: 'deepResearchResult',
@@ -13350,8 +13418,8 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
         ...list[idx],
         ...([101, 115, 12].includes(stageNumber) ? {} : { [fieldKey]: text }),
         ...extraPatch,
-        ...(validDrChatUrl ? { geminiDeepResearchChatUrl: validDrChatUrl } : {}),
-        ...(validChatUrl && !isDeepResearch ? { geminiChatUrl: validChatUrl } : {}),
+        ...(nextDeepChatUrl ? { geminiDeepResearchChatUrl: nextDeepChatUrl } : {}),
+        ...(nextMainChatUrl ? { geminiChatUrl: nextMainChatUrl } : {}),
         promptConfig: {
           ...(list[idx].promptConfig || {}),
           REMOTE_GEMINI_STAGE_STATUS: 'completed',
@@ -13359,7 +13427,8 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           [`FIELD_CLEARED_AT_${fieldKey}`]: '0',
           ...(remoteCommandId ? { REMOTE_GEMINI_STAGE_ACK_ID: remoteCommandId } : {}),
           ...(isDeepResearch ? { DEEP_RESEARCH_RESULT_UPDATED_AT: String(Date.now()) } : {}),
-          ...(validDrChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: validDrChatUrl } : {}),
+          ...(nextMainChatUrl ? { GEMINI_CHAT_URL: nextMainChatUrl } : {}),
+          ...(nextDeepChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: nextDeepChatUrl } : {}),
         },
         updatedAt: new Date().toISOString(),
       };
@@ -13390,6 +13459,26 @@ function handleIncomingRemoteRelayLine(line: string) {
       handleRemoteRenameTrigger(cmd).catch(() => {});
     }
   } catch {}
+      const existingMainUrl = String(
+        list[idx].geminiChatUrl || list[idx].promptConfig?.GEMINI_CHAT_URL || ''
+      ).trim();
+      const existingDeepUrl = String(
+        list[idx].geminiDeepResearchChatUrl || list[idx].promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+      ).trim();
+      const replacesDeletedChat = Boolean(req.body?.replacesDeletedChat);
+      const nextMainChatUrl =
+        !isDeepResearch && validChatUrl && validChatUrl !== existingDeepUrl
+          ? existingMainUrl && !replacesDeletedChat
+            ? existingMainUrl
+            : validChatUrl
+          : existingMainUrl;
+      const nextDeepChatUrl =
+        isDeepResearch && validDrChatUrl && validDrChatUrl !== existingMainUrl
+          ? existingDeepUrl && !replacesDeletedChat
+            ? existingDeepUrl
+            : validDrChatUrl
+          : existingDeepUrl;
+
 }
 
 async function handleRemoteRenameTrigger(trigger: any) {
@@ -13417,6 +13506,78 @@ async function handleRemoteRenameTrigger(trigger: any) {
         });
         return;
       }
+app.post('/api/gemini-web/link-chat', (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const rawUrl = String(req.body?.geminiChatUrl || req.body?.chatUrl || '').trim().split(/[?#]/)[0];
+    const chatTitle = String(req.body?.geminiChatTitle || req.body?.chatTitle || '').trim();
+    const isDeepResearch = Boolean(req.body?.isDeepResearch) || /_\s*deep\s*research$/i.test(chatTitle);
+    const replacesDeletedChat = Boolean(req.body?.replacesDeletedChat);
+    if (!docId || !/^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(rawUrl)) {
+      res.json({ ok: false, skipped: true });
+      return;
+    }
+    const list = readDocumentaries();
+    const idx = list.findIndex((d) => d && d.id === docId);
+    if (idx === -1) {
+      res.json({ ok: false, error: 'doc_not_found' });
+      return;
+    }
+    const cur = list[idx];
+    const existingMainUrl = String(cur.geminiChatUrl || cur.promptConfig?.GEMINI_CHAT_URL || '').trim();
+    const existingDeepUrl = String(
+      cur.geminiDeepResearchChatUrl || cur.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
+    ).trim();
+
+    if (isDeepResearch) {
+      if (existingMainUrl && rawUrl === existingMainUrl) {
+        res.json({ ok: false, skipped: 'collision_with_main' });
+        return;
+      }
+      if (existingDeepUrl && existingDeepUrl !== rawUrl && !replacesDeletedChat) {
+        res.json({ ok: true, preservedExisting: existingDeepUrl });
+        return;
+      }
+      list[idx] = {
+        ...cur,
+        geminiDeepResearchChatUrl: rawUrl,
+        promptConfig: {
+          ...(cur.promptConfig || {}),
+          GEMINI_DEEP_RESEARCH_CHAT_URL: rawUrl,
+          ...(chatTitle ? { GEMINI_DEEP_RESEARCH_CHAT_TITLE: chatTitle } : {}),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      writeDocumentaries(list);
+      res.json({ ok: true, slot: 'DEEP_RESEARCH', url: rawUrl });
+      return;
+    }
+
+    if (existingDeepUrl && rawUrl === existingDeepUrl) {
+      res.json({ ok: false, skipped: 'collision_with_deep_research' });
+      return;
+    }
+    if (existingMainUrl && existingMainUrl !== rawUrl && !replacesDeletedChat) {
+      res.json({ ok: true, preservedExisting: existingMainUrl });
+      return;
+    }
+    list[idx] = {
+      ...cur,
+      geminiChatUrl: rawUrl,
+      ...(chatTitle ? { geminiChatTitle: chatTitle } : {}),
+      promptConfig: {
+        ...(cur.promptConfig || {}),
+        GEMINI_CHAT_URL: rawUrl,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    writeDocumentaries(list);
+    res.json({ ok: true, slot: 'MAIN', url: rawUrl });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
     } catch {}
     await syncDocumentariesWithGitHubServer(true).catch(() => null);
     await new Promise((r) => setTimeout(r, 2500));
