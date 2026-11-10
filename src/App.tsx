@@ -58,6 +58,7 @@ import {
   ProductionFormatType,
   DocumentaryStatusType,
   AudienceCommentReply,
+  TTSRecord,
 } from './types';
 import {
   generateTimelineText,
@@ -128,7 +129,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '3:57 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:08 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4924,14 +4925,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const prevReplies = Array.isArray(latestDoc?.commentReplies) ? latestDoc!.commentReplies : [];
         const newReplyItem: AudienceCommentReply = {
           id: `cr-${Date.now()}`,
-          comment: (audienceCommentInput || '').trim() || 'Comentario de audiencia (Gemini Web)',
-          reply: cleanReply,
-          createdAt: new Date().toLocaleTimeString(),
+          author: 'Audiencia',
+          commentText: (commentInputText || '').trim() || 'Comentario de audiencia (Gemini Web)',
+          replyConcise: cleanReply,
+          createdAt: new Date().toISOString(),
         };
         updateActiveDoc({
           commentReplies: [newReplyItem, ...prevReplies],
         });
-        setAudienceCommentInput('');
+        setCommentInputText('');
       }
     }
   };
@@ -5407,7 +5409,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           downloadFolderName: cleanName,
           geminiChatTitle: cleanName,
           promptConfig: nextPromptConfig,
-          updatedAt: Date.now(),
+          updatedAt: new Date().toISOString(),
         };
         updateActiveDoc(updatedPatch);
 
@@ -5415,7 +5417,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           `📡 Enviando orden en vivo desde tu móvil a tu Mac: renombrando carpeta a "${cleanName}" y los 2 chats en Gemini ("${cleanName}" y "${cleanName}_Deep Research")...`
         );
 
-        const nextDocsForPush = docs.map((d) => (d.id === doc.id ? { ...d, ...updatedPatch } : d));
+        const nextDocsForPush = documentaries.map((d) => (d.id === doc.id ? { ...d, ...updatedPatch } : d));
         const relayPromise = fetch(REMOTE_MAC_RELAY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -10477,12 +10479,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     };
 
     const { standardClipSec } = getStage1ClipDurations(doc);
+    const mode =
+      overrideSentenceMode ||
+      settings.sentenceMode ||
+      (doc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds');
     const segLen =
-      overrideSentenceMode === 'split-8-seconds'
+      mode === 'split-8-seconds'
         ? 8
-        : overrideSentenceMode === 'split-4-seconds'
+        : mode === 'split-4-seconds'
         ? 4
-        : overrideSentenceMode === 'split-10-seconds'
+        : mode === 'split-10-seconds'
         ? 10
         : standardClipSec;
 
@@ -18877,7 +18883,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleGrabLatestGeminiForStage(113)}
+                            onClick={() => {
+                              setBridgeStatusType('WORKING');
+                              setBridgeStatusMsg(
+                                '📥 Recuperando Comentario Fijado desde el historial de tu pestaña de Gemini Web...'
+                              );
+                              sendCommandToWebBridge('GEMINI', {
+                                action: 'GRAB_LAST_RESPONSE',
+                                stageNumber: 113,
+                                taskType: 'MANUAL_GRAB_STAGE11',
+                                tabId: selectedGeminiTabId,
+                              });
+                            }}
                             title="Recuperar el Comentario Fijado directamente desde el historial del chat abierto en Gemini Web"
                             className="px-3 py-1.5 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                           >
