@@ -17,8 +17,9 @@ export interface TTSRecord {
   filename: string;
   audioUrl: string;
   createdAt: string;
-  storageMode: 'gcs' | 'local';
+  storageMode?: 'gcs' | 'local';
   wordCount: number;
+  pauseCount?: number;
   duration: number;
   providerUsed?: string;
   label?: string;
@@ -125,7 +126,7 @@ export const AVAILABLE_SPEEDS = [
 
 // Timeline Extractor Types
 export interface Sentence {
-  index: number;
+  index?: number;
   start: number;
   end: number;
   start_formatted?: string;

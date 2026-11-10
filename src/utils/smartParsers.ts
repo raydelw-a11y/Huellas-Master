@@ -230,7 +230,7 @@ export function getStage1ClipDurations(doc?: any): {
     String(doc?.promptConfig?.DURACION_CLIPS_SEGUNDOS || ''),
     10
   );
-  let standardClipSec = 10;
+  let standardClipSec = 8;
   if (Number.isFinite(rawCustomClipsSec) && rawCustomClipsSec > 0) {
     standardClipSec = rawCustomClipsSec;
   } else if (
@@ -983,7 +983,7 @@ export function syncAndAuditProductionClips(
   const rawClipsText = isObj ? arg1.rawClipsText || '' : arg3 || '';
   const existingClips = isObj ? arg1.existingClips || [] : arg4 || [];
   const clip1Duration = isObj ? arg1.clip1Duration || 6 : 6;
-  const standardClipDuration = isObj && Number(arg1.clipDuration) > 0 ? Number(arg1.clipDuration) : 10;
+  const standardClipDuration = isObj && Number(arg1.clipDuration) > 0 ? Number(arg1.clipDuration) : 8;
   const clip1SyncMode = (isObj ? arg1.clip1SyncMode : arg5) || 'VOZ_EN_CLIP_2';
   const docTopic = isObj ? (arg1.topic || '').trim() : '';
   const docTime = isObj ? (arg1.historicalTime || '').trim() : '';
@@ -997,7 +997,16 @@ export function syncAndAuditProductionClips(
     clip1Duration,
     standardClipDuration
   );
-  let timelineSentences = parseTimelineTextToSentences(timelineText);
+  const rawTimelineSentences = parseTimelineTextToSentences(timelineText);
+  const clip1TimelineMarker = rawTimelineSentences.find((s) =>
+    /^\[SIN\s+VOZ\s+NARRATIVA[^\]]*Clip\s+1/i.test((s.text || '').trim())
+  );
+  let timelineSentences = rawTimelineSentences.filter(
+    (s) =>
+      !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
+        (s.text || '').trim()
+      )
+  );
 
   // Fallback: if timelineSentences is empty but rawVoiceoverWithPauses has text, split into Stage 1 standardClipDuration blocks
   if (timelineSentences.length === 0 && rawVoiceoverWithPauses.trim()) {
@@ -1101,7 +1110,9 @@ export function syncAndAuditProductionClips(
     const existing = byNum.get(num);
     if (num === 1) {
       const c1EndSec = clip1SyncMode === 'RALENTIZAR_CAPCUT' ? clip1Duration + 2 : clip1Duration;
-      const c1Range = existing?.timeRange || `00:00 - 00:${String(c1EndSec).padStart(2, '0')}`;
+      const c1Range = clip1TimelineMarker
+        ? `${formatMMSS(clip1TimelineMarker.start)} - ${formatMMSS(clip1TimelineMarker.end)}`
+        : existing?.timeRange || `00:00 - 00:${String(c1EndSec).padStart(2, '0')}`;
       const hookRefs = [primaryPersonTag, primaryPlaceTag].filter(Boolean).join(' at ');
       const imgP = ensureAntiMutationPhysicsInPrompt(
         existing?.imagePrompt?.trim() ||
@@ -1179,7 +1190,10 @@ export function syncAndAuditProductionClips(
     }
 
     const narrationText = tSeg?.text || existing?.narrationSegment || '';
-    const cleanNarration = stripPauseTags(narrationText).replace(/\s+/g, ' ').trim();
+    const isSilentPauseSlot = /^\[SIN\s+VOZ\s+NARRATIVA/i.test(narrationText.trim());
+    const cleanNarration = isSilentPauseSlot
+      ? ''
+      : stripPauseTags(narrationText).replace(/\s+/g, ' ').trim();
     const matchedRefs = findMatchingRefTags(cleanNarration);
     const shotAngle = SHOT_ANGLES[tIdx % SHOT_ANGLES.length];
     const camMove = CAMERA_MOVES[tIdx % CAMERA_MOVES.length];

@@ -2,6 +2,7 @@ import {
   DocumentaryProject,
   DEFAULT_OPERATIONAL_HEADER,
   TTSRecord,
+  TTSSegmentTiming,
 } from '../types';
 import {
   ensureOperationalHeaderInRawClips,
@@ -1541,6 +1542,57 @@ function mergeTwoDocumentaryObjects(
               ? { REMOTE_RENAME_ACK_STATUS: oNorm.promptConfig.REMOTE_RENAME_ACK_STATUS }
               : {}),
           },
+        };
+      }
+    }
+  } catch {}
+
+  // Preserve newer voiceover audioTracks & permanent non-blob URLs across concurrent cloud/local syncs
+  try {
+    const wTracks = Array.isArray(baseWinner.audioTracks) ? baseWinner.audioTracks : [];
+    const oTracks = Array.isArray(oNorm.audioTracks) ? oNorm.audioTracks : [];
+    if (oTracks.length > 0) {
+      const latestWTime = Date.parse(wTracks[0]?.createdAt || '') || 0;
+      const latestOTime = Date.parse(oTracks[0]?.createdAt || '') || 0;
+      if (latestOTime > latestWTime) {
+        const wIds = new Set(wTracks.map((t) => t.id));
+        const missingNewer = oTracks.filter((t) => t && t.id && !wIds.has(t.id));
+        if (missingNewer.length > 0) {
+          const mergedTracks = [...missingNewer, ...wTracks];
+          baseWinner = {
+            ...baseWinner,
+            audioTracks: mergedTracks,
+            masterAudioUrl: missingNewer[0].audioUrl || baseWinner.masterAudioUrl,
+          };
+        }
+      }
+      // Upgrade any dead blob: audioUrl in winner if other holds a permanent tts-files/ URL for the same track
+      const oById = new Map(oTracks.filter((t) => t?.id).map((t) => [t.id, t]));
+      let upgradedAny = false;
+      const upgradedTracks = (baseWinner.audioTracks || []).map((t) => {
+        const match = oById.get(t.id);
+        if (
+          match &&
+          (!t.audioUrl || t.audioUrl.startsWith('blob:')) &&
+          match.audioUrl &&
+          !match.audioUrl.startsWith('blob:')
+        ) {
+          upgradedAny = true;
+          return { ...t, audioUrl: match.audioUrl, filename: match.filename || t.filename };
+        }
+        return t;
+      });
+      const wMaster = baseWinner.masterAudioUrl || '';
+      const oMaster = oNorm.masterAudioUrl || '';
+      const betterMaster =
+        (!wMaster || wMaster.startsWith('blob:')) && oMaster && !oMaster.startsWith('blob:')
+          ? oMaster
+          : wMaster;
+      if (upgradedAny || betterMaster !== wMaster) {
+        baseWinner = {
+          ...baseWinner,
+          audioTracks: upgradedTracks,
+          masterAudioUrl: betterMaster,
         };
       }
     }
@@ -3441,6 +3493,8 @@ ${segText}`;
 
   // Sequential synthesis (1 worker) respecting Tier 1 10-RPM sliding window — prevents 429 bursts and preserves vocal continuity
   const pcmResults: Uint8Array[] = new Array(segments.length);
+  const segmentTimings: TTSSegmentTiming[] = [];
+  let runningCursorSec = 0;
   let currentTextBlock = 0;
   for (let idx = 0; idx < segments.length; idx++) {
     const seg = segments[idx];
@@ -3452,6 +3506,17 @@ ${segText}`;
     } else {
       pcmResults[idx] = new Uint8Array(0);
     }
+    const segDur = Number((pcmResults[idx].byteLength / 48000).toFixed(3));
+    if (segDur > 0) {
+      segmentTimings.push({
+        type: seg.type,
+        ...(seg.text ? { text: seg.text } : {}),
+        startSec: Number(runningCursorSec.toFixed(3)),
+        endSec: Number((runningCursorSec + segDur).toFixed(3)),
+        durationSec: segDur,
+      });
+      runningCursorSec += segDur;
+    }
   }
 
   if (params.onProgress) {
@@ -3459,11 +3524,15 @@ ${segText}`;
   }
 
   const { url: wavUrl, blob: wavBlob, duration } = pcmChunksToWavBlobUrl(pcmResults, 24000);
+  const trackId = `tts-mobile-${Date.now()}`;
+  const docIdKey = params.docContext?.id ? `doc:${params.docContext.id}` : '';
+  await saveTtsAudioBlobToVault([trackId, docIdKey].filter(Boolean), wavBlob).catch(() => {});
+
   const words = cleanText.split(/\s+/).filter(Boolean).length;
   const pauseCount = rawSegments.filter((s) => s.type === 'pause').length;
   return {
-    id: `tts-mobile-${Date.now()}`,
-    text: params.text,
+    id: trackId,
+    text: rawInput,
     voice: params.voice,
     style: params.style,
     speed: params.speed,
@@ -3481,5 +3550,72 @@ ${segText}`;
         ? `Gemini 3.8 Flash TTS (${pauseCount} Pausas)`
         : 'Gemini 3.8 Flash TTS',
     label: params.label,
+    segmentTimings,
   };
+}
+
+const TTS_VAULT_DB_NAME = 'huellas_tts_vault_v1';
+const TTS_VAULT_STORE = 'audio_blobs';
+
+function openTtsVaultDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(TTS_VAULT_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(TTS_VAULT_STORE)) {
+          db.createObjectStore(TTS_VAULT_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export async function saveTtsAudioBlobToVault(keys: string[], blob: Blob): Promise<void> {
+  const validKeys = keys.map((k) => String(k || '').trim()).filter(Boolean);
+  if (validKeys.length === 0 || !blob) return;
+  const db = await openTtsVaultDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(TTS_VAULT_STORE, 'readwrite');
+      const store = tx.objectStore(TTS_VAULT_STORE);
+      for (const k of validKeys) {
+        store.put(blob, k);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+export async function loadTtsAudioBlobUrlFromVault(keys: string[]): Promise<string | null> {
+  const validKeys = keys.map((k) => String(k || '').trim()).filter(Boolean);
+  if (validKeys.length === 0) return null;
+  const db = await openTtsVaultDb();
+  if (!db) return null;
+  for (const k of validKeys) {
+    const blob = await new Promise<Blob | null>((resolve) => {
+      try {
+        const tx = db.transaction(TTS_VAULT_STORE, 'readonly');
+        const req = tx.objectStore(TTS_VAULT_STORE).get(k);
+        req.onsuccess = () =>
+          resolve(req.result instanceof Blob && req.result.size > 100 ? req.result : null);
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+    if (blob) {
+      return URL.createObjectURL(blob);
+    }
+  }
+  return null;
 }

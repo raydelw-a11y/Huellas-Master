@@ -59,6 +59,7 @@ import {
   DocumentaryStatusType,
   AudienceCommentReply,
   TTSRecord,
+  TTSSegmentTiming,
   ThumbnailPsychTriggerOption,
 } from './types';
 import {
@@ -118,6 +119,8 @@ import {
   generateThumbnailImageClientSide,
   replyCommentsClientSide,
   synthesizeTtsClientSide,
+  saveTtsAudioBlobToVault,
+  loadTtsAudioBlobUrlFromVault,
   normalizeDocumentaryVoiceoverAudio,
   normalizeVoiceoverUrlString,
   confirmPaidGeminiApiUsage,
@@ -136,7 +139,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:54 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:29 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -3701,6 +3704,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const [commentCustomFocus, setCommentCustomFocus] = useState<string>('');
   const [commentReplying, setCommentReplying] = useState<boolean>(false);
   const [folderVoiceoverUrl, setFolderVoiceoverUrl] = useState<string>('');
+  const [brokenTrackIds, setBrokenTrackIds] = useState<Record<string, boolean>>({});
+  const [restoredVaultTrackUrls, setRestoredVaultTrackUrls] = useState<Record<string, string>>({});
 
   const hasAutoSelectedFolderDocRef = React.useRef<boolean>(false);
 
@@ -4351,7 +4356,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         SINCRONIZACION_CLIP_1: 'VOZ_EN_CLIP_2',
         TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
         DURACION_CLIP_1: '6',
-        DURACION_CLIPS: '10_SEGUNDOS',
+        DURACION_CLIPS: '8_SEGUNDOS',
         VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
         UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       },
@@ -4361,7 +4366,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       historicalTime: '',
       historicalLocation: '',
       targetDurationSeconds: 900,
-      clipDurationMode: '10_SEGUNDOS',
+      clipDurationMode: '8_SEGUNDOS',
       clip1SyncMode: 'VOZ_EN_CLIP_2',
       clip1DurationSeconds: 6,
       sectionsStructure: '',
@@ -4382,7 +4387,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         quality: 'high',
         outputStyle: 'timeline',
         timestampFormat: 'MM:SS',
-        sentenceMode: 'split-10-seconds',
+        sentenceMode: 'split-8-seconds',
         noBlankLines: true,
         strictNarration: false,
         removeFiller: false,
@@ -4727,20 +4732,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         normalizeQuantitiesToMil(text),
         activeDoc
       );
-      const autoTl = buildSmartClientTimeline(normalizedScript, activeDoc);
+      // Audio-First: Paso 4C se extrae automáticamente DESPUÉS de crear/cargar el audio de la voz narrativa para garantizar timestamps exactos
       updateActiveDoc({
         voiceoverScript: normalizedScript,
         promptConfig: {
           ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
           RECALIBRATE_SCRIPT_TO_DURATION: 'NO',
         },
-        ...(autoTl.sentences.length > 0
-          ? {
-              timelineSentences: autoTl.sentences,
-              timelineFormattedText: autoTl.formatted,
-              correctedSrt: autoTl.srt,
-            }
-          : {}),
+        timelineSentences: [],
+        timelineFormattedText: '',
+        correctedSrt: '',
       });
 
       // If Gemini returned an abnormally short draft (<78% of desired duration), trigger 1 automatic expansion pass
@@ -5151,17 +5152,42 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const rawVo = activeDoc.voiceoverScript;
     const fittedVo = autoFitVoiceoverScriptToDuration(rawVo, activeDoc);
     if (fittedVo && fittedVo !== rawVo.trim()) {
-      const autoTl = buildSmartClientTimeline(fittedVo, activeDoc);
-      updateActiveDoc({
-        voiceoverScript: fittedVo,
-        ...(autoTl.sentences.length > 0
-          ? {
-              timelineSentences: autoTl.sentences,
-              timelineFormattedText: autoTl.formatted,
-              correctedSrt: autoTl.srt,
-            }
-          : {}),
-      });
+      const leadTrack = activeDoc.audioTracks?.[0];
+      const tDur = Number(leadTrack?.duration) || 0;
+      const pInfo = extractPausesInfo(fittedVo);
+      const wCount = stripPauseTags(fittedVo).trim().split(/\s+/).filter(Boolean).length;
+      const estSec = wCount / CALIBRATED_TTS_WORDS_PER_SEC + pInfo.totalSeconds;
+      const hasMatchingPlayableAudio =
+        tDur > 2 &&
+        Boolean(leadTrack?.audioUrl && !leadTrack.audioUrl.startsWith('blob:')) &&
+        Math.abs(tDur - estSec) <= Math.max(25, estSec * 0.2);
+
+      if (hasMatchingPlayableAudio) {
+        const autoTl = buildSmartClientTimeline(
+          fittedVo,
+          activeDoc,
+          tDur,
+          undefined,
+          leadTrack?.segmentTimings
+        );
+        updateActiveDoc({
+          voiceoverScript: fittedVo,
+          ...(autoTl.sentences.length > 0
+            ? {
+                timelineSentences: autoTl.sentences,
+                timelineFormattedText: autoTl.formatted,
+                correctedSrt: autoTl.srt,
+              }
+            : {}),
+        });
+      } else {
+        updateActiveDoc({
+          voiceoverScript: fittedVo,
+          timelineSentences: [],
+          timelineFormattedText: '',
+          correctedSrt: '',
+        });
+      }
     }
   }, [
     activeDoc?.id,
@@ -11056,7 +11082,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
 
   // Measure real duration of any audio URL or File in the browser (works 100% on GitHub Pages & locally)
-  const measureAudioDurationInBrowser = (srcOrFile: string | File): Promise<number> => {
+  const measureAudioDurationInBrowser = (srcOrFile: string | File | Blob): Promise<number> => {
     return new Promise((resolve) => {
       try {
         const audio = new Audio();
@@ -11095,21 +11121,233 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
-  // 100% Client-Side & Pause-Aware Smart Timeline Extractor (Never fails on GitHub Pages)
+  // Persist client-synthesized or uploaded audio blob to permanent tts-files/*.mp3 when local server is reachable
+  const persistAudioBlobPermanently = async (
+    blob: Blob,
+    label: string,
+    docTitle: string
+  ): Promise<{ audioUrl?: string; filename?: string }> => {
+    const isLocalOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const candidateBases = isLocalOrigin ? [''] : ['http://localhost:4200'];
+    const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'wav';
+    const safeName = `${(label || docTitle || 'Voz_Narrativa').replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
+    for (const base of candidateBases) {
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, safeName);
+        fd.append('label', label || docTitle || 'Voz Narrativa');
+        fd.append('docTitle', docTitle || '');
+        const res = await fetch(`${base}/api/tts/persist-upload`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+          const j = await res.json();
+          if (j?.ok && j?.audioUrl) {
+            return { audioUrl: String(j.audioUrl), filename: String(j.filename || '') };
+          }
+        }
+      } catch {}
+    }
+    return {};
+  };
+
+  // Decode real audio waveform in browser to measure exact duration AND acoustic silence spans ([pausa: Xs] / CapCut silences)
+  const analyzeAudioWaveformTimingsInBrowser = async (
+    source: string | File | Blob,
+    rawScript: string
+  ): Promise<{
+    durationSec: number;
+    segmentTimings?: TTSSegmentTiming[];
+    externalSilences?: Array<{ startSec: number; endSec: number; durationSec: number }>;
+  }> => {
+    const fallbackDur = await measureAudioDurationInBrowser(source);
+    try {
+      let arrayBuf: ArrayBuffer | null = null;
+      if (typeof source !== 'string') {
+        arrayBuf = await source.arrayBuffer();
+      } else if (source) {
+        const res = await fetch(source);
+        if (res.ok) {
+          arrayBuf = await res.arrayBuffer();
+        }
+      }
+      if (!arrayBuf || arrayBuf.byteLength < 256) {
+        return { durationSec: fallbackDur };
+      }
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) {
+        return { durationSec: fallbackDur };
+      }
+      const ctx = new AudioCtx();
+      let audioBuf: AudioBuffer;
+      try {
+        audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
+      } finally {
+        try {
+          await ctx.close();
+        } catch {}
+      }
+      const durationSec = audioBuf.duration > 0 ? audioBuf.duration : fallbackDur;
+      const ch = audioBuf.getChannelData(0);
+      const sr = audioBuf.sampleRate || 24000;
+      const hop = Math.max(120, Math.round(sr * 0.02)); // 20ms window
+      const rmsThresh = 0.0038; // ~ -48 dBFS
+      const minSilenceSec = 0.85;
+
+      const detectedSilences: Array<{ startSec: number; endSec: number; durationSec: number }> = [];
+      let silStartSample = -1;
+      for (let i = 0; i < ch.length; i += hop) {
+        const end = Math.min(ch.length, i + hop);
+        let sumSq = 0;
+        for (let k = i; k < end; k++) {
+          const v = ch[k];
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / Math.max(1, end - i));
+        if (rms < rmsThresh) {
+          if (silStartSample < 0) silStartSample = i;
+        } else if (silStartSample >= 0) {
+          const sSec = silStartSample / sr;
+          const eSec = i / sr;
+          if (eSec - sSec >= minSilenceSec && sSec > 0.25 && eSec < durationSec - 0.15) {
+            detectedSilences.push({
+              startSec: Number(sSec.toFixed(3)),
+              endSec: Number(eSec.toFixed(3)),
+              durationSec: Number((eSec - sSec).toFixed(3)),
+            });
+          }
+          silStartSample = -1;
+        }
+      }
+
+      const cleanRaw = cleanVoiceoverNarrationOnly(rawScript || '');
+      const pauseRegex =
+        /(?:\[|\(|\{)\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?|ms|milisegundos?)?\s*(?:\]|\)|\})|(?:\[|\(|\{)\s*(?:pausa|pause|silencio)\s*:?\s*(?:\]|\)|\})/gi;
+      const rawSegments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
+      let lastIdx = 0;
+      let m: RegExpExecArray | null;
+      while ((m = pauseRegex.exec(cleanRaw)) !== null) {
+        const before = cleanRaw.slice(lastIdx, m.index).trim();
+        if (before) rawSegments.push({ type: 'text', text: before });
+        const pDur = m[1] ? parseFloat(String(m[1]).replace(',', '.')) || 1.5 : 1.5;
+        rawSegments.push({ type: 'pause', duration: Math.max(0.2, Math.min(20, pDur)) });
+        lastIdx = pauseRegex.lastIndex;
+      }
+      const tail = cleanRaw.slice(lastIdx).trim();
+      if (tail) rawSegments.push({ type: 'text', text: tail });
+
+      const scriptPauseCount = rawSegments.filter((s) => s.type === 'pause').length;
+      if (scriptPauseCount > 0 && detectedSilences.length > 0) {
+        // Compute approximate expected fractional position of each script pause to align monotonically with real detected silences
+        const totalChars = Math.max(
+          1,
+          rawSegments.reduce((acc, s) => acc + (s.type === 'text' ? (s.text || '').length : 20), 0)
+        );
+        let charCursor = 0;
+        const expectedPauseSecs: number[] = [];
+        for (const s of rawSegments) {
+          if (s.type === 'text') {
+            charCursor += (s.text || '').length;
+          } else {
+            expectedPauseSecs.push((charCursor / totalChars) * durationSec);
+            charCursor += 20;
+          }
+        }
+
+        const matchedSilences: Array<{ startSec: number; endSec: number; durationSec: number } | null> = [];
+        let searchFromIdx = 0;
+        for (let pIdx = 0; pIdx < expectedPauseSecs.length; pIdx++) {
+          const expSec = expectedPauseSecs[pIdx];
+          const remainingPauses = expectedPauseSecs.length - 1 - pIdx;
+          const maxAllowedIdx = detectedSilences.length - 1 - remainingPauses;
+          let bestIdx = -1;
+          let bestDist = Infinity;
+          for (let sIdx = searchFromIdx; sIdx <= Math.max(searchFromIdx, maxAllowedIdx) && sIdx < detectedSilences.length; sIdx++) {
+            const dist = Math.abs(detectedSilences[sIdx].startSec - expSec);
+            if (dist < bestDist && dist <= Math.max(45, durationSec * 0.08)) {
+              bestDist = dist;
+              bestIdx = sIdx;
+            }
+          }
+          if (bestIdx >= 0) {
+            matchedSilences.push(detectedSilences[bestIdx]);
+            searchFromIdx = bestIdx + 1;
+          } else {
+            matchedSilences.push(null);
+          }
+        }
+
+        // If every script pause matched cleanly to its real acoustic silence, emit exact waveform segmentTimings!
+        if (matchedSilences.every((ms) => ms !== null)) {
+          const timings: TTSSegmentTiming[] = [];
+          let cursor = 0;
+          let pCursor = 0;
+          for (let i = 0; i < rawSegments.length; i++) {
+            const seg = rawSegments[i];
+            if (seg.type === 'pause') {
+              const sil = matchedSilences[pCursor++]!;
+              if (sil.startSec > cursor && timings.length > 0 && timings[timings.length - 1].type === 'text') {
+                timings[timings.length - 1].endSec = sil.startSec;
+                timings[timings.length - 1].durationSec = Number(
+                  (sil.startSec - timings[timings.length - 1].startSec).toFixed(3)
+                );
+              }
+              timings.push({
+                type: 'pause',
+                startSec: sil.startSec,
+                endSec: sil.endSec,
+                durationSec: sil.durationSec,
+              });
+              cursor = sil.endSec;
+            } else if (seg.type === 'text' && seg.text) {
+              // End will be refined by next pause or end of audio
+              const nextPause = pCursor < matchedSilences.length ? matchedSilences[pCursor]! : null;
+              const endSec = nextPause ? Math.max(cursor + 0.1, nextPause.startSec) : durationSec;
+              timings.push({
+                type: 'text',
+                text: seg.text,
+                startSec: Number(cursor.toFixed(3)),
+                endSec: Number(endSec.toFixed(3)),
+                durationSec: Number(Math.max(0.1, endSec - cursor).toFixed(3)),
+              });
+              cursor = endSec;
+            }
+          }
+          return { durationSec, segmentTimings: timings };
+        }
+      }
+
+      const longExternalSilences = detectedSilences.filter((s) => s.durationSec >= 1.6);
+      return {
+        durationSec,
+        ...(longExternalSilences.length > 0 ? { externalSilences: longExternalSilences } : {}),
+      };
+    } catch {
+      return { durationSec: fallbackDur };
+    }
+  };
+
+  // 100% Client-Side, Audio-Locked & Non-Voiceover-Aware Master Timeline Extractor (8s intervals by default)
   const buildSmartClientTimeline = (
     rawScript: string,
     doc: DocumentaryProject,
     audioDurationSec?: number,
-    overrideSentenceMode?: string
+    overrideSentenceMode?: string,
+    segmentTimings?: TTSSegmentTiming[],
+    externalSilences?: Array<{ startSec: number; endSec: number; durationSec: number }>
   ): { sentences: Sentence[]; formatted: string; srt: string } => {
+    const defaultSentenceMode =
+      doc.clipDurationMode === '10_SEGUNDOS' ? 'split-10-seconds' : 'split-8-seconds';
     const settings = doc.timelineSettings || {
       language: 'es',
       customLanguage: '',
       quality: 'high',
       outputStyle: 'timeline',
       timestampFormat: 'MM:SS',
-      sentenceMode:
-        doc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+      sentenceMode: defaultSentenceMode,
       noBlankLines: true,
       strictNarration: false,
       removeFiller: false,
@@ -11118,130 +11356,307 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       includeLineNumbers: true,
     };
 
-    const { standardClipSec } = getStage1ClipDurations(doc);
-    const mode =
-      overrideSentenceMode ||
-      settings.sentenceMode ||
-      (doc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds');
+    const { standardClipSec, voiceEntrySec } = getStage1ClipDurations(doc);
+    const mode = overrideSentenceMode || settings.sentenceMode || defaultSentenceMode;
     const segLen =
-      mode === 'split-8-seconds'
-        ? 8
+      mode === 'split-10-seconds'
+        ? 10
         : mode === 'split-4-seconds'
         ? 4
-        : mode === 'split-10-seconds'
-        ? 10
-        : standardClipSec;
+        : mode === 'split-8-seconds'
+        ? 8
+        : standardClipSec || 8;
 
     const cleanRaw = cleanVoiceoverNarrationOnly(rawScript || '');
     if (!cleanRaw) {
       return { sentences: [], formatted: '', srt: '' };
     }
 
-    // Tokenize words & pause tags ([pausa: 1.5s] / [pausa de X segundos] / (pausa de X segundos))
-    const pauseRegex =
-      /(?:\[|\(|\{)\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?|ms|milisegundos?)?\s*(?:\]|\)|\})|(?:\[|\(|\{)\s*(?:pausa|pause|silencio)\s*:?\s*(?:\]|\)|\})/gi;
-    interface TimedWordToken {
-      word: string;
-      pauseAfterSec: number;
+    // 1. Prepend Non-Voiceover Lead-In Intervals (Intro Oficial + Clip 1 Hook sin voz)
+    const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
+    const leadInSentences: Sentence[] = [];
+    let voiceStartSec = 0;
+
+    if (introPlacement !== 'INTRO_POST_SLOGAN') {
+      leadInSentences.push({
+        text: '[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]',
+        start: 0,
+        end: 8,
+      });
+      leadInSentences.push({
+        text: `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${voiceEntrySec}s)]`,
+        start: 8,
+        end: 8 + voiceEntrySec,
+      });
+      voiceStartSec = 8 + voiceEntrySec;
+    } else {
+      leadInSentences.push({
+        text: `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${voiceEntrySec}s)]`,
+        start: 0,
+        end: voiceEntrySec,
+      });
+      voiceStartSec = voiceEntrySec;
     }
 
-    const tokens: TimedWordToken[] = [];
+    // 2. Parse script into text & [pausa: Xs] chunks
+    const pauseRegex =
+      /(?:\[|\(|\{)\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundos?|ms|milisegundos?)?\s*(?:\]|\)|\})|(?:\[|\(|\{)\s*(?:pausa|pause|silencio)\s*:?\s*(?:\]|\)|\})/gi;
+    const rawSegments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
+    while ((match = pauseRegex.exec(cleanRaw)) !== null) {
+      if (match.index > lastIndex) {
+        const chunk = cleanRaw.slice(lastIndex, match.index).trim();
+        if (chunk) rawSegments.push({ type: 'text', text: chunk });
+      }
+      const pSec = match[1] ? parseFloat(String(match[1]).replace(',', '.')) || 1.5 : 1.5;
+      rawSegments.push({ type: 'pause', duration: Math.max(0.2, Math.min(20, pSec)) });
+      lastIndex = pauseRegex.lastIndex;
+    }
+    if (lastIndex < cleanRaw.length) {
+      const tail = cleanRaw.slice(lastIndex).trim();
+      if (tail) rawSegments.push({ type: 'text', text: tail });
+    }
 
-    const pushWordsChunk = (chunk: string) => {
-      const words = stripPauseTags(chunk)
+    const extractWords = (chunk: string): string[] =>
+      stripPauseTags(chunk)
         .replace(/\[pausa[^\]]*\]?/gi, '')
         .replace(/\r?\n+/g, ' ')
         .trim()
         .split(/\s+/)
         .filter(Boolean);
-      for (const w of words) {
-        tokens.push({ word: w, pauseAfterSec: 0 });
-      }
+
+    const wordWeight = (w: string): number => {
+      const coreLen = w.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9]/g, '').length;
+      const punctBonus = /[.!?…]$/.test(w) ? 3.0 : /[,;:—–]$/.test(w) ? 1.4 : 0;
+      return Math.max(2, coreLen) + punctBonus;
     };
 
-    while ((match = pauseRegex.exec(cleanRaw)) !== null) {
-      if (match.index > lastIndex) {
-        pushWordsChunk(cleanRaw.slice(lastIndex, match.index));
-      }
-      const pSec = match[1] ? parseFloat(String(match[1]).replace(',', '.')) || 1.5 : 1.5;
-      if (tokens.length > 0 && pSec > 0) {
-        tokens[tokens.length - 1].pauseAfterSec += pSec;
-      }
-      lastIndex = pauseRegex.lastIndex;
-    }
-    if (lastIndex < cleanRaw.length) {
-      pushWordsChunk(cleanRaw.slice(lastIndex));
+    interface PositionedTimelineItem {
+      kind: 'word' | 'pause';
+      text: string;
+      start: number;
+      end: number;
+      mid: number;
     }
 
-    if (tokens.length === 0) {
+    const positioned: PositionedTimelineItem[] = [];
+    let totalAudioSec = 0;
+
+    // 3A. Exact Segment-Locked Positioning (from VoxFlow PCM timings or WebAudio waveform silence alignment)
+    const usableTimings = Array.isArray(segmentTimings) && segmentTimings.length > 0 ? segmentTimings : null;
+    const timingTextSegs = usableTimings ? usableTimings.filter((s) => s.type === 'text') : [];
+    const scriptTextSegs = rawSegments.filter((s) => s.type === 'text' && s.text);
+
+    if (usableTimings && timingTextSegs.length > 0) {
+      // Map script text chunks onto measured text segments
+      const canMapDirect = timingTextSegs.length === scriptTextSegs.length;
+      let scriptTextIdx = 0;
+      for (const seg of usableTimings) {
+        const absStart = voiceStartSec + Math.max(0, Number(seg.startSec) || 0);
+        const absEnd = voiceStartSec + Math.max(Number(seg.startSec) || 0, Number(seg.endSec) || 0);
+        totalAudioSec = Math.max(totalAudioSec, Number(seg.endSec) || 0);
+        if (seg.type === 'pause') {
+          const pDur = Math.max(0.2, absEnd - absStart);
+          if (pDur >= 0.5) {
+            positioned.push({
+              kind: 'pause',
+              text: `[pausa: ${Number(pDur.toFixed(1))}s]`,
+              start: absStart,
+              end: absEnd,
+              mid: (absStart + absEnd) / 2,
+            });
+          }
+        } else {
+          const textSource = canMapDirect
+            ? scriptTextSegs[scriptTextIdx++]?.text || seg.text || ''
+            : seg.text || '';
+          const words = extractWords(textSource);
+          if (words.length > 0) {
+            const weights = words.map(wordWeight);
+            const sumW = weights.reduce((a, b) => a + b, 0) || 1;
+            const span = Math.max(0.05, absEnd - absStart);
+            let cur = absStart;
+            for (let i = 0; i < words.length; i++) {
+              const dur = span * (weights[i] / sumW);
+              const wEnd = i === words.length - 1 ? absEnd : cur + dur;
+              positioned.push({
+                kind: 'word',
+                text: words[i],
+                start: cur,
+                end: wEnd,
+                mid: (cur + wEnd) / 2,
+              });
+              cur = wEnd;
+            }
+          }
+        }
+      }
+      if (audioDurationSec && audioDurationSec > totalAudioSec) {
+        totalAudioSec = audioDurationSec;
+      }
+    } else {
+      // 3B. Duration-Calibrated + Pause-Exact Positioning (plus external CapCut silences if present)
+      const allWordsList = scriptTextSegs.flatMap((s) => extractWords(s.text || ''));
+      if (allWordsList.length === 0) {
+        return { sentences: [], formatted: '', srt: '' };
+      }
+      const scriptPauseSum = rawSegments.reduce(
+        (acc, s) => acc + (s.type === 'pause' ? Number(s.duration) || 0 : 0),
+        0
+      );
+      const extSilences =
+        scriptPauseSum === 0 && Array.isArray(externalSilences) ? externalSilences : [];
+      const extSilenceSum = extSilences.reduce((acc, s) => acc + s.durationSec, 0);
+
+      const estSpeechSec = allWordsList.length / CALIBRATED_TTS_WORDS_PER_SEC;
+      totalAudioSec =
+        audioDurationSec && audioDurationSec > 2
+          ? audioDurationSec
+          : estSpeechSec + scriptPauseSum + extSilenceSum;
+
+      const totalWeight = allWordsList.reduce((acc, w) => acc + wordWeight(w), 0) || 1;
+      const speechBudgetSec = Math.max(
+        allWordsList.length * 0.16,
+        totalAudioSec - scriptPauseSum - extSilenceSum
+      );
+
+      let cursor = voiceStartSec;
+      let extSilIdx = 0;
+      for (const seg of rawSegments) {
+        if (seg.type === 'pause') {
+          const pDur = Number(seg.duration) || 1.5;
+          positioned.push({
+            kind: 'pause',
+            text: `[pausa: ${Number(pDur.toFixed(1))}s]`,
+            start: cursor,
+            end: cursor + pDur,
+            mid: cursor + pDur / 2,
+          });
+          cursor += pDur;
+        } else if (seg.text) {
+          const words = extractWords(seg.text);
+          for (const w of words) {
+            // Jump over any detected external CapCut silence if cursor reaches it
+            while (
+              extSilIdx < extSilences.length &&
+              cursor >= voiceStartSec + extSilences[extSilIdx].startSec - 0.05
+            ) {
+              const sil = extSilences[extSilIdx++];
+              const sAbs = Math.max(cursor, voiceStartSec + sil.startSec);
+              const eAbs = sAbs + sil.durationSec;
+              positioned.push({
+                kind: 'pause',
+                text: `[pausa: ${Number(sil.durationSec.toFixed(1))}s]`,
+                start: sAbs,
+                end: eAbs,
+                mid: (sAbs + eAbs) / 2,
+              });
+              cursor = eAbs;
+            }
+            const wDur = speechBudgetSec * (wordWeight(w) / totalWeight);
+            positioned.push({
+              kind: 'word',
+              text: w,
+              start: cursor,
+              end: cursor + wDur,
+              mid: cursor + wDur / 2,
+            });
+            cursor += wDur;
+          }
+        }
+      }
+    }
+
+    if (positioned.filter((p) => p.kind === 'word').length === 0) {
       return { sentences: [], formatted: '', srt: '' };
     }
 
-    const totalPauseSec = tokens.reduce((acc, t) => acc + t.pauseAfterSec, 0);
-    const baseWordSec = 0.38; // ~158 words/min documentary narration speed
-    const estimatedSpeechSec = tokens.length * baseWordSec;
-    const targetTotalSec =
-      audioDurationSec && audioDurationSec > 2
-        ? audioDurationSec
-        : estimatedSpeechSec + totalPauseSec;
-
-    const speechBudgetSec = Math.max(tokens.length * 0.18, targetTotalSec - totalPauseSec);
-    const secPerWord = speechBudgetSec / tokens.length;
-
-    const sentences: Sentence[] = [];
+    const sentences: Sentence[] = [...leadInSentences];
+    const srtSentences: Sentence[] = [...leadInSentences];
+    const voiceEndSec = voiceStartSec + totalAudioSec;
 
     if (mode === 'one-sentence-per-line' || mode === 'combine-short') {
-      let currentWords: string[] = [];
-      let blockStart = 0;
-      let cursor = 0;
-
-      tokens.forEach((tok, idx) => {
-        currentWords.push(tok.word);
-        cursor += secPerWord + tok.pauseAfterSec;
-        const endsSentence = /[.!?…]$/.test(tok.word);
-        const minWords = mode === 'combine-short' ? 12 : 4;
-        if ((endsSentence && currentWords.length >= minWords) || idx === tokens.length - 1) {
-          sentences.push({
-            text: currentWords.join(' '),
-            start: Number(blockStart.toFixed(2)),
-            end: Number(Math.max(blockStart + 1, cursor).toFixed(2)),
-          });
-          currentWords = [];
-          blockStart = cursor;
+      let currentTokens: PositionedTimelineItem[] = [];
+      const minWords = mode === 'combine-short' ? 12 : 4;
+      positioned.forEach((item, idx) => {
+        currentTokens.push(item);
+        const spokenCount = currentTokens.filter((t) => t.kind === 'word').length;
+        const endsSentence = item.kind === 'word' && /[.!?…]$/.test(item.text);
+        if ((endsSentence && spokenCount >= minWords) || idx === positioned.length - 1) {
+          const wordsOnly = currentTokens.filter((t) => t.kind === 'word');
+          if (wordsOnly.length > 0) {
+            const sStart = Number(wordsOnly[0].start.toFixed(2));
+            const sEnd = Number(
+              Math.max(sStart + 0.8, currentTokens[currentTokens.length - 1].end).toFixed(2)
+            );
+            const joined = currentTokens.map((t) => t.text).join(' ');
+            sentences.push({ text: joined, start: sStart, end: sEnd });
+            srtSentences.push({
+              text: joined,
+              start: sStart,
+              end: Number(Math.max(sStart + 0.6, wordsOnly[wordsOnly.length - 1].end).toFixed(2)),
+            });
+          }
+          currentTokens = [];
         }
       });
     } else {
-      // Exact 10-second / 8-second / 4-second blocks
-      const totalBlocks = Math.max(1, Math.ceil(targetTotalSec / segLen));
-      let tokenIdx = 0;
-      let cursorSec = 0;
+      // Exact 8-second (default) / 10-second / 4-second grid blocks from voiceStartSec to voiceEndSec
+      const totalVoiceSpan = Math.max(segLen, voiceEndSec - voiceStartSec);
+      const totalBlocks = Math.max(1, Math.ceil((totalVoiceSpan - 0.15) / segLen));
 
       for (let b = 0; b < totalBlocks; b++) {
-        const blockStart = b * segLen;
-        const blockEnd = b === totalBlocks - 1 ? Math.max((b + 1) * segLen, Math.ceil(targetTotalSec)) : (b + 1) * segLen;
-        const blockWords: string[] = [];
+        const blockStart = voiceStartSec + b * segLen;
+        const blockEnd = blockStart + segLen;
+        const inWindow = positioned.filter((p) =>
+          b === totalBlocks - 1
+            ? p.mid >= blockStart
+            : p.mid >= blockStart && p.mid < blockEnd
+        );
+        const spokenInWindow = inWindow.filter((p) => p.kind === 'word');
 
-        while (tokenIdx < tokens.length) {
-          const tok = tokens[tokenIdx];
-          blockWords.push(tok.word);
-          cursorSec += secPerWord + tok.pauseAfterSec;
-          tokenIdx++;
-          if (cursorSec >= blockEnd && b < totalBlocks - 1) {
-            break;
-          }
-        }
-
-        if (blockWords.length > 0) {
+        if (spokenInWindow.length === 0) {
           sentences.push({
-            text: blockWords.join(' '),
+            text: `[SIN VOZ NARRATIVA — Pausa / Silencio Dramático (${segLen}s)]`,
             start: blockStart,
-            end: b === totalBlocks - 1 ? ( b + 1 ) * segLen : blockEnd,
+            end: blockEnd,
+          });
+        } else {
+          const textLine = inWindow.map((p) => p.text).join(' ').replace(/\s+/g, ' ').trim();
+          sentences.push({
+            text: textLine,
+            start: blockStart,
+            end: blockEnd,
+          });
+          const realSpeechStart = Number(
+            Math.max(blockStart, Math.min(blockEnd - 0.4, spokenInWindow[0].start)).toFixed(2)
+          );
+          const realSpeechEnd = Number(
+            Math.min(
+              blockEnd,
+              Math.max(realSpeechStart + 0.5, spokenInWindow[spokenInWindow.length - 1].end)
+            ).toFixed(2)
+          );
+          srtSentences.push({
+            text: textLine,
+            start: realSpeechStart,
+            end: realSpeechEnd,
           });
         }
       }
     }
+
+    // 4. Append Non-Voiceover Outro Oficial de Marca (8s)
+    const outroStart =
+      sentences.length > 0 ? sentences[sentences.length - 1].end : Math.ceil(voiceEndSec);
+    const outroBlock: Sentence = {
+      text: '[SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]',
+      start: outroStart,
+      end: outroStart + 8,
+    };
+    sentences.push(outroBlock);
+    srtSentences.push(outroBlock);
 
     const formatted = generateTimelineText(
       sentences,
@@ -11249,49 +11664,176 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       settings.noBlankLines !== false,
       settings.includeLineNumbers !== false
     );
-    const srt = generateSRT(sentences);
+    const srt = generateSRT(srtSentences);
     return { sentences, formatted, srt };
   };
 
-  // Automatically extract & keep Timeline updated whenever voiceoverScript or audioTracks exist and timeline is empty
+  // Restore any client-synthesized/uploaded voiceover audio from IndexedDB Vault across page reloads (especially on github.io)
   useEffect(() => {
     if (!activeDoc) return;
-    const hasScript = Boolean((activeDoc.voiceoverScript || '').trim());
-    const hasAudio = (activeDoc.audioTracks?.length || 0) > 0;
+    let cancelled = false;
+    (async () => {
+      const tracks = activeDoc.audioTracks || [];
+      const keysToTry = [
+        ...tracks.map((t) => t.id).filter(Boolean),
+        `doc:${activeDoc.id}`,
+      ];
+      if (keysToTry.length === 0) return;
+      for (const track of tracks) {
+        if (!track?.id) continue;
+        const needsVault = !track.audioUrl || track.audioUrl.startsWith('blob:');
+        if (!needsVault) continue;
+        const vaultUrl = await loadTtsAudioBlobUrlFromVault([track.id, `doc:${activeDoc.id}`]);
+        if (vaultUrl && !cancelled) {
+          setRestoredVaultTrackUrls((prev) => ({ ...prev, [track.id]: vaultUrl }));
+          setBrokenTrackIds((prev) => {
+            if (!prev[track.id]) return prev;
+            const next = { ...prev };
+            delete next[track.id];
+            return next;
+          });
+          setFolderVoiceoverUrl((prev) => prev || vaultUrl);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDoc?.id, activeDoc?.audioTracks?.length]);
+
+  // Automatically adopt voiceover audio found in 02_Audio/ (folderVoiceoverUrl) into Paso 4B & Paso 4C when app track is missing, expired blob:, or outdated
+  useEffect(() => {
+    if (!activeDoc || !folderVoiceoverUrl) return;
+    let cancelled = false;
+    (async () => {
+      const leadTrack = activeDoc.audioTracks?.[0];
+      const leadUrl =
+        (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
+        leadTrack?.audioUrl ||
+        '';
+      const leadIsDeadOrMissing = !leadTrack || !leadUrl || (leadUrl.startsWith('blob:') && leadUrl !== folderVoiceoverUrl);
+      const folderDur = await measureAudioDurationInBrowser(folderVoiceoverUrl);
+      if (cancelled || folderDur <= 2) return;
+
+      const durMismatch =
+        leadTrack && Math.abs((Number(leadTrack.duration) || 0) - folderDur) > 8;
+      if (!leadIsDeadOrMissing && !durMismatch) return;
+
+      const scriptSource = (activeDoc.voiceoverScript || leadTrack?.text || '').trim();
+      const waveInfo = scriptSource
+        ? await analyzeAudioWaveformTimingsInBrowser(folderVoiceoverUrl, scriptSource)
+        : { durationSec: folderDur };
+      if (cancelled) return;
+
+      const wordCount = stripPauseTags(scriptSource).trim().split(/\s+/).filter(Boolean).length;
+      const pauseInfo = extractPausesInfo(scriptSource);
+      const recoveredTrack: TTSRecord = {
+        id: leadTrack?.id && !durMismatch ? leadTrack.id : `tts-folder-${activeDoc.id}`,
+        text: scriptSource,
+        voice: activeDoc.selectedVoice || leadTrack?.voice || 'Charon',
+        style: activeDoc.selectedStyle || leadTrack?.style || 'dramatic',
+        speed: activeDoc.selectedSpeed || leadTrack?.speed || 'medium',
+        language: activeDoc.selectedLanguage || leadTrack?.language || 'es-la',
+        consistencyMode: true,
+        filename:
+          folderVoiceoverUrl.split('/').pop()?.split('?')[0] ||
+          getVoiceoverAudioName(activeDoc.title),
+        audioUrl: folderVoiceoverUrl,
+        duration: Number(waveInfo.durationSec.toFixed(1)),
+        wordCount,
+        pauseCount: pauseInfo.count,
+        createdAt: new Date().toISOString(),
+        label: getVoiceoverAudioName(activeDoc.title),
+        providerUsed: 'Carpeta 02_Audio',
+        ...(waveInfo.segmentTimings ? { segmentTimings: waveInfo.segmentTimings } : {}),
+      };
+
+      const otherTracks = (activeDoc.audioTracks || []).filter(
+        (t) => t.id !== recoveredTrack.id && !(t.audioUrl || '').startsWith('blob:')
+      );
+      const autoTl = scriptSource
+        ? buildSmartClientTimeline(
+            scriptSource,
+            activeDoc,
+            waveInfo.durationSec,
+            undefined,
+            waveInfo.segmentTimings,
+            waveInfo.externalSilences
+          )
+        : { sentences: [], formatted: '', srt: '' };
+
+      updateActiveDoc({
+        audioTracks: [recoveredTrack, ...otherTracks],
+        masterAudioUrl: folderVoiceoverUrl,
+        ...(autoTl.sentences.length > 0
+          ? {
+              timelineSentences: autoTl.sentences,
+              timelineFormattedText: autoTl.formatted,
+              correctedSrt: autoTl.srt,
+            }
+          : {}),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDoc?.id, folderVoiceoverUrl]);
+
+  // Audio-First Automatic Timeline Extraction: ONLY extract Paso 4C when real playable Voiceover Audio exists!
+  useEffect(() => {
+    if (!activeDoc) return;
+    const sourceText =
+      (activeDoc.voiceoverScript || '').trim() ||
+      (activeDoc.audioTracks?.[0]?.text || '').trim();
+    if (!sourceText) return;
+
+    const leadTrack = activeDoc.audioTracks?.[0];
+    const effectiveAudioUrl =
+      folderVoiceoverUrl ||
+      (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
+      activeDoc.masterAudioUrl ||
+      leadTrack?.audioUrl ||
+      '';
+    if (!effectiveAudioUrl) return;
+
     const hasTimeline =
       (activeDoc.timelineSentences?.length || 0) > 0 &&
       Boolean((activeDoc.timelineFormattedText || '').trim());
+    const hasNonVoiceMarkers = /\[SIN\s+VOZ\s+NARRATIVA/i.test(
+      activeDoc.timelineFormattedText || ''
+    );
 
-    if ((hasScript || hasAudio) && !hasTimeline) {
-      const sourceText =
-        (activeDoc.voiceoverScript || '').trim() ||
-        (activeDoc.audioTracks?.[0]?.text || '').trim();
-      if (!sourceText) return;
+    if (hasTimeline && hasNonVoiceMarkers) return;
 
-      const firstTrackUrl = activeDoc.masterAudioUrl || activeDoc.audioTracks?.[0]?.audioUrl || '';
-      if (firstTrackUrl) {
-        measureAudioDurationInBrowser(firstTrackUrl).then((dur) => {
-          const res = buildSmartClientTimeline(sourceText, activeDoc, dur > 2 ? dur : undefined);
-          if (res.sentences.length > 0) {
-            updateActiveDoc({
-              timelineSentences: res.sentences,
-              timelineFormattedText: res.formatted,
-              ...(activeDoc.correctedSrt ? {} : { correctedSrt: res.srt }),
-            });
-          }
+    let cancelled = false;
+    (async () => {
+      const waveInfo = await analyzeAudioWaveformTimingsInBrowser(effectiveAudioUrl, sourceText);
+      if (cancelled || waveInfo.durationSec <= 2) return;
+      const res = buildSmartClientTimeline(
+        sourceText,
+        activeDoc,
+        waveInfo.durationSec,
+        undefined,
+        leadTrack?.segmentTimings || waveInfo.segmentTimings,
+        waveInfo.externalSilences
+      );
+      if (!cancelled && res.sentences.length > 0) {
+        updateActiveDoc({
+          timelineSentences: res.sentences,
+          timelineFormattedText: res.formatted,
+          correctedSrt: res.srt,
         });
-      } else {
-        const res = buildSmartClientTimeline(sourceText, activeDoc);
-        if (res.sentences.length > 0) {
-          updateActiveDoc({
-            timelineSentences: res.sentences,
-            timelineFormattedText: res.formatted,
-            ...(activeDoc.correctedSrt ? {} : { correctedSrt: res.srt }),
-          });
-        }
       }
-    }
-  }, [activeDoc?.id, activeDoc?.voiceoverScript, activeDoc?.audioTracks?.length]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeDoc?.id,
+    activeDoc?.voiceoverScript,
+    activeDoc?.audioTracks?.length,
+    folderVoiceoverUrl,
+  ]);
 
   // Automatically create Panel 3 ("3. Prompts de Imágenes Iniciales y Clips") whenever Panel 1 or Panel 2 exists and Panel 3 has no Image/Clip prompts yet
   useEffect(() => {
@@ -11386,7 +11928,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.sunoTracks?.length,
   ]);
 
-  // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
+  // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Permanent Vault + Exact 8s Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
     if (!activeDoc) return;
     const isFullDocScript = (textToSpeak || '').trim() === (activeDoc.voiceoverScript || '').trim();
@@ -11405,7 +11947,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setTtsGenerating(true);
     setTtsProgressMsg('🎙️ Preparando locución calibrada a la duración elegida y control de cuota Tier 1 (10/min)...');
     try {
-      let data: TTSRecord | null = null;
+      let data: (TTSRecord & { audioBlob?: Blob }) | null = null;
       if (!isCloudMode) {
         try {
           setTtsProgressMsg(
@@ -11459,38 +12001,74 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         });
       }
 
-      const updatedTracks = [data, ...(activeDoc.audioTracks || [])];
+      // Always read fresh activeDocRef.current so background syncs during multi-minute synthesis never overwrite tracks
+      const latestDoc = activeDocRef.current || activeDoc;
+      const rawAudioBlob = data.audioBlob;
+
+      // Save into IndexedDB Vault + try upgrading blob: to permanent tts-files/*.mp3 on local server
+      let finalAudioUrl = data.audioUrl;
+      let finalFilename = data.filename;
+      if (rawAudioBlob) {
+        await saveTtsAudioBlobToVault([data.id, `doc:${latestDoc.id}`], rawAudioBlob).catch(() => {});
+        setRestoredVaultTrackUrls((prev) => ({ ...prev, [data!.id]: data!.audioUrl }));
+        const persisted = await persistAudioBlobPermanently(
+          rawAudioBlob,
+          labelTitle || getVoiceoverAudioName(latestDoc.title),
+          latestDoc.title || ''
+        );
+        if (persisted.audioUrl) {
+          finalAudioUrl = persisted.audioUrl;
+          if (persisted.filename) finalFilename = persisted.filename;
+        }
+      }
+
+      const { audioBlob: _omitBlob, ...serializableTrack } = data;
+      const cleanTrack: TTSRecord = {
+        ...serializableTrack,
+        audioUrl: finalAudioUrl,
+        filename: finalFilename,
+      };
+
+      const existingCleanTracks = (latestDoc.audioTracks || []).filter(
+        (t) => t.id !== cleanTrack.id && !(t.audioUrl || '').startsWith('blob:')
+      );
+      const updatedTracks = [cleanTrack, ...existingCleanTracks];
 
       // Auto-save generated VoxFlow audio directly into 02_Audio inside the user's chosen documentary folder
       try {
-        const ext = (data.filename || data.audioUrl || '').toLowerCase().endsWith('.mp3')
+        const ext = (finalFilename || finalAudioUrl || '').toLowerCase().endsWith('.mp3')
           ? 'mp3'
           : 'wav';
-        const cleanVoiceFileName = `Voz_Narrativa_Master_${(activeDoc.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
-        const payloadToSave = (data as any).audioBlob || data.audioUrl;
+        const cleanVoiceFileName = `Voz_Narrativa_Master_${(latestDoc.title || 'Documental').replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
+        const payloadToSave = rawAudioBlob || finalAudioUrl;
         if (payloadToSave) {
-          setFolderVoiceoverUrl(data.audioUrl);
+          setFolderVoiceoverUrl(finalAudioUrl);
           await handleSaveAnyFileToChosenFolder(cleanVoiceFileName, payloadToSave, '02_Audio');
         }
       } catch (saveErr) {
         console.warn('Auto-save VoxFlow audio to 02_Audio warning:', saveErr);
       }
 
-      // AUTOMATICALLY extract timeline right when VoxFlow audio is created!
-      const measuredDur = data.audioUrl ? await measureAudioDurationInBrowser(data.audioUrl) : 0;
+      // AUTOMATICALLY extract exact 8-second timeline right AFTER VoxFlow audio is created!
+      const measuredDur =
+        (finalAudioUrl ? await measureAudioDurationInBrowser(finalAudioUrl) : 0) ||
+        Number(cleanTrack.duration) ||
+        0;
       const scriptSource = isFullDocScript
         ? sanitizedScript
-        : (activeDoc.voiceoverScript || sanitizedScript).trim();
+        : (latestDoc.voiceoverScript || sanitizedScript).trim();
       const autoTl = buildSmartClientTimeline(
         scriptSource,
-        activeDoc,
-        measuredDur > 2 ? measuredDur : undefined
+        latestDoc,
+        measuredDur > 2 ? measuredDur : undefined,
+        undefined,
+        cleanTrack.segmentTimings
       );
 
       updateActiveDoc({
         ...(isFullDocScript ? { voiceoverScript: sanitizedScript } : {}),
         audioTracks: updatedTracks,
-        masterAudioUrl: data.audioUrl,
+        masterAudioUrl: finalAudioUrl,
         ...(autoTl.sentences.length > 0
           ? {
               timelineSentences: autoTl.sentences,
@@ -11509,19 +12087,107 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
-  // 1-Click / Automatic Timeline Extraction from a VoxFlow audio track (Works on GitHub Pages & Local Server)
+  // Attach / Link a downloaded or external voiceover audio file (.wav / .mp3 / .m4a) into Paso 4B + extract exact Paso 4C Timeline
+  const handleAttachDownloadedVoiceover = async (file: File, replaceTrackId?: string) => {
+    if (!activeDoc || !file) return;
+    setTimelineExtracting(true);
+    try {
+      const latestDoc = activeDocRef.current || activeDoc;
+      const trackId = replaceTrackId || `tts-imported-${Date.now()}`;
+      const liveBlobUrl = URL.createObjectURL(file);
+
+      await saveTtsAudioBlobToVault([trackId, `doc:${latestDoc.id}`], file).catch(() => {});
+      setRestoredVaultTrackUrls((prev) => ({ ...prev, [trackId]: liveBlobUrl }));
+      setBrokenTrackIds((prev) => {
+        const next = { ...prev };
+        delete next[trackId];
+        return next;
+      });
+
+      const persisted = await persistAudioBlobPermanently(
+        file,
+        getVoiceoverAudioName(latestDoc.title),
+        latestDoc.title || ''
+      );
+      const finalUrl = persisted.audioUrl || liveBlobUrl;
+      const finalFilename = persisted.filename || file.name;
+
+      setFolderVoiceoverUrl(finalUrl);
+      try {
+        await handleSaveAnyFileToChosenFolder(file.name, file, '02_Audio');
+      } catch {}
+
+      const scriptSource = (latestDoc.voiceoverScript || '').trim();
+      const waveInfo = await analyzeAudioWaveformTimingsInBrowser(file, scriptSource);
+      const realDur = waveInfo.durationSec > 0 ? waveInfo.durationSec : await measureAudioDurationInBrowser(file);
+      const wordCount = stripPauseTags(scriptSource).trim().split(/\s+/).filter(Boolean).length;
+      const pauseInfo = extractPausesInfo(scriptSource);
+
+      const newTrack: TTSRecord = {
+        id: trackId,
+        text: scriptSource,
+        voice: latestDoc.selectedVoice || 'Charon',
+        style: latestDoc.selectedStyle || 'dramatic',
+        speed: latestDoc.selectedSpeed || 'medium',
+        language: latestDoc.selectedLanguage || 'es-la',
+        consistencyMode: true,
+        filename: finalFilename,
+        audioUrl: finalUrl,
+        duration: Number(realDur.toFixed(1)),
+        wordCount,
+        pauseCount: pauseInfo.count,
+        createdAt: new Date().toISOString(),
+        label: getVoiceoverAudioName(latestDoc.title),
+        providerUsed: 'Audio Cargado',
+        ...(waveInfo.segmentTimings ? { segmentTimings: waveInfo.segmentTimings } : {}),
+      };
+
+      const filteredPrev = (latestDoc.audioTracks || []).filter(
+        (t) => t.id !== trackId && (!replaceTrackId || t.id !== replaceTrackId)
+      );
+      const autoTl = scriptSource
+        ? buildSmartClientTimeline(
+            scriptSource,
+            latestDoc,
+            realDur > 2 ? realDur : undefined,
+            undefined,
+            waveInfo.segmentTimings,
+            waveInfo.externalSilences
+          )
+        : { sentences: [], formatted: '', srt: '' };
+
+      updateActiveDoc({
+        audioTracks: [newTrack, ...filteredPrev],
+        masterAudioUrl: finalUrl,
+        ...(autoTl.sentences.length > 0
+          ? {
+              timelineSentences: autoTl.sentences,
+              timelineFormattedText: autoTl.formatted,
+              correctedSrt: autoTl.srt,
+            }
+          : {}),
+      });
+    } catch (e: any) {
+      alert('Error al cargar el archivo de audio: ' + e.message);
+    } finally {
+      setTimelineExtracting(false);
+    }
+  };
+
+  // 1-Click / Automatic Timeline Extraction from a VoxFlow audio track (Waveform-Locked + Intro/Clip 1/Pauses/Outro in 8s intervals)
   const handleExtractTimelineFromVoxFlow = async (filename: string, trackObj?: TTSRecord) => {
     if (!activeDoc) return;
     setTimelineExtracting(true);
     try {
+      const defaultMode =
+        activeDoc.clipDurationMode === '10_SEGUNDOS' ? 'split-10-seconds' : 'split-8-seconds';
       const settings = activeDoc.timelineSettings || {
         language: 'es',
         customLanguage: '',
         quality: 'high',
         outputStyle: 'timeline',
         timestampFormat: 'MM:SS',
-        sentenceMode:
-          activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+        sentenceMode: defaultMode,
         noBlankLines: true,
         strictNarration: false,
         removeFiller: false,
@@ -11530,42 +12196,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         includeLineNumbers: true,
       };
 
-      // 1. Try local server endpoint ONLY if not in Cloud Mode and response is valid JSON
-      if (!isCloudMode && filename && !filename.startsWith('data:')) {
-        try {
-          const res = await fetch('/api/transcribe-tts-file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename,
-              language: settings.language,
-              sentenceMode: settings.sentenceMode,
-              preservePunctuation: settings.preservePunctuation,
-            }),
-          });
-          if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
-            const data = await res.json();
-            if (Array.isArray(data.sentences) && data.sentences.length > 0) {
-              const sentences: Sentence[] = data.sentences;
-              const formatted = generateTimelineText(
-                sentences,
-                settings.timestampFormat || 'MM:SS',
-                settings.noBlankLines !== false,
-                settings.includeLineNumbers !== false
-              );
-              const autoSrt = generateSRT(sentences);
-              updateActiveDoc({
-                timelineSentences: sentences,
-                timelineFormattedText: formatted,
-                correctedSrt: autoSrt,
-              });
-              return;
-            }
-          }
-        } catch {}
-      }
-
-      // 2. Client-Side Automatic Fallback (Works 100% on GitHub Pages without backend)
       const matchedTrack =
         trackObj ||
         (activeDoc.audioTracks || []).find(
@@ -11573,8 +12203,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ) ||
         activeDoc.audioTracks?.[0];
 
-      const audioSrc = matchedTrack?.audioUrl || activeDoc.masterAudioUrl || '';
-      const audioDur = audioSrc ? await measureAudioDurationInBrowser(audioSrc) : 0;
+      const audioSrc =
+        (matchedTrack?.id ? restoredVaultTrackUrls[matchedTrack.id] : '') ||
+        matchedTrack?.audioUrl ||
+        folderVoiceoverUrl ||
+        activeDoc.masterAudioUrl ||
+        '';
       const scriptText =
         (activeDoc.voiceoverScript || '').trim() || (matchedTrack?.text || '').trim();
 
@@ -11583,11 +12217,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         return;
       }
 
+      const waveInfo = audioSrc
+        ? await analyzeAudioWaveformTimingsInBrowser(audioSrc, scriptText)
+        : { durationSec: Number(matchedTrack?.duration) || 0 };
+      const effectiveDur =
+        waveInfo.durationSec > 2 ? waveInfo.durationSec : Number(matchedTrack?.duration) || 0;
+
+      if (effectiveDur <= 2) {
+        alert(
+          'Primero genera o carga el audio de la Voz Narrativa en el Paso 4B para extraer los timestamps exactos.'
+        );
+        return;
+      }
+
       const clientResult = buildSmartClientTimeline(
         scriptText,
         activeDoc,
-        audioDur > 2 ? audioDur : undefined,
-        settings.sentenceMode
+        effectiveDur,
+        settings.sentenceMode || defaultMode,
+        matchedTrack?.segmentTimings || waveInfo.segmentTimings,
+        waveInfo.externalSilences
       );
 
       updateActiveDoc({
@@ -11602,19 +12251,28 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
-  // Upload external audio file (e.g. from CapCut) to extract timeline automatically
+  // Upload external audio file (e.g. from CapCut or downloaded VoxFlow .wav/.mp3) to persist audio & extract exact 8s timeline
   const handleUploadAudioForTimeline = async (file: File) => {
     if (!activeDoc) return;
+    const scriptText =
+      (activeDoc.voiceoverScript || '').trim() ||
+      (activeDoc.audioTracks?.[0]?.text || '').trim();
+    if (scriptText) {
+      await handleAttachDownloadedVoiceover(file);
+      return;
+    }
+
     setTimelineExtracting(true);
     try {
+      const defaultMode =
+        activeDoc.clipDurationMode === '10_SEGUNDOS' ? 'split-10-seconds' : 'split-8-seconds';
       const settings = activeDoc.timelineSettings || {
         language: 'es',
         customLanguage: '',
         quality: 'high',
         outputStyle: 'timeline',
         timestampFormat: 'MM:SS',
-        sentenceMode:
-          activeDoc.clipDurationMode === '8_SEGUNDOS' ? 'split-8-seconds' : 'split-10-seconds',
+        sentenceMode: defaultMode,
         noBlankLines: true,
         strictNarration: false,
         removeFiller: false,
@@ -11623,11 +12281,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         includeLineNumbers: true,
       };
 
-      // Also store uploaded audio as masterAudioUrl for CapCut Editor playback
-      const uploadedDataUrl = await uploadAssetFile(file);
-      const realDurationSec = await measureAudioDurationInBrowser(file);
+      const persisted = await persistAudioBlobPermanently(
+        file,
+        getVoiceoverAudioName(activeDoc.title),
+        activeDoc.title || ''
+      );
+      const uploadedDataUrl = persisted.audioUrl || (await uploadAssetFile(file));
 
-      // 1. Try local server chunked transcription if local backend is running
       if (!isCloudMode) {
         try {
           const CHUNK_SIZE = 512 * 1024;
@@ -11669,17 +12329,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ) {
               const data = await procRes.json();
               if (Array.isArray(data.sentences) && data.sentences.length > 0) {
-                const sentences: Sentence[] = data.sentences;
-                const formatted = generateTimelineText(
-                  sentences,
-                  settings.timestampFormat || 'MM:SS',
-                  settings.noBlankLines !== false,
-                  settings.includeLineNumbers !== false
+                const rawTranscribed = data.sentences.map((s: Sentence) => s.text).join(' ');
+                const fullResult = buildSmartClientTimeline(
+                  rawTranscribed,
+                  activeDoc,
+                  await measureAudioDurationInBrowser(file),
+                  settings.sentenceMode || defaultMode
                 );
                 updateActiveDoc({
-                  timelineSentences: sentences,
-                  timelineFormattedText: formatted,
-                  correctedSrt: generateSRT(sentences),
+                  voiceoverScript: rawTranscribed,
+                  timelineSentences: fullResult.sentences,
+                  timelineFormattedText: fullResult.formatted,
+                  correctedSrt: fullResult.srt,
                   ...(uploadedDataUrl ? { masterAudioUrl: uploadedDataUrl } : {}),
                 });
                 return;
@@ -11687,27 +12348,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             }
           }
         } catch {}
-      }
-
-      // 2. Client-Side Automatic Alignment to the exact duration of the uploaded audio file!
-      const scriptText =
-        (activeDoc.voiceoverScript || '').trim() ||
-        (activeDoc.audioTracks?.[0]?.text || '').trim();
-
-      if (scriptText) {
-        const clientResult = buildSmartClientTimeline(
-          scriptText,
-          activeDoc,
-          realDurationSec > 2 ? realDurationSec : undefined,
-          settings.sentenceMode
-        );
-        updateActiveDoc({
-          timelineSentences: clientResult.sentences,
-          timelineFormattedText: clientResult.formatted,
-          correctedSrt: clientResult.srt,
-          ...(uploadedDataUrl ? { masterAudioUrl: uploadedDataUrl } : {}),
-        });
-        return;
       }
 
       alert(
@@ -13481,11 +14121,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           Duración de cada Clip (desde Clip 2)
                         </label>
                         <select
-                          value={activeDoc.clipDurationMode}
+                          value={activeDoc.clipDurationMode || '8_SEGUNDOS'}
                           onChange={(e) => {
                             const nextMode = e.target.value as '10_SEGUNDOS' | '8_SEGUNDOS';
+                            const nextSentenceMode =
+                              nextMode === '10_SEGUNDOS' ? 'split-10-seconds' : 'split-8-seconds';
                             updateActiveDoc({
                               clipDurationMode: nextMode,
+                              timelineSettings: {
+                                ...(activeDoc.timelineSettings || ({} as any)),
+                                sentenceMode: nextSentenceMode,
+                              },
                               promptConfig: {
                                 ...(activeDoc.promptConfig || {}),
                                 DURACION_CLIPS: nextMode,
@@ -13494,8 +14140,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           }}
                           className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
                         >
+                          <option value="8_SEGUNDOS">
+                            8 segundos por clip (1 shot de 8s — Por defecto)
+                          </option>
                           <option value="10_SEGUNDOS">10 segundos por clip (1 shot de 10s)</option>
-                          <option value="8_SEGUNDOS">8 segundos por clip (1 shot de 8s)</option>
                         </select>
                       </div>
                     </div>
@@ -15041,22 +15689,50 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     data-voiceover-editor="true"
                     value={activeDoc.voiceoverScript}
                     onChange={(e) => updateActiveDoc({ voiceoverScript: e.target.value })}
-                    onBlur={(e) => {
+                    onBlur={async (e) => {
                       const rawVal = e.target.value || '';
                       if (!rawVal.trim()) return;
                       const fitted = autoFitVoiceoverScriptToDuration(rawVal, activeDoc);
                       if (fitted && fitted !== rawVal.trim()) {
-                        const autoTl = buildSmartClientTimeline(fitted, activeDoc);
-                        updateActiveDoc({
-                          voiceoverScript: fitted,
-                          ...(autoTl.sentences.length > 0
-                            ? {
-                                timelineSentences: autoTl.sentences,
-                                timelineFormattedText: autoTl.formatted,
-                                correctedSrt: autoTl.srt,
-                              }
-                            : {}),
-                        });
+                        const leadTrack = activeDoc.audioTracks?.[0];
+                        const effUrl =
+                          (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
+                          folderVoiceoverUrl ||
+                          leadTrack?.audioUrl ||
+                          '';
+                        const dur = effUrl ? await measureAudioDurationInBrowser(effUrl) : 0;
+                        const pInfo = extractPausesInfo(fitted);
+                        const wCount = stripPauseTags(fitted).trim().split(/\s+/).filter(Boolean).length;
+                        const estSec = wCount / CALIBRATED_TTS_WORDS_PER_SEC + pInfo.totalSeconds;
+                        const matchesExistingAudio =
+                          dur > 2 && Math.abs(dur - estSec) <= Math.max(25, estSec * 0.2);
+
+                        if (matchesExistingAudio) {
+                          const autoTl = buildSmartClientTimeline(
+                            fitted,
+                            activeDoc,
+                            dur,
+                            undefined,
+                            leadTrack?.segmentTimings
+                          );
+                          updateActiveDoc({
+                            voiceoverScript: fitted,
+                            ...(autoTl.sentences.length > 0
+                              ? {
+                                  timelineSentences: autoTl.sentences,
+                                  timelineFormattedText: autoTl.formatted,
+                                  correctedSrt: autoTl.srt,
+                                }
+                              : {}),
+                          });
+                        } else {
+                          updateActiveDoc({
+                            voiceoverScript: fitted,
+                            timelineSentences: [],
+                            timelineFormattedText: '',
+                            correctedSrt: '',
+                          });
+                        }
                       }
                     }}
                     placeholder="Año 1888, callejón de Whitechapel, Londres, Inglaterra. [pausa: 1.5s] El laberinto donde operaba..."
@@ -15215,83 +15891,111 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                     {/* Generated Audio Tracks List */}
                     <div className="space-y-2.5 pt-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <span className="text-xs font-bold text-slate-300">
                           Audios del Documental ({activeDoc.audioTracks?.length || 0})
                         </span>
-                        {(activeDoc.audioTracks?.length || 0) >= 2 && (
-                          <button
-                            onClick={async () => {
-                              const filenames = (activeDoc.audioTracks || [])
-                                .slice()
-                                .reverse()
-                                .map((t) => t.filename);
-                              const res = await fetch('/api/tts/merge', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  filenames,
-                                  text: activeDoc.voiceoverScript,
-                                  voice: activeDoc.selectedVoice,
-                                }),
-                              });
-                              if (res.ok) {
-                                const merged = await res.json();
-                                updateActiveDoc({
-                                  audioTracks: [merged, ...(activeDoc.audioTracks || [])],
-                                  masterAudioUrl: merged.audioUrl,
-                                });
-                              }
-                            }}
-                            className="text-[11px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/40 font-semibold cursor-pointer"
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <label
+                            className="text-[11px] bg-slate-900 hover:bg-slate-800 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/40 font-semibold flex items-center gap-1 cursor-pointer"
+                            title="Cargar un archivo de voz descargado (.wav o .mp3) para guardarlo en la app y extraer el Timeline exacto de 8s"
                           >
-                            🔗 Fusionar todas las pistas en 1 Audio Maestro
-                          </button>
-                        )}
+                            <Upload className="w-3 h-3" /> 📂 Cargar Audio (.wav/.mp3)
+                            <input
+                              type="file"
+                              accept="audio/*,.wav,.mp3,.m4a"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleAttachDownloadedVoiceover(f);
+                                e.currentTarget.value = '';
+                              }}
+                            />
+                          </label>
+                          {(activeDoc.audioTracks?.length || 0) >= 2 && (
+                            <button
+                              onClick={async () => {
+                                const filenames = (activeDoc.audioTracks || [])
+                                  .slice()
+                                  .reverse()
+                                  .map((t) => t.filename);
+                                const res = await fetch('/api/tts/merge', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    filenames,
+                                    text: activeDoc.voiceoverScript,
+                                    voice: activeDoc.selectedVoice,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const merged = await res.json();
+                                  updateActiveDoc({
+                                    audioTracks: [merged, ...(activeDoc.audioTracks || [])],
+                                    masterAudioUrl: merged.audioUrl,
+                                  });
+                                }
+                              }}
+                              className="text-[11px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/40 font-semibold cursor-pointer"
+                            >
+                              🔗 Fusionar todas las pistas en 1 Audio Maestro
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {(activeDoc.audioTracks || []).length === 0 ? (
-                        <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
-                          Aún no has generado audios para este documental.
+                        <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-xs text-slate-500 space-y-2">
+                          <p>Aún no has generado audios para este documental.</p>
+                          <p className="text-[11px] text-slate-400">
+                            Genera la voz arriba o usa <strong>📂 Cargar Audio (.wav/.mp3)</strong> si ya la descargaste.
+                          </p>
                         </div>
                       ) : (
                         <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                          {(activeDoc.audioTracks || []).map((track) => {
+                          {(activeDoc.audioTracks || []).map((track, trackIdx) => {
                             const displayName =
                               !track.label || track.label.startsWith('Guion Completo')
                                 ? getVoiceoverAudioName(activeDoc.title)
                                 : track.label;
                             const cleanBaseName = displayName.replace(/\.(?:wav|mp3)$/i, '').trim();
                             const downloadName = `${cleanBaseName}.mp3`;
-                            const downloadHref =
-                              isCloudMode || (track.audioUrl && track.audioUrl.startsWith('data:'))
-                                ? track.audioUrl
-                                : `/api/tts/download-mp3?file=${encodeURIComponent(
-                                    track.filename || track.audioUrl || ''
-                                  )}&name=${encodeURIComponent(downloadName)}`;
+                            const effectiveTrackUrl =
+                              restoredVaultTrackUrls[track.id] ||
+                              (trackIdx === 0 &&
+                              folderVoiceoverUrl &&
+                              (!track.audioUrl || track.audioUrl.startsWith('blob:'))
+                                ? folderVoiceoverUrl
+                                : track.audioUrl);
+                            const isTrackBroken = Boolean(brokenTrackIds[track.id]) && !restoredVaultTrackUrls[track.id];
                             return (
                             <div
                               key={track.id}
                               className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"
                             >
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div>
                                   <span className="text-xs font-bold text-amber-300">
                                     {displayName}
                                   </span>
                                   <span className="text-[11px] text-slate-400 ml-2">
-                                    ({track.duration}s • {track.wordCount} palabras • {track.voice}
+                                    ({Math.floor((Number(track.duration) || 0) / 60)}:
+                                    {String(Math.round((Number(track.duration) || 0) % 60)).padStart(2, '0')} min •{' '}
+                                    {track.duration}s • {track.wordCount} palabras • {track.voice}
                                     {track.providerUsed ? ` • ${track.providerUsed}` : ''})
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <button
                                     disabled={timelineExtracting}
                                     onClick={() =>
-                                      handleExtractTimelineFromVoxFlow(track.filename, track)
+                                      handleExtractTimelineFromVoxFlow(track.filename, {
+                                        ...track,
+                                        audioUrl: effectiveTrackUrl || track.audioUrl,
+                                      })
                                     }
                                     className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
-                                    title="Recalcular el timeline alineado a la duración de este audio"
+                                    title="Recalcular el timeline de 8s alineado a los tiempos acústicos reales de este audio"
                                   >
                                     <Clock className="w-3 h-3" /> ✓ Timeline Sincronizado (Recalcular)
                                   </button>
@@ -15301,7 +16005,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       await ensureSingleDownloadFolderReadyOnGesture();
                                       await handleSaveAnyFileToChosenFolder(
                                         downloadName,
-                                        track.audioUrl
+                                        effectiveTrackUrl || track.audioUrl
                                       );
                                     }}
                                     className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
@@ -15323,7 +16027,42 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   </button>
                                 </div>
                               </div>
-                              <audio controls src={track.audioUrl} className="w-full h-8" />
+                              <audio
+                                controls
+                                src={effectiveTrackUrl}
+                                onError={() =>
+                                  setBrokenTrackIds((prev) => ({ ...prev, [track.id]: true }))
+                                }
+                                onLoadedMetadata={() =>
+                                  setBrokenTrackIds((prev) => {
+                                    if (!prev[track.id]) return prev;
+                                    const next = { ...prev };
+                                    delete next[track.id];
+                                    return next;
+                                  })
+                                }
+                                className="w-full h-8"
+                              />
+                              {isTrackBroken && (
+                                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap text-[11px] text-amber-200">
+                                  <span>
+                                    ⚠️ Esta pista se generó como enlace temporal (<code>blob:</code>) en otra sesión. Vincula el archivo descargado para dejarlo permanente:
+                                  </span>
+                                  <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer shrink-0">
+                                    📂 Vincular archivo descargado (.wav/.mp3)
+                                    <input
+                                      type="file"
+                                      accept="audio/*,.wav,.mp3,.m4a"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleAttachDownloadedVoiceover(f, track.id);
+                                        e.currentTarget.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              )}
                             </div>
                             );
                           })}
@@ -15343,15 +16082,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <Clock className="w-4 h-4 text-amber-400" /> Paso 4C — Narration Timeline Extractor
                         </h3>
                       </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
-                        ⚡ Extracción 100% Automática Activa
-                      </span>
+                      {(activeDoc.timelineSentences?.length || 0) > 0 ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
+                          ✓ Alineado al Audio Real + Intro/Pausas/Outro (8s)
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
+                          ⏳ Se extrae al crear/cargar el Audio en Paso 4B
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs text-slate-400">
                       El Timeline y los subtítulos <code className="text-emerald-300">.SRT</code> se{' '}
-                      <strong className="text-emerald-300">extraen automáticamente</strong> apenas se crea el
-                      Guion o el Audio en VoxFlow (también puedes subir aquí un audio externo con silencios):
+                      <strong className="text-emerald-300">
+                        extraen automáticamente después de crear o cargar el Audio en el Paso 4B
+                      </strong>{' '}
+                      para medir los timestamps acústicos exactos en{' '}
+                      <strong className="text-amber-300">intervalos de 8 segundos por defecto</strong>, incluyendo{' '}
+                      <strong>Intro Oficial (8s)</strong>, <strong>Clip 1 sin voz</strong>,{' '}
+                      <strong>pausas dramáticas</strong> y <strong>Outro Oficial (8s)</strong>:
                     </p>
 
                     {/* Timeline Segmentation Settings */}
@@ -15361,27 +16111,47 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           Modo de Segmentación de Clips
                         </label>
                         <select
-                          value={activeDoc.timelineSettings?.sentenceMode || 'split-10-seconds'}
+                          value={
+                            activeDoc.timelineSettings?.sentenceMode ||
+                            (activeDoc.clipDurationMode === '10_SEGUNDOS'
+                              ? 'split-10-seconds'
+                              : 'split-8-seconds')
+                          }
                           onChange={async (e) => {
                             const newMode = e.target.value as any;
                             const nextSettings = {
                               ...(activeDoc.timelineSettings || {}),
                               sentenceMode: newMode,
                             } as any;
+                            const leadTrack = activeDoc.audioTracks?.[0];
                             const audioSrc =
-                              activeDoc.masterAudioUrl || activeDoc.audioTracks?.[0]?.audioUrl || '';
-                            const dur = audioSrc ? await measureAudioDurationInBrowser(audioSrc) : 0;
+                              (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
+                              folderVoiceoverUrl ||
+                              activeDoc.masterAudioUrl ||
+                              leadTrack?.audioUrl ||
+                              '';
                             const scriptText =
                               (activeDoc.voiceoverScript || '').trim() ||
-                              (activeDoc.audioTracks?.[0]?.text || '').trim();
-                            const autoTl = scriptText
-                              ? buildSmartClientTimeline(
-                                  scriptText,
-                                  { ...activeDoc, timelineSettings: nextSettings },
-                                  dur > 2 ? dur : undefined,
-                                  newMode
-                                )
-                              : { sentences: [], formatted: '', srt: '' };
+                              (leadTrack?.text || '').trim();
+                            const waveInfo =
+                              audioSrc && scriptText
+                                ? await analyzeAudioWaveformTimingsInBrowser(audioSrc, scriptText)
+                                : { durationSec: Number(leadTrack?.duration) || 0 };
+                            const effDur =
+                              waveInfo.durationSec > 2
+                                ? waveInfo.durationSec
+                                : Number(leadTrack?.duration) || 0;
+                            const autoTl =
+                              scriptText && effDur > 2
+                                ? buildSmartClientTimeline(
+                                    scriptText,
+                                    { ...activeDoc, timelineSettings: nextSettings },
+                                    effDur,
+                                    newMode,
+                                    leadTrack?.segmentTimings || waveInfo.segmentTimings,
+                                    waveInfo.externalSilences
+                                  )
+                                : { sentences: [], formatted: '', srt: '' };
                             updateActiveDoc({
                               timelineSettings: nextSettings,
                               ...(autoTl.sentences.length > 0
@@ -15395,8 +16165,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           }}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-100"
                         >
+                          <option value="split-8-seconds">
+                            Cortes exactos de 8 segundos (Por defecto)
+                          </option>
                           <option value="split-10-seconds">Cortes exactos de 10 segundos</option>
-                          <option value="split-8-seconds">Cortes exactos de 8 segundos</option>
                           <option value="split-4-seconds">Cortes exactos de 4 segundos</option>
                           <option value="one-sentence-per-line">Una oración por línea</option>
                           <option value="combine-short">Combinar frases cortas</option>
@@ -15417,6 +16189,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             onChange={(e) => {
                               const f = e.target.files?.[0];
                               if (f) handleUploadAudioForTimeline(f);
+                              e.currentTarget.value = '';
                             }}
                           />
                         </label>
@@ -15447,7 +16220,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             onClick={() => {
                               const txtContent = (activeDoc.timelineFormattedText || '').trim();
                               if (!txtContent) {
-                                alert('Primero extrae o pega el timeline para descargarlo en .TXT.');
+                                alert('Primero genera o carga el audio de la Voz Narrativa en el Paso 4B para extraer el timeline.');
                                 return;
                               }
                               const baseName = getVoiceoverAudioName(activeDoc.title);
@@ -15469,10 +16242,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   ? activeDoc.timelineSentences
                                   : parseTimelineTextToSentences(activeDoc.timelineFormattedText || '');
                               if (!sentences || sentences.length === 0) {
-                                alert('Primero extrae o pega un timeline con tiempos válidos para descargarlo en .SRT.');
+                                alert('Primero genera o carga el audio de la Voz Narrativa en el Paso 4B para extraer el .SRT.');
                                 return;
                               }
-                              const srtContent = generateSRT(sentences);
+                              const srtContent =
+                                (activeDoc.correctedSrt || '').trim() || generateSRT(sentences);
                               const baseName = getVoiceoverAudioName(activeDoc.title);
                               triggerFileDownload(
                                 srtContent,
@@ -15516,7 +16290,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         onChange={(e) =>
                           updateActiveDoc({ timelineFormattedText: e.target.value })
                         }
-                        placeholder="Aquí aparecerá el timeline con timestamps (ej. 1 00:06 - 00:16 Año 1888, callejón de Whitechapel...) o puedes pegarlo directamente."
+                        placeholder="Aquí aparecerá automáticamente el Timeline Maestro en intervalos de 8s en cuanto generes o cargues el audio de la Voz Narrativa en el Paso 4B (ej. 1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)] / 2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1...] / 3 00:16 - 00:24 Año 1941...)."
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-300"
                       />
                     </div>

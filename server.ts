@@ -1772,7 +1772,15 @@ app.post('/api/tts', async (req, res) => {
     let buffer: Buffer;
     let providerUsed = 'Gemini TTS';
 
-    if (!hasPauses) {
+    const segmentTimings: Array<{
+      type: 'text' | 'pause';
+      text?: string;
+      startSec: number;
+      endSec: number;
+      durationSec: number;
+    }> = [];
+
+    if (!hasPauses && segments.length <= 1) {
       const result = await synthesizeSpeechCore({
         text: cleanedScriptForTts,
         voice,
@@ -1784,6 +1792,14 @@ app.post('/api/tts', async (req, res) => {
       });
       buffer = result.buffer;
       providerUsed = result.providerUsed;
+      const singleDur = getAudioDurationInSeconds(buffer);
+      segmentTimings.push({
+        type: 'text',
+        text: cleanedScriptForTts,
+        startSec: 0,
+        endSec: singleDur,
+        durationSec: singleDur,
+      });
     } else {
       const pauseCount = segments.filter((s) => s.type === 'pause').length;
       const totalPauseSec = segments
@@ -1793,10 +1809,20 @@ app.post('/api/tts', async (req, res) => {
         `[TTS Pauses] Detectadas ${pauseCount} pausas (${totalPauseSec.toFixed(1)}s totales). Sintetizando segmentos con silencios PCM exactos...`
       );
       const pcmBuffers: Buffer[] = [];
+      let runningSec = 0;
       for (const seg of segments) {
         if (seg.type === 'pause' && seg.duration) {
           const pauseSamples = Math.round(24000 * seg.duration);
-          pcmBuffers.push(Buffer.alloc(pauseSamples * 2));
+          const pauseBuf = Buffer.alloc(pauseSamples * 2);
+          pcmBuffers.push(pauseBuf);
+          const dSec = Number((pauseBuf.length / 48000).toFixed(3));
+          segmentTimings.push({
+            type: 'pause',
+            startSec: Number(runningSec.toFixed(3)),
+            endSec: Number((runningSec + dSec).toFixed(3)),
+            durationSec: dSec,
+          });
+          runningSec += dSec;
         } else if (seg.type === 'text' && seg.text) {
           const result = await synthesizeSpeechCore({
             text: seg.text,
@@ -1808,15 +1834,24 @@ app.post('/api/tts', async (req, res) => {
             customStyleDescription,
           });
           providerUsed = result.providerUsed;
-          const pcm = extractPcmFromWav(result.buffer);
-          pcmBuffers.push(applyMicroFade(pcm, 240));
+          const pcm = applyMicroFade(extractPcmFromWav(result.buffer), 240);
+          pcmBuffers.push(pcm);
+          const dSec = Number((pcm.length / 48000).toFixed(3));
+          segmentTimings.push({
+            type: 'text',
+            text: seg.text,
+            startSec: Number(runningSec.toFixed(3)),
+            endSec: Number((runningSec + dSec).toFixed(3)),
+            durationSec: dSec,
+          });
+          runningSec += dSec;
         }
       }
       buffer = pcmToWav(Buffer.concat(pcmBuffers), 24000);
       providerUsed = `${providerUsed} (${pauseCount} Pausas · ${totalPauseSec.toFixed(1)}s)`;
     }
 
-    const wordCount = text
+    const wordCount = cleanedScriptForTts
       .replace(new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi'), '')
       .split(/\s+/)
       .filter(Boolean).length;
@@ -1829,12 +1864,17 @@ app.post('/api/tts', async (req, res) => {
 
     const mp3Success = await convertWavToMp3(localWavPath, localMp3Path);
     const filename = mp3Success ? mp3Filename : wavFilename;
+    try {
+      const docsTtsDir = path.join(process.cwd(), 'docs', 'tts-files');
+      fs.mkdirSync(docsTtsDir, { recursive: true });
+      fs.copyFileSync(path.join(TTS_DIR, filename), path.join(docsTtsDir, filename));
+    } catch {}
 
     const actualDuration = getAudioDurationInSeconds(buffer);
     const newRecord = {
       id: fileId,
       label: label || `Locución (${voice})`,
-      text,
+      text: cleanedScriptForTts,
       voice,
       style,
       speed,
@@ -1847,12 +1887,54 @@ app.post('/api/tts', async (req, res) => {
       wordCount,
       duration: actualDuration,
       providerUsed,
+      segmentTimings,
     };
 
     res.json(newRecord);
   } catch (error: any) {
     console.error('Error en /api/tts:', error);
     res.status(500).json({ error: error.message || 'Error interno al sintetizar locución.' });
+  }
+});
+
+// Persist an uploaded or recovered WAV/MP3 voiceover file permanently into tts-files/ (and docs/tts-files/)
+app.post('/api/tts/persist-upload', uploadAsset.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No se recibió archivo de audio.' });
+      return;
+    }
+    const rawExt = path.extname(req.file.originalname || '').toLowerCase() || '.wav';
+    const baseId = `tts-restored-${Date.now()}`;
+    const rawFilename = `${baseId}${rawExt}`;
+    const rawDestPath = path.join(TTS_DIR, rawFilename);
+    fs.copyFileSync(req.file.path, rawDestPath);
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {}
+
+    let finalFilename = rawFilename;
+    if (rawExt !== '.mp3') {
+      const mp3Name = `${baseId}.mp3`;
+      const mp3DestPath = path.join(TTS_DIR, mp3Name);
+      const converted = await convertWavToMp3(rawDestPath, mp3DestPath);
+      if (converted) {
+        finalFilename = mp3Name;
+      }
+    }
+    try {
+      const docsTtsDir = path.join(process.cwd(), 'docs', 'tts-files');
+      fs.mkdirSync(docsTtsDir, { recursive: true });
+      fs.copyFileSync(path.join(TTS_DIR, finalFilename), path.join(docsTtsDir, finalFilename));
+    } catch {}
+
+    res.json({
+      ok: true,
+      filename: finalFilename,
+      audioUrl: `tts-files/${finalFilename}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error guardando el audio en tts-files.' });
   }
 });
 
@@ -2285,7 +2367,7 @@ app.post('/api/transcribe-process', async (req, res) => {
 
 // Direct 1-click timeline extraction from any audio track generated in VoxFlow!
 app.post('/api/transcribe-tts-file', async (req, res) => {
-  const { filename, language = 'es', sentenceMode = 'split-10-seconds', preservePunctuation = true } = req.body;
+  const { filename, language = 'es', sentenceMode = 'split-8-seconds', preservePunctuation = true } = req.body;
   if (!filename) {
     res.status(400).json({ error: 'Se requiere el nombre del archivo de audio de VoxFlow.' });
     return;
@@ -13823,6 +13905,7 @@ interface PendingExternalGeminiAsk {
   prompt: string;
   createdAt: number;
   claimed: boolean;
+  reusedExisting?: boolean;
   windowId?: number | null;
   tabId?: number | null;
   chatUrl?: string;
@@ -14813,6 +14896,9 @@ app.post('/api/chatgpt-web/ask-external-claim', (req, res) => {
     item.claimed = true;
     if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
     if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+    if (req.body?.reusedExisting !== undefined) {
+      item.reusedExisting = Boolean(req.body.reusedExisting);
+    }
   }
   res.json({ ok: true, id });
 });
@@ -14822,9 +14908,10 @@ app.post('/api/chatgpt-web/ask-external-result', (req, res) => {
   const chatUrl = String(req.body?.chatUrl || '').trim();
   const bodyTabId = Number(req.body?.tabId) || null;
   const bodyWinId = Number(req.body?.windowId) || null;
+  const bodyReused = Boolean(req.body?.reusedExisting);
   const item = pendingExternalChatGptAsks.get(id);
   if (!item) {
-    if (chatUrl || bodyTabId || bodyWinId) {
+    if (!bodyReused && (chatUrl || bodyTabId || bodyWinId)) {
       closeTemporaryChatGptWindowFailsafe({ windowId: bodyWinId, tabId: bodyTabId, chatUrl });
     }
     res.json({ ok: false, error: 'already_resolved_or_not_found' });
@@ -14833,11 +14920,14 @@ app.post('/api/chatgpt-web/ask-external-result', (req, res) => {
   clearTimeout(item.timer);
   pendingExternalChatGptAsks.delete(id);
   item.chatUrl = chatUrl || item.chatUrl;
-  closeTemporaryChatGptWindowFailsafe({
-    windowId: item.windowId || bodyWinId,
-    tabId: item.tabId || bodyTabId,
-    chatUrl: item.chatUrl,
-  });
+  const keepOpen = Boolean(item.reusedExisting || bodyReused);
+  if (!keepOpen) {
+    closeTemporaryChatGptWindowFailsafe({
+      windowId: item.windowId || bodyWinId,
+      tabId: item.tabId || bodyTabId,
+      chatUrl: item.chatUrl,
+    });
+  }
   item.resolve({
     ok: Boolean(req.body?.ok !== false),
     verifiedModel: req.body?.verifiedModel ? String(req.body.verifiedModel) : undefined,
@@ -14867,7 +14957,7 @@ app.post('/api/chatgpt-web/ask-external', async (req, res) => {
     const timer = setTimeout(() => {
       const expired = pendingExternalChatGptAsks.get(id);
       pendingExternalChatGptAsks.delete(id);
-      if (expired) {
+      if (expired && !expired.reusedExisting) {
         closeTemporaryChatGptWindowFailsafe({
           windowId: expired.windowId,
           tabId: expired.tabId,
@@ -14894,11 +14984,13 @@ app.post('/api/chatgpt-web/ask-external', async (req, res) => {
       if (aborted) {
         clearTimeout(aborted.timer);
         pendingExternalChatGptAsks.delete(id);
-        closeTemporaryChatGptWindowFailsafe({
-          windowId: aborted.windowId,
-          tabId: aborted.tabId,
-          chatUrl: aborted.chatUrl,
-        });
+        if (!aborted.reusedExisting) {
+          closeTemporaryChatGptWindowFailsafe({
+            windowId: aborted.windowId,
+            tabId: aborted.tabId,
+            chatUrl: aborted.chatUrl,
+          });
+        }
       }
     });
 
