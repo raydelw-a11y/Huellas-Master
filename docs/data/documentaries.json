@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-10T10:28:20.645Z",
+    "updatedAt": "2026-11-10T10:29:04.159Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -33,7 +33,7 @@
       "PROPOSICION_ESCALETA": "(Escaleta Espejo Exacta del Video Guía en 6 Bloques — Recomendada): Intro Oficial (00:00 - 00:08 | 1 clip) + Clip 1 Hook Mudo (00:08 - 00:16 | 1 clip) · Bloque 1 (00:16 - 02:32 | 17 clips | 11.3%): El colapso de Oxford en 1941 (el frasco vacío y la pérdida de Albert Alexander), Slogan Completo en la mesa del historiador antiguo (00:24–00:32) y la incógnita de por qué se perdieron 12 años · Bloque 2 (02:32 - 06:08 | 27 clips | 18.0%): Londres, 1928–1929. El desorden de Fleming en St. Mary, la espora accidental, la inestabilidad química y el 1.er Abandono tras la fría recepción del club médico · Bloque 3 (06:08 - 10:08 | 30 clips | 20.0%): Oxford, 1939–1941. Florey, Chain y Heatley rescatan el papel olvidado en plena guerra; cultivo en bacinillas y latas; el 2.º Colapso al agotarse el fármaco reciclado de la orina en el primer paciente humano · Bloque 4 (10:08 - 14:08 | 30 clips | 20.0%): Los 3 Rechazos de financiación y escalado industrial en Gran Bretaña; el viaje con esporas en los abrigos a Estados Unidos; el licor de maíz y el melón dorado de Mary Hunt en Peoria (1941–1943) · Bloque 5 (14:08 - 17:44 | 27 clips | 18.0%): La explosión de los tanques de fermentación profunda (Pfizer/Merck); el milagro en las playas de Normandía en 1944 y la llegada a las boticas de La Habana, México y el Río de la Plata · Bloque 6 (17:44 - 19:52 | 16 clips | 10.7%) + Outro (19:52 - 20:00 | 1 clip): El Nobel de 1945, la renuncia a las patentes personales, la advertencia profética de Fleming contra la complacencia y Slogan Corto en plano panorámico amplio.",
       "PROPOSICION_CLIMAX": "(La Profecía de Fleming contra la Complacencia Humana — Recomendada): Tras mostrar cómo millones de soldados y trabajadores en Nueva York, La Habana, México y Sudamérica salvaron sus vidas en 1945, revelamos el discurso de Fleming advirtiendo que la soberbia y el abuso de su invento despertarían superbacterias resistentes; cierra con \"Cada historia deja una huella. Aquí seguimos sus rastros.\" en plano panorámico del viejo laboratorio de Londres al atardecer.",
       "V77_MULTI_PASO1_UPDATED": "2026_11_09_PENICILINA_PEPSI_SYNCED",
-      "REMOTE_RENAME_ACK_ID": "cmd_rename_1794227069412_ku2kq",
+      "REMOTE_RENAME_ACK_ID": "cmd_rename_1794306500645_0nj3r",
       "REMOTE_RENAME_ACK_STATUS": "all_completed",
       "REMOTE_RENAME_MAIN_OK": "true",
       "REMOTE_RENAME_DEEP_OK": "true",
