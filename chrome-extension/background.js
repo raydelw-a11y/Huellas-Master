@@ -4905,7 +4905,7 @@ async function runExternalGeminiAskOrder(task) {
 
     let stableDoneTicks = 0;
     let lastText = '';
-    for (let i = 0; i < 85; i++) {
+    for (let i = 0; i < 150; i++) {
       await sleep(2000);
       if (!pendingExternalCheckActive(task.id)) break;
       const snap = await inspectGeminiTabLatestResponse(tabId);

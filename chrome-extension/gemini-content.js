@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 13) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 13;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 14) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 14;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -3953,7 +3953,7 @@
 
           let stableDoneTicks = 0;
           let lastSeenText = '';
-          for (let tick = 0; tick < 160; tick++) {
+          for (let tick = 0; tick < 290; tick++) {
             await sleep(1000);
             const generating = isGeminiStillGenerating();
             const curCount = getModelResponseElements().length;

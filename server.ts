@@ -13130,7 +13130,7 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
     return;
   }
-  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 150000, 15000), 240000);
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
   const id = `ext_gem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   const resultPromise = new Promise<{ ok: boolean; response?: string; chatUrl?: string; error?: string }>((resolve) => {
