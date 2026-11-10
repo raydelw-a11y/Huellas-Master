@@ -59,6 +59,7 @@ import {
   DocumentaryStatusType,
   AudienceCommentReply,
   TTSRecord,
+  ThumbnailPsychTriggerOption,
 } from './types';
 import {
   generateTimelineText,
@@ -135,7 +136,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:46 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:54 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -672,10 +673,107 @@ function buildOrUpdateThumbnailPrompt(
   return prompt;
 }
 
+function extractDocVideoNumFromAnyText(text?: string): string {
+  const t = String(text || '').normalize('NFC').toLowerCase();
+  const m = t.match(/\b(?:video|documental|ep\.?)\s*0*(\d+)\b/i);
+  return m ? String(parseInt(m[1], 10)) : '';
+}
+
+function parseStage5TriggersAndPrompts(
+  rawText: string,
+  orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
+  userOverlayText: string,
+  doc?: DocumentaryProject | null
+): {
+  triggers: ThumbnailPsychTriggerOption[];
+  fallbackPrompt: string;
+} {
+  const cleaned = String(rawText || '')
+    .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim();
+  if (!cleaned) {
+    return { triggers: [], fallbackPrompt: '' };
+  }
+
+  const hasUserOverlay = parseThumbnailOverlayLines(userOverlayText).length > 0;
+  const blockRegex =
+    /(?:^|\n)\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?(?:\s*[:\-—][^\n]*)?([\s\S]*?)(?=\n\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\s*\]?|$)/gi;
+
+  const triggers: ThumbnailPsychTriggerOption[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = blockRegex.exec(cleaned)) !== null) {
+    const id = match[1].toUpperCase() as 'A' | 'B' | 'C';
+    const body = match[2] || '';
+    const titleMatch = body.match(
+      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*T[IÍ]TULO\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+    );
+    const descMatch = body.match(
+      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*DESCRIPCI[OÓ]N\s*(?:\*\*)?\s*:\s*([^\n]+(?:\n(?!\s*(?:\*\*|[-•*])?\s*(?:TEXTO[_\s]*PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
+    );
+    const overlayMatch = body.match(
+      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*TEXTO[_\s]*PANTALLA\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+    );
+    const promptMatch = body.match(
+      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*PROMPT\s*(?:\*\*)?\s*:\s*([\s\S]+)$/i
+    );
+
+    const rawTitleVal = (titleMatch?.[1] || '').replace(/^\*+|\*+$/g, '').trim();
+    const cleanTitle = rawTitleVal
+      ? /^opci[oó]n\s*[abc]\b/i.test(rawTitleVal)
+        ? rawTitleVal
+        : `Opción ${id}: ${rawTitleVal}`
+      : `Opción ${id}`;
+    const cleanDesc = (descMatch?.[1] || '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\*+|\*+$/g, '')
+      .trim();
+    const suggestedOverlay = (overlayMatch?.[1] || '')
+      .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+      .split(/\s*(?:\/|\|)\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('\n');
+    const rawPromptBody = (promptMatch?.[1] || '')
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (rawPromptBody && !triggers.some((t) => t.id === id)) {
+      const effectiveOverlay = hasUserOverlay ? userOverlayText : suggestedOverlay;
+      const normalizedPrompt = buildOrUpdateThumbnailPrompt(
+        rawPromptBody,
+        orientation,
+        effectiveOverlay,
+        doc
+      );
+      triggers.push({
+        id,
+        title: cleanTitle,
+        description: cleanDesc,
+        prompt: normalizedPrompt,
+        ...(suggestedOverlay ? { suggestedOverlay } : {}),
+      });
+    }
+  }
+
+  triggers.sort((a, b) => a.id.localeCompare(b.id));
+  const fallbackPrompt =
+    triggers.length > 0
+      ? triggers[0].prompt
+      : buildOrUpdateThumbnailPrompt(cleaned, orientation, userOverlayText, doc);
+
+  return { triggers, fallbackPrompt };
+}
+
 function getDefaultCuriosityGapHooks(doc?: DocumentaryProject | null): string[] {
+  const fromTriggers = (doc?.thumbnailPsychTriggers || [])
+    .map((t) => (t?.suggestedOverlay || '').trim())
+    .filter(Boolean);
+  if (fromTriggers.length > 0) return fromTriggers;
   const existing = (doc?.thumbnailTextOptions || []).filter(Boolean);
-  if (existing.length >= 3) return existing.slice(0, 3);
-  return ['EL SECRETO OCULTO', 'LA TRAMPA MORTAL', 'NADIE LO SUPO'];
+  if (existing.length > 0) return existing.slice(0, 3);
+  return [];
 }
 
 function buildPsychologicalThumbnailVariantPrompt(
@@ -684,11 +782,20 @@ function buildPsychologicalThumbnailVariantPrompt(
   overlayText: string,
   doc?: DocumentaryProject | null
 ): string {
+  const dynamicTrigger = (doc?.thumbnailPsychTriggers || []).find((t) => t.id === variant);
+  if (dynamicTrigger && dynamicTrigger.prompt) {
+    const effectiveOverlay =
+      parseThumbnailOverlayLines(overlayText).length > 0
+        ? overlayText
+        : dynamicTrigger.suggestedOverlay || '';
+    return buildOrUpdateThumbnailPrompt(dynamicTrigger.prompt, orientation, effectiveOverlay, doc);
+  }
   const isVertical = orientation === 'VERTICAL_9X16';
+  const fallbackHooks = getDefaultCuriosityGapHooks(doc);
   const effectiveRawOverlay =
     parseThumbnailOverlayLines(overlayText).length > 0
       ? overlayText
-      : getDefaultCuriosityGapHooks(doc)[0];
+      : fallbackHooks[0] || '';
   const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
   const positionOnlyPhrase = isVertical
     ? 'centered and middle-justified right in the middle center of the image'
@@ -4492,6 +4599,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   const pendingStage11QueueRef = useRef<number[]>([]);
   const autoExpandedShortScriptRef = useRef<Record<string, boolean>>({});
+  const autoGeneratedStage5TriggersRef = useRef<Record<string, boolean>>({});
 
   const applyGeneratedStageText = (
     stageNum: number,
@@ -4666,12 +4774,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         thumbnailOrientation: orientationForThumb,
       };
       if (text.trim()) {
-        patch.thumbnailPrompt = buildOrUpdateThumbnailPrompt(
+        const parsedStage5 = parseStage5TriggersAndPrompts(
           text,
           orientationForThumb,
           activeDoc.thumbnailTextOverlay || '',
           activeDoc
         );
+        if (parsedStage5.triggers.length > 0) {
+          const desiredVariant: 'A' | 'B' | 'C' =
+            activeDoc.thumbnailPsychVariant === 'B'
+              ? 'B'
+              : activeDoc.thumbnailPsychVariant === 'C'
+              ? 'C'
+              : 'A';
+          const selectedTrigger =
+            parsedStage5.triggers.find((t) => t.id === desiredVariant) || parsedStage5.triggers[0];
+          patch.thumbnailPsychTriggers = parsedStage5.triggers;
+          patch.thumbnailPsychVariant = selectedTrigger.id;
+          patch.thumbnailPrompt = selectedTrigger.prompt;
+          const suggestedList = parsedStage5.triggers
+            .map((t) => (t.suggestedOverlay || '').trim())
+            .filter(Boolean);
+          if (suggestedList.length > 0) {
+            patch.thumbnailTextOptions = suggestedList;
+            if (parseThumbnailOverlayLines(activeDoc.thumbnailTextOverlay || '').length === 0) {
+              patch.thumbnailTextOverlay =
+                selectedTrigger.suggestedOverlay || suggestedList[0] || '';
+            }
+          }
+        } else {
+          patch.thumbnailPrompt = parsedStage5.fallbackPrompt;
+        }
       }
       if (images.length > 0) {
         patch.thumbnailImageUrl = images[images.length - 1];
@@ -5858,10 +5991,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   // Ensure the single root folder handle is restored and readwrite permission is granted WHILE a user click gesture is active,
   // so asynchronous background saves (like Stage 5 FLOW_THUMBNAIL_CAPTURED or Stage 8 FLOW_VIDEO_CAPTURED) never fall back to ~/Downloads.
   const ensureSingleDownloadFolderReadyOnGesture = async (): Promise<boolean> => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    const currentDocVidNum = extractDocVideoNumFromAnyText(
+      `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`
+    );
+    if (flowDownloadDirHandleRef.current && currentDocVidNum) {
+      const handleVidNum = extractDocVideoNumFromAnyText(flowDownloadDirHandleRef.current.name);
+      if (handleVidNum && handleVidNum !== currentDocVidNum) {
+        flowDownloadDirHandleRef.current = null;
+      }
+    }
+
     if (!flowDownloadDirHandleRef.current) {
       const restored = await loadDirHandleFromIndexedDB(activeDocRef.current?.id);
       if (restored) {
-        flowDownloadDirHandleRef.current = restored;
+        const restoredVidNum = extractDocVideoNumFromAnyText(restored.name);
+        if (!currentDocVidNum || !restoredVidNum || restoredVidNum === currentDocVidNum) {
+          flowDownloadDirHandleRef.current = restored;
+        }
       }
     }
 
@@ -5897,7 +6044,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
     }
 
-    if (flowServerFolderPath || globalStoredFolderPath) {
+    const isLocalOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (flowServerFolderPath || globalStoredFolderPath || hasSelectedDocFolder || (isLocalOrigin && currentDocVidNum)) {
       return true;
     }
 
@@ -5925,11 +6075,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
     const resolvedSubFolder = resolveSubfolderForDocumentaryAsset(cleanFileName, explicitSubFolder);
 
+    const currentDocForHandleCheck = activeDocRef.current || activeDoc;
+    const expectedDocVidNum = extractDocVideoNumFromAnyText(
+      `${currentDocForHandleCheck?.title || ''} ${currentDocForHandleCheck?.topic || ''}`
+    );
+    if (flowDownloadDirHandleRef.current && expectedDocVidNum) {
+      const handleVidNum = extractDocVideoNumFromAnyText(flowDownloadDirHandleRef.current.name);
+      if (handleVidNum && handleVidNum !== expectedDocVidNum) {
+        flowDownloadDirHandleRef.current = null;
+      }
+    }
+
     // Restore handle from IndexedDB if needed
     if (!flowDownloadDirHandleRef.current) {
       const restored = await loadDirHandleFromIndexedDB(activeDocRef.current?.id);
       if (restored) {
-        flowDownloadDirHandleRef.current = restored;
+        const restoredVidNum = extractDocVideoNumFromAnyText(restored.name);
+        if (!expectedDocVidNum || !restoredVidNum || restoredVidNum === expectedDocVidNum) {
+          flowDownloadDirHandleRef.current = restored;
+        }
       }
     }
 
@@ -9212,11 +9376,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         : 'A');
     const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
     const hasTypedLines = parseThumbnailOverlayLines(activeDoc.thumbnailTextOverlay || '').length > 0;
+    const matchedDynamicTrigger = (activeDoc.thumbnailPsychTriggers || []).find(
+      (t) => t.id === effectiveOptionLabel
+    );
+    const fallbackHooks = getDefaultCuriosityGapHooks(activeDoc);
     const effectiveOverlay = hasTypedLines
       ? activeDoc.thumbnailTextOverlay
-      : getDefaultCuriosityGapHooks(activeDoc)[
-          effectiveOptionLabel === 'B' ? 1 : effectiveOptionLabel === 'C' ? 2 : 0
-        ];
+      : matchedDynamicTrigger?.suggestedOverlay ||
+        fallbackHooks[effectiveOptionLabel === 'B' ? 1 : effectiveOptionLabel === 'C' ? 2 : 0] ||
+        fallbackHooks[0] ||
+        '';
 
     const existingPrompt = (activeDoc.thumbnailPrompt || '').trim();
     const promptText = usePsychVariant
@@ -9241,7 +9410,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         );
 
     updateActiveDoc({
-      thumbnailTextOverlay: effectiveOverlay,
+      ...(effectiveOverlay ? { thumbnailTextOverlay: effectiveOverlay } : {}),
       thumbnailOrientation: currentOrientation,
       thumbnailPsychVariant: effectiveOptionLabel,
       thumbnailPrompt: promptText,
@@ -9263,7 +9432,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     );
 
     const folderLabel =
-      flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
+      effectiveDocFolderName ||
+      getCanonicalFolderNameForDoc(activeDoc) ||
+      flowDownloadDirHandleRef.current?.name ||
+      'tu carpeta raíz';
 
     setThumbnailGeneratingOption(effectiveOptionLabel);
     setBridgeStatusType('WORKING');
@@ -10108,10 +10280,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
           await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
           const folderLabel =
-            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
+            effectiveDocFolderName ||
+            getCanonicalFolderNameForDoc(activeDocRef.current || activeDoc) ||
+            flowDownloadDirHandleRef.current?.name ||
+            'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(
-            `🖼️ ¡Miniatura Opción ${opt} importada automáticamente desde ${sourceLabel} y guardada en "${folderLabel}/03_Miniaturas/${thumbFileName}"!`
+            `🖼️ ¡Miniatura Opción ${opt} capturada automáticamente desde ${sourceLabel} y descargada en "${folderLabel}/03_Miniaturas/${thumbFileName}"!`
           );
           handleAuditThumbnailPsychology(opt, dataUrl);
         }
@@ -10284,12 +10459,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
     let workingOverlay = (currentDoc.thumbnailTextOverlay || '').trim();
     if (stageNum === 5 && !workingOverlay) {
-      const autoHooks = getDefaultCuriosityGapHooks(currentDoc);
-      workingOverlay = autoHooks[0];
-      updateActiveDoc({
-        thumbnailTextOverlay: workingOverlay,
-        thumbnailTextOptions: autoHooks,
-      });
+      const existingHooks = getDefaultCuriosityGapHooks(currentDoc);
+      if (existingHooks.length > 0) {
+        workingOverlay = existingHooks[0];
+      }
     }
     const orientationForThumb = getDefaultThumbnailOrientation(currentDoc);
     const matchedLibVideoForStage1 =
@@ -10599,6 +10772,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       tabId: preferredTabId || selectedFlowTabId,
     });
   };
+
+  // Auto-generate the 3 video-specific Neuropsychological Click Triggers + Thumbnail Prompt upon entering Stage 3 (activeStage === 5)
+  useEffect(() => {
+    if (activeStage !== 5 || !activeDoc) return;
+    if ((activeDoc.thumbnailPsychTriggers || []).length > 0) return;
+    if (
+      aiGenerating ||
+      bridgeStatusType === 'WORKING' ||
+      thumbnailGeneratingOption !== null ||
+      thumbOptionsGenerating
+    ) {
+      return;
+    }
+    if (!officialLogoUrl?.trim() && !isCloudMode) return;
+    const hasVideoStoryContext = Boolean(
+      (
+        activeDoc.voiceoverScript ||
+        activeDoc.deepResearchResult ||
+        activeDoc.topic ||
+        ''
+      ).trim()
+    );
+    if (!hasVideoStoryContext) return;
+    const guardKey = activeDoc.id;
+    if (autoGeneratedStage5TriggersRef.current[guardKey]) return;
+
+    const timer = setTimeout(() => {
+      autoGeneratedStage5TriggersRef.current[guardKey] = true;
+      handleSendStageToGeminiWeb(5);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    activeStage,
+    activeDoc?.id,
+    activeDoc?.thumbnailPsychTriggers?.length,
+    activeDoc?.voiceoverScript,
+    activeDoc?.deepResearchResult,
+    activeDoc?.topic,
+    officialLogoUrl,
+    aiGenerating,
+    bridgeStatusType,
+    thumbnailGeneratingOption,
+    thumbOptionsGenerating,
+    isCloudMode,
+  ]);
 
   // Text generation strictly via logged-in Gemini Web (No API Calls)
   const handleGenerateWithGemini = async (stageNum: number) => {
@@ -15312,6 +15530,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             =============================================================== */}
             {activeStage === 5 && (() => {
               const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
+              const dynamicTriggers = activeDoc.thumbnailPsychTriggers || [];
               const selectedPsychVariant: 'A' | 'B' | 'C' =
                 activeDoc.thumbnailPsychVariant === 'B'
                   ? 'B'
@@ -15332,19 +15551,42 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   activeDoc.thumbnailTextOverlay || '',
                   activeDoc
                 );
+                const updatedTriggers = dynamicTriggers.map((t) => ({
+                  ...t,
+                  prompt: buildOrUpdateThumbnailPrompt(
+                    t.prompt,
+                    newOrientation,
+                    activeDoc.thumbnailTextOverlay || t.suggestedOverlay || '',
+                    activeDoc
+                  ),
+                }));
                 updateActiveDoc({
                   thumbnailOrientation: newOrientation,
                   thumbnailPrompt: updatedPrompt,
+                  ...(updatedTriggers.length > 0
+                    ? { thumbnailPsychTriggers: updatedTriggers }
+                    : {}),
                 });
               };
 
               const handleSelectThumbnailPsychVariant = (newVariant: 'A' | 'B' | 'C') => {
-                const built = buildPsychologicalThumbnailVariantPrompt(
-                  newVariant,
-                  currentOrientation,
-                  activeDoc.thumbnailTextOverlay || '',
-                  activeDoc
-                );
+                const matched = dynamicTriggers.find((t) => t.id === newVariant);
+                const effectiveOverlay = hasOverlayText
+                  ? activeDoc.thumbnailTextOverlay || ''
+                  : matched?.suggestedOverlay || '';
+                const built = matched?.prompt
+                  ? buildOrUpdateThumbnailPrompt(
+                      matched.prompt,
+                      currentOrientation,
+                      effectiveOverlay,
+                      activeDoc
+                    )
+                  : buildPsychologicalThumbnailVariantPrompt(
+                      newVariant,
+                      currentOrientation,
+                      effectiveOverlay,
+                      activeDoc
+                    );
                 updateActiveDoc({
                   thumbnailPsychVariant: newVariant,
                   thumbnailOrientation: currentOrientation,
@@ -15353,6 +15595,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               };
 
               const handleChangeThumbnailTextOverlay = (newText: string) => {
+                const updatedTriggers = dynamicTriggers.map((t) => ({
+                  ...t,
+                  prompt: buildOrUpdateThumbnailPrompt(
+                    t.prompt,
+                    currentOrientation,
+                    newText || t.suggestedOverlay || '',
+                    activeDoc
+                  ),
+                }));
                 if ((activeDoc.thumbnailPrompt || '').trim()) {
                   const updatedPrompt = buildOrUpdateThumbnailPrompt(
                     activeDoc.thumbnailPrompt,
@@ -15364,11 +15615,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
                     thumbnailPrompt: updatedPrompt,
+                    ...(updatedTriggers.length > 0
+                      ? { thumbnailPsychTriggers: updatedTriggers }
+                      : {}),
                   });
                 } else {
                   updateActiveDoc({
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
+                    ...(updatedTriggers.length > 0
+                      ? { thumbnailPsychTriggers: updatedTriggers }
+                      : {}),
                   });
                 }
               };
@@ -15648,61 +15905,62 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
 
-                    {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DE ALTO CTR SELECCIONABLES (A / B / C) */}
+                    {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DINÁMICOS DEL DOCUMENTAL EN PROCESO */}
                     <div className="space-y-2 bg-slate-950/90 border border-indigo-500/30 rounded-xl p-3.5">
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <span className="text-xs font-extrabold text-indigo-300">
                           🧠 3. Disparadores Neuropsicológicos del Clic (Regla de 13ms + Rostro + Curiosity Gap):
                         </span>
                         <span className="text-[11px] text-amber-400 font-semibold">
-                          Click para seleccionar ángulo e insertarlo en el prompt
+                          {dynamicTriggers.length > 0
+                            ? 'Generados a medida para este video • Click para seleccionar'
+                            : 'Se generan automáticamente según el video en proceso'}
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        {[
-                          {
-                            opt: 'A' as const,
-                            title: 'Opción A: Rostro + Shock (13ms)',
-                            desc: 'Primer plano 60%, contacto visual directo a cámara, ojos muy abiertos y luz cálida vs. fondo frío.',
-                          },
-                          {
-                            opt: 'B' as const,
-                            title: 'Opción B: Curiosity Gap',
-                            desc: 'El segundo exacto antes del desastre o traición oculta que obliga al cerebro a hacer clic.',
-                          },
-                          {
-                            opt: 'C' as const,
-                            title: 'Opción C: Escala + Peligro',
-                            desc: 'Rostro humano vulnerable en shock frente a la magnitud colosal del suceso en alto contraste.',
-                          },
-                        ].map((item) => {
-                          const isSelectedTrigger = selectedPsychVariant === item.opt;
-                          return (
-                            <button
-                              key={item.opt}
-                              type="button"
-                              onClick={() => handleSelectThumbnailPsychVariant(item.opt)}
-                              className={`text-left rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                                isSelectedTrigger
-                                  ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
-                                  : 'bg-slate-900/90 border-slate-800 hover:border-amber-500/40'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-1.5">
-                                <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
-                                  <span
-                                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                                      isSelectedTrigger ? 'bg-amber-400' : 'bg-slate-600'
-                                    }`}
-                                  />
-                                  {item.title}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-slate-300 leading-snug">{item.desc}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {dynamicTriggers.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          {dynamicTriggers.map((item) => {
+                            const isSelectedTrigger = selectedPsychVariant === item.id;
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleSelectThumbnailPsychVariant(item.id)}
+                                className={`text-left rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                                  isSelectedTrigger
+                                    ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
+                                    : 'bg-slate-900/90 border-slate-800 hover:border-amber-500/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
+                                    <span
+                                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                        isSelectedTrigger ? 'bg-amber-400' : 'bg-slate-600'
+                                      }`}
+                                    />
+                                    {item.title}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-300 leading-snug">
+                                  {item.description}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : aiGenerating || bridgeStatusType === 'WORKING' ? (
+                        <div className="rounded-xl border border-indigo-500/30 bg-slate-900/70 p-3.5 flex items-center gap-3">
+                          <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin shrink-0" />
+                          <p className="text-[11px] text-amber-200 font-semibold leading-snug">
+                            Generando automáticamente en Gemini Web los 3 disparadores neuropsicológicos exclusivos para «{activeDoc.topic || activeDoc.title}» junto con el prompt...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/50 p-3 text-[11px] text-slate-400 leading-snug">
+                          Los 3 disparadores neuropsicológicos nunca están fijados: se generan a medida para «<strong className="text-amber-300">{activeDoc.topic || activeDoc.title}</strong>» junto con el prompt al pulsar <strong className="text-amber-300">&quot;Generar Prompt con Gemini&quot;</strong>.
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -15724,31 +15982,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             }`}
                             title={
                               officialLogoUrl
-                                ? 'Envía el prompt actual y la imagen del Logo Oficial a Gemini Web activando la herramienta Create image e importa la miniatura automáticamente'
+                                ? 'Envía el prompt actual y la imagen del Logo Oficial a Gemini Web activando la herramienta Create image, importa la miniatura automáticamente y la descarga en la carpeta 03_Miniaturas de este documental'
                                 : '🔒 Primero debes subir el Logo Oficial arriba'
                             }
                           >
                             {!officialLogoUrl
                               ? '🔒 Subir Logo para Crear Miniatura'
                               : thumbnailGeneratingOption
-                              ? '⏳ Creando Miniatura en Gemini Web...'
+                              ? '⏳ Creando y Descargando Miniatura...'
                               : '🖼️ Crear Miniatura en Gemini Web'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              await ensureSingleDownloadFolderReadyOnGesture();
-                              sendCommandToWebBridge('GEMINI', {
-                                action: 'SCAN_GEMINI_THUMBNAILS',
-                                docId: activeDoc.id,
-                                optionLabel: selectedPsychVariant,
-                                tabId: selectedGeminiTabId,
-                              });
-                            }}
-                            className="text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded font-semibold cursor-pointer"
-                            title="Captura la última miniatura generada en el chat abierto de Gemini Web y la guarda en tu carpeta única"
-                          >
-                            🔍 Capturar Miniatura de Gemini
                           </button>
                           <button
                             onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
@@ -15868,9 +16110,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             return (
                               <div
                                 key={opt}
-                                onClick={() =>
-                                  updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true })
-                                }
+                                onClick={async () => {
+                                  updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
+                                  await handleSaveAnyFileToChosenFolder(
+                                    'Miniatura_Oficial.png',
+                                    url,
+                                    '03_Miniaturas'
+                                  );
+                                }}
                                 className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
                                   isCurrent
                                     ? 'border-emerald-400 bg-emerald-500/10'

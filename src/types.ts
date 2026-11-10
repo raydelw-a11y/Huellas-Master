@@ -1,3 +1,11 @@
+export interface TTSSegmentTiming {
+  type: 'text' | 'pause';
+  text?: string;
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+}
+
 export interface TTSRecord {
   id: string;
   text: string;
@@ -14,6 +22,7 @@ export interface TTSRecord {
   duration: number;
   providerUsed?: string;
   label?: string;
+  segmentTimings?: TTSSegmentTiming[];
 }
 
 export interface ServerStatus {
