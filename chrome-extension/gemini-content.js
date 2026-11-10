@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 19) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 19;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 20) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 20;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -295,11 +295,28 @@
         ) {
           return false;
         }
+        // Force eager decoding so background/unfocused tabs load naturalWidth immediately
+        if (img.loading === 'lazy') {
+          try {
+            img.loading = 'eager';
+          } catch {}
+        }
+        const inGenContainer = Boolean(
+          img.closest(
+            'generated-image, single-image, [class*="generated-image" i], .image-container, [data-test-id*="image" i]'
+          )
+        );
         if (!img.complete) return false;
         const w = img.naturalWidth || img.width || 0;
-        const inGenContainer = Boolean(
-          img.closest('generated-image, single-image, [class*="generated-image" i], [data-test-id*="image" i]')
-        );
+        if (
+          inGenContainer &&
+          w === 0 &&
+          (src.includes('googleusercontent.com') ||
+            src.startsWith('blob:') ||
+            src.startsWith('data:image/'))
+        ) {
+          return true;
+        }
         return inGenContainer ? w >= 120 : w >= 200;
       })
       .map((img) => img.src);
@@ -1179,6 +1196,7 @@
     const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
     const isImageOrder = Boolean(meta && (meta.enableCreateImage || meta.mediaType === 'THUMBNAILS'));
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
+    const initialLastImageUrl = String((meta && meta.initialLastImageUrl) || '').trim();
     const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
     const maxTimeoutMs = isDeepResearch ? 1200000 : 180000; // 20 min for Deep Research, 3 min normal
 
@@ -1252,9 +1270,13 @@
             lastUserQueryText.includes(promptFingerprint.slice(0, 40))
         );
 
+      const latestLastImageUrl =
+        latest.images.length > 0 ? latest.images[latest.images.length - 1] : '';
       const isNewTurnResponse =
         (hasSubmittedNewUserTurn || stillStreaming || hasStarted) &&
-        (currentCount > initialCount || Boolean(latest.text && latest.text !== initialLastText));
+        (currentCount > initialCount ||
+          Boolean(latest.text && latest.text !== initialLastText) ||
+          Boolean(latestLastImageUrl && latestLastImageUrl !== initialLastImageUrl));
 
       if (stillStreaming || (hasSubmittedNewUserTurn && isNewTurnResponse)) {
         hasStarted = true;
@@ -3825,7 +3847,12 @@
 
         const initialResponses = getModelResponseElements();
         const initialCount = initialResponses.length;
-        const initialLastText = extractLatestGeminiResponse().text;
+        const initialLatestSnapshot = extractLatestGeminiResponse();
+        const initialLastText = initialLatestSnapshot.text;
+        const initialLastImageUrl =
+          initialLatestSnapshot.images.length > 0
+            ? initialLatestSnapshot.images[initialLatestSnapshot.images.length - 1]
+            : '';
         const initialUserQueries = document.querySelectorAll(
           'user-query, [data-message-author-role="user"]'
         ).length;
@@ -3926,6 +3953,7 @@
             targetChatTitle: resolvedTargetChatTitle,
             docId: payload.docId || '',
             initialUserQueries,
+            initialLastImageUrl,
             promptFingerprint,
             chatState,
           });

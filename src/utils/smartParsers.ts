@@ -1357,57 +1357,132 @@ export function buildClipsSkeletonFromTimeline(
 }
 
 // ============================================================================
-// 2. AUTO-DETECTOR DE REFERENCIAS (@Personas y Lugares - ETAPA 5)
+// 2. AUTO-DETECTOR DE REFERENCIAS (@Personas y Lugares - ETAPA 4 / INTERNA 6)
 // ============================================================================
+export function normalizeReferenceTagSlug(raw: string, fallbackIndex = 1): string {
+  const cleaned = String(raw || '')
+    .replace(/\[(?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:[^\]]*\]/gi, '')
+    .replace(/\((?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:[^)]*\)/gi, '')
+    .replace(/^(?:[-*#\d.)\s]+)?(?:Image|Imagen)\s+/i, '')
+    .replace(/^@+/, '')
+    .replace(/^(?:Ref_Image_|Ref_|Referencia_)+/i, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return `@${cleaned || `Referencia_${fallbackIndex}`}`;
+}
+
 export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
   if (!rawText || !rawText.trim()) return [];
   const lines = rawText.replace(/\r\n/g, '\n').split('\n');
   const results: ReferenceAsset[] = [];
 
   let currentTag = '';
-  let currentCategory: 'persona' | 'lugar' = 'persona';
+  let currentHadAt = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    if (/^Cambia los nombres y ponles @/i.test(line)) continue;
+    if (
+      /^(?:Cambia\s+(?:los\s+nombres|obligatoriamente\s+el\s+nombre)|Actúa\s+como\s+un\s+historiador|Usa\s+Nano\s+Banana|Cada\s+imagen\s+DEBE|Nombra\s+(?:obligatoriamente\s+)?cada\s+imagen|Nombres\s+exactos\s+de\s+las\s+imágenes)/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+    if (/^Google\s+Docs$/i.test(line) || /^\+\s*\d+$/.test(line)) continue;
+    if (/^\(?->\s*ALTO\s+INQUEBRANTABLE/i.test(line)) continue;
+
+    // Si es continuación multilínea de Frame Description (Character:, Location:, Physical Characteristics:, etc.)
+    if (
+      results.length > 0 &&
+      /^(?:Character|Location|Time of Day|Physical Characteristics(?: & Clothing)?|Clothing and Accessories|Visual Style)\s*:/i.test(
+        line
+      )
+    ) {
+      const prev = results[results.length - 1];
+      prev.prompt = `${prev.prompt}\n${line}`;
+      if (/^Location\s*:/i.test(line)) {
+        prev.category = 'lugar';
+      } else if (/^Character\s*:/i.test(line)) {
+        prev.category = 'persona';
+      }
+      continue;
+    }
 
     // Si la línea tiene "Create an image" o "Frame Description:"
     const createImgIdx = line.search(/Create an image|Frame Description\s*:/i);
     if (createImgIdx !== -1) {
-      const before = line.slice(0, createImgIdx).replace(/[:\-–*#\d.)]/g, '').trim();
-      const promptPart = line.slice(createImgIdx).trim();
-      const atMatch = line.match(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/);
-      const tag = atMatch
-        ? `@${atMatch[1]}`
-        : before || currentTag || `Referencia_${results.length + 1}`;
-      const isPerson =
-        tag.startsWith('@') ||
-        /character sheet|portrait|person|character|man|woman|emperor|king|queen/i.test(promptPart);
+      const rawBefore = line.slice(0, createImgIdx).trim();
+      const hadAtInHeader = /@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]/.test(rawBefore) || currentHadAt;
+      const explicitBracketMatch = rawBefore.match(
+        /\[(?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:\s*(@?[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ\s-]+)\]/i
+      );
+      const atInBefore = rawBefore
+        .replace(/\[(?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:[^\]]*\]/gi, '')
+        .match(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+(?:\s+[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)*)/);
+      const beforeClean = rawBefore
+        .replace(/\[(?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:[^\]]*\]/gi, '')
+        .replace(/\((?:Image Name|Nombre de (?:la )?imagen|Nombre de archivo)\s*:[^)]*\)/gi, '')
+        .replace(/^(?:[-*#\d.)\s]+)?(?:Image|Imagen)\s+/i, '')
+        .replace(/[:\-–|]+$/g, '')
+        .trim();
 
-      let shieldedPromptPart = applyAutomaticFlowPolicyShield(promptPart, true);
+      const promptPart = line.slice(createImgIdx).trim();
+      const rawTagSource =
+        explicitBracketMatch?.[1] ||
+        (atInBefore ? atInBefore[1] : '') ||
+        beforeClean ||
+        currentTag ||
+        `Referencia_${results.length + 1}`;
+      const normalizedTag = normalizeReferenceTagSlug(rawTagSource, results.length + 1);
+
+      const combinedCheck = `${beforeClean} ${normalizedTag} ${promptPart}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      const isExplicitPerson =
+        /character reference sheet|character sheet|6-view character|full-body standing|head and shoulders|close-up portrait of (?:the )?(?:face|head)|portrayed by an anonymous|\b\d+-year-old\b/i.test(
+          promptPart
+        );
+      const isExplicitLocation =
+        !isExplicitPerson &&
+        (/location reference sheet|6-view(?: historical)? location|4 different 16:9 views|6 (?:distinct|different|coherent) views.*location|zero people|no people,?\s*(?:zero\s*)?animals|empty environment|empty architectural|establishing shot of the environment/i.test(
+          promptPart
+        ) ||
+          /\b(?:muelle|aldea|puerto|campamento|almacen|panaderia|palacio|castillo|ciudad|calle|plaza|templo|iglesia|catedral|barco|vapor|entreponte|isla|valle|montana|bosque|edificio|fortaleza|prision|hospital|estacion|mercado|dock|pier|village|harbor|camp|bakery|steerage|street|cathedral|palace|castle)\b/i.test(
+            `${beforeClean} ${normalizedTag}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          ));
+
+      const isPerson = isExplicitPerson
+        ? true
+        : isExplicitLocation
+        ? false
+        : hadAtInHeader || /\b(?:farmer|physician|poet|soldier|king|queen|emperor|general|captain|doctor|clerk|merchant|monk|priest)\b/i.test(combinedCheck);
+
+      let shieldedPromptPart = isPerson ? applyAutomaticFlowPolicyShield(promptPart, true) : promptPart;
       if (isPerson && !/no real public figures/i.test(shieldedPromptPart)) {
         shieldedPromptPart = `${shieldedPromptPart.replace(/\.?\s*$/, '')}. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).`;
       }
 
       results.push({
         id: `ref-${Date.now()}-${results.length + 1}`,
-        tag,
+        tag: normalizedTag,
         category: isPerson ? 'persona' : 'lugar',
-        description: before || tag,
+        description: beforeClean.replace(/^@+/, '').replace(/_/g, ' ').trim() || normalizedTag,
         prompt: shieldedPromptPart,
         isCreated: false,
       });
       currentTag = '';
-    } else if (line.startsWith('@') || /^[-*#\d.)]*\s*@[A-Za-z0-9_]+/.test(line)) {
-      const m = line.match(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/);
-      if (m) {
-        currentTag = `@${m[1]}`;
-        currentCategory = 'persona';
-      }
+      currentHadAt = false;
+    } else if (line.startsWith('@') || /^[-*#\d.)]*\s*(?:Image\s+)?@[A-Za-z0-9_]+/i.test(line)) {
+      currentTag = normalizeReferenceTagSlug(line, results.length + 1);
+      currentHadAt = true;
     } else if (line.length < 90 && !line.endsWith('.')) {
-      currentTag = line.replace(/^[-*#\d.)\s]+|[:]+$/g, '').trim();
-      currentCategory = currentTag.startsWith('@') ? 'persona' : 'lugar';
+      const cleanedHeader = line.replace(/^[-*#\d.)\s]+|[:]+$/g, '').trim();
+      currentHadAt = cleanedHeader.includes('@');
+      currentTag = cleanedHeader;
     }
   }
 
@@ -1415,8 +1490,38 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
 }
 
 // ============================================================================
-// 3. AUTO-DETECTOR DE PISTAS DE FLOW MUSIC / SUNO (ETAPA 10)
+// 3. AUTO-DETECTOR DE PISTAS DE MÚSICA (FLOWMUSIC — ETAPA 8)
 // ============================================================================
+export function formatDurationForLyricsEndTag(durationStr?: string): string {
+  const raw = String(durationStr || '').trim();
+  if (!raw) return '2:30';
+  const mmSsMatch = raw.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (mmSsMatch) {
+    const mins = Math.max(0, parseInt(mmSsMatch[1], 10));
+    const secs = String(Math.min(59, Math.max(0, parseInt(mmSsMatch[2], 10)))).padStart(2, '0');
+    return `${mins}:${secs}`;
+  }
+  const secOnlyMatch = raw.match(/^(\d{2,3})\s*(?:s|seg|segundos?)$/i);
+  if (secOnlyMatch) {
+    const totalSec = Math.max(30, parseInt(secOnlyMatch[1], 10));
+    const mins = Math.floor(totalSec / 60);
+    const secs = String(totalSec % 60).padStart(2, '0');
+    return `${mins}:${secs}`;
+  }
+  return '2:30';
+}
+
+export function ensureLyricsEndDurationTag(lyricsPrompt: string, durationStr?: string): string {
+  const formattedDur = formatDurationForLyricsEndTag(durationStr);
+  const endTag = `[End - ${formattedDur}]`;
+  const base = (lyricsPrompt || '').trim() ||
+    '[Instrumental]\n[Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[Gentle 3s Fade-Out Outro]';
+  const stripped = base
+    .replace(/\s*\[End(?:\s*[-–—:]\s*\d{1,2}:\d{2})?\]\s*$/i, '')
+    .trim();
+  return stripped ? `${stripped}\n${endTag}` : endTag;
+}
+
 export function parseSunoTracksFromRawText(rawText: string): SunoTrack[] {
   if (!rawText || !rawText.trim()) return [];
   const tracks: SunoTrack[] = [];
@@ -1455,17 +1560,19 @@ export function parseSunoTracksFromRawText(rawText: string): SunoTrack[] {
       if (rawStyle && !/fade-in/i.test(rawStyle)) {
         rawStyle = `${rawStyle}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore mixed softly below narrator voice, 100% instrumental, strictly no vocals`;
       }
+      const resolvedDuration = durationMatch ? durationMatch[1].trim() : '2:30';
+      const rawLyrics = lyricsMatch
+        ? lyricsMatch[1].trim()
+        : '[Instrumental]\n[Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[Gentle 3s Fade-Out Outro]';
       tracks.push({
         id: `suno-${Date.now()}-${nextNum}`,
         trackNumber: nextNum,
         title: titleMatch
           ? titleMatch[1].replace(/^["«']+|["»']+$/g, '').trim()
           : `Pista ${nextNum}`,
-        duration: durationMatch ? durationMatch[1].trim() : '2:00',
-        videoTimeRange: rangeMatch ? rangeMatch[1].trim() : '00:00 - Final',
-        lyricsPrompt: lyricsMatch
-          ? lyricsMatch[1].trim()
-          : '[Instrumental]\n[Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[Gentle 3s Fade-Out Outro]',
+        duration: resolvedDuration,
+        videoTimeRange: rangeMatch ? rangeMatch[1].trim() : '00:08 - Final',
+        lyricsPrompt: ensureLyricsEndDurationTag(rawLyrics, resolvedDuration),
         stylePrompt: rawStyle,
         explanation: expMatch ? expMatch[1].trim() : '',
         isGenerated: false,

@@ -2465,14 +2465,19 @@ APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN
 8. Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 Entrega únicamente el prompt en inglés listo para copiar y pegar.`;
     } else if (stageNumber === 6) {
+      const isRefVertical =
+        doc.productionType === 'SHORT_9X16' || doc.promptConfig?.SUB_OPCION_REELS === '9X16';
+      const refAspect = isRefVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
       stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
 Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
 """
 ${doc.voiceoverScript || doc.sectionsStructure || ''}
 """
-Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1:
-- Antepón la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
-- Lista cada personaje principal con @Nombre_Personaje y cada lugar principal (sin @ en lugares), y entrega su prompt en inglés comenzando con "Create an image ..." incluyendo época (${doc.historicalTime}) y lugar (${doc.historicalLocation}), fotorrealista cinematográfico 8k, 'no text'.`;
+Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 en Google Flow (**6 views en cada imagen** y especificando el **nombre exacto** de cada imagen con @ y guiones bajos _ sin espacios ni tildes):
+- Antepón la orden operativa:
+  Usa Nano Banana 2.1. Genera cada imagen como una lámina de referencia con exactamente 6 vistas en una sola imagen (6 views en cuadrícula 3x2) y cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador @Nombre_Con_Guiones_Bajos indicado en cada prompt.
+- Para cada personaje principal (@Personas): Image @Nombre_Personaje [Image Name: @Nombre_Personaje]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [rasgos físicos detallados y vestimenta de época (${doc.historicalTime}, ${doc.historicalLocation}), portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Personaje
+- Para cada lugar principal (@Lugares): Image @Nombre_Lugar [Image Name: @Nombre_Lugar]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [arquitectura histórica, época (${doc.historicalTime}, ${doc.historicalLocation}) e iluminación], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Lugar`;
     } else if (stageNumber === 7) {
       stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} | Lugar: ${doc.historicalLocation} | Tiempo: ${doc.historicalTime}
@@ -2556,9 +2561,9 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámar
       const resolvedFinalDuration = formatSecToMmSs(totalDocSec);
       const outroStartMmSs = formatSecToMmSs(Math.max(0, totalDocSec - 90));
       const minRecommendedTracks =
-        totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 4 : 3;
+        totalDocSec >= 900 ? 5 : totalDocSec >= 660 ? 4 : totalDocSec >= 420 ? 3 : totalDocSec >= 240 ? 2 : 1;
       const maxRecommendedTracks =
-        totalDocSec >= 660 ? 8 : totalDocSec >= 420 ? 7 : totalDocSec >= 240 ? 5 : 4;
+        totalDocSec >= 900 ? 7 : totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 3 : 2;
       const clipsVisualSummary =
         Array.isArray(doc.clips) && doc.clips.length > 0
           ? doc.clips
@@ -2575,27 +2580,29 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 movimiento suave de cámar
               .join('\n')
           : '';
 
-      stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **Google Flow Music (https://www.flowmusic.app/)**.
+      stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **FlowMusic (https://www.flowmusic.app/)**.
 Tema: ${doc.topic || doc.title} (${doc.historicalTime || doc.historicalEra || ''}, ${doc.historicalLocation || doc.cityCountry || ''})
 Duración total exacta del documental (calculada de la Voz Narrativa y el Timeline de Clips): ${resolvedFinalDuration} (${totalDocSec} segundos)
 Guion / Estructura de escenas: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
 ${clipsVisualSummary ? `\nMapa de escenas visuales y clips:\n${clipsVisualSummary}\n` : ''}
-Genera la **ETAPA 10: BANDA SONORA CINEMATOGRÁFICA MULTIESCENA PARA FLOW MUSIC (flowmusic.app)** cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
+Genera la **ETAPA 8: MÚSICA (FLOWMUSIC — flowmusic.app)** cumpliendo estas REGLAS OBLIGATORIAS E INQUEBRANTABLES:
 1. CANTIDAD DINÁMICA DE CANCIONES SEGÚN LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones): Diseña entre ${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas acompañando los cambios visuales de escena, giros de la trama y actos emocionales del documental.
-2. SILENCIOS DRAMÁTICOS OBLIGATORIOS ENTRE CADA CANCIÓN (10 a 20 segundos):
-   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un silencio musical de 10 a 20 segundos sin música, ubicado en un cambio de escena o pregunta retórica donde solo se escuche la Voz Narrativa y el Foley ambiental.
-   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito el rango exacto y los clips que cubre (ej. 00:00 - 02:16 (Clip 1 al Clip 15)).
-3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (01:30):
+2. ESPACIOS SIN MÚSICA OBLIGATORIOS ENTRE CADA CANCIÓN (MÍNIMO 30 SEGUNDOS Y MÁXIMO 1 MINUTO / 0:30 a 1:00):
+   - Entre el final de una canción y el inicio de la siguiente DEBE haber obligatoriamente un espacio sin música de MÍNIMO 30 segundos (0:30) y MÁXIMO 1 minuto (1:00 / 60s), ubicado en un cambio de escena o pregunta retórica donde solo se escuche la Voz Narrativa y el Foley ambiental. Queda terminantemente prohibido dejar menos de 30 segundos o más de 1 minuto entre canciones.
+   - En el campo "3. De dónde a dónde cubre en el video en tiempo", deja explícito el rango exacto respetando ese espacio sin música de 30s a 1:00 entre cada canción (ej. Canción 1: 00:08 - 02:38 -> Espacio sin música de 40s [02:38 - 03:18] -> Canción 2: 03:18 - 05:48).
+3. LA ÚLTIMA CANCIÓN DEBE SER OBLIGATORIAMENTE DE SOLO 1:30 (1:30):
    - La ÚLTIMA canción de la banda sonora tiene que durar OBLIGATORIA E INQUEBRANTABLEMENTE solo 1:30 (${outroStartMmSs} - ${resolvedFinalDuration}), cubriendo el último minuto y medio del documental.
-4. FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL):
-   - En cada "5. Prompt de Style" (en inglés para Flow Music) incluye obligatoriamente: \`smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words\`.
-5. Entrega cada canción con los 6 campos exactos en este orden:
+4. ETIQUETA OBLIGATORIA [End - M:SS] AL FINAL DE LA LETRA (PROMPT DE LYRICS):
+   - Al final de la letra ("4. Prompt de Lyrics") de CADA canción, pon OBLIGATORIAMENTE en la última línea \`[End - M:SS]\` con la duración deseada exacta de esa canción (ejemplo: \`[End - 2:30]\` si la canción dura 2:30, o \`[End - 1:30]\` en la última canción de 1:30).
+5. FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL):
+   - En cada "5. Prompt de Style" (en inglés para FlowMusic) incluye obligatoriamente: \`smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words\`.
+6. Entrega cada canción con los 6 campos exactos en este orden:
 1. Título: [Título evocador de la escena]
-2. Duración: [Duración exacta en Flow Music; la última canción OBLIGATORIAMENTE 01:30]
-3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y)]
-4. Prompt de Lyrics: [Mapa instrumental en corchetes con [Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Gentle 3s Fade-Out Outro]]
-5. Prompt de Style: [Prompt técnico 100% en inglés para Flow Music (flowmusic.app) con instrumentos auténticos de la época, fade-in intro, fade-out outro y mezcla cálida debajo de la voz narrativa, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
-6. Explicación de la Canción: [Explicación de cómo suena, instrumentos, escenas que cubre y silencio dramático de 10-20s previo]`;
+2. Duración: [Duración exacta en FlowMusic, ej. 2:30; la última canción OBLIGATORIAMENTE 1:30]
+3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y), dejando de 30s a 1:00 sin música entre cada canción]
+4. Prompt de Lyrics: [Mapa instrumental en corchetes con [Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Gentle 3s Fade-Out Outro] y cerrando OBLIGATORIAMENTE al final con [End - 2:30] usando la duración deseada exacta de esa canción]
+5. Prompt de Style: [Prompt técnico 100% en inglés para FlowMusic (flowmusic.app) con instrumentos auténticos de la época, fade-in intro, fade-out outro y mezcla cálida debajo de la voz narrativa, strictly instrumental only, no vocals, no singing, no speech, no lyrics]
+6. Explicación de la Canción: [Explicación de cómo suena, instrumentos, escenas que cubre y espacio sin música de 30s a 1:00 previo]`;
     } else if (stageNumber === 101) {
       stagePrompt = `Actúa como estratega de CTR y director creativo de miniaturas para el canal documental "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}
@@ -3386,9 +3393,10 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
   try {
     const { folderPath = '', folderName = '', docTitle = '', fileName, dataUrl, subFolder } = req.body || {};
     const resolvedRoot =
+      resolveLocalDocumentaryFolder(folderPath, folderName, docTitle) ||
       (folderPath && String(folderPath).trim() && fs.existsSync(String(folderPath).trim())
         ? String(folderPath).trim()
-        : '') || resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+        : '');
     if (!resolvedRoot || !fileName || !dataUrl) {
       res.status(400).json({ error: 'Faltan parámetros para guardar el archivo.' });
       return;
@@ -4069,6 +4077,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       wPx: number;
     } | null = null;
     if (overlays?.burnInLogo !== false) {
+      const clientPrebakedOpacity = Boolean(overlays?.logo?.pngDataUrl);
       let logoDataUrl = overlays?.logo?.pngDataUrl || '';
       if (!logoDataUrl && fs.existsSync(OFFICIAL_LOGO_FILE)) {
         try {
@@ -4076,20 +4085,33 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           logoDataUrl = parsedLogo.logoDataUrl || '';
         } catch {}
       }
-      const defaultLogoW =
-        Number(savedFormatProfile.logoScalePct) > 0
-          ? Number(savedFormatProfile.logoScalePct)
-          : aspectRatio === '9:16' || outH > outW
-          ? 12
-          : 6;
-      const defaultLogoX =
-        typeof savedFormatProfile.logoPosX === 'number'
-          ? Number(savedFormatProfile.logoPosX)
-          : aspectRatio === '9:16' || outH > outW
-          ? 10
-          : 3;
-      const defaultLogoY =
-        typeof savedFormatProfile.logoPosY === 'number' ? Number(savedFormatProfile.logoPosY) : 3;
+      const useMigrated16x9Defaults =
+        targetFormatKey === '16:9' &&
+        !Boolean(savedClientState?.formatProfiles?._v4_16x9_logoDefault5);
+      const defaultLogoW = useMigrated16x9Defaults
+        ? 5
+        : Number(savedFormatProfile.logoScalePct) > 0
+        ? Number(savedFormatProfile.logoScalePct)
+        : aspectRatio === '9:16' || outH > outW
+        ? 12
+        : 5;
+      const defaultLogoOpacity = useMigrated16x9Defaults
+        ? 95
+        : typeof savedFormatProfile.logoOpacity === 'number'
+        ? Number(savedFormatProfile.logoOpacity)
+        : 95;
+      const defaultLogoX = useMigrated16x9Defaults
+        ? 3
+        : typeof savedFormatProfile.logoPosX === 'number'
+        ? Number(savedFormatProfile.logoPosX)
+        : aspectRatio === '9:16' || outH > outW
+        ? 10
+        : 3;
+      const defaultLogoY = useMigrated16x9Defaults
+        ? 3
+        : typeof savedFormatProfile.logoPosY === 'number'
+        ? Number(savedFormatProfile.logoPosY)
+        : 3;
       const wPct = Math.max(1, Math.min(45, Number(overlays?.logo?.wPct ?? defaultLogoW)));
       const xPct = Math.max(0, Math.min(95, Number(overlays?.logo?.xPct ?? defaultLogoX)));
       const yPct = Math.max(0, Math.min(95, Number(overlays?.logo?.yPct ?? defaultLogoY)));
@@ -4116,9 +4138,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       if (rawLogoPath && fs.existsSync(rawLogoPath)) {
         const targetLogoW = Math.max(24, Math.round((outW * wPct) / 100));
         const prescaledLogoPath = path.join(workDir, 'overlay_logo_scaled.png');
+        const clampedOpacity = Math.max(0.05, Math.min(1, defaultLogoOpacity / 100));
+        const vfLogo =
+          !clientPrebakedOpacity && clampedOpacity < 0.999
+            ? `scale=${targetLogoW}:-1,format=rgba,colorchannelmixer=aa=${clampedOpacity.toFixed(2)}`
+            : `scale=${targetLogoW}:-1`;
         try {
           execSync(
-            `"${ffmpegBin}" -y -i "${rawLogoPath.replace(/"/g, '\\"')}" -vf "scale=${targetLogoW}:-1" "${prescaledLogoPath.replace(/"/g, '\\"')}"`,
+            `"${ffmpegBin}" -y -i "${rawLogoPath.replace(/"/g, '\\"')}" -vf "${vfLogo}" "${prescaledLogoPath.replace(/"/g, '\\"')}"`,
             { stdio: 'ignore' }
           );
         } catch {}
@@ -6714,8 +6741,94 @@ function resolveLocalDocumentaryFolder(
     }
   }
 
+  // 4. Auto-create documentary folder in iCloud Videos if docTitle has a canonical "Video XX..." name
+  if (titleVidNum && rawTitle && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+    const baseLabel = rawTitle
+      .split(/\r?\n/)[0]
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 90);
+    if (baseLabel) {
+      const autoDir = path.join(icloudVideosDir, baseLabel);
+      try {
+        ensureDocumentarySubfolders(autoDir);
+        return autoDir;
+      } catch {}
+    }
+  }
+
   return '';
 }
+
+// Automatically save captured Gemini Web thumbnail into the documentary's 03_Miniaturas folder & sync project state
+app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const rawOpt = String(req.body?.option || 'A').trim().toUpperCase();
+    const opt: 'A' | 'B' | 'C' = rawOpt === 'B' ? 'B' : rawOpt === 'C' ? 'C' : 'A';
+    const imageDataUrl = String(req.body?.imageDataUrl || '').trim();
+    if (!imageDataUrl.startsWith('data:image/')) {
+      res.status(400).json({ ok: false, error: 'Se requiere imageDataUrl en formato base64.' });
+      return;
+    }
+
+    const list = readDocumentaries();
+    const idx = docId ? list.findIndex((d) => d && d.id === docId) : -1;
+    const doc = idx >= 0 ? list[idx] : list[0];
+    const docTitleHint = `${doc?.title || ''} ${doc?.topic || ''}`.trim();
+    const resolvedRoot = resolveLocalDocumentaryFolder(
+      doc?.downloadFolderPath || '',
+      doc?.downloadFolderName || '',
+      docTitleHint
+    );
+
+    const savedPaths: string[] = [];
+    if (resolvedRoot) {
+      ensureDocumentarySubfolders(resolvedRoot);
+      const thumbsDir = path.join(resolvedRoot, '03_Miniaturas');
+      if (!fs.existsSync(thumbsDir)) {
+        fs.mkdirSync(thumbsDir, { recursive: true });
+      }
+      const cleanBase64 = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
+      const imgBuffer = Buffer.from(cleanBase64, 'base64');
+      for (const name of [`Miniatura_Opcion_${opt}.png`, 'Miniatura_Oficial.png']) {
+        const targetFile = path.join(thumbsDir, name);
+        fs.writeFileSync(targetFile, imgBuffer);
+        try {
+          execSync(`chflags nohidden "${targetFile.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+        } catch {}
+        savedPaths.push(targetFile);
+      }
+    }
+
+    if (idx >= 0) {
+      list[idx] = {
+        ...list[idx],
+        thumbnailImageUrl: imageDataUrl,
+        thumbnailReady: true,
+        ...(resolvedRoot
+          ? {
+              downloadFolderPath: resolvedRoot,
+              downloadFolderName: path.basename(resolvedRoot),
+            }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      writeDocumentaries(list);
+    }
+
+    res.json({
+      ok: true,
+      folderPath: resolvedRoot,
+      folderName: resolvedRoot ? path.basename(resolvedRoot) : '',
+      savedPaths,
+    });
+  } catch (err: any) {
+    console.error('[save-captured-thumbnail] Error:', err);
+    res.status(500).json({ ok: false, error: err?.message || 'Error guardando miniatura.' });
+  }
+});
 
 app.get('/api/flow/list-folder-media', async (req, res) => {
   try {
@@ -7121,6 +7234,488 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       voiceoverFiles: [],
       sunoFiles: [],
       localTtsFiles: [],
+    });
+  }
+});
+
+app.post('/api/flow/sync-reference-downloads', async (req, res) => {
+  try {
+    const { execFileSync } = await import('child_process');
+    const {
+      folderPath = '',
+      folderName = '',
+      docTitle = '',
+      references = [],
+      promptsTxtContent = '',
+    } = req.body || {};
+
+    let resolvedRoot = resolveLocalDocumentaryFolder(
+      String(folderPath || ''),
+      String(folderName || ''),
+      String(docTitle || '')
+    );
+
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    if (!resolvedRoot && homeDir) {
+      const icloudVideosDir = path.join(
+        homeDir,
+        'Library',
+        'Mobile Documents',
+        'com~apple~CloudDocs',
+        '0YouTube',
+        'Huellas de la Humanidad',
+        'Videos'
+      );
+      const rawCandidate = String(folderName || docTitle || '').trim();
+      const safeDirName = rawCandidate
+        .replace(/[\/\\:*?"<>|]/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (
+        safeDirName &&
+        /^video\s*\d+\b/i.test(safeDirName) &&
+        fs.existsSync(icloudVideosDir) &&
+        fs.statSync(icloudVideosDir).isDirectory()
+      ) {
+        resolvedRoot = path.join(icloudVideosDir, safeDirName);
+        ensureDocumentarySubfolders(resolvedRoot);
+      }
+    }
+
+    if (!resolvedRoot) {
+      res.json({
+        ok: true,
+        resolvedRoot: '',
+        refsDir: '',
+        matchedReferences: [],
+        movedCount: 0,
+        movedFiles: [],
+      });
+      return;
+    }
+
+    ensureDocumentarySubfolders(resolvedRoot);
+    const refsDir = path.join(resolvedRoot, '04_Referencias');
+    if (!fs.existsSync(refsDir)) {
+      fs.mkdirSync(refsDir, { recursive: true });
+    }
+
+    if (typeof promptsTxtContent === 'string' && promptsTxtContent.trim()) {
+      const promptsPath = path.join(refsDir, 'Prompts_Referencias.txt');
+      let existingTxt = '';
+      try {
+        if (fs.existsSync(promptsPath)) {
+          existingTxt = fs.readFileSync(promptsPath, 'utf8');
+        }
+      } catch {}
+      if (existingTxt !== promptsTxtContent) {
+        fs.writeFileSync(promptsPath, promptsTxtContent, 'utf8');
+      }
+    }
+
+    const STOPWORDS = new Set([
+      'de',
+      'del',
+      'la',
+      'las',
+      'el',
+      'los',
+      'en',
+      'al',
+      'por',
+      'con',
+      'the',
+      'of',
+      'in',
+      'and',
+      'for',
+      'with',
+      'image',
+      'imagen',
+      'ref',
+      'referencia',
+      'view',
+      'views',
+      'sheet',
+      'character',
+      'location',
+      'create',
+      '4k',
+      '2k',
+      '1k',
+      'hd',
+      'png',
+      'jpg',
+      'jpeg',
+      'webp',
+    ]);
+
+    const extractMeaningfulTokens = (text: string): string[] => {
+      return text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w));
+    };
+
+    interface RefMatcher {
+      id: string;
+      rawTag: string;
+      canonicalTag: string;
+      cleanBase: string;
+      asciiSlug: string;
+      mangledSlug: string;
+      tokens: string[];
+    }
+
+    const rawRefsList = Array.isArray(references) ? references : [];
+    const refMatchers: RefMatcher[] = rawRefsList
+      .map((r: any, idx: number) => {
+        const rawSource = String(r?.tag || r?.description || '').trim();
+        if (!rawSource) return null;
+        const strippedHeader = rawSource
+          .replace(/^(?:Image|Imagen)\s+/i, '')
+          .replace(/^@+/, '')
+          .replace(/^(?:Ref_Image_|Ref_|Referencia_)+/i, '')
+          .trim();
+        const cleanBase =
+          strippedHeader
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Za-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '') || `Referencia_${idx + 1}`;
+        const asciiSlug = cleanBase.toLowerCase();
+        const mangledSlug = strippedHeader
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        const tokens = Array.from(
+          new Set([
+            ...extractMeaningfulTokens(strippedHeader),
+            ...extractMeaningfulTokens(String(r?.description || '')),
+          ])
+        );
+        return {
+          id: String(r?.id || `ref-${idx + 1}`),
+          rawTag: String(r?.tag || `@${cleanBase}`),
+          canonicalTag: `@${cleanBase}`,
+          cleanBase,
+          asciiSlug,
+          mangledSlug,
+          tokens,
+        };
+      })
+      .filter(Boolean) as RefMatcher[];
+
+    if (refMatchers.length === 0) {
+      res.json({
+        ok: true,
+        resolvedRoot,
+        refsDir,
+        matchedReferences: [],
+        movedCount: 0,
+        movedFiles: [],
+      });
+      return;
+    }
+
+    const normalizeCandidateFile = (fileName: string) => {
+      const baseName = path.basename(fileName);
+      const ext = path.extname(baseName);
+      const withoutExt = path.basename(baseName, ext);
+      // Exclude numbered clip keyframes, thumbnails, logos, or generic browser downloads
+      const isExcluded =
+        /^(?:(?:image|imagen|clip|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(]/i.test(withoutExt) ||
+        /^(?:miniatura|logo|thumbnail|intro|outro|img_\d+|image|download|untitled|captura|screenshot)\b/i.test(
+          withoutExt
+        );
+
+      const stripped = withoutExt
+        .replace(/\s*\(\d+\)\s*$/g, '')
+        .replace(/[_\-\s]*(?:4k|2k|1k|hd)?[_\-\s]*20\d{12,14}$/i, '')
+        .replace(/[_\-\s]*(?:4k|2k|1k|hd)$/i, '')
+        .replace(/^@+/, '')
+        .replace(/^(?:ref_image_|ref_|referencia_|image_@?|imagen_@?)+/i, '')
+        .trim();
+
+      const asciiSlug = stripped
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      const rawAsciiSlug = stripped
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      const tokens = extractMeaningfulTokens(stripped);
+      return { isExcluded, ext: ext.toLowerCase(), asciiSlug, rawAsciiSlug, tokens };
+    };
+
+    const matchFileToRef = (fileName: string): RefMatcher | null => {
+      const cand = normalizeCandidateFile(fileName);
+      if (cand.isExcluded || !cand.asciiSlug) return null;
+
+      // Pass 1: Exact or clean prefix/suffix slug match
+      for (const rm of refMatchers) {
+        if (
+          cand.asciiSlug === rm.asciiSlug ||
+          (rm.mangledSlug && cand.rawAsciiSlug === rm.mangledSlug) ||
+          (rm.asciiSlug.length >= 6 &&
+            (cand.asciiSlug.startsWith(`${rm.asciiSlug}_`) ||
+              cand.asciiSlug.endsWith(`_${rm.asciiSlug}`))) ||
+          (rm.mangledSlug.length >= 6 &&
+            (cand.rawAsciiSlug.startsWith(`${rm.mangledSlug}_`) ||
+              cand.rawAsciiSlug.endsWith(`_${rm.mangledSlug}`)))
+        ) {
+          return rm;
+        }
+      }
+
+      // Pass 2: Meaningful token subset match (handles Flow shortened or prompt-extended names without false positives)
+      if (cand.tokens.length === 0) return null;
+      let bestRef: RefMatcher | null = null;
+      let bestScore = 0;
+      let tied = false;
+
+      for (const rm of refMatchers) {
+        if (rm.tokens.length === 0) continue;
+        const rmSet = new Set(rm.tokens);
+        const candSet = new Set(cand.tokens);
+        let overlap = 0;
+        for (const t of candSet) {
+          if (rmSet.has(t)) overlap++;
+        }
+        if (overlap === 0) continue;
+
+        const allCandInRef = overlap === candSet.size && (overlap >= 2 || (overlap === 1 && rmSet.size === 1 && cand.tokens[0].length >= 5));
+        const allRefInCand = overlap === rmSet.size && (overlap >= 2 || (overlap === 1 && rm.tokens[0].length >= 6));
+
+        if (allCandInRef || allRefInCand) {
+          if (overlap > bestScore) {
+            bestScore = overlap;
+            bestRef = rm;
+            tied = false;
+          } else if (overlap === bestScore && bestRef && bestRef.id !== rm.id) {
+            tied = true;
+          }
+        }
+      }
+
+      return !tied && bestRef ? bestRef : null;
+    };
+
+    const movedFiles: string[] = [];
+    const moveMatchedImageIntoRefsDir = (srcFullPath: string, matchedRef: RefMatcher): string => {
+      const ext = (path.extname(srcFullPath) || '.png').toLowerCase();
+      const destFileName = `@${matchedRef.cleanBase}${ext}`;
+      const destFullPath = path.join(refsDir, destFileName);
+
+      if (path.resolve(srcFullPath) === path.resolve(destFullPath)) {
+        return destFullPath;
+      }
+
+      // Remove any older image file in refsDir that previously belonged to this exact reference
+      for (const existing of fs.readdirSync(refsDir)) {
+        if (existing.startsWith('.') || !/\.(png|jpg|jpeg|webp)$/i.test(existing)) continue;
+        const existingPath = path.join(refsDir, existing);
+        if (path.resolve(existingPath) === path.resolve(destFullPath)) continue;
+        const prevMatch = matchFileToRef(existing);
+        if (prevMatch && prevMatch.id === matchedRef.id) {
+          try {
+            fs.unlinkSync(existingPath);
+          } catch {}
+        }
+      }
+
+      fs.copyFileSync(srcFullPath, destFullPath);
+      if (fs.existsSync(destFullPath) && fs.statSync(destFullPath).size > 0) {
+        try {
+          execSync(`chflags nohidden "${destFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+        } catch {}
+        try {
+          fs.unlinkSync(srcFullPath);
+        } catch {}
+        movedFiles.push(destFileName);
+      }
+      return destFullPath;
+    };
+
+    const downloadsDir = homeDir ? path.join(homeDir, 'Downloads') : '';
+    const nowMs = Date.now();
+    const MAX_DOWNLOAD_AGE_MS = 48 * 3600 * 1000;
+
+    // 1. Inspect .zip archives in 04_Referencias, documentary root, and recent ~/Downloads
+    const zipSearchDirs = [
+      { dir: refsDir, isDownloads: false },
+      { dir: resolvedRoot, isDownloads: false },
+      ...(downloadsDir && fs.existsSync(downloadsDir) ? [{ dir: downloadsDir, isDownloads: true }] : []),
+    ];
+
+    for (const { dir, isDownloads } of zipSearchDirs) {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry.startsWith('.') || !/\.zip$/i.test(entry)) continue;
+        const zipFull = path.join(dir, entry);
+        let st: fs.Stats;
+        try {
+          st = fs.statSync(zipFull);
+        } catch {
+          continue;
+        }
+        if (!st.isFile() || st.size < 100) continue;
+        if (isDownloads && (nowMs - st.mtimeMs > MAX_DOWNLOAD_AGE_MS || nowMs - st.mtimeMs < 800)) {
+          continue;
+        }
+
+        let zipEntries: string[] = [];
+        try {
+          const out = execFileSync('unzip', ['-Z1', zipFull], {
+            encoding: 'utf8',
+            maxBuffer: 4 * 1024 * 1024,
+          });
+          zipEntries = out
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l && !l.endsWith('/') && !l.startsWith('__MACOSX/') && !path.basename(l).startsWith('.'));
+        } catch {
+          continue;
+        }
+
+        if (zipEntries.length === 0) continue;
+        const matchedZipEntries = zipEntries.filter(
+          (ze) => /\.(png|jpg|jpeg|webp)$/i.test(ze) && Boolean(matchFileToRef(path.basename(ze)))
+        );
+        if (matchedZipEntries.length === 0) continue;
+
+        const tmpExtractDir = path.join(
+          os.tmpdir(),
+          `huellas_refs_zip_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        );
+        try {
+          fs.mkdirSync(tmpExtractDir, { recursive: true });
+          execFileSync('unzip', ['-o', '-q', zipFull, '-d', tmpExtractDir]);
+          const walkAndMove = (walkDir: string) => {
+            for (const item of fs.readdirSync(walkDir)) {
+              if (item === '__MACOSX' || item.startsWith('.')) continue;
+              const fullItem = path.join(walkDir, item);
+              const itemStat = fs.statSync(fullItem);
+              if (itemStat.isDirectory()) {
+                walkAndMove(fullItem);
+              } else if (/\.(png|jpg|jpeg|webp)$/i.test(item)) {
+                const mr = matchFileToRef(item);
+                if (mr) {
+                  moveMatchedImageIntoRefsDir(fullItem, mr);
+                }
+              }
+            }
+          };
+          walkAndMove(tmpExtractDir);
+
+          // Delete .zip from Downloads only if every real file in the .zip was a matched reference image
+          if (!isDownloads || matchedZipEntries.length === zipEntries.length) {
+            try {
+              fs.unlinkSync(zipFull);
+            } catch {}
+          }
+        } catch (zipErr) {
+          console.warn('[Sync Reference Downloads] Error extracting zip:', zipErr);
+        } finally {
+          try {
+            fs.rmSync(tmpExtractDir, { recursive: true, force: true });
+          } catch {}
+        }
+      }
+    }
+
+    // 2. Inspect loose reference images in documentary root and recent ~/Downloads
+    const looseSearchDirs = [
+      { dir: resolvedRoot, isDownloads: false },
+      ...(downloadsDir && fs.existsSync(downloadsDir) ? [{ dir: downloadsDir, isDownloads: true }] : []),
+    ];
+
+    for (const { dir, isDownloads } of looseSearchDirs) {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+      const entries = fs.readdirSync(dir).sort((a, b) => {
+        try {
+          return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
+        } catch {
+          return 0;
+        }
+      });
+
+      for (const entry of entries) {
+        if (entry.startsWith('.') || !/\.(png|jpg|jpeg|webp)$/i.test(entry)) continue;
+        const fullEntry = path.join(dir, entry);
+        let st: fs.Stats;
+        try {
+          st = fs.statSync(fullEntry);
+        } catch {
+          continue;
+        }
+        if (!st.isFile() || st.size < 1024) continue;
+        if (isDownloads && (nowMs - st.mtimeMs > MAX_DOWNLOAD_AGE_MS || nowMs - st.mtimeMs < 800)) {
+          continue;
+        }
+
+        const matchedRef = matchFileToRef(entry);
+        if (matchedRef) {
+          moveMatchedImageIntoRefsDir(fullEntry, matchedRef);
+        }
+      }
+    }
+
+    // 3. Collect all matched reference images currently inside 04_Referencias
+    const bestFileByRefId = new Map<
+      string,
+      { id: string; tag: string; canonicalTag: string; fileName: string; url: string; mtimeMs: number }
+    >();
+    if (fs.existsSync(refsDir) && fs.statSync(refsDir).isDirectory()) {
+      for (const entry of fs.readdirSync(refsDir)) {
+        if (entry.startsWith('.') || !/\.(png|jpg|jpeg|webp)$/i.test(entry)) continue;
+        const fullEntry = path.join(refsDir, entry);
+        let st: fs.Stats;
+        try {
+          st = fs.statSync(fullEntry);
+        } catch {
+          continue;
+        }
+        if (!st.isFile() || st.size < 512) continue;
+        const matchedRef = matchFileToRef(entry);
+        if (!matchedRef) continue;
+        const prev = bestFileByRefId.get(matchedRef.id);
+        if (!prev || st.mtimeMs >= prev.mtimeMs) {
+          bestFileByRefId.set(matchedRef.id, {
+            id: matchedRef.id,
+            tag: matchedRef.rawTag,
+            canonicalTag: matchedRef.canonicalTag,
+            fileName: entry,
+            url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(fullEntry)}&v=${Math.floor(st.mtimeMs)}`,
+            mtimeMs: st.mtimeMs,
+          });
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      resolvedRoot,
+      refsDir,
+      movedCount: movedFiles.length,
+      movedFiles,
+      matchedReferences: Array.from(bestFileByRefId.values()).map(({ mtimeMs: _m, ...rest }) => rest),
+    });
+  } catch (err: any) {
+    console.warn('[Sync Reference Downloads Error]:', err);
+    res.json({
+      ok: false,
+      error: err?.message || 'Error sincronizando referencias descargadas.',
+      matchedReferences: [],
+      movedCount: 0,
+      movedFiles: [],
     });
   }
 });
@@ -13688,6 +14283,82 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
       if (stageNumber === 4) {
         extraPatch.timelineSentences = [];
         extraPatch.timelineFormattedText = '';
+      } else if (stageNumber === 5) {
+        const cleanStage5 = text
+          .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .trim();
+        const blockRegex =
+          /\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?([\s\S]*?)(?=\n\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\s*\]?|$)/gi;
+        const parsedTriggers: Array<{
+          id: 'A' | 'B' | 'C';
+          title: string;
+          description: string;
+          prompt: string;
+          suggestedOverlay?: string;
+        }> = [];
+        let mBlock: RegExpExecArray | null;
+        while ((mBlock = blockRegex.exec(cleanStage5)) !== null) {
+          const id = mBlock[1].toUpperCase() as 'A' | 'B' | 'C';
+          const body = mBlock[2] || '';
+          const titleMatch = body.match(
+            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*T[IÍ]TULO\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+          );
+          const descMatch = body.match(
+            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*DESCRIPCI[OÓ]N\s*(?:\*\*)?\s*:\s*([^\n]+(?:\n(?!\s*(?:\*\*|[-•*])?\s*(?:TEXTO_PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
+          );
+          const overlayMatch = body.match(
+            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*TEXTO[_\s]*PANTALLA\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+          );
+          const promptMatch = body.match(
+            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*PROMPT\s*(?:\*\*)?\s*:\s*([\s\S]+)$/i
+          );
+          const rawTitleVal = (titleMatch?.[1] || '').replace(/^\*+|\*+$/g, '').trim();
+          const cleanTitle = rawTitleVal
+            ? /^opci[oó]n\s*[abc]\b/i.test(rawTitleVal)
+              ? rawTitleVal
+              : `Opción ${id}: ${rawTitleVal}`
+            : `Opción ${id}`;
+          const cleanDesc = (descMatch?.[1] || '').replace(/\s+/g, ' ').replace(/^\*+|\*+$/g, '').trim();
+          const cleanOverlay = (overlayMatch?.[1] || '')
+            .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+            .split(/\s*(?:\/|\|)\s*/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join('\n');
+          const cleanPrompt = (promptMatch?.[1] || '')
+            .replace(/^["'`]+|["'`]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (cleanPrompt && !parsedTriggers.some((t) => t.id === id)) {
+            parsedTriggers.push({
+              id,
+              title: cleanTitle,
+              description: cleanDesc,
+              prompt: cleanPrompt,
+              ...(cleanOverlay ? { suggestedOverlay: cleanOverlay } : {}),
+            });
+          }
+        }
+        if (parsedTriggers.length > 0) {
+          extraPatch.thumbnailPsychTriggers = parsedTriggers;
+          const selVar: 'A' | 'B' | 'C' =
+            list[idx].thumbnailPsychVariant === 'B'
+              ? 'B'
+              : list[idx].thumbnailPsychVariant === 'C'
+              ? 'C'
+              : 'A';
+          const chosen = parsedTriggers.find((t) => t.id === selVar) || parsedTriggers[0];
+          extraPatch.thumbnailPsychVariant = chosen.id;
+          extraPatch.thumbnailPrompt = chosen.prompt;
+          const overlays = parsedTriggers
+            .map((t) => t.suggestedOverlay)
+            .filter((v): v is string => Boolean(v));
+          if (!String(list[idx].thumbnailTextOverlay || '').trim() && overlays.length > 0) {
+            extraPatch.thumbnailTextOverlay = chosen.suggestedOverlay || overlays[0];
+            extraPatch.thumbnailTextOptions = overlays;
+          }
+        }
       } else if (stageNumber === 9) {
         extraPatch.correctedSrt = text
           .replace(/^```(?:srt|txt|plaintext)?\s*\n?/i, '')

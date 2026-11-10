@@ -5069,7 +5069,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return;
       }
-      broadcastToHuellasTabsInSameWindow(senderWindowId, message);
+      if (
+      (message.type === 'FLOW_THUMBNAIL_CAPTURED' || message.type === 'GEMINI_THUMBNAIL_CAPTURED') &&
+      (message.imageDataUrl || message.imageUrl)
+    ) {
+      fetch('http://localhost:4200/api/gemini-web/save-captured-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId: message.docId || '',
+          option: message.option || 'A',
+          imageDataUrl: message.imageDataUrl || message.imageUrl || '',
+        }),
+      }).catch(() => {});
+    }
+    broadcastToHuellasTabsInSameWindow(senderWindowId, message);
       // Local orders: idempotent backup in the Mac server (only fills an EMPTY field), so a reloaded/closed
       // app tab can never lose a 25-min Deep Research report
       const stageNum = Number(message.stageNumber) || 0;
@@ -5115,6 +5129,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: JSON.stringify(message),
         }).catch(() => {});
       }
+    }
+    if (
+      (message.type === 'FLOW_THUMBNAIL_CAPTURED' || message.type === 'GEMINI_THUMBNAIL_CAPTURED') &&
+      (message.imageDataUrl || message.imageUrl)
+    ) {
+      fetch('http://localhost:4200/api/gemini-web/save-captured-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId: message.docId || '',
+          option: message.option || 'A',
+          imageDataUrl: message.imageDataUrl || message.imageUrl || '',
+        }),
+      }).catch(() => {});
     }
     broadcastToHuellasTabsInSameWindow(senderWindowId, message);
     sendResponse({ ok: true });

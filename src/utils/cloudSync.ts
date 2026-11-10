@@ -741,84 +741,84 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
           id: 'flowmusic-v76-track-1',
           trackNumber: 1,
           title: 'El Muelle de la Despedida (Santander y Asturias, 1885)',
-          duration: '02:28',
-          videoTimeRange: '00:08 - 02:36 (Clip 1 al Clip 16)',
+          duration: '2:04',
+          videoTimeRange: '00:08 - 02:12 (Clip 1 al Clip 14)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Melancholic Spanish Acoustic Guitar & Cello Underscore Below Narrator Voice]\n[Subtle Atlantic Fog Tension]\n[Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Melancholic Spanish Acoustic Guitar & Cello Underscore Below Narrator Voice]\n[Subtle Atlantic Fog Tension]\n[Gentle 3s Fade-Out Outro]\n[End - 2:04]',
           stylePrompt:
             'Cinematic historical documentary score, 19th century northern Spain farewell atmosphere, solo nylon-string Spanish guitar, mournful cello, soft distant Galician-Asturian woodwind drone, slow tempo 62 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words',
           explanation:
-            'Acompaña el Hook en el muelle de Santander y el desgarro de las aldeas del norte ante la redención en metálico de 2 mil pesetas. Se apaga con Fade-Out dejando un silencio dramático de 16s.',
+            'Acompaña el Hook en el muelle de Santander y el desgarro de las aldeas del norte ante la redención en metálico de 2 mil pesetas. Se apaga con Fade-Out dejando un espacio sin música de 40s.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-2',
           trackNumber: 2,
           title: 'Las Entrañas del Vapor Transatlántico',
-          duration: '02:28',
-          videoTimeRange: '02:52 - 05:20 (Clip 18 al Clip 32)',
+          duration: '2:04',
+          videoTimeRange: '02:52 - 04:56 (Clip 18 al Clip 30)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Dark Low Strings & Subdued Maritime Pulse Below Voice]\n[Deep Ocean Crossing Suspense]\n[Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Dark Low Strings & Subdued Maritime Pulse Below Voice]\n[Deep Ocean Crossing Suspense]\n[Gentle 3s Fade-Out Outro]\n[End - 2:04]',
           stylePrompt:
             'Dark cinematic orchestral documentary underscore, late 19th century transatlantic steamship crossing in steerage, deep double bass, tremolo violas, muted French horn, subtle deep heartbeat percussion, slow-mid tempo 66 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary mix sitting softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing, no lyrics',
           explanation:
-            'Entra tras 16s de silencio para acompañar el pasaje de tercera clase, las literas de hierro del entrepuente y la travesía oceánica.',
+            'Entra tras 40s sin música para acompañar el pasaje de tercera clase, las literas de hierro del entrepuente y la travesía oceánica.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-3',
           trackNumber: 3,
           title: 'Cuarentena en Triscornia y Muelles de Veracruz',
-          duration: '02:28',
-          videoTimeRange: '05:36 - 08:04 (Clip 34 al Clip 47)',
+          duration: '2:04',
+          videoTimeRange: '05:36 - 07:40 (Clip 34 al Clip 45)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Tropical Noir Strings & Subtle Harp Underscore]\n[solemn Arrival & Uncertainty]\n[Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Tropical Noir Strings & Subtle Harp Underscore]\n[Solemn Arrival & Uncertainty]\n[Gentle 3s Fade-Out Outro]\n[End - 2:04]',
           stylePrompt:
             'Atmospheric historical documentary film score, turn-of-the-century Havana and Veracruz harbor arrival, chamber strings, solo classical guitar, warm bassoon, delicate harp harmonics, slow contemplative tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore below narrator voice without vocal range clash, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Acompaña la llegada al trópico, el campamento de cuarentena de Triscornia y el desembarco en Veracruz.',
+            'Entra tras 40s sin música y acompaña la llegada al trópico, el campamento de cuarentena de Triscornia y el desembarco en Veracruz.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-4',
           trackNumber: 4,
           title: 'Dieciséis Horas Detrás del Mostrador',
-          duration: '02:24',
-          videoTimeRange: '08:20 - 10:44 (Clip 49 al Clip 61)',
+          duration: '2:04',
+          videoTimeRange: '08:20 - 10:24 (Clip 49 al Clip 59)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Intimate Piano & Solo Cello Documentary Underscore]\n[Quiet Perseverance & Solitude]\n[Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Intimate Piano & Solo Cello Documentary Underscore]\n[Quiet Perseverance & Solitude]\n[Gentle 3s Fade-Out Outro]\n[End - 2:04]',
           stylePrompt:
             'Intimate minimalist historical documentary score, early 20th century immigrant clerk working in dim wooden store, felt piano, warm solo cello, soft upright bass pizzicato, slow reflective tempo 60 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore mixed softly underneath narrator voice, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Retrata la dura realidad del dependiente durmiendo sobre el mostrador de cedro y las jornadas de 16 horas.',
+            'Entra tras 40s sin música y retrata la dura realidad del dependiente durmiendo sobre el mostrador de cedro y las jornadas de 16 horas.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-5',
           trackNumber: 5,
           title: 'Palacios de Piedra y Escuelas de Indianos',
-          duration: '02:28',
-          videoTimeRange: '11:00 - 13:28 (Clip 63 al Clip 74)',
+          duration: '2:00',
+          videoTimeRange: '11:04 - 13:04 (Clip 63 al Clip 72)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Noble Chamber Orchestra & Classical Guitar Underscore]\n[Dignified Historical Transformation]\n[Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Noble Chamber Orchestra & Classical Guitar Underscore]\n[Dignified Historical Transformation]\n[Gentle 3s Fade-Out Outro]\n[End - 2:00]',
           stylePrompt:
             'Noble cinematic documentary orchestral score, early 20th century mutual aid palaces and rural schools in Spain, warm string ensemble, classical Spanish guitar arpeggios, soft oboe, dignified tempo 68 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid frequency documentary underscore sitting softly below narrator voice, 100% instrumental, strictly no vocals, no singing',
           explanation:
-            'Acompaña el auge de los centros regionales, hospitales, remesas y las 500 escuelas financiadas en el norte de España.',
+            'Entra tras 40s sin música y acompaña el auge de los centros regionales, hospitales, remesas y las 500 escuelas financiadas en el norte de España.',
           isGenerated: false,
         },
         {
           id: 'flowmusic-v76-track-6',
           trackNumber: 6,
           title: 'La Sangre de Dos Orillas (Cierre Documental)',
-          duration: '01:30',
+          duration: '1:30',
           videoTimeRange: '13:44 - 15:14 (Clip 75 hasta el final del Clip 82 antes del Outro)',
           lyricsPrompt:
-            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Emotional Cello & Spanish Guitar Finale Below Narrator Voice]\n[01:05 Sweeping Cinematic Resolution]\n[01:25 Gentle 3s Fade-Out Outro]',
+            '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Emotional Cello & Spanish Guitar Finale Below Narrator Voice]\n[01:05 Sweeping Cinematic Resolution]\n[01:25 Gentle 3s Fade-Out Outro]\n[End - 1:30]',
           stylePrompt:
             'Sweeping emotional historical documentary finale score, 1 minute 30 seconds duration, poignant solo cello, expressive Spanish acoustic guitar, warm orchestral strings, timeless Atlantic horizon atmosphere, slow noble tempo 64 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore below narrator voice rising gently in the final seconds, 100% instrumental, strictly no vocals, no singing, no spoken words',
           explanation:
-            'Última canción obligatoria de 1:30 que llega exactamente hasta el final del Clip 82 justo antes del Outro oficial de 8s.',
+            'Entra tras 40s sin música: última canción obligatoria de 1:30 que llega exactamente hasta el final del Clip 82 justo antes del Outro oficial de 8s.',
           isGenerated: false,
         },
       ];
@@ -2264,30 +2264,28 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
       .split('\n')
       .map((l) => l.trim().replace(/"/g, "'"))
       .filter(Boolean);
-    const effectiveLines = overlayLines.length > 0 ? overlayLines : ['EL SECRETO OCULTO'];
+    const hasUserOverlay = overlayLines.length > 0;
     const overlayPositionPhrase = isThumbHorizontal
       ? 'positioned in the bottom-left area of the image'
       : 'centered and middle-justified right in the middle center of the image';
-    const overlayEnglishClause =
-      effectiveLines.length === 1
-        ? `bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "${effectiveLines[0]}"`
+    const userOverlayEnglishClause = hasUserOverlay
+      ? overlayLines.length === 1
+        ? `bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "${overlayLines[0]}"`
         : `bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across ${
-            effectiveLines.length
-          } exact separate lines (${effectiveLines
+            overlayLines.length
+          } exact separate lines (${overlayLines
             .map((line, idx) => `Line ${idx + 1}: "${line}"`)
-            .join(' / ')})`;
-    const overlaySpanishSummary =
-      effectiveLines.length === 1
-        ? `"${effectiveLines[0]}"`
-        : `${effectiveLines.length} líneas separadas -> ${effectiveLines
-            .map((l, idx) => `Línea ${idx + 1}: "${l}"`)
-            .join(' | ')}`;
-    const psychVariant =
-      doc.thumbnailPsychVariant === 'B'
-        ? 'B (Curiosity Gap: el segundo exacto antes del desastre o traición oculta que obliga al cerebro a hacer clic)'
-        : doc.thumbnailPsychVariant === 'C'
-        ? 'C (Escala + Peligro: rostro humano vulnerable en shock frente a la magnitud colosal del suceso en alto contraste)'
-        : 'A (Rostro + Shock 13ms: primer plano 60%, contacto visual directo a cámara, ojos muy abiertos y luz cálida vs. fondo frío)';
+            .join(' / ')})`
+      : '';
+    const overlayInstructionBlock = hasUserOverlay
+      ? `Texto en pantalla definido por el usuario (OBLIGATORIO usar exactamente estas líneas en las 3 opciones): ${
+          overlayLines.length === 1
+            ? `"${overlayLines[0]}"`
+            : `${overlayLines.length} líneas separadas -> ${overlayLines
+                .map((l, idx) => `Línea ${idx + 1}: "${l}"`)
+                .join(' / ')}`
+        }`
+      : `Texto en pantalla: El usuario dejó el campo abierto; inventa para cada disparador un gancho corto de Curiosity Gap en español en MAYÚSCULAS (2 a 4 palabras en 1 o 2 líneas separadas por " / ", específico de ESTE documental y que NO repita el título).`;
     const refsContext = Array.isArray(doc.references)
       ? doc.references
           .slice(0, 6)
@@ -2301,52 +2299,77 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
           .filter(Boolean)
           .join('\n')
       : '';
+    const aspectPhrase = isThumbHorizontal
+      ? '16:9 horizontal aspect ratio'
+      : '9:16 vertical aspect ratio';
+    const badgeLabel = isThumbHorizontal ? '8K' : 'HD';
     stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
 Tema / Título: ${doc.topic || doc.title} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
 Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
-Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+Guion / Investigación REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
 """
-${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 1400)}
+${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 2400)}
 """
 Personajes y Lugares del documental (@Referencias):
 ${refsContext}
 Primeras escenas visuales del documental (Clips):
 ${clipsContext}
-Orientación: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
-Disparador Neuropsicológico Seleccionado: Opción ${psychVariant}
-Texto en pantalla obligatorio (Curiosity Gap): ${overlaySpanishSummary}
+Orientación activa: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
+${overlayInstructionBlock}
 
-REGLA CRÍTICA DE FIDELIDAD TEMÁTICA: Si el campo "Título" contiene el nombre de un video anterior o provisional (ej. "Video 75..."), IGNÓRALO y basa la escena visual de la miniatura 100% en el Guion REAL, los Personajes (@Referencias) y las escenas de los Clips de arriba.
-
-APLICA OBLIGATORIAMENTE LOS 5 PRINCIPIOS NEUROPSICOLÓGICOS DEL CTR EN LA IMAGEN:
-1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante del protagonista real del guion en primer plano + 1 elemento detonante de peligro/misterio del guion + texto gancho), instantáneamente legible en la pantalla diminuta de un móvil.
-2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: El protagonista histórico real del guion ocupa el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directamente al lente de la cámara ("direct piercing eye contact with the viewer"), con ojos muy abiertos mostrando la esclerótica blanca, expresión visceral intensa de shock, asombro, terror o traición descubierta, textura real de poros, sudor o lágrimas.
-3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Muestra el segundo exacto antes del desastre o una contradicción visual enigmática del guion que obligue al cerebro del espectador a preguntarse "¿Qué acaba de pasar ahí?".
-4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Iluminación dramática de claroscuro con luz clave cálida de alto impacto (oro ardiente, fuego carmesí o ámbar intenso) sobre el rostro y luz de recorte (rim light) brillante que lo despega de un fondo oscuro saturado en tonos fríos (azul cian nocturno profundo o negro abismal).
-5. ELEMENTOS DE MARCA Y TEXTO OBLIGATORIOS:
-   - Inicia el prompt en inglés con: "Thumbnail: Create an image in ${
-     isThumbHorizontal ? '16:9 horizontal aspect ratio' : '9:16 vertical aspect ratio'
-   } "
-   - Incluye textualmente: '${overlayEnglishClause}'
-   - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${
-     isThumbHorizontal ? '8K' : 'HD'
-   }" in metallic gold'
+TAREA OBLIGATORIA — 3 DISPARADORES NEUROPSICOLÓGICOS DINÁMICOS EXCLUSIVOS DE ESTE VIDEO + SUS 3 PROMPTS EN INGLÉS:
+Diseña 3 opciones distintas de Disparadores Neuropsicológicos del Clic ([DISPARADOR_A], [DISPARADOR_B], [DISPARADOR_C]) creadas 100% A MEDIDA para la historia real de ESTE documental en proceso.
+PROHIBIDO usar nombres o descripciones genéricas fijas como "Rostro + Shock (13ms)", "Curiosity Gap" o "Escala + Peligro". Cada título y descripción debe nombrar el momento histórico concreto, el objeto detonante, el dilema o el giro real de ESTE video específico, aplicando siempre los 5 principios neuropsicológicos del CTR:
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento histórico detonante de misterio/peligro real de este guion + texto gancho), instantáneamente legible en móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: Protagonista de esta historia ocupando el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directo al lente ("direct piercing eye contact into the camera lens"), ojos muy abiertos mostrando la esclerótica blanca, emoción visceral auténtica (asombro, terror, descubrimiento o traición), poros y sudor reales.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Cada una de las 3 opciones debe abordar un instante o misterio distinto y real de ESTE documental que obligue al espectador a preguntarse "¿Qué acaba de ocurrir ahí?".
+4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Claroscuro dramático con luz clave cálida (ámbar ardiente, oro o fuego carmesí) sobre el rostro y rim light que lo separe de un fondo oscuro frío (azul cian nocturno o sombras abismales).
+5. REGLAS TÉCNICAS OBLIGATORIAS DENTRO DE CADA "PROMPT:" (EN UNA SOLA LÍNEA EN INGLÉS):
+   - Inicia exactamente con: "Thumbnail: Create an image in ${aspectPhrase} "
+   - ${
+     hasUserOverlay
+       ? `Incluye textualmente: '${userOverlayEnglishClause}'`
+       : `Incluye el texto en pantalla de esa opción usando exactamente: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "LINEA UNICA"' (o si tiene 2 líneas en TEXTO_PANTALLA separadas por " / ", usa: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across 2 exact separate lines (Line 1: "PRIMERA" / Line 2: "SEGUNDA")')`
+   }
+   - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold'
    - Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
-   - BLINDAJE ANTI-FILTRO FLOW: Describe siempre el rostro por sus rasgos físicos y vestimenta de época como un actor anónimo de recreación histórica ("portrayed by an anonymous historical reenactment actor in authentic period attire, no real public figures or prominent people"), evitando poner nombres propios de reyes o políticos reales en el prompt en inglés.
+   - BLINDAJE ANTI-FILTRO: Describe siempre al personaje por sus rasgos físicos y vestimenta de época como actor anónimo de recreación histórica ("portrayed by an anonymous historical reenactment actor in authentic period attire, no real public figures or prominent people"), sin poner nombres propios de figuras públicas reales dentro del prompt en inglés.
    - Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
-Entrega únicamente el prompt en inglés listo para copiar y pegar.`;
+
+FORMATO DE ENTREGA ESTRICTO (entrega ÚNICAMENTE estos 3 bloques exactos, sin saludos ni explicaciones fuera de ellos):
+[DISPARADOR_A]
+TITULO: Opción A: <Título específico de 3 a 7 palabras basado en un momento/elemento clave de ESTE documental>
+DESCRIPCION: <1 a 2 frases en español explicando la escena específica de este video, la expresión del rostro en 13ms y por qué abre una brecha de curiosidad irresistible>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS (usa " / " si son 2 líneas)>'}
+PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
+
+[DISPARADOR_B]
+TITULO: Opción B: <Segundo ángulo específico de 3 a 7 palabras basado en otro giro/escena real de ESTE documental>
+DESCRIPCION: <1 a 2 frases en español explicando este segundo disparador visual único de este video>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<SEGUNDO GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS>'}
+PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
+
+[DISPARADOR_C]
+TITULO: Opción C: <Tercer ángulo específico de 3 a 7 palabras basado en otra revelación/escena real de ESTE documental>
+DESCRIPCION: <1 a 2 frases en español explicando este tercer disparador visual único de este video>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<TERCER GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS>'}
+PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...`;
   } else if (stageNumber === 6) {
+    const isRefVertical =
+      doc.productionType === 'SHORT_9X16' || doc.promptConfig?.SUB_OPCION_REELS === '9X16';
+    const refAspect = isRefVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
     stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
 Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
 """
 ${doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || ''}
 """
-Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 (estándar oficial de continuidad de Google Flow):
-- Antepón en la primera línea literalmente la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
-- Para cada PERSONAJE principal, escribe una sola línea con el formato (describiendo únicamente rasgos físicos y vestimenta histórica como actor anónimo de recreación histórica para evitar el filtro "prominent people" de Google Flow):
-  @Nombre_Personaje: Create an image in 16:9 of a character sheet with a head and shoulders shot showing the character's face on the left and a full body shot of the character on the right wearing the same period-accurate clothing and accessories (${doc.historicalTime}, ${doc.historicalLocation}) against a seamless white background, bright even lighting with minimal shadow, neutral forward-facing expression. Physical Characteristics & Clothing: [rasgos físicos detallados de adulto, cabello, rostro y vestimenta histórica de pies a cabeza, sin mencionar nombres propios de reyes o figuras públicas reales, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people]. Visual Style: Hyper-realistic cinematic film still, ultra-high-fidelity textures, visible skin pores, uncropped full frame, textless, no lines or text/words in the image.
-- Para cada LUGAR principal (sin @ al inicio), escribe una sola línea con el formato:
-  Nombre_Lugar: Create an image in 16:9 with 4 different 16:9 views of this same location (${doc.historicalTime}, ${doc.historicalLocation}) with perfect continuity: one wide establishing shot of the environment well-lit for the historical atmosphere, and three shots from different angles and perspectives showing architectural details, materials, and lighting. Physical Characteristics: [arquitectura, materiales, época e iluminación]. Visual Style: Hyper-realistic cinematic film still, atmospheric lighting, no people, animals, or characters in the image, textless, no lines or text/words in the image.`;
+Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 en Google Flow (**6 views en cada imagen** y especificando el **nombre exacto** de cada imagen con @ y guiones bajos _ sin espacios ni tildes):
+- Antepón en las primeras líneas la orden operativa para Google Flow:
+  Usa Nano Banana 2.1. Genera cada imagen como una lámina de referencia con exactamente 6 vistas en una sola imagen (6 views en cuadrícula 3x2) y cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador @Nombre_Con_Guiones_Bajos indicado en cada prompt.
+- Para cada PERSONAJE principal (@Personas), escribe una sola línea con el formato exacto (sin tildes ni espacios en el identificador @Nombre_Personaje):
+  Image @Nombre_Personaje [Image Name: @Nombre_Personaje]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [rasgos físicos detallados de adulto, cabello, rostro y vestimenta histórica de época (${doc.historicalTime}, ${doc.historicalLocation}) de pies a cabeza sobre fondo de estudio neutro limpio con iluminación uniforme, sin mencionar nombres propios de reyes o políticos reales en la descripción física, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Personaje
+- Para cada LUGAR principal (@Lugares), escribe una sola línea con el formato exacto (con @ y guiones bajos _ sin tildes ni espacios en @Nombre_Lugar):
+  Image @Nombre_Lugar [Image Name: @Nombre_Lugar]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [arquitectura histórica exacta, materiales, época (${doc.historicalTime}, ${doc.historicalLocation}) e iluminación atmosférica], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Lugar`;
   } else if (stageNumber === 7) {
     const scriptContext = (
       doc.voiceoverScript ||
@@ -2449,9 +2472,9 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico 
 
     // Determinar cantidad dinámica de canciones según la duración y riqueza visual del documental
     const minRecommendedTracks =
-      totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 4 : 3;
+      totalDocSec >= 900 ? 5 : totalDocSec >= 660 ? 4 : totalDocSec >= 420 ? 3 : totalDocSec >= 240 ? 2 : 1;
     const maxRecommendedTracks =
-      totalDocSec >= 660 ? 8 : totalDocSec >= 420 ? 7 : totalDocSec >= 240 ? 5 : 4;
+      totalDocSec >= 900 ? 7 : totalDocSec >= 660 ? 6 : totalDocSec >= 420 ? 5 : totalDocSec >= 240 ? 3 : 2;
 
     const clipsVisualSummary =
       Array.isArray(doc.clips) && doc.clips.length > 0
@@ -2469,7 +2492,7 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico 
             .join('\n')
         : '';
 
-    stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **Google Flow Music (https://www.flowmusic.app/)**.
+    stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **FlowMusic (https://www.flowmusic.app/)**.
 Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
 Duración total exacta del documental (calculada automáticamente de la Voz Narrativa y los Clips): ${resolvedFinalDuration} (${totalDocSec} segundos en total)
 Total de clips visuales del documental: ${Array.isArray(doc.clips) ? doc.clips.length : 'Seguir Timeline'}
@@ -2479,21 +2502,22 @@ Guion y estructura narrativa:
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
 """
 ${clipsVisualSummary ? `\nMapa de escenas visuales y clips del documental:\n${clipsVisualSummary}\n` : ''}
-Genera la **ETAPA 10: BANDA SONORA CINEMATOGRÁFICA MULTIESCENA PARA FLOW MUSIC (flowmusic.app)** cumpliendo estrictamente estas leyes de dirección musical:
-1. **CANTIDAD DINÁMICA DE CANCIONES SEGÚN LA TRAMA Y LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones)**: Diseña entre **${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas** (más de 3 canciones cuando la duración y los giros dramáticos lo requieren). Cada canción debe acompañar un acto visual y emocional específico del documental (ej. Acto I: origen/tensión inicial; Acto II: travesía o peligro; Acto III: choque, penuria o revelación; Acto IV: transformación o clímax; Acto Final: reflexión histórica).
-2. **SILENCIOS DRAMÁTICOS OBLIGATORIOS (10 a 20 SEGUNDOS ENTRE CANCIONES)**: Entre el final de una canción y el inicio de la siguiente DEBE existir un silencio musical de **10 a 20 segundos** ubicado exactamente en una transición de escena, pregunta retórica o golpe dramático donde solo se escuche la Voz Narrativa y el sonido ambiente (Foley) de los clips.
-3. **ÚLTIMA CANCIÓN OBLIGATORIA DE 1:30 (${outroStartMmSs} - ${resolvedFinalDuration})**: La última canción que cierra el documental DEBE durar obligatoriamente **01:30** (1 minuto y 30 segundos), entrando en **${outroStartMmSs}** y cerrando en **${resolvedFinalDuration}**.
-4. **FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL)**:
+Genera la **ETAPA 8: MÚSICA (FLOWMUSIC — flowmusic.app)** cumpliendo estrictamente estas leyes de dirección musical:
+1. **CANTIDAD DINÁMICA DE CANCIONES SEGÚN LA TRAMA Y LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones)**: Diseña entre **${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas** acompañando cada acto visual y emocional específico del documental.
+2. **ESPACIOS SIN MÚSICA OBLIGATORIOS ENTRE CADA CANCIÓN (MÍNIMO 30 SEGUNDOS Y MÁXIMO 1 MINUTO / 0:30 a 1:00)**: Entre el final de una canción y el inicio de la siguiente DEBE existir obligatoriamente un espacio sin música de **mínimo 30 segundos (0:30) y máximo 1 minuto (1:00 / 60 segundos)** ubicado exactamente en una transición de escena, pregunta retórica o golpe dramático donde solo se escuche la Voz Narrativa y el sonido ambiente (Foley) de los clips. Queda prohibido dejar menos de 30s o más de 1 minuto entre canciones.
+3. **ÚLTIMA CANCIÓN OBLIGATORIA DE 1:30 (${outroStartMmSs} - ${resolvedFinalDuration})**: La última canción que cierra el documental DEBE durar obligatoriamente **1:30** (1 minuto y 30 segundos), entrando en **${outroStartMmSs}** y cerrando en **${resolvedFinalDuration}**.
+4. **ETIQUETA OBLIGATORIA [End - M:SS] AL FINAL DE LA LETRA**: Al final del campo \`4. Prompt de Lyrics\` de CADA canción, pon OBLIGATORIAMENTE en la última línea \`[End - M:SS]\` con la duración deseada exacta de esa canción (ejemplo: \`[End - 2:30]\` si la canción dura 2:30, o \`[End - 1:30]\` en la última canción).
+5. **FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL)**:
    - Todas las canciones deben entrar con **Fade-In suave (2.5s)** y salir con **Fade-Out gradual (3.0s)**.
-   - El **Prompt de Style (en inglés)** de CADA canción debe estar optimizado para **Google Flow Music (flowmusic.app)** e incluir obligatoriamente: \`100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range\` junto con los instrumentos acústicos históricos auténticos de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
-5. **FORMATO EXACTO DE ENTREGA (6 CAMPOS POR CANCIÓN)**:
+   - El **Prompt de Style (en inglés)** de CADA canción debe estar optimizado para **FlowMusic (flowmusic.app)** e incluir obligatoriamente: \`100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range\` junto con los instrumentos acústicos históricos auténticos de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+6. **FORMATO EXACTO DE ENTREGA (6 CAMPOS POR CANCIÓN)**:
    Entrega cada canción numerada ("Canción 1", "Canción 2", ..., "Canción N") con estos 6 puntos exactos:
    1. Título de la Canción: [Título evocador acorde a la escena]
-   2. Duración: [MM:SS]
-   3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y)]
-   4. Prompt de Lyrics: [Instrumental — mapa de evolución dinámica con [00:00 Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Subtle Emotional Swell], [Gentle 3s Fade-Out Outro]]
-   5. Prompt de Style: [Prompt completo en inglés listo para enviar automáticamente a Flow Music (flowmusic.app), 100% instrumental, con instrumentos de época, tempo BPM, atmósfera, fade-in intro, fade-out outro y mezcla cálida por debajo de la voz narrativa]
-   6. Explicación de la Canción: [Por qué cambia la música en esta escena visual y qué silencio dramático de 10-20s la precede]`;
+   2. Duración: [M:SS, ej. 2:30; última canción obligatoriamente 1:30]
+   3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y), respetando de 30s a 1:00 sin música entre cada canción]
+   4. Prompt de Lyrics: [Instrumental — mapa de evolución dinámica con [00:00 Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Subtle Emotional Swell], [Gentle 3s Fade-Out Outro] y cerrando al final con [End - 2:30] según la duración deseada de la canción]
+   5. Prompt de Style: [Prompt completo en inglés listo para enviar automáticamente a FlowMusic (flowmusic.app), 100% instrumental, con instrumentos de época, tempo BPM, atmósfera, fade-in intro, fade-out outro y mezcla cálida por debajo de la voz narrativa]
+   6. Explicación de la Canción: [Por qué cambia la música en esta escena visual y qué espacio sin música de 30s a 1:00 la precede]`;
   } else if (stageNumber === 101) {
     stagePrompt = `Actúa como experto en neuropsicología del clic (alto CTR en YouTube) y director creativo de miniaturas para "Huellas de la Humanidad".
 Título del video: ${doc.title || ''}

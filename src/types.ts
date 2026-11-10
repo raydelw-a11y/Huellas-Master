@@ -310,6 +310,7 @@ export interface DocumentaryProject {
   // Etapa 10: Miniatura Oficial (Nano Banana 2.1)
   thumbnailOrientation?: 'HORIZONTAL_16X9' | 'VERTICAL_9X16';
   thumbnailPsychVariant?: 'A' | 'B' | 'C';
+  thumbnailPsychTriggers?: ThumbnailPsychTriggerOption[];
   thumbnailTextOptions?: string[];
   thumbnailPrompt: string;
   thumbnailTextOverlay: string;
@@ -335,6 +336,14 @@ export interface DocumentaryProject {
 
   // Motor de generación de video en Google Flow (Etapa 7)
   flowVideoEngine?: 'HYBRID_PEOPLE_OMNI_REST_LOWER' | 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH';
+}
+
+export interface ThumbnailPsychTriggerOption {
+  id: 'A' | 'B' | 'C';
+  title: string;
+  description: string;
+  prompt: string;
+  suggestedOverlay?: string;
 }
 
 export const DEFAULT_OPERATIONAL_HEADER = `Actúa como un historiador, director de cine, y periodista profesional.

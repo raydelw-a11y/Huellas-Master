@@ -71,7 +71,9 @@ import {
   parseClipsFromRawText,
   buildClipsSkeletonFromTimeline,
   parseReferencesFromRawText,
+  normalizeReferenceTagSlug,
   parseSunoTracksFromRawText,
+  ensureLyricsEndDurationTag,
   fixCapcutSrtWithVoiceover,
   normalizeQuantitiesToMil,
   syncAndAuditProductionClips,
@@ -133,7 +135,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:29 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:46 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -815,7 +817,7 @@ const STAGES_LIST = [
   {
     num: 80,
     displayNum: 8,
-    title: '8. Música (Suno)',
+    title: '8. Música (FlowMusic)',
     subtitle: 'Prompts de 6 campos y pistas MP3',
     icon: Music,
   },
@@ -849,7 +851,7 @@ const STATUS_OPTIONS: { value: DocumentaryStatusType; label: string; color: stri
   { value: 'guion', label: 'En Guion e Investigación', color: 'bg-blue-900/70 text-blue-200 border-blue-700' },
   { value: 'locucion', label: 'En Locución y Timeline', color: 'bg-purple-900/70 text-purple-200 border-purple-700' },
   { value: 'clips', label: 'Generando Imágenes y Clips', color: 'bg-amber-900/70 text-amber-200 border-amber-700' },
-  { value: 'edicion_capcut', label: 'En Edición de Video / Suno', color: 'bg-indigo-900/70 text-indigo-200 border-indigo-700' },
+  { value: 'edicion_capcut', label: 'En Edición de Video / FlowMusic', color: 'bg-indigo-900/70 text-indigo-200 border-indigo-700' },
   { value: 'publicado', label: 'Terminado / Publicado', color: 'bg-emerald-900/70 text-emerald-200 border-emerald-700' },
 ];
 
@@ -8512,55 +8514,308 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
-  // Official Google Flow (Gesso / Story Studio) Prompt Formatter for @Personas (Character Sheet) & Lugares (4-View Location Sheet)
-  // Enforces the hard 3,950-char Flow SDK limit so prompts are never truncated or rejected
+  // Google Flow 6-View Reference Sheet Formatter (@Personas & @Lugares — 6 views per image + explicit image filename)
   const formatReferencePromptForFlow = (
     ref: ReferenceAsset,
-    doc: DocumentaryProject | null = activeDoc
+    doc: DocumentaryProject | null = activeDoc,
+    fallbackIdx: number = 0
   ): string => {
-    const cleanTag = (ref.tag || '').trim();
-    const isPerson = ref.category === 'persona' || cleanTag.startsWith('@');
-    const displayName = cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim() || 'Historical Subject';
+    const canonicalTag = normalizeReferenceTagSlug(
+      ref.tag || ref.description || '',
+      fallbackIdx + 1
+    );
+    const displayName =
+      canonicalTag.replace(/^@+/, '').replace(/_/g, ' ').trim() || 'Historical Subject';
+    const isVertical =
+      doc?.productionType === 'SHORT_9X16' || doc?.promptConfig?.SUB_OPCION_REELS === '9X16';
+    const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
     const eraContext = [doc?.historicalTime, doc?.historicalLocation]
       .map((s) => (s || '').trim())
       .filter(Boolean)
       .join(', ');
-    const rawDesc = (ref.prompt || '')
+
+    const rawPrompt = (ref.prompt || '').trim();
+    const looksLikeLocation =
+      ref.category === 'lugar' ||
+      (/location reference sheet|4 different 16:9 views|6-view(?: historical)? location|establishing shot of the environment|zero people/i.test(
+        rawPrompt
+      ) &&
+        !/character reference sheet|full-body standing view|head and shoulders/i.test(rawPrompt)) ||
+      (!/character reference sheet|full-body standing view|head and shoulders|\b\d+-year-old\b/i.test(
+        rawPrompt
+      ) &&
+        /\b(?:muelle|aldea|puerto|campamento|almacen|panaderia|palacio|castillo|ciudad|calle|plaza|templo|iglesia|catedral|barco|vapor|entreponte|isla|valle|montana|bosque|edificio|fortaleza|prision|hospital|estacion|mercado|dock|pier|village|harbor|camp|bakery|steerage|street|cathedral|palace|castle)\b/i.test(
+          `${ref.tag || ''} ${ref.description || ''}`
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+        ));
+    const isPerson = !looksLikeLocation;
+
+    // Extract clean subject/location description (upgrading legacy 1-view, 2-view, or 4-view prompts cleanly into 6-view)
+    let coreDesc = rawPrompt
+      .replace(
+        /^(?:Image|Imagen)\s+[^\n:]*?(?:\[[^\]]*\])?\s*:\s*/i,
+        ''
+      )
       .replace(/^@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*/i, '')
-      .replace(/^[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ\s]+\s*:\s*(?=Create an image|Frame Description)/i, '')
+      .replace(/\s*(?:fix the name(?:\s+to\s+@?[A-Za-z0-9_]+)?|Rename (?:this )?image to @?[A-Za-z0-9_]+)\.?\s*$/i, '')
       .trim();
 
-    const realisticStyle =
-      'Hyper-realistic cinematic film still. Shallow depth of field, atmospheric lighting, ultra-high-fidelity textures. Lifelike characters exhibit visible skin pores, natural flaws, and nuanced micro-expressions within a softly focused, immersive environment. Characters ignore the camera. Uncropped full frame, textless, no letterboxing.';
-
-    let fullPrompt = '';
-    if (/Frame Description\s*:/i.test(rawDesc) || /character sheet with a head and shoulders shot/i.test(rawDesc) || /4 different 16:9 views of this same location/i.test(rawDesc)) {
-      fullPrompt = rawDesc.includes('Visual Style:')
-        ? rawDesc
-        : `${rawDesc}\nVisual Style: ${realisticStyle}`;
-    } else if (isPerson) {
-      fullPrompt = [
-        'Frame Description: A character sheet with a head and shoulders shot showing the characters face on the left and a full body shot of the character on the right wearing the same clothing and accessories against a seamless white background. Bright, even lighting clearly shows the individual\'s features with minimal shadow. Their expression is neutral and forward-facing, creating an objective "asset" shot for casting. No lines or text/words in the image.',
-        `Character: ${displayName}${eraContext ? ` (${eraContext})` : ''}`,
-        `Physical Characteristics: ${rawDesc}`,
-        `Clothing and Accessories: Period-accurate historical attire (${eraContext || 'historical documentary'}). ${rawDesc}`,
-        `Visual Style: ${realisticStyle}`,
-      ].join('\n');
-    } else {
-      fullPrompt = [
-        'Frame Description: Make a single image with 4 different 16:9 views of this same location with perfect continuity. One image should be a wide establishing shot of the environment, well-lit for the atmosphere of the film. There are no other people, animals, or characters in the image. No lines or text/words in the image. The other three shots of the location should be from different angles and perspectives, showing different parts of the environment.',
-        `Location: ${displayName}${eraContext ? ` (${eraContext})` : ''}`,
-        `Time of Day: ${doc?.historicalTime || 'Dramatic historical documentary lighting'}`,
-        `Physical Characteristics: ${rawDesc}`,
-        `Visual Style: ${realisticStyle}`,
-      ].join('\n');
+    // If prompt already specifies 6 views, normalize aspect ratio & naming suffix without duplicating the 6-view header
+    if (/6-view|6\s+(?:distinct|different|coherent)\s+views/i.test(coreDesc)) {
+      let updated6View = coreDesc.replace(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/g, '$1');
+      if (!/^Create an image/i.test(updated6View)) {
+        updated6View = `Create an image in ${aspectPhrase} ${updated6View}`;
+      }
+      updated6View = `${updated6View.replace(/\.?\s*$/, '')}. fix the name to ${canonicalTag}`;
+      return updated6View.length > 3950 ? `${updated6View.slice(0, 3947)}...` : updated6View;
     }
+
+    // If multi-line Frame Description block from legacy formatter, extract Physical Characteristics line
+    const physMatch = coreDesc.match(/Physical Characteristics(?:\s*&\s*Clothing)?\s*:\s*([^\n]+)/i);
+    if (physMatch?.[1]) {
+      coreDesc = physMatch[1].trim();
+    }
+
+    coreDesc = coreDesc
+      .replace(
+        /^Create an image(?:\s+in\s+(?:16:9|9:16)(?:\s+(?:horizontal|vertical))?(?:\s+aspect ratio)?)?(?:\s+with\s+4\s+different[^:]*:|\s+of\s+a\s+character\s+sheet[^.]*\.|\s+of)?\s*/i,
+        ''
+      )
+      .replace(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/g, (_, m) => m.replace(/_/g, ' '))
+      .replace(
+        /,?\s*(?:8k\s+photorealistic|cinematic\s+documentary\s+realism|safe\s+framing\s+composition|no\s+modern\s+objects|no\s+CGI\s+look|no\s+text|no\s+speech|no\s+music|Portrayed\s+by\s+an\s+anonymous\s+historical\s+reenactment\s+actor[^.]*\.?)+[\s,.]*$/gi,
+        ''
+      )
+      .replace(/\.?\s*Visual Style\s*:[\s\S]*$/i, '')
+      .trim();
+
+    if (!coreDesc) {
+      coreDesc = `${displayName}${eraContext ? ` (${eraContext})` : ''}`;
+    }
+
+    const fullPrompt = isPerson
+      ? `Create an image in ${aspectPhrase} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial features, hair, age, and period wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting ${coreDesc}${
+          eraContext && !coreDesc.toLowerCase().includes((doc?.historicalTime || '____').toLowerCase())
+            ? ` (${eraContext})`
+            : ''
+        }, against a clean neutral studio background with bright even lighting, portrayed by an anonymous historical reenactment actor in authentic period costume (no real public figures or prominent people), 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, no modern objects, no CGI look, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to ${canonicalTag}`
+      : `Create an image in ${aspectPhrase} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting ${coreDesc}${
+          eraContext && !coreDesc.toLowerCase().includes((doc?.historicalTime || '____').toLowerCase())
+            ? ` (${eraContext})`
+            : ''
+        }, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, no modern objects, no CGI look, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to ${canonicalTag}`;
 
     const maxPromptLength = 3950;
     return fullPrompt.length > maxPromptLength
       ? `${fullPrompt.slice(0, maxPromptLength - 3)}...`
       : fullPrompt;
   };
+
+  // Build ONE single ready-to-paste text for Google Flow containing all 6-view reference prompts + explicit image names
+  const buildSingleFlowReferencesBatchText = (
+    doc: DocumentaryProject | null = activeDoc
+  ): { fullText: string; upgradedRefs: ReferenceAsset[] } => {
+    if (!doc) return { fullText: '', upgradedRefs: [] };
+    const baseRefs =
+      doc.references && doc.references.length > 0
+        ? doc.references
+        : parseReferencesFromRawText(doc.rawReferencePrompts || '');
+
+    if (baseRefs.length === 0) {
+      const fallbackRaw = (doc.rawReferencePrompts || '').trim();
+      return { fullText: fallbackRaw, upgradedRefs: [] };
+    }
+
+    const upgradedRefs: ReferenceAsset[] = baseRefs.map((ref, idx) => {
+      const canonicalTag = normalizeReferenceTagSlug(ref.tag || ref.description || '', idx + 1);
+      const formattedPrompt = formatReferencePromptForFlow(
+        { ...ref, tag: canonicalTag },
+        doc,
+        idx
+      );
+      const isLoc = /6-view historical location reference sheet/i.test(formattedPrompt);
+      return {
+        ...ref,
+        tag: canonicalTag,
+        category: isLoc ? 'lugar' : 'persona',
+        prompt: formattedPrompt,
+      };
+    });
+
+    const exactNamesList = upgradedRefs.map((r) => r.tag).join(', ');
+    const headerLines = [
+      'Actúa como un historiador y director de fotografía documental.',
+      'Usa Nano Banana 2.1 para generar todas estas imágenes modelo de referencia.',
+      'Cada imagen DEBE contener exactamente 6 vistas en una sola imagen (6-view reference sheet en cuadrícula 3x2 con 100% de continuidad visual).',
+      `Cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador con @ y guiones bajos especificado en cada prompt (${exactNamesList}).`,
+    ].join('\n');
+
+    const promptBlocks = upgradedRefs.map(
+      (r) => `Image ${r.tag} [Image Name: ${r.tag}]: ${r.prompt}`
+    );
+
+    return {
+      fullText: `${headerLines}\n\n${promptBlocks.join('\n\n')}`,
+      upgradedRefs,
+    };
+  };
+
+  // Automatically locate downloaded reference images in ~/Downloads (loose images or .zip) and move them to <DocFolder>/04_Referencias
+  const syncRefsInFlightRef = useRef(false);
+  const syncDownloadedReferenceImages = async (promptsTxtContent?: string) => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc || syncRefsInFlightRef.current) return;
+
+    const currentRefs =
+      currentDoc.references && currentDoc.references.length > 0
+        ? currentDoc.references
+        : parseReferencesFromRawText(currentDoc.rawReferencePrompts || '');
+    if (currentRefs.length === 0 && !promptsTxtContent) return;
+
+    const rawFolderPath = (
+      flowServerFolderPath ||
+      currentDoc.downloadFolderPath ||
+      localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+      ''
+    ).trim();
+    const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
+    const folderName = (
+      (doesFolderMatchDoc(flowDownloadFolderName, currentDoc) ? flowDownloadFolderName : '') ||
+      (doesFolderMatchDoc(currentDoc.downloadFolderName, currentDoc)
+        ? currentDoc.downloadFolderName || ''
+        : '') ||
+      getCanonicalFolderNameForDoc(currentDoc)
+    ).trim();
+    const docTitle = `${currentDoc.title || ''} ${currentDoc.topic || ''}`.trim();
+
+    const isLocalhostOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiBases = isLocalhostOrigin
+      ? ['']
+      : isCloudMode
+      ? ['http://localhost:4200']
+      : ['', 'http://localhost:4200'];
+
+    syncRefsInFlightRef.current = true;
+    try {
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/sync-reference-downloads`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              folderPath,
+              folderName,
+              docTitle,
+              references: currentRefs.map((r) => ({
+                id: r.id,
+                tag: r.tag,
+                description: r.description,
+                category: r.category,
+              })),
+              promptsTxtContent: promptsTxtContent || '',
+            }),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (!data?.ok) continue;
+
+          const prefixUrl = (u: string) =>
+            u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+
+          const matchedMap = new Map<string, { url: string; canonicalTag: string; fileName: string }>();
+          for (const item of data.matchedReferences || []) {
+            if (item?.id && item?.url) {
+              matchedMap.set(String(item.id), {
+                url: prefixUrl(String(item.url)),
+                canonicalTag: String(item.canonicalTag || item.tag || ''),
+                fileName: String(item.fileName || ''),
+              });
+            }
+          }
+
+          if (matchedMap.size > 0) {
+            const latestDoc = activeDocRef.current || currentDoc;
+            if (latestDoc.id === currentDoc.id) {
+              const baseList =
+                latestDoc.references && latestDoc.references.length > 0
+                  ? latestDoc.references
+                  : currentRefs;
+              let changed = false;
+              const nextRefs = baseList.map((r) => {
+                const hit = matchedMap.get(r.id);
+                if (!hit) return r;
+                if (r.imageUrl !== hit.url || !r.isCreated) {
+                  changed = true;
+                  return {
+                    ...r,
+                    imageUrl: hit.url,
+                    isCreated: true,
+                  };
+                }
+                return r;
+              });
+              if (changed) {
+                updateActiveDoc({ references: nextRefs });
+              }
+            }
+          }
+
+          if (Number(data.movedCount || 0) > 0) {
+            const namesStr = Array.isArray(data.movedFiles) ? data.movedFiles.join(', ') : '';
+            setFlowStatusLog(
+              `✅ ${data.movedCount} imagen(es) de referencia localizada(s) en Descargas y movida(s) automáticamente a 04_Referencias${
+                namesStr ? ` (${namesStr})` : ''
+              }.`
+            );
+          }
+          break;
+        } catch {}
+      }
+    } finally {
+      syncRefsInFlightRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!activeDoc) return;
+    const hasAnyRefs =
+      (activeDoc.references?.length || 0) > 0 || Boolean((activeDoc.rawReferencePrompts || '').trim());
+    if (!hasAnyRefs) return;
+
+    const shouldPoll =
+      activeStage === 6 || (activeDoc.references || []).some((r) => !r.isCreated || !r.imageUrl);
+    if (!shouldPoll) return;
+
+    syncDownloadedReferenceImages();
+    const timer = window.setInterval(() => {
+      syncDownloadedReferenceImages();
+    }, 3500);
+
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncDownloadedReferenceImages();
+      }
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    };
+  }, [
+    activeDoc?.id,
+    activeDoc?.title,
+    activeDoc?.rawReferencePrompts,
+    activeDoc?.references?.length,
+    activeStage,
+    flowServerFolderPath,
+    flowDownloadFolderName,
+  ]);
 
   // Build Official Google Flow Story Studio Project JSON (v1.2)
   const buildStoryStudioProjectJson = (
@@ -9049,29 +9304,34 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
-  // ITEM 2: Send Stage 10 Track to Flow Music (https://www.flowmusic.app/) & Auto-Download into 02_Audio Subfolder & Editor Track 5
+  // ITEM 2: Send Stage 8 Track to FlowMusic (https://www.flowmusic.app/) & Auto-Download into 02_Audio Subfolder & Editor Track 5
   const handleSendSunoTrackAndCapture = async (
     trackNumber: number,
     promptText: string,
     title?: string,
-    duration?: string
+    duration?: string,
+    lyricsPrompt?: string
   ) => {
     const cleanPrompt = (promptText || '').trim();
     if (!cleanPrompt) return;
     await ensureSingleDownloadFolderReadyOnGesture();
 
-    // Ensure every prompt sent to Flow Music includes Fade-In, Fade-Out, 100% Instrumental, and Low-Mid Voice-Priority Underscore
+    // Ensure every prompt sent to FlowMusic includes Fade-In, Fade-Out, 100% Instrumental, Low-Mid Voice-Priority Underscore, and [End - M:SS]
+    const normalizedLyricsWithEnd = ensureLyricsEndDurationTag(lyricsPrompt || '', duration);
     const durationClause = duration ? `, target duration ${duration}` : '';
-    const enrichedPrompt = /fade-in/i.test(cleanPrompt)
+    const styleWithDucking = /fade-in/i.test(cleanPrompt)
       ? `${cleanPrompt}${durationClause}`
       : `${cleanPrompt}${durationClause}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words`;
+    const enrichedPrompt = /\[End\s*[-–—:]\s*\d{1,2}:\d{2}\]/i.test(styleWithDucking)
+      ? styleWithDucking
+      : `${styleWithDucking}\n${normalizedLyricsWithEnd}`;
 
     navigator.clipboard.writeText(enrichedPrompt).catch(() => {});
     setSunoCurrentTrackNum(trackNumber);
     const padded = String(trackNumber).padStart(2, '0');
     const folderLabel =
       flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
-    const statusText = `🎵 Flow Music (Pista #${padded} • ${
+    const statusText = `🎵 FlowMusic (Pista #${padded} • ${
       title || 'Instrumental'
     }): Enviando prompt instrumental con Fade-In/Out y Ducking a flowmusic.app y vigilando para guardar FlowMusic_${padded}.mp3 en "${folderLabel}/02_Audio" y Pista 5...`;
     setFlowStatusLog(statusText);
@@ -9087,7 +9347,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
-  // Start 100% Automatic Sequential Flow Music Queue (Track 1 -> Track 2 -> ... -> Track N)
+  // Start 100% Automatic Sequential FlowMusic Queue (Track 1 -> Track 2 -> ... -> Track N)
   const handleStartFlowMusicAutoPilot = async (explicitTracks?: SunoTrack[]) => {
     const currentDoc = activeDocRef.current || activeDoc;
     const tracks =
@@ -9095,7 +9355,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? explicitTracks
         : currentDoc?.sunoTracks || [];
     if (tracks.length === 0) {
-      alert('Primero genera o separa las canciones en la Etapa 10.');
+      alert('Primero genera o separa las canciones en la Etapa 8 — Música (FlowMusic).');
       return;
     }
 
@@ -9117,7 +9377,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       targetIdx + 1,
       firstTrack.stylePrompt || firstTrack.lyricsPrompt,
       firstTrack.title,
-      firstTrack.duration
+      firstTrack.duration,
+      firstTrack.lyricsPrompt
     );
   };
 
@@ -9970,7 +10231,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   nextIdx + 1,
                   nextTrack.stylePrompt || nextTrack.lyricsPrompt,
                   nextTrack.title,
-                  nextTrack.duration
+                  nextTrack.duration,
+                  nextTrack.lyricsPrompt
                 );
               }, 2400);
             } else {
@@ -10883,6 +11145,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (parsedTracks.length > 0) {
         updateActiveDoc({ sunoTracks: parsedTracks });
       }
+    } else if (Array.isArray(activeDoc.sunoTracks) && activeDoc.sunoTracks.length > 0) {
+      const needsEndTagNormalization = activeDoc.sunoTracks.some(
+        (t) => !/\[End\s*-\s*\d{1,2}:\d{2}\]\s*$/i.test((t.lyricsPrompt || '').trim())
+      );
+      if (needsEndTagNormalization) {
+        const normalizedTracks = activeDoc.sunoTracks.map((t) => ({
+          ...t,
+          lyricsPrompt: ensureLyricsEndDurationTag(t.lyricsPrompt || '', t.duration),
+        }));
+        updateActiveDoc({ sunoTracks: normalizedTracks });
+      }
     }
   }, [
     activeDoc?.id,
@@ -11283,13 +11556,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       });
     }
     if (doc.sunoTracks?.length > 0 || doc.rawSunoText) {
-      lines.push(`--- ETAPA 10: BANDA SONORA (SUNO) ---`);
+      lines.push(`--- ETAPA 8: MÚSICA (FLOWMUSIC) ---`);
       if (doc.sunoTracks?.length > 0) {
         doc.sunoTracks.forEach((t) => {
           lines.push(`1. Título: ${t.title}`);
           lines.push(`2. Duración: ${t.duration}`);
           lines.push(`3. De dónde a dónde cubre: ${t.videoTimeRange}`);
-          lines.push(`4. Prompt de Lyrics: ${t.lyricsPrompt}`);
+          lines.push(`4. Prompt de Lyrics: ${ensureLyricsEndDurationTag(t.lyricsPrompt || '', t.duration)}`);
           lines.push(`5. Prompt de Style: ${t.stylePrompt}`);
           lines.push(`6. Explicación: ${t.explanation}\n`);
         });
@@ -11876,7 +12149,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 la locución en <strong className="text-amber-300">VoxFlow</strong>, extrae los tiempos exactos
                 con <strong className="text-amber-300">Timeline Extractor</strong>, controla tus lotes de clips,
                 corrige el <strong className="text-amber-300">.SRT de CapCut</strong> y guarda las pistas de
-                Suno y Metadata.
+                FlowMusic y Metadata.
               </p>
             </div>
             <button
@@ -11937,7 +12210,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
                   Crea tu primer expediente documental para tener guion, locución VoxFlow, Timeline, referencias,
-                  clips, SRT, Suno y metadata organizados en un solo lugar.
+                  clips, SRT, FlowMusic y metadata organizados en un solo lugar.
                 </p>
               </div>
               <button
@@ -12036,7 +12309,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <div className="text-xs font-bold text-amber-300">
                               {doc.sunoTracks?.length || 0}
                             </div>
-                            <div className="text-[10px] text-slate-400">Suno</div>
+                            <div className="text-[10px] text-slate-400">FlowMusic</div>
                           </div>
                         </div>
 
@@ -12223,7 +12496,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   disabled={isFullPreprodRunning}
                   onClick={handleRunFullPreproduction1To8}
                   className="shrink-0 py-1 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-60 text-slate-950 text-xs font-black flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow"
-                  title="Genera de corrido Guion, Timeline, Subtítulos .SRT, Miniaturas A/B, @Referencias, Música Suno, todos los Pares Image/Clip y SEO YouTube en 1 clic"
+                  title="Genera de corrido Guion, Timeline, Subtítulos .SRT, Miniaturas A/B, @Referencias, Música (FlowMusic), todos los Pares Image/Clip y SEO YouTube en 1 clic"
                 >
                   ⚡{' '}
                   {isFullPreprodRunning
@@ -12446,7 +12719,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <>
                             Todos los archivos generados en este documental (Clips aprobados{' '}
                             <code className="text-amber-300 break-all">01_primeras_seis_palabras_4K.mp4</code>,
-                            Miniaturas A/B, Audio VoxFlow, Música Suno, <code className="text-amber-300">.SRT</code> y
+                            Miniaturas A/B, Audio VoxFlow, Música (FlowMusic), <code className="text-amber-300">.SRT</code> y
                             el Video Final) se guardarán automáticamente en:{' '}
                             <strong className="text-emerald-300 font-mono underline break-words">
                               {effectiveDocFolderName}
@@ -15697,7 +15970,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             })()}
 
             {/* ===============================================================
-                ETAPA 6: IMÁGENES MODELO DE REFERENCIA (@PERSONAS Y LUGARES)
+                ETAPA 6: IMÁGENES MODELO DE REFERENCIA (@PERSONAS Y LUGARES — 6 VIEWS)
             =============================================================== */}
             {activeStage === 6 && (
               <div className="space-y-6">
@@ -15705,136 +15978,88 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                       <h3 className="text-base font-bold text-amber-300">
-                        Prompts de Referencia para Nano Banana 2.1 (@Personas y Lugares)
+                        Prompts de Referencia para Google Flow — 6 Views por Imagen (@Personas y @Lugares)
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Pega la respuesta de tu chat externo y presiona{' '}
-                        <strong className="text-amber-300">"🔍 Auto-Detectar Tarjetas"</strong>, o genéralas
-                        directamente con Gemini.
+                        Copia todos los prompts en un solo texto, pégalos manualmente en{' '}
+                        <strong className="text-amber-300">Google Flow (Nano Banana 2.1)</strong> y descarga las
+                        imágenes: la app las localizará en <code className="text-amber-300">Descargas</code> y las
+                        llevará sola a <code className="text-emerald-300">04_Referencias/</code>.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        disabled={aiGenerating}
-                        onClick={() => handleGenerateWithGemini(6)}
-                        className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />
-                        {aiGenerating ? 'Generando Referencias...' : '✨ Generar @Referencias con Gemini'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSendReferencesBlockToFlow}
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer"
-                        title="Envía la orden y todos los prompts de referencia a Google Flow, presiona Enviar automáticamente e importa las imágenes creadas"
-                      >
-                        🎬 Generar Imágenes con Flow
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleUpgradeReferencesToOfficialFlowFormat}
-                        className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
-                        title="Convierte cada @Persona al formato oficial Character Sheet (rostro izquierda + cuerpo entero derecha) y cada Lugar a 4-View Sheet (4 ángulos 16:9)"
-                      >
-                        ✨ Formato Oficial Flow (Character / 4-View)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExportStoryStudioJson}
-                        className="px-3 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
-                        title="Descarga el archivo .json compatible con 'Open Story' del tool Story Studio en Google Flow"
-                      >
-                        📦 Exportar JSON Story Studio
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleScanFlowReferencesInTab}
-                        className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center gap-1 cursor-pointer"
-                        title="Importar imágenes de referencia ya generadas en la pestaña abierta de Google Flow"
-                      >
-                        📥 Importar de Flow
-                      </button>
-                      <button
-                        onClick={() => {
-                          const parsed = parseReferencesFromRawText(activeDoc.rawReferencePrompts);
-                          if (parsed.length === 0) {
-                            alert(
-                              'No se detectaron líneas con "Create an image". Asegúrate de pegar los prompts en inglés.'
-                            );
-                            return;
-                          }
-                          updateActiveDoc({ references: parsed });
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-xs cursor-pointer"
-                      >
-                        🔍 Auto-Detectar Tarjetas del Texto
-                      </button>
-                      <button
-                        onClick={() => {
-                          const newRef: ReferenceAsset = {
-                            id: `ref-${Date.now()}`,
-                            tag: `@Personaje_${(activeDoc.references?.length || 0) + 1}`,
-                            category: 'persona',
-                            description: 'Nueva referencia visual',
-                            prompt: `Create an image of ... (${activeDoc.historicalTime}, ${activeDoc.historicalLocation}), photorealistic 8k cinematic, no text.`,
-                            isCreated: false,
-                          };
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const { fullText, upgradedRefs } = buildSingleFlowReferencesBatchText(activeDoc);
+                        if (!fullText.trim()) {
+                          alert('Primero pega o escribe los prompts de referencia en el cuadro inferior.');
+                          return;
+                        }
+                        if (upgradedRefs.length > 0) {
                           updateActiveDoc({
-                            references: [...(activeDoc.references || []), newRef],
+                            references: upgradedRefs,
+                            rawReferencePrompts: fullText,
                           });
-                        }}
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Añadir Tarjeta Manual
-                      </button>
-                    </div>
+                        }
+                        copyText(fullText, 'copy-all-refs');
+                        syncDownloadedReferenceImages(fullText);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
+                    >
+                      <Copy className="w-4 h-4" />
+                      {copiedId === 'copy-all-refs'
+                        ? '✓ Todos los Prompts Copiados'
+                        : '📋 Copiar Todos los Prompts en un Solo Texto'}
+                    </button>
                   </div>
 
-                  {/* Mandatory Single-Sentence Order Box */}
-                  <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between flex-wrap gap-3">
-                    <code className="text-xs text-amber-300">
-                      Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.
-                    </code>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={handleSendReferencesBlockToFlow}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shrink-0 cursor-pointer"
-                      >
-                        🎬 Generar Imágenes con Flow
-                      </button>
-                      <button
-                        onClick={() =>
-                          copyText(
-                            `Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.\n\n${activeDoc.rawReferencePrompts}`,
-                            'copy-all-refs'
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold shrink-0 cursor-pointer"
-                      >
-                        {copiedId === 'copy-all-refs' ? '✓ Copiado' : '📋 Copiar Orden + Todos los Prompts'}
-                      </button>
-                    </div>
+                  <div className="bg-slate-950/80 border border-emerald-500/25 rounded-xl px-3.5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <span className="text-slate-300">
+                      📂 <strong className="text-emerald-300">Auto-localizador activo:</strong> al descargar tus
+                      imágenes de 6 vistas desde Google Flow (sueltas o en <code className="text-amber-300">.zip</code>),
+                      se mueven automáticamente a <code className="text-emerald-300">04_Referencias/</code> con su
+                      nombre exacto.
+                    </span>
+                    <span className="text-[11px] font-semibold text-emerald-300 shrink-0">
+                      {(activeDoc.references || []).filter((r) => r.isCreated).length} /{' '}
+                      {(activeDoc.references || []).length} listas
+                    </span>
                   </div>
 
                   {flowStatusLog && (
-                    <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2">
+                    <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-xs text-emerald-300">
                       <span>{flowStatusLog}</span>
-                      <button
-                        type="button"
-                        onClick={handleScanFlowReferencesInTab}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-semibold text-[11px] shrink-0 cursor-pointer"
-                      >
-                        🔄 Escanear Imágenes en Flow
-                      </button>
                     </div>
                   )}
 
                   <textarea
-                    rows={5}
+                    rows={6}
                     value={activeDoc.rawReferencePrompts}
-                    onChange={(e) => updateActiveDoc({ rawReferencePrompts: e.target.value })}
-                    placeholder="Pega aquí los prompts de @Personas y Lugares principales..."
+                    onChange={(e) => {
+                      const nextRaw = e.target.value;
+                      const parsed = parseReferencesFromRawText(nextRaw);
+                      if (parsed.length > 0) {
+                        const existingBySlug = new Map<string, ReferenceAsset>();
+                        for (const oldRef of activeDoc.references || []) {
+                          existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
+                        }
+                        const merged = parsed.map((p, idx) => {
+                          const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
+                          const prev = existingBySlug.get(slug);
+                          return {
+                            ...p,
+                            id: prev?.id || p.id,
+                            tag: slug,
+                            imageUrl: prev?.imageUrl || p.imageUrl,
+                            isCreated: prev?.isCreated || Boolean(prev?.imageUrl) || false,
+                          };
+                        });
+                        updateActiveDoc({ rawReferencePrompts: nextRaw, references: merged });
+                      } else {
+                        updateActiveDoc({ rawReferencePrompts: nextRaw });
+                      }
+                    }}
+                    placeholder="Pega aquí los prompts de @Personas y @Lugares principales (las tarjetas y el formato de 6 views + nombre de imagen se sincronizan automáticamente)..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200"
                   />
                 </div>
@@ -15858,6 +16083,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               next[idx] = { ...ref, tag: e.target.value };
                               updateActiveDoc({ references: next });
                             }}
+                            onBlur={(e) => {
+                              const canonical = normalizeReferenceTagSlug(e.target.value, idx + 1);
+                              if (canonical !== ref.tag) {
+                                const next = [...activeDoc.references];
+                                next[idx] = { ...ref, tag: canonical };
+                                updateActiveDoc({ references: next });
+                              }
+                            }}
                             className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-bold text-amber-300 w-full"
                           />
                           <select
@@ -15869,8 +16102,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             }}
                             className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300"
                           >
-                            <option value="persona">@Persona</option>
-                            <option value="lugar">Lugar</option>
+                            <option value="persona">@Persona (6 Views)</option>
+                            <option value="lugar">@Lugar (6 Views)</option>
                           </select>
                         </div>
 
@@ -15883,8 +16116,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="text-[11px] text-slate-500">
-                              Sube la imagen generada en Nano Banana 2.1
+                            <span className="text-[11px] text-slate-500 text-center px-3">
+                              Esperando descarga de <strong className="text-slate-400">{ref.tag}</strong> (6 views) desde Google Flow
                             </span>
                           )}
                           <label className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-amber-300 text-[11px] font-semibold border border-amber-500/30 cursor-pointer flex items-center gap-1">
@@ -15896,12 +16129,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
+                                const canonical = normalizeReferenceTagSlug(ref.tag, idx + 1);
+                                const extMatch = file.name.match(/\.(png|jpg|jpeg|webp)$/i);
+                                const ext = extMatch ? extMatch[0].toLowerCase() : '.png';
                                 const url = await uploadAssetFile(file);
+                                await handleSaveAnyFileToChosenFolder(`${canonical}${ext}`, file);
                                 if (url) {
                                   const next = [...activeDoc.references];
-                                  next[idx] = { ...ref, imageUrl: url, isCreated: true };
+                                  next[idx] = { ...ref, tag: canonical, imageUrl: url, isCreated: true };
                                   updateActiveDoc({ references: next });
                                 }
+                                syncDownloadedReferenceImages();
                               }}
                             />
                           </label>
@@ -15935,28 +16173,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </label>
                         <div className="flex items-center gap-1.5">
                           <button
-                            type="button"
                             onClick={() => {
-                              const formattedSingle = formatReferencePromptForFlow(ref, activeDoc);
-                              const tagPrefix =
-                                ref.category === 'persona' || ref.tag.startsWith('@')
-                                  ? ref.tag.startsWith('@')
-                                    ? ref.tag
-                                    : `@${ref.tag}`
-                                  : ref.tag;
-                              handleSendPromptToFlow(
-                                `${tagPrefix}: ${formattedSingle}`.slice(0, 3950),
-                                'IMAGE',
-                                ref.id
+                              const canonical = normalizeReferenceTagSlug(ref.tag, idx + 1);
+                              const single6View = formatReferencePromptForFlow(
+                                { ...ref, tag: canonical },
+                                activeDoc,
+                                idx
+                              );
+                              copyText(
+                                `Image ${canonical} [Image Name: ${canonical}]: ${single6View}`,
+                                `ref-${ref.id}`
                               );
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold cursor-pointer"
-                            title="Enviar esta tarjeta a Google Flow con formato oficial Character Sheet / 4-View Sheet (< 3,950 chars)"
-                          >
-                            🎬 Generar en Flow
-                          </button>
-                          <button
-                            onClick={() => copyText(ref.prompt, `ref-${ref.id}`)}
                             className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold cursor-pointer"
                           >
                             {copiedId === `ref-${ref.id}` ? '✓ Copiado' : 'Copiar Prompt'}
@@ -15975,6 +16203,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextIdx = (activeDoc.references?.length || 0) + 1;
+                      const defaultTag = `@Personaje_${nextIdx}`;
+                      const baseRef: ReferenceAsset = {
+                        id: `ref-${Date.now()}`,
+                        tag: defaultTag,
+                        category: 'persona',
+                        description: 'Nueva referencia visual',
+                        prompt: '',
+                        isCreated: false,
+                      };
+                      baseRef.prompt = formatReferencePromptForFlow(baseRef, activeDoc, nextIdx - 1);
+                      updateActiveDoc({
+                        references: [...(activeDoc.references || []), baseRef],
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Añadir tarjeta manual (6 Views)
+                  </button>
                 </div>
               </div>
             )}
@@ -18515,8 +18768,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Componiendo Banda Sonora Multiescena...'
-                          : '✨ Diseñar Banda Sonora Multiescena (Gemini + Flow Music)'}
+                          ? 'Componiendo Música (FlowMusic)...'
+                          : '✨ Diseñar Música (Gemini + FlowMusic)'}
                       </button>
                       {!sunoAutoPilotActive ? (
                         <button
@@ -18525,7 +18778,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
                           title="Envía automáticamente todas las canciones una por una a https://www.flowmusic.app/, descarga los audios en 02_Audio y los coloca en la Pista 5 del Editor con Fade-In, Fade-Out y Ducking"
                         >
-                          🚀 Piloto Automático Flow Music (Crear Todas las Canciones)
+                          🚀 Piloto Automático FlowMusic (Crear Todas las Canciones)
                         </button>
                       ) : (
                         <button
@@ -18533,7 +18786,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           onClick={handleStopFlowMusicAutoPilot}
                           className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow animate-pulse"
                         >
-                          ⏹️ Detener Cola Flow Music (Pista #{sunoCurrentTrackNum || 1})
+                          ⏹️ Detener Cola FlowMusic (Pista #{sunoCurrentTrackNum || 1})
                         </button>
                       )}
                       <button
@@ -18544,9 +18797,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           })
                         }
                         className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
-                        title="Captura automáticamente las pistas de audio generadas en la pestaña abierta de Flow Music (flowmusic.app), las guarda en 02_Audio y las inyecta en la Pista 5 del Editor"
+                        title="Captura automáticamente las pistas de audio generadas en la pestaña abierta de FlowMusic (flowmusic.app), las guarda en 02_Audio y las inyecta en la Pista 5 del Editor"
                       >
-                        🔍 Auto-Capturar Pistas de Flow Music
+                        🔍 Auto-Capturar Pistas de FlowMusic
                       </button>
                       <button
                         onClick={() => {
@@ -18564,10 +18817,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             id: `suno-${Date.now()}`,
                             trackNumber: nextNum,
                             title: `Pista ${nextNum}: "Ecos del Tiempo"`,
-                            duration: '01:30',
-                            videoTimeRange: '00:00 - 01:30',
+                            duration: '2:30',
+                            videoTimeRange: '00:08 - 02:38',
                             lyricsPrompt:
-                              '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Narrator Voice]\n[Gentle 3s Fade-Out Outro]',
+                              '[Instrumental]\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Narrator Voice]\n[Gentle 3s Fade-Out Outro]\n[End - 2:30]',
                             stylePrompt:
                               'Ambient cinematic documentary soundtrack, historical period instrumental, slow tempo 62 bpm, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore sitting softly below narrator voice, strictly 100% instrumental only, no vocals, no singing, no speech, no lyrics',
                             explanation: '',
@@ -18579,7 +18832,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         }}
                         className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
                       >
-                        + Añadir Pista Flow Music
+                        + Añadir Pista FlowMusic
                       </button>
                     </div>
                   </div>
@@ -18587,9 +18840,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <strong className="text-amber-300">
-                        🎵 Reglas Activas de Banda Sonora Automática (Google Flow Music — flowmusic.app):
+                        🎵 Reglas Activas de Música (FlowMusic — flowmusic.app):
                       </strong>{' '}
-                      1) <span className="underline decoration-amber-400/60">Multiescena Dinámica (&gt;3 canciones)</span> adaptada a las escenas visuales y trama • 2) <span className="underline decoration-amber-400/60">Silencios dramáticos obligatorios (10s–20s)</span> de solo voz y Foley entre cada canción • 3) <span className="underline decoration-amber-400/60">Última canción obligatoria de <strong>1:30</strong></span> • 4) <span className="underline decoration-emerald-400/70 text-emerald-200">Fade-In (2.5s), Fade-Out (3.0s) y Ducking Automático siempre por debajo de la Voz Narrativa (~14% con voz / ~24% en pausas)</span>.
+                      1) <span className="underline decoration-amber-400/60">Multiescena Dinámica</span> adaptada a las escenas visuales y trama • 2) <span className="underline decoration-amber-400/60">Espacios sin música obligatorios entre cada canción de mínimo <strong>30s</strong> y máximo <strong>1:00</strong> (1 min)</span> con solo Voz Narrativa y Foley • 3) <span className="underline decoration-amber-400/60">Al final de la letra va <strong>[End - 2:30]</strong> con la duración deseada de cada canción</span> (y última canción de <strong>1:30</strong> con <code>[End - 1:30]</code>) • 4) <span className="underline decoration-emerald-400/70 text-emerald-200">Fade-In (2.5s), Fade-Out (3.0s) y Ducking Automático siempre por debajo de la Voz Narrativa</span>.
                     </div>
                   </div>
 
@@ -18597,12 +18850,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     rows={4}
                     value={activeDoc.rawSunoText}
                     onChange={(e) => updateActiveDoc({ rawSunoText: e.target.value })}
-                    placeholder="Pega o genera aquí la entrega de la Etapa 10 (con sus 6 campos por canción para Flow Music) para separarla en tarjetas..."
+                    placeholder="Pega o genera aquí la entrega de la Etapa 8 — Música (FlowMusic) con sus 6 campos por canción para separarla en tarjetas..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300"
                   />
                 </div>
 
-                {/* Flow Music Track Cards */}
+                {/* FlowMusic Track Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   {(activeDoc.sunoTracks || []).map((track, idx) => (
                     <div
@@ -18613,7 +18866,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           : 'border-slate-800'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-black">
                           #{idx + 1}
                         </span>
@@ -18625,27 +18878,49 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             next[idx] = { ...track, title: e.target.value };
                             updateActiveDoc({ sunoTracks: next });
                           }}
-                          className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-300 flex-1"
+                          className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-300 flex-1 min-w-[160px]"
                         />
-                        <span className="text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded">
-                          {track.videoTimeRange} ({track.duration})
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 px-2 py-1 rounded">
+                            {track.videoTimeRange}
+                          </span>
+                          <input
+                            type="text"
+                            value={track.duration}
+                            onChange={(e) => {
+                              const nextDur = e.target.value;
+                              const next = [...activeDoc.sunoTracks];
+                              next[idx] = {
+                                ...track,
+                                duration: nextDur,
+                                lyricsPrompt: ensureLyricsEndDurationTag(
+                                  track.lyricsPrompt || '',
+                                  nextDur
+                                ),
+                              };
+                              updateActiveDoc({ sunoTracks: next });
+                            }}
+                            title="Duración deseada de la canción (actualiza automáticamente [End - M:SS] al final de la letra)"
+                            placeholder="2:30"
+                            className="w-16 text-center text-xs font-mono font-bold text-emerald-300 bg-slate-950 border border-emerald-500/40 rounded px-1.5 py-1"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-semibold text-slate-300">
-                            4. Prompt de Lyrics (Mapa Instrumental con Fade-In / Fade-Out):
+                            4. Prompt de Lyrics (cierra con [End - M:SS] según duración):
                           </span>
                           <button
                             onClick={() => copyText(track.lyricsPrompt, `suno-lyr-${track.id}`)}
                             className="text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded cursor-pointer"
                           >
-                            {copiedId === `suno-lyr-${track.id}` ? '✓ Copiado' : '📋 Copiar Mapa'}
+                            {copiedId === `suno-lyr-${track.id}` ? '✓ Copiado' : '📋 Copiar Letra'}
                           </button>
                         </div>
                         <textarea
-                          rows={3}
+                          rows={4}
                           value={track.lyricsPrompt}
                           onChange={(e) => {
                             const next = [...activeDoc.sunoTracks];
@@ -18659,13 +18934,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       <div className="space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-semibold text-slate-300">
-                            5. Prompt de Style (100% Inglés para Flow Music — flowmusic.app):
+                            5. Prompt de Style (100% Inglés para FlowMusic — flowmusic.app):
                           </span>
                           <button
                             onClick={() => copyText(track.stylePrompt, `suno-sty-${track.id}`)}
                             className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded cursor-pointer"
                           >
-                            {copiedId === `suno-sty-${track.id}` ? '✓ Copiado' : '📋 Copiar Prompt Flow Music'}
+                            {copiedId === `suno-sty-${track.id}` ? '✓ Copiado' : '📋 Copiar Prompt FlowMusic'}
                           </button>
                         </div>
                         <textarea
@@ -18682,12 +18957,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                       {track.explanation && (
                         <div className="text-[11px] text-slate-400 bg-slate-950/70 border border-slate-800/80 rounded-lg p-2.5">
-                          <strong className="text-amber-300/90">🎬 Escena y Silencio Dramático:</strong>{' '}
+                          <strong className="text-amber-300/90">🎬 Escena y Espacio sin Música (30s–1:00):</strong>{' '}
                           {track.explanation}
                         </div>
                       )}
 
-                      {/* Auto-Create in Flow Music or Attach Audio */}
+                      {/* Auto-Create in FlowMusic or Attach Audio */}
                       <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
@@ -18697,13 +18972,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 idx + 1,
                                 track.stylePrompt || track.lyricsPrompt,
                                 track.title,
-                                track.duration
+                                track.duration,
+                                track.lyricsPrompt
                               )
                             }
                             className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow"
-                            title="Envía la pista a Flow Music (flowmusic.app), vigila cuando termina, descarga FlowMusic_0X.mp3 en 02_Audio y la coloca en la Pista 5 del Editor con Fade-In 2.5s, Fade-Out 3s y Ducking"
+                            title="Envía la pista a FlowMusic (flowmusic.app), vigila cuando termina, descarga FlowMusic_0X.mp3 en 02_Audio y la coloca en la Pista 5 del Editor con Fade-In 2.5s, Fade-Out 3s y Ducking"
                           >
-                            🎵 Auto-Crear & Descargar en Flow Music (Pista 5)
+                            🎵 Auto-Crear & Descargar en FlowMusic (Pista 5)
                           </button>
                           <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
                             <Upload className="w-3.5 h-3.5" /> Adjuntar Audio Manual

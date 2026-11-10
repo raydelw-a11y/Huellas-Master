@@ -851,37 +851,61 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
+        if (!parsed._v4_16x9_logoDefault5 && parsed?.['16:9']) {
+          parsed['16:9'] = {
+            ...parsed['16:9'],
+            logoScalePct: 5,
+            logoOpacity: 95,
+            logoPosX: 3,
+            logoPosY: 3,
+          };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
     return null;
   }, []);
 
-  const [logoScalePct, setLogoScalePct] = useState<number>(
-    () =>
+  const [logoScalePct, setLogoScalePct] = useState<number>(() => {
+    if (aspectRatio === '16:9' && !initialOverlayStyles.logoDefault16x9V4) {
+      return 5;
+    }
+    return (
       Number(initialFormatProfileForRatio?.logoScalePct) ||
       Number(initialOverlayStyles.logoScalePct) ||
-      (aspectRatio === '9:16' ? 12 : 6)
-  );
-  const [logoOpacity, setLogoOpacity] = useState<number>(
-    () => Number(initialOverlayStyles.logoOpacity) || 95
-  );
-  const [logoPosX, setLogoPosX] = useState<number>(() =>
-    typeof initialFormatProfileForRatio?.logoPosX === 'number'
+      (aspectRatio === '9:16' ? 12 : 5)
+    );
+  });
+  const [logoOpacity, setLogoOpacity] = useState<number>(() => {
+    if (aspectRatio === '16:9' && !initialOverlayStyles.logoDefault16x9V4) {
+      return 95;
+    }
+    return typeof initialFormatProfileForRatio?.logoOpacity === 'number'
+      ? initialFormatProfileForRatio.logoOpacity
+      : Number(initialOverlayStyles.logoOpacity) || 95;
+  });
+  const [logoPosX, setLogoPosX] = useState<number>(() => {
+    if (aspectRatio === '16:9' && !initialOverlayStyles.logoDefault16x9V4) {
+      return 3;
+    }
+    return typeof initialFormatProfileForRatio?.logoPosX === 'number'
       ? initialFormatProfileForRatio.logoPosX
       : typeof initialOverlayStyles.logoPosX === 'number'
       ? initialOverlayStyles.logoPosX
       : aspectRatio === '9:16'
       ? 10
-      : 3
-  );
-  const [logoPosY, setLogoPosY] = useState<number>(() =>
-    typeof initialFormatProfileForRatio?.logoPosY === 'number'
+      : 3;
+  });
+  const [logoPosY, setLogoPosY] = useState<number>(() => {
+    if (aspectRatio === '16:9' && !initialOverlayStyles.logoDefault16x9V4) {
+      return 3;
+    }
+    return typeof initialFormatProfileForRatio?.logoPosY === 'number'
       ? initialFormatProfileForRatio.logoPosY
       : typeof initialOverlayStyles.logoPosY === 'number'
       ? initialOverlayStyles.logoPosY
-      : 3
-  );
+      : 3;
+  });
   // Default Logo animations for ALL documentaries: Fade In 1.5s at the start and Fade Out 2.5s at the end of the documentary
   const [logoAnimIn, setLogoAnimIn] = useState<ElementAnimationType>(() =>
     initialOverlayStyles.logoAnimInFadeV1 && initialOverlayStyles.logoAnimIn
@@ -1719,6 +1743,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           logoOpacity,
           logoPosX,
           logoPosY,
+          logoDefault16x9V4: true,
           logoAnimIn,
           logoAnimInDur,
           logoAnimInFadeV1: true,
@@ -1843,6 +1868,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   interface FormatOverlayProfile {
     exportResolution: ExportResolutionPreset;
     logoScalePct: number;
+    logoOpacity?: number;
     logoPosX: number;
     logoPosY: number;
     hookLine1FontSize: number;
@@ -1858,7 +1884,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const formatProfilesRef = useRef<Record<'16:9' | '9:16', FormatOverlayProfile>>((() => {
     const default16x9: FormatOverlayProfile = {
       exportResolution: '8K_4320P',
-      logoScalePct: 6,
+      logoScalePct: 5,
+      logoOpacity: 95,
       logoPosX: 3,
       logoPosY: 3,
       hookLine1FontSize: 15,
@@ -1873,6 +1900,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const default9x16: FormatOverlayProfile = {
       exportResolution: '2K_1440P',
       logoScalePct: 12,
+      logoOpacity: 95,
       logoPosX: 10,
       logoPosY: 3,
       hookLine1FontSize: 13,
@@ -1897,6 +1925,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           saved16x9.exportResolution = '8K_4320P';
           saved9x16.exportResolution = '2K_1440P';
         }
+        if (!parsed._v4_16x9_logoDefault5) {
+          saved16x9.logoScalePct = 5;
+          saved16x9.logoOpacity = 95;
+          saved16x9.logoPosX = 3;
+          saved16x9.logoPosY = 3;
+        }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
           '9:16': { ...default9x16, ...saved9x16 },
@@ -1914,6 +1948,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? {
             exportResolution,
             logoScalePct,
+            logoOpacity,
             logoPosX,
             logoPosY,
             hookLine1FontSize,
@@ -1933,6 +1968,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? {
             exportResolution,
             logoScalePct,
+            logoOpacity,
             logoPosX,
             logoPosY,
             hookLine1FontSize,
@@ -1953,6 +1989,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ...formatProfilesRef.current,
           _v2_9x16_logoPosX10: true,
           _v3_res_by_ratio: true,
+          _v4_16x9_logoDefault5: true,
         })
       );
       const isLocalHost =
@@ -1966,7 +2003,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           aspectRatio,
           exportResolution,
           exportFps,
-          formatProfiles: formatProfilesRef.current,
+          formatProfiles: {
+            ...formatProfilesRef.current,
+            _v4_16x9_logoDefault5: true,
+          },
           clipAudioEdits: readSavedClipAudioEdits(activeDoc?.id),
           timelineClips: timelineClips.map((c) => ({
             id: c.id,
@@ -1993,6 +2033,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     exportResolution,
     exportFps,
     logoScalePct,
+    logoOpacity,
     logoPosX,
     logoPosY,
     hookLine1FontSize,
@@ -2262,6 +2303,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     formatProfilesRef.current[aspectRatio] = {
       exportResolution,
       logoScalePct,
+      logoOpacity,
       logoPosX,
       logoPosY,
       hookLine1FontSize,
@@ -2281,6 +2323,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     handleSelectExportResolution(nextRes);
     if (targetProfile) {
       setLogoScalePct(targetProfile.logoScalePct);
+      if (typeof targetProfile.logoOpacity === 'number') {
+        setLogoOpacity(targetProfile.logoOpacity);
+      }
       setLogoPosX(targetProfile.logoPosX);
       setLogoPosY(targetProfile.logoPosY);
       setHookLine1FontSize(targetProfile.hookLine1FontSize);
@@ -4695,21 +4740,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? savedDocOverlays.musicTrackEdits
           : {};
       let cursorSec = FIXED_INTRO_SEC; // Music starts at 00:08 (after 8s Intro)
-      const silenceGapSec = 15; // Mandatory 10-20s silence between songs
       const lastSongDurSec = 90; // Mandatory 1:30 for the closing song reaching the end of Clip 82 before Outro
+      const nonLastCount = Math.max(1, sunoList.length - 1);
       const lastSongTargetStartSec = Math.max(
-        FIXED_INTRO_SEC + 30,
+        FIXED_INTRO_SEC + (sunoList.length > 1 ? nonLastCount * 60 : 0),
         Number((bodySpanEndSec - lastSongDurSec).toFixed(2))
       );
-      const nonLastCount = Math.max(1, sunoList.length - 1);
+      const preLastSpanSec = Math.max(0, lastSongTargetStartSec - FIXED_INTRO_SEC);
+      // Mandatory space without music between each song: minimum 30s (0:30) and maximum 60s (1:00)
+      const idealGapSec =
+        sunoList.length > 1 ? (preLastSpanSec - nonLastCount * 150) / nonLastCount : 0;
+      const silenceGapSec =
+        sunoList.length > 1
+          ? Math.min(60, Math.max(30, Number.isFinite(idealGapSec) ? Math.round(idealGapSec) || 45 : 45))
+          : 0;
       const availablePreLastSpanSec = Math.max(
-        nonLastCount * 60,
-        lastSongTargetStartSec - FIXED_INTRO_SEC - nonLastCount * silenceGapSec
+        nonLastCount * 30,
+        preLastSpanSec - nonLastCount * silenceGapSec
       );
-      const evenPreLastDurSec = Math.min(
-        156,
-        Math.max(60, Math.round(availablePreLastSpanSec / nonLastCount))
-      );
+      const evenPreLastDurSec = Number((availablePreLastSpanSec / nonLastCount).toFixed(2));
 
       const builtMusic: TimelineMusicItem[] = sunoList.map((st, idx) => {
         const trackNum = idx + 1;
@@ -4722,10 +4771,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
         if (isLast) {
           // Always anchor the last song so it reaches 100% to the end of Clip 82 right before the Outro
-          startSec = Math.max(cursorSec, lastSongTargetStartSec);
+          startSec = sunoList.length > 1 ? lastSongTargetStartSec : Math.max(FIXED_INTRO_SEC, lastSongTargetStartSec);
           durSec = Math.max(10, Number((bodySpanEndSec - startSec).toFixed(2)));
+        } else if (idx === sunoList.length - 2) {
+          // Guarantee exact [30s, 60s] space without music right before the closing song
+          durSec = Math.max(30, Number((lastSongTargetStartSec - silenceGapSec - startSec).toFixed(2)));
         } else {
-          // Ensure earlier songs leave room for the 15s silence gap before the last song
+          // Ensure earlier songs leave exact room for the 30s–60s spaces without music
           const maxAllowedEnd = lastSongTargetStartSec - (nonLastCount - idx) * silenceGapSec;
           if (startSec + durSec > maxAllowedEnd) {
             durSec = Math.max(30, Number((maxAllowedEnd - startSec).toFixed(2)));
@@ -5770,21 +5822,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (Math.abs(currentLastEnd - outroClipStartSec) < 0.25) return prev;
 
       const FIXED_INTRO_SEC = 8;
-      const silenceGapSec = 15;
       const lastSongDurSec = 90;
+      const nonLastCount = Math.max(1, prev.length - 1);
       const lastSongTargetStartSec = Math.max(
-        FIXED_INTRO_SEC + 30,
+        FIXED_INTRO_SEC + (prev.length > 1 ? nonLastCount * 60 : 0),
         Number((outroClipStartSec - lastSongDurSec).toFixed(2))
       );
-      const nonLastCount = Math.max(1, prev.length - 1);
+      const preLastSpanSec = Math.max(0, lastSongTargetStartSec - FIXED_INTRO_SEC);
+      const idealGapSec =
+        prev.length > 1 ? (preLastSpanSec - nonLastCount * 150) / nonLastCount : 0;
+      const silenceGapSec =
+        prev.length > 1
+          ? Math.min(60, Math.max(30, Number.isFinite(idealGapSec) ? Math.round(idealGapSec) || 45 : 45))
+          : 0;
       const availablePreLastSpanSec = Math.max(
-        nonLastCount * 60,
-        lastSongTargetStartSec - FIXED_INTRO_SEC - nonLastCount * silenceGapSec
+        nonLastCount * 30,
+        preLastSpanSec - nonLastCount * silenceGapSec
       );
-      const evenPreLastDurSec = Math.min(
-        156,
-        Math.max(60, Math.round(availablePreLastSpanSec / nonLastCount))
-      );
+      const evenPreLastDurSec = Number((availablePreLastSpanSec / nonLastCount).toFixed(2));
 
       let cursorSec = FIXED_INTRO_SEC;
       return prev.map((mt, idx) => {
@@ -5792,8 +5847,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         let startSec = cursorSec;
         let durSec = isLast ? lastSongDurSec : evenPreLastDurSec;
         if (isLast) {
-          startSec = Math.max(cursorSec, lastSongTargetStartSec);
+          startSec = prev.length > 1 ? lastSongTargetStartSec : Math.max(FIXED_INTRO_SEC, lastSongTargetStartSec);
           durSec = Math.max(10, Number((outroClipStartSec - startSec).toFixed(2)));
+        } else if (idx === prev.length - 2) {
+          durSec = Math.max(30, Number((lastSongTargetStartSec - silenceGapSec - startSec).toFixed(2)));
         } else {
           const maxAllowedEnd = lastSongTargetStartSec - (nonLastCount - idx) * silenceGapSec;
           if (startSec + durSec > maxAllowedEnd) {
@@ -16317,7 +16374,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div className={`flex flex-col gap-1 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
                 <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
-                  <span className="truncate">5. 🎵 Flow Music ({musicTracks.length})</span>
+                  <span className="truncate">5. 🎵 FlowMusic ({musicTracks.length})</span>
                 </div>
                 <div
                   style={
@@ -16331,7 +16388,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 >
                   {musicTracks.length === 0 ? (
                     <span className="text-[10px] text-slate-500 px-2 py-0.5">
-                      Las pistas multi-escena de la Etapa 10 (Flow Music) aparecen aquí. Haz clic en cualquier canción para ajustar su volumen, Fade-In y Fade-Out.
+                      Las pistas multi-escena de la Etapa 8 — Música (FlowMusic) aparecen aquí. Haz clic en cualquier canción para ajustar su volumen, Fade-In y Fade-Out.
                     </span>
                   ) : (
                     musicTracks.map((mt, mIdx) => {
@@ -16363,9 +16420,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   : { width: `${gapSec * timelineZoom}px` }
                               }
                               className="px-1.5 py-0.5 rounded bg-slate-900/90 border-x border-dashed border-slate-700 text-[9px] text-slate-400 truncate text-center shrink-0"
-                              title={`Silencio dramático de ${gapSec}s entre escenas (solo voz narrativa + Foley)`}
+                              title={`Espacio sin música de ${gapSec}s entre canciones (mínimo 30s y máximo 1:00 — solo voz narrativa + Foley)`}
                             >
-                              🔇 Silencio {gapSec}s
+                              🔇 Sin música {gapSec}s
                             </div>
                           )}
                           <div
