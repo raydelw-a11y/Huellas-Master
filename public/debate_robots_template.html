@@ -73,7 +73,7 @@
 
     <div class="mt-1.5 bg-[var(--background)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 flex items-center gap-2 h-11 overflow-hidden">
       <span id="speakerBadge" class="px-2 py-0.5 rounded text-xs font-bold shrink-0 bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
-        🌐 Web High
+        🌐 Web Carbon
       </span>
       <p id="speechText" class="text-xs text-[var(--foreground)] leading-snug line-clamp-2 flex-1 min-w-0"></p>
     </div>
@@ -106,7 +106,7 @@
               <circle cx="40" cy="64" r="5.5" fill="#06b6d4" class="core-pulse" />
             </svg>
           </div>
-          <span class="text-xs font-bold text-cyan-400 leading-tight truncate max-w-full">Web High</span>
+          <span class="text-xs font-bold text-cyan-400 leading-tight truncate max-w-full">Web Carbon</span>
           <span id="status0" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🎙️ Habla</span>
         </div>
 
@@ -123,7 +123,7 @@
               <polygon points="40,58 46,64 40,70 34,64" fill="#a855f7" class="core-pulse" />
             </svg>
           </div>
-          <span class="text-xs font-bold text-purple-400 leading-tight truncate max-w-full">Opus</span>
+          <span class="text-xs font-bold text-purple-400 leading-tight truncate max-w-full">Carbon High</span>
           <span id="status1" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🧠 Oye</span>
         </div>
 
@@ -140,7 +140,7 @@
               <circle cx="40" cy="64" r="5.5" fill="#10b981" class="core-pulse" />
             </svg>
           </div>
-          <span class="text-xs font-bold text-emerald-400 leading-tight truncate max-w-full">Argon</span>
+          <span class="text-xs font-bold text-emerald-400 leading-tight truncate max-w-full">Argon High</span>
           <span id="status2" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🔬 Piensa</span>
         </div>
 
@@ -157,7 +157,7 @@
               <polygon points="42,58 35,65 40,65 38,71 45,63 40,63" fill="#f59e0b" class="core-pulse" />
             </svg>
           </div>
-          <span class="text-xs font-bold text-amber-400 leading-tight truncate max-w-full">Flash</span>
+          <span class="text-xs font-bold text-amber-400 leading-tight truncate max-w-full">3.8 Flash</span>
           <span id="status3" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">⚡ Audita</span>
         </div>
       </div>
@@ -174,38 +174,39 @@
       {
         speaker: 0,
         target: 1,
-        badge: '🌐 Web High',
+        badge: '🌐 Web Carbon',
         badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
-        text: '"Perspectiva externa lista desde ventana limpia fuera de Notebooks con Argon en High."',
+        text: '"Perspectiva externa lista desde ventana limpia fuera de Notebooks con 4 Carbon en High."',
         statuses: ['🎙️ Habla', '👀 Oye', '🧠 Analiza', '⚡ Audita']
       },
       {
         speaker: 1,
         target: 2,
-        badge: '🟣 Opus',
+        badge: '🟣 Carbon High',
         badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-        text: '"Estructuro la arquitectura principal y contrasto la solución con Gemini Web y Argon."',
+        text: '"Estructuro la arquitectura principal y contrasto la solución con Web Carbon y Argon High."',
         statuses: ['✅ Listo', '🎙️ Rebate', '👀 Evalúa', '⚡ Audita']
       },
       {
         speaker: 2,
         target: 3,
-        badge: '💎 Argon',
+        badge: '💎 Argon High',
         badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-        text: '"Analizando a fondo sin interrupciones ni límites de tiempo hasta cerrar el diagnóstico."',
+        text: '"Analizando a fondo sin interrupciones y debatiendo las propuestas en Ronda 2."',
         statuses: ['✅ Listo', '🤝 Evalúa', '🎙️ Habla', '👀 Oye']
       },
       {
         speaker: 3,
         target: 1,
-        badge: '⚡ Flash',
+        badge: '⚡ 3.8 Flash',
         badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-        text: '"¡Casos borde y líneas verificadas! Los 4 modelos llegamos a consenso unánime."',
+        text: '"¡Casos borde y líneas verificadas! Tras el debate cruzado llegamos a consenso unánime."',
         statuses: ['✅ Consenso', '✅ Consenso', '✅ Consenso', '🎙️ Veredicto']
       }
     ];
 
-    const xCoords = [75, 225, 375, 525];
+    const xCoordsTrio = [75, 225, 375, 525];
+    const xCoordsDuo = [100, 300, 500, 300];
     let currentTurnIndex = 0;
     let currentMode = 'trio';
     const mouthColors = ['#22d3ee', '#c084fc', '#34d399', '#fbbf24'];
@@ -251,8 +252,9 @@
         status.textContent = turn.statuses[i];
       }
 
-      const x1 = xCoords[turn.speaker];
-      const x2 = xCoords[turn.target];
+      const coords = currentMode === 'trio' ? xCoordsTrio : xCoordsDuo;
+      const x1 = coords[turn.speaker];
+      const x2 = coords[turn.target];
       const midX = (x1 + x2) / 2;
       document.getElementById('activeBeamPath').setAttribute('d', `M ${x1} 48 Q ${midX} 10 ${x2} 48`);
     }

@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:16 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:31 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -9933,9 +9933,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       // MÓVIL (GitHub Pages, sin extensión): enviar la orden de CUALQUIER etapa a la Mac vía ntfy (aviso ligero) + GitHub (prompt completo)
       if (!isLocalOriginForRemote) {
         const isPart1Remote = stageNum === 10;
-        const remoteHigh = isDeepResearchRemote
-          ? options?.enableHighModel ?? true
-          : Boolean(options?.enableHighModel);
+        const remoteHigh = true;
         const remoteDeep = isDeepResearchRemote
           ? options?.enableDeepResearch ?? true
           : Boolean(options?.enableDeepResearch);
@@ -9952,7 +9950,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           prompt: promptText,
           taskType: isPart1Remote ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
           enableHighModel: remoteHigh,
-          enableArgonLow: !remoteHigh,
+          enableArgonLow: false,
+          preferredModel: 'CARBON_4_HIGH',
+          thinkingLevel: 'HIGH',
           enableDeepResearch: remoteDeep,
           videoName: currentDoc.title || '',
           deepResearchVideoName: `${currentDoc.title || ''}_Deep Research`,
@@ -9972,10 +9972,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setBridgeStatusType('WORKING');
         setBridgeStatusMsg(
           isPart1Remote
-            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Argon Low)...'
+            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Carbon High)...'
             : isDeepResearchRemote
-            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Deep Research + Thinking High. El informe aparecerá aquí al terminar (10–20 min).'
-            : `📡 Enviando orden de la etapa a tu Mac (Gemini 4 Argon ${remoteHigh ? 'High' : 'Low'})...`
+            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini 4 Carbon High + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
+            : '📡 Enviando orden de la etapa a tu Mac (Gemini 4 Carbon High)...'
         );
         const nextDocsForRemote = documentaries.map((d) =>
           d.id === currentDoc.id ? { ...d, ...remotePatch } : d
@@ -10009,18 +10009,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const isStage1Part1Low = stageNum === 10;
     const isResearchStage = stageNum === 1 || stageNum === 2 || stageNum === 3;
-    const useHighModel = isStage1Part1Low
-      ? false
-      : options?.enableHighModel !== undefined
-      ? options.enableHighModel
-      : isResearchStage
-      ? geminiHighModelEnabled
-      : false;
-    const useArgonLow = isStage1Part1Low
-      ? true
-      : options?.enableArgonLow !== undefined
-      ? options.enableArgonLow
-      : !useHighModel;
+    const useHighModel = true;
+    const useArgonLow = false;
     const useDeepResearch = isStage1Part1Low
       ? false
       : options?.enableDeepResearch !== undefined
@@ -10039,10 +10029,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       isStage1Part1Low
-        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Argon · Thinking level: Low (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
+        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Carbon · Thinking level: High (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
-        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Argon · Thinking level: High + Deep Research activo (con Auto-Iniciar Plan)...`
-        : `⚡ Enviando prompt a Gemini Web en modo 4 Argon (Thinking level: Low)...`
+        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: High + Deep Research activo (con Auto-Iniciar Plan)...`
+        : `⚡ Enviando prompt a Gemini Web en modo 4 Carbon (Thinking level: High)...`
     );
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
@@ -10051,8 +10041,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
-      preferredModel: useArgonLow ? 'ARGON_4_LOW' : 'ARGON_4_HIGH',
-      thinkingLevel: useArgonLow ? 'LOW' : 'HIGH',
+      preferredModel: 'CARBON_4_HIGH',
+      thinkingLevel: 'HIGH',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),
       autoSubmit: true,

@@ -3798,10 +3798,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS' && sender?.tab?.id) {
     const geminiTabId = sender.tab.id;
-    const enableHighModel = Boolean(message.enableHighModel);
+    const enableHighModel = message.enableHighModel !== false;
     const enableDeepResearch = Boolean(message.enableDeepResearch);
-    const enableArgonLow = Boolean(message.enableArgonLow);
-    const targetLevel = enableArgonLow ? 'LOW' : 'HIGH';
+    const enableArgonLow = false;
+    const targetLevel = 'HIGH';
 
     (async () => {
       const target = { tabId: geminiTabId };
@@ -4102,6 +4102,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       b.click();
                     } catch {}
                   });
+                  document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
+                    try {
+                      if (typeof p.hidePopover === 'function') p.hidePopover();
+                    } catch {}
+                  });
                   // CDK OverlayKeyboardDispatcher listens on document.body (keydown on document never reaches it)
                   const escTarget = document.activeElement || document.body;
                   try {
@@ -4302,40 +4307,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   if (!switcherBtn) {
                     const allBtns = Array.from(
                       document.querySelectorAll('button, [role="button"]')
-                    ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container'));
+                    ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container, .cdk-overlay-popover'));
                     switcherBtn =
                       allBtns.find((el) => {
                         const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                        return /^(?:4\s*)?argon$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+                        return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
                       }) || null;
                   }
                   if (!switcherBtn) return { found: false };
-                  const label = (switcherBtn.innerText || switcherBtn.textContent || '')
+                  const ariaLabel = (switcherBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+                  const innerLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
                     .replace(/\s+/g, ' ')
                     .trim();
-                  const isAlreadyArgon = /\bargon\b/i.test(label) && !/\bpro\b/i.test(label);
+                  const label = `${ariaLabel} ${innerLabel}`.trim();
+                  const isAlreadyCarbon = /\bcarbon\b/i.test(label) && !/\bargon|pro|flash\b/i.test(label);
                   return {
                     ...triggerAngularElement(switcherBtn, false),
-                    isAlreadyArgon,
+                    isAlreadyCarbon,
                     label,
                   };
                 }
 
-                if (op === 'FIND_ARGON4_IN_OVERLAY') {
+                if (op === 'FIND_CARBON4_IN_OVERLAY') {
                   const items = getOverlayMenuItems();
-                  const argon4 =
+                  const carbon4 =
                     items.find((el) => {
                       const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                       return (
-                        /\b4\s*argon\b/i.test(txt) ||
-                        (/argon/i.test(txt) && /complex\s*tasks/i.test(txt))
+                        /\b4\s*carbon\b/i.test(txt) ||
+                        (/carbon/i.test(txt) && /most\s+complex\s+work/i.test(txt))
                       );
                     }) ||
                     items.find((el) => {
                       const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                      return /\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+                      return /\bcarbon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+                    }) ||
+                    items.find((el) => {
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      return /\b4\s*argon\b/i.test(txt) || (/\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt));
                     });
-                  return argon4 ? triggerAngularElement(argon4, false) : { found: false };
+                  return carbon4
+                    ? { ...triggerAngularElement(carbon4, false), matchedText: (carbon4.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40) }
+                    : { found: false };
                 }
 
                 if (op === 'FIND_THINKING_LEVEL_IN_OVERLAY') {
@@ -4363,21 +4376,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                         return (
                           /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
-                          !/thinking\s*level|low|medium|pro|flash|argon/i.test(txt)
+                          !/thinking\s*level|low|medium|pro|flash|argon|carbon/i.test(txt)
                         );
                       })
                     : items.find((el) => {
                         const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                         return (
-                          (/\blow\b/i.test(txt) && /quick\s+and\s+efficient/i.test(txt)) ||
-                          /^(?:✓\s*)?(?:low|bajo)(?:\s+quick\s+and\s+efficient)?$/i.test(txt)
+                          (/\blow\b/i.test(txt) && /(?:fast|quick)\s+and\s+efficient/i.test(txt)) ||
+                          /^(?:✓\s*)?(?:low|bajo)(?:\s+(?:fast|quick)\s+and\s+efficient)?$/i.test(txt)
                         );
                       }) ||
                       items.find((el) => {
                         const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                         return (
-                          /\b(low|bajo|quick\s+and\s+efficient)\b/i.test(txt) &&
-                          !/thinking\s*level|high|medium|pro|flash|argon/i.test(txt)
+                          /\b(low|bajo|(?:fast|quick)\s+and\s+efficient)\b/i.test(txt) &&
+                          !/thinking\s*level|high|medium|pro|flash|argon|carbon/i.test(txt)
                         );
                       });
                   return option
@@ -4434,24 +4447,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         };
 
         const openThinkingSubmenu = async (th) => {
-          await hardwareHoverOnly(th.x, th.y);
-          let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
-          if (!opt.found) {
-            // Clicking a sub-menu trigger also opens it (and never closes the parent menu)
-            await hardwareHoverAndClick(th.x, th.y);
-            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 150);
+          // In .cdk-overlay-popover (4 Carbon / 4 Argon flat menu), "High Extra thorough" is already visible directly!
+          let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 4, 110);
+          if (opt.found) return opt;
+          if (th && th.found) {
+            await hardwareHoverOnly(th.x, th.y);
+            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
+            if (!opt.found) {
+              await hardwareHoverAndClick(th.x, th.y);
+              opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 150);
+            }
           }
           return opt;
         };
 
-        // --- PART 1: MODEL "4 Argon" + "Thinking level" -> Low / High (with verification) ---
+        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> High (with verification) ---
         let thinkingOk = false;
         let thinkingVerified = false;
-        // The mode picker announces the current state ("Open mode picker, currently Argon High"): use it first
+        // The mode picker announces the current state ("Open mode picker, currently Carbon High"): use it first
         const modeMatchesTarget = async () => {
           const ml = await runMainStep('READ_MODE_LABEL');
           const label = String((ml && ml.label) || '');
-          const re = targetLevel === 'HIGH' ? /\bargon\b[^,]*\bhigh\b/i : /\bargon\b[^,]*\blow\b/i;
+          const re = targetLevel === 'HIGH' ? /\bcarbon\b[^,]*\bhigh\b/i : /\bcarbon\b[^,]*\blow\b/i;
           return re.test(label);
         };
         if (await modeMatchesTarget()) {
@@ -4466,19 +4483,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await sleep(400);
             continue;
           }
-          if (!menu.sw.isAlreadyArgon) {
-            const a4 = await waitFound('FIND_ARGON4_IN_OVERLAY', '', 6, 140);
-            if (a4.found) {
-              await hardwareHoverAndClick(a4.x, a4.y);
+          if (!menu.sw.isAlreadyCarbon) {
+            const c4 = await waitFound('FIND_CARBON4_IN_OVERLAY', '', 6, 140);
+            if (c4.found) {
+              await hardwareHoverAndClick(c4.x, c4.y);
               await sleep(450);
             }
             await closeMenus();
             menu = await openModelMenu();
             if (!menu) continue;
-          }
-          if (!menu.thinkingFound) {
-            diag.push(`T${attempt}: "Thinking level" no apareció (label=${menu.sw.label || ''})`);
-            continue;
           }
           const opt = await openThinkingSubmenu(menu.th);
           if (!opt.found) {
@@ -5351,7 +5364,7 @@ async function runExternalGeminiAskOrder(task) {
 
     const orderPayload = {
       target: 'GEMINI',
-      action: 'ASK_EXTERNAL_ARGON_HIGH',
+      action: 'ASK_EXTERNAL_CARBON_HIGH',
       requestId: task.id,
       prompt: task.prompt,
     };
@@ -5389,7 +5402,7 @@ async function runExternalGeminiAskOrder(task) {
         await forceSubmitPromptInGeminiTab(tabId, task.prompt);
         continue;
       }
-      if (snap.count > 0 && !snap.generating && snap.text.length > 60) {
+      if (snap.count > 0 && !snap.generating && snap.text.trim().length > 2) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;
         } else {

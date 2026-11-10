@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 15) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 15;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 17) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 17;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -624,9 +624,7 @@
     enableDeepResearch,
     enableArgonLow
   ) {
-    if (!enableHighModel && !enableDeepResearch && !enableArgonLow) return;
-
-    const targetLevel = enableArgonLow ? 'LOW' : 'HIGH';
+    const targetLevel = 'HIGH';
 
     const triggerHoverAndClick = (el, alsoClick = true) => {
       if (!el) return;
@@ -665,13 +663,25 @@
             b.click();
           } catch {}
         });
-        await sleep(160);
+        await sleep(140);
       }
+      document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
+        try {
+          if (typeof p.hidePopover === 'function') p.hidePopover();
+        } catch {}
+      });
       const openMenus = Array.from(
-        document.querySelectorAll('.cdk-overlay-container [role="menu"], .mat-mdc-menu-panel')
-      ).filter((el) => el && el.offsetParent !== null);
+        document.querySelectorAll(
+          '.cdk-overlay-container [role="menu"], .mat-mdc-menu-panel, .cdk-overlay-popover [role="menu"], .cdk-overlay-popover gem-menu'
+        )
+      ).filter((el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 4 && r.height > 4;
+      });
       if (openMenus.length > 0) {
-        document.dispatchEvent(
+        const escTarget = document.activeElement || document.body || document;
+        escTarget.dispatchEvent(
           new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
         );
         await sleep(160);
@@ -681,11 +691,15 @@
     const getVisibleMenuItems = () =>
       Array.from(
         document.querySelectorAll(
-          '.cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="option"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container button, [role="menuitem"], [role="option"], [role="menuitemradio"], .mat-mdc-menu-item, button.bard-mode-list-button'
+          '.cdk-overlay-popover gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-popover [role="menuitem"], .cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="option"], .cdk-overlay-container .mat-mdc-menu-item, .cdk-overlay-container button, gem-menu-item, [role="menuitem"], [role="option"], [role="menuitemradio"], .mat-mdc-menu-item, button.bard-mode-list-button'
         )
-      ).filter((el) => el && el.offsetParent !== null);
+      ).filter((el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 8 && r.height > 8;
+      });
 
-    // Find the bottom-right model switcher pill button ("Argon ^" / "3.1 Pro" / "3.8 Flash" / "3.5 Flash-Lite")
+    // Find the bottom-right model switcher pill button ("Carbon ^" / "Argon ^" / "3.8 Flash" / "3.5 Flash-Lite")
     const findModelSwitcherBtn = () => {
       const switcherSelectors = [
         '[data-test-id="bard-mode-menu-button"]',
@@ -699,14 +713,14 @@
         const el = document.querySelector(sel);
         if (el && el.offsetParent !== null) return el;
       }
-      // Fallback: find the pill button near the prompt bar whose text is "Argon", "4 Argon", "3.1 Pro", "3.8 Flash", "3.5 Flash-Lite"
+      // Fallback: find the pill button near the prompt bar whose text is "Carbon", "4 Carbon", "Argon", "3.8 Flash", etc.
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
-        (el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container')
+        (el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container, .cdk-overlay-popover')
       );
       return (
         allBtns.find((el) => {
           const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          return /^(?:4\s*)?argon$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+          return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
         }) || null
       );
     };
@@ -767,115 +781,103 @@
       );
     };
 
-    // STEP A: Select "4 Argon" AND open "Thinking level >" sub-menu to pick "Low" or "High" (Photo 1)
+    // STEP A: Select "4 Carbon" AND set "Thinking level" -> "High" ("High Extra thorough")
     const ensureArgon4AndThinkingLevel = async () => {
       await closeAnyOpenOverlayMenus();
 
       const switcherBtn = findModelSwitcherBtn();
       if (!switcherBtn) return;
 
-      const currentLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
+      const ariaLabel = (switcherBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+      const innerLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
         .replace(/\s+/g, ' ')
         .trim();
-      const isCurrentlyArgon = /\bargon\b/i.test(currentLabel) && !/\bpro\b/i.test(currentLabel);
+      const currentLabel = `${ariaLabel} ${innerLabel}`.trim();
+      if (/\bcarbon\b[^,]*\bhigh\b/i.test(currentLabel)) {
+        return;
+      }
+      const isCurrentlyCarbon = /\bcarbon\b/i.test(currentLabel) && !/\bargon|pro|flash\b/i.test(currentLabel);
 
-      // 1. Open the model switcher menu ("Argon ^")
+      // 1. Open the model switcher menu ("Carbon ^")
       triggerHoverAndClick(switcherBtn, true);
       await sleep(340);
 
       let menuItems = getVisibleMenuItems();
 
-      // 2. If not currently on "4 Argon", click "4 Argon" ("Complex tasks") first
-      if (!isCurrentlyArgon) {
-        const argon4Item =
+      // 2. If not currently on "4 Carbon", click "4 Carbon" ("Most complex work") first (fallback to "4 Argon" only if Carbon absent)
+      if (!isCurrentlyCarbon) {
+        const carbon4Item =
           menuItems.find((el) => {
             const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            return /\b4\s*argon\b/i.test(txt) || (/argon/i.test(txt) && /complex\s*tasks/i.test(txt));
+            return /\b4\s*carbon\b/i.test(txt) || (/carbon/i.test(txt) && /most\s+complex\s+work/i.test(txt));
           }) ||
           menuItems.find((el) => {
             const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            return /\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+            return /\bcarbon\b/i.test(txt) && !/thinking\s*level/i.test(txt);
+          }) ||
+          menuItems.find((el) => {
+            const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /\b4\s*argon\b/i.test(txt) || (/\bargon\b/i.test(txt) && !/thinking\s*level/i.test(txt));
           });
 
-        if (argon4Item) {
-          triggerHoverAndClick(argon4Item, true);
-          await sleep(340);
+        if (carbon4Item) {
+          triggerHoverAndClick(carbon4Item, true);
+          await sleep(360);
         }
 
-        // Re-check if clicking "4 Argon" closed the menu; if so, re-open "Argon ^" so we can access "Thinking level >"
+        // Re-check if clicking "4 Carbon" closed the menu; if so, re-open switcher so we can select "High Extra thorough"
         menuItems = getVisibleMenuItems();
         const hasThinkingLevelVisible = menuItems.some((el) =>
-          /thinking\s*level|nivel\s*de\s*pensamiento/i.test(
+          /thinking\s*level|nivel\s*de\s*pensamiento|extra\s+thorough/i.test(
             (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
           )
         );
         if (!hasThinkingLevelVisible) {
           const freshSwitcherBtn = findModelSwitcherBtn() || switcherBtn;
           triggerHoverAndClick(freshSwitcherBtn, true);
-          await sleep(340);
+          await sleep(360);
           menuItems = getVisibleMenuItems();
         }
       }
 
-      // 3. Find "Thinking level >" inside the open Argon menu and hover + click it to open the sub-menu (Low / Medium / High)
-      const thinkingLevelMenuItem = menuItems.find((el) => {
-        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        return /thinking\s*level|nivel\s*de\s*pensamiento/i.test(txt);
-      });
+      // 3. In .cdk-overlay-popover, "High Extra thorough" is directly visible; check directly first, or hover/click "Thinking level" if submenu
+      const findHighOption = (items) =>
+        items.find((el) => {
+          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return (
+            (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
+            /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
+          );
+        }) ||
+        items.find((el) => {
+          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return (
+            /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
+            !/thinking\s*level|low|medium|pro|flash|argon|carbon/i.test(txt)
+          );
+        });
 
-      if (thinkingLevelMenuItem) {
-        // First hover over "Thinking level >" (Angular Material sub-menus open on mouseenter/pointerenter or click)
-        triggerHoverAndClick(thinkingLevelMenuItem, false);
-        await sleep(220);
-
-        let subMenuItems = getVisibleMenuItems();
-        let hasLowHighSubMenu = subMenuItems.some((el) =>
-          /quick\s+and\s+efficient|extra\s+thorough|balanced\s+depth|^\s*(?:low|medium|high)\b/i.test(
-            (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
-          )
-        );
-
-        if (!hasLowHighSubMenu) {
-          triggerHoverAndClick(thinkingLevelMenuItem, true);
-          await sleep(300);
-          subMenuItems = getVisibleMenuItems();
+      let targetLevelOption = findHighOption(menuItems);
+      if (!targetLevelOption) {
+        const thinkingLevelMenuItem = menuItems.find((el) => {
+          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          return /thinking\s*level|nivel\s*de\s*pensamiento/i.test(txt);
+        });
+        if (thinkingLevelMenuItem) {
+          triggerHoverAndClick(thinkingLevelMenuItem, false);
+          await sleep(220);
+          targetLevelOption = findHighOption(getVisibleMenuItems());
+          if (!targetLevelOption) {
+            triggerHoverAndClick(thinkingLevelMenuItem, true);
+            await sleep(300);
+            targetLevelOption = findHighOption(getVisibleMenuItems());
+          }
         }
+      }
 
-        const targetLevelOption =
-          targetLevel === 'HIGH'
-            ? subMenuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return (
-                  (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
-                  /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
-                );
-              }) ||
-              subMenuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return (
-                  /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
-                  !/thinking\s*level|low|medium|pro|flash|argon/i.test(txt)
-                );
-              })
-            : subMenuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return (
-                  (/\blow\b/i.test(txt) && /quick\s+and\s+efficient/i.test(txt)) ||
-                  /^(?:✓\s*)?(?:low|bajo)(?:\s+quick\s+and\s+efficient)?$/i.test(txt)
-                );
-              }) ||
-              subMenuItems.find((el) => {
-                const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                return (
-                  /\b(low|bajo|quick\s+and\s+efficient)\b/i.test(txt) &&
-                  !/thinking\s*level|high|medium|pro|flash|argon/i.test(txt)
-                );
-              });
-
-        if (targetLevelOption) {
-          triggerHoverAndClick(targetLevelOption, true);
-          await sleep(280);
-        }
+      if (targetLevelOption) {
+        triggerHoverAndClick(targetLevelOption, true);
+        await sleep(280);
       }
 
       await closeAnyOpenOverlayMenus();
@@ -3235,34 +3237,28 @@
           return;
         }
 
-        const useArgonLow =
-          Boolean(payload.enableArgonLow) ||
-          (!payload.enableHighModel && !payload.enableDeepResearch);
+        const useArgonLow = false;
         const desiredModeKey = payload.enableDeepResearch
-          ? 'ARGON4_HIGH_DEEP_RESEARCH'
-          : payload.enableHighModel
-          ? 'ARGON4_HIGH'
-          : 'ARGON_LOW';
+          ? 'CARBON4_HIGH_DEEP_RESEARCH'
+          : 'CARBON4_HIGH';
 
-        // 2. Always verify & configure Argon 4 + Thinking Level + Deep Research in DOM (especially after chat navigation)
+        // 2. Always verify & configure 4 Carbon + Thinking Level: High + Deep Research in DOM (especially after chat navigation)
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
-            useArgonLow
-              ? '⚡ Configurando Gemini Argon 4 en Thinking: Low...'
-              : `⚙️ Configurando Gemini Web en Argon 4 (Thinking: High)${
-                  payload.enableDeepResearch ? ' + Deep Research activo' : ''
-                }...`,
+            `⚙️ Configurando Gemini Web en 4 Carbon (Thinking: High)${
+              payload.enableDeepResearch ? ' + Deep Research activo' : ''
+            }...`,
             { stageNumber: payload.stageNumber }
           );
           const cfgResult = await configureGeminiModelAndDeepResearch(
-            Boolean(payload.enableHighModel),
+            true,
             Boolean(payload.enableDeepResearch),
-            useArgonLow
+            false
           );
           lastConfiguredModelMode = desiredModeKey;
 
-          const levelLabel = useArgonLow ? 'Low' : 'High';
+          const levelLabel = 'High';
           const diagText =
             cfgResult && Array.isArray(cfgResult.diag) && cfgResult.diag.length > 0
               ? ` [${cfgResult.diag.join(' · ')}]`
@@ -3285,7 +3281,7 @@
           if (cfgResult) {
             reportStatus(
               'WORKING',
-              `✅ Gemini configurado: 4 Argon · Thinking level: ${levelLabel}${
+              `✅ Gemini configurado: 4 Carbon · Thinking level: ${levelLabel}${
                 cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar)'
               }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${diagText}`,
               { stageNumber: payload.stageNumber }
@@ -3883,7 +3879,7 @@
       return false;
     }
 
-    if (msg.action === 'ASK_EXTERNAL_ARGON_HIGH') {
+    if (msg.action === 'ASK_EXTERNAL_CARBON_HIGH' || msg.action === 'ASK_EXTERNAL_ARGON_HIGH') {
       const requestId = String(msg.requestId || '').trim();
       const rawPrompt = String(msg.prompt || '').trim();
       sendResponse({ handled: true, requestId });
@@ -3915,6 +3911,9 @@
             document
               .querySelectorAll('.cdk-overlay-backdrop')
               .forEach((b) => b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+            document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
+              if (typeof p.hidePopover === 'function') p.hidePopover();
+            });
           } catch {}
           await sleep(450);
 
@@ -4000,9 +3999,9 @@
             const curCount = getModelResponseElements().length;
             const latestText = (extractLatestGeminiResponse().text || '').trim();
             const hasNewTurn =
-              curCount > initialCount || (latestText.length > 40 && latestText !== initialLastText);
+              curCount > initialCount || (latestText.length > 2 && latestText !== initialLastText);
 
-            if (hasNewTurn && !generating && latestText.length > 40) {
+            if (hasNewTurn && !generating && latestText.length > 2) {
               if (latestText === lastSeenText) {
                 stableDoneTicks += 1;
               } else {
@@ -4032,7 +4031,7 @@
             .sendMessage({
               type: 'EXTERNAL_GEMINI_ASK_RESULT',
               requestId,
-              ok: finalFallback.length > 40,
+              ok: finalFallback.length > 2,
               response: finalFallback,
               chatUrl: window.location.href,
               error: finalFallback.length > 40 ? undefined : 'Timeout esperando respuesta completa en Gemini Web.',
