@@ -4958,9 +4958,19 @@ async function inspectGeminiTabLatestResponse(tabId) {
             generating = true;
           }
         }
+        const userQueries = document.querySelectorAll(
+          'user-query, [data-message-author-role="user"]'
+        ).length;
+        const hasComposer = Boolean(
+          document.querySelector(
+            'rich-textarea div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
+          )
+        );
         return {
           generating,
           count,
+          userQueries,
+          hasComposer,
           text,
           hasActionBar,
           url: window.location.href,
@@ -4970,6 +4980,282 @@ async function inspectGeminiTabLatestResponse(tabId) {
     return (results && results[0] && results[0].result) || null;
   } catch {
     return null;
+  }
+}
+
+async function forceSubmitPromptInGeminiTab(tabId, rawPrompt) {
+  const cleanPrompt = String(rawPrompt || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join('   |   ')
+    .trim();
+  if (!tabId || !cleanPrompt) return false;
+
+  try {
+    // Step 1: Close any stuck CDK overlay backdrop & inject/click in MAIN world
+    const mainRes = await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        args: [cleanPrompt],
+        func: (promptText) => {
+          try {
+            document
+              .querySelectorAll('.cdk-overlay-backdrop')
+              .forEach((b) => b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+          } catch {}
+
+          const inputEl = document.querySelector(
+            'rich-textarea div.ql-editor[contenteditable="true"], div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
+          );
+          if (!inputEl) return { ok: false, reason: 'no_input' };
+
+          const findSendBtn = () => {
+            const sels = [
+              'button.send-button:not([disabled]):not([aria-disabled="true"])',
+              '.send-button-container button:not([disabled]):not([aria-disabled="true"])',
+              'button[data-test-id*="send" i]:not([disabled]):not([aria-disabled="true"])',
+              'button[aria-label*="Send message" i]:not([disabled]):not([aria-disabled="true"])',
+              'button[aria-label*="Enviar mensaje" i]:not([disabled]):not([aria-disabled="true"])',
+              'button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"])',
+              'button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])',
+            ];
+            for (const s of sels) {
+              const b = document.querySelector(s);
+              if (b && b.offsetParent !== null) return b;
+            }
+            return null;
+          };
+
+          inputEl.focus();
+          const richHost = inputEl.closest('rich-textarea');
+          const quillInst = inputEl.__quill || (richHost && richHost.__quill);
+          if (quillInst && typeof quillInst.setText === 'function') {
+            try {
+              quillInst.setText(promptText, 'user');
+            } catch {}
+          }
+
+          try {
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(inputEl);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            const dt = new DataTransfer();
+            dt.setData('text/plain', promptText);
+            inputEl.dispatchEvent(
+              new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clipboardData: dt,
+              })
+            );
+          } catch {}
+
+          if (!findSendBtn()) {
+            try {
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(inputEl);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('insertText', false, promptText);
+            } catch {}
+          }
+
+          const curTxt = (inputEl.value ?? inputEl.innerText ?? inputEl.textContent ?? '').trim();
+          if (!curTxt || curTxt.length < Math.min(15, promptText.length)) {
+            let p = inputEl.querySelector('p');
+            if (!p) {
+              p = document.createElement('p');
+              inputEl.appendChild(p);
+            }
+            p.textContent = promptText;
+          }
+          inputEl.classList.remove('ql-blank');
+          for (const t of [inputEl, richHost].filter(Boolean)) {
+            t.dispatchEvent(
+              new InputEvent('beforeinput', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                inputType: 'insertText',
+                data: promptText,
+              })
+            );
+            t.dispatchEvent(
+              new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                inputType: 'insertText',
+                data: promptText,
+              })
+            );
+            t.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+
+          const sendBtn = findSendBtn();
+          if (sendBtn) {
+            sendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            sendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            sendBtn.click();
+          } else {
+            inputEl.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+              })
+            );
+          }
+
+          const r = inputEl.getBoundingClientRect();
+          const sb = sendBtn ? sendBtn.getBoundingClientRect() : null;
+          return {
+            ok: true,
+            clickedSend: Boolean(sendBtn),
+            inputX: Math.round(r.left + Math.min(80, Math.max(12, r.width / 3))),
+            inputY: Math.round(r.top + Math.max(10, r.height / 2)),
+            sendX: sb ? Math.round(sb.left + sb.width / 2) : 0,
+            sendY: sb ? Math.round(sb.top + sb.height / 2) : 0,
+          };
+        },
+      })
+      .catch(() => null);
+
+    await sleep(650);
+    const snapAfterMain = await inspectGeminiTabLatestResponse(tabId);
+    if (
+      snapAfterMain &&
+      (snapAfterMain.userQueries > 0 || snapAfterMain.count > 0 || snapAfterMain.generating)
+    ) {
+      return true;
+    }
+
+    // Step 2: Hardware CDP fallback (works in unfocused windows where synthetic events are ignored)
+    const coords = (mainRes && mainRes[0] && mainRes[0].result) || null;
+    const target = { tabId };
+    let attached = false;
+    try {
+      await chrome.debugger.attach(target, '1.3');
+      attached = true;
+    } catch {
+      try {
+        await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+        attached = true;
+      } catch {}
+    }
+    if (attached) {
+      try {
+        await sleep(250);
+        // Dismiss any overlay with Escape first
+        await chrome.debugger
+          .sendCommand(target, 'Input.dispatchKeyEvent', {
+            type: 'rawKeyDown',
+            key: 'Escape',
+            code: 'Escape',
+            windowsVirtualKeyCode: 27,
+            nativeVirtualKeyCode: 27,
+          })
+          .catch(() => {});
+        await chrome.debugger
+          .sendCommand(target, 'Input.dispatchKeyEvent', {
+            type: 'keyUp',
+            key: 'Escape',
+            code: 'Escape',
+            windowsVirtualKeyCode: 27,
+            nativeVirtualKeyCode: 27,
+          })
+          .catch(() => {});
+        await sleep(120);
+
+        if (coords && coords.inputX > 0 && coords.inputY > 0) {
+          await dispatchHardwareClick(target, coords.inputX, coords.inputY).catch(() => {});
+          await sleep(120);
+        }
+
+        // Clear any uncommitted text and insert via CDP Input.insertText (trusted input)
+        await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const el = document.querySelector(
+                'rich-textarea div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
+              );
+              if (!el) return;
+              el.focus();
+              try {
+                const s = window.getSelection();
+                const r = document.createRange();
+                r.selectNodeContents(el);
+                s.removeAllRanges();
+                s.addRange(r);
+                document.execCommand('delete', false);
+              } catch {}
+            },
+          })
+          .catch(() => {});
+
+        await chrome.debugger
+          .sendCommand(target, 'Input.insertText', { text: cleanPrompt })
+          .catch(() => {});
+        await sleep(280);
+
+        // Locate send button coordinates after trusted insertText
+        const sbRes = await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const b = document.querySelector(
+                'button.send-button:not([disabled]):not([aria-disabled="true"]), .send-button-container button:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])'
+              );
+              if (!b) return null;
+              const r = b.getBoundingClientRect();
+              if (r.width <= 0 || r.height <= 0) return null;
+              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            },
+          })
+          .catch(() => null);
+        const sbCoords = (sbRes && sbRes[0] && sbRes[0].result) || null;
+        if (sbCoords && sbCoords.x > 0 && sbCoords.y > 0) {
+          await dispatchHardwareClick(target, sbCoords.x, sbCoords.y).catch(() => {});
+        } else {
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', {
+              type: 'rawKeyDown',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+            })
+            .catch(() => {});
+          await chrome.debugger
+            .sendCommand(target, 'Input.dispatchKeyEvent', {
+              type: 'keyUp',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+            })
+            .catch(() => {});
+        }
+      } finally {
+        await chrome.debugger.detach(target).catch(() => {});
+      }
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -5046,16 +5332,17 @@ async function runExternalGeminiAskOrder(task) {
       })
       .catch(() => {});
 
-    // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app
-    for (let w = 0; w < 25; w++) {
+    // Wait until the new Gemini window/tab finishes loading https://gemini.google.com/app AND mounts the composer
+    for (let w = 0; w < 35; w++) {
       await sleep(400);
       const tInfo = await chrome.tabs.get(tabId).catch(() => null);
       if (tInfo && tInfo.status === 'complete' && /^https:\/\/gemini\.google\.com\/app/.test(tInfo.url || '')) {
-        break;
+        const snapReady = await inspectGeminiTabLatestResponse(tabId);
+        if (snapReady && snapReady.hasComposer) {
+          break;
+        }
       }
     }
-    await sleep(2200);
-    await ensureScriptInjected(tabId, 'gemini-content.js');
     await sleep(600);
 
     const orderPayload = {
@@ -5064,7 +5351,21 @@ async function runExternalGeminiAskOrder(task) {
       requestId: task.id,
       prompt: task.prompt,
     };
-    await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => {});
+    let deliveredAck = false;
+    for (let tryIdx = 0; tryIdx < 6; tryIdx++) {
+      await ensureScriptInjected(tabId, 'gemini-content.js');
+      await sleep(350);
+      const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
+      if (ack && ack.handled) {
+        deliveredAck = true;
+        break;
+      }
+      await sleep(450);
+    }
+
+    if (!deliveredAck) {
+      await forceSubmitPromptInGeminiTab(tabId, task.prompt);
+    }
 
     let stableDoneTicks = 0;
     let lastText = '';
@@ -5075,6 +5376,15 @@ async function runExternalGeminiAskOrder(task) {
       if (!tStillExists) break;
       const snap = await inspectGeminiTabLatestResponse(tabId);
       if (!snap) continue;
+      if (
+        snap.userQueries === 0 &&
+        snap.count === 0 &&
+        !snap.generating &&
+        (i === 4 || i === 8 || i === 13)
+      ) {
+        await forceSubmitPromptInGeminiTab(tabId, task.prompt);
+        continue;
+      }
       if (snap.count > 0 && !snap.generating && snap.text.length > 60) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;

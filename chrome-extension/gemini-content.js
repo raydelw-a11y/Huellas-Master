@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 14) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 14;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 15) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 15;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -3907,7 +3907,15 @@
             return;
           }
 
-          await configureGeminiModelAndDeepResearch(true, false, false);
+          await Promise.race([
+            configureGeminiModelAndDeepResearch(true, false, false),
+            sleep(8000),
+          ]);
+          try {
+            document
+              .querySelectorAll('.cdk-overlay-backdrop')
+              .forEach((b) => b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+          } catch {}
           await sleep(450);
 
           // Re-query inputEl AFTER model switching because Angular recreates <rich-textarea>
@@ -3935,23 +3943,18 @@
             })
             .catch(() => {});
 
-          let hasSeenInputPopulated = false;
           for (let attempt = 0; attempt < 16; attempt++) {
-            await sleep(attempt === 0 ? 400 : 450);
+            await sleep(attempt === 0 ? 450 : 500);
             const curCount = getModelResponseElements().length;
             const curUserQueries = document.querySelectorAll(
               'user-query, [data-message-author-role="user"]'
             ).length;
             const curInput = findPromptInput() || inputEl;
-            const rem = (curInput.value ?? curInput.innerText ?? curInput.textContent ?? '').trim();
-            if (rem.length >= 10) {
-              hasSeenInputPopulated = true;
-            }
             if (
               isGeminiStillGenerating() ||
               curCount > initialCount ||
               curUserQueries > initialUserQueries ||
-              (hasSeenInputPopulated && rem.length < 5)
+              !/^https:\/\/gemini\.google\.com\/app\/?$/.test(window.location.href)
             ) {
               break;
             }
@@ -3965,7 +3968,7 @@
                   autoSubmit: true,
                 })
                 .catch(() => {});
-              await sleep(220);
+              await sleep(260);
               sendBtn = findSendButton();
             }
             if (sendBtn) {
