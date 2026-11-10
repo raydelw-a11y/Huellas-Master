@@ -13090,7 +13090,8 @@ function runAppleScriptInRunningChromiumBrowsers(buildScriptForBrowser: (browser
   );
 }
 
-function wakeExtensionInHuellasAppBrowser() {
+function wakeExtensionInHuellasAppBrowser(forceReload = false) {
+  const query = forceReload ? '?force=1' : '?wake=1';
   runAppleScriptInRunningChromiumBrowsers(
     (browserApp) => `tell application "${browserApp}"
       repeat with w in windows
@@ -13100,7 +13101,7 @@ function wakeExtensionInHuellasAppBrowser() {
           set u to URL of t
           if u starts with "chrome://extensions/?id=" then
             set tid to text 25 thru -1 of u
-            if (length of tid) ≥ 32 then
+            if (length of tid) >= 32 then
               set detectedExtId to text 1 thru 32 of tid
             end if
           end if
@@ -13115,7 +13116,7 @@ function wakeExtensionInHuellasAppBrowser() {
           end if
         end repeat
         if matchedWin then
-          make new tab at end of tabs of w with properties {URL:"chrome-extension://" & detectedExtId & "/reloader.html?wake=1"}
+          make new tab at end of tabs of w with properties {URL:"chrome-extension://" & detectedExtId & "/reloader.html${query}"}
           return "MATCHED"
         end if
       end repeat
@@ -14044,7 +14045,7 @@ app.post('/api/chatgpt-web/ask-external', async (req, res) => {
 app.post('/api/extension/reload', (_req, res) => {
   extensionManualReloadCounter += 1;
   const fp = computeChromeExtensionFingerprint();
-  wakeExtensionInHuellasAppBrowser();
+  wakeExtensionInHuellasAppBrowser(true);
   res.json({
     ok: true,
     fingerprint: fp,

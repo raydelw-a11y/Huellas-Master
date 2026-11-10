@@ -39,8 +39,8 @@
       );
     });
     const composer = findChatGptComposer();
-    if (loginBtn && !composer) {
-      return 'No hay sesión iniciada en ChatGPT Web en Chrome. Inicia sesión en https://chatgpt.com/ e inténtalo de nuevo.';
+    if (loginBtn || /\/uc(\/|$|\?)/i.test(url)) {
+      return 'No hay sesión iniciada en ChatGPT Web dentro del navegador donde está abierto Huellas Master (https://chatgpt.com/). Inicia sesión allí e inténtalo de nuevo.';
     }
     return '';
   }
@@ -204,6 +204,7 @@
                   type: 'EXTERNAL_CHATGPT_ASK_RESULT',
                   requestId,
                   ok: false,
+                  chatUrl: window.location.href,
                   error: blockReason,
                 })
                 .catch(() => {});
@@ -221,6 +222,7 @@
                 type: 'EXTERNAL_CHATGPT_ASK_RESULT',
                 requestId,
                 ok: false,
+                chatUrl: window.location.href,
                 error:
                   finalBlockReason ||
                   'No se encontró la caja de texto en ChatGPT Web (verifica que tengas sesión iniciada en https://chatgpt.com/).',
@@ -291,6 +293,7 @@
                   type: 'EXTERNAL_CHATGPT_ASK_RESULT',
                   requestId,
                   ok: false,
+                  chatUrl: window.location.href,
                   error: blockMid,
                 })
                 .catch(() => {});
@@ -349,6 +352,7 @@
               type: 'EXTERNAL_CHATGPT_ASK_RESULT',
               requestId,
               ok: false,
+              chatUrl: window.location.href,
               error: String(err?.message || err),
             })
             .catch(() => {});

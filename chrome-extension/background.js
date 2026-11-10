@@ -5758,8 +5758,13 @@ async function runExternalGeminiAskOrder(task) {
   }
 }
 
-function pendingExternalCheckActive(_id) {
-  return true;
+let latestServerActiveExternalAskIds = null;
+
+function pendingExternalCheckActive(id) {
+  if (!id || !latestServerActiveExternalAskIds) return true;
+  const entry = activeExternalAskMap.get(id);
+  if (entry && Date.now() - Number(entry.startedAt || 0) < 6000) return true;
+  return latestServerActiveExternalAskIds.has(id);
 }
 
 async function inspectChatGptTabLatestResponse(tabId) {
@@ -5803,7 +5808,7 @@ async function inspectChatGptTabLatestResponse(tabId) {
           }
         }
 
-        if (!blockReason && !composer) {
+        if (!blockReason) {
           const loginBtn = Array.from(document.querySelectorAll('button, a')).find((el) => {
             if (!isVis(el)) return false;
             const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
@@ -5814,9 +5819,9 @@ async function inspectChatGptTabLatestResponse(tabId) {
               /^(log\s*in|iniciar\s+sesi[oó]n)$/i.test(t)
             );
           });
-          if (loginBtn) {
+          if (loginBtn || /\/uc(\/|$|\?)/i.test(url)) {
             blockReason =
-              'No hay sesión iniciada en ChatGPT Web en Chrome. Inicia sesión en https://chatgpt.com/ e inténtalo de nuevo.';
+              'No hay sesión iniciada en ChatGPT Web dentro del navegador donde está abierto Huellas Master (https://chatgpt.com/). Inicia sesión allí e inténtalo de nuevo.';
           }
         }
 
@@ -6372,8 +6377,9 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       }
     }
 
-    // Sweep any orphaned temporary Gemini windows whose server-side ask-external request already finished, timed out, or restarted
+    // Sweep any orphaned temporary Gemini/ChatGPT windows whose server-side ask-external request already finished, timed out, or restarted
     const serverActiveAskIds = new Set(Array.isArray(data?.activeExternalAskIds) ? data.activeExternalAskIds : []);
+    latestServerActiveExternalAskIds = serverActiveAskIds;
     const storedAsksMap = await getStoredExternalAskMap();
     const nowMs = Date.now();
     let hasRunningExternalAsk = activeExternalAskCount > 0;
