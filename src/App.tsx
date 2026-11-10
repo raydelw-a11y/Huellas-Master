@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:14 AM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '2:16 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -14179,10 +14179,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <FileText className="w-4 h-4" /> Paso 4A — Guion de la Voz en Off
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Escribe, pega o genera el guion con etiquetas de pausa{' '}
-                        <code className="text-amber-300">[pausa: 1.5s]</code>. Este guion alimenta
-                        automáticamente a <strong>VoxFlow</strong> y al <strong>Corrector .SRT</strong> de la
-                        Etapa 8.
+                        Escribe, pega o genera el guion de voz narrativa. Este guion alimenta
+                        automáticamente a <strong>VoxFlow</strong> y al <strong>Corrector .SRT</strong>.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -14193,17 +14191,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating ? 'Redactando Guion...' : '✨ Redactar Guion con Gemini'}
-                      </button>
-                      <button
-                        onClick={() =>
-                          updateActiveDoc({
-                            voiceoverScript: normalizeQuantitiesToMil(activeDoc.voiceoverScript),
-                          })
-                        }
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold cursor-pointer"
-                        title="Convierte 'setenta mil' o '70,000' a '70 mil'"
-                      >
-                        🔢 Normalizar a "70 mil"
                       </button>
                       <button
                         onClick={() => copyText(activeDoc.voiceoverScript, 'copy-vo')}
@@ -14219,38 +14206,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
                   </div>
 
-                  {/* Quick Insert Pause Bar */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-slate-400">Insertar etiqueta de pausa:</span>
-                      {['[pausa: 1s]', '[pausa: 1.5s]', '[pausa: 2s]', '[pausa: 3s]'].map((tag) => (
-                        <button
-                          key={tag}
-                          onClick={() =>
-                            updateActiveDoc({
-                              voiceoverScript: `${activeDoc.voiceoverScript}${
-                                activeDoc.voiceoverScript.endsWith(' ') ? '' : ' '
-                              }${tag} `,
-                            })
-                          }
-                          className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-mono text-[11px] cursor-pointer"
-                        >
-                          + {tag}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Voiceover Metrics Bar */}
+                  <div className="flex items-center justify-end flex-wrap gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs">
                     <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300">
                       <span>
                         Palabras: <strong className="text-amber-300">{voiceoverMetrics.words}</strong>
                       </span>
                       <span>
                         Caracteres: <strong className="text-amber-300">{voiceoverMetrics.cleanChars}</strong>
-                      </span>
-                      <span>
-                        Pausas:{' '}
-                        <strong className="text-amber-300">
-                          {voiceoverMetrics.pauseCount} ({voiceoverMetrics.pauseSeconds}s)
-                        </strong>
                       </span>
                       <span>
                         Duración Est.:{' '}
