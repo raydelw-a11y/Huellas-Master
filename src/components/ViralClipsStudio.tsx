@@ -1169,6 +1169,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   sendCommandToWebBridge('GEMINI', {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
+                    enableHighModel: false,
+                    enableCarbonLow: true,
+                    preferredModel: 'CARBON_4_LOW',
+                    thinkingLevel: 'LOW',
                     autoSubmit: true,
                     preferDockedWindow: true,
                   });

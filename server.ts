@@ -13102,7 +13102,6 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       .map((l: string) => l.trim())
       .filter(Boolean)
       .join('   |   ');
-    const highModel = cmd.enableHighModel !== false;
     pendingGeminiCommands.set(cmd.commandId, {
       commandId: cmd.commandId,
       docId: String(doc.id || cmd.docId || ''),
@@ -13110,10 +13109,11 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       prompt: safePrompt,
       stageNumber: Number(cmd.stageNumber) || 1,
       taskType: cmd.taskType || 'STAGE_GENERATION',
-      enableHighModel: highModel,
-      enableArgonLow: !highModel,
-      preferredModel: highModel ? 'ARGON_4_HIGH' : 'ARGON_4_LOW',
-      thinkingLevel: highModel ? 'HIGH' : 'LOW',
+      enableHighModel: false,
+      enableArgonLow: true,
+      enableCarbonLow: true,
+      preferredModel: 'CARBON_4_LOW',
+      thinkingLevel: 'LOW',
       enableDeepResearch: Boolean(cmd.enableDeepResearch),
       skipModelSwitch: false,
       autoSubmit: true,

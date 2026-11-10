@@ -3798,10 +3798,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS' && sender?.tab?.id) {
     const geminiTabId = sender.tab.id;
-    const enableHighModel = message.enableHighModel !== false;
+    const wantHigh =
+      String(message.thinkingLevel || '').toUpperCase() === 'HIGH' ||
+      (Boolean(message.enableHighModel) &&
+        !Boolean(message.enableCarbonLow) &&
+        !Boolean(message.enableArgonLow));
     const enableDeepResearch = Boolean(message.enableDeepResearch);
-    const enableArgonLow = false;
-    const targetLevel = 'HIGH';
+    const targetLevel = wantHigh ? 'HIGH' : 'LOW';
 
     (async () => {
       const target = { tabId: geminiTabId };
@@ -4461,7 +4464,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return opt;
         };
 
-        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> High (with verification) ---
+        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> targetLevel (LOW for app, HIGH for MODO DUO/TRIO) ---
         let thinkingOk = false;
         let thinkingVerified = false;
         // The mode picker announces the current state ("Open mode picker, currently Carbon High"): use it first

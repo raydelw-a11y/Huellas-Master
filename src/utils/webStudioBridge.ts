@@ -50,6 +50,7 @@ export interface WebBridgeCommandPayload {
   taskType?: string;
   enableHighModel?: boolean;
   enableArgonLow?: boolean;
+  enableCarbonLow?: boolean;
   preferredModel?: string;
   thinkingLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   enableDeepResearch?: boolean;

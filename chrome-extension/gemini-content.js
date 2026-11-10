@@ -624,7 +624,8 @@
     enableDeepResearch,
     enableArgonLow
   ) {
-    const targetLevel = 'HIGH';
+    const wantHigh = Boolean(enableHighModel) && !Boolean(enableArgonLow);
+    const targetLevel = wantHigh ? 'HIGH' : 'LOW';
 
     const triggerHoverAndClick = (el, alsoClick = true) => {
       if (!el) return;
@@ -781,7 +782,7 @@
       );
     };
 
-    // STEP A: Select "4 Carbon" AND set "Thinking level" -> "High" ("High Extra thorough")
+    // STEP A: Select "4 Carbon" AND set "Thinking level" -> targetLevel ("Low" for app, "High" for MODO DUO/TRIO)
     const ensureArgon4AndThinkingLevel = async () => {
       await closeAnyOpenOverlayMenus();
 
@@ -793,7 +794,11 @@
         .replace(/\s+/g, ' ')
         .trim();
       const currentLabel = `${ariaLabel} ${innerLabel}`.trim();
-      if (/\bcarbon\b[^,]*\bhigh\b/i.test(currentLabel)) {
+      if (
+        wantHigh
+          ? /\bcarbon\b[^,]*\bhigh\b/i.test(currentLabel)
+          : /\bcarbon\b[^,]*\blow\b/i.test(currentLabel)
+      ) {
         return;
       }
       const isCurrentlyCarbon = /\bcarbon\b/i.test(currentLabel) && !/\bargon|pro|flash\b/i.test(currentLabel);
@@ -825,10 +830,10 @@
           await sleep(360);
         }
 
-        // Re-check if clicking "4 Carbon" closed the menu; if so, re-open switcher so we can select "High Extra thorough"
+        // Re-check if clicking "4 Carbon" closed the menu; if so, re-open switcher so we can select Thinking level
         menuItems = getVisibleMenuItems();
         const hasThinkingLevelVisible = menuItems.some((el) =>
-          /thinking\s*level|nivel\s*de\s*pensamiento|extra\s+thorough/i.test(
+          /thinking\s*level|nivel\s*de\s*pensamiento|extra\s+thorough|(?:fast|quick)\s+and\s+efficient/i.test(
             (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
           )
         );
@@ -840,24 +845,39 @@
         }
       }
 
-      // 3. In .cdk-overlay-popover, "High Extra thorough" is directly visible; check directly first, or hover/click "Thinking level" if submenu
-      const findHighOption = (items) =>
-        items.find((el) => {
-          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          return (
-            (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
-            /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
-          );
-        }) ||
-        items.find((el) => {
-          const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          return (
-            /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
-            !/thinking\s*level|low|medium|pro|flash|argon|carbon/i.test(txt)
-          );
-        });
+      // 3. Select target Thinking level ("Low" for app, "High" for MODO DUO/TRIO)
+      const findTargetOption = (items) =>
+        wantHigh
+          ? items.find((el) => {
+              const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return (
+                (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
+                /^(?:✓\s*)?(?:high|alto)(?:\s+extra\s+thorough)?$/i.test(txt)
+              );
+            }) ||
+            items.find((el) => {
+              const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return (
+                /\b(high|alto|extra\s+thorough)\b/i.test(txt) &&
+                !/thinking\s*level|low|medium|pro|flash|argon|carbon/i.test(txt)
+              );
+            })
+          : items.find((el) => {
+              const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return (
+                (/\blow\b/i.test(txt) && /(?:fast|quick)\s+and\s+efficient/i.test(txt)) ||
+                /^(?:✓\s*)?(?:low|bajo)(?:\s+(?:fast|quick)\s+and\s+efficient)?$/i.test(txt)
+              );
+            }) ||
+            items.find((el) => {
+              const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return (
+                /\b(low|bajo|(?:fast|quick)\s+and\s+efficient)\b/i.test(txt) &&
+                !/thinking\s*level|high|medium|pro|flash|argon|carbon/i.test(txt)
+              );
+            });
 
-      let targetLevelOption = findHighOption(menuItems);
+      let targetLevelOption = findTargetOption(menuItems);
       if (!targetLevelOption) {
         const thinkingLevelMenuItem = menuItems.find((el) => {
           const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
@@ -866,11 +886,11 @@
         if (thinkingLevelMenuItem) {
           triggerHoverAndClick(thinkingLevelMenuItem, false);
           await sleep(220);
-          targetLevelOption = findHighOption(getVisibleMenuItems());
+          targetLevelOption = findTargetOption(getVisibleMenuItems());
           if (!targetLevelOption) {
             triggerHoverAndClick(thinkingLevelMenuItem, true);
             await sleep(300);
-            targetLevelOption = findHighOption(getVisibleMenuItems());
+            targetLevelOption = findTargetOption(getVisibleMenuItems());
           }
         }
       }
@@ -993,9 +1013,11 @@
       try {
         hwConfig = await chrome.runtime.sendMessage({
           type: 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS',
-          enableHighModel: Boolean(enableHighModel),
+          enableHighModel: wantHigh,
           enableDeepResearch: Boolean(enableDeepResearch),
-          enableArgonLow: Boolean(enableArgonLow),
+          enableArgonLow: !wantHigh,
+          enableCarbonLow: !wantHigh,
+          thinkingLevel: targetLevel,
         });
       } catch {}
       if (hwConfig) {
@@ -1052,8 +1074,8 @@
     reportStatus(
       'GENERATING',
       isDeepResearch
-        ? '🔬 Gemini Web (Argon 4 · Thinking: High + Deep Research) preparando el Plan de Investigación...'
-        : 'Gemini Web está redactando la respuesta...',
+        ? '🔬 Gemini Web (4 Carbon · Thinking: Low + Deep Research) preparando el Plan de Investigación...'
+        : 'Gemini Web (4 Carbon · Low) está redactando la respuesta...',
       meta
     );
 
@@ -3226,7 +3248,7 @@
           watchDeepResearchOrder(getModelResponseElements().length, extractLatestGeminiResponse().text, {
             stageNumber: payload.stageNumber,
             taskType: payload.taskType || 'STAGE_GENERATION',
-            enableHighModel: true,
+            enableHighModel: false,
             enableDeepResearch: true,
             targetChatTitle: chatState.targetChatTitle,
             docId: payload.docId || '',
@@ -3237,28 +3259,28 @@
           return;
         }
 
-        const useArgonLow = false;
+        // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
         const desiredModeKey = payload.enableDeepResearch
-          ? 'CARBON4_HIGH_DEEP_RESEARCH'
-          : 'CARBON4_HIGH';
+          ? 'CARBON4_LOW_DEEP_RESEARCH'
+          : 'CARBON4_LOW';
 
-        // 2. Always verify & configure 4 Carbon + Thinking Level: High + Deep Research in DOM (especially after chat navigation)
+        // 2. Always verify & configure 4 Carbon + Thinking Level: Low + Deep Research in DOM (especially after chat navigation)
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
-            `⚙️ Configurando Gemini Web en 4 Carbon (Thinking: High)${
+            `⚡ Configurando Gemini Web en 4 Carbon (Thinking: Low)${
               payload.enableDeepResearch ? ' + Deep Research activo' : ''
             }...`,
             { stageNumber: payload.stageNumber }
           );
           const cfgResult = await configureGeminiModelAndDeepResearch(
-            true,
+            false,
             Boolean(payload.enableDeepResearch),
-            false
+            true
           );
           lastConfiguredModelMode = desiredModeKey;
 
-          const levelLabel = 'High';
+          const levelLabel = 'Low';
           const diagText =
             cfgResult && Array.isArray(cfgResult.diag) && cfgResult.diag.length > 0
               ? ` [${cfgResult.diag.join(' · ')}]`

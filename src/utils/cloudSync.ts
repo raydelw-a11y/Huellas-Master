@@ -1975,7 +1975,7 @@ export function buildStagePromptText(
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
     stagePrompt = `Actúa como director e investigador jefe para "Huellas de la Humanidad".
-Esta es la FASE 1 DE LA ETAPA 1 (4 Argon · Thinking level: Low · SIN Deep Research): Investigación de patrones virales del otro video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental ORIGINAL.${viralContextBlock}
+Esta es la FASE 1 DE LA ETAPA 1 (4 Carbon · Thinking level: Low · SIN Deep Research): Investigación de patrones virales del otro video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental ORIGINAL.${viralContextBlock}
 
 ================================================================================
 🏛️ ESTADO ACTUAL DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA A DETERMINAR
@@ -2075,7 +2075,7 @@ Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4
       selectedAnalyzedVideoId;
 
     stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".
-Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 ARGON THINKING LEVEL: HIGH), utilizando la 🏛️ Definición Histórica y Continuidad, el 📚 Video Analizado de la Biblioteca seleccionado en el Paso 1 y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
+Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), utilizando la 🏛️ Definición Histórica y Continuidad, el 📚 Video Analizado de la Biblioteca seleccionado en el Paso 1 y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
 
 ================================================================================
 🏛️ DEFINICIÓN HISTÓRICA, VIDEO REFERENTE DE BIBLIOTECA Y CALIBRACIÓN DETERMINADAS EN FASE 1
@@ -2108,7 +2108,7 @@ ${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECC
         : ''
     }
 ================================================================================
-🔬 TAREA DE INVESTIGACIÓN PROFUNDA (4 ARGON · THINKING LEVEL: HIGH + DEEP RESEARCH)
+🔬 TAREA DE INVESTIGACIÓN PROFUNDA (4 CARBON · THINKING LEVEL: LOW + DEEP RESEARCH)
 ================================================================================
 Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, época, lugar y estructura ya determinados arriba, integrando directamente el Video Analizado de la Biblioteca seleccionado en el Paso 1 como molde estructural y de retención (sin copiar su tema), y entrégala en estas 4 secciones claras:
 1. DESGLOSE MATEMÁTICO Y ESTRUCTURAL POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN CON INTRO 8S Y OUTRO 8S + PATRONES DEL VIDEO ANALIZADO EN PASO 1):
