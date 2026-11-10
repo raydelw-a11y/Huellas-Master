@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:33 AM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:49 AM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -787,7 +787,7 @@ const STAGES_LIST = [
     icon: Subtitles,
   },
   {
-    num: 10,
+    num: 80,
     displayNum: 8,
     title: '8. Música (Suno)',
     subtitle: 'Prompts de 6 campos y pistas MP3',
@@ -2848,6 +2848,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 allowPaidApi: false,
               }),
             });
+            if (!res.ok || !(res.headers.get('content-type') || '').includes('application/json')) continue;
             const data = await res.json();
             if (res.ok && data.ok) {
               if (Array.isArray(data.analyzedVideosLibrary)) {
@@ -3000,6 +3001,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       for (const base of apiBases) {
         try {
           const resLib = await fetch(`${base}/api/youtube/analyzed-videos`);
+          if (!resLib.ok || !(resLib.headers.get('content-type') || '').includes('application/json')) continue;
           const dataLib = await resLib.json();
           if (resLib.ok && dataLib.ok) {
             if (Array.isArray(dataLib.videos)) {
@@ -4030,9 +4032,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const mutationSeq = ++localDocMutationSeqRef.current;
     const nowMs = Date.now();
     lastLocalEditAtRef.current = nowMs;
+    const tombstonePatch: Record<string, string> = {};
+    for (const tk of [
+      'deepResearchResult',
+      'deepResearchPrompt',
+      'voiceoverScript',
+      'rawClipsText',
+      'rawReferencePrompts',
+      'sectionsStructure',
+    ] as const) {
+      if (Object.prototype.hasOwnProperty.call(patch, tk)) {
+        const nextVal = String((patch as any)[tk] || '').trim();
+        const prevVal = String((currentBaseDoc as any)[tk] || '').trim();
+        if (!nextVal && prevVal) {
+          tombstonePatch[`FIELD_CLEARED_AT_${tk}`] = String(nowMs);
+        } else if (nextVal) {
+          tombstonePatch[`FIELD_CLEARED_AT_${tk}`] = '0';
+        }
+      }
+    }
+    const mergedPromptConfig =
+      Object.keys(tombstonePatch).length > 0 || patch.promptConfig
+        ? {
+            ...(currentBaseDoc.promptConfig || {}),
+            ...(patch.promptConfig || {}),
+            ...tombstonePatch,
+          }
+        : currentBaseDoc.promptConfig;
     const updated: DocumentaryProject = {
       ...currentBaseDoc,
       ...patch,
+      ...(mergedPromptConfig ? { promptConfig: mergedPromptConfig } : {}),
       updatedAt: new Date(nowMs).toISOString(),
     };
     activeDocRef.current = updated;
@@ -4382,6 +4412,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         return (doc.clips?.length || 0) > 0;
       case 9:
         return !!doc.correctedSrt;
+      case 80:
       case 10:
         return (doc.sunoTracks?.length || 0) > 0 || !!doc.rawSunoText;
       case 11:
@@ -4651,7 +4682,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         (!activeDoc.sunoTracks || activeDoc.sunoTracks.length === 0)
       ) {
         setTimeout(() => {
-          handleGenerateWithGemini(10);
+          handleGenerateWithGemini(80);
         }, 1400);
       }
     } else if (stageNum === 9) {
@@ -4662,7 +4693,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (cleanSrt) {
         updateActiveDoc({ correctedSrt: cleanSrt });
       }
-    } else if (stageNum === 10) {
+    } else if (stageNum === 80) {
       const parsedTracks = parseSunoTracksFromRawText(text);
       updateActiveDoc({
         rawSunoText: text,
@@ -5110,9 +5141,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     };
   }, [activeDoc?.id]);
 
-  // Gate Stages 2-12 until the Documentary Download Folder is selected in Stage 1
+  // Gate Stages 2-12 until the Documentary Download Folder is selected in Stage 1 (on Mac desktop; mobile cloud mode can navigate freely)
   const handleTrySelectStage = (targetStage: number) => {
-    if (targetStage > 1 && !hasSelectedDocFolder) {
+    if (targetStage > 1 && !hasSelectedDocFolder && !isCloudMode) {
       alert(
         '🔒 Paso Obligatorio en Etapa 1: Primero debes seleccionar la Carpeta de Descarga del Documental en la Etapa 1 antes de poder entrar a las demás etapas.'
       );
@@ -9069,7 +9100,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if ((activeDoc.voiceoverScript || '').trim()) nextStage = 5;
     if ((activeDoc.thumbnailPrompt || '').trim()) nextStage = 6;
     if ((activeDoc.rawReferencePrompts || '').trim()) nextStage = 8;
-    if ((activeDoc.rawClipsText || '').trim()) nextStage = 10;
+    if ((activeDoc.rawClipsText || '').trim()) nextStage = 80;
     if ((activeDoc.rawSunoText || '').trim()) nextStage = 11;
 
     setFullPreprodStepMsg(
@@ -9197,10 +9228,28 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const msgDocId = String(msg.docId || '').trim();
         const viewingDocId = (activeDocRef.current || activeDoc)?.id || '';
         if (msgDocId && viewingDocId && msgDocId !== viewingDocId) {
-          const isResearchResult = [1, 2, 3, 10].includes(targetStage);
+          const CROSS_DOC_STAGE_FIELDS: Record<number, string> = {
+            1: 'deepResearchResult',
+            2: 'deepResearchResult',
+            3: 'deepResearchResult',
+            10: 'deepResearchPrompt',
+            4: 'voiceoverScript',
+            5: 'thumbnailPrompt',
+            6: 'rawReferencePrompts',
+            7: 'clip1OptionsRaw',
+            8: 'rawClipsText',
+            9: 'correctedSrt',
+            80: 'rawSunoText',
+            11: 'rawYoutubeMetadata',
+            111: 'rawYoutubeMetadata',
+            112: 'rawFacebookMetadata',
+            113: 'pinnedComment',
+            114: 'youtubeTags',
+            12: 'publishDescription',
+          };
+          const fieldKey = CROSS_DOC_STAGE_FIELDS[targetStage];
           const otherTitle = documentaries.find((d) => d.id === msgDocId)?.title || msgDocId;
-          if (isResearchResult && text.trim()) {
-            const fieldKey = targetStage === 10 ? 'deepResearchPrompt' : 'deepResearchResult';
+          if (fieldKey && text.trim()) {
             const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
             if (isLocalHost) {
               // Mac local server: persist directly for the right doc (no stale React state), then refresh
@@ -9696,7 +9745,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           },
         }
       : baseDoc;
-    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
+    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim()) && !isCloudMode) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 3 (Miniatura Oficial).'
       );
@@ -9815,11 +9864,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
       const isRemoteResearchStage =
         stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3;
-      // MÓVIL (GitHub Pages, sin extensión): enviar la orden a la Mac vía ntfy (aviso ligero) + GitHub (prompt completo)
-      if (!isLocalOriginForRemote && isRemoteResearchStage) {
+      const isDeepResearchRemote = stageNum === 1 || stageNum === 2 || stageNum === 3;
+      // MÓVIL (GitHub Pages, sin extensión): enviar la orden de CUALQUIER etapa a la Mac vía ntfy (aviso ligero) + GitHub (prompt completo)
+      if (!isLocalOriginForRemote) {
         const isPart1Remote = stageNum === 10;
-        const remoteHigh = isPart1Remote ? false : options?.enableHighModel ?? true;
-        const remoteDeep = isPart1Remote ? false : options?.enableDeepResearch ?? true;
+        const remoteHigh = isDeepResearchRemote
+          ? options?.enableHighModel ?? true
+          : Boolean(options?.enableHighModel);
+        const remoteDeep = isDeepResearchRemote
+          ? options?.enableDeepResearch ?? true
+          : Boolean(options?.enableDeepResearch);
         const commandId = `rgs_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const remoteTrigger = {
           type: 'REMOTE_GEMINI_STAGE',
@@ -9841,7 +9895,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           geminiDeepResearchChatUrl: currentDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || '',
         };
         const remotePatch: Partial<DocumentaryProject> = {
-          sectionsStructure: promptText,
+          ...(isRemoteResearchStage ? { sectionsStructure: promptText } : {}),
           promptConfig: {
             ...(baseDoc.promptConfig || {}),
             ...lockedVideoPromptPatch,
@@ -9854,7 +9908,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setBridgeStatusMsg(
           isPart1Remote
             ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Argon Low)...'
-            : '📡 Enviando Paso 2 desde tu móvil a tu Mac: Deep Research + Thinking High. El informe aparecerá aquí al terminar (10–20 min).'
+            : isDeepResearchRemote
+            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Deep Research + Thinking High. El informe aparecerá aquí al terminar (10–20 min).'
+            : `📡 Enviando orden de la etapa a tu Mac (Gemini 4 Argon ${remoteHigh ? 'High' : 'Low'})...`
         );
         const nextDocsForRemote = documentaries.map((d) =>
           d.id === currentDoc.id ? { ...d, ...remotePatch } : d
@@ -9872,7 +9928,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             setBridgeStatusMsg(
               isPart1Remote
                 ? '⏳ Orden enviada a tu Mac. Ejecutando Paso 1 en Gemini Web...'
-                : '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
+                : isDeepResearchRemote
+                ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
+                : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
           });
         return;
@@ -10008,7 +10066,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   // Text generation strictly via logged-in Gemini Web (No API Calls)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
-    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim())) {
+    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim()) && !isCloudMode) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 5.'
       );
@@ -10514,6 +10572,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.voiceoverScript,
     activeDoc?.references?.length,
     activeStage,
+  ]);
+
+  // Auto-parse structured references & Suno tracks when raw text arrives from remote Mac sync
+  useEffect(() => {
+    if (!activeDoc) return;
+    const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
+    if (rawRefs && (!activeDoc.references || activeDoc.references.length === 0)) {
+      const parsedRefs = parseReferencesFromRawText(rawRefs);
+      if (parsedRefs.length > 0) {
+        updateActiveDoc({ references: parsedRefs });
+      }
+    }
+    const rawSuno = (activeDoc.rawSunoText || '').trim();
+    if (rawSuno && (!activeDoc.sunoTracks || activeDoc.sunoTracks.length === 0)) {
+      const parsedTracks = parseSunoTracksFromRawText(rawSuno);
+      if (parsedTracks.length > 0) {
+        updateActiveDoc({ sunoTracks: parsedTracks });
+      }
+    }
+  }, [
+    activeDoc?.id,
+    activeDoc?.rawReferencePrompts,
+    activeDoc?.references?.length,
+    activeDoc?.rawSunoText,
+    activeDoc?.sunoTracks?.length,
   ]);
 
   // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Auto-Timeline)
@@ -17998,9 +18081,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             )}
 
             {/* ===============================================================
-                ETAPA 10: BANDA SONORA MULTIESCENA AUTOMÁTICA (FLOW MUSIC - flowmusic.app)
+                ETAPA 8 (80): BANDA SONORA MULTIESCENA AUTOMÁTICA (FLOW MUSIC - flowmusic.app)
             =============================================================== */}
-            {activeStage === 10 && (
+            {(activeStage === 80 || activeStage === 10) && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
@@ -18024,7 +18107,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         disabled={aiGenerating}
-                        onClick={() => handleGenerateWithGemini(10)}
+                        onClick={() => handleGenerateWithGemini(80)}
                         className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                         title="Diseña automáticamente todas las canciones según las escenas visuales y la duración real del documental, y lanza la cola en Flow Music"
                       >

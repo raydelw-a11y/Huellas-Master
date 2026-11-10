@@ -447,7 +447,8 @@ function mergeServerDocObjects(winner: any, other: any) {
     if (clearedAt > 0) {
       baseWinner.promptConfig = { ...(baseWinner.promptConfig || {}), STAGE1_CLEARED_AT: String(clearedAt) };
     }
-    const stage1Tombstoned = clearedAt > 0 && clearedAt >= toMs(other.updatedAt || other.createdAt);
+    const otherSavedMs = toMs(other.updatedAt || other.createdAt);
+    const stage1Tombstoned = clearedAt > 0 && clearedAt >= otherSavedMs;
     for (const k of [
       'deepResearchResult',
       'deepResearchPrompt',
@@ -456,7 +457,19 @@ function mergeServerDocObjects(winner: any, other: any) {
       'rawReferencePrompts',
       'sectionsStructure',
     ]) {
-      if (stage1Tombstoned && ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'].includes(k)) continue;
+      const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
+      const fieldClearedAt = Math.max(
+        Number(baseWinner.promptConfig?.[fieldClearedKey] || 0),
+        Number(other.promptConfig?.[fieldClearedKey] || 0)
+      );
+      if (fieldClearedAt > 0) {
+        baseWinner.promptConfig = {
+          ...(baseWinner.promptConfig || {}),
+          [fieldClearedKey]: String(fieldClearedAt),
+        };
+      }
+      const fieldTombstoned = fieldClearedAt > 0 && fieldClearedAt >= otherSavedMs;
+      if (fieldTombstoned || (stage1Tombstoned && ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'].includes(k))) continue;
       const wv = baseWinner[k];
       const ov = other[k];
       if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
@@ -13184,31 +13197,82 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
     const idx = list.findIndex((d) => d && d.id === docId);
     if (idx !== -1) {
       const isPart1 = stageNumber === 10;
-      const fieldKey = isPart1 ? 'deepResearchPrompt' : 'deepResearchResult';
+      const isDeepResearch = stageNumber === 1 || stageNumber === 2 || stageNumber === 3;
+      const STAGE_FIELD_MAP: Record<number, string> = {
+        1: 'deepResearchResult',
+        2: 'deepResearchResult',
+        3: 'deepResearchResult',
+        10: 'deepResearchPrompt',
+        4: 'voiceoverScript',
+        5: 'thumbnailPrompt',
+        6: 'rawReferencePrompts',
+        7: 'clip1OptionsRaw',
+        8: 'rawClipsText',
+        9: 'correctedSrt',
+        80: 'rawSunoText',
+        11: 'rawYoutubeMetadata',
+        111: 'rawYoutubeMetadata',
+        112: 'rawFacebookMetadata',
+        113: 'pinnedComment',
+        114: 'youtubeTags',
+        12: 'publishDescription',
+      };
+      const fieldKey = STAGE_FIELD_MAP[stageNumber] || 'deepResearchResult';
       const onlyIfEmpty = Boolean(req.body?.onlyIfEmpty);
       const chatUrl = String(req.body?.chatUrl || '').trim();
-      const validDrChatUrl =
-        !isPart1 && /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(chatUrl) ? chatUrl : '';
+      const validChatUrl = /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(chatUrl) ? chatUrl : '';
+      const validDrChatUrl = isDeepResearch ? validChatUrl : '';
       if (onlyIfEmpty && String(list[idx][fieldKey] || '').trim()) {
         res.json({ ok: true, skipped: 'already_filled' });
         return;
       }
+      const extraPatch: Record<string, any> = {};
+      if (stageNumber === 4) {
+        extraPatch.timelineSentences = [];
+        extraPatch.timelineFormattedText = '';
+      } else if (stageNumber === 9) {
+        extraPatch.correctedSrt = text
+          .replace(/^```(?:srt|txt|plaintext)?\s*\n?/i, '')
+          .replace(/\n?```\s*$/i, '')
+          .trim();
+      } else if (stageNumber === 101) {
+        const opts = text
+          .split(/\r?\n/)
+          .map((l: string) =>
+            l
+              .replace(/^\s*(?:opci[oó]n\s*\d+[:.)\-\s]*|\d+[:.)\-\s]+|[-•*]\s*)/i, '')
+              .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+              .trim()
+              .toUpperCase()
+          )
+          .filter(Boolean)
+          .slice(0, 3);
+        if (opts.length > 0) {
+          extraPatch.thumbnailTextOptions = opts;
+          extraPatch.thumbnailTextOverlay = String(list[idx].thumbnailTextOverlay || '').trim() || opts[0];
+        }
+      } else if (stageNumber === 11 || stageNumber === 111) {
+        extraPatch.rawMetadataText = text;
+      }
       list[idx] = {
         ...list[idx],
-        [fieldKey]: text,
+        ...(stageNumber === 101 ? {} : { [fieldKey]: text }),
+        ...extraPatch,
         ...(validDrChatUrl ? { geminiDeepResearchChatUrl: validDrChatUrl } : {}),
+        ...(validChatUrl && !isDeepResearch ? { geminiChatUrl: validChatUrl } : {}),
         promptConfig: {
           ...(list[idx].promptConfig || {}),
           REMOTE_GEMINI_STAGE_STATUS: 'completed',
           REMOTE_GEMINI_STAGE_ERROR: '',
+          [`FIELD_CLEARED_AT_${fieldKey}`]: '0',
           ...(remoteCommandId ? { REMOTE_GEMINI_STAGE_ACK_ID: remoteCommandId } : {}),
-          ...(isPart1 ? {} : { DEEP_RESEARCH_RESULT_UPDATED_AT: String(Date.now()) }),
+          ...(isDeepResearch ? { DEEP_RESEARCH_RESULT_UPDATED_AT: String(Date.now()) } : {}),
           ...(validDrChatUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: validDrChatUrl } : {}),
         },
         updatedAt: new Date().toISOString(),
       };
       writeDocumentaries(list);
-      console.log(`[RemoteGeminiStage] Resultado guardado (${text.length} chars) en ${docId}`);
+      console.log(`[RemoteGeminiStage] Resultado etapa ${stageNumber} (${fieldKey}, ${text.length} chars) guardado en ${docId}`);
     }
   } catch (e) {
     console.warn('[RemoteGeminiStage] Error guardando resultado:', e);

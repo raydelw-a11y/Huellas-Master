@@ -1425,7 +1425,19 @@ function mergeTwoDocumentaryObjects(
     'rawReferencePrompts',
     'sectionsStructure',
   ] as const) {
-    if (stage1Tombstoned && STAGE1_TEXT_KEYS.includes(k)) continue;
+    const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
+    const fieldClearedAt = Math.max(
+      Number(baseWinner.promptConfig?.[fieldClearedKey] || 0),
+      Number(oNorm.promptConfig?.[fieldClearedKey] || 0)
+    );
+    if (fieldClearedAt > 0) {
+      baseWinner = {
+        ...baseWinner,
+        promptConfig: { ...(baseWinner.promptConfig || {}), [fieldClearedKey]: String(fieldClearedAt) },
+      };
+    }
+    const fieldTombstoned = fieldClearedAt > 0 && fieldClearedAt >= otherSavedAt;
+    if (fieldTombstoned || (stage1Tombstoned && STAGE1_TEXT_KEYS.includes(k))) continue;
     const wv = (baseWinner as any)[k];
     const ov = (oNorm as any)[k];
     if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
@@ -2263,7 +2275,7 @@ Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas **
 Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con época y lugar describiendo a los personajes por sus rasgos físicos y vestimenta de época como actores anónimos de recreación histórica sin usar títulos ni nombres propios de figuras públicas reales], clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
 Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}[Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority] según haya o no personas] fix the name`;
-  } else if (stageNumber === 10) {
+  } else if (stageNumber === 80) {
     // Calcular automáticamente la duración real del documental a partir del último clip, audio de voz o duración confirmada
     const parseMmSsToSec = (str?: string): number => {
       if (!str) return 0;

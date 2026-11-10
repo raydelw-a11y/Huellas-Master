@@ -4653,7 +4653,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Local orders: idempotent backup in the Mac server (only fills an EMPTY field), so a reloaded/closed
       // app tab can never lose a 25-min Deep Research report
       const stageNum = Number(message.stageNumber) || 0;
-      if (message.docId && [1, 2, 3, 10].includes(stageNum) && String(message.text || '').trim().length > 400) {
+      if (
+        message.docId &&
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 80, 101, 11, 111, 112, 113, 114, 12].includes(stageNum) &&
+        String(message.text || '').trim().length > 60
+      ) {
         fetch('http://localhost:4200/api/gemini-web/remote-stage-result', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
