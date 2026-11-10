@@ -4140,9 +4140,79 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   };
                 }
 
+                const findComposerModePickerButton = () => {
+                  const inputEl = document.querySelector(
+                    'rich-textarea div.ql-editor, div[contenteditable="true"][role="textbox"], rich-textarea'
+                  );
+                  const inputRect = inputEl ? inputEl.getBoundingClientRect() : null;
+                  const composerRoot =
+                    (inputEl &&
+                      inputEl.closest(
+                        'input-area-v2, .input-area-container, .input-area, .text-input-field, form'
+                      )) ||
+                    document;
+                  const prioritySelectors = [
+                    '[data-test-id="bard-mode-menu-button"]',
+                    'button.input-area-switch',
+                    'button[aria-label*="mode picker" i]',
+                    'button[aria-label*="selector de modo" i]',
+                    'button[aria-label*="currently " i]',
+                    'button[aria-label*="actualmente " i]',
+                  ];
+                  for (const scope of [composerRoot, document]) {
+                    for (const sel of prioritySelectors) {
+                      const candidates = Array.from(scope.querySelectorAll(sel)).filter((el) => {
+                        if (!el || el.offsetParent === null) return false;
+                        if (el.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation')) {
+                          return false;
+                        }
+                        const r = el.getBoundingClientRect();
+                        return r.width > 8 && r.height > 8;
+                      });
+                      if (candidates.length > 0) return candidates[0];
+                    }
+                  }
+                  const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter((el) => {
+                    if (!el || el.offsetParent === null) return false;
+                    if (el.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation')) {
+                      return false;
+                    }
+                    const r = el.getBoundingClientRect();
+                    return r.width > 8 && r.height > 8;
+                  });
+                  if (inputRect) {
+                    const nearComposer = allBtns.filter((el) => {
+                      const r = el.getBoundingClientRect();
+                      return (
+                        r.bottom >= inputRect.top - 70 &&
+                        r.top <= inputRect.bottom + 95 &&
+                        r.left >= inputRect.left + 40
+                      );
+                    });
+                    const nearMatch = nearComposer.find((el) => {
+                      const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                      return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+                    });
+                    if (nearMatch) return nearMatch;
+                  }
+                  const pillMatch = allBtns.find((el) => {
+                    if (el.closest('bard-mode-switcher, header')) return false;
+                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                    return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+                  });
+                  if (pillMatch) return pillMatch;
+                  const fallbackHeader = document.querySelector('bard-mode-switcher button');
+                  return fallbackHeader && fallbackHeader.offsetParent !== null ? fallbackHeader : null;
+                };
+
                 if (op === 'READ_MODE_LABEL') {
-                  const sw = document.querySelector('[data-test-id="bard-mode-menu-button"]');
-                  return { label: (sw && (sw.getAttribute('aria-label') || sw.innerText)) || '' };
+                  const sw = findComposerModePickerButton();
+                  if (!sw) return { label: '' };
+                  const aria = (sw.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+                  const inner = (sw.innerText || sw.textContent || '').replace(/\s+/g, ' ').trim();
+                  return { label: [aria, inner].filter(Boolean).join(' · ') };
                 }
 
                 if (op === 'CHECK_DEEP_RESEARCH_CHIP') {
@@ -4291,32 +4361,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 if (op === 'FIND_AND_OPEN_MODEL_SWITCHER') {
-                  const switcherSelectors = [
-                    '[data-test-id="bard-mode-menu-button"]',
-                    'bard-mode-switcher button',
-                    'button.input-area-switch',
-                    'button[aria-label*="mode" i]',
-                    'button[aria-label*="modelo" i]',
-                    'button[aria-label*="selector" i]',
-                  ];
-                  let switcherBtn = null;
-                  for (const sel of switcherSelectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.offsetParent !== null) {
-                      switcherBtn = el;
-                      break;
-                    }
-                  }
-                  if (!switcherBtn) {
-                    const allBtns = Array.from(
-                      document.querySelectorAll('button, [role="button"]')
-                    ).filter((el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container, .cdk-overlay-popover'));
-                    switcherBtn =
-                      allBtns.find((el) => {
-                        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                        return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
-                      }) || null;
-                  }
+                  const switcherBtn = findComposerModePickerButton();
                   if (!switcherBtn) return { found: false };
                   const ariaLabel = (switcherBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
                   const innerLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
@@ -4445,11 +4490,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const sw = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
           if (!sw || !sw.found) return null;
           await hardwareHoverAndClick(sw.x, sw.y);
-          const th = await waitFound('FIND_THINKING_LEVEL_IN_OVERLAY', '', 8, 140);
+          await sleep(220);
+          const directOpt = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
+          if (directOpt && directOpt.found) {
+            return { sw, thinkingFound: false, th: { found: false }, directOpt };
+          }
+          const th = await waitFound('FIND_THINKING_LEVEL_IN_OVERLAY', '', 4, 130);
           return { sw, thinkingFound: Boolean(th && th.found), th };
         };
 
-        const openThinkingSubmenu = async (th) => {
+        const openThinkingSubmenu = async (th, directOpt) => {
+          if (directOpt && directOpt.found) return directOpt;
           // In .cdk-overlay-popover (4 Carbon / 4 Argon flat menu), "High Extra thorough" is already visible directly!
           let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 4, 110);
           if (opt.found) return opt;
@@ -4467,12 +4518,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> targetLevel (LOW for app, HIGH for MODO DUO/TRIO) ---
         let thinkingOk = false;
         let thinkingVerified = false;
+        let verifiedModelLabel = '';
         // The mode picker announces the current state ("Open mode picker, currently Carbon High"): use it first
         const modeMatchesTarget = async () => {
           const ml = await runMainStep('READ_MODE_LABEL');
           const label = String((ml && ml.label) || '');
           const re = targetLevel === 'HIGH' ? /\bcarbon\b[^,]*\bhigh\b/i : /\bcarbon\b[^,]*\blow\b/i;
-          return re.test(label);
+          if (re.test(label)) {
+            verifiedModelLabel = label;
+            return true;
+          }
+          return false;
         };
         if (await modeMatchesTarget()) {
           thinkingOk = true;
@@ -4496,9 +4552,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             menu = await openModelMenu();
             if (!menu) continue;
           }
-          const opt = await openThinkingSubmenu(menu.th);
+          const opt = await openThinkingSubmenu(menu.th, menu.directOpt);
           if (!opt.found) {
-            diag.push(`T${attempt}: opción ${targetLevel} no encontrada [${(opt.items || []).join(' | ')}]`);
+            diag.push(`T${attempt}: opción ${targetLevel} no encontrada [${(opt.items || []).join(' | ')}] (sw="${menu.sw.label}")`);
             continue;
           }
           if (!opt.alreadyChecked) {
@@ -4511,25 +4567,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             thinkingVerified = true;
             break;
           }
-          // VERIFY by reopening the menu and reading the checked option
+          // VERIFY by reopening the menu (works for BOTH flat Carbon popover and Thinking level submenu)
           await closeMenus();
           const vMenu = await openModelMenu();
-          if (vMenu && vMenu.thinkingFound) {
-            await hardwareHoverOnly(vMenu.th.x, vMenu.th.y);
-            await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
+          if (vMenu) {
+            if (vMenu.thinkingFound) {
+              await hardwareHoverOnly(vMenu.th.x, vMenu.th.y);
+              await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 5, 130);
+            }
             const state = await runMainStep('READ_THINKING_OPTIONS');
             const want = targetLevel === 'HIGH' ? state?.high : state?.low;
             if (want === true) {
               thinkingOk = true;
               thinkingVerified = true;
+              verifiedModelLabel = `4 Carbon · Thinking: ${targetLevel} (checked, sw="${vMenu.sw.label}")`;
             } else if (want === null || (state?.high !== true && state?.low !== true && state?.medium !== true)) {
-              // Checked state not readable in DOM: trust the single click
               thinkingOk = true;
+              verifiedModelLabel = `4 Carbon · Thinking: ${targetLevel} (clicked, sw="${vMenu.sw.label}")`;
             } else {
               diag.push(`T${attempt}: verificación falló (low=${state?.low}, medium=${state?.medium}, high=${state?.high})`);
             }
-          } else {
-            thinkingOk = true;
           }
         }
         await closeMenus();
@@ -4631,6 +4688,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           enableDeepResearch,
           thinkingOk,
           thinkingVerified,
+          verifiedModel: verifiedModelLabel,
           deepResearchOk,
           debuggerAttached,
           diag,
@@ -5053,11 +5111,22 @@ async function inspectGeminiTabLatestResponse(tabId) {
             'rich-textarea div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
           )
         );
+        let modeLabel = '';
+        const modeBtn =
+          document.querySelector(
+            'bard-mode-switcher button, [data-test-id*="bard-mode" i] button, button[data-test-id*="bard-mode" i], button[aria-label*="mode picker" i], button[aria-label*="selector de modo" i]'
+          ) || null;
+        if (modeBtn) {
+          const aria = (modeBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+          const inner = (modeBtn.innerText || modeBtn.textContent || '').replace(/\s+/g, ' ').trim();
+          modeLabel = [aria, inner].filter(Boolean).join(' · ');
+        }
         return {
           generating,
           count,
           userQueries,
           hasComposer,
+          modeLabel,
           text,
           hasActionBar,
           url: window.location.href,
@@ -5433,7 +5502,7 @@ async function runExternalGeminiAskOrder(task) {
       prompt: task.prompt,
     };
     let deliveredAck = false;
-    for (let tryIdx = 0; tryIdx < 6; tryIdx++) {
+    for (let tryIdx = 0; tryIdx < 10; tryIdx++) {
       await ensureScriptInjected(tabId, 'gemini-content.js');
       await sleep(350);
       const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
@@ -5445,6 +5514,25 @@ async function runExternalGeminiAskOrder(task) {
     }
 
     if (!deliveredAck) {
+      const snapCheck = await inspectGeminiTabLatestResponse(tabId);
+      const lbl = String((snapCheck && snapCheck.modeLabel) || '');
+      const alreadyCarbonHigh =
+        /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl);
+      if (!alreadyCarbonHigh) {
+        await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            verifiedModel: lbl || 'sin_confirmar',
+            error: `No se pudo inyectar el selector de 4 Carbon · High en Gemini Web (quedó en "${
+              lbl || 'desconocido'
+            }"). Envío bloqueado para evitar usar un modelo distinto.`,
+          }),
+        }).catch(() => {});
+        return;
+      }
       await forceSubmitPromptInGeminiTab(tabId, task.prompt);
     }
 
@@ -5461,7 +5549,10 @@ async function runExternalGeminiAskOrder(task) {
         snap.userQueries === 0 &&
         snap.count === 0 &&
         !snap.generating &&
-        (i === 4 || i === 8 || i === 13)
+        (i === 6 || i === 12) &&
+        /\b(carbon|argon)\b/i.test(String(snap.modeLabel || '')) &&
+        /\b(high|alto)\b/i.test(String(snap.modeLabel || '')) &&
+        !/\b(low|bajo|flash)\b/i.test(String(snap.modeLabel || ''))
       ) {
         await forceSubmitPromptInGeminiTab(tabId, task.prompt);
         continue;
@@ -5480,6 +5571,7 @@ async function runExternalGeminiAskOrder(task) {
             body: JSON.stringify({
               requestId: task.id,
               ok: true,
+              verifiedModel: snap.modeLabel || '',
               response: snap.text,
               chatUrl: snap.url,
             }),

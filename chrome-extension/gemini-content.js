@@ -702,27 +702,51 @@
 
     // Find the bottom-right model switcher pill button ("Carbon ^" / "Argon ^" / "3.8 Flash" / "3.5 Flash-Lite")
     const findModelSwitcherBtn = () => {
+      const inputEl = findPromptInput();
+      const inputRect = inputEl ? inputEl.getBoundingClientRect() : null;
+      const composerRoot =
+        (inputEl &&
+          inputEl.closest('input-area-v2, .input-area-container, .input-area, .text-input-field, form')) ||
+        document;
       const switcherSelectors = [
         '[data-test-id="bard-mode-menu-button"]',
-        'bard-mode-switcher button',
         'button.input-area-switch',
-        'button[aria-label*="mode" i]',
-        'button[aria-label*="modelo" i]',
-        'button[aria-label*="selector" i]',
+        'button[aria-label*="mode picker" i]',
+        'button[aria-label*="selector de modo" i]',
+        'button[aria-label*="currently " i]',
+        'button[aria-label*="actualmente " i]',
       ];
-      for (const sel of switcherSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null) return el;
+      for (const scope of [composerRoot, document]) {
+        for (const sel of switcherSelectors) {
+          const el = scope.querySelector(sel);
+          if (el && el.offsetParent !== null && !el.closest('bard-sidenav, side-navigation')) return el;
+        }
       }
       // Fallback: find the pill button near the prompt bar whose text is "Carbon", "4 Carbon", "Argon", "3.8 Flash", etc.
       const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
-        (el) => el && el.offsetParent !== null && !el.closest('.cdk-overlay-container, .cdk-overlay-popover')
+        (el) =>
+          el &&
+          el.offsetParent !== null &&
+          !el.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation, header, bard-mode-switcher')
       );
+      if (inputRect) {
+        const nearMatch = allBtns.find((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.bottom < inputRect.top - 70 || r.top > inputRect.bottom + 95 || r.left < inputRect.left + 40) {
+            return false;
+          }
+          const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
+            .replace(/\s+/g, ' ')
+            .trim();
+          return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+        });
+        if (nearMatch) return nearMatch;
+      }
       return (
         allBtns.find((el) => {
           const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
-        }) || null
+        }) || document.querySelector('bard-mode-switcher button')
       );
     };
 
@@ -1022,6 +1046,8 @@
       } catch {}
       if (hwConfig) {
         result.thinkingOk = Boolean(hwConfig.thinkingOk);
+        result.thinkingVerified = Boolean(hwConfig.thinkingVerified);
+        result.verifiedModel = String(hwConfig.verifiedModel || '');
         result.deepResearchOk = Boolean(hwConfig.deepResearchOk);
         result.diag = Array.isArray(hwConfig.diag) ? hwConfig.diag : [];
         result.debuggerAttached = Boolean(hwConfig.debuggerAttached);
@@ -3925,10 +3951,92 @@
             return;
           }
 
-          await Promise.race([
+          const readCurrentGeminiModeLabel = () => {
+            const composerEl = findPromptInput();
+            const composerRect = composerEl ? composerEl.getBoundingClientRect() : null;
+            const composerRoot =
+              (composerEl &&
+                composerEl.closest('input-area-v2, .input-area-container, .input-area, .text-input-field, form')) ||
+              document;
+            const switcherSelectors = [
+              '[data-test-id="bard-mode-menu-button"]',
+              'button.input-area-switch',
+              'button[aria-label*="mode picker" i]',
+              'button[aria-label*="selector de modo" i]',
+              'button[aria-label*="currently " i]',
+              'button[aria-label*="actualmente " i]',
+            ];
+            let btn = null;
+            for (const scope of [composerRoot, document]) {
+              for (const sel of switcherSelectors) {
+                const el = scope.querySelector(sel);
+                if (el && el.offsetParent !== null && !el.closest('bard-sidenav, side-navigation')) {
+                  btn = el;
+                  break;
+                }
+              }
+              if (btn) break;
+            }
+            if (!btn) {
+              const allBtns = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
+                (el) =>
+                  el &&
+                  el.offsetParent !== null &&
+                  !el.closest(
+                    '.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation, header, bard-mode-switcher'
+                  )
+              );
+              if (composerRect) {
+                btn =
+                  allBtns.find((el) => {
+                    const r = el.getBoundingClientRect();
+                    if (
+                      r.bottom < composerRect.top - 70 ||
+                      r.top > composerRect.bottom + 95 ||
+                      r.left < composerRect.left + 40
+                    ) {
+                      return false;
+                    }
+                    const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+                  }) || null;
+              }
+              if (!btn) {
+                btn =
+                  allBtns.find((el) => {
+                    const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                    return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(
+                      t
+                    );
+                  }) || null;
+              }
+            }
+            if (!btn) return '';
+            const aria = (btn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+            const inner = (btn.innerText || btn.textContent || '').replace(/\s+/g, ' ').trim();
+            return [aria, inner].filter(Boolean).join(' · ');
+          };
+          const isVerifiedHighModelLabel = (lbl) =>
+            /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl);
+
+          let cfgRes = await Promise.race([
             configureGeminiModelAndDeepResearch(true, false, false),
-            sleep(8000),
+            sleep(14000),
           ]);
+          let verifiedModeBeforeSend =
+            (cfgRes && cfgRes.verifiedModel) || readCurrentGeminiModeLabel();
+          if (!isVerifiedHighModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingVerified)) {
+            await sleep(500);
+            cfgRes = await Promise.race([
+              configureGeminiModelAndDeepResearch(true, false, false),
+              sleep(12000),
+            ]);
+            verifiedModeBeforeSend =
+              (cfgRes && cfgRes.verifiedModel) || readCurrentGeminiModeLabel();
+          }
+
           try {
             document
               .querySelectorAll('.cdk-overlay-backdrop')
@@ -3938,6 +4046,31 @@
             });
           } catch {}
           await sleep(450);
+
+          const liveDomLabel = readCurrentGeminiModeLabel();
+          verifiedModeBeforeSend =
+            (isVerifiedHighModelLabel(liveDomLabel) ? liveDomLabel : '') ||
+            (cfgRes && cfgRes.verifiedModel) ||
+            liveDomLabel ||
+            verifiedModeBeforeSend;
+          if (
+            /\b(low|bajo|flash)\b/i.test(liveDomLabel) ||
+            (!isVerifiedHighModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingOk))
+          ) {
+            const diagText = cfgRes && Array.isArray(cfgRes.diag) ? cfgRes.diag.join('; ') : '';
+            chrome.runtime
+              .sendMessage({
+                type: 'EXTERNAL_GEMINI_ASK_RESULT',
+                requestId,
+                ok: false,
+                verifiedModel: verifiedModeBeforeSend || 'desconocido',
+                error: `Verificación estricta falló: Gemini Web quedó en "${
+                  verifiedModeBeforeSend || 'sin confirmar'
+                }" en lugar de 4 Carbon · High.${diagText ? ` [diag: ${diagText}]` : ''}`,
+              })
+              .catch(() => {});
+            return;
+          }
 
           // Re-query inputEl AFTER model switching because Angular recreates <rich-textarea>
           for (let i = 0; i < 20; i++) {
@@ -4031,11 +4164,13 @@
                 stableDoneTicks = 1;
               }
               if (stableDoneTicks >= 3) {
+                const finalVerifiedModel = readCurrentGeminiModeLabel() || verifiedModeBeforeSend || '4 Carbon · High';
                 chrome.runtime
                   .sendMessage({
                     type: 'EXTERNAL_GEMINI_ASK_RESULT',
                     requestId,
                     ok: true,
+                    verifiedModel: finalVerifiedModel,
                     response: latestText,
                     chatUrl: window.location.href,
                   })

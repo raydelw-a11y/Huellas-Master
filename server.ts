@@ -12983,7 +12983,13 @@ interface PendingExternalGeminiAsk {
   windowId?: number | null;
   tabId?: number | null;
   chatUrl?: string;
-  resolve: (result: { ok: boolean; response?: string; chatUrl?: string; error?: string }) => void;
+  resolve: (result: {
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }) => void;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -13531,6 +13537,7 @@ app.post('/api/gemini-web/ask-external-result', (req, res) => {
   });
   item.resolve({
     ok: Boolean(req.body?.ok !== false),
+    verifiedModel: req.body?.verifiedModel ? String(req.body.verifiedModel) : undefined,
     response: String(req.body?.response || req.body?.text || ''),
     chatUrl,
     error: req.body?.error ? String(req.body.error) : undefined,
@@ -13547,7 +13554,13 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
   const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
   const id = `ext_gem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  const resultPromise = new Promise<{ ok: boolean; response?: string; chatUrl?: string; error?: string }>((resolve) => {
+  const resultPromise = new Promise<{
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }>((resolve) => {
     const timer = setTimeout(() => {
       const expired = pendingExternalGeminiAsks.get(id);
       pendingExternalGeminiAsks.delete(id);

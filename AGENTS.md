@@ -46,16 +46,25 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
         - En ese `send_message` (Ronda 2), cada subagente debe **revisar críticamente las respuestas de los demás modelos y la de Gemini Web**, señalar qué puntos adopta, qué errores o huecos rebate/corrige de las otras propuestas, y acordar la solución final consensuada.
         - El coordinador **DEBE ESPERAR** a que **TODOS los subagentes respondan a la Ronda 2 de debate (`send_message`)** antes de tocar una sola línea de código (`edit_file`), hacer `git commit` o publicar el veredicto final.
 
-1. **Activación Automática de Subagentes con Modelos Distintos (`define_subagent`, `invoke_subagent`, `send_message`)**:
+1. **Activación Automática de Subagentes con Modelos Distintos y Verificados (`define_subagent`, `invoke_subagent`, `send_message` — PROHIBIDO usar nombres falsos)**:
+   - **Mapeo real de backend en Antigravity (`invoke_subagent`)**:
+     - `Model: 'pro'` → ejecuta siempre el motor real **`Gemini 4 Argon (High)`**.
+     - `Model: 'flash'` → ejecuta siempre el motor real **`Gemini 3.8 Flash`**.
+     - `Model: 'inherit'` → **NO es un alias fijo a Carbon**, sino que clona exactamente el modelo activo en el selector superior del chat (`<USER_SETTINGS_CHANGE>`).
+   - **REGLA ANTI-DUPLICACIÓN / CERO ETIQUETAS FALSAS**:
+     - Antes de lanzar `MODO DUO` o `MODO TRIO`, el coordinador **DEBE verificar en su contexto (`<USER_SETTINGS_CHANGE>`) cuál es el modelo activo del chat principal**:
+       - Cuando el selector del chat está en **`Gemini 4 Carbon (High)`**: `Model: 'inherit'` corre realmente en **`Gemini 4 Carbon (High)`** y `Model: 'pro'` corre realmente en **`Gemini 4 Argon (High)`** (+ `Model: 'flash'` = **`Gemini 3.8 Flash`** en `MODO TRIO`).
+       - Si el selector del chat **NO** está en `Gemini 4 Carbon (High)` (por ejemplo, está en `Argon` o `Flash`), **ESTÁ TERMINANTEMENTE PROHIBIDO** llamar `"Carbon High"` a un subagente con `Model: 'inherit'` (porque correría otro `Argon` o `Flash` duplicado bajo un nombre falso). En ese caso, el coordinador debe avisar al usuario en 1 línea visible que el selector del chat no está en `Carbon High` (para que pueda cambiarlo si desea subagente Carbon nativo) y nunca duplicar el mismo modelo con nombres distintos (`Model: 'pro'` = Argon High + `Model: 'flash'` = Flash 3.8 + Gemini Web verificado en `4 Carbon · High`).
+     - En Gemini Web (`POST /api/gemini-web/ask-external`), el puente verifica en el DOM real del selector de modelos (`verifiedModel`) que esté activo **`4 Carbon · High`** antes de enviar (bloqueando envíos accidentales en `Low` o `Flash`), y el coordinador debe mostrar en el resumen el `verifiedModel` devuelto por el endpoint.
    - **En `MODO DUO` (`Carbon High + Argon High`)**:
-     - **Agente 1 (`Model: 'inherit'`) — Arquitecto Principal (`Gemini 4 Carbon High`**, modelo activo en el selector del chat**)**: Diseña la solución de fondo, arquitectura y lógica principal.
+     - **Agente 1 (`Model: 'inherit'`) — Arquitecto Principal (`Gemini 4 Carbon High`**, verificado en el selector activo del chat**)**: Diseña la solución de fondo, arquitectura y lógica principal.
      - **Agente 2 (`Model: 'pro'`) — Contraparte & Auditor Estratégico (`Gemini 4 Argon High`)**: Audita la arquitectura con razonamiento profundo, desafía supuestos y valida la integridad de los cambios.
-     - *(Más la perspectiva externa obligatoria de **Gemini Web en `4 Carbon · Thinking: High`**).*
+     - *(Más la perspectiva externa obligatoria de **Gemini Web verificada por DOM en `4 Carbon · Thinking: High`**).*
    - **En `MODO TRIO` (`Carbon High + Argon High + Flash 3.8`)**:
-     - **Agente 1 (`Model: 'inherit'`) — Arquitecto Principal (`Gemini 4 Carbon High`)**.
+     - **Agente 1 (`Model: 'inherit'`) — Arquitecto Principal (`Gemini 4 Carbon High`**, verificado en el selector activo del chat**)**.
      - **Agente 2 (`Model: 'pro'`) — Contraparte & Auditor Estratégico (`Gemini 4 Argon High`)**.
      - **Agente 3 (`Model: 'flash'`) — Auditor Crítico & Explorador Rápido (`Gemini 3.8 Flash`)**: Inspecciona el código a máxima velocidad, busca fallos, casos borde y cuellos de botella.
-     - *(Más la perspectiva externa obligatoria de **Gemini Web en `4 Carbon · Thinking: High`**).*
+     - *(Más la perspectiva externa obligatoria de **Gemini Web verificada por DOM en `4 Carbon · Thinking: High`**).*
 
 2. **Debate de Ida y Vuelta + Verificación Rigurosa (Estilo `/boost` + `/teamwork`)**:
    - El agente coordinador hace que los agentes intercambien sus argumentos (`send_message`) en al menos **2 rondas completas** (Ronda 1: propuesta inicial de cada modelo; Ronda 2: revisión cruzada de las respuestas de los otros agentes + Gemini Web, refutación de puntos débiles y acuerdo final).
