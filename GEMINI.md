@@ -37,7 +37,13 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
      4. **PROHIBIDO Detener o Matar a Ningún Modelo Antes de que Termine (`Dejar Terminar Siempre a Todos`)**:
         - **ESTÁ TERMINANTEMENTE PROHIBIDO** usar `manage_subagents` con `Action: 'kill'` o `'kill_all'` para detener a Argon (`Model: 'pro'`), Opus (`Model: 'inherit'`) o Flash (`Model: 'flash'`), ni cancelar la consulta de Gemini Web antes de que **TODOS** hayan terminado de responder por completo, incluso si el coordinador cree haber encontrado la causa por su cuenta.
         - Si uno o más agentes (por ejemplo, Argon `pro` o Gemini Web Argon High) siguen pensando o analizando, el coordinador **DEBE ESPERAR** (terminando su turno sin llamar más herramientas para despertar reactivamente cuando llegue la respuesta de cada subagente) hasta tener las respuestas completas de **todos los participantes**.
-        - **PROHIBIDO** editar archivos (`edit_file`), hacer `git commit` o publicar el veredicto final antes de haber recibido las respuestas completas de **todos los modelos** y haber cruzado sus hallazgos en el debate.
+     5. **RONDA 2 OBLIGATORIA DE DEBATE CRUZADO (`send_message` a CADA Subagente con las Respuestas de los Otros + Gemini Web)**:
+        - **ESTÁ TERMINANTEMENTE PROHIBIDO** pasar de las respuestas iniciales (Ronda 1) directamente a editar archivos (`edit_file`) diciendo *"Hay consenso; ahora implemento"*.
+        - Una vez que **todos** los subagentes hayan entregado su respuesta inicial (Ronda 1) y se tenga la respuesta de **Gemini Web (Argon High)**, el coordinador **DEBE llamar obligatoriamente a `send_message` hacia CADA uno de los subagentes** (en `MODO DUO` a los 2; en `MODO TRIO` a los 3: Opus, Argon y Flash) pasándoles:
+          1. Las respuestas completas propuestas por **los otros subagentes** en la Ronda 1.
+          2. La respuesta completa obtenida de **Gemini Web (Argon High)**.
+        - En ese `send_message` (Ronda 2), cada subagente debe **revisar críticamente las respuestas de los demás modelos y la de Gemini Web**, señalar qué puntos adopta, qué errores o huecos rebate/corrige de las otras propuestas, y acordar la solución final consensuada.
+        - El coordinador **DEBE ESPERAR** a que **TODOS los subagentes respondan a la Ronda 2 de debate (`send_message`)** antes de tocar una sola línea de código (`edit_file`), hacer `git commit` o publicar el veredicto final.
 
 1. **Activación Automática de Subagentes con Modelos Distintos (`define_subagent`, `invoke_subagent`, `send_message`)**:
    - **En `MODO DUO`**:
@@ -51,8 +57,8 @@ Cuando el mensaje del usuario contenga **`MODO DUO`** / **`modo duo`** (o **`MOD
      - Combina los 3 perfiles simultáneamente: **`inherit`** (Modelo activo en el selector, ej. Claude Opus) + **`pro`** (Gemini Argon/Pro) + **`flash`** (Gemini Flash).
 
 2. **Debate de Ida y Vuelta + Verificación Rigurosa (Estilo `/boost` + `/teamwork`)**:
-   - El agente coordinador hace que los agentes intercambien sus argumentos (`send_message`), rebatan puntos débiles y lleguen a un consenso verificado.
-   - Siempre muestra al usuario en el chat un resumen claro del **diálogo/debate entre los modelos** y el **veredicto consensuado** antes o al momento de ejecutar la solución.
+   - El agente coordinador hace que los agentes intercambien sus argumentos (`send_message`) en al menos **2 rondas completas** (Ronda 1: propuesta inicial de cada modelo; Ronda 2: revisión cruzada de las respuestas de los otros agentes + Gemini Web, refutación de puntos débiles y acuerdo final).
+   - Siempre muestra al usuario en el chat un resumen claro de: (a) qué propuso cada modelo en la Ronda 1 (incluyendo Gemini Web), (b) **qué se rebatieron o adoptaron entre sí en la Ronda 2 de debate**, y (c) el **veredicto consensuado** antes o al momento de ejecutar la solución.
 
 3. **Relevo Automático por Cuota Agotada (En `MODO DUO`/`TRIO` y también en Modo Normal)**:
    - **En `MODO DUO` / `MODO TRIO`**: Si en cualquier momento el agente en `Model: 'inherit'` (Claude Opus) agota su cuota, sufre límite de capacidad (`quota` / `rate limit`) o falla al responder, el coordinador **no detiene la tarea**: transfiere inmediatamente todo el contexto acumulado del debate a la dupla **Gemini Argon (`Model: 'pro'`) + Gemini Flash (`Model: 'flash'`)** para que continúen el debate y terminen la implementación sin interrupciones.
