@@ -129,7 +129,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:08 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '4:34 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1739,6 +1739,7 @@ export default function App() {
   const [thumbOptionsGenerating, setThumbOptionsGenerating] = useState(false);
   const [aiCustomInstruction, setAiCustomInstruction] = useState('');
   const [ttsGenerating, setTtsGenerating] = useState(false);
+  const [ttsProgressMsg, setTtsProgressMsg] = useState('');
   const [ttsCustomSegmentText, setTtsCustomSegmentText] = useState('');
   const [ttsCustomLabel, setTtsCustomLabel] = useState('');
   const [timelineExtracting, setTimelineExtracting] = useState(false);
@@ -10742,10 +10743,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       return;
     }
     setTtsGenerating(true);
+    setTtsProgressMsg('🎙️ Preparando bloques de locución y control de cuota Tier 1 (10/min)...');
     try {
       let data: TTSRecord | null = null;
       if (!isCloudMode) {
         try {
+          setTtsProgressMsg(
+            '🎙️ Sintetizando guion completo en VoxFlow local (respetando ritmo seguro de 10 llamadas/min Tier 1)...'
+          );
           const res = await fetch('/api/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -10778,6 +10783,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           speed: activeDoc.selectedSpeed || 'medium',
           language: activeDoc.selectedLanguage || 'es-la',
           label: labelTitle || getVoiceoverAudioName(activeDoc.title),
+          onProgress: (msg) => setTtsProgressMsg(msg),
         });
       }
 
@@ -10824,6 +10830,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       alert('Error en VoxFlow: ' + e.message);
     } finally {
       setTtsGenerating(false);
+      setTtsProgressMsg('');
     }
   };
 
@@ -14395,9 +14402,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     >
                       <Volume2 className="w-4 h-4" />
                       {ttsGenerating
-                        ? `Sintetizando "${getVoiceoverAudioName(activeDoc.title)}" en VoxFlow...`
+                        ? ttsProgressMsg ||
+                          `Sintetizando "${getVoiceoverAudioName(activeDoc.title)}" en VoxFlow...`
                         : `🎙️ Generar "${getVoiceoverAudioName(activeDoc.title)}" en VoxFlow`}
                     </button>
+                    {ttsGenerating && ttsProgressMsg && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-[11px] font-semibold text-amber-200 flex items-center gap-2 animate-pulse">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0 text-amber-400" />
+                        <span>{ttsProgressMsg}</span>
+                      </div>
+                    )}
 
                     {/* Optional Fragment Generator */}
                     <details className="bg-slate-950/80 border border-slate-800 rounded-xl p-3">

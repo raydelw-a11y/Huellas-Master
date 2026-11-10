@@ -1332,21 +1332,110 @@ interface TextOrPauseSegment {
   duration?: number;
 }
 
-// Reconoce [1s], [2s], [3s], [1.5s], [1], [2], [3], [1}, [2}, {2s], [pausa: 2s], [pausa 2], [silencio: 2s], <break time="2s"/>
+// Reconoce [1s], [2s], [3s], [1.5s], [1], [2], [3], [1}, [2}, {2s], [pausa: 2s], (pausa de 2s), [silencio: 2s], <break time="2s"/>
 const UNIVERSAL_PAUSE_REGEX =
-  /[\[{]\s*(?:(?:pausa|pause|silencio)\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos|ms|milisegundos)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*[\]}]|<break\s+time=["']?([0-9]+(?:\.[0-9]+)?)(s|ms)["']?\s*\/?>/gi;
+  /[\[{]\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos?|ms|milisegundos?)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*:?\s*[\]}]|\(\s*(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos?|ms|milisegundos?)?\s*\)|<break\s+time=["']?([0-9]+(?:\.[0-9]+)?)(s|ms)["']?\s*\/?>/gi;
+
+function splitServerOversizedTtsBlock(text: string, maxChars: number = 2800): string[] {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [trimmed];
+
+  const sentences = trimmed
+    .split(/(?<=[.!?…])\s+|\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+  for (const sent of sentences) {
+    if (!current) {
+      if (sent.length <= maxChars) {
+        current = sent;
+      } else {
+        const words = sent.split(/\s+/);
+        let wBuf = '';
+        for (const w of words) {
+          if (wBuf && wBuf.length + 1 + w.length > maxChars) {
+            chunks.push(wBuf);
+            wBuf = w;
+          } else {
+            wBuf = wBuf ? `${wBuf} ${w}` : w;
+          }
+        }
+        current = wBuf;
+      }
+    } else if (current.length + 1 + sent.length <= maxChars) {
+      current = `${current} ${sent}`;
+    } else {
+      chunks.push(current);
+      current = sent;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+const serverTtsRequestTimestamps: number[] = [];
+const SERVER_TTS_WINDOW_MS = 63000;
+const SERVER_TTS_MAX_PER_WINDOW = 9;
+const SERVER_TTS_MIN_SPACING_MS = 1400;
+
+async function acquireServerTtsRateSlot(): Promise<void> {
+  while (true) {
+    const now = Date.now();
+    while (
+      serverTtsRequestTimestamps.length > 0 &&
+      now - serverTtsRequestTimestamps[0] >= SERVER_TTS_WINDOW_MS
+    ) {
+      serverTtsRequestTimestamps.shift();
+    }
+    if (serverTtsRequestTimestamps.length >= SERVER_TTS_MAX_PER_WINDOW) {
+      const waitMs = serverTtsRequestTimestamps[0] + SERVER_TTS_WINDOW_MS - now + 800;
+      if (waitMs > 0) {
+        console.log(
+          `[VoxFlow Tier-1 Pacer] Esperando ${(waitMs / 1000).toFixed(1)}s para respetar el límite de 10 RPM...`
+        );
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+    }
+    const lastTs =
+      serverTtsRequestTimestamps.length > 0
+        ? serverTtsRequestTimestamps[serverTtsRequestTimestamps.length - 1]
+        : 0;
+    const sinceLast = Date.now() - lastTs;
+    if (lastTs > 0 && sinceLast < SERVER_TTS_MIN_SPACING_MS) {
+      await new Promise((r) => setTimeout(r, SERVER_TTS_MIN_SPACING_MS - sinceLast));
+    }
+    serverTtsRequestTimestamps.push(Date.now());
+    return;
+  }
+}
+
+function parseServerTtsRetryDelayMs(err: any, attempt: number): number {
+  const msg = String(err?.message || err || '');
+  const m = msg.match(/Please\s+retry\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i);
+  if (m?.[1]) {
+    const sec = parseFloat(m[1]);
+    if (Number.isFinite(sec) && sec > 0) {
+      return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+    }
+  }
+  return Math.min(75000, 18000 + attempt * 10000);
+}
 
 function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
   if (!rawText) return [];
   const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
-  const segments: TextOrPauseSegment[] = [];
+  const rawSegments: TextOrPauseSegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = pauseRegex.exec(rawText)) !== null) {
     const textBefore = rawText.slice(lastIndex, match.index);
     if (textBefore.trim()) {
-      segments.push({ type: 'text', text: textBefore.trim() });
+      rawSegments.push({ type: 'text', text: textBefore.trim() });
     }
     let durationSec = 1.5;
     if (match[1] !== undefined) {
@@ -1356,18 +1445,37 @@ function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
     } else if (match[3] !== undefined) {
       const val = parseFloat(match[3].replace(',', '.'));
       const unit = (match[4] || 's').toLowerCase();
+      durationSec = unit.startsWith('ms') || unit.startsWith('mili') ? val / 1000 : val;
+    } else if (match[5] !== undefined) {
+      const val = parseFloat(match[5].replace(',', '.'));
+      const unit = (match[6] || 's').toLowerCase();
       durationSec = unit === 'ms' ? val / 1000 : val;
     }
     durationSec = Math.max(0.1, Math.min(30, durationSec));
-    segments.push({ type: 'pause', duration: durationSec });
+    rawSegments.push({ type: 'pause', duration: durationSec });
     lastIndex = match.index + match[0].length;
   }
 
   const remainingText = rawText.slice(lastIndex);
   if (remainingText.trim()) {
-    segments.push({ type: 'text', text: remainingText.trim() });
+    rawSegments.push({ type: 'text', text: remainingText.trim() });
   }
-  return segments;
+
+  const finalSegments: TextOrPauseSegment[] = [];
+  for (const seg of rawSegments) {
+    if (seg.type === 'text' && seg.text) {
+      const subChunks = splitServerOversizedTtsBlock(seg.text, 2800);
+      subChunks.forEach((sub, idx) => {
+        if (idx > 0) {
+          finalSegments.push({ type: 'pause', duration: 0.35 });
+        }
+        finalSegments.push({ type: 'text', text: sub });
+      });
+    } else {
+      finalSegments.push(seg);
+    }
+  }
+  return finalSegments;
 }
 
 let gcloudTtsClient: any = null;
@@ -1497,8 +1605,10 @@ ${cleanText}`;
   let lastErr: any = null;
   let usedModel = '';
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  const maxAttempts = 7;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      await acquireServerTtsRateSlot();
       generation = await ai.models.generateContent({
         model: targetModel,
         contents: [{ parts: [{ text: fullPrompt }] }],
@@ -1518,7 +1628,7 @@ ${cleanText}`;
         const wCount = cleanText.split(/\s+/).filter(Boolean).length;
         const expectedSec = wCount / 2.0;
 
-        if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 3) {
+        if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 2) {
           console.warn(
             `[Gemini TTS] Posible duplicación detectada en ${targetModel} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando con ${targetModel}...`
           );
@@ -1531,8 +1641,23 @@ ${cleanText}`;
       }
     } catch (e: any) {
       lastErr = e;
-      if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      const errMsg = String(e?.message || e || '');
+      const isDailyHardCap =
+        /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg) &&
+        !/Please\s+retry\s+in\s+[0-9]{1,2}(?:\.[0-9]+)?\s*s/i.test(errMsg);
+      const isRateLimit =
+        !isDailyHardCap &&
+        (e?.status === 429 ||
+          /429|quota|rate.?limit|RESOURCE_EXHAUSTED|retry in/i.test(errMsg));
+
+      if (attempt < maxAttempts - 1 && !isDailyHardCap) {
+        const waitMs = isRateLimit
+          ? parseServerTtsRetryDelayMs(e, attempt)
+          : 2500 * (attempt + 1);
+        console.warn(
+          `[Gemini TTS] Reintento ${attempt + 1}/${maxAttempts} tras ${(waitMs / 1000).toFixed(1)}s (${errMsg.slice(0, 120)})`
+        );
+        await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
       break;

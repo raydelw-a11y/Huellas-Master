@@ -2943,6 +2943,160 @@ function pcmChunksToWavBlobUrl(
   return { url: URL.createObjectURL(blob), blob, duration };
 }
 
+const clientTtsRequestTimestamps: number[] = [];
+const CLIENT_TTS_WINDOW_MS = 63000;
+const CLIENT_TTS_MAX_PER_WINDOW = 9; // Mantiene margen seguro bajo el límite estricto de 10 RPM (Tier 1)
+const CLIENT_TTS_MIN_SPACING_MS = 1400;
+
+async function sleepWithCountdown(
+  totalMs: number,
+  formatMsg?: (secLeft: number) => string,
+  onProgress?: (msg: string) => void
+): Promise<void> {
+  let remaining = Math.max(0, Math.ceil(totalMs));
+  while (remaining > 0) {
+    if (onProgress && formatMsg) {
+      onProgress(formatMsg(Math.max(1, Math.ceil(remaining / 1000))));
+    }
+    const step = Math.min(1000, remaining);
+    await new Promise((r) => setTimeout(r, step));
+    remaining -= step;
+  }
+}
+
+async function acquireClientTtsRateSlot(
+  blockNum: number,
+  totalBlocks: number,
+  onProgress?: (msg: string) => void
+): Promise<void> {
+  while (true) {
+    const now = Date.now();
+    while (
+      clientTtsRequestTimestamps.length > 0 &&
+      now - clientTtsRequestTimestamps[0] >= CLIENT_TTS_WINDOW_MS
+    ) {
+      clientTtsRequestTimestamps.shift();
+    }
+    if (clientTtsRequestTimestamps.length >= CLIENT_TTS_MAX_PER_WINDOW) {
+      const waitMs =
+        clientTtsRequestTimestamps[0] + CLIENT_TTS_WINDOW_MS - now + 800;
+      if (waitMs > 0) {
+        await sleepWithCountdown(
+          waitMs,
+          (secLeft) =>
+            `⏳ Ritmo seguro Tier 1 (máx. 10/min): continuando bloque ${blockNum}/${totalBlocks} en ${secLeft}s...`,
+          onProgress
+        );
+        continue;
+      }
+    }
+    const lastTs =
+      clientTtsRequestTimestamps.length > 0
+        ? clientTtsRequestTimestamps[clientTtsRequestTimestamps.length - 1]
+        : 0;
+    const sinceLast = Date.now() - lastTs;
+    if (lastTs > 0 && sinceLast < CLIENT_TTS_MIN_SPACING_MS) {
+      await new Promise((r) =>
+        setTimeout(r, CLIENT_TTS_MIN_SPACING_MS - sinceLast)
+      );
+    }
+    clientTtsRequestTimestamps.push(Date.now());
+    return;
+  }
+}
+
+function parseGoogleTtsRetryDelayMs(
+  errMsg: string,
+  errPayload: any,
+  attempt: number
+): number {
+  const inlineMatch = String(errMsg || '').match(
+    /Please\s+retry\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i
+  );
+  if (inlineMatch?.[1]) {
+    const sec = parseFloat(inlineMatch[1]);
+    if (Number.isFinite(sec) && sec > 0) {
+      return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+    }
+  }
+  const details = Array.isArray(errPayload?.error?.details)
+    ? errPayload.error.details
+    : [];
+  for (const d of details) {
+    const rawDelay = String(d?.retryDelay || '');
+    const dm = rawDelay.match(/^([0-9]+(?:\.[0-9]+)?)\s*s$/i);
+    if (dm?.[1]) {
+      const sec = parseFloat(dm[1]);
+      if (Number.isFinite(sec) && sec > 0) {
+        return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+      }
+    }
+  }
+  return Math.min(75000, 18000 + attempt * 10000);
+}
+
+function splitOversizedTtsBlock(text: string, maxChars: number = 2800): string[] {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [trimmed];
+
+  const sentences = trimmed
+    .split(/(?<=[.!?…])\s+|\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+  for (const sent of sentences) {
+    if (!current) {
+      if (sent.length <= maxChars) {
+        current = sent;
+      } else {
+        // Hard-split extraordinarily long unpunctuated run on whitespace
+        const words = sent.split(/\s+/);
+        let wBuf = '';
+        for (const w of words) {
+          if (wBuf && wBuf.length + 1 + w.length > maxChars) {
+            chunks.push(wBuf);
+            wBuf = w;
+          } else {
+            wBuf = wBuf ? `${wBuf} ${w}` : w;
+          }
+        }
+        current = wBuf;
+      }
+    } else if (current.length + 1 + sent.length <= maxChars) {
+      current = `${current} ${sent}`;
+    } else {
+      chunks.push(current);
+      current = sent;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function applyPcmMicroFadeBytes(pcmBytes: Uint8Array, fadeSamples: number = 240): Uint8Array {
+  const evenLen = pcmBytes.byteLength - (pcmBytes.byteLength % 2);
+  const numSamples = Math.floor(evenLen / 2);
+  if (numSamples < fadeSamples * 2) return pcmBytes.subarray(0, evenLen);
+  const out = new Uint8Array(evenLen);
+  out.set(pcmBytes.subarray(0, evenLen));
+  const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
+  for (let i = 0; i < fadeSamples; i++) {
+    const factor = i / fadeSamples;
+    const s = view.getInt16(i * 2, true);
+    view.setInt16(i * 2, Math.round(s * factor), true);
+  }
+  for (let i = 0; i < fadeSamples; i++) {
+    const factor = (fadeSamples - i) / fadeSamples;
+    const byteIdx = (numSamples - fadeSamples + i) * 2;
+    const s = view.getInt16(byteIdx, true);
+    view.setInt16(byteIdx, Math.round(s * factor), true);
+  }
+  return out;
+}
+
 export async function synthesizeTtsClientSide(params: {
   text: string;
   voice: string;
@@ -2950,6 +3104,7 @@ export async function synthesizeTtsClientSide(params: {
   speed: string;
   language: string;
   label: string;
+  onProgress?: (msg: string) => void;
 }): Promise<TTSRecord & { audioBlob?: Blob }> {
   const apiKey = getBrowserGeminiKey();
   if (!apiKey) {
@@ -2968,32 +3123,105 @@ export async function synthesizeTtsClientSide(params: {
     Charon: 'Charon',
     Fenrir: 'Fenrir',
     Zephyr: 'Zephyr',
+    Adam: 'Fenrir',
+    Antoni: 'Zephyr',
+    Bella: 'Aoede',
+    Domi: 'Kore',
+    Grace: 'Aoede',
+    Michael: 'Charon',
+    Rachel: 'Aoede',
+    Serena: 'Kore',
+    Journey_F: 'Aoede',
+    Journey_M: 'Charon',
+    Wavenet_A: 'Kore',
+    Wavenet_B: 'Fenrir',
+    Neural2_F: 'Kore',
+    Neural2_M: 'Zephyr',
   };
   const physicalVoice = physicalVoices[params.voice] || 'Charon';
 
+  const languageInstructions: Record<string, string> = {
+    es: 'Speak in Spanish with native European Spanish pronunciation.',
+    'es-la':
+      'Speak in Spanish with a neutral, solemn, warm Latin American documentary accent (Español Neutro). Do NOT use European Spanish ceceo.',
+    en: 'Speak in English with a native accent.',
+    pt: 'Speak in Portuguese with a native accent.',
+    fr: 'Speak in French with a native accent.',
+    de: 'Speak in German with a native accent.',
+  };
+  const styleDescriptions: Record<string, string> = {
+    standard: 'Speak clearly with a professional documentary narrator cadence.',
+    dramatic:
+      'Speak with deep cinematic documentary gravitas, emotional resonance, and deliberate pacing.',
+    formal: 'Speak formally with historical rigor, solemn tone, and crisp articulation.',
+    whisper: 'Speak in a soft, intimate, mysterious low-volume voice.',
+    cheerful: 'Speak with bright, engaging enthusiasm.',
+  };
+  const speedDescriptions: Record<string, string> = {
+    slow: 'Speak slowly and deliberately.',
+    medium: 'Speak at a measured, natural documentary narration speed.',
+    fast: 'Speak at a brisk, dynamic pace while keeping every word clear.',
+  };
+
+  const langInstr = languageInstructions[params.language] || languageInstructions['es-la'];
+  const styleInstr = styleDescriptions[params.style] || styleDescriptions.dramatic;
+  const speedInstr = speedDescriptions[params.speed] || speedDescriptions.medium;
+
   const pauseRegex =
-    /[\[{]\s*(?:(?:pausa|pause|silencio)\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos|ms|milisegundos)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*[\]}]/gi;
-  const segments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
+    /[\[{]\s*(?:(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*)?([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos?|ms|milisegundos?)?\s*[\]}]|[\[{]\s*(?:pausa|pause|silencio)\s*:?\s*[\]}]|\(\s*(?:pausa|pause|silencio)(?:\s+de)?\s*:?\s*([0-9]{1,2}(?:[.,][0-9]+)?)\s*(s|seg|segundos?|ms|milisegundos?)?\s*\)|<break\s+time=["']?([0-9]+(?:\.[0-9]+)?)(s|ms)["']?\s*\/?>/gi;
+  const rawSegments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   while ((match = pauseRegex.exec(rawInput)) !== null) {
     const before = rawInput.slice(lastIdx, match.index).trim();
-    if (before) segments.push({ type: 'text', text: before });
-    const dur = match[1] ? parseFloat(match[1].replace(',', '.')) : 1.5;
-    segments.push({ type: 'pause', duration: Math.max(0.2, Math.min(15, dur)) });
+    if (before) rawSegments.push({ type: 'text', text: before });
+    let dur = 1.5;
+    if (match[1] !== undefined) {
+      const val = parseFloat(match[1].replace(',', '.'));
+      const unit = (match[2] || 's').toLowerCase();
+      dur = unit.startsWith('ms') || unit.startsWith('mili') ? val / 1000 : val;
+    } else if (match[3] !== undefined) {
+      const val = parseFloat(match[3].replace(',', '.'));
+      const unit = (match[4] || 's').toLowerCase();
+      dur = unit.startsWith('ms') || unit.startsWith('mili') ? val / 1000 : val;
+    } else if (match[5] !== undefined) {
+      const val = parseFloat(match[5].replace(',', '.'));
+      const unit = (match[6] || 's').toLowerCase();
+      dur = unit === 'ms' ? val / 1000 : val;
+    }
+    rawSegments.push({ type: 'pause', duration: Math.max(0.2, Math.min(20, dur)) });
     lastIdx = match.index + match[0].length;
   }
   const tail = rawInput.slice(lastIdx).trim();
-  if (tail) segments.push({ type: 'text', text: tail });
-  if (segments.length === 0) {
-    segments.push({ type: 'text', text: cleanText });
+  if (tail) rawSegments.push({ type: 'text', text: tail });
+  if (rawSegments.length === 0) {
+    rawSegments.push({ type: 'text', text: cleanText });
   }
 
-  const synthOneSegment = async (segText: string): Promise<Uint8Array> => {
+  // Split any oversized text chunk (>2800 chars) cleanly on sentence boundaries so single calls never exceed Gemini TTS max audio length
+  const segments: Array<{ type: 'text' | 'pause'; text?: string; duration?: number }> = [];
+  for (const seg of rawSegments) {
+    if (seg.type === 'text' && seg.text) {
+      const subChunks = splitOversizedTtsBlock(seg.text, 2800);
+      subChunks.forEach((sub, idx) => {
+        if (idx > 0) {
+          segments.push({ type: 'pause', duration: 0.35 });
+        }
+        segments.push({ type: 'text', text: sub });
+      });
+    } else {
+      segments.push(seg);
+    }
+  }
+
+  const totalTextBlocks = segments.filter((s) => s.type === 'text' && s.text).length;
+
+  const synthOneSegment = async (segText: string, blockNum: number): Promise<Uint8Array> => {
     const fullPrompt = `[DIRECTOR_INSTRUCTION]
 Vocal Character Profile: "${params.voice}" (Physical base "${physicalVoice}")
-Mood, Emotion & Delivery: Speak with deep cinematic documentary gravitas, emotional resonance, and deliberate pacing. Maintain strict vocal consistency and uniform documentary pitch.
-Accent & Language Vibe: Speak in Spanish with a neutral, solemn, warm Latin American documentary accent (Español Neutro). Do NOT use European Spanish ceceo.
+Mood, Emotion & Delivery: ${styleInstr} Maintain strict vocal consistency and uniform documentary pitch.
+Vocal Speed: ${speedInstr}
+Accent & Language Vibe: ${langInstr}
 
 ACTOR INSTRUCTION: Deliver the exact text inside [TEXT] once from beginning to end. Never repeat sentences, never read markup tags or brackets.
 
@@ -3003,68 +3231,142 @@ ${segText}`;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent?key=${encodeURIComponent(
       apiKey
     )}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: physicalVoice },
-            },
-          },
-        },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error?.message || `Error TTS HTTP ${res.status}`);
-    }
-    const b64Audio = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!b64Audio) {
-      throw new Error('El modelo gemini-3.8-flash-tts no devolvió audio.');
-    }
-    const binary = atob(b64Audio.replace(/\s/g, ''));
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    // Strip WAV header if present
-    if (
-      bytes.byteLength > 44 &&
-      bytes[0] === 0x52 &&
-      bytes[1] === 0x49 &&
-      bytes[2] === 0x46 &&
-      bytes[3] === 0x46
-    ) {
-      return bytes.subarray(44);
-    }
-    return bytes;
-  };
 
-  const pcmResults: Uint8Array[] = new Array(segments.length);
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < segments.length) {
-      const idx = cursor++;
-      const seg = segments[idx];
-      if (seg.type === 'pause' && seg.duration) {
-        pcmResults[idx] = new Uint8Array(Math.round(24000 * seg.duration) * 2);
-      } else if (seg.type === 'text' && seg.text) {
-        pcmResults[idx] = await synthOneSegment(seg.text);
-      } else {
-        pcmResults[idx] = new Uint8Array(0);
+    let lastErrorMsg = '';
+    const maxAttempts = 7;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await acquireClientTtsRateSlot(blockNum, totalTextBlocks, params.onProgress);
+
+      if (params.onProgress) {
+        const pct = Math.round(((blockNum - 1) / Math.max(1, totalTextBlocks)) * 100);
+        params.onProgress(
+          attempt > 0
+            ? `🎙️ Reintentando bloque ${blockNum}/${totalTextBlocks} (${pct}%) — intento ${attempt + 1}/${maxAttempts}...`
+            : `🎙️ Sintetizando bloque ${blockNum}/${totalTextBlocks} (${pct}%) en Gemini 3.8 Flash TTS...`
+        );
       }
+
+      let res: Response;
+      let data: any = null;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: physicalVoice },
+                },
+              },
+            },
+          }),
+        });
+        data = await res.json().catch(() => ({}));
+      } catch (netErr: any) {
+        lastErrorMsg = netErr?.message || 'Error de red temporal en TTS';
+        if (attempt < maxAttempts - 1) {
+          await sleepWithCountdown(
+            4000 * (attempt + 1),
+            (s) => `⏳ Red inestable, reintentando bloque ${blockNum}/${totalTextBlocks} en ${s}s...`,
+            params.onProgress
+          );
+          continue;
+        }
+        throw new Error(lastErrorMsg);
+      }
+
+      if (!res.ok) {
+        const errMsg = data?.error?.message || `Error TTS HTTP ${res.status}`;
+        lastErrorMsg = errMsg;
+        const isDailyHardCap =
+          /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg) &&
+          !/Please\s+retry\s+in\s+[0-9]{1,2}(?:\.[0-9]+)?\s*s/i.test(errMsg);
+        const isRetryableRateOrServer =
+          !isDailyHardCap &&
+          (res.status === 429 ||
+            res.status >= 500 ||
+            /quota|rate.?limit|RESOURCE_EXHAUSTED|retry in|overloaded|temporarily/i.test(errMsg));
+
+        if (isRetryableRateOrServer && attempt < maxAttempts - 1) {
+          const waitMs = parseGoogleTtsRetryDelayMs(errMsg, data, attempt);
+          await sleepWithCountdown(
+            waitMs,
+            (secLeft) =>
+              `⏳ Límite de 10 llamadas/min (Tier 1): reanudando bloque ${blockNum}/${totalTextBlocks} automáticamente en ${secLeft}s...`,
+            params.onProgress
+          );
+          continue;
+        }
+        throw new Error(errMsg);
+      }
+
+      const b64Audio = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!b64Audio) {
+        lastErrorMsg = 'El modelo gemini-3.8-flash-tts no devolvió datos de audio.';
+        if (attempt < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, 2500));
+          continue;
+        }
+        throw new Error(lastErrorMsg);
+      }
+
+      const binary = atob(b64Audio.replace(/\s/g, ''));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const rawPcm =
+        bytes.byteLength > 44 &&
+        bytes[0] === 0x52 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x46 &&
+        bytes[3] === 0x46
+          ? bytes.subarray(44)
+          : bytes;
+
+      // Guard against occasional TTS paragraph duplication
+      const tempSec = rawPcm.byteLength / 48000;
+      const wCount = segText.split(/\s+/).filter(Boolean).length;
+      const expectedSec = wCount / 2.0;
+      if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 2) {
+        console.warn(
+          `[VoxFlow Client] Posible duplicación en bloque ${blockNum} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando...`
+        );
+        continue;
+      }
+
+      return applyPcmMicroFadeBytes(rawPcm, 240);
     }
+
+    throw new Error(lastErrorMsg || 'No se pudo sintetizar el bloque de voz.');
   };
 
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  // Sequential synthesis (1 worker) respecting Tier 1 10-RPM sliding window — prevents 429 bursts and preserves vocal continuity
+  const pcmResults: Uint8Array[] = new Array(segments.length);
+  let currentTextBlock = 0;
+  for (let idx = 0; idx < segments.length; idx++) {
+    const seg = segments[idx];
+    if (seg.type === 'pause' && seg.duration) {
+      pcmResults[idx] = new Uint8Array(Math.round(24000 * seg.duration) * 2);
+    } else if (seg.type === 'text' && seg.text) {
+      currentTextBlock++;
+      pcmResults[idx] = await synthOneSegment(seg.text, currentTextBlock);
+    } else {
+      pcmResults[idx] = new Uint8Array(0);
+    }
+  }
+
+  if (params.onProgress) {
+    params.onProgress('✨ Ensamblando audio maestro y extrayendo línea de tiempo...');
+  }
 
   const { url: wavUrl, blob: wavBlob, duration } = pcmChunksToWavBlobUrl(pcmResults, 24000);
   const words = cleanText.split(/\s+/).filter(Boolean).length;
-  const pauseCount = segments.filter((s) => s.type === 'pause').length;
+  const pauseCount = rawSegments.filter((s) => s.type === 'pause').length;
   return {
     id: `tts-mobile-${Date.now()}`,
     text: params.text,
