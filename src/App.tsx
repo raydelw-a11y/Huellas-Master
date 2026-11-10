@@ -128,7 +128,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:56 AM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:14 AM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -1590,7 +1590,11 @@ export default function App() {
   const [activeStage, setActiveStage] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('huellas_master_active_stage') || '1', 10);
     if (saved === 2 || saved === 3) return 1;
-    return saved >= 1 && saved <= 12 ? saved : 1;
+    if (saved === 10) {
+      localStorage.setItem('huellas_master_active_stage', '80');
+      return 80;
+    }
+    return saved === 80 || (saved >= 1 && saved <= 12) ? saved : 1;
   });
   const [isStagesBarCompact, setIsStagesBarCompact] = useState<boolean>(false);
 
@@ -4036,10 +4040,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     for (const tk of [
       'deepResearchResult',
       'deepResearchPrompt',
-      'voiceoverScript',
-      'rawClipsText',
-      'rawReferencePrompts',
       'sectionsStructure',
+      'voiceoverScript',
+      'correctedSrt',
+      'thumbnailPrompt',
+      'thumbnailTextOverlay',
+      'rawReferencePrompts',
+      'clip1OptionsRaw',
+      'clip1Line1LocationTime',
+      'clip1Line2Hook',
+      'rawClipsText',
+      'rawSunoText',
+      'rawYoutubeMetadata',
+      'rawFacebookMetadata',
+      'pinnedComment',
+      'youtubeTags',
+      'publishTitle',
     ] as const) {
       if (Object.prototype.hasOwnProperty.call(patch, tk)) {
         const nextVal = String((patch as any)[tk] || '').trim();
@@ -4898,6 +4914,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           });
         }, 900);
       }
+    } else if (stageNum === 12) {
+      const cleanReply = text
+        .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim();
+      if (cleanReply) {
+        const latestDoc = activeDocRef.current || activeDoc;
+        const prevReplies = Array.isArray(latestDoc?.commentReplies) ? latestDoc!.commentReplies : [];
+        const newReplyItem: AudienceCommentReply = {
+          id: `cr-${Date.now()}`,
+          comment: (audienceCommentInput || '').trim() || 'Comentario de audiencia (Gemini Web)',
+          reply: cleanReply,
+          createdAt: new Date().toLocaleTimeString(),
+        };
+        updateActiveDoc({
+          commentReplies: [newReplyItem, ...prevReplies],
+        });
+        setAudienceCommentInput('');
+      }
     }
   };
 
@@ -4912,6 +4947,34 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const rawFb = activeDoc.rawFacebookMetadata ?? '';
     const rawPinned = activeDoc.pinnedComment ?? '';
     const rawTags = activeDoc.youtubeTags ?? '';
+
+    if (/===\s*SECCI[OÓ]N_(?:YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===/i.test(rawYt)) {
+      const parsed4 = parseStage11FourSections(rawYt);
+      if (parsed4.foundCount >= 1) {
+        const splitPatch: Partial<DocumentaryProject> = {};
+        if (parsed4.youtube) {
+          const ytStripped4 = stripLeadingTitleFromYoutubeMetadata(parsed4.youtube, activeDoc.publishTitle);
+          splitPatch.rawYoutubeMetadata = ytStripped4.body;
+          splitPatch.rawMetadataText = ytStripped4.body;
+          if (!activeDoc.publishTitle && ytStripped4.extractedTitle) {
+            splitPatch.publishTitle = ytStripped4.extractedTitle;
+          }
+        }
+        if (parsed4.facebook && !rawFb.trim()) {
+          splitPatch.rawFacebookMetadata = parsed4.facebook;
+        }
+        if (parsed4.pinnedComment && !rawPinned.trim()) {
+          splitPatch.pinnedComment = parsed4.pinnedComment;
+        }
+        if (parsed4.youtubeTags && !rawTags.trim()) {
+          splitPatch.youtubeTags = parsed4.youtubeTags;
+        }
+        if (Object.keys(splitPatch).length > 0) {
+          updateActiveDoc(splitPatch);
+          return;
+        }
+      }
+    }
 
     const ytStripped = rawYt
       ? stripLeadingTitleFromYoutubeMetadata(rawYt, activeDoc.publishTitle)
@@ -9235,6 +9298,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             10: 'deepResearchPrompt',
             4: 'voiceoverScript',
             5: 'thumbnailPrompt',
+            101: 'thumbnailTextOverlay',
             6: 'rawReferencePrompts',
             7: 'clip1OptionsRaw',
             8: 'rawClipsText',
@@ -9245,7 +9309,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             112: 'rawFacebookMetadata',
             113: 'pinnedComment',
             114: 'youtubeTags',
-            12: 'publishDescription',
+            115: 'publishTitle',
+            12: 'commentReplies',
           };
           const fieldKey = CROSS_DOC_STAGE_FIELDS[targetStage];
           const otherTitle = documentaries.find((d) => d.id === msgDocId)?.title || msgDocId;
@@ -10541,10 +10606,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       (activeDoc.timelineFormattedText || '').trim() || (activeDoc.voiceoverScript || '').trim()
     );
     const hasExistingClips = Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0;
-    const hasClipPromptsInBox3 =
-      hasExistingClips ||
-      /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(activeDoc.rawClipsText || '');
-    if (hasScriptOrTimeline && !hasClipPromptsInBox3) {
+    const hasRawClipPrompts = /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(activeDoc.rawClipsText || '');
+    if ((hasScriptOrTimeline && !hasExistingClips && !hasRawClipPrompts) || (!hasExistingClips && hasRawClipPrompts)) {
       const synced = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
@@ -10570,11 +10633,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.id,
     activeDoc?.timelineFormattedText,
     activeDoc?.voiceoverScript,
+    activeDoc?.rawClipsText,
+    activeDoc?.clips?.length,
     activeDoc?.references?.length,
     activeStage,
   ]);
 
-  // Auto-parse structured references & Suno tracks when raw text arrives from remote Mac sync
+  // Auto-parse structured references, Clip 1 hook options & Suno tracks when raw text arrives from remote Mac sync
   useEffect(() => {
     if (!activeDoc) return;
     const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
@@ -10582,6 +10647,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const parsedRefs = parseReferencesFromRawText(rawRefs);
       if (parsedRefs.length > 0) {
         updateActiveDoc({ references: parsedRefs });
+      }
+    }
+    const rawClip1Opts = (activeDoc.clip1OptionsRaw || '').trim();
+    if (
+      rawClip1Opts &&
+      !(activeDoc.clip1Line1LocationTime || '').trim() &&
+      !(activeDoc.clip1Line2Hook || '').trim()
+    ) {
+      const parsedClip1 = parseClip1OptionsFromRawText(rawClip1Opts);
+      if (parsedClip1.length > 0) {
+        updateActiveDoc({
+          clip1Line1LocationTime: parsedClip1[0].line1,
+          clip1Line2Hook: parsedClip1[0].line2,
+        });
       }
     }
     const rawSuno = (activeDoc.rawSunoText || '').trim();
@@ -10595,6 +10674,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.id,
     activeDoc?.rawReferencePrompts,
     activeDoc?.references?.length,
+    activeDoc?.clip1OptionsRaw,
+    activeDoc?.clip1Line1LocationTime,
+    activeDoc?.clip1Line2Hook,
     activeDoc?.rawSunoText,
     activeDoc?.sunoTracks?.length,
   ]);

@@ -452,10 +452,22 @@ function mergeServerDocObjects(winner: any, other: any) {
     for (const k of [
       'deepResearchResult',
       'deepResearchPrompt',
-      'voiceoverScript',
-      'rawClipsText',
-      'rawReferencePrompts',
       'sectionsStructure',
+      'voiceoverScript',
+      'correctedSrt',
+      'thumbnailPrompt',
+      'thumbnailTextOverlay',
+      'rawReferencePrompts',
+      'clip1OptionsRaw',
+      'clip1Line1LocationTime',
+      'clip1Line2Hook',
+      'rawClipsText',
+      'rawSunoText',
+      'rawYoutubeMetadata',
+      'rawFacebookMetadata',
+      'pinnedComment',
+      'youtubeTags',
+      'publishTitle',
     ]) {
       const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
       const fieldClearedAt = Math.max(
@@ -13205,6 +13217,7 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
         10: 'deepResearchPrompt',
         4: 'voiceoverScript',
         5: 'thumbnailPrompt',
+        101: 'thumbnailTextOverlay',
         6: 'rawReferencePrompts',
         7: 'clip1OptionsRaw',
         8: 'rawClipsText',
@@ -13215,16 +13228,27 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
         112: 'rawFacebookMetadata',
         113: 'pinnedComment',
         114: 'youtubeTags',
-        12: 'publishDescription',
+        115: 'publishTitle',
+        12: 'commentReplies',
       };
-      const fieldKey = STAGE_FIELD_MAP[stageNumber] || 'deepResearchResult';
+      const fieldKey = STAGE_FIELD_MAP[stageNumber];
+      if (!fieldKey) {
+        res.status(400).json({ ok: false, error: `Unsupported stageNumber: ${stageNumber}` });
+        return;
+      }
       const onlyIfEmpty = Boolean(req.body?.onlyIfEmpty);
       const chatUrl = String(req.body?.chatUrl || '').trim();
       const validChatUrl = /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(chatUrl) ? chatUrl : '';
       const validDrChatUrl = isDeepResearch ? validChatUrl : '';
-      if (onlyIfEmpty && String(list[idx][fieldKey] || '').trim()) {
-        res.json({ ok: true, skipped: 'already_filled' });
-        return;
+      if (onlyIfEmpty) {
+        const existingVal = list[idx][fieldKey];
+        const isAlreadyFilled = Array.isArray(existingVal)
+          ? existingVal.length > 0
+          : Boolean(String(existingVal || '').trim());
+        if (isAlreadyFilled) {
+          res.json({ ok: true, skipped: 'already_filled' });
+          return;
+        }
       }
       const extraPatch: Record<string, any> = {};
       if (stageNumber === 4) {
@@ -13251,12 +13275,36 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           extraPatch.thumbnailTextOptions = opts;
           extraPatch.thumbnailTextOverlay = String(list[idx].thumbnailTextOverlay || '').trim() || opts[0];
         }
+      } else if (stageNumber === 115) {
+        const firstTitle = text
+          .split(/\r?\n/)
+          .map((l: string) =>
+            l
+              .replace(/^\s*(?:t[ií]tulo\s*\d+[:.)\-\s]*|opci[oó]n\s*\d+[:.)\-\s]*|\d+[:.)\-\s]+|[-•*]\s*)/i, '')
+              .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+              .trim()
+          )
+          .filter(Boolean)[0];
+        if (firstTitle) {
+          extraPatch.publishTitle = firstTitle;
+        }
+      } else if (stageNumber === 12) {
+        const prevReplies = Array.isArray(list[idx].commentReplies) ? list[idx].commentReplies : [];
+        extraPatch.commentReplies = [
+          {
+            id: `cr-${Date.now()}`,
+            comment: String(list[idx].promptConfig?.LAST_AUDIENCE_COMMENT || 'Comentario de audiencia'),
+            reply: text.trim(),
+            createdAt: new Date().toISOString(),
+          },
+          ...prevReplies,
+        ];
       } else if (stageNumber === 11 || stageNumber === 111) {
         extraPatch.rawMetadataText = text;
       }
       list[idx] = {
         ...list[idx],
-        ...(stageNumber === 101 ? {} : { [fieldKey]: text }),
+        ...([101, 115, 12].includes(stageNumber) ? {} : { [fieldKey]: text }),
         ...extraPatch,
         ...(validDrChatUrl ? { geminiDeepResearchChatUrl: validDrChatUrl } : {}),
         ...(validChatUrl && !isDeepResearch ? { geminiChatUrl: validChatUrl } : {}),

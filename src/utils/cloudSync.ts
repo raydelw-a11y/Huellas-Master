@@ -1420,10 +1420,22 @@ function mergeTwoDocumentaryObjects(
   for (const k of [
     'deepResearchResult',
     'deepResearchPrompt',
-    'voiceoverScript',
-    'rawClipsText',
-    'rawReferencePrompts',
     'sectionsStructure',
+    'voiceoverScript',
+    'correctedSrt',
+    'thumbnailPrompt',
+    'thumbnailTextOverlay',
+    'rawReferencePrompts',
+    'clip1OptionsRaw',
+    'clip1Line1LocationTime',
+    'clip1Line2Hook',
+    'rawClipsText',
+    'rawSunoText',
+    'rawYoutubeMetadata',
+    'rawFacebookMetadata',
+    'pinnedComment',
+    'youtubeTags',
+    'publishTitle',
   ] as const) {
     const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
     const fieldClearedAt = Math.max(
