@@ -133,7 +133,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:23 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:29 PM - 11/10/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -14496,21 +14496,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating ? 'Redactando Guion...' : '✨ Redactar Guion con Gemini'}
                       </button>
-                      {(activeDoc.voiceoverScript || '').trim().length > 80 && (
-                        <button
-                          type="button"
-                          disabled={aiGenerating}
-                          onClick={() =>
-                            handleSendStageToGeminiWeb(4, undefined, {
-                              overridePromptConfig: { RECALIBRATE_SCRIPT_TO_DURATION: 'SI' },
-                            })
-                          }
-                          title="Reescribe y calibra el guion actual en Gemini Web para que dure exactamente los minutos elegidos en Etapa 1 sin encabezados ni marcas de tiempo"
-                          className="px-3 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 disabled:opacity-50 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          🎯 Ajustar a {voiceoverMetrics.budget.totalMinutesLabel} min (~{voiceoverMetrics.budget.targetWords} pal.)
-                        </button>
-                      )}
                       <button
                         onClick={() => copyText(activeDoc.voiceoverScript, 'copy-vo')}
                         className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 cursor-pointer"
@@ -14525,26 +14510,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
                   </div>
 
-                  {/* Voiceover Metrics Bar */}
+                  {/* Voiceover Metrics Bar (Auto-calibrated to Stage 1 duration) */}
                   <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-800 text-xs">
                     <div className="text-[11px] font-mono text-slate-400">
                       Objetivo Etapa 1:{' '}
                       <strong className="text-sky-300">
                         {voiceoverMetrics.formattedTargetDuration} min (~{voiceoverMetrics.budget.targetWords} palabras)
-                      </strong>
+                      </strong>{' '}
+                      <span className="text-emerald-400/90">· Ajuste automático activo</span>
                     </div>
                     <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300 flex-wrap">
                       <span>
                         Palabras:{' '}
-                        <strong
-                          className={
-                            voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget
-                              ? 'text-rose-400'
-                              : 'text-amber-300'
-                          }
-                        >
-                          {voiceoverMetrics.words}
-                        </strong>
+                        <strong className="text-amber-300">{voiceoverMetrics.words}</strong>
                       </span>
                       <span>
                         Pausas:{' '}
@@ -14560,51 +14538,36 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </span>
                       <span>
                         Video Total Est.:{' '}
-                        <strong
-                          className={
-                            voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget
-                              ? 'text-rose-400'
-                              : 'text-emerald-400'
-                          }
-                        >
+                        <strong className="text-emerald-400">
                           {voiceoverMetrics.formattedVideoDuration} min
                         </strong>
                       </span>
                     </div>
                   </div>
 
-                  {(voiceoverMetrics.isOverTarget || voiceoverMetrics.isUnderTarget) && (
-                    <div className="bg-rose-500/10 border border-rose-500/40 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-3 text-xs">
-                      <div className="text-rose-200 space-y-0.5">
-                        <div className="font-bold">
-                          ⚠️ Duración estimada del guion ({voiceoverMetrics.formattedVideoDuration} min · {voiceoverMetrics.words} palabras) distinta a los {voiceoverMetrics.budget.totalMinutesLabel} minutos seleccionados en Etapa 1 (~{voiceoverMetrics.budget.targetWords} palabras)
-                        </div>
-                        <div className="text-[11px] text-rose-200/80">
-                          Pulsa el botón para que Gemini condense y calibre este guion a ~{voiceoverMetrics.budget.targetWords} palabras exactas ({voiceoverMetrics.budget.totalMinutesLabel} min reales en VoxFlow, 100% limpio sin encabezados ni marcas de minutos/segundos) antes de generar la voz.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={aiGenerating}
-                        onClick={() =>
-                          handleSendStageToGeminiWeb(4, undefined, {
-                            overridePromptConfig: { RECALIBRATE_SCRIPT_TO_DURATION: 'SI' },
-                          })
-                        }
-                        className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow cursor-pointer shrink-0"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />
-                        {aiGenerating
-                          ? 'Calibrando guion en Gemini...'
-                          : `🎯 Ajustar Guion a ${voiceoverMetrics.budget.totalMinutesLabel} min ahora`}
-                      </button>
-                    </div>
-                  )}
-
                   <textarea
                     rows={10}
+                    data-voiceover-editor="true"
                     value={activeDoc.voiceoverScript}
                     onChange={(e) => updateActiveDoc({ voiceoverScript: e.target.value })}
+                    onBlur={(e) => {
+                      const rawVal = e.target.value || '';
+                      if (!rawVal.trim()) return;
+                      const fitted = autoFitVoiceoverScriptToDuration(rawVal, activeDoc);
+                      if (fitted && fitted !== rawVal.trim()) {
+                        const autoTl = buildSmartClientTimeline(fitted, activeDoc);
+                        updateActiveDoc({
+                          voiceoverScript: fitted,
+                          ...(autoTl.sentences.length > 0
+                            ? {
+                                timelineSentences: autoTl.sentences,
+                                timelineFormattedText: autoTl.formatted,
+                                correctedSrt: autoTl.srt,
+                              }
+                            : {}),
+                        });
+                      }
+                    }}
                     placeholder="Año 1888, callejón de Whitechapel, Londres, Inglaterra. [pausa: 1.5s] El laberinto donde operaba..."
                     className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500/60 rounded-xl p-4 text-sm text-slate-100 leading-relaxed outline-none"
                   />
