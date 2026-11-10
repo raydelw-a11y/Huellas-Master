@@ -2134,9 +2134,10 @@ Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, é
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
 Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
 Tipología: ${doc.typology || 'Documental Histórico'}${chosenPropositionBlock}
-Estructura e Investigación previa:
-${doc.sectionsStructure || ''}
-${doc.deepResearchResult || ''}
+Definición Histórica y Calibración (Paso 1):
+${doc.deepResearchPrompt || ''}
+Investigación Profunda (Paso 2 — Deep Research):
+${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}
 
 Redacta la ETAPA 4: GUION DE LA VOZ EN OFF en español neutro documental:
 - Los primeros ${effectiveVoiceEntrySec} segundos no llevan locución y la voz narrativa entra obligatoriamente en el segundo ${effectiveVoiceEntrySec} del video.
@@ -2174,7 +2175,7 @@ Tema / Título: ${doc.topic || doc.title} (${doc.historicalTime || doc.clip1Line
 Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
 Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
 """
-${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 1400)}
 """
 Personajes y Lugares del documental (@Referencias):
 ${refsContext}
@@ -2210,7 +2211,7 @@ Entrega únicamente el prompt en inglés listo para copiar y pegar.`;
     stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
 Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
 """
-${doc.voiceoverScript || doc.sectionsStructure || ''}
+${doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || ''}
 """
 Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 (estándar oficial de continuidad de Google Flow):
 - Antepón en la primera línea literalmente la orden: "Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente."
@@ -2222,8 +2223,9 @@ Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.
     const scriptContext = (
       doc.voiceoverScript ||
       doc.timelineFormattedText ||
-      doc.sectionsStructure ||
       doc.deepResearchResult ||
+      doc.deepResearchPrompt ||
+      doc.sectionsStructure ||
       ''
     )
       .replace(/\s+/g, ' ')
@@ -2371,7 +2373,7 @@ Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip
 Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
 Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
 """
-${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1400)}
+${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 1400)}
 """
 
 Aplicando el principio psicológico de LA BRECHA DE LA CURIOSIDAD (Curiosity Gap) y procesamiento en 13 milisegundos:
