@@ -14,6 +14,8 @@ import {
   normalizeClip1Line1Format,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
+  BRAND_SAFETY_LEXICAL_RULE_ES,
+  sanitizeBrandSafeEditorialText,
 } from './smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -2886,6 +2888,9 @@ REGLAS INQUEBRANTABLES:
     }
   }
 
+  if (stagePrompt && stageNumber !== 9) {
+    stagePrompt += `\n${BRAND_SAFETY_LEXICAL_RULE_ES}`;
+  }
   if (customInstruction) {
     stagePrompt += `\n\nInstrucción adicional del director: ${customInstruction}`;
   }
@@ -2898,7 +2903,8 @@ export async function generateStageClientSide(
   customInstruction?: string
 ): Promise<string> {
   const stagePrompt = buildStagePromptText(stageNumber, doc, customInstruction);
-  const out = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
+  const rawOut = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
+  const out = stageNumber === 9 ? rawOut : sanitizeBrandSafeEditorialText(rawOut);
   if (stageNumber === 8) {
     return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
   }

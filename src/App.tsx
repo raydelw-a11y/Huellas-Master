@@ -94,6 +94,7 @@ import {
   detectClipHasHumanSubjects,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
+  sanitizeBrandSafeEditorialText,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -139,7 +140,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:04 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:14 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4608,10 +4609,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   const applyGeneratedStageText = (
     stageNum: number,
-    text: string,
+    rawStageText: string,
     images: string[] = []
   ) => {
     if (!activeDoc) return;
+    const text = stageNum === 9 ? rawStageText : sanitizeBrandSafeEditorialText(rawStageText);
     const orientationForThumb = getDefaultThumbnailOrientation(activeDoc);
 
     if (stageNum === 10) {
@@ -6374,15 +6376,36 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       return 'an anonymous historical reenactment actor in authentic period wardrobe';
     });
 
-    // 5. Neutralize minor/age & graphic/violence words that also trigger Flow safety rejections
+    // 5. Neutralize minor/age & graphic/violence/"muerte"/"asesino" words that trigger Flow or brand-safety rejections
     p = p.replace(
       /\b(\d{1,2}-year-old|child bride|young girl|teenage girl|little girl|little boy|adolescent|minor|underage|niña|adolescente|menor)\b/gi,
       'adult woman in her mid-twenties'
     );
+    p = p
+      .replace(/\bdead\s+of\s+night\b/gi, 'deepest hour of night')
+      .replace(/\bdead\s+silence\b/gi, 'utter silence')
+      .replace(/\bdead\s+center\b/gi, 'exact center')
+      .replace(/\b(assassin|assassins|murderer|murderers|killer|killers)\b/gi, 'cloaked historical adversary')
+      .replace(
+        /\b(assassination|assassinations|murder|murders|homicide|homicides|manslaughter|slaughter|massacre|massacres)\b/gi,
+        'dramatic historical confrontation'
+      )
+      .replace(/\b(murdered|assassinated|killed|slain)\b/gi, 'fallen')
+      .replace(/\b(murderous|deadly)\b/gi, 'perilous')
+      .replace(/\b(killing|assassinating|murdering|dying)\b/gi, 'collapsing in dramatic shadow')
+      .replace(/\bdeathbed\b/gi, 'final resting chamber')
+      .replace(/\b(death|deaths)\b/gi, 'fateful end')
+      .replace(/\b(dead\s+bodies|corpses|cadavers)\b/gi, 'fallen figures in shadow')
+      .replace(/\b(dead\s+body|corpse|cadaver)\b/gi, 'fallen figure in shadow')
+      .replace(/\bdead\b/gi, 'motionless')
+      .replace(/\bdied\b/gi, 'faded away')
+      .replace(/\bdies\b/gi, 'fades away')
+      .replace(/\b(kill|kills|assassinate|die)\b/gi, 'fall in shadow');
     p = p.replace(
-      /\b(blood|bleeding|bloody|gore|corpse|dead body|cadaver|execution|beheading|decapitation|torture|suicide|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
+      /\b(blood|bleeding|bloody|gore|execution|beheading|decapitation|torture|suicide|suicidal|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
       'dramatic chiaroscuro shadow'
     );
+    p = sanitizeBrandSafeEditorialText(p);
 
     // Clean up duplicate phrases if replacements overlapped
     p = p
@@ -9924,7 +9947,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         setThumbOptionsGenerating(false);
         const targetStage = Number(msg.stageNumber) || activeStage;
-        const text = String(msg.text || '');
+        const rawIncomingText = String(msg.text || '');
+        const text =
+          targetStage === 9 ? rawIncomingText : sanitizeBrandSafeEditorialText(rawIncomingText);
         const images = Array.isArray(msg.images) ? msg.images : [];
         // Never apply a result that belongs to ANOTHER documentary to the active one
         const msgDocId = String(msg.docId || '').trim();
@@ -10000,7 +10025,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
           return;
         }
-        const bundle = msg.stage11Bundle as
+        const rawBundle = msg.stage11Bundle as
           | {
               youtube?: string;
               facebook?: string;
@@ -10008,6 +10033,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               youtubeTags?: string;
             }
           | undefined;
+        const isLockedHistoricalDoc =
+          viewingDocId === 'doc-video-77-huellas' || viewingDocId === 'doc-1793459858927-xld0';
+        const bundle =
+          rawBundle && !(msg.taskType === 'AUTO_RECOVER_STAGE11' && isLockedHistoricalDoc)
+            ? {
+                youtube: rawBundle.youtube
+                  ? sanitizeBrandSafeEditorialText(rawBundle.youtube)
+                  : rawBundle.youtube,
+                facebook: rawBundle.facebook
+                  ? sanitizeBrandSafeEditorialText(rawBundle.facebook)
+                  : rawBundle.facebook,
+                pinnedComment: rawBundle.pinnedComment
+                  ? sanitizeBrandSafeEditorialText(rawBundle.pinnedComment)
+                  : rawBundle.pinnedComment,
+                youtubeTags: rawBundle.youtubeTags
+                  ? sanitizeBrandSafeEditorialText(rawBundle.youtubeTags)
+                  : rawBundle.youtubeTags,
+              }
+            : rawBundle;
 
         if (msg.taskType === 'AUTO_RECOVER_STAGE11' && bundle && activeDoc) {
           const latestDoc = activeDocRef.current || activeDoc;

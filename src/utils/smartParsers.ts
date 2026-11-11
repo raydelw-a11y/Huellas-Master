@@ -77,15 +77,36 @@ export function applyAutomaticFlowPolicyShield(
     return 'an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor';
   });
 
-  // 4. Neutralizar términos de edad/menores y términos gráficos/violencia/sangre
+  // 4. Neutralizar términos de edad/menores y términos gráficos/violencia/sangre/"muerte"/"asesino" y derivados en inglés y español
   p = p.replace(
     /\b(\d{1,2}-year-old|child bride|young girl|teenage girl|little girl|little boy|adolescent|minor|underage|niña|adolescente|menor)\b/gi,
     'adult in their mid-twenties'
   );
+  p = p
+    .replace(/\bdead\s+of\s+night\b/gi, 'deepest hour of night')
+    .replace(/\bdead\s+silence\b/gi, 'utter silence')
+    .replace(/\bdead\s+center\b/gi, 'exact center')
+    .replace(/\b(assassin|assassins|murderer|murderers|killer|killers)\b/gi, 'cloaked historical adversary')
+    .replace(
+      /\b(assassination|assassinations|murder|murders|homicide|homicides|manslaughter|slaughter|massacre|massacres)\b/gi,
+      'dramatic historical confrontation'
+    )
+    .replace(/\b(murdered|assassinated|killed|slain)\b/gi, 'fallen')
+    .replace(/\b(murderous|deadly)\b/gi, 'perilous')
+    .replace(/\b(killing|assassinating|murdering|dying)\b/gi, 'collapsing in dramatic shadow')
+    .replace(/\bdeathbed\b/gi, 'final resting chamber')
+    .replace(/\b(death|deaths)\b/gi, 'fateful end')
+    .replace(/\b(dead\s+bodies|corpses|cadavers)\b/gi, 'fallen figures in shadow')
+    .replace(/\b(dead\s+body|corpse|cadaver)\b/gi, 'fallen figure in shadow')
+    .replace(/\bdead\b/gi, 'motionless')
+    .replace(/\bdied\b/gi, 'faded away')
+    .replace(/\bdies\b/gi, 'fades away')
+    .replace(/\b(kill|kills|assassinate|die)\b/gi, 'fall in shadow');
   p = p.replace(
-    /\b(blood|bleeding|bloody|gore|corpse|dead body|cadaver|execution|beheading|decapitation|torture|suicide|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
+    /\b(blood|bleeding|bloody|gore|execution|beheading|decapitation|torture|suicide|suicidal|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
     'dramatic chiaroscuro shadow'
   );
+  p = sanitizeBrandSafeEditorialText(p);
 
   // Limpiar repeticiones accidentales
   p = p
@@ -101,6 +122,368 @@ export function applyAutomaticFlowPolicyShield(
     .trim();
 
   return `${leadingTagPrefix}${p}`.trim();
+}
+
+/**
+ * Regla editorial inquebrantable de monetización y seguridad de marca para próximos videos
+ * (YouTube, Facebook, Miniaturas, Ganchos de Clip 1, Guion de Voz Narrativa, Prompts y Metadata).
+ */
+export const BRAND_SAFETY_LEXICAL_RULE_ES = `
+🛡️ REGLA EDITORIAL INQUEBRANTABLE DE MONETIZACIÓN (CERO "MUERTE", "ASESINO" Y DERIVADOS):
+- Queda TERMINANTEMENTE PROHIBIDO escribir en cualquier parte del entregable (guion de voz narrativa, títulos, textos de miniatura, ganchos del Clip 1, descripciones, capítulos, hashtags, tags SEO, comentarios fijados o prompts visuales en español/inglés) las palabras **"muerte"** y **"asesino"** ni NINGUNO de sus derivados o sinónimos letales directos:
+  • Prohibidos familia "muerte": *muerte, muertes, muerto, muerta, muertos, muertas, morir, morirse, murió, murieron, muriendo, muere, mueren, moría, morían, morirá, muriera, mortal, mortales, mortalidad, mortandad, mortífero, mortífera, moribundo, cadáver, cadáveres* (y en inglés: *death, dead, deadly, die, died, dying, corpse, cadaver*).
+  • Prohibidos familia "asesino" y violencia letal: *asesino, asesina, asesinos, asesinas, asesinato, asesinatos, asesinar, asesinó, asesinaron, asesinado, asesinada, homicidio, homicida, matar, mató, mataron, matanza, masacre, suicidio, suicida, suicidarse* (y en inglés: *murder, murderer, murdered, killer, killing, kill, killed, assassin, assassination, homicide, suicide*).
+- SUSTITUCIÓN DOCUMENTAL ELEGANTE OBLIGATORIA: Usa siempre lenguaje histórico, periodístico y cinematográfico de alta retención que mantenga toda la tensión dramática sin activar filtros algorítmicos:
+  • En lugar de *morir / murió / muerto / muerte / mortal*: usa *"perder la vida"*, *"perdió la vida"*, *"fallecer / falleció"*, *"perecer / pereció"*, *"sucumbir"*, *"apagarse"*, *"caer sin vida"*, *"el desenlace fatal"*, *"el último aliento"*, *"bajas humanas"*, *"letal"*, *"fulminante"*, *"pena capital"*.
+  • En lugar de *asesino / asesinar / asesinato / matar*: usa *"el perpetrador"*, *"el autor del crimen"*, *"el conspirador"*, *"el ejecutor en la sombra"*, *"el atacante"*, *"quitar la vida"*, *"arrebatar la vida"*, *"abatir / fue abatido"*, *"silenciar"*, *"el crimen"*, *"el atentado"*, *"la conjura"*.`;
+
+function matchSpanishEditorialCase(source: string, replacement: string): string {
+  if (!source) return replacement;
+  const lettersOnly = source.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+  if (lettersOnly.length >= 2 && lettersOnly === lettersOnly.toUpperCase()) {
+    return replacement.toUpperCase();
+  }
+  const firstChar = source.charAt(0);
+  if (
+    firstChar &&
+    firstChar === firstChar.toUpperCase() &&
+    firstChar !== firstChar.toLowerCase()
+  ) {
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+  }
+  return replacement;
+}
+
+const ES_WORD_PRE = '(?<![A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_@])';
+const ES_WORD_POST = '(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_])';
+
+function buildEsBoundaryRegex(pattern: string): RegExp {
+  return new RegExp(`${ES_WORD_PRE}(?:${pattern})${ES_WORD_POST}`, 'gi');
+}
+
+const BRAND_SAFE_EDITORIAL_RULES: Array<[RegExp, string]> = [
+  // --- Frases compuestas de "muerte" / "muerto" / "mortal" (mayor especificidad primero) ---
+  [buildEsBoundaryRegex('condenados\\s+a\\s+muerte'), 'condenados a la pena capital'],
+  [buildEsBoundaryRegex('condenadas\\s+a\\s+muerte'), 'condenadas a la pena capital'],
+  [buildEsBoundaryRegex('condenado\\s+a\\s+muerte'), 'condenado a la pena capital'],
+  [buildEsBoundaryRegex('condenada\\s+a\\s+muerte'), 'condenada a la pena capital'],
+  [buildEsBoundaryRegex('penas\\s+de\\s+muerte'), 'penas capitales'],
+  [buildEsBoundaryRegex('pena\\s+de\\s+muerte'), 'pena capital'],
+  [buildEsBoundaryRegex('sentencias\\s+de\\s+muerte'), 'sentencias capitales'],
+  [buildEsBoundaryRegex('sentencia\\s+de\\s+muerte'), 'sentencia capital'],
+  [buildEsBoundaryRegex('condenas\\s+de\\s+muerte'), 'condenas capitales'],
+  [buildEsBoundaryRegex('condena\\s+de\\s+muerte'), 'condena capital'],
+  [buildEsBoundaryRegex('peligro\\s+de\\s+muerte'), 'peligro letal'],
+  [buildEsBoundaryRegex('amenazas\\s+de\\s+muerte'), 'amenazas letales'],
+  [buildEsBoundaryRegex('amenaza\\s+de\\s+muerte'), 'amenaza letal'],
+  [buildEsBoundaryRegex('causas\\s+de\\s+muerte'), 'causas de fallecimiento'],
+  [buildEsBoundaryRegex('causa\\s+de\\s+muerte'), 'causa de fallecimiento'],
+  [buildEsBoundaryRegex('lecho\\s+de\\s+muerte'), 'lecho final'],
+  [buildEsBoundaryRegex('de\\s+vida\\s+o\\s+muerte'), 'de supervivencia extrema'],
+  [buildEsBoundaryRegex('heridos\\s+de\\s+muerte'), 'heridos de gravedad extrema'],
+  [buildEsBoundaryRegex('heridas\\s+de\\s+muerte'), 'heridas de gravedad extrema'],
+  [buildEsBoundaryRegex('herido\\s+de\\s+muerte'), 'herido de gravedad extrema'],
+  [buildEsBoundaryRegex('herida\\s+de\\s+muerte'), 'herida de gravedad extrema'],
+  [buildEsBoundaryRegex('dar\\s+muerte'), 'quitar la vida'],
+  [buildEsBoundaryRegex('dio\\s+muerte'), 'quitó la vida'],
+  [buildEsBoundaryRegex('dieron\\s+muerte'), 'quitaron la vida'],
+  [buildEsBoundaryRegex('dando\\s+muerte'), 'quitando la vida'],
+  [buildEsBoundaryRegex('hasta\\s+la\\s+muerte'), 'hasta el último aliento'],
+  [buildEsBoundaryRegex('hasta\\s+su\\s+muerte'), 'hasta su último día'],
+  [buildEsBoundaryRegex('tras\\s+la\\s+muerte\\s+de'), 'tras el fallecimiento de'],
+  [buildEsBoundaryRegex('despu[eé]s\\s+de\\s+la\\s+muerte\\s+de'), 'después del fallecimiento de'],
+  [buildEsBoundaryRegex('antes\\s+de\\s+la\\s+muerte\\s+de'), 'antes del fallecimiento de'],
+  [buildEsBoundaryRegex('tras\\s+su\\s+muerte'), 'tras su fallecimiento'],
+  [buildEsBoundaryRegex('despu[eé]s\\s+de\\s+su\\s+muerte'), 'después de su fallecimiento'],
+  [buildEsBoundaryRegex('antes\\s+de\\s+su\\s+muerte'), 'antes de su fallecimiento'],
+  [buildEsBoundaryRegex('la\\s+muerte\\s+del'), 'el fallecimiento del'],
+  [buildEsBoundaryRegex('la\\s+muerte\\s+de'), 'el fallecimiento de'],
+  [buildEsBoundaryRegex('una\\s+muerte'), 'un desenlace fatal'],
+  [buildEsBoundaryRegex('esta\\s+muerte'), 'este desenlace fatal'],
+  [buildEsBoundaryRegex('esa\\s+muerte'), 'ese desenlace fatal'],
+  [buildEsBoundaryRegex('aquella\\s+muerte'), 'aquel desenlace fatal'],
+  [buildEsBoundaryRegex('cuya\\s+muerte'), 'cuyo fallecimiento'],
+  [buildEsBoundaryRegex('su\\s+muerte'), 'su fallecimiento'],
+  [buildEsBoundaryRegex('mi\\s+muerte'), 'mi final'],
+  [buildEsBoundaryRegex('tu\\s+muerte'), 'tu final'],
+  [buildEsBoundaryRegex('la\\s+muerte'), 'el desenlace fatal'],
+  [buildEsBoundaryRegex('a\\s+muerte'), 'sin tregua'],
+  [buildEsBoundaryRegex('muertes'), 'pérdidas humanas'],
+  [buildEsBoundaryRegex('muerte'), 'pérdida fatal'],
+
+  // --- Participios y sustantivos "muerto / muerta / muertos / muertas" ---
+  [buildEsBoundaryRegex('hab[ií]an\\s+muerto'), 'habían fallecido'],
+  [buildEsBoundaryRegex('hab[ií]a\\s+muerto'), 'había fallecido'],
+  [buildEsBoundaryRegex('han\\s+muerto'), 'han fallecido'],
+  [buildEsBoundaryRegex('ha\\s+muerto'), 'ha fallecido'],
+  [buildEsBoundaryRegex('hubieron\\s+muerto'), 'hubieron fallecido'],
+  [buildEsBoundaryRegex('hubo\\s+muerto'), 'hubo fallecido'],
+  [buildEsBoundaryRegex('hubieran\\s+muerto'), 'hubieran fallecido'],
+  [buildEsBoundaryRegex('hubiera\\s+muerto'), 'hubiera fallecido'],
+  [buildEsBoundaryRegex('hubiesen\\s+muerto'), 'hubiesen fallecido'],
+  [buildEsBoundaryRegex('hubiese\\s+muerto'), 'hubiese fallecido'],
+  [buildEsBoundaryRegex('habr[ií]an\\s+muerto'), 'habrían fallecido'],
+  [buildEsBoundaryRegex('habr[ií]a\\s+muerto'), 'habría fallecido'],
+  [buildEsBoundaryRegex('hayan\\s+muerto'), 'hayan fallecido'],
+  [buildEsBoundaryRegex('haya\\s+muerto'), 'haya fallecido'],
+  [buildEsBoundaryRegex('haber\\s+muerto'), 'haber fallecido'],
+  [buildEsBoundaryRegex('por\\s+muerto'), 'por fallecido'],
+  [buildEsBoundaryRegex('por\\s+muerta'), 'por fallecida'],
+  [buildEsBoundaryRegex('por\\s+muertos'), 'por fallecidos'],
+  [buildEsBoundaryRegex('por\\s+muertas'), 'por fallecidas'],
+  [buildEsBoundaryRegex('los\\s+muertos'), 'los fallecidos'],
+  [buildEsBoundaryRegex('las\\s+muertas'), 'las fallecidas'],
+  [buildEsBoundaryRegex('un\\s+muerto'), 'un fallecido'],
+  [buildEsBoundaryRegex('una\\s+muerta'), 'una fallecida'],
+  [buildEsBoundaryRegex('unos\\s+muertos'), 'unos fallecidos'],
+  [buildEsBoundaryRegex('unas\\s+muertas'), 'unas fallecidas'],
+  [buildEsBoundaryRegex('muchos\\s+muertos'), 'muchos fallecidos'],
+  [buildEsBoundaryRegex('muchas\\s+muertas'), 'muchas fallecidas'],
+  [buildEsBoundaryRegex('varios\\s+muertos'), 'varios fallecidos'],
+  [buildEsBoundaryRegex('pocos\\s+muertos'), 'pocos fallecidos'],
+  [buildEsBoundaryRegex('tantos\\s+muertos'), 'tantos fallecidos'],
+  [buildEsBoundaryRegex('cu[aá]ntos\\s+muertos'), 'cuántos fallecidos'],
+  [buildEsBoundaryRegex('otros\\s+muertos'), 'otros fallecidos'],
+  [buildEsBoundaryRegex('sus\\s+muertos'), 'sus caídos'],
+  [buildEsBoundaryRegex('nuestros\\s+muertos'), 'nuestros caídos'],
+  [buildEsBoundaryRegex('de\\s+muertos'), 'de fallecidos'],
+  [buildEsBoundaryRegex('mil\\s+muertos'), 'mil fallecidos'],
+  [buildEsBoundaryRegex('millones\\s+de\\s+muertos'), 'millones de fallecidos'],
+  [buildEsBoundaryRegex('peso\\s+muerto'), 'peso inerte'],
+  [buildEsBoundaryRegex('punto\\s+muerto'), 'punto estancado'],
+  [buildEsBoundaryRegex('letra\\s+muerta'), 'letra olvidada'],
+  [buildEsBoundaryRegex('muerto'), 'sin vida'],
+  [buildEsBoundaryRegex('muerta'), 'sin vida'],
+  [buildEsBoundaryRegex('muertos'), 'sin vida'],
+  [buildEsBoundaryRegex('muertas'), 'sin vida'],
+
+  // --- Verbo "morir" y todas sus conjugaciones ---
+  [buildEsBoundaryRegex('se\\s+murieron'), 'perdieron la vida'],
+  [buildEsBoundaryRegex('se\\s+muri[oó]'), 'perdió la vida'],
+  [buildEsBoundaryRegex('se\\s+mueren'), 'pierden la vida'],
+  [buildEsBoundaryRegex('se\\s+muere'), 'pierde la vida'],
+  [buildEsBoundaryRegex('se\\s+mor[ií]an'), 'perdían la vida'],
+  [buildEsBoundaryRegex('se\\s+mor[ií]a'), 'perdía la vida'],
+  [buildEsBoundaryRegex('morirse'), 'perder la vida'],
+  [buildEsBoundaryRegex('muri[eé]ndose'), 'apagándose'],
+  [buildEsBoundaryRegex('morir\\s+de'), 'perecer de'],
+  [buildEsBoundaryRegex('muri[oó]\\s+de'), 'falleció de'],
+  [buildEsBoundaryRegex('murieron\\s+de'), 'fallecieron de'],
+  [buildEsBoundaryRegex('morir'), 'perder la vida'],
+  [buildEsBoundaryRegex('muriendo'), 'perdiendo la vida'],
+  [buildEsBoundaryRegex('murieron'), 'perdieron la vida'],
+  [buildEsBoundaryRegex('muri[oó]'), 'perdió la vida'],
+  [buildEsBoundaryRegex('mueren'), 'pierden la vida'],
+  [buildEsBoundaryRegex('muere'), 'pierde la vida'],
+  [buildEsBoundaryRegex('mueres'), 'pierdes la vida'],
+  [buildEsBoundaryRegex('muero'), 'pierdo la vida'],
+  [buildEsBoundaryRegex('morimos'), 'perdemos la vida'],
+  [buildEsBoundaryRegex('mor[ií]an'), 'perdían la vida'],
+  [buildEsBoundaryRegex('mor[ií]amos'), 'perdíamos la vida'],
+  [buildEsBoundaryRegex('mor[ií]a'), 'perdía la vida'],
+  [buildEsBoundaryRegex('morir[aá]n'), 'perderán la vida'],
+  [buildEsBoundaryRegex('morir[aá]'), 'perderá la vida'],
+  [buildEsBoundaryRegex('morir[eé]'), 'perderé la vida'],
+  [buildEsBoundaryRegex('morir[ií]an'), 'perderían la vida'],
+  [buildEsBoundaryRegex('morir[ií]a'), 'perdería la vida'],
+  [buildEsBoundaryRegex('mueran'), 'perezcan'],
+  [buildEsBoundaryRegex('muera'), 'perezca'],
+  [buildEsBoundaryRegex('murieran'), 'perecieran'],
+  [buildEsBoundaryRegex('muriesen'), 'perecieran'],
+  [buildEsBoundaryRegex('muriera'), 'pereciera'],
+  [buildEsBoundaryRegex('muriese'), 'pereciera'],
+
+  // --- Derivados adjetivales/nominales de "muerte": mortal, mortífero, mortandad, moribundo, cadáver ---
+  [buildEsBoundaryRegex('restos\\s+mortales'), 'restos humanos'],
+  [buildEsBoundaryRegex('pecados\\s+mortales'), 'pecados capitales'],
+  [buildEsBoundaryRegex('pecado\\s+mortal'), 'pecado capital'],
+  [buildEsBoundaryRegex('enemigos\\s+mortales'), 'enemigos acérrimos'],
+  [buildEsBoundaryRegex('enemigo\\s+mortal'), 'enemigo acérrimo'],
+  [buildEsBoundaryRegex('simples\\s+mortales'), 'simples humanos'],
+  [buildEsBoundaryRegex('los\\s+mortales'), 'los seres humanos'],
+  [buildEsBoundaryRegex('mortales'), 'letales'],
+  [buildEsBoundaryRegex('mortal'), 'letal'],
+  [buildEsBoundaryRegex('mortalidad'), 'letalidad'],
+  [buildEsBoundaryRegex('mortandad'), 'devastación humana'],
+  [buildEsBoundaryRegex('mort[ií]feros'), 'fulminantes'],
+  [buildEsBoundaryRegex('mort[ií]feras'), 'fulminantes'],
+  [buildEsBoundaryRegex('mort[ií]fero'), 'fulminante'],
+  [buildEsBoundaryRegex('mort[ií]fera'), 'fulminante'],
+  [buildEsBoundaryRegex('moribundos'), 'agonizantes'],
+  [buildEsBoundaryRegex('moribundas'), 'agonizantes'],
+  [buildEsBoundaryRegex('moribundo'), 'agonizante'],
+  [buildEsBoundaryRegex('moribunda'), 'agonizante'],
+  [buildEsBoundaryRegex('cad[aá]veres'), 'cuerpos sin vida'],
+  [buildEsBoundaryRegex('cad[aá]ver'), 'cuerpo sin vida'],
+
+  // --- Familia "asesino / asesinar / asesinato" y derivados ---
+  [buildEsBoundaryRegex('asesinos\\s+en\\s+serie'), 'criminales en serie'],
+  [buildEsBoundaryRegex('asesinas\\s+en\\s+serie'), 'criminales en serie'],
+  [buildEsBoundaryRegex('asesino\\s+en\\s+serie'), 'criminal en serie'],
+  [buildEsBoundaryRegex('asesina\\s+en\\s+serie'), 'criminal en serie'],
+  [buildEsBoundaryRegex('asesinos\\s+a\\s+sueldo'), 'atacantes a sueldo'],
+  [buildEsBoundaryRegex('asesino\\s+a\\s+sueldo'), 'atacante a sueldo'],
+  [buildEsBoundaryRegex('intentos\\s+de\\s+asesinato'), 'intentos de atentado'],
+  [buildEsBoundaryRegex('intento\\s+de\\s+asesinato'), 'intento de atentado'],
+  [buildEsBoundaryRegex('acusados\\s+de\\s+asesinato'), 'acusados del crimen'],
+  [buildEsBoundaryRegex('acusadas\\s+de\\s+asesinato'), 'acusadas del crimen'],
+  [buildEsBoundaryRegex('acusado\\s+de\\s+asesinato'), 'acusado del crimen'],
+  [buildEsBoundaryRegex('acusada\\s+de\\s+asesinato'), 'acusada del crimen'],
+  [buildEsBoundaryRegex('culpables\\s+de\\s+asesinato'), 'culpables del crimen'],
+  [buildEsBoundaryRegex('culpable\\s+de\\s+asesinato'), 'culpable del crimen'],
+  [buildEsBoundaryRegex('asesinatos'), 'crímenes'],
+  [buildEsBoundaryRegex('asesinato'), 'crimen'],
+  [buildEsBoundaryRegex('asesinados'), 'abatidos'],
+  [buildEsBoundaryRegex('asesinadas'), 'abatidas'],
+  [buildEsBoundaryRegex('asesinado'), 'abatido'],
+  [buildEsBoundaryRegex('asesinada'), 'abatida'],
+  [buildEsBoundaryRegex('asesinarlos'), 'quitarles la vida'],
+  [buildEsBoundaryRegex('asesinarlas'), 'quitarles la vida'],
+  [buildEsBoundaryRegex('asesinarlo'), 'quitarle la vida'],
+  [buildEsBoundaryRegex('asesinarla'), 'quitarle la vida'],
+  [buildEsBoundaryRegex('asesinarme'), 'quitarme la vida'],
+  [buildEsBoundaryRegex('asesinarte'), 'quitarte la vida'],
+  [buildEsBoundaryRegex('asesinarnos'), 'quitarnos la vida'],
+  [buildEsBoundaryRegex('asesin[aá]ndolos'), 'quitándoles la vida'],
+  [buildEsBoundaryRegex('asesin[aá]ndolas'), 'quitándoles la vida'],
+  [buildEsBoundaryRegex('asesin[aá]ndolo'), 'quitándole la vida'],
+  [buildEsBoundaryRegex('asesin[aá]ndola'), 'quitándole la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinaron'), 'le quitaron la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesinaron'), 'les quitaron la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesin[oó]'), 'le quitó la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesin[oó]'), 'les quitó la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinan'), 'le quitan la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesinan'), 'les quitan la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesina'), 'le quita la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesina'), 'les quita la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinaran'), 'le quitaran la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinara'), 'le quitara la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinarán'), 'le quitarán la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+asesinará'), 'le quitará la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesinarán'), 'les quitarán la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+asesinará'), 'les quitará la vida'],
+  [buildEsBoundaryRegex('asesinando'), 'quitando la vida'],
+  [buildEsBoundaryRegex('asesinar'), 'quitar la vida'],
+  [buildEsBoundaryRegex('asesinaron'), 'quitaron la vida'],
+  [buildEsBoundaryRegex('asesinó'), 'quitó la vida'],
+  [buildEsBoundaryRegex('asesino\\s+a\\b'), 'quitó la vida a'],
+  [buildEsBoundaryRegex('asesino\\s+al\\b'), 'quitó la vida al'],
+  [buildEsBoundaryRegex('asesinaban'), 'quitaban la vida'],
+  [buildEsBoundaryRegex('asesinaba'), 'quitaba la vida'],
+  [buildEsBoundaryRegex('asesinarán'), 'quitarán la vida'],
+  [buildEsBoundaryRegex('asesinará'), 'quitará la vida'],
+  [buildEsBoundaryRegex('asesinar[ií]an'), 'quitarían la vida'],
+  [buildEsBoundaryRegex('asesinar[ií]a'), 'quitaría la vida'],
+  [buildEsBoundaryRegex('asesinaran'), 'quitaran la vida'],
+  [buildEsBoundaryRegex('asesinasen'), 'quitaran la vida'],
+  [buildEsBoundaryRegex('asesinara'), 'quitara la vida'],
+  [buildEsBoundaryRegex('asesinase'), 'quitara la vida'],
+  [buildEsBoundaryRegex('asesinan'), 'quitan la vida'],
+  [buildEsBoundaryRegex('asesinen'), 'quiten la vida'],
+  [buildEsBoundaryRegex('asesine'), 'quite la vida'],
+  [buildEsBoundaryRegex('asesina\\s+a\\b'), 'quita la vida a'],
+  [buildEsBoundaryRegex('asesina\\s+al\\b'), 'quita la vida al'],
+  [buildEsBoundaryRegex('instinto\\s+asesino'), 'instinto letal'],
+  [buildEsBoundaryRegex('mano\\s+asesina'), 'mano letal'],
+  [buildEsBoundaryRegex('mente\\s+asesina'), 'mente criminal'],
+  [buildEsBoundaryRegex('furia\\s+asesina'), 'furia letal'],
+  [buildEsBoundaryRegex('arma\\s+asesina'), 'arma letal'],
+  [buildEsBoundaryRegex('armas\\s+asesinas'), 'armas letales'],
+  [buildEsBoundaryRegex('manos\\s+asesinas'), 'manos letales'],
+  [buildEsBoundaryRegex('olas\\s+asesinas'), 'olas letales'],
+  [buildEsBoundaryRegex('ola\\s+asesina'), 'ola letal'],
+  [buildEsBoundaryRegex('las\\s+asesinas'), 'las perpetradoras'],
+  [buildEsBoundaryRegex('unas\\s+asesinas'), 'unas perpetradoras'],
+  [buildEsBoundaryRegex('asesinos'), 'perpetradores'],
+  [buildEsBoundaryRegex('asesino'), 'perpetrador'],
+  [buildEsBoundaryRegex('asesinas'), 'letales'],
+  [buildEsBoundaryRegex('asesina'), 'perpetradora'],
+
+  // --- Sinónimos directos de desmonetización ("matar", "homicidio", "matanza", "suicidio") ---
+  [buildEsBoundaryRegex('homicidios'), 'crímenes'],
+  [buildEsBoundaryRegex('homicidio'), 'crimen'],
+  [buildEsBoundaryRegex('homicidas'), 'criminales'],
+  [buildEsBoundaryRegex('homicida'), 'criminal'],
+  [buildEsBoundaryRegex('matanzas'), 'tragedias colectivas'],
+  [buildEsBoundaryRegex('matanza'), 'tragedia colectiva'],
+  [buildEsBoundaryRegex('matarlos'), 'quitarles la vida'],
+  [buildEsBoundaryRegex('matarlas'), 'quitarles la vida'],
+  [buildEsBoundaryRegex('matarlo'), 'quitarle la vida'],
+  [buildEsBoundaryRegex('matarla'), 'quitarle la vida'],
+  [buildEsBoundaryRegex('matarme'), 'quitarme la vida'],
+  [buildEsBoundaryRegex('matarte'), 'quitarte la vida'],
+  [buildEsBoundaryRegex('matarnos'), 'quitarnos la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+mataron'), 'le quitaron la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+mataron'), 'les quitaron la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+mató'), 'le quitó la vida'],
+  [buildEsBoundaryRegex('(?:los|las)\\s+mató'), 'les quitó la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+matarán'), 'le quitarán la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+matará'), 'le quitará la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+mataran'), 'le quitaran la vida'],
+  [buildEsBoundaryRegex('(?:lo|la)\\s+matara'), 'le quitara la vida'],
+  [buildEsBoundaryRegex('matar'), 'quitar la vida'],
+  [buildEsBoundaryRegex('matando'), 'quitando la vida'],
+  [buildEsBoundaryRegex('mataron'), 'quitaron la vida'],
+  [buildEsBoundaryRegex('mató'), 'quitó la vida'],
+  [buildEsBoundaryRegex('mato\\s+a\\b'), 'quitó la vida a'],
+  [buildEsBoundaryRegex('mato\\s+al\\b'), 'quitó la vida al'],
+  [buildEsBoundaryRegex('mataban'), 'quitaban la vida'],
+  [buildEsBoundaryRegex('matarán'), 'quitarán la vida'],
+  [buildEsBoundaryRegex('matará'), 'quitará la vida'],
+  [buildEsBoundaryRegex('matar[ií]an'), 'quitarían la vida'],
+  [buildEsBoundaryRegex('matar[ií]a'), 'quitaría la vida'],
+  [buildEsBoundaryRegex('mataran'), 'quitaran la vida'],
+  [buildEsBoundaryRegex('matasen'), 'quitaran la vida'],
+  [buildEsBoundaryRegex('matara'), 'quitara la vida'],
+  [buildEsBoundaryRegex('matase'), 'quitara la vida'],
+  [buildEsBoundaryRegex('mata\\s+a\\b'), 'quita la vida a'],
+  [buildEsBoundaryRegex('mata\\s+al\\b'), 'quita la vida al'],
+  [buildEsBoundaryRegex('matan\\s+a\\b'), 'quitan la vida a'],
+  [buildEsBoundaryRegex('matan\\s+al\\b'), 'quitan la vida al'],
+  [buildEsBoundaryRegex('se\\s+suicidaron'), 'pusieron fin a sus días'],
+  [buildEsBoundaryRegex('se\\s+suicid[oó]'), 'puso fin a sus días'],
+  [buildEsBoundaryRegex('suicidarse'), 'poner fin a sus días'],
+  [buildEsBoundaryRegex('suicidios'), 'finales trágicos'],
+  [buildEsBoundaryRegex('suicidio'), 'final trágico'],
+  [buildEsBoundaryRegex('misi[oó]n\\s+suicida'), 'misión sin retorno'],
+  [buildEsBoundaryRegex('ataque\\s+suicida'), 'ataque sin retorno'],
+  [buildEsBoundaryRegex('suicidas'), 'sin retorno'],
+  [buildEsBoundaryRegex('suicida'), 'sin retorno'],
+];
+
+/**
+ * Sanitizador léxico determinista de respaldo para próximos videos:
+ * Sustituye cualquier aparición residual de "muerte", "asesino" y todos sus derivados
+ * manteniendo concordancia gramatical, mayúsculas/minúsculas (ej. MINIATURAS EN MAYÚSCULAS),
+ * etiquetas [pausa: Xs], identificadores @Personaje_Con_Guiones y #Hashtags en CamelCase.
+ */
+export function sanitizeBrandSafeEditorialText(rawText: string): string {
+  if (!rawText || typeof rawText !== 'string') return rawText || '';
+  let out = rawText;
+
+  // 1. Limpiar #Hashtags en CamelCase sin romper la estructura de hashtag
+  out = out.replace(/#([A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+)/g, (_full, body: string) => {
+    const cleanedBody = body
+      .replace(/Muertes?/gi, 'Tragedia')
+      .replace(/Muert[oa]s?/gi, 'Caidos')
+      .replace(/Morir|Murio|Murieron/gi, 'Destino')
+      .replace(/Mortales?|Mortal/gi, 'Letal')
+      .replace(/Asesinatos?/gi, 'Crimen')
+      .replace(/Asesin[oa]s?/gi, 'Culpable')
+      .replace(/Asesinar/gi, 'Conjura')
+      .replace(/Homicidios?|Homicidas?/gi, 'Crimen')
+      .replace(/Matanzas?/gi, 'Tragedia')
+      .replace(/Suicidios?|Suicidas?/gi, 'Ocaso')
+      .replace(/Cad[aá]ver(?:es)?/gi, 'Hallazgo');
+    return `#${cleanedBody}`;
+  });
+
+  // 2. Aplicar reemplazos gramaticales respetando mayúsculas/minúsculas originales
+  for (const [regex, replacement] of BRAND_SAFE_EDITORIAL_RULES) {
+    out = out.replace(regex, (matched) => matchSpanishEditorialCase(matched, replacement));
+  }
+
+  return out;
 }
 
 /**
