@@ -677,9 +677,191 @@ export function cleanMasterWavEmbeddedC2paInPlace(wavBytes: Uint8Array): {
 }
 
 /**
- * Detects and surgically trims 2x full-take hallucinations from `gemini-3.8-flash-tts`,
- * where the model occasionally reads a short dramatic question or transition sentence twice
- * separated by a 250ms–900ms silence valley (dropping effective words/sec from ~2.4 to ~1.0–1.4).
+ * Scans a multi-sentence PCM block for back-to-back repeated sentences (e.g. when Gemini TTS
+ * reads one sentence inside a long paragraph twice separated by a 200ms–2200ms silence valley)
+ * and surgically splices out the duplicate take with a 15ms raised-cosine crossfade inside silence.
+ */
+function spliceAdjacentRepeatedSentencesInPcm(
+  pcmBytes: Uint8Array,
+  safeSr: number
+): { pcmBytes: Uint8Array; removedCount: number } {
+  const evenBytes = pcmBytes.byteLength & ~1;
+  const totalSamples = evenBytes >> 1;
+  const durationSec = totalSamples / safeSr;
+  if (durationSec < 6.5) {
+    return { pcmBytes: pcmBytes.subarray(0, evenBytes), removedCount: 0 };
+  }
+
+  const winSamples = Math.max(120, Math.round(safeSr * 0.02)); // 20ms windows
+  const nWins = Math.floor(totalSamples / winSamples);
+  if (nWins < 80) {
+    return { pcmBytes: pcmBytes.subarray(0, evenBytes), removedCount: 0 };
+  }
+
+  const view = new DataView(pcmBytes.buffer, pcmBytes.byteOffset, evenBytes);
+  const rms20 = new Float32Array(nWins);
+  const zcr20 = new Float32Array(nWins);
+  for (let w = 0; w < nWins; w++) {
+    const base = w * winSamples;
+    let sumSq = 0;
+    let zc = 0;
+    let prev = view.getInt16(base * 2, true);
+    sumSq += (prev / 32768) * (prev / 32768);
+    for (let i = 1; i < winSamples; i++) {
+      const cur = view.getInt16((base + i) * 2, true);
+      const norm = cur / 32768;
+      sumSq += norm * norm;
+      if (prev >= 0 !== cur >= 0) zc++;
+      prev = cur;
+    }
+    rms20[w] = Math.sqrt(sumSq / winSamples);
+    zcr20[w] = zc / winSamples;
+  }
+
+  // Segment into sentence-level spans separated by >= 200ms (10 wins) of silence (rms < 0.005)
+  const phrases: Array<{ st: number; en: number }> = [];
+  let idx = 0;
+  while (idx < nWins) {
+    if (rms20[idx] >= 0.01) {
+      const st = idx;
+      let j = idx + 1;
+      while (j < nWins) {
+        if (rms20[j] < 0.005) {
+          let k = j + 1;
+          while (k < nWins && rms20[k] < 0.005) k++;
+          if (k - j >= 10) break;
+          j = k;
+        } else {
+          j++;
+        }
+      }
+      let en = j;
+      while (en > st && rms20[en - 1] < 0.005) en--;
+      const phSec = ((en - st) * winSamples) / safeSr;
+      if (phSec >= 1.6 && phSec <= 14.0) {
+        phrases.push({ st, en });
+      }
+      idx = j;
+    } else {
+      idx++;
+    }
+  }
+
+  if (phrases.length < 2) {
+    return { pcmBytes: pcmBytes.subarray(0, evenBytes), removedCount: 0 };
+  }
+
+  const BINS = 48;
+  const normFeature = (st: number, en: number, src: Float32Array): Float32Array => {
+    const out = new Float32Array(BINS);
+    const L = Math.max(1, en - st);
+    let mean = 0;
+    for (let b = 0; b < BINS; b++) {
+      const a0 = st + Math.floor((b * L) / BINS);
+      const a1 = Math.max(a0 + 1, st + Math.ceil(((b + 1) * L) / BINS));
+      let s = 0;
+      let c = 0;
+      for (let k = a0; k < Math.min(en, a1); k++) {
+        s += src[k];
+        c++;
+      }
+      out[b] = c > 0 ? s / c : 0;
+      mean += out[b];
+    }
+    mean /= BINS;
+    let den = 0;
+    for (let b = 0; b < BINS; b++) {
+      const d = out[b] - mean;
+      out[b] = d;
+      den += d * d;
+    }
+    const inv = 1 / (Math.sqrt(den) + 1e-9);
+    for (let b = 0; b < BINS; b++) out[b] *= inv;
+    return out;
+  };
+
+  const cuts: Array<{ cutStartSample: number; cutEndSample: number }> = [];
+  let p = 0;
+  while (p + 1 < phrases.length) {
+    const p1 = phrases[p];
+    const p2 = phrases[p + 1];
+    const gapSec = ((p2.st - p1.en) * winSamples) / safeSr;
+    const len1 = p1.en - p1.st;
+    const len2 = p2.en - p2.st;
+    const ratio = Math.min(len1, len2) / Math.max(1, Math.max(len1, len2));
+    if (gapSec >= 0.18 && gapSec <= 2.5 && ratio >= 0.78) {
+      const r1 = normFeature(p1.st, p1.en, rms20);
+      const r2 = normFeature(p2.st, p2.en, rms20);
+      const z1 = normFeature(p1.st, p1.en, zcr20);
+      const z2 = normFeature(p2.st, p2.en, zcr20);
+      let corrR = 0;
+      let corrZ = 0;
+      for (let b = 0; b < BINS; b++) {
+        corrR += r1[b] * r2[b];
+        corrZ += z1[b] * z2[b];
+      }
+      if (corrR >= 0.68 && corrZ >= 0.6) {
+        // Splice from 240ms after p1.en (inside silence) to 240ms after p2.en (or end of post-p2 valley)
+        let postSilEnd = p2.en;
+        while (postSilEnd < nWins && rms20[postSilEnd] < 0.005) postSilEnd++;
+        const keepAfterP1Wins = Math.min(Math.max(1, p2.st - p1.en - 1), 12);
+        const resumeBeforeNextWins = Math.min(Math.max(0, postSilEnd - p2.en), 14);
+        const cutStartSample = Math.min(totalSamples, (p1.en + keepAfterP1Wins) * winSamples);
+        const cutEndSample = Math.min(
+          totalSamples,
+          Math.max(cutStartSample, (postSilEnd - resumeBeforeNextWins) * winSamples)
+        );
+        if (cutEndSample - cutStartSample >= Math.round(safeSr * 1.2)) {
+          cuts.push({ cutStartSample, cutEndSample });
+          p += 2;
+          continue;
+        }
+      }
+    }
+    p++;
+  }
+
+  if (cuts.length === 0) {
+    return { pcmBytes: pcmBytes.subarray(0, evenBytes), removedCount: 0 };
+  }
+
+  const xfSamples = Math.min(360, Math.max(64, Math.round(safeSr * 0.015)));
+  const removedSamples = cuts.reduce((acc, c) => acc + (c.cutEndSample - c.cutStartSample), 0);
+  const outSamples = Math.max(0, totalSamples - removedSamples);
+  const outBytes = new Uint8Array(outSamples * 2);
+  const outView = new DataView(outBytes.buffer);
+
+  let srcPos = 0;
+  let dstPos = 0;
+  for (const c of cuts) {
+    const copyCount = Math.max(0, c.cutStartSample - srcPos);
+    for (let i = 0; i < copyCount; i++) {
+      outView.setInt16((dstPos + i) * 2, view.getInt16((srcPos + i) * 2, true), true);
+    }
+    // Smooth 15ms raised-cosine crossfade right before cut boundary
+    const xf = Math.min(xfSamples, dstPos + copyCount, c.cutEndSample);
+    const joinStartDst = dstPos + copyCount - xf;
+    for (let i = 0; i < xf; i++) {
+      const w = 0.5 * (1 - Math.cos((Math.PI * i) / xf));
+      const a = outView.getInt16((joinStartDst + i) * 2, true);
+      const b = view.getInt16((c.cutEndSample - xf + i) * 2, true);
+      outView.setInt16((joinStartDst + i) * 2, Math.round(a * (1 - w) + b * w), true);
+    }
+    dstPos += copyCount;
+    srcPos = c.cutEndSample;
+  }
+  while (srcPos < totalSamples && dstPos < outSamples) {
+    outView.setInt16(dstPos * 2, view.getInt16(srcPos * 2, true), true);
+    srcPos++;
+    dstPos++;
+  }
+
+  return { pcmBytes: outBytes.subarray(0, dstPos * 2), removedCount: cuts.length };
+}
+
+/**
+ * Detects and surgically trims 2x full-take hallucinations (including short 6–12 word closing slogans)
+ * and back-to-back mid-paragraph sentence repetitions from `gemini-3.8-flash-tts`.
  */
 export function trimDuplicatedTakeInPcm(
   pcmBytes: Uint8Array,
@@ -696,7 +878,7 @@ export function trimDuplicatedTakeInPcm(
   const safeSr = sampleRate > 0 ? sampleRate : DEFAULT_GEMINI_TTS_SAMPLE_RATE;
   const durationSec = totalSamples / safeSr;
 
-  if (wordCount < 6 || durationSec < 5.0) {
+  if (wordCount < 5 || durationSec < 4.2) {
     return {
       pcmBytes: pcmBytes.subarray(0, evenBytes),
       wasTrimmed: false,
@@ -706,8 +888,18 @@ export function trimDuplicatedTakeInPcm(
   }
 
   const wps = wordCount / durationSec;
-  // Single-take Spanish documentary speech runs at ~2.15–2.90 wps; only inspect suspiciously slow (<1.68 wps) blocks
+  // Single-take Spanish documentary speech runs at ~2.15–2.90 wps; if overall block pace looks normal,
+  // still scan longer multi-sentence blocks for an isolated repeated sentence inside the paragraph.
   if (wps >= 1.68) {
+    const midSplice = spliceAdjacentRepeatedSentencesInPcm(pcmBytes, safeSr);
+    if (midSplice.removedCount > 0) {
+      return {
+        pcmBytes: midSplice.pcmBytes,
+        wasTrimmed: true,
+        originalDurationSec: durationSec,
+        trimmedDurationSec: (midSplice.pcmBytes.byteLength >> 1) / safeSr,
+      };
+    }
     return {
       pcmBytes: pcmBytes.subarray(0, evenBytes),
       wasTrimmed: false,

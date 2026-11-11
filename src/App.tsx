@@ -139,7 +139,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:15 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:32 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -11754,7 +11754,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const wordCount = stripPauseTags(scriptSource).trim().split(/\s+/).filter(Boolean).length;
       const pauseInfo = extractPausesInfo(scriptSource);
       const recoveredTrack: TTSRecord = {
-        id: leadTrack?.id && !durMismatch ? leadTrack.id : `tts-folder-${activeDoc.id}`,
+        id: leadTrack?.id || `tts-folder-${activeDoc.id}`,
         text: scriptSource,
         voice: activeDoc.selectedVoice || leadTrack?.voice || 'Charon',
         style: activeDoc.selectedStyle || leadTrack?.style || 'dramatic',

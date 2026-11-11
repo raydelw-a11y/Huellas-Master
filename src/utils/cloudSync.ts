@@ -150,7 +150,7 @@ export function normalizeVoiceoverUrlString(url?: string): string {
     trimmed = trimmed.slice(1);
   }
   if (/^tts-files\/tts-video-77-penicilina\.mp3(?:\?.*)?$/i.test(trimmed)) {
-    return 'tts-files/tts-video-77-penicilina.mp3?v=nodup2';
+    return 'tts-files/tts-video-77-penicilina.mp3?v=nodup3';
   }
   return trimmed;
 }
@@ -186,7 +186,7 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
   let nextTimelineFormattedText = doc.timelineFormattedText;
 
   if (isVideo77Penicilina && isDeadOrEmptyUrl(masterAudioUrl)) {
-    masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=nodup2';
+    masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=nodup3';
     if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
       audioTracks = [
         {
@@ -199,11 +199,11 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           language: doc.selectedLanguage || 'es-la',
           consistencyMode: true,
           filename: 'tts-video-77-penicilina.mp3',
-          audioUrl: 'tts-files/tts-video-77-penicilina.mp3?v=nodup2',
+          audioUrl: 'tts-files/tts-video-77-penicilina.mp3?v=nodup3',
           createdAt: doc.updatedAt || new Date().toISOString(),
           storageMode: 'local',
           wordCount: 2787,
-          duration: 1139.7,
+          duration: 1129.6,
           providerUsed: 'Gemini 3.8 Flash TTS (Charon · Limpieza C2PA + Anti-Duplicado)',
         },
       ];
@@ -213,24 +213,24 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           ? {
               ...t,
               audioUrl: isDeadOrEmptyUrl(t.audioUrl)
-                ? 'tts-files/tts-video-77-penicilina.mp3?v=nodup2'
+                ? 'tts-files/tts-video-77-penicilina.mp3?v=nodup3'
                 : t.audioUrl,
-              duration: 1139.7,
+              duration: 1129.6,
             }
           : t
       );
     }
   } else if (isVideo77Penicilina && audioTracks.length > 0) {
-    // Self-heal stale pre-deduplication duration (1161.2s / 1920s) on the canonical cleaned Video 77 MP3 (1139.7s)
+    // Self-heal stale pre-deduplication durations (1139.7s / 1161.2s / 1920s) on the canonical cleaned Video 77 MP3 (1129.55s)
     const t0 = audioTracks[0];
     const isCanonicalV77Mp3 = /tts-video-77-penicilina\.mp3/i.test(String(t0?.audioUrl || ''));
     const lastTimingEnd = Array.isArray(t0?.segmentTimings) && t0.segmentTimings.length > 0
       ? Number(t0.segmentTimings[t0.segmentTimings.length - 1]?.endSec) || 0
       : 0;
-    if (isCanonicalV77Mp3 && (Math.abs((Number(t0.duration) || 0) - 1139.7) > 2 || lastTimingEnd > 1143)) {
-      const scale = lastTimingEnd > 10 ? 1139.67 / lastTimingEnd : 1;
+    if (isCanonicalV77Mp3 && (Math.abs((Number(t0.duration) || 0) - 1129.6) > 2 || lastTimingEnd > 1132)) {
+      const scale = lastTimingEnd > 10 ? 1129.55 / lastTimingEnd : 1;
       const fixedTimings =
-        Array.isArray(t0.segmentTimings) && lastTimingEnd > 1143
+        Array.isArray(t0.segmentTimings) && lastTimingEnd > 1132
           ? t0.segmentTimings.map((seg) => ({
               ...seg,
               startSec: Number((seg.startSec * scale).toFixed(3)),
@@ -241,7 +241,7 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       audioTracks = [
         {
           ...t0,
-          duration: 1139.7,
+          duration: 1129.6,
           ...(fixedTimings ? { segmentTimings: fixedTimings } : {}),
         },
         ...audioTracks.slice(1),
@@ -250,7 +250,7 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const tlMaxEnd = Array.isArray(nextTimelineSentences) && nextTimelineSentences.length > 0
       ? nextTimelineSentences.reduce((m, s) => Math.max(m, Number(s?.end) || 0), 0)
       : 0;
-    if (isCanonicalV77Mp3 && (tlMaxEnd > 1166 || /19:52|19:28|32:/i.test(String(nextTimelineFormattedText || '')))) {
+    if (isCanonicalV77Mp3 && (tlMaxEnd > 1156 || /19:52|19:28|19:24|32:/i.test(String(nextTimelineFormattedText || '')))) {
       nextTimelineSentences = [];
       nextTimelineFormattedText = '';
     }
