@@ -18,6 +18,8 @@ import {
   cleanAndNormalizeStage5ThumbnailPrompt,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
+  parseReferencesFromRawText,
+  normalizeReferenceTagSlug,
 } from './src/utils/smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -14682,10 +14684,10 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       return true;
     }
 
-    // Stage 5 (Neuropsychological Click Triggers) & Stage 101 preserve structured newlines and run INSIDE the documentary's chat
+    // Stage 5 (Neuropsychological Click Triggers), Stage 101 & Stage 6 (@Referencias 6 Views) preserve structured newlines and run INSIDE the documentary's chat
     // (opening a new Chrome window on the documentary's chat if none is open or open ones are in use)
     const safePrompt =
-      resolvedStageNum === 5 || resolvedStageNum === 101
+      resolvedStageNum === 5 || resolvedStageNum === 101 || resolvedStageNum === 6
         ? String(cmd.prompt || '').replace(/\r\n/g, '\n').trim()
         : String(cmd.prompt)
             .replace(/\r\n/g, '\n')
@@ -14950,6 +14952,29 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
             thumbOrientationSrv,
             existingUserOv
           );
+        }
+      } else if (stageNumber === 6) {
+        const cleanedRefText = sanitizeBrandSafeEditorialText(text);
+        const parsedRefs = parseReferencesFromRawText(cleanedRefText);
+        if (parsedRefs.length > 0) {
+          const prevRefs = Array.isArray(list[idx].references) ? list[idx].references : [];
+          const prevBySlug = new Map<string, any>();
+          for (const oldRef of prevRefs) {
+            if (oldRef?.tag) {
+              prevBySlug.set(normalizeReferenceTagSlug(String(oldRef.tag)), oldRef);
+            }
+          }
+          extraPatch.references = parsedRefs.map((p, rIdx) => {
+            const slug = normalizeReferenceTagSlug(p.tag || '', rIdx + 1);
+            const prev = prevBySlug.get(slug);
+            return {
+              ...p,
+              id: prev?.id || p.id,
+              tag: slug,
+              imageUrl: prev?.imageUrl || p.imageUrl,
+              isCreated: Boolean(prev?.isCreated || prev?.imageUrl),
+            };
+          });
         }
       } else if (stageNumber === 9) {
         extraPatch.correctedSrt = text

@@ -1631,6 +1631,12 @@ function mergeTwoDocumentaryObjects(
       baseWinner.thumbnailVerticalImageUrl = oNorm.thumbnailVerticalImageUrl;
       baseWinner.thumbnailReady = true;
     }
+    if (oNorm.rawReferencePrompts && String(oNorm.rawReferencePrompts).trim()) {
+      baseWinner.rawReferencePrompts = oNorm.rawReferencePrompts;
+    }
+    if (Array.isArray(oNorm.references) && oNorm.references.length > 0) {
+      baseWinner.references = oNorm.references;
+    }
   }
 
   if (
@@ -2686,7 +2692,8 @@ Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.
 - Para cada PERSONAJE principal (@Personas), escribe una sola línea con el formato exacto (sin tildes ni espacios en el identificador @Nombre_Personaje):
   Image @Nombre_Personaje [Image Name: @Nombre_Personaje]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [rasgos físicos detallados de adulto, cabello, rostro y vestimenta histórica de época (${doc.historicalTime}, ${doc.historicalLocation}) de pies a cabeza sobre fondo de estudio neutro limpio con iluminación uniforme, sin mencionar nombres propios de reyes o políticos reales en la descripción física, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Personaje
 - Para cada LUGAR principal (@Lugares), escribe una sola línea con el formato exacto (con @ y guiones bajos _ sin tildes ni espacios en @Nombre_Lugar):
-  Image @Nombre_Lugar [Image Name: @Nombre_Lugar]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [arquitectura histórica exacta, materiales, época (${doc.historicalTime}, ${doc.historicalLocation}) e iluminación atmosférica], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Lugar`;
+  Image @Nombre_Lugar [Image Name: @Nombre_Lugar]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [arquitectura histórica exacta, materiales, época (${doc.historicalTime}, ${doc.historicalLocation}) e iluminación atmosférica], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Lugar
+- FORMATO DE ENTREGA PURO: Entrega ÚNICAMENTE el texto plano con la orden operativa inicial seguida de las líneas Image @Nombre_... separadas por una línea en blanco, SIN asteriscos **, SIN encabezados como "Personajes:" o "Lugares:", y SIN saludos ni despedidas.`;
   } else if (stageNumber === 7) {
     const scriptContext = (
       doc.voiceoverScript ||

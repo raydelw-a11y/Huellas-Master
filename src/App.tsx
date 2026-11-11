@@ -145,7 +145,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:02 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:16 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4772,10 +4772,29 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         updateActiveDoc(nextPatch);
       }
     } else if (stageNum === 6) {
+      const curDoc = activeDocRef.current || activeDoc;
       const parsedRefs = parseReferencesFromRawText(text);
+      let nextRefs = curDoc.references || [];
+      if (parsedRefs.length > 0) {
+        const existingBySlug = new Map<string, ReferenceAsset>();
+        for (const oldRef of curDoc.references || []) {
+          existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
+        }
+        nextRefs = parsedRefs.map((p, idx) => {
+          const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
+          const prev = existingBySlug.get(slug);
+          return {
+            ...p,
+            id: prev?.id || p.id,
+            tag: slug,
+            imageUrl: prev?.imageUrl || p.imageUrl,
+            isCreated: Boolean(prev?.isCreated || prev?.imageUrl),
+          };
+        });
+      }
       updateActiveDoc({
         rawReferencePrompts: text,
-        references: parsedRefs.length > 0 ? parsedRefs : activeDoc.references,
+        references: nextRefs,
       });
     } else if (stageNum === 7) {
       const parsedOptions = parseClip1OptionsFromRawText(text);
@@ -11085,6 +11104,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini 4 Carbon Low + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
             : stageNum === 5
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura dentro del chat del documental...'
+            : stageNum === 6
+            ? '📡 Enviando orden desde tu móvil a tu Mac: generando prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web...'
             : stageNum === 101
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 opciones cortas de texto en pantalla dentro del chat del documental...'
             : '📡 Enviando orden de la etapa a tu Mac (Gemini 4 Carbon Low)...'
@@ -11109,6 +11130,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
                 : stageNum === 5
                 ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (4 Carbon · Low). Se actualizará aquí automáticamente...'
+                : stageNum === 6
+                ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (4 Carbon · Low). Aparecerán en esta caja automáticamente...'
                 : stageNum === 101
                 ? '⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (4 Carbon · Low)...'
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
@@ -11350,6 +11373,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     bridgeStatusType,
     aiGenerating,
     thumbnailGeneratingOption,
+  ]);
+
+  // Auto-parse @Referencias cards whenever rawReferencePrompts arrives (local or remote cloud sync) and references list is empty
+  useEffect(() => {
+    if (!activeDoc) return;
+    const raw = String(activeDoc.rawReferencePrompts || '').trim();
+    if (!raw) return;
+    if ((activeDoc.references || []).length === 0) {
+      const parsed = parseReferencesFromRawText(raw);
+      if (parsed.length > 0) {
+        updateActiveDoc({
+          references: parsed.map((p, idx) => ({
+            ...p,
+            tag: normalizeReferenceTagSlug(p.tag || '', idx + 1),
+          })),
+        });
+      }
+    }
+    if (
+      activeStage === 6 &&
+      bridgeStatusType === 'WORKING' &&
+      !aiGenerating &&
+      activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_STATUS !== 'running'
+    ) {
+      setBridgeStatusType('SUCCESS');
+    }
+  }, [
+    activeStage,
+    activeDoc?.id,
+    activeDoc?.rawReferencePrompts,
+    activeDoc?.references?.length,
+    bridgeStatusType,
+    aiGenerating,
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS,
   ]);
 
   // Auto-generate the 3 video-specific Neuropsychological Click Triggers + Thumbnail Prompt upon entering Stage 3 (activeStage === 5)
@@ -17922,42 +17979,65 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             {activeStage === 6 && (
               <div className="space-y-6">
                 <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div>
+                  <div className="flex items-start justify-between flex-wrap gap-3">
+                    <div className="min-w-0 flex-1">
                       <h3 className="text-base font-bold text-amber-300">
                         Prompts de Referencia para Google Flow — 6 Views por Imagen (@Personas y @Lugares)
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Copia todos los prompts en un solo texto, pégalos manualmente en{' '}
-                        <strong className="text-amber-300">Google Flow (Nano Banana 2.1)</strong> y descarga las
-                        imágenes: la app las localizará en <code className="text-amber-300">Descargas</code> y las
-                        llevará sola a <code className="text-emerald-300">04_Referencias/</code>.
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Genera automáticamente en <strong className="text-amber-300">Gemini</strong> los prompts de{' '}
+                        <strong className="text-amber-300">@Personas y @Lugares (6 Views)</strong> para que aparezcan en
+                        la caja inferior, luego cópialos en un solo texto a{' '}
+                        <strong className="text-amber-300">Google Flow (Nano Banana 2.1)</strong>: al descargar las
+                        imágenes la app las llevará sola a <code className="text-emerald-300">04_Referencias/</code>.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const { fullText, upgradedRefs } = buildSingleFlowReferencesBatchText(activeDoc);
-                        if (!fullText.trim()) {
-                          alert('Primero pega o escribe los prompts de referencia en el cuadro inferior.');
-                          return;
-                        }
-                        if (upgradedRefs.length > 0) {
-                          updateActiveDoc({
-                            references: upgradedRefs,
-                            rawReferencePrompts: fullText,
-                          });
-                        }
-                        copyText(fullText, 'copy-all-refs');
-                        syncDownloadedReferenceImages(fullText);
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
-                    >
-                      <Copy className="w-4 h-4" />
-                      {copiedId === 'copy-all-refs'
-                        ? '✓ Todos los Prompts Copiados'
-                        : '📋 Copiar Todos los Prompts en un Solo Texto'}
-                    </button>
+                    <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        disabled={aiGenerating}
+                        onClick={() => handleGenerateWithGemini(6)}
+                        className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer flex-1 sm:flex-initial"
+                      >
+                        {aiGenerating ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+                            <span>⏳ Generando @Referencias en Gemini...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 shrink-0" />
+                            <span>✨ Generar Prompts en Gemini</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const { fullText, upgradedRefs } = buildSingleFlowReferencesBatchText(activeDoc);
+                          if (!fullText.trim()) {
+                            alert('Primero genera con Gemini o pega los prompts de referencia en la caja inferior.');
+                            return;
+                          }
+                          if (upgradedRefs.length > 0) {
+                            updateActiveDoc({
+                              references: upgradedRefs,
+                              rawReferencePrompts: fullText,
+                            });
+                          }
+                          copyText(fullText, 'copy-all-refs');
+                          syncDownloadedReferenceImages(fullText);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer flex-1 sm:flex-initial"
+                      >
+                        <Copy className="w-4 h-4 shrink-0" />
+                        <span>
+                          {copiedId === 'copy-all-refs'
+                            ? '✓ Todos Copiados'
+                            : '📋 Copiar Todos en un Solo Texto'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="bg-slate-950/80 border border-emerald-500/25 rounded-xl px-3.5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
@@ -17973,42 +18053,75 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </span>
                   </div>
 
+                  {(aiGenerating || activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'running') && (
+                    <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 text-xs text-amber-200">
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+                      <span>
+                        {bridgeStatusMsg ||
+                          'Generando los prompts de imágenes referenciales (@Personas y @Lugares — 6 Views) en Gemini Web. Aparecerán automáticamente en la caja de abajo...'}
+                      </span>
+                    </div>
+                  )}
+
                   {flowStatusLog && (
                     <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-xs text-emerald-300">
                       <span>{flowStatusLog}</span>
                     </div>
                   )}
 
-                  <textarea
-                    rows={6}
-                    value={activeDoc.rawReferencePrompts}
-                    onChange={(e) => {
-                      const nextRaw = e.target.value;
-                      const parsed = parseReferencesFromRawText(nextRaw);
-                      if (parsed.length > 0) {
-                        const existingBySlug = new Map<string, ReferenceAsset>();
-                        for (const oldRef of activeDoc.references || []) {
-                          existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-amber-400" />
+                        Caja de Prompts de Imágenes Referenciales Generados en Gemini (@Personas y @Lugares — 6 Views)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          {(activeDoc.references || []).length} referencias detectadas
+                        </span>
+                        {Boolean((activeDoc.rawReferencePrompts || '').trim()) && (
+                          <button
+                            type="button"
+                            onClick={() => copyText(activeDoc.rawReferencePrompts || '', 'copy-raw-ref-box')}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copiedId === 'copy-raw-ref-box' ? '✓ Copiado' : 'Copiar Caja'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      rows={10}
+                      value={activeDoc.rawReferencePrompts || ''}
+                      onChange={(e) => {
+                        const nextRaw = e.target.value;
+                        const parsed = parseReferencesFromRawText(nextRaw);
+                        if (parsed.length > 0) {
+                          const existingBySlug = new Map<string, ReferenceAsset>();
+                          for (const oldRef of activeDoc.references || []) {
+                            existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
+                          }
+                          const merged = parsed.map((p, idx) => {
+                            const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
+                            const prev = existingBySlug.get(slug);
+                            return {
+                              ...p,
+                              id: prev?.id || p.id,
+                              tag: slug,
+                              imageUrl: prev?.imageUrl || p.imageUrl,
+                              isCreated: prev?.isCreated || Boolean(prev?.imageUrl) || false,
+                            };
+                          });
+                          updateActiveDoc({ rawReferencePrompts: nextRaw, references: merged });
+                        } else {
+                          updateActiveDoc({ rawReferencePrompts: nextRaw });
                         }
-                        const merged = parsed.map((p, idx) => {
-                          const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
-                          const prev = existingBySlug.get(slug);
-                          return {
-                            ...p,
-                            id: prev?.id || p.id,
-                            tag: slug,
-                            imageUrl: prev?.imageUrl || p.imageUrl,
-                            isCreated: prev?.isCreated || Boolean(prev?.imageUrl) || false,
-                          };
-                        });
-                        updateActiveDoc({ rawReferencePrompts: nextRaw, references: merged });
-                      } else {
-                        updateActiveDoc({ rawReferencePrompts: nextRaw });
-                      }
-                    }}
-                    placeholder="Pega aquí los prompts de @Personas y @Lugares principales (las tarjetas y el formato de 6 views + nombre de imagen se sincronizan automáticamente)..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200"
-                  />
+                      }}
+                      placeholder="Pulsa «✨ Generar Prompts en Gemini» arriba para que aparezcan aquí automáticamente todos los prompts de @Personas y @Lugares (6 Views), o pégalos/edítalos manualmente..."
+                      className="w-full bg-slate-950 border border-amber-500/30 focus:border-amber-400 rounded-xl p-3.5 text-xs font-mono text-slate-100 leading-relaxed"
+                    />
+                  </div>
                 </div>
 
                 {/* Reference Asset Cards Grid */}
