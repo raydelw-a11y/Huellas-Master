@@ -141,7 +141,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:38 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:51 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -558,6 +558,49 @@ function formatThumbnailOverlayClause(overlayText: string, positionOnlyPhrase: s
   return `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} stacked across ${lines.length} exact separate lines (${lineSpecs})`;
 }
 
+function isCorruptedThumbnailPrompt(raw?: string | null): boolean {
+  const s = String(raw || '').trim();
+  if (!s) return false;
+  return (
+    /\((?:Tema Central|Arco Integral|Ruta Principal|Opci[oó]n\s*\d+|F[oó]rmula Exacta)[^)]*\)\s*:/i.test(s) ||
+    /—\s*(?:Recomendada|Arco hist[oó]rico completo|Escenario hist[oó]rico principal)/i.test(s) ||
+    /\[DISPARADOR_[ABC]\]|\bDESCRIPCI[OÓ]N\s*:|\bTEXTO[_\s]*PANTALLA\s*:/i.test(s) ||
+    /enigmatic forbidden historical detail or shadowy betrayal from this exact story/i.test(s)
+  );
+}
+
+function extractCleanEnglishThumbnailSceneFromDoc(doc?: DocumentaryProject | null): string {
+  const clipPrompts = (doc?.clips || [])
+    .map((c: any) => String(c?.imagePrompt || '').trim())
+    .filter((p) => p.length > 40 && !/[\u00C0-\u017F]{2,}|(?:\b(?:el|la|los|las|del|como|para|años)\b)/i.test(p.slice(0, 140)));
+  if (clipPrompts.length > 0) {
+    const rawClip = clipPrompts[0]
+      .replace(/^Image\s*\d+\s*:\s*/i, '')
+      .replace(/^Create an image(?:\s+in\s+(?:16:9|9:16)[^,]*,?)?(?:\s+of\s+)?/i, '')
+      .replace(/^(?:a\s+)?(?:dramatic\s+)?(?:cinematic\s+)?(?:wide\s+establishing\s+shot|aerial\s+shot|extreme\s+wide\s+shot)\s+of\s+/i, '')
+      .replace(/,\s*(?:16:9|9:16)[\s\S]*$/i, '')
+      .replace(/,\s*cinematic documentary realism[\s\S]*$/i, '')
+      .trim();
+    if (rawClip.length > 25) {
+      return applyAutomaticFlowPolicyShield(rawClip.slice(0, 260), false);
+    }
+  }
+  const refPrompts = (doc?.references || [])
+    .map((r: any) => String(r?.prompt || '').trim())
+    .filter((p) => p.length > 30);
+  if (refPrompts.length > 0) {
+    const rawRef = refPrompts[0]
+      .replace(/^@\S+\s*[:\-—]?\s*/i, '')
+      .replace(/^Create an image(?:\s+of)?\s+/i, '')
+      .slice(0, 220)
+      .trim();
+    if (rawRef.length > 20) {
+      return applyAutomaticFlowPolicyShield(rawRef, false);
+    }
+  }
+  return 'an authentic period-accurate historical documentary setting filled with tense dramatic atmosphere';
+}
+
 function buildOrUpdateThumbnailPrompt(
   currentPrompt: string,
   orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
@@ -578,22 +621,22 @@ function buildOrUpdateThumbnailPrompt(
   const leftLogoClause =
     'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
   const closingClause =
-    'cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no music.';
+    'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
-  // Eliminar cualquier cláusula literal "[TEXTO EN PANTALLA]" que se haya colado antes
-  let prompt = (currentPrompt || '')
-    .replace(
-      /,?\s*bold high-contrast cinematic documentary typography text overlay[^,.;]*reading\s*["“”']\[TEXTO EN PANTALLA\]["“”']/gi,
-      ''
-    )
-    .trim();
+  // Eliminar cualquier cláusula literal "[TEXTO EN PANTALLA]" o prompt corrupto mezclado en español
+  let prompt = isCorruptedThumbnailPrompt(currentPrompt)
+    ? ''
+    : (currentPrompt || '')
+        .replace(
+          /,?\s*bold high-contrast cinematic documentary typography text overlay[^,.;]*reading\s*["“”']\[TEXTO EN PANTALLA\]["“”']/gi,
+          ''
+        )
+        .trim();
 
   if (!prompt) {
-    const subject = doc?.topic || doc?.title || 'a dramatic historical documentary scene';
-    const era = [doc?.historicalTime, doc?.historicalLocation].filter(Boolean).join(', ');
-    const sceneContext = era ? `${subject} (${era})` : subject;
+    const sceneContext = extractCleanEnglishThumbnailSceneFromDoc(doc);
     const textPart = textPositionClause ? `${textPositionClause}, ` : '';
-    return `Thumbnail: Create an image in ${aspectPhrase} depicting an ultra-clean 3-element composition readable in 13 milliseconds on mobile of ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) with direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, a single enigmatic historical trigger element opening a strong curiosity gap, dramatic high-impact color contrast with warm golden-amber and crimson rim lighting against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) making direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, dramatic high-impact chiaroscuro contrast with warm golden-amber rim lighting against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
 
   if (!/^Thumbnail:\s*Create an image/i.test(prompt)) {
@@ -665,7 +708,7 @@ function buildOrUpdateThumbnailPrompt(
 
   // 4. Ensure official page logo top-left 5% is present
   if (!/official page logo cleanly integrated in the top-left corner/i.test(prompt)) {
-    const closeIdx = prompt.search(/cinematic documentary realism/i);
+    const closeIdx = prompt.search(/portrayed by an anonymous historical|cinematic documentary realism/i);
     if (closeIdx !== -1) {
       const before = prompt.slice(0, closeIdx).replace(/[,.\s]+$/, '');
       const after = prompt.slice(closeIdx);
@@ -696,6 +739,10 @@ function parseStage5TriggersAndPrompts(
   const cleaned = String(rawText || '')
     .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
     .replace(/\n?```\s*$/i, '')
+    .replace(
+      /\s+\|\s+(?=(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\b|T[IÍ]TULO\b|DESCRIPCI[OÓ]N\b|TEXTO[_\s]*PANTALLA\b|PROMPT\b))/gi,
+      '\n'
+    )
     .trim();
   if (!cleaned) {
     return { triggers: [], fallbackPrompt: '' };
@@ -703,7 +750,7 @@ function parseStage5TriggersAndPrompts(
 
   const hasUserOverlay = parseThumbnailOverlayLines(userOverlayText).length > 0;
   const blockRegex =
-    /(?:^|\n)\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?(?:\s*[:\-—][^\n]*)?([\s\S]*?)(?=\n\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\s*\]?|$)/gi;
+    /(?:^|\n)\s*(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\d+[.)]\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?(?:\s*\*+)?(?:\s*[:\-—][^\n]*)?([\s\S]*?)(?=\n\s*(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\d+[.)]\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\b|$)/gi;
 
   const triggers: ThumbnailPsychTriggerOption[] = [];
   let match: RegExpExecArray | null;
@@ -711,16 +758,16 @@ function parseStage5TriggersAndPrompts(
     const id = match[1].toUpperCase() as 'A' | 'B' | 'C';
     const body = match[2] || '';
     const titleMatch = body.match(
-      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*T[IÍ]TULO\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?T[IÍ]TULO\s*(?:\*+)?\s*:\s*([^\n]+)/i
     );
     const descMatch = body.match(
-      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*DESCRIPCI[OÓ]N\s*(?:\*\*)?\s*:\s*([^\n]+(?:\n(?!\s*(?:\*\*|[-•*])?\s*(?:TEXTO[_\s]*PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
+      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?DESCRIPCI[OÓ]N\s*(?:\*+)?\s*:\s*([^\n]+(?:\n(?!\s*(?:[-•*]\s*)?(?:\*+\s*)?(?:TEXTO[_\s]*PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
     );
     const overlayMatch = body.match(
-      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*TEXTO[_\s]*PANTALLA\s*(?:\*\*)?\s*:\s*([^\n]+)/i
+      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?TEXTO[_\s]*PANTALLA\s*(?:\*+)?\s*:\s*([^\n]+)/i
     );
     const promptMatch = body.match(
-      /(?:^|\n)\s*(?:\*\*|[-•*])?\s*PROMPT\s*(?:\*\*)?\s*:\s*([\s\S]+)$/i
+      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?PROMPT\s*(?:\*+)?\s*:\s*([\s\S]+)$/i
     );
 
     const rawTitleVal = (titleMatch?.[1] || '').replace(/^\*+|\*+$/g, '').trim();
@@ -734,17 +781,19 @@ function parseStage5TriggersAndPrompts(
       .replace(/^\*+|\*+$/g, '')
       .trim();
     const suggestedOverlay = (overlayMatch?.[1] || '')
+      .replace(/^\*+|\*+$/g, '')
       .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
       .split(/\s*(?:\/|\|)\s*/)
       .map((s) => s.trim())
       .filter(Boolean)
       .join('\n');
     const rawPromptBody = (promptMatch?.[1] || '')
-      .replace(/^["'`]+|["'`]+$/g, '')
+      .split(/\n\s*(?:#{1,4}|\*\*Nota|\*\*Explicaci|---)/i)[0]
+      .replace(/^["'`*]+|["'`*]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (rawPromptBody && !triggers.some((t) => t.id === id)) {
+    if (rawPromptBody && !isCorruptedThumbnailPrompt(rawPromptBody) && !triggers.some((t) => t.id === id)) {
       const effectiveOverlay = hasUserOverlay ? userOverlayText : suggestedOverlay;
       const normalizedPrompt = buildOrUpdateThumbnailPrompt(
         rawPromptBody,
@@ -763,10 +812,26 @@ function parseStage5TriggersAndPrompts(
   }
 
   triggers.sort((a, b) => a.id.localeCompare(b.id));
+  let directEnglishFallback = '';
+  if (triggers.length === 0) {
+    const directMatch = cleaned.match(/(?:Thumbnail:\s*)?Create an image\b[\s\S]+/i);
+    if (directMatch) {
+      const candidate = directMatch[0]
+        .split(/\n\s*(?:\[DISPARADOR|#{1,4}|---)/i)[0]
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (candidate && !isCorruptedThumbnailPrompt(candidate)) {
+        directEnglishFallback = buildOrUpdateThumbnailPrompt(
+          candidate,
+          orientation,
+          userOverlayText,
+          doc
+        );
+      }
+    }
+  }
   const fallbackPrompt =
-    triggers.length > 0
-      ? triggers[0].prompt
-      : buildOrUpdateThumbnailPrompt(cleaned, orientation, userOverlayText, doc);
+    triggers.length > 0 ? triggers[0].prompt : directEnglishFallback;
 
   return { triggers, fallbackPrompt };
 }
@@ -788,7 +853,7 @@ function buildPsychologicalThumbnailVariantPrompt(
   doc?: DocumentaryProject | null
 ): string {
   const dynamicTrigger = (doc?.thumbnailPsychTriggers || []).find((t) => t.id === variant);
-  if (dynamicTrigger && dynamicTrigger.prompt) {
+  if (dynamicTrigger && dynamicTrigger.prompt && !isCorruptedThumbnailPrompt(dynamicTrigger.prompt)) {
     const effectiveOverlay =
       parseThumbnailOverlayLines(overlayText).length > 0
         ? overlayText
@@ -806,6 +871,7 @@ function buildPsychologicalThumbnailVariantPrompt(
     ? 'centered and middle-justified right in the middle center of the image'
     : 'positioned in the bottom-left area of the image';
   const textPositionClause = formatThumbnailOverlayClause(effectiveRawOverlay, positionOnlyPhrase);
+  const textPart = textPositionClause ? `${textPositionClause}, ` : '';
   const rightLogoClause = isVertical
     ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
     : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
@@ -814,66 +880,15 @@ function buildPsychologicalThumbnailVariantPrompt(
   const closingClause =
     'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
-  const rawTitle = (doc?.title || '').trim();
-  const isProvisionalTitle = /^video\s*\d+/i.test(rawTitle) || /^documental\s*\d*/i.test(rawTitle);
-  const cleanTopic = (doc?.topic || '').trim();
-  const refNames = (doc?.references || [])
-    .map((r: any) => (r?.tag || r?.name || '').trim())
-    .filter(Boolean)
-    .slice(0, 3);
-  const firstClipScene = (doc?.clips || [])
-    .map((c: any) => (c?.imagePrompt || '').trim())
-    .find(Boolean) || '';
-  const clip1HookContext = [doc?.clip1Line1LocationTime, doc?.clip1Line2Hook]
-    .map((s) => (s || '').trim())
-    .filter(Boolean)
-    .join(' — ');
-  const scriptOpening = (doc?.voiceoverScript || doc?.researchSummary || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 260);
-
-  let derivedSubject = cleanTopic;
-  if (!derivedSubject) {
-    if (firstClipScene) {
-      derivedSubject = firstClipScene
-        .replace(/^create an image in (16:9|9:16)[^,]*,?\s*/i, '')
-        .slice(0, 220);
-    } else if (refNames.length > 0 || scriptOpening) {
-      derivedSubject = [
-        refNames.length > 0 ? `historical figures ${refNames.join(', ')}` : '',
-        clip1HookContext,
-        scriptOpening ? `historical context: "${scriptOpening}"` : '',
-      ]
-        .filter(Boolean)
-        .join(' — ');
-    } else if (rawTitle && !isProvisionalTitle) {
-      derivedSubject = rawTitle;
-    } else {
-      derivedSubject = rawTitle || 'a dramatic historical documentary scene';
-    }
-  }
-
-  const era = [doc?.historicalTime, doc?.historicalLocation, doc?.clip1Line1LocationTime]
-    .map((s) => (s || '').trim())
-    .filter(Boolean)
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .join(', ');
-  const protagonistHint =
-    refNames.length > 0 ? ` (${refNames.join(', ')})` : '';
-  const rawSceneContext = `${derivedSubject}${protagonistHint}${era ? ` [${era}]` : ''}`;
-  const sceneContext = applyAutomaticFlowPolicyShield(rawSceneContext, false);
+  const sceneContext = extractCleanEnglishThumbnailSceneFromDoc(doc);
 
   if (variant === 'A') {
-    // Opción A: Rostro Humano + Emoción Extrema + Contacto Visual Directo (13ms)
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and terrifying realization, hyper-realistic skin pores and period-accurate attire, illuminated by blazing warm golden-amber and crimson rim light against a deep cold midnight-cyan historical background, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and stunned realization, hyper-realistic skin pores and authentic period attire, illuminated by blazing warm golden-amber rim light against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
   if (variant === 'B') {
-    // Opción B: Brecha de la Curiosidad (Curiosity Gap / El Secreto o Traición en el Segundo Antes del Desastre)
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext} at the exact split-second before catastrophe, showing the historical protagonist in sharp foreground looking at the camera in tense disbelief while a single enigmatic forbidden historical detail or shadowy betrayal from this exact story emerges behind them opening an irresistible curiosity gap, high-impact chiaroscuro contrast with fiery amber key light against cold abyssal blue shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, showing the historical protagonist in sharp foreground medium close-up (60% of frame) looking directly into the camera lens in tense disbelief while holding a decisive period-accurate historical object illuminated by warm amber light against cold abyssal blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
-  // Opción C: Escala Épica + Peligro Inminente + Contraste Cromático Extremo
-  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile depicting ${sceneContext}, contrasting an expressive historical protagonist face in the foreground looking back in awe and terror against the monumental historical setting and threat looming in the background, dramatic complementary color psychology of blazing crimson-gold firelight against deep emerald-night shadows, ${textPositionClause}, ${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, contrasting an expressive historical protagonist face in the foreground making urgent eye contact with the lens against the dramatic period setting looming in the background under blazing amber firelight and deep midnight-blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
 }
 
 const STAGES_LIST = [
@@ -4806,7 +4821,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 selectedTrigger.suggestedOverlay || suggestedList[0] || '';
             }
           }
-        } else {
+        } else if (parsedStage5.fallbackPrompt) {
           patch.thumbnailPrompt = parsedStage5.fallbackPrompt;
         }
       }
@@ -9437,7 +9452,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         fallbackHooks[0] ||
         '';
 
-    const existingPrompt = (activeDoc.thumbnailPrompt || '').trim();
+    const rawExistingPrompt = (activeDoc.thumbnailPrompt || '').trim();
+    const existingPrompt = isCorruptedThumbnailPrompt(rawExistingPrompt) ? '' : rawExistingPrompt;
     const promptText = usePsychVariant
       ? buildPsychologicalThumbnailVariantPrompt(
           effectiveOptionLabel,
@@ -16273,12 +16289,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               const handleSelectThumbnailOrientation = (
                 newOrientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16'
               ) => {
-                const updatedPrompt = buildOrUpdateThumbnailPrompt(
-                  activeDoc.thumbnailPrompt || '',
-                  newOrientation,
-                  activeDoc.thumbnailTextOverlay || '',
-                  activeDoc
-                );
                 const updatedTriggers = dynamicTriggers.map((t) => ({
                   ...t,
                   prompt: buildOrUpdateThumbnailPrompt(
@@ -16288,6 +16298,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     activeDoc
                   ),
                 }));
+                const cleanExisting = isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
+                  ? ''
+                  : (activeDoc.thumbnailPrompt || '').trim();
+                const matchedTrigger = updatedTriggers.find((t) => t.id === selectedPsychVariant);
+                const updatedPrompt = matchedTrigger?.prompt
+                  ? matchedTrigger.prompt
+                  : cleanExisting
+                  ? buildOrUpdateThumbnailPrompt(
+                      cleanExisting,
+                      newOrientation,
+                      activeDoc.thumbnailTextOverlay || '',
+                      activeDoc
+                    )
+                  : '';
                 updateActiveDoc({
                   thumbnailOrientation: newOrientation,
                   thumbnailPrompt: updatedPrompt,
@@ -16302,6 +16326,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const effectiveOverlay = hasOverlayText
                   ? activeDoc.thumbnailTextOverlay || ''
                   : matched?.suggestedOverlay || '';
+                const cleanExisting = isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
+                  ? ''
+                  : (activeDoc.thumbnailPrompt || '').trim();
                 const built = matched?.prompt
                   ? buildOrUpdateThumbnailPrompt(
                       matched.prompt,
@@ -16309,12 +16336,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       effectiveOverlay,
                       activeDoc
                     )
-                  : buildPsychologicalThumbnailVariantPrompt(
-                      newVariant,
-                      currentOrientation,
-                      effectiveOverlay,
-                      activeDoc
-                    );
+                  : cleanExisting;
                 updateActiveDoc({
                   thumbnailPsychVariant: newVariant,
                   thumbnailOrientation: currentOrientation,
@@ -16332,13 +16354,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     activeDoc
                   ),
                 }));
-                if ((activeDoc.thumbnailPrompt || '').trim()) {
-                  const updatedPrompt = buildOrUpdateThumbnailPrompt(
-                    activeDoc.thumbnailPrompt,
-                    currentOrientation,
-                    newText,
-                    activeDoc
-                  );
+                const cleanExisting = isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
+                  ? ''
+                  : (activeDoc.thumbnailPrompt || '').trim();
+                const matchedTrigger = updatedTriggers.find((t) => t.id === selectedPsychVariant);
+                if (matchedTrigger?.prompt || cleanExisting) {
+                  const updatedPrompt = matchedTrigger?.prompt
+                    ? matchedTrigger.prompt
+                    : buildOrUpdateThumbnailPrompt(
+                        cleanExisting,
+                        currentOrientation,
+                        newText,
+                        activeDoc
+                      );
                   updateActiveDoc({
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
@@ -16351,6 +16379,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   updateActiveDoc({
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
+                    thumbnailPrompt: '',
                     ...(updatedTriggers.length > 0
                       ? { thumbnailPsychTriggers: updatedTriggers }
                       : {}),
@@ -16681,12 +16710,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <div className="rounded-xl border border-indigo-500/30 bg-slate-900/70 p-3.5 flex items-center gap-3">
                           <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin shrink-0" />
                           <p className="text-[11px] text-amber-200 font-semibold leading-snug">
-                            Generando automáticamente en Gemini Web los 3 disparadores neuropsicológicos exclusivos para «{activeDoc.topic || activeDoc.title}» junto con el prompt...
+                            Generando automáticamente en Gemini Web los 3 disparadores neuropsicológicos exclusivos para «{activeDoc.title || activeDoc.topic}» junto con el prompt...
                           </p>
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/50 p-3 text-[11px] text-slate-400 leading-snug">
-                          Los 3 disparadores neuropsicológicos nunca están fijados: se generan a medida para «<strong className="text-amber-300">{activeDoc.topic || activeDoc.title}</strong>» junto con el prompt al pulsar <strong className="text-amber-300">&quot;Generar Prompt con Gemini&quot;</strong>.
+                          Los 3 disparadores neuropsicológicos nunca están fijados: se generan a medida para «<strong className="text-amber-300">{activeDoc.title || activeDoc.topic}</strong>» junto con el prompt al pulsar <strong className="text-amber-300">&quot;Generar Prompt con Gemini&quot;</strong>.
                         </div>
                       )}
                     </div>
@@ -16721,7 +16750,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               : '🖼️ Crear Miniatura en Gemini Web'}
                           </button>
                           <button
-                            onClick={() => copyText(activeDoc.thumbnailPrompt, 'copy-thumb')}
+                            onClick={() =>
+                              copyText(
+                                isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
+                                  ? ''
+                                  : activeDoc.thumbnailPrompt,
+                                'copy-thumb'
+                              )
+                            }
                             className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded cursor-pointer"
                           >
                             {copiedId === 'copy-thumb' ? '✓ Copiado' : '📋 Copiar Prompt'}
@@ -16730,7 +16766,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                       <textarea
                         rows={8}
-                        value={activeDoc.thumbnailPrompt}
+                        value={
+                          isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
+                            ? ''
+                            : activeDoc.thumbnailPrompt
+                        }
                         onChange={(e) => updateActiveDoc({ thumbnailPrompt: e.target.value })}
                         placeholder="Thumbnail: Create an image ..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200"

@@ -492,7 +492,34 @@ function mergeServerDocObjects(winner: any, other: any) {
       if (fieldTombstoned || (stage1Tombstoned && ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'].includes(k))) continue;
       const wv = baseWinner[k];
       const ov = other[k];
+      if (k === 'thumbnailPrompt') {
+        const isBadThumb = (v: any) =>
+          /\((?:Tema Central|Arco Integral|Ruta Principal|Opci[oó]n\s*\d+|F[oó]rmula Exacta)[^)]*\)\s*:|—\s*(?:Recomendada|Arco hist[oó]rico completo|Escenario hist[oó]rico principal)|\[DISPARADOR_[ABC]\]|\bDESCRIPCI[OÓ]N\s*:|enigmatic forbidden historical detail or shadowy betrayal from this exact story/i.test(
+            String(v || '')
+          );
+        const wClean = wv && !isBadThumb(wv) ? String(wv) : '';
+        const oClean = ov && !isBadThumb(ov) ? String(ov) : '';
+        baseWinner.thumbnailPrompt = wClean || oClean || '';
+        continue;
+      }
       if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
+    }
+    if (
+      (!Array.isArray(baseWinner.thumbnailPsychTriggers) || baseWinner.thumbnailPsychTriggers.length === 0) &&
+      Array.isArray(other.thumbnailPsychTriggers) &&
+      other.thumbnailPsychTriggers.length > 0
+    ) {
+      baseWinner.thumbnailPsychTriggers = other.thumbnailPsychTriggers;
+    }
+    if (
+      (!Array.isArray(baseWinner.thumbnailTextOptions) || baseWinner.thumbnailTextOptions.length === 0) &&
+      Array.isArray(other.thumbnailTextOptions) &&
+      other.thumbnailTextOptions.length > 0
+    ) {
+      baseWinner.thumbnailTextOptions = other.thumbnailTextOptions;
+    }
+    if (!baseWinner.thumbnailPsychVariant && other.thumbnailPsychVariant) {
+      baseWinner.thumbnailPsychVariant = other.thumbnailPsychVariant;
     }
 
     // Preserve linked Gemini Main & Deep Research chat URLs across server merges
@@ -14349,7 +14376,16 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
       const validDrChatUrl = isDeepResearch ? validChatUrl : '';
       if (onlyIfEmpty) {
         const existingVal = list[idx][fieldKey];
-        const isAlreadyFilled = Array.isArray(existingVal)
+        const isBadStage5Existing =
+          stageNumber === 5 &&
+          (!Array.isArray(list[idx].thumbnailPsychTriggers) ||
+            list[idx].thumbnailPsychTriggers.length === 0 ||
+            /\((?:Tema Central|Arco Integral|Ruta Principal|Opci[oó]n\s*\d+|F[oó]rmula Exacta)[^)]*\)\s*:|—\s*(?:Recomendada|Arco hist[oó]rico completo|Escenario hist[oó]rico principal)|\[DISPARADOR_[ABC]\]|\bDESCRIPCI[OÓ]N\s*:|enigmatic forbidden historical detail or shadowy betrayal from this exact story/i.test(
+              String(existingVal || '')
+            ));
+        const isAlreadyFilled = isBadStage5Existing
+          ? false
+          : Array.isArray(existingVal)
           ? existingVal.length > 0
           : Boolean(String(existingVal || '').trim());
         if (isAlreadyFilled) {
@@ -14399,25 +14435,31 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
             : `Opción ${id}`;
           const cleanDesc = (descMatch?.[1] || '').replace(/\s+/g, ' ').replace(/^\*+|\*+$/g, '').trim();
           const cleanOverlay = (overlayMatch?.[1] || '')
+            .replace(/^\*+|\*+$/g, '')
             .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
             .split(/\s*(?:\/|\|)\s*/)
             .map((s) => s.trim())
             .filter(Boolean)
             .join('\n');
-          const cleanPrompt = (promptMatch?.[1] || '')
-            .replace(/^["'`]+|["'`]+$/g, '')
+          const rawPrompt = (promptMatch?.[1] || '')
+            .split(/\n\s*(?:#{1,4}|\*\*Nota|\*\*Explicaci|---)/i)[0]
+            .replace(/^["'`*]+|["'`*]+$/g, '')
             .replace(/\s+/g, ' ')
             .trim();
-          if (cleanPrompt && !parsedTriggers.some((t) => t.id === id)) {
+          const normalizedPrompt = rawPrompt
+            ? normalizeSrvThumbPrompt(rawPrompt, hasExistingUserOv ? existingUserOv : cleanOverlay)
+            : '';
+          if (normalizedPrompt && !parsedTriggers.some((t) => t.id === id)) {
             parsedTriggers.push({
               id,
               title: cleanTitle,
               description: cleanDesc,
-              prompt: cleanPrompt,
+              prompt: normalizedPrompt,
               ...(cleanOverlay ? { suggestedOverlay: cleanOverlay } : {}),
             });
           }
         }
+        parsedTriggers.sort((a, b) => a.id.localeCompare(b.id));
         if (parsedTriggers.length > 0) {
           extraPatch.thumbnailPsychTriggers = parsedTriggers;
           const selVar: 'A' | 'B' | 'C' =
@@ -14507,7 +14549,7 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
 
       list[idx] = {
         ...list[idx],
-        ...([101, 115, 12].includes(stageNumber)
+        ...([5, 101, 115, 12].includes(stageNumber)
           ? {}
           : {
               [fieldKey]:

@@ -1554,9 +1554,37 @@ function mergeTwoDocumentaryObjects(
     if (fieldTombstoned || (stage1Tombstoned && STAGE1_TEXT_KEYS.includes(k))) continue;
     const wv = (baseWinner as any)[k];
     const ov = (oNorm as any)[k];
+    if (k === 'thumbnailPrompt') {
+      const isBadThumb = (v: any) =>
+        /\((?:Tema Central|Arco Integral|Ruta Principal|Opci[oó]n\s*\d+|F[oó]rmula Exacta)[^)]*\)\s*:|—\s*(?:Recomendada|Arco hist[oó]rico completo|Escenario hist[oó]rico principal)|\[DISPARADOR_[ABC]\]|\bDESCRIPCI[OÓ]N\s*:|enigmatic forbidden historical detail or shadowy betrayal from this exact story/i.test(
+          String(v || '')
+        );
+      const wClean = wv && !isBadThumb(wv) ? String(wv) : '';
+      const oClean = ov && !isBadThumb(ov) ? String(ov) : '';
+      (baseWinner as any).thumbnailPrompt = wClean || oClean || '';
+      continue;
+    }
     if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
       (baseWinner as any)[k] = ov;
     }
+  }
+
+  if (
+    (!Array.isArray(baseWinner.thumbnailPsychTriggers) || baseWinner.thumbnailPsychTriggers.length === 0) &&
+    Array.isArray(oNorm.thumbnailPsychTriggers) &&
+    oNorm.thumbnailPsychTriggers.length > 0
+  ) {
+    baseWinner.thumbnailPsychTriggers = oNorm.thumbnailPsychTriggers;
+  }
+  if (
+    (!Array.isArray(baseWinner.thumbnailTextOptions) || baseWinner.thumbnailTextOptions.length === 0) &&
+    Array.isArray(oNorm.thumbnailTextOptions) &&
+    oNorm.thumbnailTextOptions.length > 0
+  ) {
+    baseWinner.thumbnailTextOptions = oNorm.thumbnailTextOptions;
+  }
+  if (!baseWinner.thumbnailPsychVariant && oNorm.thumbnailPsychVariant) {
+    baseWinner.thumbnailPsychVariant = oNorm.thumbnailPsychVariant;
   }
 
   if (
@@ -2465,8 +2493,17 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
       ? '16:9 horizontal aspect ratio'
       : '9:16 vertical aspect ratio';
     const badgeLabel = isThumbHorizontal ? '8K' : 'HD';
+    const stripStage1MetaLabel = (raw?: string) =>
+      String(raw || '')
+        .replace(/^\s*\([^)]*\)\s*:\s*/g, '')
+        .replace(/\s*—\s*(?:Recomendada|Arco hist[oó]rico completo[^)]*|Escenario hist[oó]rico principal[^)]*)/gi, '')
+        .trim();
+    const cleanDocTopic = stripStage1MetaLabel(doc.topic || doc.title);
+    const cleanDocTime = stripStage1MetaLabel(doc.historicalTime || doc.clip1Line1LocationTime || '');
+    const cleanDocLoc = stripStage1MetaLabel(doc.historicalLocation || '');
     stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
-Tema / Título: ${doc.topic || doc.title} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+Título del Proyecto: ${doc.title || ''}
+Tema Histórico: ${cleanDocTopic} (${cleanDocTime}, ${cleanDocLoc})
 Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
 Guion / Investigación REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
 """
@@ -2479,14 +2516,15 @@ ${clipsContext}
 Orientación activa: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
 ${overlayInstructionBlock}
 
-TAREA OBLIGATORIA — 3 DISPARADORES NEUROPSICOLÓGICOS DINÁMICOS EXCLUSIVOS DE ESTE VIDEO + SUS 3 PROMPTS EN INGLÉS:
+TAREA OBLIGATORIA — 3 DISPARADORES NEUROPSICOLÓGICOS DINÁMICOS EXCLUSIVOS DE ESTE VIDEO + SUS 3 PROMPTS 100% EN INGLÉS:
 Diseña 3 opciones distintas de Disparadores Neuropsicológicos del Clic ([DISPARADOR_A], [DISPARADOR_B], [DISPARADOR_C]) creadas 100% A MEDIDA para la historia real de ESTE documental en proceso.
-PROHIBIDO usar nombres o descripciones genéricas fijas como "Rostro + Shock (13ms)", "Curiosity Gap" o "Escala + Peligro". Cada título y descripción debe nombrar el momento histórico concreto, el objeto detonante, el dilema o el giro real de ESTE video específico, aplicando siempre los 5 principios neuropsicológicos del CTR:
-1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 elemento histórico detonante de misterio/peligro real de este guion + texto gancho), instantáneamente legible en móvil.
-2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: Protagonista de esta historia ocupando el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directo al lente ("direct piercing eye contact into the camera lens"), ojos muy abiertos mostrando la esclerótica blanca, emoción visceral auténtica (asombro, terror, descubrimiento o traición), poros y sudor reales.
-3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Cada una de las 3 opciones debe abordar un instante o misterio distinto y real de ESTE documental que obligue al espectador a preguntarse "¿Qué acaba de ocurrir ahí?".
+PROHIBIDO usar nombres o descripciones genéricas fijas como "Rostro + Shock (13ms)", "Curiosity Gap" o "Escala + Peligro". Cada título y descripción debe nombrar el momento histórico concreto, el objeto físico detonante, el escenario real o el giro exacto de ESTE video específico, aplicando siempre los 5 principios neuropsicológicos del CTR:
+1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 objeto/elemento físico real de este guion + texto gancho), instantáneamente legible en móvil.
+2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: Protagonista de esta historia ocupando el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directo al lente ("direct piercing eye contact into the camera lens"), ojos muy abiertos mostrando la esclerótica blanca, emoción visceral auténtica, poros y sudor reales.
+3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Cada una de las 3 opciones debe describir una escena física, utilería de época y entorno real distintos de ESTE documental (PROHIBIDO usar frases vagas abstractas como "shadowy betrayal" o "enigmatic forbidden historical detail").
 4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Claroscuro dramático con luz clave cálida (ámbar ardiente, oro o fuego carmesí) sobre el rostro y rim light que lo separe de un fondo oscuro frío (azul cian nocturno o sombras abismales).
-5. REGLAS TÉCNICAS OBLIGATORIAS DENTRO DE CADA "PROMPT:" (EN UNA SOLA LÍNEA EN INGLÉS):
+5. REGLAS TÉCNICAS INQUEBRANTABLES DENTRO DE CADA "PROMPT:" (EN UNA SOLA LÍNEA, 100% EN INGLÉS PURO — PROHIBIDO MEZCLAR ESPAÑOL):
+   - IDIOMA 100% INGLÉS: Dentro de "PROMPT:" queda TERMINANTEMENTE PROHIBIDO escribir palabras en español o copiar etiquetas del tema en español; las ÚNICAS palabras en español permitidas dentro de "PROMPT:" son el texto entre comillas del overlay en pantalla y el subtexto del logo "Huellas de la Humanidad".
    - Inicia exactamente con: "Thumbnail: Create an image in ${aspectPhrase} "
    - ${
      hasUserOverlay
@@ -2495,12 +2533,12 @@ PROHIBIDO usar nombres o descripciones genéricas fijas como "Rostro + Shock (13
    }
    - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold'
    - Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
-   - BLINDAJE ANTI-FILTRO: Describe siempre al personaje por sus rasgos físicos y vestimenta de época como actor anónimo de recreación histórica ("portrayed by an anonymous historical reenactment actor in authentic period attire, no real public figures or prominent people"), sin poner nombres propios de figuras públicas reales dentro del prompt en inglés.
+   - BLINDAJE ANTI-FILTRO: Describe siempre al personaje por sus rasgos físicos, edad aproximada y vestimenta de época como actor anónimo de recreación histórica ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)"), sin poner nombres propios de figuras públicas reales dentro del prompt en inglés.
    - Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 
-FORMATO DE ENTREGA ESTRICTO (entrega ÚNICAMENTE estos 3 bloques exactos, sin saludos ni explicaciones fuera de ellos):
+FORMATO DE ENTREGA ESTRICTO (entrega ÚNICAMENTE estos 3 bloques exactos en texto plano SIN asteriscos ** en las etiquetas, sin saludos ni explicaciones fuera de ellos):
 [DISPARADOR_A]
-TITULO: Opción A: <Título específico de 3 a 7 palabras basado en un momento/elemento clave de ESTE documental>
+TITULO: Opción A: <Título específico de 3 a 7 palabras basado en un momento/objeto clave de ESTE documental>
 DESCRIPCION: <1 a 2 frases en español explicando la escena específica de este video, la expresión del rostro en 13ms y por qué abre una brecha de curiosidad irresistible>
 TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS (usa " / " si son 2 líneas)>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
