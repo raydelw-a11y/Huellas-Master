@@ -1867,12 +1867,16 @@ const PromptGenerator = ({
         TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
         DURACION_CLIP_1: '6',
         DURACION_CLIPS: '10_SEGUNDOS',
+        BROLL_ESTATICO_INTERVALO_MIN: '2',
         VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
         UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       };
       const newData = { ...prev };
       if (!newData.DURACION_CLIP_1) {
         newData.DURACION_CLIP_1 = '6';
+      }
+      if (!newData.BROLL_ESTATICO_INTERVALO_MIN) {
+        newData.BROLL_ESTATICO_INTERVALO_MIN = '2';
       }
       Object.keys(radioGroups).forEach(group => {
         if (!newData[group] && radioGroups[group].length > 0) {
@@ -3499,6 +3503,54 @@ const PromptGenerator = ({
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginLeft: '0.25rem' }}>
                               segundos por clip (o selecciona abajo 10s / 8s)
                             </span>
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: '0.75rem',
+                              paddingTop: '0.65rem',
+                              borderTop: '1px dashed rgba(197, 160, 89, 0.35)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.35rem',
+                            }}
+                          >
+                            <label
+                              htmlFor="broll_estatico_intervalo_select"
+                              style={{
+                                fontSize: '0.88rem',
+                                fontWeight: 700,
+                                color: 'var(--accent-gold)',
+                                margin: 0,
+                              }}
+                            >
+                              🖼️ Clips de Imagen Estática en B-Roll con Movimiento de Cámara (Zoom In / Zoom Out / Pan / Tilt):
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                              <select
+                                id="broll_estatico_intervalo_select"
+                                name="BROLL_ESTATICO_INTERVALO_MIN"
+                                value={formData.BROLL_ESTATICO_INTERVALO_MIN || '2'}
+                                onChange={handleInputChange}
+                                style={{
+                                  padding: '0.42rem 0.65rem',
+                                  borderRadius: '5px',
+                                  border: '1.5px solid var(--accent-gold)',
+                                  backgroundColor: 'var(--focus-bg)',
+                                  color: 'var(--text-primary)',
+                                  fontWeight: 700,
+                                  fontSize: '0.88rem',
+                                }}
+                              >
+                                <option value="2">Cada ~2 minutos (Recomendado — por defecto)</option>
+                                <option value="1.5">Cada ~90 segundos (1.5 min)</option>
+                                <option value="3">Cada ~3 minutos</option>
+                                <option value="OFF">Desactivado</option>
+                              </select>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Elige escenas de archivo/objeto sin personas y genera <code>[B-Roll: STATIC_...]</code> en Lower Priority.
+                              </span>
+                            </div>
                           </div>
                         </div>
                       )}

@@ -62,6 +62,7 @@ import {
   TTSRecord,
   TTSSegmentTiming,
   ThumbnailPsychTriggerOption,
+  BrollCameraMotion,
 } from './types';
 import {
   generateTimelineText,
@@ -95,6 +96,10 @@ import {
   detectClipHasHumanSubjects,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
+  BROLL_MOTION_UI_LABEL_ES,
+  applyStaticBrollMotionToClip,
+  autoAssignPeriodicStaticBrollClips,
+  inferBestBrollMotionForNarration,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
   parseStage5TriggerBlocksShared,
@@ -146,7 +151,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:15 PM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:47 PM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4256,6 +4261,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         TEXTO_PANTALLA_CLIP_1: 'CAPCUT_MANUAL',
         DURACION_CLIP_1: '6',
         DURACION_CLIPS: '8_SEGUNDOS',
+        BROLL_ESTATICO_INTERVALO_MIN: '2',
         VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
         UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       },
@@ -18992,6 +18998,110 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </div>
                       </div>
 
+                      {/* CONFIGURACIÓN PERMANENTE: CLIPS DE IMAGEN ESTÁTICA EN B-ROLL (~CADA 2 MIN) */}
+                      <div className="bg-slate-950/90 border border-sky-500/35 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-black text-sky-300">
+                            🖼️ Clips B-Roll Estático (Zoom In / Zoom Out / Pan / Tilt):
+                          </span>
+                          <select
+                            value={activeDoc.promptConfig?.BROLL_ESTATICO_INTERVALO_MIN || '2'}
+                            onChange={(e) => {
+                              const nextVal = e.target.value;
+                              updateActiveDoc({
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  BROLL_ESTATICO_INTERVALO_MIN: nextVal,
+                                },
+                              });
+                            }}
+                            className="bg-slate-900 border border-sky-500/40 rounded-lg px-2 py-1 text-[11px] font-bold text-sky-200 cursor-pointer"
+                            title="Frecuencia automática de clips B-Roll de imagen estática para este y futuros documentales"
+                          >
+                            <option value="2">Cada ~2 minutos (Recomendado)</option>
+                            <option value="1.5">Cada ~90 segundos (1.5 min)</option>
+                            <option value="3">Cada ~3 minutos</option>
+                            <option value="OFF">Desactivado</option>
+                          </select>
+                          <span className="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-200 text-[11px] font-black">
+                            🖼️ {(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll Estáticos activos
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(activeDoc.clips?.length || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const rawInt = String(
+                                  activeDoc.promptConfig?.BROLL_ESTATICO_INTERVALO_MIN || '2'
+                                ).trim();
+                                const intMin =
+                                  rawInt.toUpperCase() === 'OFF' || rawInt === '0'
+                                    ? 2
+                                    : Math.max(1, parseFloat(rawInt) || 2);
+                                const { clip1Sec: bClip1, standardClipSec: bStd } =
+                                  getStage1ClipDurations(activeDoc);
+                                const nextClips = autoAssignPeriodicStaticBrollClips(
+                                  activeDoc.clips || [],
+                                  activeDoc.references || [],
+                                  intMin,
+                                  bClip1,
+                                  bStd,
+                                  true
+                                );
+                                const activeEngine =
+                                  activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                                const nextHeader = applyFlowVideoEngineToDirectiveText(
+                                  activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                  activeEngine
+                                );
+                                const nextRaw = buildRawClipsTextWithHeader(
+                                  nextClips,
+                                  nextHeader,
+                                  activeEngine,
+                                  bClip1,
+                                  bStd
+                                );
+                                updateActiveDoc({
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    BROLL_ESTATICO_INTERVALO_MIN: String(intMin),
+                                  },
+                                  operationalHeader: nextHeader,
+                                  clips: nextClips,
+                                  rawClipsText: nextRaw,
+                                });
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow"
+                              title="Selecciona automáticamente 1 escena de archivo/objeto sin personas cada ~2 minutos y le asigna Zoom In, Zoom Out, Pan o Tilt según la narración"
+                            >
+                              🖼️ Auto-Marcar B-Roll (~cada{' '}
+                              {activeDoc.promptConfig?.BROLL_ESTATICO_INTERVALO_MIN &&
+                              activeDoc.promptConfig.BROLL_ESTATICO_INTERVALO_MIN !== 'OFF'
+                                ? activeDoc.promptConfig.BROLL_ESTATICO_INTERVALO_MIN
+                                : '2'}{' '}
+                              min)
+                            </button>
+                          )}
+                          {(activeDoc.clips || []).some((c) => c.isStaticBroll) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClipBatchFilter(0);
+                                setClipStatusFilter(
+                                  clipStatusFilter === 'STATIC_BROLL' ? 'ALL' : 'STATIC_BROLL'
+                                );
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 text-sky-200 font-black text-[11px] cursor-pointer"
+                            >
+                              {clipStatusFilter === 'STATIC_BROLL'
+                                ? '📋 Ver Todos los Clips'
+                                : `🔍 Ver ${(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll`}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       <textarea
                         rows={13}
                         value={activeDoc.rawClipsText}
@@ -19369,6 +19479,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           return Boolean(c.reviewedForEditor);
                         case 'SIN_REVISAR':
                           return !c.reviewedForEditor;
+                        case 'STATIC_BROLL':
+                          return Boolean(c.isStaticBroll);
                         default:
                           return true;
                       }
@@ -19381,6 +19493,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         count: allClipsList.length,
                         activeClass: 'bg-amber-500 text-slate-950 border-amber-300 shadow',
                         idleClass: 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800',
+                      },
+                      {
+                        key: 'STATIC_BROLL',
+                        label: '🖼️ B-Roll Estático',
+                        count: allClipsList.filter((c) => c.isStaticBroll).length,
+                        activeClass: 'bg-sky-400 text-slate-950 border-sky-200 shadow',
+                        idleClass:
+                          'bg-sky-950/40 text-sky-200 border-sky-500/45 hover:bg-sky-950/60',
                       },
                       {
                         key: 'PENDIENTE',
@@ -19585,6 +19705,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                                   {/* Production Status Badges inside Timeline Card */}
                                   <div className="flex items-center gap-1 flex-wrap">
+                                    {clip.isStaticBroll && (
+                                      <span className="px-1.5 py-0.5 rounded bg-sky-500/25 border border-sky-400/60 text-[10px] font-black text-sky-200">
+                                        🖼️ {BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in'] || 'B-Roll'}
+                                      </span>
+                                    )}
                                     {clip.reviewedForEditor && (
                                       <span className="px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50 text-[10px] font-black text-emerald-200">
                                         ☑️ Revisado
@@ -19811,7 +19936,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {(activeDoc.clips || [])
                     .filter((clip, idx) => {
                       const batchOk =
-                        clipBatchFilter === 0 || clipStatusFilter === 'OBSERVACION_ERROR'
+                        clipBatchFilter === 0 ||
+                        clipStatusFilter === 'OBSERVACION_ERROR' ||
+                        clipStatusFilter === 'STATIC_BROLL'
                           ? true
                           : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10;
                       if (!batchOk) return false;
@@ -19854,6 +19981,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           return Boolean(clip.reviewedForEditor);
                         case 'SIN_REVISAR':
                           return !clip.reviewedForEditor;
+                        case 'STATIC_BROLL':
+                          return Boolean(clip.isStaticBroll);
                         default:
                           return true;
                       }
@@ -20136,6 +20265,92 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       ? '⚡ Omni 1.1 Flash (Personas)'
                                       : '🟢 Lower Priority (Gratis)'}
                                   </button>
+
+                                  {/* 1-Click Per-Clip Static B-Roll Toggle + Camera Motion Selector */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextEnabled = !clip.isStaticBroll;
+                                      const chosenMotion: BrollCameraMotion =
+                                        clip.brollCameraMotion ||
+                                        inferBestBrollMotionForNarration(
+                                          clip.narrationSegment || clip.videoPrompt || '',
+                                          clip.clipNumber
+                                        );
+                                      const updatedClip = applyStaticBrollMotionToClip(
+                                        clip,
+                                        nextEnabled,
+                                        chosenMotion,
+                                        cardClipDurSec
+                                      );
+                                      const nextClips = [...activeDoc.clips];
+                                      nextClips[realIdx] = updatedClip;
+                                      const nextHeader = applyFlowVideoEngineToDirectiveText(
+                                        activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                        activeEngineMode
+                                      );
+                                      updateActiveDoc({
+                                        operationalHeader: nextHeader,
+                                        clips: nextClips,
+                                        rawClipsText: buildRawClipsTextWithHeader(
+                                          nextClips,
+                                          nextHeader,
+                                          activeEngineMode,
+                                          cardClip1Sec,
+                                          cardStdSec
+                                        ),
+                                      });
+                                    }}
+                                    className={`px-2 py-0.5 rounded border text-[10px] font-black cursor-pointer transition ${
+                                      clip.isStaticBroll
+                                        ? 'bg-sky-400 text-slate-950 border-sky-200 shadow'
+                                        : 'bg-slate-900 hover:bg-slate-800 border-sky-500/40 text-sky-300'
+                                    }`}
+                                    title="Convertir este clip en Imagen Estática en B-Roll con movimiento puro de cámara (Zoom In, Zoom Out, Pan o Tilt) en Lower Priority"
+                                  >
+                                    {clip.isStaticBroll ? '🖼️ B-Roll Estático ✓' : '🖼️ B-Roll'}
+                                  </button>
+
+                                  {clip.isStaticBroll && (
+                                    <select
+                                      value={clip.brollCameraMotion || 'zoom_in'}
+                                      onChange={(e) => {
+                                        const nextMotion = e.target.value as BrollCameraMotion;
+                                        const updatedClip = applyStaticBrollMotionToClip(
+                                          clip,
+                                          true,
+                                          nextMotion,
+                                          cardClipDurSec
+                                        );
+                                        const nextClips = [...activeDoc.clips];
+                                        nextClips[realIdx] = updatedClip;
+                                        const nextHeader = applyFlowVideoEngineToDirectiveText(
+                                          activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                          activeEngineMode
+                                        );
+                                        updateActiveDoc({
+                                          operationalHeader: nextHeader,
+                                          clips: nextClips,
+                                          rawClipsText: buildRawClipsTextWithHeader(
+                                            nextClips,
+                                            nextHeader,
+                                            activeEngineMode,
+                                            cardClip1Sec,
+                                            cardStdSec
+                                          ),
+                                        });
+                                      }}
+                                      className="bg-sky-950/80 border border-sky-400/60 rounded px-1.5 py-0.5 text-[10px] font-black text-sky-200 cursor-pointer"
+                                      title="Tipo de movimiento de cámara sobre la imagen estática en B-Roll"
+                                    >
+                                      <option value="zoom_in">🔍 Zoom In</option>
+                                      <option value="zoom_out">🔎 Zoom Out</option>
+                                      <option value="pan_right">➡️ Pan Derecha</option>
+                                      <option value="pan_left">⬅️ Pan Izquierda</option>
+                                      <option value="tilt_up">⬆️ Tilt Arriba</option>
+                                      <option value="tilt_down">⬇️ Tilt Abajo</option>
+                                    </select>
+                                  )}
 
                                   <button
                                     type="button"

@@ -170,6 +170,14 @@ export interface ReferenceAsset {
   isCreated: boolean;
 }
 
+export type BrollCameraMotion =
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'pan_right'
+  | 'pan_left'
+  | 'tilt_up'
+  | 'tilt_down';
+
 export interface DocumentaryClip {
   id: string;
   clipNumber: number;
@@ -206,6 +214,9 @@ export interface DocumentaryClip {
   reframeReason?: string;
   // Motor de video específico de este clip (Omni 1.1 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)
   flowClipEngine?: 'OMNI_1_1_FLASH' | 'VEO_3_1_LITE_LOWER_PRIORITY';
+  // Clip B-Roll de Imagen Estática (~cada 2 min) con movimiento óptico puro de cámara
+  isStaticBroll?: boolean;
+  brollCameraMotion?: BrollCameraMotion;
 }
 
 export interface SunoTrack {
@@ -358,10 +369,10 @@ export interface ThumbnailPsychTriggerOption {
   suggestedOverlay?: string;
 }
 
-export const DEFAULT_OPERATIONAL_HEADER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or not, and give me a clear pre-generation report stating the exact total number of clips and how many clips will be made with Omni (Omni 1.1 Flash) and how many with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and only after delivering that report proceed with generating the images and clips.
+export const DEFAULT_OPERATIONAL_HEADER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or not, and give me a clear pre-generation report stating the exact total number of clips, how many clips will be made with Omni (Omni 1.1 Flash), and how many with Lower Priority (Veo 3.1 - Lite [Lower Priority]) including how many of those are Static B-Roll camera-move plates ([B-Roll: STATIC_...]), and only after delivering that report proceed with generating the images and clips.
 Rename the clips to the literal first 6 words of the provided pasted and submitted prompt, including the numbering.
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip.
-Create the images first and then the clips using each image as the starting frame.
+Create the images first and then the clips using each image as the starting frame. For any clip tagged [B-Roll: STATIC_...], keep the starting image 100% frozen as a still documentary B-roll plate with zero internal object animation or morphing, executing ONLY the specified smooth continuous optical camera movement (zoom-in, zoom-out, pan, or tilt).
 Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
 Divide creation into batches of 10.
@@ -388,6 +399,7 @@ export function sanitizeOperationalHeader(
     /Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes\s+me\s+avisas/i.test(trimmed) ||
     !/^Act as a (?:professional |master )?historian/i.test(trimmed) ||
     !/pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) ||
+    !/Static\s+B-Roll|\[B-Roll:\s*STATIC_/i.test(trimmed) ||
     !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
     !/batches of 10/i.test(trimmed) ||
     !trimmed.includes('01 to 09');

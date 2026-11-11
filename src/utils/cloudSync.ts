@@ -16,6 +16,9 @@ import {
   normalizeClip1Line1Format,
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
+  BROLL_MOTION_TAG_BY_KEY,
+  BROLL_MOTION_ENGLISH_PHRASE,
+  pickPeriodicStaticBrollTimelineTargets,
   BRAND_SAFETY_LEXICAL_RULE_ES,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
@@ -2793,6 +2796,24 @@ UNBREAKABLE STAGE 7 RULES:
       ? fmtMmSs(clip1Marker.end)
       : fmtMmSs(clip2StartSec);
     const expectedTotalClips = tlSentences.length > 0 ? tlSentences.length + 1 : 0;
+    const rawBrollInterval = String(doc.promptConfig?.BROLL_ESTATICO_INTERVALO_MIN ?? '2').trim();
+    const brollIntervalMin =
+      rawBrollInterval.toUpperCase() === 'OFF' || rawBrollInterval === '0'
+        ? 0
+        : Math.max(1, parseFloat(rawBrollInterval) || 2);
+    const periodicBrollTargets =
+      brollIntervalMin > 0 && tlSentences.length > 0
+        ? pickPeriodicStaticBrollTimelineTargets(
+            tlSentences.map((s, idx) => {
+              const num = idx + 2;
+              const needsOff = tlSentences[0].start < 2.0 && !clip1Marker;
+              const st = needsOff ? s.start + clip2StartSec : s.start;
+              const en = needsOff ? s.end + clip2StartSec : s.end;
+              return { clipNum: num, startSec: st, endSec: en, text: s.text };
+            }),
+            brollIntervalMin
+          )
+        : new Map();
     const preNumberedTimelineRows =
       tlSentences.length > 0
         ? [
@@ -2805,10 +2826,18 @@ UNBREAKABLE STAGE 7 RULES:
               const needsOff = tlSentences[0].start < 2.0 && !clip1Marker;
               const st = needsOff ? s.start + clip2StartSec : s.start;
               const en = needsOff ? s.end + clip2StartSec : s.end;
-              return `Clip ${numLabel} (${fmtMmSs(st)} - ${fmtMmSs(en)}) [Stage 1 Flow Duration: ${standardClipSec}s]: "${s.text}"`;
+              const brollMot = periodicBrollTargets.get(num);
+              const brollSuffix = brollMot
+                ? ` ★ [MANDATORY STATIC B-ROLL CAMERA CLIP — Tag: [B-Roll: ${BROLL_MOTION_TAG_BY_KEY[brollMot]}] | Camera Motion: ${BROLL_MOTION_ENGLISH_PHRASE[brollMot]} over a 100% frozen archival/documentary still plate, strictly zero live people, zero readable text, [Model: Veo 3.1 - Lite [Lower Priority]]]`
+                : '';
+              return `Clip ${numLabel} (${fmtMmSs(st)} - ${fmtMmSs(en)}) [Stage 1 Flow Duration: ${standardClipSec}s]: "${s.text}"${brollSuffix}`;
             }),
           ].join('\n')
         : doc.timelineFormattedText || doc.voiceoverScript || '';
+    const periodicBrollClause =
+      brollIntervalMin > 0
+        ? `\n- PERIODIC STATIC B-ROLL CAMERA CLIPS (~EVERY ${brollIntervalMin} MINUTES): Roughly every ${brollIntervalMin} minutes (and on every row marked ★ [MANDATORY STATIC B-ROLL CAMERA CLIP] above), design Image NN as a 100% still archival/documentary B-roll plate (historical artifact, specimen, apparatus, architecture, scientific plate, map, or document with strictly zero live people and zero readable text/proper names), and design Clip NN as a pure optical camera movement chosen for that scene ([B-Roll: STATIC_ZOOM_IN], [B-Roll: STATIC_ZOOM_OUT], [B-Roll: STATIC_PAN_RIGHT], [B-Roll: STATIC_PAN_LEFT], [B-Roll: STATIC_TILT_UP], or [B-Roll: STATIC_TILT_DOWN]) executing ONLY that camera motion across the 100% frozen starting image with zero internal animation, placing "[B-Roll: STATIC_...] [Duration: ${standardClipSec}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" at the end.`
+        : '';
     const expectedClipsClause =
       expectedTotalClips > 1
         ? `\nMANDATORY 1:1 EXACT CLIP COUNT & TIMESTAMPS: The pre-numbered Timeline table below omits fixed Brand Intro/Outro MP4s and contains EXACTLY ${expectedTotalClips} production clips (Clip 01 = ${c1RangeLabel} silent visual Hook of ${c1Dur}s in Flow; Clips 02..${expectedTotalClips} = ${tlSentences.length} spoken segments starting at ${c2StartLabel} of ${standardClipSec}s each in Flow). Output 1 Image+Clip pair per numbered row from Image 01 / Clip 01 through Image ${expectedTotalClips} / Clip ${expectedTotalClips}, copying each row's exact (MM:SS - MM:SS) range verbatim without ever recalculating a 10s grid, grouping lines, or stopping early.`
@@ -2835,7 +2864,7 @@ ${opHeader}
 CRITICAL LANGUAGE, DURATION & SAFETY LAWS FOR GOOGLE FLOW:
 - Write EVERY Image N and EVERY Clip N on its own separate line (zero-padded 01..09 for 1..9, NO ** bold markdown, NO bullets) 100% IN PURE ENGLISH from Clip 01 through Clip ${expectedTotalClips || 'N'}, where each Image N + Clip N visually depicts the exact historical moment, action, place, or object described in that numbered row's narration.
 - STRICTLY ZERO SPANISH INSIDE PROMPTS: Never embed, quote, or append the Spanish voiceover sentence or Spanish UI labels inside Image N or Clip N.
-- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/@Character appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag is used; explicitly write "with no people present" on empty scenes).
+- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/@Character appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag is used; explicitly write "with no people present" on empty scenes).${periodicBrollClause}
 - Apply Anti-"Prominent People" Filter Shield (describe historical characters by adult physical traits and period attire as anonymous historical reenactment actors, never real public-figure proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
 Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Character/@Location tags], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 

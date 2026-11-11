@@ -16089,6 +16089,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                       clip.partLabel ? (clip.partLabel.includes('A') ? 'A' : 'B') : ''
                                     }`}
                               </span>
+                              {activeDoc?.clips?.some(
+                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                              ) && (
+                                <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
+                                  🖼️ B-Roll
+                                </span>
+                              )}
                               {clip.foleyOnlyIsolated && (
                                 <span className="px-0.5 py-0.2 rounded bg-teal-400/95 text-[7px] font-black text-slate-950 leading-none">
                                   🌿 Foley
@@ -16163,7 +16170,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   </span>
                                 )}
                                 <div className="absolute top-1 right-1 flex flex-col items-end gap-0.5">
-                                  {clip.foleyOnlyIsolated && (
+                                  {activeDoc?.clips?.some(
+                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                              ) && (
+                                <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
+                                  🖼️ B-Roll
+                                </span>
+                              )}
+                              {clip.foleyOnlyIsolated && (
                                     <span className="px-1.5 py-0.5 rounded bg-teal-400/95 text-[8px] font-black text-slate-950 shadow">
                                       🌿 Solo Foley
                                     </span>
@@ -16188,7 +16202,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 <span className="text-[10px] font-bold text-amber-300/90">
                                   🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
                                 </span>
-                                {clip.foleyOnlyIsolated && (
+                                {activeDoc?.clips?.some(
+                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                              ) && (
+                                <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
+                                  🖼️ B-Roll
+                                </span>
+                              )}
+                              {clip.foleyOnlyIsolated && (
                                   <span className="mt-0.5 px-1.5 py-0.5 rounded bg-teal-500/25 border border-teal-400/50 text-[8px] font-black text-teal-200">
                                     🌿 Solo Foley (Sin Voz ni Música)
                                   </span>
