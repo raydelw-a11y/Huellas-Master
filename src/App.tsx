@@ -145,7 +145,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:16 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:23 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -12543,21 +12543,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     folderVoiceoverUrl,
   ]);
 
-  // Automatically create Panel 3 ("3. Prompts de Imágenes Iniciales y Clips") whenever Panel 1 or Panel 2 exists and Panel 3 has no Image/Clip prompts yet
+  // Background Timeline Extractor & Automatic Clips Timeline Synchronizer (replaces visible Panel 2 & manual Sync Bar in Stage 6)
+  const lastBgProdSyncSigRef = useRef<string>('');
   useEffect(() => {
     if (!activeDoc) return;
-    const hasScriptOrTimeline = Boolean(
-      (activeDoc.timelineFormattedText || '').trim() || (activeDoc.voiceoverScript || '').trim()
-    );
+    const rawVo = (activeDoc.voiceoverScript || '').trim();
+    const rawTl = (activeDoc.timelineFormattedText || '').trim();
+    const rawClips = (activeDoc.rawClipsText || '').trim();
+    if (!rawVo && !rawTl && !rawClips) return;
+
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const sig = `${activeDoc.id}|${clip1Sec}|${standardClipSec}|${activeDoc.clip1SyncMode || ''}|${activeDoc.references?.length || 0}|${rawVo.length}:${rawVo.slice(0, 80)}:${rawVo.slice(-80)}|${rawTl.length}:${rawTl.slice(0, 80)}|${rawClips.length}:${rawClips.slice(0, 80)}:${rawClips.slice(-80)}`;
     const hasExistingClips = Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0;
-    const hasRawClipPrompts = /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(activeDoc.rawClipsText || '');
-    if ((hasScriptOrTimeline && !hasExistingClips && !hasRawClipPrompts) || (!hasExistingClips && hasRawClipPrompts)) {
+    if (hasExistingClips && lastBgProdSyncSigRef.current === sig) return;
+
+    const timer = window.setTimeout(() => {
+      let effectiveTimelineText = rawTl;
+      let effectiveSentences = activeDoc.timelineSentences || [];
+      let didGenerateTimeline = false;
+
+      if (!effectiveTimelineText && rawVo) {
+        const leadTrackDur = Number(activeDoc.audioTracks?.[0]?.duration) || 0;
+        const autoTl = buildSmartClientTimeline(
+          activeDoc.voiceoverScript,
+          activeDoc,
+          leadTrackDur > 2 ? leadTrackDur : undefined,
+          undefined,
+          activeDoc.audioTracks?.[0]?.segmentTimings
+        );
+        if (autoTl.formatted) {
+          effectiveTimelineText = autoTl.formatted;
+          effectiveSentences = autoTl.sentences;
+          didGenerateTimeline = true;
+        }
+      }
+
+      const normalizedRaw = rawClips
+        ? ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, activeDoc.operationalHeader)
+        : '';
       const synced = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
-        timelineText: activeDoc.timelineFormattedText || '',
-        rawClipsText: activeDoc.rawClipsText || '',
+        timelineText: effectiveTimelineText,
+        rawClipsText: normalizedRaw,
         existingClips: activeDoc.clips || [],
-        clip1Duration: activeDoc.clip1DurationSeconds || 6,
+        clip1Duration: clip1Sec,
+        clipDuration: standardClipSec,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
         topic: activeDoc.topic || activeDoc.title || '',
         historicalTime: activeDoc.historicalTime || '',
@@ -12565,14 +12595,28 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         references: activeDoc.references || [],
         includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
       });
-      if (synced.length > 0) {
-        const fullRawText = buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader);
+
+      lastBgProdSyncSigRef.current = sig;
+      if (synced.length > 0 || didGenerateTimeline) {
+        const hasRawClipPrompts = /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(rawClips);
+        const fullRawText =
+          !hasRawClipPrompts && synced.length > 0
+            ? buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader)
+            : undefined;
         updateActiveDoc({
-          clips: synced,
-          rawClipsText: fullRawText,
+          ...(synced.length > 0 ? { clips: synced } : {}),
+          ...(fullRawText ? { rawClipsText: fullRawText } : {}),
+          ...(didGenerateTimeline
+            ? {
+                timelineFormattedText: effectiveTimelineText,
+                timelineSentences: effectiveSentences,
+              }
+            : {}),
         });
       }
-    }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
   }, [
     activeDoc?.id,
     activeDoc?.timelineFormattedText,
@@ -12580,6 +12624,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.rawClipsText,
     activeDoc?.clips?.length,
     activeDoc?.references?.length,
+    activeDoc?.clip1DurationSeconds,
+    activeDoc?.clipDurationMode,
+    activeDoc?.clip1SyncMode,
+    activeDoc?.audioTracks?.[0]?.duration,
     activeStage,
   ]);
 
@@ -18445,11 +18493,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                       <h3 className="text-base font-bold text-amber-300 flex items-center gap-2">
-                        🎬 8. Centro de Producción: Voz Raw con Pausas + Timestamps + Prompts de Clips
+                        🎬 Centro de Producción: Voz Narrativa Raw + Prompts de Clips
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Pega o edita las 3 fuentes de tu documental, arma el Timeline Visual de todo el video y
-                        revisa con IA si los prompts de cada clip hacen sentido con la voz narrativa y sus pausas.
+                        Los timestamps de la voz y la sincronización del Timeline Visual se calculan y actualizan automáticamente en segundo plano.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -18481,8 +18528,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   )}
                 </div>
 
-                {/* 3-PANEL SYNCHRONIZED PRODUCTION INPUTS */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                {/* 2-PANEL SYNCHRONIZED PRODUCTION INPUTS (Timeline Extractor runs automatically in background) */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {/* Panel 1: Voz Narrativa Raw con Pausas */}
                   <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
                     <div className="space-y-2">
@@ -18622,57 +18669,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
                   </div>
 
-                  {/* Panel 2: Voz Narrativa con Timestamps (Narration Timeline Extractor) */}
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
-                            2. Voz con Timestamps (Timeline Extractor)
-                          </span>
-                          <p className="text-[11px] text-slate-400">
-                            Texto con tiempos (<code className="text-emerald-300">00:06 - 00:16</code>) extraído del audio.
-                          </p>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300 shrink-0">
-                          {
-                            (activeDoc.timelineFormattedText || '')
-                              .split('\n')
-                              .filter((l) => l.trim().length > 0).length
-                          }{' '}
-                          líneas
-                        </span>
-                      </div>
-                      <textarea
-                        rows={14}
-                        value={activeDoc.timelineFormattedText}
-                        onChange={(e) => updateActiveDoc({ timelineFormattedText: e.target.value })}
-                        placeholder={
-                          'Pega aquí los timestamps de Narration Timeline Extractor:\n1 00:00 - 00:10 En el año mil trescientos cuarenta y siete...\n2 00:10 - 00:20 Las galeras genovesas...'
-                        }
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-300 leading-relaxed"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] text-slate-400">
-                        Clip 1 (00:00-00:04) sin voz se calcula automático
-                      </span>
-                      <button
-                        onClick={() => copyText(activeDoc.timelineFormattedText, 'copy-prod-timeline')}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 cursor-pointer"
-                      >
-                        {copiedId === 'copy-prod-timeline' ? '✓ Copiado' : '📋 Copiar Timestamps'}
-                      </button>
-                    </div>
-                  </div>
+                    {/* Voz con Timestamps (Timeline Extractor) runs 100% automatically in the background */}
 
-                  {/* Panel 3: Prompts de Imágenes Iniciales y Clips */}
+                  {/* Panel 2: Prompts de Imágenes Iniciales y Clips */}
                   <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <span className="text-xs font-black uppercase tracking-wider text-purple-400">
-                            3. Prompts de Imágenes Iniciales y Clips
+                            2. Prompts de Imágenes Iniciales y Clips
                           </span>
                           <p className="text-[11px] text-slate-400">
                             Pega tus bloques <code className="text-purple-300">Image N:</code> y{' '}
@@ -18878,38 +18883,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
                 </div>
 
-                {/* PRODUCTION SYNC & AI COHERENCE AUDIT ACTION BAR */}
-                <div className="bg-gradient-to-r from-amber-500/15 via-purple-500/10 to-emerald-500/15 border border-amber-500/40 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
-                  <div className="space-y-0.5">
-                    <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      ⚡ Sincronizador de Timeline y Auditor de Sentido Narrativo
-                    </h4>
-                    <p className="text-xs text-slate-300">
-                      Cruza la Voz Raw (y sus pausas) + los Timestamps + los Prompts de cada Clip para armar el
-                      timeline del video y verificar si cada imagen/video hace sentido con lo que dice el narrador.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <button
-                      onClick={handleSyncProductionTimeline}
-                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      🔄 Armar / Actualizar Timeline del Video
-                    </button>
-                    <button
-                      disabled={auditingClips}
-                      onClick={handleAuditProductionClipsWithAI}
-                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {auditingClips
-                        ? 'Analizando Coherencia Voz vs. Clips...'
-                        : '🧠 Revisar Sentido de Clips y Sugerir Cambios (IA)'}
-                    </button>
-                  </div>
-                </div>
-
                 {/* ===============================================================
                     FLUJO SEMI-AUTOMÁTICO: UN SOLO BOTÓN MAESTRO "PROCESAR CLIPS"
                 =============================================================== */}
@@ -19024,7 +18997,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       (c) => c.suggestedImagePrompt || c.suggestedVideoPrompt
                     ).length;
 
-                    if (okCount === 0 && warnCount === 0 && mismatchCount === 0 && !auditSummary) {
+                    if (suggestionsCount === 0 && !auditSummary) {
                       return null;
                     }
 
