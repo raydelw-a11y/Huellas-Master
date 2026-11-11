@@ -1428,7 +1428,14 @@
                 );
               }
 
-              if (meta && meta.targetChatTitle) {
+              if (
+                meta &&
+                meta.targetChatTitle &&
+                !meta.standaloneNewChat &&
+                !meta.noNotebook &&
+                !meta.enableCreateImage &&
+                !(meta.chatState && meta.chatState.standaloneNewChat)
+              ) {
                 const docTitleNow = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
                 const wasNewlyCreatedChat = Boolean(meta.chatState && meta.chatState.isNewChat);
                 if (
@@ -3679,8 +3686,18 @@
           await sleep(500);
         }
 
-        // 1B. Enter Notebook "Huellas de la Humanidad" and open/create this video's conversation (notebook-scoped)
-        const chatState = await ensureCorrectVideoChatBeforePrompt(payload);
+        // 1B. Standalone image creation runs in a clean new chat WITHOUT Notebook linkage;
+        // documentary calls (including Stage 5 neuropsychological triggers) enter Notebook "Huellas de la Humanidad" / video chat
+        const isStandaloneNoNotebook = Boolean(
+          payload.standaloneNewChat ||
+            payload.noNotebook ||
+            payload.enableCreateImage ||
+            payload.mediaType === 'THUMBNAILS' ||
+            Number(payload.stageNumber) === 505
+        );
+        const chatState = isStandaloneNoNotebook
+          ? { standaloneNewChat: true, isNewChat: false, nbPath: '', targetChatTitle: '' }
+          : await ensureCorrectVideoChatBeforePrompt(payload);
         if (chatState && chatState.navigating) {
           // background.js is reloading this tab to the notebook URL and will resend this order afterwards
           isBusyWithOrder = false;
@@ -3794,8 +3811,8 @@
           }
         }
 
-        // Final guard: never send if the tab left the notebook while configuring
-        if (chatState && chatState.nbPath && !isInsideNotebook(chatState.nbPath)) {
+        // Final guard: never send if the tab left the notebook while configuring (unless standalone unlinked chat)
+        if (!isStandaloneNoNotebook && chatState && chatState.nbPath && !isInsideNotebook(chatState.nbPath)) {
           isBusyWithOrder = false;
           reportStatus('ERROR', '⛔ La pestaña de Gemini salió del Notebook "Huellas de la Humanidad" antes de enviar; no se envió el prompt.', {
             stageNumber: payload.stageNumber,
@@ -3931,14 +3948,15 @@
             }
           }
 
-          const resolvedTargetChatTitle =
-            (chatState && chatState.targetChatTitle) ||
-            (payload.enableDeepResearch
-              ? payload.deepResearchVideoName ||
-                (payload.videoName
-                  ? `${stripDeepResearchSuffix(payload.videoName)}_Deep Research`
-                  : '')
-              : stripDeepResearchSuffix(payload.videoName || ''));
+          const resolvedTargetChatTitle = isStandaloneNoNotebook
+            ? ''
+            : (chatState && chatState.targetChatTitle) ||
+              (payload.enableDeepResearch
+                ? payload.deepResearchVideoName ||
+                  (payload.videoName
+                    ? `${stripDeepResearchSuffix(payload.videoName)}_Deep Research`
+                    : '')
+                : stripDeepResearchSuffix(payload.videoName || ''));
 
           watchForNewResponse(initialCount, initialLastText, {
             stageNumber: payload.stageNumber,
@@ -3946,6 +3964,8 @@
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
             enableCreateImage: wantCreateImage,
+            standaloneNewChat: isStandaloneNoNotebook,
+            noNotebook: isStandaloneNoNotebook,
             mediaType: payload.mediaType,
             optionLabel: payload.optionLabel || 'A',
             attempt: payload.attempt || 1,
@@ -3959,7 +3979,7 @@
           });
 
           // Link the chat id once Gemini assigns /app/<chatId> inside the notebook, then rename ONLY that chat (once)
-          if (chatState && chatState.nbPath) {
+          if (!isStandaloneNoNotebook && chatState && chatState.nbPath) {
             linkAndRenameAfterSubmit(chatState, payload.docId || '').catch(() => {});
           }
         } else {
@@ -3990,6 +4010,18 @@
   // Listen for commands from background.js
   const onRuntimeMessage = (msg, _sender, sendResponse) => {
     if (!msg || msg.target !== 'GEMINI') return false;
+
+    if (msg.action === 'PING_GEMINI_BUSY') {
+      const busyNow = Boolean(
+        isBusyWithOrder ||
+          activeWatchTimer !== null ||
+          promptQueue.length > 0 ||
+          isGeminiStillGenerating() ||
+          isDeepResearchActivelyBrowsing()
+      );
+      sendResponse({ ok: true, busy: busyNow });
+      return false;
+    }
 
     if (msg.action === 'SEND_PROMPT') {
       const ok = handleSendPrompt(msg);

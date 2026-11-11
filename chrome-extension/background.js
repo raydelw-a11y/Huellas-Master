@@ -2247,7 +2247,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       let preferredServiceTab = null;
-      if (targetService === 'GEMINI') {
+      let preResolvedGeminiDispatch = null;
+      if (targetService === 'GEMINI' && action === 'SEND_PROMPT') {
+        preResolvedGeminiDispatch = await acquireGeminiTargetTabWithWindowPolicy(
+          payload,
+          senderWindowId
+        );
+        if (preResolvedGeminiDispatch && preResolvedGeminiDispatch.targetTab) {
+          preferredServiceTab = preResolvedGeminiDispatch.targetTab;
+          if (preResolvedGeminiDispatch.openedNewWindow) {
+            broadcastToHuellasTabsInSameWindow(senderWindowId, {
+              type: 'BRIDGE_STATUS',
+              service: 'GEMINI',
+              status: 'WORKING',
+              message: isStandaloneCreateImageOrder(payload)
+                ? '🪟 Abriendo ventana nueva en un chat limpio (sin vinculación de Notebook) para crear la imagen...'
+                : '🪟 Abriendo ventana nueva directamente en el chat del documental porque las pestañas abiertas están en uso o no había ninguna...',
+            });
+          }
+        }
+      } else if (targetService === 'GEMINI') {
         serviceTabs = await filterOutExternalAskTabs(serviceTabs);
         // Prefer the Gemini tab already on the target chatId or on the Notebook "Huellas de la Humanidad"
         let nbPath = '';
@@ -2808,10 +2827,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        let finalDispatchPayload = payload;
+        let finalDispatchPayload =
+          preResolvedGeminiDispatch && preResolvedGeminiDispatch.finalPayload
+            ? preResolvedGeminiDispatch.finalPayload
+            : payload;
         if (targetService === 'GEMINI') {
-          if (action === 'SEND_PROMPT') {
-            finalDispatchPayload = await prePositionGeminiTabForOrder(targetTab, payload);
+          if (action === 'SEND_PROMPT' && !preResolvedGeminiDispatch?.skipPrePosition) {
+            finalDispatchPayload = await prePositionGeminiTabForOrder(targetTab, finalDispatchPayload);
           }
           await ensureScriptInjected(targetTab.id, 'gemini-content.js');
         }
@@ -4016,6 +4038,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
             debuggerAttached = true;
           } catch {}
+        }
+        if (debuggerAttached) {
+          await cdpSendWithTimeout(target, 'Emulation.setFocusEmulationEnabled', { enabled: true }, 400).catch(() => {});
         }
         // The "is debugging this browser" infobar resizes the viewport: wait before measuring coordinates
         await sleep(debuggerAttached ? 450 : 120);
@@ -5586,63 +5611,50 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
 
 async function runPendingGeminiCommandOrder(cmd) {
   if (!cmd || !cmd.action) return;
-  const rawGeminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-  const geminiTabs = await filterOutExternalAskTabs(rawGeminiTabs);
-  const { targetChatId } = await resolveDesiredGeminiChatTarget(cmd);
-  let targetTab =
-    (targetChatId &&
-      geminiTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
-    geminiTabs[0] ||
-    null;
-  if (cmd.remoteStage && (!targetTab || (targetChatId && extractGeminiAppChatId(targetTab.url || '') !== targetChatId))) {
-    let nbPath = '';
-    try {
-      const st = await chrome.storage.local.get('huellasNotebookPath');
-      nbPath = (st && st.huellasNotebookPath) || '';
-    } catch {}
-    const pathOf = (u) => {
-      try {
-        return new URL(u).pathname.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '');
-      } catch {
-        return '';
-      }
-    };
+  let targetTab = null;
+  let finalCmd = cmd;
+
+  if (cmd.action === 'SEND_PROMPT') {
+    const presence = await getHuellasBrowserProfilePresence().catch(() => null);
+    const anchorWinId =
+      presence && typeof presence.anchorWindowId === 'number' ? presence.anchorWindowId : null;
+    const resolved = await acquireGeminiTargetTabWithWindowPolicy(cmd, anchorWinId);
+    targetTab = resolved.targetTab;
+    finalCmd = resolved.finalPayload || cmd;
+  }
+
+  if (!targetTab || !targetTab.id) {
+    const rawGeminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+    const geminiTabs = await filterOutExternalAskTabs(rawGeminiTabs);
+    const { targetChatId } = await resolveDesiredGeminiChatTarget(cmd);
     targetTab =
       (targetChatId &&
         geminiTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
-      (nbPath &&
-        geminiTabs.find(
-          (t) => pathOf(t.url || '') === nbPath.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '')
-        )) ||
-      geminiTabs.find((t) => /^\/notebook\//.test(pathOf(t.url || ''))) ||
-      geminiTabs.find((t) => /^\/app\//.test(pathOf(t.url || ''))) ||
-      geminiTabs.find((t) => /^\/app\/?$/.test(pathOf(t.url || ''))) ||
       geminiTabs[0] ||
       null;
-  }
-  if (!targetTab || !targetTab.id) {
-    const initialUrl = targetChatId
-      ? `https://gemini.google.com/app/${targetChatId}`
-      : 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
-    targetTab = await chrome.tabs.create({
-      url: initialUrl,
-      active: false,
-    });
-    for (let w = 0; w < 25; w++) {
-      await sleep(300);
-      const info = await chrome.tabs.get(targetTab.id).catch(() => null);
-      if (info && info.status === 'complete') {
-        targetTab = info;
-        break;
+    if (!targetTab || !targetTab.id) {
+      const initialUrl = targetChatId
+        ? `https://gemini.google.com/app/${targetChatId}`
+        : 'https://gemini.google.com/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
+      const createdWin = await chrome.windows.create({
+        url: initialUrl,
+        focused: false,
+        type: 'normal',
+      });
+      targetTab = (createdWin && Array.isArray(createdWin.tabs) && createdWin.tabs[0]) || null;
+      if (targetTab && targetTab.id) {
+        await waitForGeminiTabLoadComplete(targetTab.id, 16000);
+        await sleep(2200);
+        targetTab = (await chrome.tabs.get(targetTab.id).catch(() => null)) || targetTab;
       }
     }
-    await sleep(2200);
+    if (cmd.action === 'SEND_PROMPT' && targetTab && targetTab.id) {
+      finalCmd = await prePositionGeminiTabForOrder(targetTab, cmd);
+    }
   }
+
+  if (!targetTab || !targetTab.id) return;
   const tabId = targetTab.id;
-  let finalCmd = cmd;
-  if (cmd.action === 'SEND_PROMPT') {
-    finalCmd = await prePositionGeminiTabForOrder(targetTab, cmd);
-  }
   if (finalCmd.remoteStage) {
     await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
     await chrome.storage.local
@@ -7202,3 +7214,281 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!/^https:\/\/gemini\.google\.com\//.test(url)) return;
   resumeGeminiOrderIfPending(tabId, url).catch(() => {});
 });
+
+const standaloneImageWindowIdsMem = new Set();
+
+async function getStandaloneImageWindowIds() {
+  const out = new Set(standaloneImageWindowIdsMem);
+  try {
+    const st = await chrome.storage.session.get('huellasStandaloneImgWinIds');
+    const arr = Array.isArray(st && st.huellasStandaloneImgWinIds) ? st.huellasStandaloneImgWinIds : [];
+    for (const id of arr) {
+      if (typeof id === 'number') out.add(id);
+    }
+  } catch {}
+  return out;
+}
+
+async function registerStandaloneImageWindowId(winId) {
+  if (typeof winId !== 'number') return;
+  standaloneImageWindowIdsMem.add(winId);
+  try {
+    const cur = await getStandaloneImageWindowIds();
+    cur.add(winId);
+    await chrome.storage.session.set({
+      huellasStandaloneImgWinIds: Array.from(cur).slice(-30),
+    });
+  } catch {}
+}
+
+function isStandaloneCreateImageOrder(payload) {
+  if (!payload) return false;
+  return Boolean(
+    payload.standaloneNewChat ||
+      payload.noNotebook ||
+      payload.enableCreateImage ||
+      payload.mediaType === 'THUMBNAILS' ||
+      Number(payload.stageNumber) === 505
+  );
+}
+
+async function isGeminiTabCurrentlyBusy(tab) {
+  if (!tab || !tab.id) return true;
+  const tabId = tab.id;
+  if (
+    activeExternalAskTabId === tabId ||
+    (typeof activeExternalAskMap !== "undefined" && Array.from(activeExternalAskMap.values()).some((v) => v && v.tabId === tabId))
+  ) {
+    return true;
+  }
+  try {
+    const remoteKey = `huellasRemoteStage_${tabId}`;
+    const st = await chrome.storage.local.get(remoteKey);
+    const rec = st && st[remoteKey];
+    if (rec && Date.now() - Number(rec.startedAt || 0) < 20 * 60 * 1000) {
+      return true;
+    }
+  } catch {}
+  try {
+    const pingRes = await Promise.race([
+      chrome.tabs.sendMessage(tabId, { target: 'GEMINI', action: 'PING_GEMINI_BUSY' }),
+      sleep(450).then(() => null),
+    ]);
+    if (pingRes && pingRes.ok) {
+      return Boolean(pingRes.busy);
+    }
+  } catch {}
+  try {
+    const domRes = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const stopSelectors = [
+          'button[aria-label*="Stop" i]',
+          'button[aria-label*="Detener" i]',
+          'button[mattooltip*="Stop" i]',
+          'button[mattooltip*="Detener" i]',
+        ];
+        for (const sel of stopSelectors) {
+          const btn = document.querySelector(sel);
+          if (btn && btn.offsetParent !== null) return true;
+        }
+        return Boolean(window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__);
+      },
+    });
+    if (domRes && domRes[0] && domRes[0].result === true) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = null) {
+  const rawGeminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
+  const geminiTabs = await filterOutExternalAskTabs(rawGeminiTabs);
+  const standaloneImgWinIds = await getStandaloneImageWindowIds();
+
+  // Preserve user's active Google account slot (/u/<N>) if present on any open Gemini tab
+  let acctPrefix = '';
+  for (const t of rawGeminiTabs) {
+    const m = String(t?.url || '').match(/gemini\.google\.com(\/u\/\d+)\//i);
+    if (m) {
+      acctPrefix = m[1];
+      break;
+    }
+  }
+
+  // CASE A: Create Image call -> NEW window (if no idle standalone image window exists) in a NEW clean chat WITHOUT Notebook linkage
+  if (isStandaloneCreateImageOrder(payload)) {
+    const freshUnlinkedUrl = `https://gemini.google.com${acctPrefix}/app`;
+    let reusableStandaloneTab = null;
+
+    for (const t of geminiTabs) {
+      if (!t || !t.id || typeof t.windowId !== 'number') continue;
+      if (!standaloneImgWinIds.has(t.windowId)) continue;
+      if (senderWindowId && t.windowId === senderWindowId) continue;
+      if (/\/notebook\//i.test(String(t.url || ''))) continue;
+      const busy = await isGeminiTabCurrentlyBusy(t);
+      if (!busy) {
+        reusableStandaloneTab = t;
+        break;
+      }
+    }
+
+    const cleanPayload = {
+      ...payload,
+      standaloneNewChat: true,
+      noNotebook: true,
+      geminiChatUrl: '',
+      geminiDeepResearchChatUrl: '',
+      notebookName: '',
+    };
+
+    if (reusableStandaloneTab && reusableStandaloneTab.id) {
+      await chrome.tabs
+        .update(reusableStandaloneTab.id, { url: freshUnlinkedUrl, autoDiscardable: false })
+        .catch(() => {});
+      await waitForGeminiTabLoadComplete(reusableStandaloneTab.id, 16000);
+      await sleep(1800);
+      const updated =
+        (await chrome.tabs.get(reusableStandaloneTab.id).catch(() => null)) || reusableStandaloneTab;
+      return {
+        targetTab: updated,
+        finalPayload: cleanPayload,
+        openedNewWindow: false,
+        skipPrePosition: true,
+      };
+    }
+
+    const createdWin = await chrome.windows.create({
+      url: freshUnlinkedUrl,
+      focused: false,
+      type: 'normal',
+    });
+    if (createdWin && typeof createdWin.id === 'number') {
+      await registerStandaloneImageWindowId(createdWin.id);
+    }
+    let createdTab =
+      (createdWin && Array.isArray(createdWin.tabs) && createdWin.tabs[0]) || null;
+    if (!createdTab && createdWin && typeof createdWin.id === 'number') {
+      const winTabs = await chrome.tabs.query({ windowId: createdWin.id }).catch(() => []);
+      createdTab = winTabs[0] || null;
+    }
+    if (createdTab && createdTab.id) {
+      await chrome.tabs.update(createdTab.id, { autoDiscardable: false }).catch(() => {});
+      await waitForGeminiTabLoadComplete(createdTab.id, 16000);
+      await sleep(2200);
+      createdTab = (await chrome.tabs.get(createdTab.id).catch(() => null)) || createdTab;
+    }
+    return {
+      targetTab: createdTab,
+      finalPayload: cleanPayload,
+      openedNewWindow: true,
+      skipPrePosition: true,
+    };
+  }
+
+  // CASE B: Documentary chat calls (including Stage 5 / 101 Neuropsychological Click Triggers)
+  // -> Execute INSIDE the documentary's chat; open a NEW window if no Gemini tab/window is open OR all open ones are currently in use!
+  let nbPath = '/notebook/5989f0d1-34c7-480e-af01-07f2ef1ee39f';
+  try {
+    const st = await chrome.storage.local.get('huellasNotebookPath');
+    if (st && st.huellasNotebookPath) nbPath = st.huellasNotebookPath;
+  } catch {}
+  const cleanNbPath = nbPath.replace(/^\/u\/\d+(?=\/)/, '');
+  const { isDeepResearch, targetChatId } = await resolveDesiredGeminiChatTarget(payload);
+
+  const candidateDocTabs = geminiTabs.filter(
+    (t) => t && t.id && !standaloneImgWinIds.has(t.windowId)
+  );
+
+  const idleDocTabs = [];
+  for (const t of candidateDocTabs) {
+    const busy = await isGeminiTabCurrentlyBusy(t);
+    if (!busy) {
+      idleDocTabs.push(t);
+    }
+  }
+
+  const pathOf = (u) => {
+    try {
+      return new URL(u).pathname.replace(/^\/u\/\d+(?=\/)/, '').replace(/\/$/, '');
+    } catch {
+      return '';
+    }
+  };
+
+  if (idleDocTabs.length > 0) {
+    const chosenIdleTab =
+      (targetChatId &&
+        idleDocTabs.find((t) => extractGeminiAppChatId(t.url || '') === targetChatId)) ||
+      (payload?.tabId && idleDocTabs.find((t) => t.id === payload.tabId)) ||
+      idleDocTabs.find(
+        (t) => pathOf(t.url || '') === cleanNbPath.replace(/\/$/, '')
+      ) ||
+      idleDocTabs.find((t) => /^\/notebook\//.test(pathOf(t.url || ''))) ||
+      (senderWindowId && idleDocTabs.find((t) => t.windowId === senderWindowId)) ||
+      idleDocTabs[0];
+
+    const finalPayload =
+      payload?.action === 'SEND_PROMPT'
+        ? await prePositionGeminiTabForOrder(chosenIdleTab, payload)
+        : payload;
+    const refreshedTab =
+      (await chrome.tabs.get(chosenIdleTab.id).catch(() => null)) || chosenIdleTab;
+    return {
+      targetTab: refreshedTab,
+      finalPayload,
+      openedNewWindow: false,
+      skipPrePosition: true,
+    };
+  }
+
+  // No Gemini tab/window is open OR every open Gemini tab/window is currently in use -> open a NEW Chrome window in the documentary's chat!
+  if (targetChatId) {
+    await recordNotebookChatInStorage(nbPath, targetChatId);
+    await saveChatLinkInBackgroundRegistry({
+      docId: payload?.docId,
+      geminiChatTitle: isDeepResearch
+        ? `${payload?.videoName || ''}_Deep Research`
+        : payload?.videoName || '',
+      geminiChatUrl: `https://gemini.google.com/app/${targetChatId}`,
+      isDeepResearch,
+      replacesDeletedChat: true,
+      notebookPath: nbPath,
+    });
+  }
+
+  const initialDocUrl = targetChatId
+    ? `https://gemini.google.com${acctPrefix}/app/${targetChatId}`
+    : `https://gemini.google.com${acctPrefix}${cleanNbPath}`;
+
+  const createdDocWin = await chrome.windows.create({
+    url: initialDocUrl,
+    focused: false,
+    type: 'normal',
+  });
+  let createdDocTab =
+    (createdDocWin && Array.isArray(createdDocWin.tabs) && createdDocWin.tabs[0]) || null;
+  if (!createdDocTab && createdDocWin && typeof createdDocWin.id === 'number') {
+    const winTabs = await chrome.tabs.query({ windowId: createdDocWin.id }).catch(() => []);
+    createdDocTab = winTabs[0] || null;
+  }
+  let finalPayload = payload;
+  if (createdDocTab && createdDocTab.id) {
+    await chrome.tabs.update(createdDocTab.id, { autoDiscardable: false }).catch(() => {});
+    await waitForGeminiTabLoadComplete(createdDocTab.id, 16000);
+    await sleep(2200);
+    createdDocTab = (await chrome.tabs.get(createdDocTab.id).catch(() => null)) || createdDocTab;
+    if (payload?.action === 'SEND_PROMPT') {
+      finalPayload = await prePositionGeminiTabForOrder(createdDocTab, payload);
+      createdDocTab = (await chrome.tabs.get(createdDocTab.id).catch(() => null)) || createdDocTab;
+    }
+  }
+  return {
+    targetTab: createdDocTab,
+    finalPayload,
+    openedNewWindow: true,
+    skipPrePosition: true,
+  };
+}
+

@@ -14321,12 +14321,124 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
     if (doc.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === cmd.commandId) return false;
     if (Date.now() - Number(cmd.requestedAt || 0) > 2 * 60 * 60 * 1000) return false;
     processedRemoteCommandIds.add(cmd.commandId);
-    const safePrompt = String(cmd.prompt)
-      .replace(/\r\n/g, '\n')
-      .split('\n')
-      .map((l: string) => l.trim())
-      .filter(Boolean)
-      .join('   |   ');
+    const resolvedDocId = String(doc.id || cmd.docId || '');
+    const resolvedStageNum = Number(cmd.stageNumber) || 1;
+    // Persist idempotency (survives server restarts) + status for the phone
+    try {
+      const list = readDocumentaries();
+      const idx = list.findIndex((d) => d && d.id === doc.id);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          promptConfig: {
+            ...(list[idx].promptConfig || {}),
+            REMOTE_GEMINI_STAGE_ACK_ID: cmd.commandId,
+            REMOTE_GEMINI_STAGE_STATUS: 'running',
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        writeDocumentaries(list);
+      }
+    } catch {}
+    console.log(`[RemoteGeminiStage] Encolado ${cmd.commandId} (etapa ${resolvedStageNum}) para ${resolvedDocId}`);
+    publishRemoteMacAck({ commandId: cmd.commandId, docId: resolvedDocId, status: 'gemini_stage_running' });
+
+    if (Date.now() - lastHuellasAppWindowPollAt > 5000) {
+      wakeExtensionInHuellasAppBrowser();
+    }
+
+    // Stage 505: Remote Thumbnail Image Generation launched from Mobile (`Create image` + Official Logo on Mac)
+    // Runs in a NEW Chrome window (if none idle) on a NEW clean chat WITHOUT Notebook linkage
+    if (resolvedStageNum === 505 || Boolean(cmd.enableCreateImage) || cmd.mediaType === 'THUMBNAILS') {
+      const logoDataUrl =
+        String(cmd.logoDataUrl || '').trim() || resolveOfficialLogoPayloadServer().logoDataUrl;
+      const optLabel = String(cmd.optionLabel || 'A').trim().toUpperCase();
+      const thumbPromptClean = String(cmd.prompt || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Save Logo_Huellas_de_la_Humanidad.png + Prompts_Miniatura.txt silently into 03_Miniaturas on Mac
+      try {
+        const docTitleHint = `${doc?.title || ''} ${doc?.topic || ''}`.trim();
+        const resolvedRoot = resolveLocalDocumentaryFolder(
+          doc?.downloadFolderPath || '',
+          doc?.downloadFolderName || '',
+          docTitleHint
+        );
+        if (resolvedRoot) {
+          ensureDocumentarySubfolders(resolvedRoot);
+          const thumbsDir = path.join(resolvedRoot, '03_Miniaturas');
+          if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+          if (logoDataUrl.startsWith('data:image/')) {
+            const logoBuf = Buffer.from(logoDataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64');
+            const logoTarget = path.join(thumbsDir, 'Logo_Huellas_de_la_Humanidad.png');
+            fs.writeFileSync(logoTarget, logoBuf);
+            try {
+              execSync(`chflags nohidden "${logoTarget.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+            } catch {}
+          }
+          const txtTarget = path.join(thumbsDir, 'Prompts_Miniatura.txt');
+          fs.writeFileSync(
+            txtTarget,
+            `=== OPCIÓN ${optLabel} (MINIATURA SELECCIONADA - GEMINI WEB CREATE IMAGE) ===\n\n${String(cmd.prompt || '').trim()}\n`,
+            'utf8'
+          );
+          try {
+            execSync(`chflags nohidden "${txtTarget.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+          } catch {}
+        }
+      } catch (e) {
+        console.warn('[RemoteGeminiStage 505] Error preparando 03_Miniaturas en Mac:', e);
+      }
+
+      pendingGeminiCommands.set(cmd.commandId, {
+        commandId: cmd.commandId,
+        docId: resolvedDocId,
+        action: 'SEND_PROMPT',
+        prompt: thumbPromptClean,
+        logoDataUrl,
+        aspectRatio: String(cmd.aspectRatio || '16:9'),
+        stageNumber: 505,
+        taskType: 'THUMBNAIL_IMAGE_GENERATION',
+        enableHighModel: false,
+        enableArgonLow: true,
+        enableCarbonLow: true,
+        preferredModel: 'CARBON_4_LOW',
+        thinkingLevel: 'LOW',
+        enableDeepResearch: false,
+        enableCreateImage: true,
+        standaloneNewChat: true,
+        noNotebook: true,
+        mediaType: 'THUMBNAILS',
+        optionLabel: optLabel,
+        skipModelSwitch: false,
+        autoSubmit: true,
+        focusTab: false,
+        videoName: '',
+        deepResearchVideoName: '',
+        geminiChatUrl: '',
+        geminiDeepResearchChatUrl: '',
+        notebookName: '',
+        createdAt: Date.now(),
+        remoteStage: false,
+        noReclaim: true,
+        remoteCommandId: cmd.commandId,
+      } as any);
+      return true;
+    }
+
+    // Stage 5 (Neuropsychological Click Triggers) & Stage 101 preserve structured newlines and run INSIDE the documentary's chat
+    // (opening a new Chrome window on the documentary's chat if none is open or open ones are in use)
+    const safePrompt =
+      resolvedStageNum === 5 || resolvedStageNum === 101
+        ? String(cmd.prompt || '').replace(/\r\n/g, '\n').trim()
+        : String(cmd.prompt)
+            .replace(/\r\n/g, '\n')
+            .split('\n')
+            .map((l: string) => l.trim())
+            .filter(Boolean)
+            .join('   |   ');
     pendingGeminiCommands.set(cmd.commandId, {
       commandId: cmd.commandId,
       docId: resolvedDocId,
@@ -14359,25 +14471,6 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       remoteStage: true,
       remoteCommandId: cmd.commandId,
     });
-    // Persist idempotency (survives server restarts) + status for the phone
-    try {
-      const list = readDocumentaries();
-      const idx = list.findIndex((d) => d && d.id === doc.id);
-      if (idx !== -1) {
-        list[idx] = {
-          ...list[idx],
-          promptConfig: {
-            ...(list[idx].promptConfig || {}),
-            REMOTE_GEMINI_STAGE_ACK_ID: cmd.commandId,
-            REMOTE_GEMINI_STAGE_STATUS: 'running',
-          },
-          updatedAt: new Date().toISOString(),
-        };
-        writeDocumentaries(list);
-      }
-    } catch {}
-    console.log(`[RemoteGeminiStage] Encolado ${cmd.commandId} (etapa ${cmd.stageNumber}) para ${doc.id}`);
-    publishRemoteMacAck({ commandId: cmd.commandId, docId: doc.id, status: 'gemini_stage_running' });
     return true;
   } catch {
     return false;

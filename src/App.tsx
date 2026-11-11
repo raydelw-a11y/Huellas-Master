@@ -9400,6 +9400,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         prompt: promptText,
         taskType: 'THUMBNAIL_IMAGE_GENERATION',
         enableCreateImage: true,
+        standaloneNewChat: true,
+        noNotebook: true,
         mediaType: 'THUMBNAILS',
         optionLabel: effectiveOptionLabel,
         aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
@@ -9409,10 +9411,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         preferredModel: 'CARBON_4_LOW',
         thinkingLevel: 'LOW' as const,
         enableDeepResearch: false,
-        videoName: targetVideoBaseName,
-        deepResearchVideoName: targetVideoBaseName ? `${targetVideoBaseName}_Deep Research` : '',
-        geminiChatUrl: getDocMainChatUrl(activeDoc),
-        geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(activeDoc),
+        videoName: '',
+        deepResearchVideoName: '',
+        geminiChatUrl: '',
+        geminiDeepResearchChatUrl: '',
+        notebookName: '',
       };
       const remotePatch: Partial<DocumentaryProject> = {
         ...(effectiveOverlay ? { thumbnailTextOverlay: effectiveOverlay } : {}),
@@ -9489,18 +9492,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setThumbnailGeneratingOption(effectiveOptionLabel);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (herramienta Create image en el chat del documental) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
+      `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (ventana nueva en un chat limpio sin vinculación de Notebook) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
 
-    // Send Prompt + Official Logo DataURL to logged-in Gemini Web chat with Create image tool active
+    // Send Prompt + Official Logo DataURL to a standalone new Gemini Web window/chat WITHOUT Notebook linkage
     sendCommandToWebBridge('GEMINI', {
       action: 'SEND_PROMPT',
       docId: activeDoc.id,
-      videoName: targetVideoBaseName,
-      deepResearchVideoName: targetVideoBaseName ? `${targetVideoBaseName}_Deep Research` : '',
-      geminiChatUrl: getDocMainChatUrl(activeDoc),
-      geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(activeDoc),
-      notebookName: 'Huellas de la Humanidad',
+      videoName: '',
+      deepResearchVideoName: '',
+      geminiChatUrl: '',
+      geminiDeepResearchChatUrl: '',
+      notebookName: '',
+      standaloneNewChat: true,
+      noNotebook: true,
       prompt: promptText,
       logoDataUrl: officialLogoUrl,
       aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
@@ -9517,7 +9522,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       optionLabel: effectiveOptionLabel,
       autoSubmit: true,
       focusTab: false,
-      tabId: selectedGeminiTabId,
     });
   };
 
@@ -10612,86 +10616,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
-
-    // On Mac local, execute Stage 5 (3 Neuropsychological Click Triggers + Thumbnail Prompt) via the
-    // focus-emulated silent background tab endpoint (`4 Carbon · Low`) so background-tab throttling never stalls it
-    const isLocalMacHost =
-      typeof window !== 'undefined' &&
-      /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
-    if (stageNum === 5 && isLocalMacHost && !isCloudMode) {
-      setAiGenerating(true);
-      setBridgeStatusType('WORKING');
-      setBridgeStatusMsg(
-        `🧠 Generando automáticamente en Gemini Web (4 Carbon · Low) los 3 disparadores neuropsicológicos para «${
-          currentDoc.title || currentDoc.topic
-        }»...`
-      );
-      fetch('/api/stage5-triggers/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          docId: currentDoc.id,
-          prompt: promptText,
-        }),
-      })
-        .then(async (r) => {
-          const data = await r.json().catch(() => null);
-          if (r.ok && data?.ok && String(data.rawText || '').trim()) {
-            const parsedStage5 = parseStage5TriggersAndPrompts(
-              String(data.rawText),
-              orientationForThumb,
-              currentDoc.thumbnailTextOverlay || '',
-              currentDoc
-            );
-            const patch: Partial<DocumentaryProject> = {
-              thumbnailOrientation: orientationForThumb,
-            };
-            if (parsedStage5.triggers.length > 0) {
-              const desiredVar: 'A' | 'B' | 'C' =
-                currentDoc.thumbnailPsychVariant === 'B'
-                  ? 'B'
-                  : currentDoc.thumbnailPsychVariant === 'C'
-                  ? 'C'
-                  : 'A';
-              const chosen =
-                parsedStage5.triggers.find((t) => t.id === desiredVar) || parsedStage5.triggers[0];
-              patch.thumbnailPsychTriggers = parsedStage5.triggers;
-              patch.thumbnailPsychVariant = chosen.id;
-              patch.thumbnailPrompt = chosen.prompt;
-              const suggestedList = parsedStage5.triggers
-                .map((t) => (t.suggestedOverlay || '').trim())
-                .filter(Boolean);
-              if (suggestedList.length > 0) {
-                patch.thumbnailTextOptions = suggestedList;
-                if (parseThumbnailOverlayLines(currentDoc.thumbnailTextOverlay || '').length === 0) {
-                  patch.thumbnailTextOverlay =
-                    chosen.suggestedOverlay || suggestedList[0] || '';
-                }
-              }
-            } else if (parsedStage5.fallbackPrompt) {
-              patch.thumbnailPrompt = parsedStage5.fallbackPrompt;
-            }
-            updateActiveDoc(patch);
-            setAiGenerating(false);
-            setBridgeStatusType('READY');
-            setBridgeStatusMsg(
-              '✅ 3 disparadores neuropsicológicos y prompt de miniatura generados automáticamente.'
-            );
-            return;
-          }
-          throw new Error(data?.error || 'Respuesta vacía');
-        })
-        .catch((err) => {
-          setAiGenerating(false);
-          setBridgeStatusType('ERROR');
-          setBridgeStatusMsg(
-            `⚠️ No se pudieron generar los disparadores automáticamente (${String(
-              err?.message || err
-            )}). Pulsa "⚡ Regenerar 3 Disparadores" para reintentar.`
-          );
-        });
-      return;
-    }
 
     // When starting research in Stage 1 (Parte 1 or Parte 2), automatically paste the compiled prompt into its text box and persist the selected library video!
     if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
