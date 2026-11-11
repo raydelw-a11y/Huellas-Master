@@ -5462,6 +5462,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             stageNumber: stageNum,
             text: message.text,
             onlyIfEmpty: true,
+            isPartialContinuation: Boolean(message.isPartialContinuation),
+            continuationRound: Number(message.continuationRound || 0),
             chatUrl: sender?.tab?.url || '',
           }),
         }).catch(() => {});
@@ -6133,8 +6135,10 @@ async function forwardRemoteStageResultIfAny(message, sender) {
     info = st && st[key];
   } catch {}
   if (!info || !info.commandId) return { isRemote: false };
-  // Consume the tab marker right away so a later LOCAL order in this tab never inherits the remote docId
-  await chrome.storage.local.remove(key).catch(() => {});
+  // Keep tab marker alive during Stage 8 multi-turn continuations; consume it only on the final turn
+  if (!message.isPartialContinuation) {
+    await chrome.storage.local.remove(key).catch(() => {});
+  }
   if (Date.now() - Number(info.startedAt || 0) > 2 * 60 * 60 * 1000) {
     return { isRemote: false };
   }
@@ -6144,6 +6148,8 @@ async function forwardRemoteStageResultIfAny(message, sender) {
     stageNumber: message.stageNumber || info.stageNumber,
     isDeepResearch: Boolean(info.isDeepResearch),
     replacesDeletedChat: Boolean(info.replacesDeletedChat),
+    isPartialContinuation: Boolean(message.isPartialContinuation),
+    continuationRound: Number(message.continuationRound || 0),
     text: message.text || '',
     chatUrl: sender?.tab?.url || '',
   });

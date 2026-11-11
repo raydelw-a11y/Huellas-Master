@@ -87,25 +87,12 @@ export function applyAutomaticFlowPolicyShield(
     'the adult historical figure in period attire'
   );
 
-  // 3. Reemplazar etiquetas @Persona en el cuerpo del prompt para evitar que Flow bloquee @Nombres reales
-  p = p.replace(/@([A-Za-zÁÉÍÓÚÑáéíóúñ0-9_]+)/g, (_m, tagBody) => {
-    const lower = String(tagBody).toLowerCase();
-    if (
-      /castillo|torre|catedral|palacio|abadia|sala|camara|bosque|ciudad|puerto|muelle|cubierta|barco|trono|corona|carta|sello|espada|mapa/.test(
-        lower
-      )
-    ) {
-      return tagBody.replace(/_/g, ' ');
-    }
-    if (/reina|princesa|dama|mujer|ingeborg|blanca|leonor|isabel|catalina|maria|ana|elena/i.test(lower)) {
-      return 'an adult historical woman in authentic period wardrobe, portrayed by an anonymous historical reenactment actress';
-    }
-    return 'an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor';
-  });
+  // 3. Preservar intactos los identificadores @Referencia (@Character y @Location de Etapa 4)
+  // para que Google Flow vincule las láminas de referencia exactas sin destruirlas ni convertir lugares en personas.
 
-  // 4. Neutralizar términos de edad/menores y términos gráficos/violencia/sangre/"muerte"/"asesino" y derivados en inglés y español
+  // 4. Neutralizar únicamente edades de menores (<18 años) y términos gráficos/violencia/sangre/"muerte"/"asesino"
   p = p.replace(
-    /\b(\d{1,2}-year-old|child bride|young girl|teenage girl|little girl|little boy|adolescent|minor|underage|niña|adolescente|menor)\b/gi,
+    /\b((?:[1-9]|1[0-7])-year-old|child bride|young girl|teenage girl|teenage boy|little girl|little boy|adolescent|minor|underage|niña|niño|adolescente|menor)\b/gi,
     'adult in their mid-twenties'
   );
   p = p
@@ -546,14 +533,18 @@ export function ensureAntiMutationPhysicsInPrompt(
       ''
     )
     .replace(
-      /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
+      /Sustained,\s*unhurried\s*continuous\s*(?:action|motion)\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
       ''
     )
     .replace(
       /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
       ''
     )
-    .replace(/(?:\b\d+\s*bokeh\)\.\s*)+/gi, '')
+    .replace(
+      /Strictly\s*zero\s*people(?:,\s*zero\s*human\s*silhouettes,?)?\s*and\s*zero\s*(?:moving\s*characters|human\s*figures)[^.]*\.\s*/gi,
+      ''
+    )
+    .replace(/(?<!f\/1\.)(?:\b\d+\s*bokeh\)\.\s*)+/gi, '')
     .replace(
       /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi,
       ''
@@ -568,16 +559,22 @@ export function ensureAntiMutationPhysicsInPrompt(
     )
     .trim();
 
+  const isExplicitZeroPeopleScene =
+    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans)|strictly\s+empty\s+environment|uninhabited)\b/i.test(
+      p
+    );
+
   if (isImagePrompt) {
-    const imgClause =
-      'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
+    const imgClause = isExplicitZeroPeopleScene
+      ? 'clean uncluttered composition with rigid architectural perspective, stationary period props, strictly empty environment with no people present'
+      : 'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
     if (!p.toLowerCase().includes('rigid architectural perspective')) {
       if (/\bno\s+text\b/i.test(p)) {
         p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
       } else {
         p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
       }
-    } else if (!/no real public figures/i.test(p)) {
+    } else if (!isExplicitZeroPeopleScene && !/no real public figures/i.test(p)) {
       p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
     }
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
@@ -604,7 +601,9 @@ export function ensureAntiMutationPhysicsInPrompt(
     .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
     .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
-  const shieldDirective = `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).`;
+  const shieldDirective = isExplicitZeroPeopleScene
+    ? `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous motion across the full ${clipSec} seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to ${clipSec}s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes).`
+    : `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).`;
 
   if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
     p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -631,7 +630,8 @@ export function buildRawClipsTextWithHeader(
   operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
   projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER',
   clip1DurationSec?: number,
-  standardClipDurationSec?: number
+  standardClipDurationSec?: number,
+  references?: ReferenceAsset[]
 ): string {
   const header = sanitizeOperationalHeader(operationalHeader, projectEngineMode);
   const body = (clips || [])
@@ -645,7 +645,7 @@ export function buildRawClipsTextWithHeader(
       const vid = rawVid
         ? applyClipFlowVideoEngineTag(
             rawVid,
-            resolveClipFlowVideoEngine(c, projectEngineMode),
+            resolveClipFlowVideoEngine(c, projectEngineMode, references),
             durSec
           )
         : '';
@@ -870,9 +870,9 @@ export function parseTimelineTextToSentences(timelineText: string): Sentence[] {
     ) {
       continue;
     }
-    // Soportar: "1 00:06 - 00:16 Texto..." o "00:06 - 00:16 Texto..." o "[00:06 - 00:16] Texto..."
+    // Soportar: "1 00:06 - 00:16 Texto..." o "00:06 - 00:16 Texto..." o "[00:06 - 00:16] | Texto..."
     const m = line.match(
-      /^(?:\d+[\s.)\-]*)?\[?(\d{1,2}:\d{2}(?::\d{2}(?:[,.]\d{1,3})?)?)\s*(?:-|-->|–)\s*(\d{1,2}:\d{2}(?::\d{2}(?:[,.]\d{1,3})?)?)\]?\s*[:\-]?\s*(.+)$/
+      /^(?:\d+(?:[\s.)\-]+))?\[?(\d{1,3}:\d{2}(?::\d{2}(?:[,.]\d{1,3})?)?)\s*(?:-|-->|–|—)\s*(\d{1,3}:\d{2}(?::\d{2}(?:[,.]\d{1,3})?)?)\]?\s*[:\-|]?\s*(.+)$/
     );
     if (m) {
       const start = toSeconds(m[1]);
@@ -1661,7 +1661,7 @@ export function syncAndAuditProductionClips(
         if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
           c1Issues.push('El Clip 1 no debe llevar voz hablada; debe cerrar con "no music, no speech".');
         }
-        if (/\b\d+\s*bokeh\)\./i.test(imgP) || /\b\d+\s*bokeh\)\./i.test(vidP)) {
+        if (/(?<!f\/1\.)\b\d+\s*bokeh\)\./i.test(imgP) || /(?<!f\/1\.)\b\d+\s*bokeh\)\./i.test(vidP)) {
           c1Issues.push('Residuo de truncamiento "bokeh)." detectado en el prompt.');
         }
         if (c1Issues.length > 0) {
@@ -1798,7 +1798,7 @@ export function syncAndAuditProductionClips(
       }
 
       if (
-        /\((?:Ruta Principal|Arco Integral|Tema Central)[^)]*\)|—\s*Recomendada|\b\d+\s*bokeh\)\./i.test(
+        /\((?:Ruta Principal|Arco Integral|Tema Central)[^)]*\)|—\s*Recomendada|(?<!f\/1\.)\b\d+\s*bokeh\)\./i.test(
           `${imgP} ${vidP}`
         )
       ) {
