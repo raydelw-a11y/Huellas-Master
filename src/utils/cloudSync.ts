@@ -1569,6 +1569,45 @@ function mergeTwoDocumentaryObjects(
     }
   }
 
+  const otherJustCompletedSameRemoteCmd =
+    baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'running' &&
+    oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed' &&
+    Boolean(oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID) &&
+    (!baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID ||
+      baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID ===
+        oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID);
+
+  if (otherJustCompletedSameRemoteCmd) {
+    baseWinner = {
+      ...baseWinner,
+      promptConfig: {
+        ...(baseWinner.promptConfig || {}),
+        REMOTE_GEMINI_STAGE_STATUS: 'completed',
+        REMOTE_GEMINI_STAGE_ERROR: '',
+        REMOTE_GEMINI_STAGE_ACK_ID: oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || '',
+      },
+    };
+    if (Array.isArray(oNorm.thumbnailPsychTriggers) && oNorm.thumbnailPsychTriggers.length > 0) {
+      baseWinner.thumbnailPsychTriggers = oNorm.thumbnailPsychTriggers;
+    }
+    if (Array.isArray(oNorm.thumbnailTextOptions) && oNorm.thumbnailTextOptions.length > 0) {
+      baseWinner.thumbnailTextOptions = oNorm.thumbnailTextOptions;
+    }
+    if (oNorm.thumbnailPsychVariant) {
+      baseWinner.thumbnailPsychVariant = oNorm.thumbnailPsychVariant;
+    }
+    if (oNorm.thumbnailPrompt && String(oNorm.thumbnailPrompt).trim()) {
+      baseWinner.thumbnailPrompt = oNorm.thumbnailPrompt;
+    }
+    if (oNorm.thumbnailTextOverlay && String(oNorm.thumbnailTextOverlay).trim()) {
+      baseWinner.thumbnailTextOverlay = oNorm.thumbnailTextOverlay;
+    }
+    if (oNorm.thumbnailImageUrl && String(oNorm.thumbnailImageUrl).trim()) {
+      baseWinner.thumbnailImageUrl = oNorm.thumbnailImageUrl;
+      baseWinner.thumbnailReady = true;
+    }
+  }
+
   if (
     (!Array.isArray(baseWinner.thumbnailPsychTriggers) || baseWinner.thumbnailPsychTriggers.length === 0) &&
     Array.isArray(oNorm.thumbnailPsychTriggers) &&
@@ -1841,8 +1880,15 @@ export function mergeDocumentariesLists(
         byId.set(l.id, normalized);
       }
     } else {
-      const lTime = Date.parse(normalized.updatedAt || normalized.createdAt || '') || 0;
-      const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+      const parseDocTimeMs = (v: any): number => {
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+        const s = String(v || '').trim();
+        if (!s) return 0;
+        if (/^\d{10,}$/.test(s)) return Number(s) || 0;
+        return Date.parse(s) || 0;
+      };
+      const lTime = parseDocTimeMs((normalized as any).updatedAt || (normalized as any).createdAt);
+      const rTime = parseDocTimeMs((existing as any).updatedAt || (existing as any).createdAt);
       if (lTime >= rTime) {
         byId.set(l.id, mergeTwoDocumentaryObjects(normalized, existing));
       } else {
@@ -1852,8 +1898,15 @@ export function mergeDocumentariesLists(
   }
 
   const sorted = Array.from(byId.values()).sort((a, b) => {
-    const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
-    const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    const parseSortMs = (v: any): number => {
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      const s = String(v || '').trim();
+      if (!s) return 0;
+      if (/^\d{10,}$/.test(s)) return Number(s) || 0;
+      return Date.parse(s) || 0;
+    };
+    const tA = parseSortMs((a as any).updatedAt || (a as any).createdAt);
+    const tB = parseSortMs((b as any).updatedAt || (b as any).createdAt);
     return tB - tA;
   });
 

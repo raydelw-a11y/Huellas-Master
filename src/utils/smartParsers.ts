@@ -3124,3 +3124,173 @@ export function applyClipFlowVideoEngineTag(
   return `${cleaned} ${tagText}`;
 }
 
+export interface ParsedStage5TriggerRawBlock {
+  id: 'A' | 'B' | 'C';
+  title: string;
+  description: string;
+  rawPrompt: string;
+  suggestedOverlay: string;
+}
+
+/**
+ * Parses Stage 5 Neuropsychological Click Triggers ([DISPARADOR_A/B/C] or Opción A/B/C or 1/2/3)
+ * across all real-world Gemini Markdown/plain-text variations (`**TITULO:**`, `TEXTO EN PANTALLA:`,
+ * `PROMPT TÉCNICO:`, pipe-flattened lines, inline header titles, etc.) and sanitizes editorial output.
+ */
+export function parseStage5TriggerBlocksShared(rawText: string): {
+  blocks: ParsedStage5TriggerRawBlock[];
+  directEnglishCandidate: string;
+} {
+  const cleaned = String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .replace(
+      /\s+\|\s+(?=(?:[-•*# \t]|\d+[.)][ \t]*)*(?:\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)[_\s\-]*(?:[ABC]|[123])\b|T[IÍ]TULO\b|DESCRIPCI[OÓ]N\b|EXPLICACI[OÓ]N\b|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA\b|OVERLAY\b|PROMPT\b))/gi,
+      '\n'
+    )
+    // Ensure DOM-concatenated paragraphs from Gemini (`...no music.[DISPARADOR_B] TITULO: ... DESCRIPCION: ...`) always split cleanly onto new lines
+    .replace(/([^\n])(\[\s*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)[_\s\-]*[ABC123]\s*\])/gi, '$1\n$2')
+    .replace(
+      /([^\n])\s+((?:\*+\s*)?(?:T[IÍ]TULO|DESCRIPCI[OÓ]N|EXPLICACI[OÓ]N|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY(?:[_\s]*TEXT)?|(?:IMAGE[ \t]+)?PROMPT(?:[ \t]+(?:T[EÉ]CNICO|EN[ \t]+INGL[EÉ]S|VISUAL))?)(?:\s*\*+)?\s*:)/gi,
+      '$1\n$2'
+    )
+    .trim();
+
+  if (!cleaned) {
+    return { blocks: [], directEnglishCandidate: '' };
+  }
+
+  const mapTokenToId = (tok: string): 'A' | 'B' | 'C' => {
+    const u = String(tok || '').trim().toUpperCase();
+    if (u === 'B' || u === '2') return 'B';
+    if (u === 'C' || u === '3') return 'C';
+    return 'A';
+  };
+
+  const headerLineRegex =
+    /(?:^|\n)[ \t]*(?:[-•*# \t]|\d+[.)][ \t]*)*\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)(?:[ \t]+NEUROPSICOL[OÓ]GICO)?[_\s\-]*([ABC123])\b[ \t]*\]?(?:[ \t]*\*+)?(?:[ \t]*[:\-—–][ \t]*([^\n]*))?/gi;
+
+  const headerHits: Array<{
+    id: 'A' | 'B' | 'C';
+    inlineTitle: string;
+    startIdx: number;
+    bodyStartIdx: number;
+  }> = [];
+
+  let hm: RegExpExecArray | null;
+  while ((hm = headerLineRegex.exec(cleaned)) !== null) {
+    const rawIdTok = hm[1] || 'A';
+    const inlineTail = String(hm[2] || '').trim();
+    // Skip accidental matches inside a sentence if inlineTail looks like lowercase continuation without fields nearby
+    const matchStart = hm.index + (hm[0].startsWith('\n') ? 1 : 0);
+    const bodyStart = hm.index + hm[0].length;
+    headerHits.push({
+      id: mapTokenToId(rawIdTok),
+      inlineTitle: inlineTail.replace(/^\*+|\*+$/g, '').trim(),
+      startIdx: matchStart,
+      bodyStartIdx: bodyStart,
+    });
+  }
+
+  const stripFieldMd = (val?: string) =>
+    String(val || '')
+      .replace(/^\s*\*+\s*|\s*\*+\s*$/g, '')
+      .replace(/^["'`«»“”]+|["'`«»“”]+$/g, '')
+      .trim();
+
+  const blocks: ParsedStage5TriggerRawBlock[] = [];
+
+  for (let i = 0; i < headerHits.length; i++) {
+    const cur = headerHits[i];
+    const nextStart = i + 1 < headerHits.length ? headerHits[i + 1].startIdx : cleaned.length;
+    const body = cleaned.slice(cur.bodyStartIdx, nextStart);
+
+    const titleMatch = body.match(
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?T[IÍ]TULO(?:[ \t]+DEL[ \t]+DISPARADOR)?[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
+    );
+    const descMatch = body.match(
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:DESCRIPCI[OÓ]N|EXPLICACI[OÓ]N|JUSTIFICACI[OÓ]N)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+(?:\n(?![ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
+    );
+    const overlayMatch = body.match(
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY(?:[_\s]*TEXT)?)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
+    );
+    const promptMatch = body.match(
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:IMAGE[ \t]+)?PROMPT(?:[ \t]+(?:T[EÉ]CNICO|EN[ \t]+INGL[EÉ]S|VISUAL))?[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([\s\S]+)$/i
+    );
+
+    const rawTitleCandidate = stripFieldMd(titleMatch?.[1] || cur.inlineTitle || '')
+      .replace(/^(?:opci[oó]n|disparador)\s*[abc123]\s*[:\-—–.]?\s*/i, '')
+      .trim();
+    const safeTitleCore = sanitizeBrandSafeEditorialText(rawTitleCandidate);
+    const cleanTitle = safeTitleCore
+      ? `Opción ${cur.id}: ${safeTitleCore}`
+      : `Opción ${cur.id}`;
+
+    const cleanDesc = sanitizeBrandSafeEditorialText(
+      stripFieldMd(descMatch?.[1] || '').replace(/\s+/g, ' ')
+    );
+
+    const rawOverlayStr = stripFieldMd(overlayMatch?.[1] || '');
+    const suggestedOverlay = rawOverlayStr
+      .split(/\s*(?:\/|\||\\n)\s*/)
+      .map((s) =>
+        sanitizeBrandSafeEditorialText(
+          s
+            .replace(/^l[ií]nea\s*\d+\s*:\s*/i, '')
+            .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
+            .trim()
+        ).toUpperCase()
+      )
+      .filter((s) => Boolean(s) && !/^\[?\s*texto\s+en\s+pantalla\s*\]?$/i.test(s))
+      .join('\n');
+
+    let rawPromptCandidate = (promptMatch?.[1] || '').trim();
+    if (!rawPromptCandidate) {
+      const fallbackImgInBody = body.match(/(?:Thumbnail:\s*)?Create an image\b[\s\S]+/i);
+      if (fallbackImgInBody) {
+        rawPromptCandidate = fallbackImgInBody[0];
+      }
+    }
+    const rawPrompt = applyAutomaticFlowPolicyShield(
+      rawPromptCandidate
+        .split(/\n[ \t]*(?:#{1,5}[ \t]|\*\*(?:Nota|Explicaci|Resumen|Conclusi)|---+\s*$)/i)[0]
+        .replace(/^```[a-z]*\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .replace(/^["'`*]+|["'`*]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      false
+    );
+
+    if (rawPrompt && !blocks.some((b) => b.id === cur.id)) {
+      blocks.push({
+        id: cur.id,
+        title: cleanTitle,
+        description: cleanDesc,
+        rawPrompt,
+        suggestedOverlay,
+      });
+    }
+  }
+
+  blocks.sort((a, b) => a.id.localeCompare(b.id));
+
+  let directEnglishCandidate = '';
+  if (blocks.length === 0) {
+    const directMatch = cleaned.match(/(?:Thumbnail:\s*)?Create an image\b[\s\S]+/i);
+    if (directMatch) {
+      directEnglishCandidate = applyAutomaticFlowPolicyShield(
+        directMatch[0]
+          .split(/\n[ \t]*(?:\[?DISPARADOR|#{1,5}|---)/i)[0]
+          .replace(/\s+/g, ' ')
+          .trim(),
+        false
+      );
+    }
+  }
+
+  return { blocks, directEnglishCandidate };
+}
+
+

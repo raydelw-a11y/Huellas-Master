@@ -96,6 +96,7 @@ import {
   applyClipFlowVideoEngineTag,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
+  parseStage5TriggerBlocksShared,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -736,99 +737,50 @@ function parseStage5TriggersAndPrompts(
   triggers: ThumbnailPsychTriggerOption[];
   fallbackPrompt: string;
 } {
-  const cleaned = String(rawText || '')
-    .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '')
-    .replace(
-      /\s+\|\s+(?=(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\b|T[IÍ]TULO\b|DESCRIPCI[OÓ]N\b|TEXTO[_\s]*PANTALLA\b|PROMPT\b))/gi,
-      '\n'
-    )
-    .trim();
-  if (!cleaned) {
+  const shared = parseStage5TriggerBlocksShared(rawText);
+  if (shared.blocks.length === 0 && !shared.directEnglishCandidate) {
     return { triggers: [], fallbackPrompt: '' };
   }
 
   const hasUserOverlay = parseThumbnailOverlayLines(userOverlayText).length > 0;
-  const blockRegex =
-    /(?:^|\n)\s*(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\d+[.)]\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?(?:\s*\*+)?(?:\s*[:\-—][^\n]*)?([\s\S]*?)(?=\n\s*(?:[-•*]\s*)?(?:#{1,4}\s*)?(?:\*+\s*)?(?:\d+[.)]\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\b|$)/gi;
-
   const triggers: ThumbnailPsychTriggerOption[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = blockRegex.exec(cleaned)) !== null) {
-    const id = match[1].toUpperCase() as 'A' | 'B' | 'C';
-    const body = match[2] || '';
-    const titleMatch = body.match(
-      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?T[IÍ]TULO\s*(?:\*+)?\s*:\s*([^\n]+)/i
-    );
-    const descMatch = body.match(
-      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?DESCRIPCI[OÓ]N\s*(?:\*+)?\s*:\s*([^\n]+(?:\n(?!\s*(?:[-•*]\s*)?(?:\*+\s*)?(?:TEXTO[_\s]*PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
-    );
-    const overlayMatch = body.match(
-      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?TEXTO[_\s]*PANTALLA\s*(?:\*+)?\s*:\s*([^\n]+)/i
-    );
-    const promptMatch = body.match(
-      /(?:^|\n)\s*(?:[-•*]\s*)?(?:\*+\s*)?PROMPT\s*(?:\*+)?\s*:\s*([\s\S]+)$/i
-    );
 
-    const rawTitleVal = (titleMatch?.[1] || '').replace(/^\*+|\*+$/g, '').trim();
-    const cleanTitle = rawTitleVal
-      ? /^opci[oó]n\s*[abc]\b/i.test(rawTitleVal)
-        ? rawTitleVal
-        : `Opción ${id}: ${rawTitleVal}`
-      : `Opción ${id}`;
-    const cleanDesc = (descMatch?.[1] || '')
-      .replace(/\s+/g, ' ')
-      .replace(/^\*+|\*+$/g, '')
-      .trim();
-    const suggestedOverlay = (overlayMatch?.[1] || '')
-      .replace(/^\*+|\*+$/g, '')
-      .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
-      .split(/\s*(?:\/|\|)\s*/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join('\n');
-    const rawPromptBody = (promptMatch?.[1] || '')
-      .split(/\n\s*(?:#{1,4}|\*\*Nota|\*\*Explicaci|---)/i)[0]
-      .replace(/^["'`*]+|["'`*]+$/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (rawPromptBody && !isCorruptedThumbnailPrompt(rawPromptBody) && !triggers.some((t) => t.id === id)) {
-      const effectiveOverlay = hasUserOverlay ? userOverlayText : suggestedOverlay;
+  for (const blk of shared.blocks) {
+    if (
+      blk.rawPrompt &&
+      !isCorruptedThumbnailPrompt(blk.rawPrompt) &&
+      !triggers.some((t) => t.id === blk.id)
+    ) {
+      const effectiveOverlay = hasUserOverlay ? userOverlayText : blk.suggestedOverlay;
       const normalizedPrompt = buildOrUpdateThumbnailPrompt(
-        rawPromptBody,
+        blk.rawPrompt,
         orientation,
         effectiveOverlay,
         doc
       );
       triggers.push({
-        id,
-        title: cleanTitle,
-        description: cleanDesc,
+        id: blk.id,
+        title: blk.title,
+        description: blk.description,
         prompt: normalizedPrompt,
-        ...(suggestedOverlay ? { suggestedOverlay } : {}),
+        ...(blk.suggestedOverlay ? { suggestedOverlay: blk.suggestedOverlay } : {}),
       });
     }
   }
 
   triggers.sort((a, b) => a.id.localeCompare(b.id));
   let directEnglishFallback = '';
-  if (triggers.length === 0) {
-    const directMatch = cleaned.match(/(?:Thumbnail:\s*)?Create an image\b[\s\S]+/i);
-    if (directMatch) {
-      const candidate = directMatch[0]
-        .split(/\n\s*(?:\[DISPARADOR|#{1,4}|---)/i)[0]
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (candidate && !isCorruptedThumbnailPrompt(candidate)) {
-        directEnglishFallback = buildOrUpdateThumbnailPrompt(
-          candidate,
-          orientation,
-          userOverlayText,
-          doc
-        );
-      }
-    }
+  if (
+    triggers.length === 0 &&
+    shared.directEnglishCandidate &&
+    !isCorruptedThumbnailPrompt(shared.directEnglishCandidate)
+  ) {
+    directEnglishFallback = buildOrUpdateThumbnailPrompt(
+      shared.directEnglishCandidate,
+      orientation,
+      userOverlayText,
+      doc
+    );
   }
   const fallbackPrompt =
     triggers.length > 0 ? triggers[0].prompt : directEnglishFallback;
@@ -10632,12 +10584,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           },
         }
       : baseDoc;
-    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim()) && !isCloudMode) {
-      alert(
-        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 3 (Miniatura Oficial).'
-      );
-      return;
-    }
     let workingOverlay = (currentDoc.thumbnailTextOverlay || '').trim();
     if (stageNum === 5 && !workingOverlay) {
       const existingHooks = getDefaultCuriosityGapHooks(currentDoc);
@@ -10734,6 +10680,86 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
     navigator.clipboard.writeText(promptText).catch(() => {});
 
+    // On Mac local, execute Stage 5 (3 Neuropsychological Click Triggers + Thumbnail Prompt) via the
+    // focus-emulated silent background tab endpoint (`4 Carbon · Low`) so background-tab throttling never stalls it
+    const isLocalMacHost =
+      typeof window !== 'undefined' &&
+      /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+    if (stageNum === 5 && isLocalMacHost && !isCloudMode) {
+      setAiGenerating(true);
+      setBridgeStatusType('WORKING');
+      setBridgeStatusMsg(
+        `🧠 Generando automáticamente en Gemini Web (4 Carbon · Low) los 3 disparadores neuropsicológicos para «${
+          currentDoc.title || currentDoc.topic
+        }»...`
+      );
+      fetch('/api/stage5-triggers/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId: currentDoc.id,
+          prompt: promptText,
+        }),
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => null);
+          if (r.ok && data?.ok && String(data.rawText || '').trim()) {
+            const parsedStage5 = parseStage5TriggersAndPrompts(
+              String(data.rawText),
+              orientationForThumb,
+              currentDoc.thumbnailTextOverlay || '',
+              currentDoc
+            );
+            const patch: Partial<DocumentaryProject> = {
+              thumbnailOrientation: orientationForThumb,
+            };
+            if (parsedStage5.triggers.length > 0) {
+              const desiredVar: 'A' | 'B' | 'C' =
+                currentDoc.thumbnailPsychVariant === 'B'
+                  ? 'B'
+                  : currentDoc.thumbnailPsychVariant === 'C'
+                  ? 'C'
+                  : 'A';
+              const chosen =
+                parsedStage5.triggers.find((t) => t.id === desiredVar) || parsedStage5.triggers[0];
+              patch.thumbnailPsychTriggers = parsedStage5.triggers;
+              patch.thumbnailPsychVariant = chosen.id;
+              patch.thumbnailPrompt = chosen.prompt;
+              const suggestedList = parsedStage5.triggers
+                .map((t) => (t.suggestedOverlay || '').trim())
+                .filter(Boolean);
+              if (suggestedList.length > 0) {
+                patch.thumbnailTextOptions = suggestedList;
+                if (parseThumbnailOverlayLines(currentDoc.thumbnailTextOverlay || '').length === 0) {
+                  patch.thumbnailTextOverlay =
+                    chosen.suggestedOverlay || suggestedList[0] || '';
+                }
+              }
+            } else if (parsedStage5.fallbackPrompt) {
+              patch.thumbnailPrompt = parsedStage5.fallbackPrompt;
+            }
+            updateActiveDoc(patch);
+            setAiGenerating(false);
+            setBridgeStatusType('READY');
+            setBridgeStatusMsg(
+              '✅ 3 disparadores neuropsicológicos y prompt de miniatura generados automáticamente.'
+            );
+            return;
+          }
+          throw new Error(data?.error || 'Respuesta vacía');
+        })
+        .catch((err) => {
+          setAiGenerating(false);
+          setBridgeStatusType('ERROR');
+          setBridgeStatusMsg(
+            `⚠️ No se pudieron generar los disparadores automáticamente (${String(
+              err?.message || err
+            )}). Pulsa "⚡ Regenerar 3 Disparadores" para reintentar.`
+          );
+        });
+      return;
+    }
+
     // When starting research in Stage 1 (Parte 1 or Parte 2), automatically paste the compiled prompt into its text box and persist the selected library video!
     if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       updateActiveDoc({
@@ -10791,8 +10817,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ...(baseDoc.promptConfig || {}),
             ...lockedVideoPromptPatch,
             REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+            REMOTE_GEMINI_STAGE_STATUS: 'running',
+            REMOTE_GEMINI_STAGE_ERROR: '',
           },
-          updatedAt: Date.now() as any,
+          updatedAt: new Date().toISOString(),
         };
         updateActiveDoc(remotePatch);
         setBridgeStatusType('WORKING');
@@ -10815,7 +10843,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               body: JSON.stringify(remoteTrigger),
             }).catch(() => null)
           )
-          .then(() => {
+          .then(async () => {
             setBridgeStatusMsg(
               isPart1Remote
                 ? '⏳ Orden enviada a tu Mac. Ejecutando Paso 1 en Gemini Web...'
@@ -10823,6 +10851,72 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
+            if (!isDeepResearchRemote) {
+              const maxPollLoops = 30;
+              for (let pollIdx = 0; pollIdx < maxPollLoops; pollIdx++) {
+                await new Promise((r) => setTimeout(r, 4000));
+                try {
+                  const ackRes = await fetch(`${REMOTE_MAC_ACK_URL}/json?poll=1&since=120s`, {
+                    cache: 'no-store',
+                  }).catch(() => null);
+                  let ackCompleted = false;
+                  let ackFailed = false;
+                  if (ackRes && ackRes.ok) {
+                    const txt = await ackRes.text();
+                    for (const ln of txt.split('\n')) {
+                      if (!ln.trim()) continue;
+                      try {
+                        const ev = JSON.parse(ln);
+                        const msgObj = ev?.message ? JSON.parse(ev.message) : ev;
+                        if (msgObj?.commandId === commandId) {
+                          if (msgObj.status === 'gemini_stage_completed') ackCompleted = true;
+                          if (msgObj.status === 'gemini_stage_failed') ackFailed = true;
+                        }
+                      } catch {}
+                    }
+                  }
+                  const remoteDocs = await fetchRemoteDocumentariesFromGitHub().catch(() => null);
+                  if (remoteDocs && remoteDocs.length > 0) {
+                    let remoteTarget: DocumentaryProject | undefined;
+                    setDocumentaries((prev) => {
+                      const merged = mergeDocumentariesLists(
+                        prev,
+                        remoteDocs,
+                        getLocalDeletedDocIds()
+                      );
+                      saveLocalCachedDocumentaries(merged);
+                      remoteTarget = merged.find((d) => d.id === currentDoc.id);
+                      return merged;
+                    });
+                    const hasStage5Result =
+                      stageNum === 5 &&
+                      Array.isArray(remoteTarget?.thumbnailPsychTriggers) &&
+                      remoteTarget!.thumbnailPsychTriggers!.length > 0;
+                    const completedAckMatch =
+                      remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === commandId &&
+                      remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed';
+                    if (hasStage5Result || completedAckMatch || ackCompleted) {
+                      setBridgeStatusType('READY');
+                      setBridgeStatusMsg('✅ Resultado sincronizado automáticamente desde tu Mac.');
+                      break;
+                    }
+                    if (
+                      ackFailed ||
+                      (remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === commandId &&
+                        remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'failed')
+                    ) {
+                      setBridgeStatusType('ERROR');
+                      setBridgeStatusMsg(
+                        `⚠️ Gemini Web en Mac reportó un error (${
+                          remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ERROR || 'sin respuesta'
+                        }). Pulsa regenerar para reintentar.`
+                      );
+                      break;
+                    }
+                  }
+                } catch {}
+              }
+            }
           });
         return;
       }
@@ -10954,6 +11048,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
+  // Clear WORKING spinner on Stage 5 as soon as synced neuropsychological triggers arrive
+  useEffect(() => {
+    if (activeStage !== 5 || !activeDoc) return;
+    if (
+      (activeDoc.thumbnailPsychTriggers || []).length > 0 &&
+      bridgeStatusType === 'WORKING' &&
+      !aiGenerating &&
+      thumbnailGeneratingOption === null
+    ) {
+      setBridgeStatusType('READY');
+    }
+  }, [
+    activeStage,
+    activeDoc?.id,
+    activeDoc?.thumbnailPsychTriggers?.length,
+    bridgeStatusType,
+    aiGenerating,
+    thumbnailGeneratingOption,
+  ]);
+
   // Auto-generate the 3 video-specific Neuropsychological Click Triggers + Thumbnail Prompt upon entering Stage 3 (activeStage === 5)
   useEffect(() => {
     if (activeStage !== 5 || !activeDoc) return;
@@ -10966,7 +11080,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     ) {
       return;
     }
-    if (!officialLogoUrl?.trim() && !isCloudMode) return;
     const hasVideoStoryContext = Boolean(
       (
         activeDoc.voiceoverScript ||
@@ -10991,23 +11104,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.voiceoverScript,
     activeDoc?.deepResearchResult,
     activeDoc?.topic,
-    officialLogoUrl,
     aiGenerating,
     bridgeStatusType,
     thumbnailGeneratingOption,
     thumbOptionsGenerating,
-    isCloudMode,
   ]);
 
   // Text generation strictly via logged-in Gemini Web (No API Calls)
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
-    if (stageNum === 5 && (!officialLogoUrl || !officialLogoUrl.trim()) && !isCloudMode) {
-      alert(
-        '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de generar la miniatura en la Etapa 5.'
-      );
-      return;
-    }
     let overridePromptConfig: Record<string, string> | undefined;
     if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       const youtubeUrl = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
@@ -16526,23 +16631,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           disabled={aiGenerating}
                           onClick={() => handleGenerateWithGemini(5)}
                           className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
-                            !officialLogoUrl
-                              ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40'
-                              : hasOverlayText
+                            hasOverlayText
                               ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20'
                               : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
                           }`}
-                          title={
-                            !officialLogoUrl
-                              ? '🔒 Primero debes subir el Logo Oficial de "Huellas de la Humanidad" abajo'
-                              : 'Generar prompt técnico en inglés con Gemini'
-                          }
+                          title="Generar los 3 disparadores neuropsicológicos del clic y el prompt técnico en inglés con Gemini"
                         >
                           <Wand2 className="w-3.5 h-3.5" />
-                          {!officialLogoUrl
-                            ? '🔒 Subir Logo Primero'
-                            : aiGenerating
-                            ? 'Generando Miniatura...'
+                          {aiGenerating
+                            ? 'Generando Disparadores y Prompt...'
                             : 'Generar Prompt con Gemini'}
                         </button>
                       </div>
@@ -16758,15 +16855,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                     {/* PASO 3: LOS 3 DISPARADORES PSICOLÓGICOS DINÁMICOS DEL DOCUMENTAL EN PROCESO */}
                     <div className="space-y-2 bg-slate-950/90 border border-indigo-500/30 rounded-xl p-3.5">
-                      <div className="flex items-center justify-between flex-wrap gap-1">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <span className="text-xs font-extrabold text-indigo-300">
                           🧠 3. Disparadores Neuropsicológicos del Clic (Regla de 13ms + Rostro + Curiosity Gap):
                         </span>
-                        <span className="text-[11px] text-amber-400 font-semibold">
-                          {dynamicTriggers.length > 0
-                            ? 'Generados a medida para este video • Click para seleccionar'
-                            : 'Se generan automáticamente según el video en proceso'}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] text-amber-400 font-semibold">
+                            {dynamicTriggers.length > 0
+                              ? 'Generados a medida para este video • Click para seleccionar'
+                              : 'Se generan automáticamente según el video en proceso'}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={aiGenerating || bridgeStatusType === 'WORKING'}
+                            onClick={() => {
+                              autoGeneratedStage5TriggersRef.current[activeDoc.id] = true;
+                              handleSendStageToGeminiWeb(5);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-400/40 text-indigo-200 text-[11px] font-extrabold cursor-pointer transition-all disabled:opacity-50"
+                            title="Generar o regenerar en Gemini Web los 3 disparadores neuropsicológicos a medida de este documental"
+                          >
+                            {dynamicTriggers.length > 0
+                              ? '🔄 Regenerar 3 Disparadores'
+                              : '⚡ Generar 3 Disparadores Ahora'}
+                          </button>
+                        </div>
                       </div>
                       {dynamicTriggers.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
