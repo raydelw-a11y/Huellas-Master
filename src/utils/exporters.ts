@@ -23,9 +23,15 @@ function getStatsHeader(sentences: Sentence[]): string {
       ? spokenSentences.reduce((max, s) => Math.max(max, s.end), 0)
       : maxEnd;
   const spokenSpanSecs = Math.max(1, maxSpokenEnd - minSpokenStart);
+  const nonVoiceEdgeSecs = Math.max(0, Math.round(maxEnd - spokenSpanSecs));
   const wpm = totalWords > 0 ? ((totalWords * 60) / spokenSpanSecs).toFixed(1) : '0.0';
+  const voiceFormatted = formatTimestamp(spokenSpanSecs, 'MM:SS');
   const totalVideoFormatted = formatTimestamp(maxEnd, 'MM:SS');
-  return `===================================\nCANTIDAD DE PALABRAS: ${totalWords}\nPALABRAS POR MINUTO (WPM): ${wpm}\nDURACIÓN VIDEO TOTAL: ${totalVideoFormatted}\n===================================\n\n`;
+  const nonVoiceLine =
+    nonVoiceEdgeSecs > 0
+      ? `\nBLOQUES SIN VOZ (Intro + Hook + Outro): +${nonVoiceEdgeSecs}s`
+      : '';
+  return `===================================\nCANTIDAD DE PALABRAS: ${totalWords}\nPALABRAS POR MINUTO (WPM): ${wpm}\nDURACIÓN VOZ NARRATIVA: ${voiceFormatted}${nonVoiceLine}\nDURACIÓN VIDEO TOTAL: ${totalVideoFormatted}\n===================================\n\n`;
 }
 
 export function generateTimelineText(

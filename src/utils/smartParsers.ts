@@ -245,7 +245,7 @@ export function getStage1ClipDurations(doc?: any): {
     standardClipSec = 10;
   }
 
-  const voiceEntrySec = clip1Sec + 2;
+  const voiceEntrySec = clip1Sec <= 6 ? clip1Sec + 2 : clip1Sec;
   const introPlacement = doc?.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
   const effectiveVoiceEntrySec =
     introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
@@ -404,7 +404,11 @@ export function parseTimelineTextToSentences(timelineText: string): Sentence[] {
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || line.startsWith('===') || /^CANTIDAD DE PALABRAS/i.test(line) || /^PALABRAS POR MINUTO/i.test(line)) {
+    if (
+      !line ||
+      line.startsWith('===') ||
+      /^(?:CANTIDAD DE PALABRAS|PALABRAS POR MINUTO|DURACI[ÓO]N|BLOQUES SIN VOZ)/i.test(line)
+    ) {
       continue;
     }
     // Soportar: "1 00:06 - 00:16 Texto..." o "00:06 - 00:16 Texto..." o "[00:06 - 00:16] Texto..."

@@ -182,6 +182,9 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
 
   const isDeadOrEmptyUrl = (u?: string) => !u || u.startsWith('blob:');
 
+  let nextTimelineSentences = doc.timelineSentences;
+  let nextTimelineFormattedText = doc.timelineFormattedText;
+
   if (isVideo77Penicilina && isDeadOrEmptyUrl(masterAudioUrl)) {
     masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=nodup2';
     if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
@@ -216,6 +219,40 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
             }
           : t
       );
+    }
+  } else if (isVideo77Penicilina && audioTracks.length > 0) {
+    // Self-heal stale pre-deduplication duration (1161.2s / 1920s) on the canonical cleaned Video 77 MP3 (1139.7s)
+    const t0 = audioTracks[0];
+    const isCanonicalV77Mp3 = /tts-video-77-penicilina\.mp3/i.test(String(t0?.audioUrl || ''));
+    const lastTimingEnd = Array.isArray(t0?.segmentTimings) && t0.segmentTimings.length > 0
+      ? Number(t0.segmentTimings[t0.segmentTimings.length - 1]?.endSec) || 0
+      : 0;
+    if (isCanonicalV77Mp3 && (Math.abs((Number(t0.duration) || 0) - 1139.7) > 2 || lastTimingEnd > 1143)) {
+      const scale = lastTimingEnd > 10 ? 1139.67 / lastTimingEnd : 1;
+      const fixedTimings =
+        Array.isArray(t0.segmentTimings) && lastTimingEnd > 1143
+          ? t0.segmentTimings.map((seg) => ({
+              ...seg,
+              startSec: Number((seg.startSec * scale).toFixed(3)),
+              endSec: Number((seg.endSec * scale).toFixed(3)),
+              durationSec: Number(((seg.endSec - seg.startSec) * scale).toFixed(3)),
+            }))
+          : t0.segmentTimings;
+      audioTracks = [
+        {
+          ...t0,
+          duration: 1139.7,
+          ...(fixedTimings ? { segmentTimings: fixedTimings } : {}),
+        },
+        ...audioTracks.slice(1),
+      ];
+    }
+    const tlMaxEnd = Array.isArray(nextTimelineSentences) && nextTimelineSentences.length > 0
+      ? nextTimelineSentences.reduce((m, s) => Math.max(m, Number(s?.end) || 0), 0)
+      : 0;
+    if (isCanonicalV77Mp3 && (tlMaxEnd > 1166 || /19:52|19:28|32:/i.test(String(nextTimelineFormattedText || '')))) {
+      nextTimelineSentences = [];
+      nextTimelineFormattedText = '';
     }
   } else if (isVideo76Exodo && isDeadOrEmptyUrl(masterAudioUrl)) {
     masterAudioUrl = 'tts-files/tts-video-76-exodo-espanol.mp3';
@@ -1137,7 +1174,9 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextClip1OptionsRaw !== (doc.clip1OptionsRaw || '') ||
     nextConfirmedFinalDuration !== doc.confirmedFinalDuration ||
     nextSunoTracks !== doc.sunoTracks ||
-    nextCorrectedSrt !== doc.correctedSrt
+    nextCorrectedSrt !== doc.correctedSrt ||
+    nextTimelineSentences !== doc.timelineSentences ||
+    nextTimelineFormattedText !== doc.timelineFormattedText
   ) {
     return {
       ...doc,
@@ -1156,6 +1195,8 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       confirmedFinalDuration: nextConfirmedFinalDuration,
       sunoTracks: nextSunoTracks,
       correctedSrt: nextCorrectedSrt,
+      timelineSentences: nextTimelineSentences,
+      timelineFormattedText: nextTimelineFormattedText,
     };
   }
   return doc;
@@ -1512,6 +1553,21 @@ function mergeTwoDocumentaryObjects(
     const ov = (oNorm as any)[k];
     if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
       (baseWinner as any)[k] = ov;
+    }
+  }
+
+  if (
+    (!baseWinner.timelineFormattedText || !baseWinner.timelineFormattedText.trim()) &&
+    oNorm.timelineFormattedText &&
+    oNorm.timelineFormattedText.trim()
+  ) {
+    baseWinner.timelineFormattedText = oNorm.timelineFormattedText;
+    if (
+      (!Array.isArray(baseWinner.timelineSentences) || baseWinner.timelineSentences.length === 0) &&
+      Array.isArray(oNorm.timelineSentences) &&
+      oNorm.timelineSentences.length > 0
+    ) {
+      baseWinner.timelineSentences = oNorm.timelineSentences;
     }
   }
 
