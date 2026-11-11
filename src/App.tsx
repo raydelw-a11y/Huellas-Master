@@ -139,7 +139,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:57 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:04 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -13392,14 +13392,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           {/* TOP HORIZONTAL BAR: PROJECT CONTROLS + 12 STAGES MENU */}
           <div className="w-full max-w-full min-w-0 bg-[#12100d] border-b border-amber-500/20 px-2 sm:px-4 py-2 gap-2 flex flex-col shrink-0 overflow-x-hidden">
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2 sm:px-3.5 py-2 w-full max-w-full min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 sm:px-3.5 py-2 w-full max-w-full min-w-0 overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 flex-1 min-w-0 w-full sm:w-auto">
                 {documentaries.length > 1 ? (
                   <select
                     value={activeDoc.id}
                     onChange={(e) => setActiveDocId(e.target.value)}
                     title="Cambiar de documental"
-                    className="max-w-[115px] sm:max-w-[190px] truncate text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-300 font-bold px-1.5 sm:px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 shrink-0 outline-none cursor-pointer"
+                    className="w-full sm:w-auto sm:max-w-[190px] min-w-0 truncate text-[11px] uppercase tracking-wider text-amber-300 font-bold px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 sm:shrink-0 outline-none cursor-pointer"
                   >
                     {documentaries.map((d) => (
                       <option key={d.id} value={d.id} className="bg-slate-950 text-amber-200">
@@ -13408,38 +13408,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     ))}
                   </select>
                 ) : (
-                  <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 shrink-0">
+                  <span className="self-start sm:self-auto text-[10px] uppercase tracking-wider text-amber-400 font-bold whitespace-nowrap px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 shrink-0">
                     Expediente Activo
                   </span>
                 )}
-                <input
-                  type="text"
-                  value={isTypingVideoNameRef.current ? videoNameDraft : videoNameDraft || activeDoc.title}
-                  onChange={(e) => handleVideoNameRealtimeChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.preventDefault();
-                  }}
-                  className="flex-1 min-w-0 sm:min-w-[180px] max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
-                  placeholder="Título del Documental..."
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    isTypingVideoNameRef.current = false;
-                    if (videoNameDraft.trim()) {
-                      executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
-                    }
-                  }}
-                  disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
-                  className="shrink-0 px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  title="Actualizar el nombre en la carpeta de la Mac y en los chats de Gemini"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
-                  {isRenamingVideoRealtime ? '...' : 'Actualizar'}
-                </button>
-                <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
-                  {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado'}
-                </span>
+                <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={isTypingVideoNameRef.current ? videoNameDraft : videoNameDraft || activeDoc.title}
+                    onChange={(e) => handleVideoNameRealtimeChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
+                    className="flex-1 min-w-0 w-full sm:min-w-[180px] sm:max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 sm:py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
+                    placeholder="Título del Documental..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      isTypingVideoNameRef.current = false;
+                      if (videoNameDraft.trim()) {
+                        executeRealtimeVideoFolderAndGeminiRename(videoNameDraft);
+                      }
+                    }}
+                    disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
+                    className="shrink-0 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Actualizar el nombre en la carpeta de la Mac y en los chats de Gemini"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
+                    {isRenamingVideoRealtime ? '...' : 'Actualizar'}
+                  </button>
+                  <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
+                    {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado'}
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap pb-1 sm:pb-0 [-webkit-overflow-scrolling:touch]">
