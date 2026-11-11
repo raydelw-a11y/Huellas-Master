@@ -15,6 +15,12 @@ import {
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
 } from './smartParsers';
+import {
+  extractCleanPcmFromGeminiAudio,
+  polishCleanTtsPcmBlock,
+  hasEmbeddedC2paInAudioBytes,
+  cleanMasterWavEmbeddedC2paInPlace,
+} from './geminiTtsAudioClean';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
 export const GITHUB_REPO = 'Huellas-Master';
@@ -135,12 +141,15 @@ export function applyStoredClipReviewStateToDocs(
 
 export function normalizeVoiceoverUrlString(url?: string): string {
   if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
+  let trimmed = url.trim();
   if (/^\/?tts-files\/(.+)\.wav$/i.test(trimmed)) {
-    return trimmed.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
+    trimmed = trimmed.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
   }
   if (trimmed.startsWith('/tts-files/')) {
-    return trimmed.slice(1);
+    trimmed = trimmed.slice(1);
+  }
+  if (/^tts-files\/tts-video-77-penicilina\.mp3$/i.test(trimmed)) {
+    return 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix';
   }
   return trimmed;
 }
@@ -165,10 +174,49 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     combinedText.includes('74') ||
     combinedText.includes('princesas de la edad media') ||
     combinedText.includes('cortes reales de europa');
+  const isVideo77Penicilina =
+    doc.id === 'doc-video-77-huellas' ||
+    combinedText.includes('video 77') ||
+    combinedText.includes('penicilina');
 
   const isDeadOrEmptyUrl = (u?: string) => !u || u.startsWith('blob:');
 
-  if (isVideo76Exodo && isDeadOrEmptyUrl(masterAudioUrl)) {
+  if (isVideo77Penicilina && isDeadOrEmptyUrl(masterAudioUrl)) {
+    masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix';
+    if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
+      audioTracks = [
+        {
+          id: 'tts-video-77-penicilina',
+          label: 'Voz Narrativa Video 77 — La Penicilina',
+          text: doc.voiceoverScript || '',
+          voice: doc.selectedVoice || 'Charon',
+          style: doc.selectedStyle || 'formal',
+          speed: doc.selectedSpeed || 'medium',
+          language: doc.selectedLanguage || 'es-la',
+          consistencyMode: true,
+          filename: 'tts-video-77-penicilina.mp3',
+          audioUrl: 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix',
+          createdAt: doc.updatedAt || new Date().toISOString(),
+          storageMode: 'local',
+          wordCount: 2787,
+          duration: 1161.2,
+          providerUsed: 'Gemini 3.8 Flash TTS (Charon · Limpieza C2PA)',
+        },
+      ];
+    } else {
+      audioTracks = audioTracks.map((t, i) =>
+        i === 0
+          ? {
+              ...t,
+              audioUrl: isDeadOrEmptyUrl(t.audioUrl)
+                ? 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix'
+                : t.audioUrl,
+              duration: 1161.2,
+            }
+          : t
+      );
+    }
+  } else if (isVideo76Exodo && isDeadOrEmptyUrl(masterAudioUrl)) {
     masterAudioUrl = 'tts-files/tts-video-76-exodo-espanol.mp3';
     if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
       audioTracks = [
@@ -3050,7 +3098,7 @@ function pcmChunksToWavBlobUrl(
   pcmChunks: Uint8Array[],
   sampleRate = 24000
 ): { url: string; blob: Blob; duration: number } {
-  const pcmLen = pcmChunks.reduce((acc, c) => acc + c.byteLength, 0);
+  const pcmLen = pcmChunks.reduce((acc, c) => acc + (c.byteLength & ~1), 0);
   const buffer = new ArrayBuffer(44 + pcmLen);
   const view = new DataView(buffer);
 
@@ -3075,8 +3123,11 @@ function pcmChunksToWavBlobUrl(
   const bytes = new Uint8Array(buffer, 44);
   let offset = 0;
   for (const chunk of pcmChunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
+    const evenLen = chunk.byteLength & ~1;
+    if (evenLen > 0) {
+      bytes.set(chunk.subarray(0, evenLen), offset);
+      offset += evenLen;
+    }
   }
 
   const blob = new Blob([buffer], { type: 'audio/wav' });
@@ -3085,23 +3136,91 @@ function pcmChunksToWavBlobUrl(
 }
 
 const clientTtsRequestTimestamps: number[] = [];
-const CLIENT_TTS_WINDOW_MS = 63000;
-const CLIENT_TTS_MAX_PER_WINDOW = 9; // Mantiene margen seguro bajo el límite estricto de 10 RPM (Tier 1)
-const CLIENT_TTS_MIN_SPACING_MS = 1400;
+let clientTtsCooldownUntilMs = 0;
+const CLIENT_TTS_STATE_STORAGE_KEY = 'huellas_tts_rpm_ledger_v2';
+const CLIENT_TTS_WINDOW_MS = 66000;
+const CLIENT_TTS_MAX_PER_WINDOW = 8; // Margen seguro bajo el límite estricto de 10 RPM (Tier 1) incluso midiendo al cierre HTTP
+const CLIENT_TTS_MIN_SPACING_MS = 6800; // Cadencia uniforme (~8.8 RPM máx.) sin ráfagas que disparen el limitador por minuto
+
+function syncClientTtsRateState(now: number = Date.now()): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(CLIENT_TTS_STATE_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.slots)) {
+          for (const ts of parsed.slots) {
+            const n = Number(ts);
+            if (Number.isFinite(n) && now - n < CLIENT_TTS_WINDOW_MS && !clientTtsRequestTimestamps.includes(n)) {
+              clientTtsRequestTimestamps.push(n);
+            }
+          }
+        }
+        const cd = Number(parsed?.cooldownUntilMs || 0);
+        if (Number.isFinite(cd) && cd > clientTtsCooldownUntilMs) {
+          clientTtsCooldownUntilMs = cd;
+        }
+      }
+    }
+  } catch {}
+  clientTtsRequestTimestamps.sort((a, b) => a - b);
+  while (
+    clientTtsRequestTimestamps.length > 0 &&
+    now - clientTtsRequestTimestamps[0] >= CLIENT_TTS_WINDOW_MS
+  ) {
+    clientTtsRequestTimestamps.shift();
+  }
+}
+
+function persistClientTtsRateState(): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(
+        CLIENT_TTS_STATE_STORAGE_KEY,
+        JSON.stringify({
+          slots: clientTtsRequestTimestamps.slice(-16),
+          cooldownUntilMs: clientTtsCooldownUntilMs,
+        })
+      );
+    }
+  } catch {}
+}
+
+function settleLatestClientTtsRateSlot(previousStamp: number): void {
+  const settledAt = Date.now();
+  syncClientTtsRateState(settledAt);
+  const idx = clientTtsRequestTimestamps.indexOf(previousStamp);
+  if (idx !== -1) {
+    clientTtsRequestTimestamps[idx] = settledAt;
+  } else {
+    clientTtsRequestTimestamps.push(settledAt);
+  }
+  clientTtsRequestTimestamps.sort((a, b) => a - b);
+  persistClientTtsRateState();
+}
+
+function registerClientTtsCooldown(waitMs: number): void {
+  const until = Date.now() + Math.max(0, Math.ceil(waitMs));
+  syncClientTtsRateState(Date.now());
+  if (until > clientTtsCooldownUntilMs) {
+    clientTtsCooldownUntilMs = until;
+  }
+  persistClientTtsRateState();
+}
 
 async function sleepWithCountdown(
   totalMs: number,
   formatMsg?: (secLeft: number) => string,
   onProgress?: (msg: string) => void
 ): Promise<void> {
-  let remaining = Math.max(0, Math.ceil(totalMs));
-  while (remaining > 0) {
+  const deadline = Date.now() + Math.max(0, Math.ceil(totalMs));
+  while (true) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     if (onProgress && formatMsg) {
       onProgress(formatMsg(Math.max(1, Math.ceil(remaining / 1000))));
     }
-    const step = Math.min(1000, remaining);
-    await new Promise((r) => setTimeout(r, step));
-    remaining -= step;
+    await new Promise((r) => setTimeout(r, Math.min(1000, remaining)));
   }
 }
 
@@ -3109,18 +3228,25 @@ async function acquireClientTtsRateSlot(
   blockNum: number,
   totalBlocks: number,
   onProgress?: (msg: string) => void
-): Promise<void> {
+): Promise<number> {
   while (true) {
     const now = Date.now();
-    while (
-      clientTtsRequestTimestamps.length > 0 &&
-      now - clientTtsRequestTimestamps[0] >= CLIENT_TTS_WINDOW_MS
-    ) {
-      clientTtsRequestTimestamps.shift();
+    syncClientTtsRateState(now);
+
+    if (clientTtsCooldownUntilMs > now) {
+      const cdWait = clientTtsCooldownUntilMs - now;
+      await sleepWithCountdown(
+        cdWait,
+        (secLeft) =>
+          `⏳ Pausa activa de cuota Tier 1 (10/min): continuando bloque ${blockNum}/${totalBlocks} en ${secLeft}s...`,
+        onProgress
+      );
+      continue;
     }
+
     if (clientTtsRequestTimestamps.length >= CLIENT_TTS_MAX_PER_WINDOW) {
       const waitMs =
-        clientTtsRequestTimestamps[0] + CLIENT_TTS_WINDOW_MS - now + 800;
+        clientTtsRequestTimestamps[0] + CLIENT_TTS_WINDOW_MS - now + 1200;
       if (waitMs > 0) {
         await sleepWithCountdown(
           waitMs,
@@ -3131,25 +3257,38 @@ async function acquireClientTtsRateSlot(
         continue;
       }
     }
+
     const lastTs =
       clientTtsRequestTimestamps.length > 0
         ? clientTtsRequestTimestamps[clientTtsRequestTimestamps.length - 1]
         : 0;
     const sinceLast = Date.now() - lastTs;
     if (lastTs > 0 && sinceLast < CLIENT_TTS_MIN_SPACING_MS) {
-      await new Promise((r) =>
-        setTimeout(r, CLIENT_TTS_MIN_SPACING_MS - sinceLast)
-      );
+      const gapWait = CLIENT_TTS_MIN_SPACING_MS - sinceLast;
+      if (gapWait >= 1500) {
+        await sleepWithCountdown(
+          gapWait,
+          (secLeft) =>
+            `🎙️ Sincronizando ritmo Tier 1 (10/min) para bloque ${blockNum}/${totalBlocks} (${secLeft}s)...`,
+          onProgress
+        );
+      } else {
+        await new Promise((r) => setTimeout(r, gapWait));
+      }
+      continue;
     }
-    clientTtsRequestTimestamps.push(Date.now());
-    return;
+
+    const stamp = Date.now();
+    clientTtsRequestTimestamps.push(stamp);
+    persistClientTtsRateState();
+    return stamp;
   }
 }
 
 function parseGoogleTtsRetryDelayMs(
   errMsg: string,
   errPayload: any,
-  attempt: number
+  rateWaitCount: number
 ): number {
   const inlineMatch = String(errMsg || '').match(
     /Please\s+retry\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i
@@ -3157,7 +3296,7 @@ function parseGoogleTtsRetryDelayMs(
   if (inlineMatch?.[1]) {
     const sec = parseFloat(inlineMatch[1]);
     if (Number.isFinite(sec) && sec > 0) {
-      return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+      return Math.min(95000, Math.max(12000, Math.ceil(sec * 1000) + 3500));
     }
   }
   const details = Array.isArray(errPayload?.error?.details)
@@ -3169,11 +3308,11 @@ function parseGoogleTtsRetryDelayMs(
     if (dm?.[1]) {
       const sec = parseFloat(dm[1]);
       if (Number.isFinite(sec) && sec > 0) {
-        return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+        return Math.min(95000, Math.max(12000, Math.ceil(sec * 1000) + 3500));
       }
     }
   }
-  return Math.min(75000, 18000 + attempt * 10000);
+  return Math.min(75000, 22000 + Math.min(5, rateWaitCount) * 10000);
 }
 
 function splitOversizedTtsBlock(text: string, maxChars: number = 2800): string[] {
@@ -3217,25 +3356,9 @@ function splitOversizedTtsBlock(text: string, maxChars: number = 2800): string[]
   return chunks;
 }
 
-function applyPcmMicroFadeBytes(pcmBytes: Uint8Array, fadeSamples: number = 240): Uint8Array {
-  const evenLen = pcmBytes.byteLength - (pcmBytes.byteLength % 2);
-  const numSamples = Math.floor(evenLen / 2);
-  if (numSamples < fadeSamples * 2) return pcmBytes.subarray(0, evenLen);
-  const out = new Uint8Array(evenLen);
-  out.set(pcmBytes.subarray(0, evenLen));
-  const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
-  for (let i = 0; i < fadeSamples; i++) {
-    const factor = i / fadeSamples;
-    const s = view.getInt16(i * 2, true);
-    view.setInt16(i * 2, Math.round(s * factor), true);
-  }
-  for (let i = 0; i < fadeSamples; i++) {
-    const factor = (fadeSamples - i) / fadeSamples;
-    const byteIdx = (numSamples - fadeSamples + i) * 2;
-    const s = view.getInt16(byteIdx, true);
-    view.setInt16(byteIdx, Math.round(s * factor), true);
-  }
-  return out;
+function applyPcmMicroFadeBytes(pcmBytes: Uint8Array, fadeSamples: number = 288): Uint8Array {
+  const fadeMs = Math.max(8, Math.round((fadeSamples / 24000) * 1000));
+  return polishCleanTtsPcmBlock(pcmBytes, 24000, fadeMs);
 }
 
 export async function synthesizeTtsClientSide(params: {
@@ -3379,16 +3502,19 @@ ${segText}`;
     )}`;
 
     let lastErrorMsg = '';
-    const maxAttempts = 7;
+    const maxHardAttempts = 6;
+    const maxRateLimitWaits = 24;
+    let hardAttempt = 0;
+    let rateLimitWaits = 0;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await acquireClientTtsRateSlot(blockNum, totalTextBlocks, params.onProgress);
+    while (hardAttempt < maxHardAttempts && rateLimitWaits <= maxRateLimitWaits) {
+      const slotStamp = await acquireClientTtsRateSlot(blockNum, totalTextBlocks, params.onProgress);
 
       if (params.onProgress) {
         const pct = Math.round(((blockNum - 1) / Math.max(1, totalTextBlocks)) * 100);
         params.onProgress(
-          attempt > 0
-            ? `🎙️ Reintentando bloque ${blockNum}/${totalTextBlocks} (${pct}%) — intento ${attempt + 1}/${maxAttempts}...`
+          hardAttempt > 0 || rateLimitWaits > 0
+            ? `🎙️ Sintetizando bloque ${blockNum}/${totalTextBlocks} (${pct}%) en Gemini 3.8 Flash TTS (reanudado)...`
             : `🎙️ Sintetizando bloque ${blockNum}/${totalTextBlocks} (${pct}%) en Gemini 3.8 Flash TTS...`
         );
       }
@@ -3411,12 +3537,15 @@ ${segText}`;
             },
           }),
         });
+        settleLatestClientTtsRateSlot(slotStamp);
         data = await res.json().catch(() => ({}));
       } catch (netErr: any) {
+        settleLatestClientTtsRateSlot(slotStamp);
         lastErrorMsg = netErr?.message || 'Error de red temporal en TTS';
-        if (attempt < maxAttempts - 1) {
+        hardAttempt++;
+        if (hardAttempt < maxHardAttempts) {
           await sleepWithCountdown(
-            4000 * (attempt + 1),
+            4000 * hardAttempt,
             (s) => `⏳ Red inestable, reintentando bloque ${blockNum}/${totalTextBlocks} en ${s}s...`,
             params.onProgress
           );
@@ -3428,24 +3557,47 @@ ${segText}`;
       if (!res.ok) {
         const errMsg = data?.error?.message || `Error TTS HTTP ${res.status}`;
         lastErrorMsg = errMsg;
+        const isPerMinuteQuota =
+          /per\s+minute|Please\s+retry\s+in\s+[0-9]+(?:\.[0-9]+)?\s*s|limit:\s*10\b/i.test(errMsg);
         const isDailyHardCap =
-          /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg) &&
-          !/Please\s+retry\s+in\s+[0-9]{1,2}(?:\.[0-9]+)?\s*s/i.test(errMsg);
-        const isRetryableRateOrServer =
-          !isDailyHardCap &&
-          (res.status === 429 ||
-            res.status >= 500 ||
-            /quota|rate.?limit|RESOURCE_EXHAUSTED|retry in|overloaded|temporarily/i.test(errMsg));
+          !isPerMinuteQuota &&
+          /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg);
 
-        if (isRetryableRateOrServer && attempt < maxAttempts - 1) {
-          const waitMs = parseGoogleTtsRetryDelayMs(errMsg, data, attempt);
+        if (isDailyHardCap) {
+          throw new Error(
+            'Se alcanzó el límite diario (RPD) de Gemini 3.8 Flash TTS en esta API Key. Espera al reinicio diario de cuota en Google AI Studio o cambia la API Key en el botón 🔑.'
+          );
+        }
+
+        const isRateLimit =
+          res.status === 429 ||
+          isPerMinuteQuota ||
+          /quota|rate.?limit|RESOURCE_EXHAUSTED|retry in/i.test(errMsg);
+
+        if (isRateLimit && rateLimitWaits < maxRateLimitWaits) {
+          const waitMs = parseGoogleTtsRetryDelayMs(errMsg, data, rateLimitWaits);
+          rateLimitWaits++;
+          registerClientTtsCooldown(waitMs);
           await sleepWithCountdown(
             waitMs,
             (secLeft) =>
-              `⏳ Límite de 10 llamadas/min (Tier 1): reanudando bloque ${blockNum}/${totalTextBlocks} automáticamente en ${secLeft}s...`,
+              `⏳ Cuota Tier 1 (10 llamadas/min): esperando ${secLeft}s para continuar el bloque ${blockNum}/${totalTextBlocks} automáticamente sin perder el progreso...`,
             params.onProgress
           );
           continue;
+        }
+
+        if (res.status >= 500 || /overloaded|temporarily|internal/i.test(errMsg)) {
+          hardAttempt++;
+          if (hardAttempt < maxHardAttempts) {
+            await sleepWithCountdown(
+              5000 * hardAttempt,
+              (secLeft) =>
+                `⏳ Servidor de voz ocupado, reintentando bloque ${blockNum}/${totalTextBlocks} en ${secLeft}s...`,
+              params.onProgress
+            );
+            continue;
+          }
         }
         throw new Error(errMsg);
       }
@@ -3453,8 +3605,9 @@ ${segText}`;
       const b64Audio = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!b64Audio) {
         lastErrorMsg = 'El modelo gemini-3.8-flash-tts no devolvió datos de audio.';
-        if (attempt < maxAttempts - 1) {
-          await new Promise((r) => setTimeout(r, 2500));
+        hardAttempt++;
+        if (hardAttempt < maxHardAttempts) {
+          await new Promise((r) => setTimeout(r, 3000));
           continue;
         }
         throw new Error(lastErrorMsg);
@@ -3465,27 +3618,23 @@ ${segText}`;
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      const rawPcm =
-        bytes.byteLength > 44 &&
-        bytes[0] === 0x52 &&
-        bytes[1] === 0x49 &&
-        bytes[2] === 0x46 &&
-        bytes[3] === 0x46
-          ? bytes.subarray(44)
-          : bytes;
+      const extracted = extractCleanPcmFromGeminiAudio(bytes, 24000);
+      const rawPcm = extracted.pcmBytes;
 
       // Guard against occasional TTS paragraph duplication
-      const tempSec = rawPcm.byteLength / 48000;
+      const byteRate = Math.max(16000, extracted.sampleRate * 2);
+      const tempSec = rawPcm.byteLength / byteRate;
       const wCount = segText.split(/\s+/).filter(Boolean).length;
       const expectedSec = wCount / 2.0;
-      if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 2) {
+      if (wCount >= 20 && tempSec > expectedSec * 2.3 && hardAttempt < 2) {
+        hardAttempt++;
         console.warn(
           `[VoxFlow Client] Posible duplicación en bloque ${blockNum} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando...`
         );
         continue;
       }
 
-      return applyPcmMicroFadeBytes(rawPcm, 240);
+      return polishCleanTtsPcmBlock(rawPcm, extracted.sampleRate || 24000);
     }
 
     throw new Error(lastErrorMsg || 'No se pudo sintetizar el bloque de voz.');
@@ -3614,6 +3763,22 @@ export async function loadTtsAudioBlobUrlFromVault(keys: string[]): Promise<stri
       }
     });
     if (blob) {
+      try {
+        if (!blob.type || /wav/i.test(blob.type)) {
+          const ab = await blob.arrayBuffer();
+          const u8 = new Uint8Array(ab);
+          if (hasEmbeddedC2paInAudioBytes(u8)) {
+            const cleaned = cleanMasterWavEmbeddedC2paInPlace(u8);
+            if (cleaned.cleanedBlocks > 0 || cleaned.strippedPostDataBytes > 0) {
+              const cleanBlob = new Blob([cleaned.wavBytes.slice().buffer], { type: 'audio/wav' });
+              await saveTtsAudioBlobToVault([k], cleanBlob).catch(() => {});
+              return URL.createObjectURL(cleanBlob);
+            }
+          }
+        }
+      } catch {
+        // Fallback to original blob if inspection fails
+      }
       return URL.createObjectURL(blob);
     }
   }

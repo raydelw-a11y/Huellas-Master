@@ -12,6 +12,12 @@ import textToSpeech from '@google-cloud/text-to-speech';
 import { createServer as createViteServer } from 'vite';
 import ffmpegStatic from 'ffmpeg-static';
 import { autoFitVoiceoverScriptToDuration } from './src/utils/smartParsers';
+import {
+  extractCleanPcmFromGeminiAudio,
+  polishCleanTtsPcmBlock,
+  hasEmbeddedC2paInAudioBytes,
+  cleanMasterWavEmbeddedC2paInPlace,
+} from './src/utils/geminiTtsAudioClean';
 
 // Load local .env first
 dotenv.config();
@@ -1207,104 +1213,21 @@ function pcmToWav(pcmBuffer: Buffer, sampleRate: number = 24000): Buffer {
 }
 
 function extractPcmFromWav(wavBuffer: Buffer): Buffer {
-  let current = wavBuffer;
-  let guard = 0;
-  while (
-    current.length >= 12 &&
-    current.toString('binary', 0, 4) === 'RIFF' &&
-    current.toString('binary', 8, 12) === 'WAVE' &&
-    guard < 5
-  ) {
-    guard++;
-    let foundData = false;
-    let index = 12;
-    while (index < current.length - 8) {
-      const chunkName = current.toString('binary', index, index + 4);
-      let chunkSize = 0;
-      try {
-        chunkSize = current.readUInt32LE(index + 4);
-      } catch {
-        break;
-      }
-      if (chunkName === 'data') {
-        const dataStart = index + 8;
-        const dataEnd = Math.min(dataStart + chunkSize, current.length);
-        current = current.subarray(dataStart, dataEnd);
-        foundData = true;
-        break;
-      }
-      index += 8 + chunkSize + (chunkSize % 2);
-      if (chunkSize <= 0 || index <= 12) break;
-    }
-    if (!foundData) {
-      if (current.length >= 44) current = current.subarray(44);
-      else break;
+  if (hasEmbeddedC2paInAudioBytes(wavBuffer)) {
+    const cleanedMaster = cleanMasterWavEmbeddedC2paInPlace(wavBuffer);
+    if (cleanedMaster.cleanedBlocks > 0) {
+      const { pcmBytes } = extractCleanPcmFromGeminiAudio(cleanedMaster.wavBytes, 24000);
+      return Buffer.from(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
     }
   }
-  if (current.length % 2 !== 0) {
-    current = current.subarray(0, current.length - 1);
-  }
-  return current;
+  const { pcmBytes } = extractCleanPcmFromGeminiAudio(wavBuffer, 24000);
+  return Buffer.from(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
 }
 
-function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 240): Buffer {
-  const evenLen = pcmBuffer.length - (pcmBuffer.length % 2);
-  const numSamples = Math.floor(evenLen / 2);
-  if (numSamples < fadeSamples * 2) return pcmBuffer.subarray(0, evenLen);
-  const out = Buffer.from(pcmBuffer.subarray(0, evenLen));
-
-  // Detect and silence any high-frequency static/radio interference bursts (e.g. trailing Gemini TTS artifacts)
-  const winSamples = 480; // 20ms at 24kHz
-  const numWins = Math.ceil(numSamples / winSamples);
-  if (numWins > 0) {
-    const burstWins = new Uint8Array(numWins);
-    for (let w = 0; w < numWins; w++) {
-      const startSample = w * winSamples;
-      const curWinSamples = Math.min(winSamples, numSamples - startSample);
-      if (curWinSamples <= 1) continue;
-      let sumSq = 0;
-      let diffSq = 0;
-      let maxAbs = 0;
-      let prev = out.readInt16LE(startSample * 2);
-      for (let i = 0; i < curWinSamples; i++) {
-        const s = out.readInt16LE((startSample + i) * 2);
-        const a = Math.abs(s);
-        if (a > maxAbs) maxAbs = a;
-        sumSq += s * s;
-        const d = s - prev;
-        diffSq += d * d;
-        prev = s;
-      }
-      const rms = Math.sqrt(sumSq / curWinSamples) / 32768;
-      const peak = maxAbs / 32768;
-      const hfRms = Math.sqrt(diffSq / curWinSamples) / 65536;
-      if (hfRms > 0.13 && (peak > 0.72 || rms > 0.11)) {
-        burstWins[w] = 1;
-      }
-    }
-    for (let w = 0; w < numWins; w++) {
-      if (burstWins[w] === 1) {
-        const s0 = Math.max(0, (w - 1) * winSamples);
-        const s1 = Math.min(numSamples, (w + 2) * winSamples);
-        for (let i = s0; i < s1; i++) {
-          out.writeInt16LE(0, i * 2);
-        }
-      }
-    }
-  }
-
-  for (let i = 0; i < fadeSamples; i++) {
-    const factor = i / fadeSamples;
-    const sample = out.readInt16LE(i * 2);
-    out.writeInt16LE(Math.round(sample * factor), i * 2);
-  }
-  for (let i = 0; i < fadeSamples; i++) {
-    const factor = (fadeSamples - i) / fadeSamples;
-    const idx = (numSamples - fadeSamples + i) * 2;
-    const sample = out.readInt16LE(idx);
-    out.writeInt16LE(Math.round(sample * factor), idx);
-  }
-  return out;
+function applyMicroFade(pcmBuffer: Buffer, fadeSamples: number = 288): Buffer {
+  const fadeMs = Math.max(8, Math.round((fadeSamples / 24000) * 1000));
+  const polished = polishCleanTtsPcmBlock(pcmBuffer, 24000, fadeMs);
+  return Buffer.from(polished.buffer, polished.byteOffset, polished.byteLength);
 }
 
 function getAudioDurationInSeconds(buffer: Buffer, defaultSampleRate: number = 24000): number {
@@ -1378,13 +1301,33 @@ function splitServerOversizedTtsBlock(text: string, maxChars: number = 2800): st
 }
 
 const serverTtsRequestTimestamps: number[] = [];
-const SERVER_TTS_WINDOW_MS = 63000;
-const SERVER_TTS_MAX_PER_WINDOW = 9;
-const SERVER_TTS_MIN_SPACING_MS = 1400;
+let serverTtsCooldownUntilMs = 0;
+const SERVER_TTS_WINDOW_MS = 66000;
+const SERVER_TTS_MAX_PER_WINDOW = 8;
+const SERVER_TTS_MIN_SPACING_MS = 6800;
 
-async function acquireServerTtsRateSlot(): Promise<void> {
+function settleServerTtsRateSlot(previousStamp: number): void {
+  const settledAt = Date.now();
+  const idx = serverTtsRequestTimestamps.indexOf(previousStamp);
+  if (idx !== -1) {
+    serverTtsRequestTimestamps[idx] = settledAt;
+  } else {
+    serverTtsRequestTimestamps.push(settledAt);
+  }
+  serverTtsRequestTimestamps.sort((a, b) => a - b);
+}
+
+async function acquireServerTtsRateSlot(): Promise<number> {
   while (true) {
     const now = Date.now();
+    if (serverTtsCooldownUntilMs > now) {
+      const cdWait = serverTtsCooldownUntilMs - now;
+      console.log(
+        `[VoxFlow Tier-1 Cooldown] Esperando ${(cdWait / 1000).toFixed(1)}s antes de continuar...`
+      );
+      await new Promise((r) => setTimeout(r, cdWait));
+      continue;
+    }
     while (
       serverTtsRequestTimestamps.length > 0 &&
       now - serverTtsRequestTimestamps[0] >= SERVER_TTS_WINDOW_MS
@@ -1392,7 +1335,7 @@ async function acquireServerTtsRateSlot(): Promise<void> {
       serverTtsRequestTimestamps.shift();
     }
     if (serverTtsRequestTimestamps.length >= SERVER_TTS_MAX_PER_WINDOW) {
-      const waitMs = serverTtsRequestTimestamps[0] + SERVER_TTS_WINDOW_MS - now + 800;
+      const waitMs = serverTtsRequestTimestamps[0] + SERVER_TTS_WINDOW_MS - now + 1200;
       if (waitMs > 0) {
         console.log(
           `[VoxFlow Tier-1 Pacer] Esperando ${(waitMs / 1000).toFixed(1)}s para respetar el límite de 10 RPM...`
@@ -1408,22 +1351,24 @@ async function acquireServerTtsRateSlot(): Promise<void> {
     const sinceLast = Date.now() - lastTs;
     if (lastTs > 0 && sinceLast < SERVER_TTS_MIN_SPACING_MS) {
       await new Promise((r) => setTimeout(r, SERVER_TTS_MIN_SPACING_MS - sinceLast));
+      continue;
     }
-    serverTtsRequestTimestamps.push(Date.now());
-    return;
+    const stamp = Date.now();
+    serverTtsRequestTimestamps.push(stamp);
+    return stamp;
   }
 }
 
-function parseServerTtsRetryDelayMs(err: any, attempt: number): number {
+function parseServerTtsRetryDelayMs(err: any, rateWaitCount: number): number {
   const msg = String(err?.message || err || '');
   const m = msg.match(/Please\s+retry\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i);
   if (m?.[1]) {
     const sec = parseFloat(m[1]);
     if (Number.isFinite(sec) && sec > 0) {
-      return Math.min(90000, Math.max(5000, Math.ceil(sec * 1000) + 2500));
+      return Math.min(95000, Math.max(12000, Math.ceil(sec * 1000) + 3500));
     }
   }
-  return Math.min(75000, 18000 + attempt * 10000);
+  return Math.min(75000, 22000 + Math.min(5, rateWaitCount) * 10000);
 }
 
 function cleanServerVoiceoverNarrationOnly(rawText: string): string {
@@ -1651,10 +1596,14 @@ ${cleanText}`;
   let lastErr: any = null;
   let usedModel = '';
 
-  const maxAttempts = 7;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  const maxHardAttempts = 6;
+  const maxRateLimitWaits = 24;
+  let hardAttempt = 0;
+  let rateLimitWaits = 0;
+  while (hardAttempt < maxHardAttempts && rateLimitWaits <= maxRateLimitWaits) {
+    let slotStamp = 0;
     try {
-      await acquireServerTtsRateSlot();
+      slotStamp = await acquireServerTtsRateSlot();
       generation = await ai.models.generateContent({
         model: targetModel,
         contents: [{ parts: [{ text: fullPrompt }] }],
@@ -1667,6 +1616,7 @@ ${cleanText}`;
           },
         },
       });
+      settleServerTtsRateSlot(slotStamp);
       if (generation?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
         const rawData = generation.candidates[0].content.parts[0].inlineData.data;
         const tempBuffer = Buffer.from(rawData, 'base64');
@@ -1674,7 +1624,8 @@ ${cleanText}`;
         const wCount = cleanText.split(/\s+/).filter(Boolean).length;
         const expectedSec = wCount / 2.0;
 
-        if (wCount >= 20 && tempSec > expectedSec * 2.3 && attempt < 2) {
+        if (wCount >= 20 && tempSec > expectedSec * 2.3 && hardAttempt < 2) {
+          hardAttempt++;
           console.warn(
             `[Gemini TTS] Posible duplicación detectada en ${targetModel} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando con ${targetModel}...`
           );
@@ -1685,23 +1636,45 @@ ${cleanText}`;
         usedModel = targetModel;
         break;
       }
+      hardAttempt++;
     } catch (e: any) {
+      if (slotStamp) settleServerTtsRateSlot(slotStamp);
       lastErr = e;
       const errMsg = String(e?.message || e || '');
+      const isPerMinuteQuota =
+        /per\s+minute|Please\s+retry\s+in\s+[0-9]+(?:\.[0-9]+)?\s*s|limit:\s*10\b/i.test(errMsg);
       const isDailyHardCap =
-        /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg) &&
-        !/Please\s+retry\s+in\s+[0-9]{1,2}(?:\.[0-9]+)?\s*s/i.test(errMsg);
-      const isRateLimit =
-        !isDailyHardCap &&
-        (e?.status === 429 ||
-          /429|quota|rate.?limit|RESOURCE_EXHAUSTED|retry in/i.test(errMsg));
+        !isPerMinuteQuota &&
+        /per_day|RequestsPerDay|GenerateRequestsPerDay/i.test(errMsg);
 
-      if (attempt < maxAttempts - 1 && !isDailyHardCap) {
-        const waitMs = isRateLimit
-          ? parseServerTtsRetryDelayMs(e, attempt)
-          : 2500 * (attempt + 1);
+      if (isDailyHardCap) {
+        lastErr = new Error(
+          'Se alcanzó el límite diario (RPD) de Gemini 3.8 Flash TTS en esta API Key. Espera al reinicio diario de cuota en Google AI Studio o cambia la API Key.'
+        );
+        break;
+      }
+
+      const isRateLimit =
+        e?.status === 429 ||
+        isPerMinuteQuota ||
+        /429|quota|rate.?limit|RESOURCE_EXHAUSTED|retry in/i.test(errMsg);
+
+      if (isRateLimit && rateLimitWaits < maxRateLimitWaits) {
+        const waitMs = parseServerTtsRetryDelayMs(e, rateLimitWaits);
+        rateLimitWaits++;
+        serverTtsCooldownUntilMs = Math.max(serverTtsCooldownUntilMs, Date.now() + waitMs);
         console.warn(
-          `[Gemini TTS] Reintento ${attempt + 1}/${maxAttempts} tras ${(waitMs / 1000).toFixed(1)}s (${errMsg.slice(0, 120)})`
+          `[Gemini TTS] Pausa automática Tier-1 (${rateLimitWaits}/${maxRateLimitWaits}) por ${(waitMs / 1000).toFixed(1)}s (${errMsg.slice(0, 120)})`
+        );
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
+      hardAttempt++;
+      if (hardAttempt < maxHardAttempts) {
+        const waitMs = 3500 * hardAttempt;
+        console.warn(
+          `[Gemini TTS] Reintento ${hardAttempt}/${maxHardAttempts} tras ${(waitMs / 1000).toFixed(1)}s (${errMsg.slice(0, 120)})`
         );
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
@@ -1715,13 +1688,14 @@ ${cleanText}`;
     throw new Error(`Error al sintetizar audio con ${targetModel}: ${lastErr?.message || 'Sin datos de audio'}`);
   }
 
-  const rawPcmBuffer = Buffer.from(base64Audio, 'base64');
-  const buffer =
-    rawPcmBuffer.length >= 12 &&
-    rawPcmBuffer.toString('binary', 0, 4) === 'RIFF' &&
-    rawPcmBuffer.toString('binary', 8, 12) === 'WAVE'
-      ? rawPcmBuffer
-      : pcmToWav(rawPcmBuffer, 24000);
+  const rawAudioBuffer = Buffer.from(base64Audio, 'base64');
+  const extracted = extractCleanPcmFromGeminiAudio(rawAudioBuffer, 24000);
+  const cleanPcm = Buffer.from(
+    extracted.pcmBytes.buffer,
+    extracted.pcmBytes.byteOffset,
+    extracted.pcmBytes.byteLength
+  );
+  const buffer = pcmToWav(cleanPcm, extracted.sampleRate || 24000);
 
   return {
     buffer,
@@ -1790,7 +1764,8 @@ app.post('/api/tts', async (req, res) => {
         consistencyMode,
         customStyleDescription,
       });
-      buffer = result.buffer;
+      const singlePcm = applyMicroFade(extractPcmFromWav(result.buffer), 288);
+      buffer = pcmToWav(singlePcm, 24000);
       providerUsed = result.providerUsed;
       const singleDur = getAudioDurationInSeconds(buffer);
       segmentTimings.push({
@@ -1834,7 +1809,7 @@ app.post('/api/tts', async (req, res) => {
             customStyleDescription,
           });
           providerUsed = result.providerUsed;
-          const pcm = applyMicroFade(extractPcmFromWav(result.buffer), 240);
+          const pcm = applyMicroFade(extractPcmFromWav(result.buffer), 288);
           pcmBuffers.push(pcm);
           const dSec = Number((pcm.length / 48000).toFixed(3));
           segmentTimings.push({
@@ -1915,6 +1890,15 @@ app.post('/api/tts/persist-upload', uploadAsset.single('file'), async (req, res)
 
     let finalFilename = rawFilename;
     if (rawExt !== '.mp3') {
+      try {
+        const uploadedBytes = fs.readFileSync(rawDestPath);
+        if (hasEmbeddedC2paInAudioBytes(uploadedBytes)) {
+          const cleaned = cleanMasterWavEmbeddedC2paInPlace(uploadedBytes);
+          if (cleaned.cleanedBlocks > 0 || cleaned.strippedPostDataBytes > 0) {
+            fs.writeFileSync(rawDestPath, Buffer.from(cleaned.wavBytes));
+          }
+        }
+      } catch {}
       const mp3Name = `${baseId}.mp3`;
       const mp3DestPath = path.join(TTS_DIR, mp3Name);
       const converted = await convertWavToMp3(rawDestPath, mp3DestPath);
@@ -1957,7 +1941,7 @@ app.post('/api/tts/merge', async (req, res) => {
         res.status(404).json({ error: `Archivo no encontrado: ${safeName}` });
         return;
       }
-      pcmBuffers.push(extractPcmFromWav(fs.readFileSync(targetWavPath)));
+      pcmBuffers.push(applyMicroFade(extractPcmFromWav(fs.readFileSync(targetWavPath)), 288));
     }
 
     // Level active-speech RMS across all segments so no fragment sounds louder/quieter than the others
@@ -1996,7 +1980,7 @@ app.post('/api/tts/merge', async (req, res) => {
           }
         }
       }
-      combinedChunks.push(applyMicroFade(leveledBuf, 240));
+      combinedChunks.push(leveledBuf);
       if (idx < pcmBuffers.length - 1) combinedChunks.push(silenceBuffer);
     });
 
