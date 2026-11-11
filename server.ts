@@ -521,6 +521,14 @@ function mergeServerDocObjects(winner: any, other: any) {
     if (!baseWinner.thumbnailPsychVariant && other.thumbnailPsychVariant) {
       baseWinner.thumbnailPsychVariant = other.thumbnailPsychVariant;
     }
+    if (
+      (!baseWinner.thumbnailImageUrl || !String(baseWinner.thumbnailImageUrl).trim()) &&
+      other.thumbnailImageUrl &&
+      String(other.thumbnailImageUrl).trim()
+    ) {
+      baseWinner.thumbnailImageUrl = other.thumbnailImageUrl;
+      if (other.thumbnailReady) baseWinner.thumbnailReady = true;
+    }
 
     // Preserve linked Gemini Main & Deep Research chat URLs across server merges
     const winMainUrl = String(baseWinner.geminiChatUrl || baseWinner.promptConfig?.GEMINI_CHAT_URL || '').trim();
@@ -6635,18 +6643,47 @@ app.get('/api/editor/exported-videos', (req, res) => {
 // PERMANENT OFFICIAL LOGO ("HUELLAS DE LA HUMANIDAD") — UPLOAD ONCE FOREVER
 // ============================================================================
 const OFFICIAL_LOGO_FILE = path.join(DATA_DIR, 'official_huellas_logo.json');
+const OFFICIAL_LOGO_ASSETS_FILE = path.join(DATA_DIR, 'assets', 'official_huellas_logo.json');
+const OFFICIAL_LOGO_ICLOUD_PNG = path.join(
+  process.env.HOME || '',
+  'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/LOGO DEFINITIVO.png'
+);
+
+function resolveOfficialLogoPayloadServer(): { logoDataUrl: string; updatedAt: string } {
+  for (const jsonCandidate of [OFFICIAL_LOGO_ASSETS_FILE, OFFICIAL_LOGO_FILE]) {
+    try {
+      if (fs.existsSync(jsonCandidate)) {
+        const parsed = JSON.parse(fs.readFileSync(jsonCandidate, 'utf8'));
+        if (parsed?.logoDataUrl && String(parsed.logoDataUrl).startsWith('data:image/')) {
+          return {
+            logoDataUrl: String(parsed.logoDataUrl),
+            updatedAt: String(parsed.updatedAt || ''),
+          };
+        }
+      }
+    } catch {}
+  }
+  try {
+    if (OFFICIAL_LOGO_ICLOUD_PNG && fs.existsSync(OFFICIAL_LOGO_ICLOUD_PNG)) {
+      const buf = fs.readFileSync(OFFICIAL_LOGO_ICLOUD_PNG);
+      if (buf.length > 100) {
+        const logoDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+        const updatedAt = new Date().toISOString();
+        try {
+          const assetsDir = path.dirname(OFFICIAL_LOGO_ASSETS_FILE);
+          if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
+          fs.writeFileSync(OFFICIAL_LOGO_ASSETS_FILE, JSON.stringify({ logoDataUrl, updatedAt }, null, 2), 'utf8');
+        } catch {}
+        return { logoDataUrl, updatedAt };
+      }
+    }
+  } catch {}
+  return { logoDataUrl: '', updatedAt: '' };
+}
 
 app.get('/api/assets/official-logo', (_req, res) => {
-  try {
-    if (fs.existsSync(OFFICIAL_LOGO_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(OFFICIAL_LOGO_FILE, 'utf8'));
-      res.json({ ok: true, logoDataUrl: parsed.logoDataUrl || '', updatedAt: parsed.updatedAt || '' });
-      return;
-    }
-    res.json({ ok: true, logoDataUrl: '' });
-  } catch {
-    res.json({ ok: true, logoDataUrl: '' });
-  }
+  const resolved = resolveOfficialLogoPayloadServer();
+  res.json({ ok: true, logoDataUrl: resolved.logoDataUrl, updatedAt: resolved.updatedAt });
 });
 
 app.post('/api/assets/official-logo', (req, res) => {
@@ -6656,14 +6693,15 @@ app.post('/api/assets/official-logo', (req, res) => {
       res.status(400).json({ error: 'No se envió imagen de logo.' });
       return;
     }
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const assetsDir = path.dirname(OFFICIAL_LOGO_ASSETS_FILE);
+    if (!fs.existsSync(assetsDir)) {
+      fs.mkdirSync(assetsDir, { recursive: true });
     }
     const payload = {
       logoDataUrl: String(logoDataUrl),
       updatedAt: new Date().toISOString(),
     };
-    fs.writeFileSync(OFFICIAL_LOGO_FILE, JSON.stringify(payload, null, 2), 'utf8');
+    fs.writeFileSync(OFFICIAL_LOGO_ASSETS_FILE, JSON.stringify(payload, null, 2), 'utf8');
     res.json({ ok: true, ...payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error guardando logo oficial.' });
@@ -6887,6 +6925,9 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       docTitleHint
     );
 
+    const cleanBase64 = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
+    const imgBuffer = Buffer.from(cleanBase64, 'base64');
+
     const savedPaths: string[] = [];
     if (resolvedRoot) {
       ensureDocumentarySubfolders(resolvedRoot);
@@ -6894,8 +6935,6 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       if (!fs.existsSync(thumbsDir)) {
         fs.mkdirSync(thumbsDir, { recursive: true });
       }
-      const cleanBase64 = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
-      const imgBuffer = Buffer.from(cleanBase64, 'base64');
       for (const name of [`Miniatura_Opcion_${opt}.png`, 'Miniatura_Oficial.png']) {
         const targetFile = path.join(thumbsDir, name);
         fs.writeFileSync(targetFile, imgBuffer);
@@ -6906,11 +6945,59 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       }
     }
 
+    // Clear any in-flight stage 505 / thumbnail commands for this documentary
+    for (const [k, v] of pendingGeminiCommands.entries()) {
+      if (
+        (docId && v.docId === docId && (v.stageNumber === 505 || (v as any).mediaType === 'THUMBNAILS')) ||
+        (!docId && v.stageNumber === 505)
+      ) {
+        pendingGeminiCommands.delete(k);
+      }
+    }
+
+    // Build a crisp lightweight JPEG preview (<58,000 chars) so GitHub Cloud Sync preserves `thumbnailImageUrl` for mobile!
+    let previewDataUrl = imageDataUrl;
+    if (previewDataUrl.length > 56000) {
+      const tmpBase = path.join(os.tmpdir(), `huellas_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+      const tmpIn = `${tmpBase}.png`;
+      const tmpOut = `${tmpBase}.jpg`;
+      try {
+        fs.writeFileSync(tmpIn, imgBuffer);
+        const attempts: Array<{ quality: number; maxDim: number }> = [
+          { quality: 65, maxDim: 860 },
+          { quality: 52, maxDim: 720 },
+          { quality: 42, maxDim: 580 },
+        ];
+        for (const att of attempts) {
+          try {
+            execSync(
+              `/usr/bin/sips -s format jpeg -s formatOptions ${att.quality} -Z ${att.maxDim} "${tmpIn}" --out "${tmpOut}"`,
+              { stdio: 'ignore' }
+            );
+            if (fs.existsSync(tmpOut)) {
+              const jpgBuf = fs.readFileSync(tmpOut);
+              const candidate = `data:image/jpeg;base64,${jpgBuf.toString('base64')}`;
+              previewDataUrl = candidate;
+              if (candidate.length <= 56000) break;
+            }
+          } catch {}
+        }
+      } catch {} finally {
+        try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn); } catch {}
+        try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}
+      }
+    }
+
     if (idx >= 0) {
       list[idx] = {
         ...list[idx],
-        thumbnailImageUrl: imageDataUrl,
+        thumbnailImageUrl: previewDataUrl,
         thumbnailReady: true,
+        promptConfig: {
+          ...(list[idx].promptConfig || {}),
+          REMOTE_GEMINI_STAGE_STATUS: 'completed',
+          REMOTE_GEMINI_STAGE_ERROR: '',
+        },
         ...(resolvedRoot
           ? {
               downloadFolderPath: resolvedRoot,
@@ -6920,6 +7007,12 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
         updatedAt: new Date().toISOString(),
       };
       writeDocumentaries(list);
+      syncDocumentariesWithGitHubServer(true).catch(() => null);
+      publishRemoteMacAck({
+        commandId: String(list[idx].promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || ''),
+        docId: list[idx].id,
+        status: 'gemini_stage_completed',
+      });
     }
 
     res.json({
@@ -14129,7 +14222,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
         pendingGeminiCommands.delete(k);
         continue;
       }
-      if (cmd.remoteStage) {
+      if (cmd.remoteStage || (cmd as any).noReclaim) {
         if (!cmd.claimedAt) pendingCommandsList.push(cmd);
         continue;
       }
@@ -14230,10 +14323,10 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       .join('   |   ');
     pendingGeminiCommands.set(cmd.commandId, {
       commandId: cmd.commandId,
-      docId: String(doc.id || cmd.docId || ''),
+      docId: resolvedDocId,
       action: 'SEND_PROMPT',
       prompt: safePrompt,
-      stageNumber: Number(cmd.stageNumber) || 1,
+      stageNumber: resolvedStageNum,
       taskType: cmd.taskType || 'STAGE_GENERATION',
       enableHighModel: false,
       enableArgonLow: true,

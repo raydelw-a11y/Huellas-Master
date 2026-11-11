@@ -141,7 +141,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:51 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:18 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -6110,7 +6110,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const handleSaveAnyFileToChosenFolder = async (
     fileName: string,
     blobOrDataUrl: Blob | string,
-    explicitSubFolder?: string
+    explicitSubFolder?: string,
+    allowBrowserDownloadFallback: boolean = true
   ): Promise<boolean> => {
     const cleanFileName = fileName.replace(/^.*[\\/]/, '');
     // Never create legacy Suno_0X.mp3 files (we use FlowMusic_0X...mp3 exclusively)
@@ -6255,7 +6256,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
     }
 
-    if (dataUrl) {
+    if (dataUrl && allowBrowserDownloadFallback) {
       try {
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -9420,13 +9421,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
+  // Clear mobile/desktop thumbnail spinner automatically when thumbnailImageUrl arrives via sync
+  const prevSyncedThumbUrlRef = useRef<string>('');
+  useEffect(() => {
+    const curThumb = activeDoc?.thumbnailImageUrl || '';
+    if (curThumb && curThumb !== prevSyncedThumbUrlRef.current && thumbnailGeneratingOption !== null) {
+      setThumbnailGeneratingOption(null);
+      setBridgeStatusType('SUCCESS');
+      setBridgeStatusMsg(
+        '✅ ¡Miniatura creada en Gemini Web, guardada en 03_Miniaturas en tu Mac y cargada aquí automáticamente!'
+      );
+    }
+    prevSyncedThumbUrlRef.current = curThumb;
+  }, [activeDoc?.thumbnailImageUrl, thumbnailGeneratingOption]);
+
   // ITEM 5: Send Stage 5 Prompt + Official Logo to Logged-In Gemini Web (Create image tool) & Auto-Import into Our Site + 03_Miniaturas Subfolder
   const handleSendThumbnailsToFlowAndCapture = async (
     optionLabel?: 'A' | 'B' | 'C',
     usePsychVariant: boolean = false
   ) => {
     if (!activeDoc) return;
-    if (!officialLogoUrl || !officialLogoUrl.trim()) {
+    const isLocalOriginThumb =
+      typeof window !== 'undefined' &&
+      /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+    const isRemoteMobileThumb =
+      !isLocalOriginThumb && !extensionInstalled && !isHuellasExtensionDetected();
+
+    if ((!officialLogoUrl || !officialLogoUrl.trim()) && !isRemoteMobileThumb && !isCloudMode) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de crear la miniatura.'
       );
@@ -9475,6 +9496,79 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           activeDoc
         );
 
+    const targetVideoBaseName = String(currentCanonicalVideoName || activeDoc.title || '')
+      .replace(/_\s*Deep\s*Research$/i, '')
+      .trim();
+
+    // MÓVIL (GitHub Pages / sin extensión): NUNCA descargar archivos en el teléfono; enviar orden remota a la Mac
+    if (isRemoteMobileThumb) {
+      navigator.clipboard.writeText(promptText).catch(() => {});
+      const commandId = `rgs_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const remoteTrigger = {
+        type: 'REMOTE_GEMINI_STAGE',
+        commandId,
+        docId: activeDoc.id,
+        stageNumber: 505,
+        requestedAt: Date.now(),
+      };
+      const remoteFullCmd = {
+        ...remoteTrigger,
+        prompt: promptText,
+        taskType: 'THUMBNAIL_IMAGE_GENERATION',
+        enableCreateImage: true,
+        mediaType: 'THUMBNAILS',
+        optionLabel: effectiveOptionLabel,
+        aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
+        enableHighModel: false,
+        enableArgonLow: true,
+        enableCarbonLow: true,
+        preferredModel: 'CARBON_4_LOW',
+        thinkingLevel: 'LOW' as const,
+        enableDeepResearch: false,
+        videoName: targetVideoBaseName,
+        deepResearchVideoName: targetVideoBaseName ? `${targetVideoBaseName}_Deep Research` : '',
+        geminiChatUrl: getDocMainChatUrl(activeDoc),
+        geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(activeDoc),
+      };
+      const remotePatch: Partial<DocumentaryProject> = {
+        ...(effectiveOverlay ? { thumbnailTextOverlay: effectiveOverlay } : {}),
+        thumbnailOrientation: currentOrientation,
+        thumbnailPsychVariant: effectiveOptionLabel,
+        thumbnailPrompt: promptText,
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+          REMOTE_GEMINI_STAGE_STATUS: 'running',
+          REMOTE_GEMINI_STAGE_ERROR: '',
+        },
+        updatedAt: Date.now() as any,
+      };
+      updateActiveDoc(remotePatch);
+      setThumbnailGeneratingOption(effectiveOptionLabel);
+      setBridgeStatusType('WORKING');
+      setBridgeStatusMsg(
+        `📡 Enviando orden desde tu móvil a tu Mac: Gemini Web creará la Miniatura (Opción ${effectiveOptionLabel}) con el Logo Oficial y la guardará en 03_Miniaturas...`
+      );
+      const nextDocsForRemote = documentaries.map((d) =>
+        d.id === activeDoc.id ? { ...d, ...remotePatch } : d
+      );
+      pushDocumentariesToGitHub(nextDocsForRemote as any)
+        .catch(() => null)
+        .then(() =>
+          fetch(REMOTE_MAC_RELAY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(remoteTrigger),
+          }).catch(() => null)
+        )
+        .then(() => {
+          setBridgeStatusMsg(
+            `⏳ Tu Mac está creando la Miniatura (Opción ${effectiveOptionLabel}) en Gemini Web con Create image + Logo Oficial. Aparecerá aquí automáticamente en unos segundos...`
+          );
+        });
+      return;
+    }
+
     updateActiveDoc({
       ...(effectiveOverlay ? { thumbnailTextOverlay: effectiveOverlay } : {}),
       thumbnailOrientation: currentOrientation,
@@ -9485,16 +9579,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     await ensureSingleDownloadFolderReadyOnGesture();
     navigator.clipboard.writeText(promptText).catch(() => {});
 
-    // Also save the Official Logo and Thumbnail Prompt into 03_Miniaturas inside the Root Folder
-    await handleSaveAnyFileToChosenFolder(
-      'Logo_Huellas_de_la_Humanidad.png',
-      officialLogoUrl,
-      '03_Miniaturas'
-    );
+    // Save the Official Logo and Thumbnail Prompt into 03_Miniaturas on Mac (never trigger browser download popups)
+    if (officialLogoUrl) {
+      await handleSaveAnyFileToChosenFolder(
+        'Logo_Huellas_de_la_Humanidad.png',
+        officialLogoUrl,
+        '03_Miniaturas',
+        false
+      );
+    }
     await handleSaveAnyFileToChosenFolder(
       'Prompts_Miniatura.txt',
       new Blob([promptText], { type: 'text/plain' }),
-      '03_Miniaturas'
+      '03_Miniaturas',
+      false
     );
 
     const folderLabel =
@@ -9508,10 +9606,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusMsg(
       `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (herramienta Create image en el chat del documental) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
-
-    const targetVideoBaseName = String(currentCanonicalVideoName || activeDoc.title || '')
-      .replace(/_\s*Deep\s*Research$/i, '')
-      .trim();
 
     // Send Prompt + Official Logo DataURL to logged-in Gemini Web chat with Create image tool active
     sendCommandToWebBridge('GEMINI', {
@@ -16733,17 +16827,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               handleSendThumbnailsToFlowAndCapture(selectedPsychVariant, false)
                             }
                             className={`text-xs px-2.5 py-1 rounded font-black cursor-pointer shadow disabled:opacity-60 ${
-                              officialLogoUrl
+                              officialLogoUrl || isCloudMode
                                 ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                                 : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
                             }`}
                             title={
-                              officialLogoUrl
+                              officialLogoUrl || isCloudMode
                                 ? 'Envía el prompt actual y la imagen del Logo Oficial a Gemini Web activando la herramienta Create image, importa la miniatura automáticamente y la descarga en la carpeta 03_Miniaturas de este documental'
                                 : '🔒 Primero debes subir el Logo Oficial arriba'
                             }
                           >
-                            {!officialLogoUrl
+                            {!officialLogoUrl && !isCloudMode
                               ? '🔒 Subir Logo para Crear Miniatura'
                               : thumbnailGeneratingOption
                               ? '⏳ Creando y Descargando Miniatura...'

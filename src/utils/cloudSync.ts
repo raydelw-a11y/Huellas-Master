@@ -1586,6 +1586,14 @@ function mergeTwoDocumentaryObjects(
   if (!baseWinner.thumbnailPsychVariant && oNorm.thumbnailPsychVariant) {
     baseWinner.thumbnailPsychVariant = oNorm.thumbnailPsychVariant;
   }
+  if (
+    (!baseWinner.thumbnailImageUrl || !String(baseWinner.thumbnailImageUrl).trim()) &&
+    oNorm.thumbnailImageUrl &&
+    String(oNorm.thumbnailImageUrl).trim()
+  ) {
+    baseWinner.thumbnailImageUrl = oNorm.thumbnailImageUrl;
+    if (oNorm.thumbnailReady) baseWinner.thumbnailReady = true;
+  }
 
   if (
     (!baseWinner.timelineFormattedText || !baseWinner.timelineFormattedText.trim()) &&
