@@ -1569,22 +1569,27 @@ function mergeTwoDocumentaryObjects(
     }
   }
 
-  const otherJustCompletedSameRemoteCmd =
+  const otherJustFinishedSameRemoteCmd =
     baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'running' &&
-    oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed' &&
-    Boolean(oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID) &&
+    (oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed' ||
+      oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'failed') &&
+    Boolean(oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'failed') &&
     (!baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID ||
+      !oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID ||
       baseWinner.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID ===
         oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID);
 
-  if (otherJustCompletedSameRemoteCmd) {
+  if (otherJustFinishedSameRemoteCmd) {
     baseWinner = {
       ...baseWinner,
       promptConfig: {
         ...(baseWinner.promptConfig || {}),
-        REMOTE_GEMINI_STAGE_STATUS: 'completed',
-        REMOTE_GEMINI_STAGE_ERROR: '',
+        REMOTE_GEMINI_STAGE_STATUS: oNorm.promptConfig?.REMOTE_GEMINI_STAGE_STATUS || 'completed',
+        REMOTE_GEMINI_STAGE_ERROR: oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ERROR || '',
         REMOTE_GEMINI_STAGE_ACK_ID: oNorm.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || '',
+        ...(oNorm.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON
+          ? { THUMBNAIL_PREVIEWS_MAP_JSON: oNorm.promptConfig.THUMBNAIL_PREVIEWS_MAP_JSON }
+          : {}),
       },
     };
     if (Array.isArray(oNorm.thumbnailPsychTriggers) && oNorm.thumbnailPsychTriggers.length > 0) {
@@ -1606,6 +1611,19 @@ function mergeTwoDocumentaryObjects(
       baseWinner.thumbnailImageUrl = oNorm.thumbnailImageUrl;
       baseWinner.thumbnailReady = true;
     }
+  }
+
+  if (
+    !baseWinner.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON &&
+    oNorm.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON
+  ) {
+    baseWinner = {
+      ...baseWinner,
+      promptConfig: {
+        ...(baseWinner.promptConfig || {}),
+        THUMBNAIL_PREVIEWS_MAP_JSON: oNorm.promptConfig.THUMBNAIL_PREVIEWS_MAP_JSON,
+      },
+    };
   }
 
   if (
@@ -2515,7 +2533,9 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
       .split('\n')
       .map((l) => l.trim().replace(/"/g, "'"))
       .filter(Boolean);
-    const hasUserOverlay = overlayLines.length > 0;
+    const isUserLockedOverlay =
+      doc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI' && overlayLines.length > 0;
+    const hasUserOverlay = isUserLockedOverlay;
     const overlayPositionPhrase = isThumbHorizontal
       ? 'positioned in the bottom-left area of the image'
       : 'centered and middle-justified right in the middle center of the image';
@@ -2529,14 +2549,14 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
             .join(' / ')})`
       : '';
     const overlayInstructionBlock = hasUserOverlay
-      ? `Texto en pantalla definido por el usuario (OBLIGATORIO usar exactamente estas líneas en las 3 opciones): ${
+      ? `Texto en pantalla elegido explícitamente por el usuario (OBLIGATORIO usar exactamente estas líneas en las 3 opciones): ${
           overlayLines.length === 1
             ? `"${overlayLines[0]}"`
             : `${overlayLines.length} líneas separadas -> ${overlayLines
                 .map((l, idx) => `Línea ${idx + 1}: "${l}"`)
                 .join(' / ')}`
         }`
-      : `Texto en pantalla: El usuario dejó el campo abierto; inventa para cada disparador un gancho corto de Curiosity Gap en español en MAYÚSCULAS (2 a 4 palabras en 1 o 2 líneas separadas por " / ", específico de ESTE documental y que NO repita el título).`;
+      : `Texto en pantalla: Propón 3 ganchos DIFERENTES entre sí de Curiosity Gap en español en MAYÚSCULAS (uno distinto y específico para A, otro distinto para B y otro distinto para C; de 2 a 4 palabras en 1 o 2 líneas separadas por " / ", específicos de ESTE documental y que NO repitan el título).`;
     const refsContext = Array.isArray(doc.references)
       ? doc.references
           .slice(0, 6)

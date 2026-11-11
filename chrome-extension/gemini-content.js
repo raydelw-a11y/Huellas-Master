@@ -308,16 +308,8 @@
         );
         if (!img.complete) return false;
         const w = img.naturalWidth || img.width || 0;
-        if (
-          inGenContainer &&
-          w === 0 &&
-          (src.includes('googleusercontent.com') ||
-            src.startsWith('blob:') ||
-            src.startsWith('data:image/'))
-        ) {
-          return true;
-        }
-        return inGenContainer ? w >= 120 : w >= 200;
+        const h = img.naturalHeight || img.height || 0;
+        return inGenContainer ? w >= 180 && h >= 120 : w >= 240 && h >= 160;
       })
       .map((img) => img.src);
 
@@ -380,6 +372,24 @@
         }
       } catch {}
     }
+
+    // Canvas fallback if an already-loaded DOM <img> matches this src with CORS clean pixels
+    try {
+      const domImg = Array.from(document.querySelectorAll('img')).find(
+        (im) => (im.currentSrc === raw || im.src === raw) && im.complete && im.naturalWidth >= 180
+      );
+      if (domImg) {
+        const cv = document.createElement('canvas');
+        cv.width = domImg.naturalWidth;
+        cv.height = domImg.naturalHeight;
+        const ctx = cv.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(domImg, 0, 0);
+          const canvasDataUrl = cv.toDataURL('image/png');
+          if (canvasDataUrl && canvasDataUrl.startsWith('data:image/')) return canvasDataUrl;
+        }
+      }
+    } catch {}
 
     return raw;
   }
@@ -554,7 +564,7 @@
     return { ...extracted, element: lastEl };
   }
 
-  function setInputText(inputEl, text) {
+  function setInputText(inputEl, text, keepNewlines = false) {
     inputEl.focus();
 
     if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
@@ -581,7 +591,8 @@
       .map((l) => l.trim())
       .filter(Boolean)
       .join('   |   ');
-    const minExpectedLength = Math.max(10, Math.floor(singleLineSafeText.length * 0.8));
+    const pastePayloadText = keepNewlines ? normalizedText : singleLineSafeText;
+    const minExpectedLength = Math.max(10, Math.floor(pastePayloadText.length * 0.75));
 
     try {
       const selection = window.getSelection();
@@ -593,7 +604,7 @@
       // 1. Try ClipboardEvent('paste') first (works through Quill's Clipboard module even in background tabs)
       try {
         const dt = new DataTransfer();
-        dt.setData('text/plain', singleLineSafeText);
+        dt.setData('text/plain', pastePayloadText);
         inputEl.dispatchEvent(
           new ClipboardEvent('paste', {
             bubbles: true,
@@ -748,6 +759,19 @@
     };
 
     const closeAnyOpenOverlayMenus = async () => {
+      const openGemTriggers = Array.from(
+        document.querySelectorAll(
+          '[data-test-id="bard-mode-menu-button"][aria-expanded="true"], button.input-area-switch[aria-expanded="true"], [gemmenutrigger][aria-expanded="true"]'
+        )
+      );
+      if (openGemTriggers.length > 0) {
+        openGemTriggers.forEach((btn) => {
+          try {
+            btn.click();
+          } catch {}
+        });
+        await sleep(140);
+      }
       const backdrops = Array.from(
         document.querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing')
       );
@@ -759,11 +783,6 @@
         });
         await sleep(140);
       }
-      document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
-        try {
-          if (typeof p.hidePopover === 'function') p.hidePopover();
-        } catch {}
-      });
       const openMenus = Array.from(
         document.querySelectorAll(
           '.cdk-overlay-container [role="menu"], .mat-mdc-menu-panel, .cdk-overlay-popover [role="menu"], .cdk-overlay-popover gem-menu'
@@ -1390,6 +1409,7 @@
                     type: 'FLOW_THUMBNAIL_CAPTURED',
                     provider: 'GEMINI',
                     option: optLabel,
+                    optionLabel: optLabel,
                     imageDataUrl: dataUrl,
                     imageUrl: rawImgUrl,
                     docId: (meta && meta.docId) || '',
@@ -1408,6 +1428,7 @@
                     type: 'FLOW_GENERATION_FAILED',
                     provider: 'GEMINI',
                     mediaType: 'THUMBNAILS',
+                    option: optLabel,
                     optionLabel: optLabel,
                     attempt: Number(meta && meta.attempt) || 1,
                     prompt: (meta && meta.rawPrompt) || '',
@@ -1539,6 +1560,50 @@
         window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
         isBusyWithOrder = false;
         const finalLatest = extractLatestGeminiResponse();
+        if (isImageOrder) {
+          const optLabel = (meta && meta.optionLabel) || 'A';
+          const freshImgs = finalLatest.images.filter((u) => u && u !== initialLastImageUrl);
+          if (freshImgs.length > 0) {
+            (async () => {
+              const rawImgUrl = freshImgs[freshImgs.length - 1];
+              const dataUrl = await convertGeminiImageUrlToDataUrl(rawImgUrl);
+              chrome.runtime
+                .sendMessage({
+                  type: 'FLOW_THUMBNAIL_CAPTURED',
+                  provider: 'GEMINI',
+                  option: optLabel,
+                  optionLabel: optLabel,
+                  imageDataUrl: dataUrl,
+                  imageUrl: rawImgUrl,
+                  docId: (meta && meta.docId) || '',
+                })
+                .catch(() => {});
+              processNextQueuedPrompt();
+            })();
+            return;
+          }
+          chrome.runtime
+            .sendMessage({
+              type: 'FLOW_GENERATION_FAILED',
+              provider: 'GEMINI',
+              mediaType: 'THUMBNAILS',
+              option: optLabel,
+              optionLabel: optLabel,
+              attempt: 99,
+              prompt: (meta && meta.rawPrompt) || '',
+              errorText: 'Tiempo de espera agotado (180s) esperando la imagen en Gemini Web.',
+              isProminentPeopleError: false,
+              docId: (meta && meta.docId) || '',
+            })
+            .catch(() => {});
+          reportStatus(
+            'ERROR',
+            '⚠️ Tiempo de espera agotado esperando la miniatura en Gemini Web.',
+            meta
+          );
+          processNextQueuedPrompt();
+          return;
+        }
         if (finalLatest.text && finalLatest.text !== initialLastText) {
           const stageNum = Number(meta && meta.stageNumber) || 0;
           const isStage11Family =
@@ -3790,11 +3855,22 @@
           // Never send a Thumbnail image order without the Create image tool active
           if (wantCreateImage && cfgResult && !cfgResult.createImageOk) {
             isBusyWithOrder = false;
-            reportStatus(
-              'ERROR',
-              `⛔ No se pudo activar la herramienta "Create image" en Gemini (+ → Create image), así que NO se envió el prompt para evitar respuestas de solo texto.${diagText}`,
-              { stageNumber: payload.stageNumber }
-            );
+            const errMsg = `⛔ No se pudo activar la herramienta "Create image" en Gemini (+ → Create image), así que NO se envió el prompt para evitar respuestas de solo texto.${diagText}`;
+            chrome.runtime
+              .sendMessage({
+                type: 'FLOW_GENERATION_FAILED',
+                provider: 'GEMINI',
+                mediaType: 'THUMBNAILS',
+                option: payload.optionLabel || 'A',
+                optionLabel: payload.optionLabel || 'A',
+                attempt: 99,
+                prompt: payload.prompt || '',
+                errorText: errMsg,
+                isProminentPeopleError: false,
+                docId: payload.docId || '',
+              })
+              .catch(() => {});
+            reportStatus('ERROR', errMsg, { stageNumber: payload.stageNumber });
             processNextQueuedPrompt();
             return;
           }
@@ -3849,13 +3925,24 @@
           } catch {}
           if (!attachRes || !attachRes.ok) {
             isBusyWithOrder = false;
-            reportStatus(
-              'ERROR',
-              `⛔ No se pudo adjuntar la imagen del Logo Oficial en Gemini Web (${
-                (attachRes && attachRes.error) || 'error al pegar imagen'
-              }).`,
-              { stageNumber: payload.stageNumber }
-            );
+            const errAttach = `⛔ No se pudo adjuntar la imagen del Logo Oficial en Gemini Web (${
+              (attachRes && attachRes.error) || 'error al pegar imagen'
+            }).`;
+            chrome.runtime
+              .sendMessage({
+                type: 'FLOW_GENERATION_FAILED',
+                provider: 'GEMINI',
+                mediaType: 'THUMBNAILS',
+                option: payload.optionLabel || 'A',
+                optionLabel: payload.optionLabel || 'A',
+                attempt: 99,
+                prompt: payload.prompt || '',
+                errorText: errAttach,
+                isProminentPeopleError: false,
+                docId: payload.docId || '',
+              })
+              .catch(() => {});
+            reportStatus('ERROR', errAttach, { stageNumber: payload.stageNumber });
             processNextQueuedPrompt();
             return;
           }
@@ -3875,8 +3962,11 @@
         ).length;
 
         const rawPrompt = String(payload.prompt || '');
+        const stageNumPayload = Number(payload.stageNumber) || 0;
+        const preserveStageNewlines =
+          stageNumPayload === 5 || stageNumPayload === 101 || stageNumPayload === 505;
         const promptFingerprint = normalizeCompareText(rawPrompt.slice(0, 120));
-        setInputText(inputEl, rawPrompt);
+        setInputText(inputEl, rawPrompt, preserveStageNewlines);
         reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web, enviando orden...', {
           stageNumber: payload.stageNumber,
         });
@@ -3886,6 +3976,7 @@
           .sendMessage({
             type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
             prompt: rawPrompt,
+            stageNumber: stageNumPayload,
             autoSubmit: payload.autoSubmit !== false,
           })
           .catch(() => {});
@@ -3915,11 +4006,12 @@
             let sendBtn = findSendButton();
             if (!sendBtn) {
               // Wake up Quill / Angular FormControl if Send button is still disabled
-              setInputText(currentInputEl, rawPrompt);
+              setInputText(currentInputEl, rawPrompt, preserveStageNewlines);
               chrome.runtime
                 .sendMessage({
                   type: 'GEMINI_MAIN_WORLD_INJECT_AND_SUBMIT',
                   prompt: rawPrompt,
+                  stageNumber: stageNumPayload,
                   autoSubmit: true,
                 })
                 .catch(() => {});
@@ -4491,9 +4583,15 @@
       return false;
     }
 
-    if (msg.action === 'ASK_EXTERNAL_CARBON_HIGH' || msg.action === 'ASK_EXTERNAL_ARGON_HIGH') {
+    if (
+      msg.action === 'ASK_EXTERNAL_CARBON_LOW' ||
+      msg.action === 'ASK_EXTERNAL_CARBON_HIGH' ||
+      msg.action === 'ASK_EXTERNAL_ARGON_HIGH'
+    ) {
       const requestId = String(msg.requestId || '').trim();
       const rawPrompt = String(msg.prompt || '').trim();
+      const wantHigh = String(msg.thinkingLevel || 'LOW').toUpperCase() === 'HIGH';
+      const expectedCanonicalLabel = wantHigh ? '4 Carbon · High' : '4 Carbon · Low';
       sendResponse({ handled: true, requestId });
       (async () => {
         try {
@@ -4582,20 +4680,22 @@
             const inner = (btn.innerText || btn.textContent || '').replace(/\s+/g, ' ').trim();
             return [aria, inner].filter(Boolean).join(' · ');
           };
-          const isVerifiedHighModelLabel = (lbl) =>
-            /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl);
+          const isVerifiedTargetModelLabel = (lbl) =>
+            wantHigh
+              ? /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl)
+              : /\b(carbon|argon)\b/i.test(lbl) && /\b(low|bajo)\b/i.test(lbl) && !/\b(high|alto|medium|medio|flash)\b/i.test(lbl);
 
           let cfgRes = await Promise.race([
-            configureGeminiModelAndDeepResearch(true, false, false),
-            sleep(14000),
+            configureGeminiModelAndDeepResearch(wantHigh, false, !wantHigh),
+            sleep(25000),
           ]);
           let verifiedModeBeforeSend =
             (cfgRes && cfgRes.verifiedModel) || readCurrentGeminiModeLabel();
-          if (!isVerifiedHighModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingVerified)) {
+          if (!isVerifiedTargetModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingVerified)) {
             await sleep(500);
             cfgRes = await Promise.race([
-              configureGeminiModelAndDeepResearch(true, false, false),
-              sleep(12000),
+              configureGeminiModelAndDeepResearch(wantHigh, false, !wantHigh),
+              sleep(20000),
             ]);
             verifiedModeBeforeSend =
               (cfgRes && cfgRes.verifiedModel) || readCurrentGeminiModeLabel();
@@ -4603,23 +4703,29 @@
 
           try {
             document
-              .querySelectorAll('.cdk-overlay-backdrop')
+              .querySelectorAll(
+                '[data-test-id="bard-mode-menu-button"][aria-expanded="true"], button.input-area-switch[aria-expanded="true"], [gemmenutrigger][aria-expanded="true"]'
+              )
+              .forEach((b) => b.click());
+            document
+              .querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing')
               .forEach((b) => b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
-            document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
-              if (typeof p.hidePopover === 'function') p.hidePopover();
-            });
           } catch {}
-          await sleep(450);
+          await sleep(350);
 
           const liveDomLabel = readCurrentGeminiModeLabel();
+          const hasExplicitWrongModelInPill = wantHigh
+            ? /\b(low|bajo|flash)\b/i.test(liveDomLabel)
+            : /\b(high|alto|medium|medio|flash)\b/i.test(liveDomLabel);
           verifiedModeBeforeSend =
-            (isVerifiedHighModelLabel(liveDomLabel) ? liveDomLabel : '') ||
+            (isVerifiedTargetModelLabel(liveDomLabel) ? liveDomLabel : '') ||
             (cfgRes && cfgRes.verifiedModel) ||
+            (cfgRes && (cfgRes.thinkingVerified || cfgRes.thinkingOk) ? expectedCanonicalLabel : '') ||
             liveDomLabel ||
             verifiedModeBeforeSend;
           if (
-            /\b(low|bajo|flash)\b/i.test(liveDomLabel) ||
-            (!isVerifiedHighModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingOk))
+            hasExplicitWrongModelInPill ||
+            (!isVerifiedTargetModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingOk))
           ) {
             const diagText = cfgRes && Array.isArray(cfgRes.diag) ? cfgRes.diag.join('; ') : '';
             chrome.runtime
@@ -4630,7 +4736,7 @@
                 verifiedModel: verifiedModeBeforeSend || 'desconocido',
                 error: `Verificación estricta falló: Gemini Web quedó en "${
                   verifiedModeBeforeSend || 'sin confirmar'
-                }" en lugar de 4 Carbon · High.${diagText ? ` [diag: ${diagText}]` : ''}`,
+                }" en lugar de ${expectedCanonicalLabel}.${diagText ? ` [diag: ${diagText}]` : ''}`,
               })
               .catch(() => {});
             return;
@@ -4728,7 +4834,11 @@
                 stableDoneTicks = 1;
               }
               if (stableDoneTicks >= 3) {
-                const finalVerifiedModel = readCurrentGeminiModeLabel() || verifiedModeBeforeSend || '4 Carbon · High';
+                const liveEndLabel = readCurrentGeminiModeLabel();
+                const finalVerifiedModel =
+                  (isVerifiedTargetModelLabel(liveEndLabel) ? liveEndLabel : '') ||
+                  verifiedModeBeforeSend ||
+                  expectedCanonicalLabel;
                 chrome.runtime
                   .sendMessage({
                     type: 'EXTERNAL_GEMINI_ASK_RESULT',

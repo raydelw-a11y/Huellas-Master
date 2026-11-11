@@ -348,6 +348,9 @@ async function createTemporaryTabInAppWindow(targetUrl) {
     ...(typeof presence.anchorWindowId === 'number' ? { windowId: presence.anchorWindowId } : {}),
   };
   const createdTab = await chrome.tabs.create(createOpts);
+  if (createdTab && createdTab.id) {
+    await chrome.tabs.update(createdTab.id, { autoDiscardable: false }).catch(() => {});
+  }
   return {
     createdWindowId: null,
     tabId: createdTab.id,
@@ -3074,20 +3077,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const geminiTabId = sender.tab.id;
     const geminiPromptArg = String(message.prompt || '');
     const shouldAutoSubmit = message.autoSubmit !== false;
+    const stageNumForInject = Number(message.stageNumber) || 0;
+    const preserveNewlinesForStage =
+      stageNumForInject === 5 || stageNumForInject === 101 || stageNumForInject === 505;
     chrome.scripting
       .executeScript({
         target: { tabId: geminiTabId },
         world: 'MAIN',
-        args: [geminiPromptArg, shouldAutoSubmit],
-        func: (expectedPrompt, autoSubmit) => {
+        args: [geminiPromptArg, shouldAutoSubmit, preserveNewlinesForStage],
+        func: (expectedPrompt, autoSubmit, keepNewlines) => {
           try {
-            const cleanExpected = (expectedPrompt || '')
-              .replace(/\r\n/g, '\n')
-              .split('\n')
-              .map((l) => l.trim())
-              .filter(Boolean)
-              .join('   |   ')
-              .trim();
+            const cleanExpected = keepNewlines
+              ? (expectedPrompt || '')
+                  .replace(/\r\n/g, '\n')
+                  .split('\n')
+                  .map((l) => l.trimEnd())
+                  .join('\n')
+                  .trim()
+              : (expectedPrompt || '')
+                  .replace(/\r\n/g, '\n')
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter(Boolean)
+                  .join('   |   ')
+                  .trim();
             if (!cleanExpected) return;
 
             const findSendBtn = () => {
@@ -3206,19 +3219,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
 
             if (autoSubmit) {
-              setTimeout(() => {
+              let attemptsLeft = 12;
+              const tryClickSend = () => {
                 const remaining = (
                   inputEl?.value ??
                   inputEl?.innerText ??
                   inputEl?.textContent ??
                   ''
                 ).trim();
-                if (!remaining || remaining.length < 5) return;
+                if (!remaining || remaining.length < 3) return;
                 const btn = findSendBtn();
                 if (btn) {
                   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                   btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                   btn.click();
+                  return;
+                }
+                attemptsLeft -= 1;
+                if (attemptsLeft > 0) {
+                  setTimeout(tryClickSend, 220);
                 } else {
                   inputEl.focus();
                   inputEl.dispatchEvent(
@@ -3232,10 +3251,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     })
                   );
                 }
-              }, 160);
+              };
+              setTimeout(tryClickSend, 180);
             }
           } catch {}
         },
+      })
+      .then(async () => {
+        if (!shouldAutoSubmit || stageNumForInject === 505) return;
+        await sleep(900);
+        const snapCheck = await inspectGeminiTabLatestResponse(geminiTabId);
+        if (
+          snapCheck &&
+          snapCheck.userQueries === 0 &&
+          snapCheck.count === 0 &&
+          !snapCheck.generating
+        ) {
+          await forceSubmitPromptInGeminiTab(geminiTabId, geminiPromptArg);
+        }
       })
       .catch(() => {});
     sendResponse({ ok: true });
@@ -4014,40 +4047,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let switchedTabTemporarily = false;
 
       try {
-        // Check if Gemini tab is currently hidden in background; Angular Material CDK sub-menus ("Thinking level >" and "More tools >")
-        // require unthrottled layout frames to position sub-menus when hovered. Briefly activate the Gemini tab if needed and restore right after!
-        try {
-          const gemTab = await chrome.tabs.get(geminiTabId);
-          if (gemTab && !gemTab.active && gemTab.windowId) {
-            const activeTabs = await chrome.tabs.query({ windowId: gemTab.windowId, active: true });
-            if (activeTabs && activeTabs[0] && activeTabs[0].id !== geminiTabId) {
-              prevActiveTabId = activeTabs[0].id;
+        // Keep external debate queries (and standard model selection without DeepResearch/Image submenus) 100% silent in background (active: false)
+        const isExternalAskTab =
+          activeExternalAskTabId === geminiTabId ||
+          Array.from(activeExternalAskMap.values()).some((v) => v && v.tabId === geminiTabId);
+        await chrome.tabs.update(geminiTabId, { autoDiscardable: false }).catch(() => {});
+        if (!isExternalAskTab && (enableDeepResearch || enableCreateImage)) {
+          try {
+            const gemTab = await chrome.tabs.get(geminiTabId);
+            if (gemTab && !gemTab.active && gemTab.windowId) {
+              const activeTabs = await chrome.tabs.query({ windowId: gemTab.windowId, active: true });
+              if (activeTabs && activeTabs[0] && activeTabs[0].id !== geminiTabId) {
+                prevActiveTabId = activeTabs[0].id;
+              }
+              await chrome.tabs.update(geminiTabId, { active: true }).catch(() => {});
+              switchedTabTemporarily = true;
+              await sleep(220);
             }
-            await chrome.tabs.update(geminiTabId, { active: true }).catch(() => {});
-            switchedTabTemporarily = true;
-            await sleep(220);
-          }
-        } catch {}
+          } catch {}
+        }
 
         try {
-          await chrome.debugger.attach(target, '1.3');
+          await Promise.race([
+            chrome.debugger.attach(target, '1.3'),
+            sleep(600).then(() => {
+              throw new Error('attach_timeout');
+            }),
+          ]);
           debuggerAttached = true;
         } catch {
           // Possibly already attached by this extension: probe if commands still work
           try {
-            await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
-            debuggerAttached = true;
+            const probeOk = await cdpSendWithTimeout(target, 'Runtime.evaluate', { expression: '1' }, 350);
+            if (probeOk) debuggerAttached = true;
           } catch {}
         }
         if (debuggerAttached) {
-          await cdpSendWithTimeout(target, 'Emulation.setFocusEmulationEnabled', { enabled: true }, 400).catch(() => {});
+          await cdpSendWithTimeout(
+            target,
+            'Emulation.setFocusEmulationEnabled',
+            { enabled: true },
+            400
+          ).catch(() => {});
         }
+        // Check if the window is unfocused/occluded on macOS (CDP Input.dispatchMouseEvent stalls on occluded NSWindows)
+        let cdpInputOccluded = false;
+        try {
+          const gemTabNow = await chrome.tabs.get(geminiTabId).catch(() => null);
+          if (!gemTabNow || !gemTabNow.active) {
+            cdpInputOccluded = true;
+          } else if (typeof gemTabNow.windowId === 'number') {
+            const gemWinNow = await chrome.windows.get(gemTabNow.windowId).catch(() => null);
+            if (!gemWinNow || !gemWinNow.focused) {
+              cdpInputOccluded = true;
+            }
+          }
+        } catch {}
         // The "is debugging this browser" infobar resizes the viewport: wait before measuring coordinates
-        await sleep(debuggerAttached ? 450 : 120);
+        await sleep(debuggerAttached ? 300 : 120);
 
         const diag = [];
 
-        // Synthetic fallback (only used when chrome.debugger is unavailable): ONE event sequence at a point
+        // Synthetic fallback (used when chrome.debugger is unavailable or window is occluded): ONE event sequence at a point
         const syntheticAt = async (x, y, withClick) => {
           await chrome.scripting
             .executeScript({
@@ -4081,40 +4142,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const hardwareHoverOnly = async (x, y) => {
           if (!x || !y) return;
-          if (!debuggerAttached) {
+          if (!debuggerAttached || cdpInputOccluded) {
             await syntheticAt(x, y, false);
             await sleep(60);
             return;
           }
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchMouseEvent', {
-              type: 'mouseMoved',
-              x: Math.max(2, x - 6),
-              y,
-              button: 'none',
-            })
-            .catch(() => {});
+          const ok1 = await cdpSendWithTimeout(target, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x: Math.max(2, x - 6),
+            y,
+            button: 'none',
+          });
+          if (!ok1) {
+            cdpInputOccluded = true;
+            await syntheticAt(x, y, false);
+            await sleep(60);
+            return;
+          }
           await sleep(35);
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchMouseEvent', {
-              type: 'mouseMoved',
-              x,
-              y,
-              button: 'none',
-            })
-            .catch(() => {});
+          await cdpSendWithTimeout(target, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x,
+            y,
+            button: 'none',
+          });
           await sleep(60);
         };
 
         // EXACTLY ONE click per target (never synthetic + hardware on the same element, which toggles menus closed)
         const hardwareHoverAndClick = async (x, y) => {
           if (!x || !y) return;
-          if (!debuggerAttached) {
+          if (!debuggerAttached || cdpInputOccluded) {
             await syntheticAt(x, y, true);
             return;
           }
           await hardwareHoverOnly(x, y);
-          await dispatchHardwareClick(target, x, y).catch(() => {});
+          if (cdpInputOccluded) {
+            await syntheticAt(x, y, true);
+            return;
+          }
+          const clickedOk = await dispatchHardwareClick(target, x, y).catch(() => false);
+          if (!clickedOk) {
+            cdpInputOccluded = true;
+            await syntheticAt(x, y, true);
+          }
         };
 
         // Helper that executes a DOM/Angular inspection & action step inside MAIN world
@@ -4301,6 +4372,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 };
 
                 if (op === 'CLOSE_MENUS') {
+                  document
+                    .querySelectorAll(
+                      '[data-test-id="bard-mode-menu-button"][aria-expanded="true"], button.input-area-switch[aria-expanded="true"], [gemmenutrigger][aria-expanded="true"]'
+                    )
+                    .forEach((btn) => {
+                      try {
+                        btn.click();
+                      } catch {}
+                    });
                   const backdrops = Array.from(
                     document.querySelectorAll('.cdk-overlay-backdrop.cdk-overlay-backdrop-showing')
                   );
@@ -4309,12 +4389,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       b.click();
                     } catch {}
                   });
-                  document.querySelectorAll('.cdk-overlay-popover, [popover]').forEach((p) => {
-                    try {
-                      if (typeof p.hidePopover === 'function') p.hidePopover();
-                    } catch {}
-                  });
-                  // CDK OverlayKeyboardDispatcher listens on document.body (keydown on document never reaches it)
+                  // CDK OverlayKeyboardDispatcher listens on document.body (never call hidePopover() directly, as that desynchronizes gemMenuTrigger)
                   const escTarget = document.activeElement || document.body;
                   try {
                     escTarget.dispatchEvent(
@@ -4531,17 +4606,201 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 if (op === 'READ_THINKING_OPTIONS') {
-                  // Called while the "Thinking level" sub-menu is open: report which option is checked
-                  const items = getOverlayMenuItems();
+                  // Read ALL gem-menu-item / menuitemradio nodes in overlay (including collapsed Thinking level submenu items whose rect is 0x0)
+                  const allMenuNodes = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-popover gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container gem-menu-item, .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitem"], .cdk-overlay-container .mat-mdc-menu-item'
+                    )
+                  );
+                  const pool = allMenuNodes.length > 0 ? allMenuNodes : getOverlayMenuItems();
                   const read = (re) => {
-                    const it = items.find((el) => re.test((el.innerText || '').replace(/\s+/g, ' ').trim()));
+                    const it = pool.find((el) =>
+                      re.test((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+                    );
                     return it ? isItemChecked(it) : null;
                   };
                   return {
+                    carbon: read(/\b4\s*carbon\b|most\s+complex\s+work/i),
                     low: read(/^(?:[✓✔]\s*)?(?:low|bajo)\b/i),
                     medium: read(/^(?:[✓✔]\s*)?(?:medium|medio)\b/i),
                     high: read(/^(?:[✓✔]\s*)?(?:high|alto)\b/i),
                   };
+                }
+
+                if (op === 'ENSURE_MODEL_MENU_EXPANDED_DOM') {
+                  const sw = findComposerModePickerButton();
+                  if (!sw) return { expanded: false };
+                  if (sw.getAttribute('aria-expanded') !== 'true') {
+                    try {
+                      sw.click();
+                    } catch {}
+                  }
+                  return { expanded: sw.getAttribute('aria-expanded') === 'true' };
+                }
+
+                if (op === 'EXPAND_THINKING_SUBMENU_DOM') {
+                  const tl =
+                    document.querySelector('.cdk-overlay-popover gem-menu-item[value="thinking_level"]') ||
+                    Array.from(
+                      document.querySelectorAll('.cdk-overlay-popover gem-menu-item, .cdk-overlay-container [role="menuitem"]')
+                    ).find((el) =>
+                      /thinking\s*level|nivel\s*de\s*pensamiento/i.test(
+                        (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+                      )
+                    );
+                  if (!tl) return { found: false };
+                  const r = tl.getBoundingClientRect();
+                  const evOpts = {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: Math.round(r.left + Math.max(12, r.width / 2)),
+                    clientY: Math.round(r.top + Math.max(10, r.height / 2)),
+                    view: window,
+                  };
+                  try {
+                    tl.dispatchEvent(new PointerEvent('pointerenter', evOpts));
+                    tl.dispatchEvent(new MouseEvent('mouseenter', evOpts));
+                    tl.dispatchEvent(new MouseEvent('mouseover', evOpts));
+                    if (tl.getAttribute('aria-expanded') !== 'true') {
+                      tl.click();
+                    }
+                  } catch {}
+                  return { found: true, expanded: tl.getAttribute('aria-expanded') === 'true' };
+                }
+
+                if (op === 'CLICK_CARBON4_DOM') {
+                  const allItems = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-popover gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitem"]'
+                    )
+                  );
+                  const c4 =
+                    allItems.find((el) => {
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      return /\b4\s*carbon\b/i.test(txt) || (/carbon/i.test(txt) && /most\s+complex\s+work/i.test(txt));
+                    }) ||
+                    allItems.find((el) => {
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      return /\b4\s*argon\b/i.test(txt);
+                    });
+                  if (!c4) return { clicked: false };
+                  if (!isItemChecked(c4)) {
+                    try {
+                      c4.click();
+                    } catch {}
+                  }
+                  return { clicked: true, alreadyChecked: isItemChecked(c4) };
+                }
+
+                if (op === 'CLICK_THINKING_OPTION_DOM') {
+                  const wantHighOpt = argVal === 'HIGH';
+                  const allItems = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-popover gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitem"]'
+                    )
+                  );
+                  const optEl = wantHighOpt
+                    ? allItems.find((el) => {
+                        const val = (el.getAttribute('value') || '').trim().toLowerCase();
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          val === 'high' ||
+                          (/\bhigh\b/i.test(txt) && /extra\s+thorough/i.test(txt)) ||
+                          (/^(?:[✓✔]\s*)?(?:high|alto)\b/i.test(txt) &&
+                            !/thinking\s*level|nivel\s*de\s*pensamiento|low|medium|pro|flash|argon|carbon/i.test(txt))
+                        );
+                      })
+                    : allItems.find((el) => {
+                        const val = (el.getAttribute('value') || '').trim().toLowerCase();
+                        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                        return (
+                          val === 'low' ||
+                          (/\blow\b/i.test(txt) && /(?:fast|quick)\s+and\s+efficient/i.test(txt)) ||
+                          (/^(?:[✓✔]\s*)?(?:low|bajo)\b/i.test(txt) &&
+                            !/thinking\s*level|nivel\s*de\s*pensamiento|high|medium|pro|flash|argon|carbon/i.test(txt))
+                        );
+                      });
+                  if (!optEl) return { clicked: false };
+                  if (!isItemChecked(optEl)) {
+                    try {
+                      optEl.click();
+                    } catch {}
+                  }
+                  return { clicked: true };
+                }
+
+                if (op === 'OPEN_TOOLS_OR_PLUS_DOM') {
+                  const root = getComposerRoot() || document;
+                  const directToolBtn = Array.from(
+                    root.querySelectorAll(
+                      'toolbox-drawer button, button.toolbox-drawer-button, button[aria-label*="Tools" i], button[aria-label*="Herramientas" i], button[aria-label*="Upload & tools" i], button[aria-label*="Subir y herramientas" i], button[aria-label*="Add" i][aria-haspopup], button[aria-label*="Añadir" i][aria-haspopup]'
+                    )
+                  ).find(
+                    (b) =>
+                      b.offsetParent !== null &&
+                      !b.closest('bard-sidenav, side-navigation, [role="navigation"], model-response, user-query')
+                  );
+                  if (!directToolBtn) return { clicked: false };
+                  try {
+                    const r = directToolBtn.getBoundingClientRect();
+                    const ev = {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: Math.round(r.left + r.width / 2),
+                      clientY: Math.round(r.top + r.height / 2),
+                      view: window,
+                    };
+                    directToolBtn.dispatchEvent(new PointerEvent('pointerdown', ev));
+                    directToolBtn.dispatchEvent(new MouseEvent('mousedown', ev));
+                    directToolBtn.dispatchEvent(new PointerEvent('pointerup', ev));
+                    directToolBtn.dispatchEvent(new MouseEvent('mouseup', ev));
+                    directToolBtn.click();
+                    return { clicked: true };
+                  } catch {
+                    return { clicked: false };
+                  }
+                }
+
+                if (op === 'CLICK_CREATE_IMAGE_DOM') {
+                  const candidates = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-container button, .cdk-overlay-container [role="menuitem"], .cdk-overlay-container [role="menuitemcheckbox"], .cdk-overlay-container [role="option"], .cdk-overlay-container gem-menu-item, .cdk-overlay-container mat-list-item, toolbox-drawer button, .input-area-container button'
+                    )
+                  ).filter(
+                    (el) =>
+                      el.offsetParent !== null &&
+                      !el.closest('bard-sidenav, side-navigation, model-response, user-query')
+                  );
+                  const target = candidates.find((el) => {
+                    const txt = `${el.innerText || el.textContent || ''} ${el.getAttribute('aria-label') || ''}`
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    return (
+                      /\b(create\s*images?|crear\s*im[aá]gen(?:es)?|generate\s*images?|generar\s*im[aá]gen(?:es)?|imagen\s*3|imagen)\b/i.test(
+                        txt
+                      ) && !/\b(deselect|remove|quitar|desactivar|deseleccionar)\b/i.test(txt)
+                    );
+                  });
+                  if (!target) return { clicked: false };
+                  if (isItemChecked(target)) return { clicked: true, alreadyChecked: true };
+                  try {
+                    const r = target.getBoundingClientRect();
+                    const ev = {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: Math.round(r.left + r.width / 2),
+                      clientY: Math.round(r.top + r.height / 2),
+                      view: window,
+                    };
+                    target.dispatchEvent(new PointerEvent('pointerdown', ev));
+                    target.dispatchEvent(new MouseEvent('mousedown', ev));
+                    target.dispatchEvent(new PointerEvent('pointerup', ev));
+                    target.dispatchEvent(new MouseEvent('mouseup', ev));
+                    target.click();
+                    return { clicked: true };
+                  } catch {
+                    return { clicked: false };
+                  }
                 }
 
                 if (op === 'FIND_AND_OPEN_PLUS_MENU') {
@@ -4752,14 +5011,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         };
 
         const pressEscape = async () => {
-          if (!debuggerAttached) return;
+          if (!debuggerAttached || cdpInputOccluded) return;
           const base = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base })
-            .catch(() => {});
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base })
-            .catch(() => {});
+          const okEsc = await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base });
+          if (!okEsc) {
+            cdpInputOccluded = true;
+            return;
+          }
+          await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base });
         };
 
         const closeMenus = async () => {
@@ -4788,7 +5047,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const sw = await runMainStep('FIND_AND_OPEN_MODEL_SWITCHER');
           if (!sw || !sw.found) return null;
           await hardwareHoverAndClick(sw.x, sw.y);
-          await sleep(220);
+          await sleep(180);
+          await runMainStep('ENSURE_MODEL_MENU_EXPANDED_DOM');
+          await sleep(160);
           const directOpt = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
           if (directOpt && directOpt.found) {
             return { sw, thinkingFound: false, th: { found: false }, directOpt };
@@ -4799,31 +5060,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const openThinkingSubmenu = async (th, directOpt) => {
           if (directOpt && directOpt.found) return directOpt;
-          // In .cdk-overlay-popover (4 Carbon / 4 Argon flat menu), "High Extra thorough" is already visible directly!
-          let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 4, 110);
+          let opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 2, 100);
           if (opt.found) return opt;
           if (th && th.found) {
             await hardwareHoverOnly(th.x, th.y);
-            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 140);
+            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 3, 120);
             if (!opt.found) {
               await hardwareHoverAndClick(th.x, th.y);
-              opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 6, 150);
+              opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 3, 120);
             }
+          }
+          if (!opt.found) {
+            await runMainStep('EXPAND_THINKING_SUBMENU_DOM');
+            await sleep(220);
+            opt = await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 4, 120);
           }
           return opt;
         };
 
-        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> targetLevel (LOW for app, HIGH for MODO DUO/TRIO) ---
+        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> targetLevel (LOW for app, HIGH for MODO DUO/TRIO/CUATRO) ---
         let thinkingOk = false;
         let thinkingVerified = false;
         let verifiedModelLabel = '';
-        // The mode picker announces the current state ("Open mode picker, currently Carbon High"): use it first
+        const canonicalTargetLabel = targetLevel === 'HIGH' ? '4 Carbon · High' : '4 Carbon · Low';
         const modeMatchesTarget = async () => {
           const ml = await runMainStep('READ_MODE_LABEL');
           const label = String((ml && ml.label) || '');
           const re = targetLevel === 'HIGH' ? /\bcarbon\b[^,]*\bhigh\b/i : /\bcarbon\b[^,]*\blow\b/i;
           if (re.test(label)) {
-            verifiedModelLabel = label;
+            verifiedModelLabel = canonicalTargetLabel;
             return true;
           }
           return false;
@@ -4837,57 +5102,103 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           let menu = await openModelMenu();
           if (!menu) {
             diag.push(`T${attempt}: switcher no encontrado`);
-            await sleep(400);
+            await sleep(350);
             continue;
           }
-          if (!menu.sw.isAlreadyCarbon) {
-            const c4 = await waitFound('FIND_CARBON4_IN_OVERLAY', '', 6, 140);
+
+          // Check current checked state directly inside gem-menu-item nodes
+          const preState = await runMainStep('READ_THINKING_OPTIONS');
+          const preWant = targetLevel === 'HIGH' ? preState?.high : preState?.low;
+          const isCarbonActive = preState?.carbon === true || (preState?.carbon === null && Boolean(menu.sw.isAlreadyCarbon));
+          if (isCarbonActive && preWant === true) {
+            thinkingOk = true;
+            thinkingVerified = true;
+            verifiedModelLabel = canonicalTargetLabel;
+            break;
+          }
+
+          if (!isCarbonActive) {
+            const c4 = await waitFound('FIND_CARBON4_IN_OVERLAY', '', 5, 130);
             if (c4.found) {
               await hardwareHoverAndClick(c4.x, c4.y);
-              await sleep(450);
+              await sleep(260);
             }
+            await runMainStep('CLICK_CARBON4_DOM');
+            await sleep(320);
             await closeMenus();
             menu = await openModelMenu();
             if (!menu) continue;
+            const afterCarbonState = await runMainStep('READ_THINKING_OPTIONS');
+            const afterCarbonWant = targetLevel === 'HIGH' ? afterCarbonState?.high : afterCarbonState?.low;
+            if (afterCarbonWant === true) {
+              thinkingOk = true;
+              thinkingVerified = true;
+              verifiedModelLabel = canonicalTargetLabel;
+              break;
+            }
           }
+
           const opt = await openThinkingSubmenu(menu.th, menu.directOpt);
-          if (!opt.found) {
-            diag.push(`T${attempt}: opción ${targetLevel} no encontrada [${(opt.items || []).join(' | ')}] (sw="${menu.sw.label}")`);
-            continue;
+          if (opt && opt.found) {
+            if (!opt.alreadyChecked) {
+              await hardwareHoverAndClick(opt.x, opt.y);
+              await sleep(280);
+            }
+          } else {
+            await runMainStep('EXPAND_THINKING_SUBMENU_DOM');
+            await sleep(200);
           }
-          if (!opt.alreadyChecked) {
-            await hardwareHoverAndClick(opt.x, opt.y);
-            await sleep(450);
-          }
+          // Unfocused window safeguard: if menu is still open and option wasn't toggled by CDP mouse event, click in MAIN world
+          await runMainStep('CLICK_THINKING_OPTION_DOM', targetLevel);
+          await sleep(320);
+
           await closeMenus();
           if (await modeMatchesTarget()) {
             thinkingOk = true;
             thinkingVerified = true;
             break;
           }
-          // VERIFY by reopening the menu (works for BOTH flat Carbon popover and Thinking level submenu)
-          await closeMenus();
+
+          // Strict DOM verification: reopen menu and verify aria-checked="true" on 4 Carbon + target Thinking level
           const vMenu = await openModelMenu();
           if (vMenu) {
-            if (vMenu.thinkingFound) {
-              await hardwareHoverOnly(vMenu.th.x, vMenu.th.y);
-              await waitFound('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel, 5, 130);
+            let state = await runMainStep('READ_THINKING_OPTIONS');
+            let want = targetLevel === 'HIGH' ? state?.high : state?.low;
+            if (want === null && vMenu.thinkingFound) {
+              await runMainStep('EXPAND_THINKING_SUBMENU_DOM');
+              await sleep(200);
+              state = await runMainStep('READ_THINKING_OPTIONS');
+              want = targetLevel === 'HIGH' ? state?.high : state?.low;
             }
-            const state = await runMainStep('READ_THINKING_OPTIONS');
-            const want = targetLevel === 'HIGH' ? state?.high : state?.low;
-            if (want === true) {
+            if (want !== true) {
+              await runMainStep('EXPAND_THINKING_SUBMENU_DOM');
+              await sleep(180);
+              await runMainStep('CLICK_THINKING_OPTION_DOM', targetLevel);
+              await sleep(280);
+              await closeMenus();
+              const vMenu2 = await openModelMenu();
+              if (vMenu2) {
+                state = await runMainStep('READ_THINKING_OPTIONS');
+                want = targetLevel === 'HIGH' ? state?.high : state?.low;
+              }
+            }
+            const carbonConfirmed = state?.carbon !== false;
+            if (want === true && carbonConfirmed) {
               thinkingOk = true;
               thinkingVerified = true;
-              verifiedModelLabel = `4 Carbon · Thinking: ${targetLevel} (checked, sw="${vMenu.sw.label}")`;
-            } else if (want === null || (state?.high !== true && state?.low !== true && state?.medium !== true)) {
+              verifiedModelLabel = canonicalTargetLabel;
+            } else if (want === null && carbonConfirmed && state?.high !== true && state?.low !== true && state?.medium !== true) {
               thinkingOk = true;
-              verifiedModelLabel = `4 Carbon · Thinking: ${targetLevel} (clicked, sw="${vMenu.sw.label}")`;
+              verifiedModelLabel = canonicalTargetLabel;
             } else {
-              diag.push(`T${attempt}: verificación falló (low=${state?.low}, medium=${state?.medium}, high=${state?.high})`);
+              diag.push(`T${attempt}: verificación falló (carbon=${state?.carbon}, low=${state?.low}, medium=${state?.medium}, high=${state?.high})`);
             }
           }
         }
         await closeMenus();
+        if (thinkingOk && verifiedModelLabel) {
+          verifiedExternalGeminiModels.set(geminiTabId, verifiedModelLabel);
+        }
 
         // --- PART 2: DEEP RESEARCH (+ -> More tools -> Deep research) with verification ---
         let deepResearchOk = false;
@@ -5003,13 +5314,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           };
           for (let attempt = 1; attempt <= 3 && !createImageOk; attempt++) {
             await closeMenus();
-            const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
-            if (!plusInfo?.found) {
-              diag.push(`I${attempt}: botón "+" no encontrado`);
-              continue;
+            // First try direct DOM click if composer already exposes a Create image / Tools button or in unfocused windows
+            const preDomClick = await runMainStep('CLICK_CREATE_IMAGE_DOM');
+            if (preDomClick?.clicked && (preDomClick.alreadyChecked || (await waitImgChipActive(6)))) {
+              createImageOk = true;
+              break;
             }
-            await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
-            let createImgInfo = await waitFound('FIND_CREATE_IMAGE_IN_OVERLAY', '', 8, 130);
+            const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
+            if (plusInfo?.found) {
+              await hardwareHoverAndClick(plusInfo.x, plusInfo.y);
+            } else {
+              const domOpened = await runMainStep('OPEN_TOOLS_OR_PLUS_DOM');
+              if (!domOpened?.clicked) {
+                diag.push(`I${attempt}: botón "+" / Tools no encontrado`);
+                continue;
+              }
+            }
+            let createImgInfo = await waitFound('FIND_CREATE_IMAGE_IN_OVERLAY', '', 6, 130);
+            if (!createImgInfo.found) {
+              await runMainStep('OPEN_TOOLS_OR_PLUS_DOM');
+              await sleep(260);
+              createImgInfo = await waitFound('FIND_CREATE_IMAGE_IN_OVERLAY', '', 6, 130);
+            }
             if (!createImgInfo.found) {
               const moreTools = await runMainStep('FIND_MORE_TOOLS_IN_OVERLAY');
               if (moreTools?.found && !moreTools.directDeepResearch) {
@@ -5018,6 +5344,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               }
             }
             if (!createImgInfo?.found) {
+              const domFallbackClick = await runMainStep('CLICK_CREATE_IMAGE_DOM');
+              if (domFallbackClick?.clicked && (domFallbackClick.alreadyChecked || (await waitImgChipActive(8)))) {
+                createImageOk = true;
+                break;
+              }
               diag.push(`I${attempt}: "Create image" no apareció en menú "+" [${(createImgInfo?.items || []).join(' | ')}]`);
               continue;
             }
@@ -5026,7 +5357,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               break;
             }
             await hardwareHoverAndClick(createImgInfo.x, createImgInfo.y);
-            if (await waitImgChipActive(10)) {
+            if (await waitImgChipActive(7)) {
+              createImageOk = true;
+              break;
+            }
+            const domDirectClick = await runMainStep('CLICK_CREATE_IMAGE_DOM');
+            if (domDirectClick?.clicked && (await waitImgChipActive(8))) {
               createImageOk = true;
               break;
             }
@@ -5079,7 +5415,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // 3. Forward status & responses from Gemini/Flow/Suno tab ONLY to Huellas Master in the SAME window
+  const isSenderExternalAskTab =
+    Boolean(sender?.tab?.id) &&
+    (activeExternalAskTabId === sender.tab.id ||
+      Array.from(activeExternalAskMap.values()).some((v) => v && v.tabId === sender.tab.id));
+
   if (message.type === 'GEMINI_RESPONSE_READY') {
+    if (isSenderExternalAskTab) {
+      sendResponse({ ok: true, ignoredExternalAskTab: true });
+      return false;
+    }
     // Remote (mobile) orders: persist result ONLY in the local server (never applied to the Mac app's active doc).
     // If the server is unreachable, fall back to broadcasting with docId + isRemoteOrder so nothing is lost.
     (async () => {
@@ -5094,21 +5439,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return;
       }
-      if (
-      (message.type === 'FLOW_THUMBNAIL_CAPTURED' || message.type === 'GEMINI_THUMBNAIL_CAPTURED') &&
-      (message.imageDataUrl || message.imageUrl)
-    ) {
-      fetch('http://localhost:4200/api/gemini-web/save-captured-thumbnail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          docId: message.docId || '',
-          option: message.option || 'A',
-          imageDataUrl: message.imageDataUrl || message.imageUrl || '',
-        }),
-      }).catch(() => {});
-    }
-    broadcastToHuellasTabsInSameWindow(senderWindowId, message);
+      broadcastToHuellasTabsInSameWindow(senderWindowId, message);
       // Local orders: idempotent backup in the Mac server (only fills an EMPTY field), so a reloaded/closed
       // app tab can never lose a 25-min Deep Research report
       const stageNum = Number(message.stageNumber) || 0;
@@ -5145,6 +5476,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.type === 'FLOW_GENERATION_FAILED' ||
     message.type === 'SUNO_AUDIO_CAPTURED'
   ) {
+    if (isSenderExternalAskTab) {
+      sendResponse({ ok: true, ignoredExternalAskTab: true });
+      return false;
+    }
     if (message.type === 'GEMINI_CHAT_LINKED') {
       saveChatLinkInBackgroundRegistry(message).catch(() => {});
       if (message.docId && message.geminiChatUrl) {
@@ -5159,13 +5494,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (message.type === 'FLOW_THUMBNAIL_CAPTURED' || message.type === 'GEMINI_THUMBNAIL_CAPTURED') &&
       (message.imageDataUrl || message.imageUrl)
     ) {
-      fetch('http://localhost:4200/api/gemini-web/save-captured-thumbnail', {
+      const normalizedOpt = message.option || message.optionLabel || 'A';
+      (async () => {
+        let previewDataUrl = '';
+        try {
+          const resp = await fetch('http://localhost:4200/api/gemini-web/save-captured-thumbnail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: message.docId || '',
+              option: normalizedOpt,
+              optionLabel: normalizedOpt,
+              imageDataUrl: message.imageDataUrl || message.imageUrl || '',
+            }),
+          });
+          if (resp.ok) {
+            const savedMeta = await resp.json().catch(() => null);
+            if (savedMeta && savedMeta.previewDataUrl) {
+              previewDataUrl = String(savedMeta.previewDataUrl);
+            }
+          }
+        } catch {}
+        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+          ...message,
+          option: normalizedOpt,
+          optionLabel: normalizedOpt,
+          ...(previewDataUrl ? { previewDataUrl } : {}),
+        });
+      })();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (message.type === 'FLOW_GENERATION_FAILED' && message.mediaType === 'THUMBNAILS') {
+      fetch('http://localhost:4200/api/gemini-web/fail-captured-thumbnail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           docId: message.docId || '',
-          option: message.option || 'A',
-          imageDataUrl: message.imageDataUrl || message.imageUrl || '',
+          option: message.option || message.optionLabel || 'A',
+          errorText: message.errorText || 'Gemini Web no devolvió la imagen de la miniatura.',
         }),
       }).catch(() => {});
     }
@@ -5209,13 +5576,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             args: [resolvedDataUrl, fileName],
             func: (dataUrlStr, fname) => {
               try {
-                // Remove any leftover attachments in the composer first so we attach cleanly
+                // Remove ONLY leftover uploaded file attachments (NEVER touch mat-chip-row / Create image / Tools chips!)
                 document
                   .querySelectorAll(
-                    'button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], button[aria-label*="remove attachment" i]'
+                    'uploader-file-preview button, .file-preview-container button, button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], button[aria-label*="remove attachment" i], button[aria-label*="remove file" i], button[aria-label*="quitar archivo" i]'
                   )
                   .forEach((b) => {
                     try {
+                      if (b.closest('mat-chip-row, mat-chip, mat-chip-option, toolbox-drawer')) return;
+                      const aria = `${b.getAttribute('aria-label') || ''} ${b.textContent || ''}`;
+                      if (/create\s*images?|crear\s*im[aá]gen|images|im[aá]genes|deep\s*research|canvas|tool|herramienta/i.test(aria)) {
+                        return;
+                      }
                       b.click();
                     } catch {}
                   });
@@ -5240,6 +5612,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const file = new File([arr], fname || 'logo_huellas.png', { type: mime });
                 const dt = new DataTransfer();
                 dt.items.add(file);
+
+                // Prefer native <input type="file"> when present in the composer, otherwise ClipboardEvent('paste') + DragEvent('drop')
+                const fileInput = document.querySelector(
+                  'input-area-v2 input[type="file"], .input-area-container input[type="file"], input[type="file"][accept*="image"]'
+                );
+                if (fileInput) {
+                  try {
+                    fileInput.files = dt.files;
+                    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  } catch {}
+                }
                 const pasteEv = new ClipboardEvent('paste', {
                   bubbles: true,
                   cancelable: true,
@@ -5275,11 +5659,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   document.querySelector('input-area-v2, .input-area-container, .input-area') || document;
                 const hasImg =
                   root.querySelectorAll(
-                    'img.gem-attachment-style-img, button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], [class*="attachment"] img'
+                    'uploader-file-preview, .file-preview-container, [data-test-id*="file-preview" i], [data-test-id*="attachment" i], img.gem-attachment-style-img, button[aria-label*="close attachment" i], button[aria-label*="cerrar archivo" i], button[aria-label*="remove file" i], button[aria-label*="quitar archivo" i], [class*="attachment"] img, [class*="file-preview"] img, img[src^="blob:"], img[src^="data:image"]'
                   ).length > 0;
                 const uploading =
                   root.querySelectorAll(
-                    'mat-progress-spinner, mat-spinner, [role="progressbar"], [class*="upload-progress" i], [class*="loading-spinner" i]'
+                    'uploader-file-preview mat-progress-spinner, .file-preview-container mat-progress-spinner, mat-progress-spinner, mat-spinner, [role="progressbar"], [class*="upload-progress" i], [class*="loading-spinner" i]'
                   ).length > 0;
                 return { hasImg, uploading };
               },
@@ -5438,15 +5822,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'EXTERNAL_CHATGPT_ASK_RESULT') {
     (async () => {
+      const memEntry = message.requestId ? activeExternalAskMap.get(message.requestId) : null;
+      const tabIdFromSender = sender?.tab?.id || null;
+      const reusedExisting = Boolean(
+        (memEntry && memEntry.keepOpenOnCleanup) ||
+          (tabIdFromSender && reusedExternalTabIds.has(tabIdFromSender))
+      );
       await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...message,
-          tabId: sender?.tab?.id || null,
+          tabId: tabIdFromSender,
+          reusedExisting,
         }),
       }).catch(() => {});
-      await cleanupActiveExternalAskWindow(message.requestId, null, sender?.tab?.id);
+      await cleanupActiveExternalAskWindow(message.requestId, null, tabIdFromSender, {
+        keepOpen: reusedExisting,
+      });
     })();
     sendResponse({ ok: true });
     return false;
@@ -5494,6 +5887,8 @@ let activeExternalAskCount = 0;
 let activeExternalAskWindowId = null;
 let activeExternalAskTabId = null;
 const activeExternalAskMap = new Map();
+const verifiedExternalGeminiModels = new Map();
+const reusedExternalTabIds = new Set();
 const claimedExternalAskIds = new Set();
 const claimedGeminiCommandIds = new Set();
 let externalAskStorageChain = Promise.resolve();
@@ -5517,11 +5912,21 @@ async function getStoredExternalAskMap() {
   }
 }
 
-async function registerActiveExternalAskWindow(requestId, windowId, tabId) {
+async function registerActiveExternalAskWindow(requestId, windowId, tabId, opts = {}) {
   if (!requestId) return;
-  const entry = { requestId, windowId: windowId || null, tabId: tabId || null, startedAt: Date.now() };
+  const keepOpenOnCleanup = Boolean(opts && opts.keepOpenOnCleanup);
+  if (tabId && keepOpenOnCleanup) {
+    reusedExternalTabIds.add(tabId);
+  }
+  const entry = {
+    requestId,
+    windowId: windowId || null,
+    tabId: tabId || null,
+    keepOpenOnCleanup,
+    startedAt: Date.now(),
+  };
   activeExternalAskMap.set(requestId, entry);
-  if (windowId) activeExternalAskWindowId = windowId;
+  if (windowId && !keepOpenOnCleanup) activeExternalAskWindowId = windowId;
   if (tabId) activeExternalAskTabId = tabId;
   await withExternalAskStorageLock(async () => {
     const map = await getStoredExternalAskMap();
@@ -5532,11 +5937,12 @@ async function registerActiveExternalAskWindow(requestId, windowId, tabId) {
   });
 }
 
-async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId) {
-  const { winId, tId, remainingCount } = await withExternalAskStorageLock(async () => {
+async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallbackTabId, opts = {}) {
+  const { winId, tId, keepOpen, remainingCount } = await withExternalAskStorageLock(async () => {
     const map = await getStoredExternalAskMap();
     const memEntry = requestId ? activeExternalAskMap.get(requestId) : null;
     const storedEntry = requestId ? map[requestId] : null;
+    const wasAlreadyCleaned = Boolean(requestId && !memEntry && !storedEntry);
     const resolvedWinId =
       (memEntry && memEntry.windowId) ||
       (storedEntry && storedEntry.windowId) ||
@@ -5549,6 +5955,13 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
       fallbackTabId ||
       (!requestId ? activeExternalAskTabId : null) ||
       null;
+    const shouldKeepOpen = Boolean(
+      (opts && opts.keepOpen) ||
+        wasAlreadyCleaned ||
+        (memEntry && memEntry.keepOpenOnCleanup) ||
+        (storedEntry && storedEntry.keepOpenOnCleanup) ||
+        (resolvedTabId && reusedExternalTabIds.has(resolvedTabId))
+    );
 
     if (requestId) {
       activeExternalAskMap.delete(requestId);
@@ -5564,32 +5977,58 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
     return {
       winId: resolvedWinId,
       tId: resolvedTabId,
+      keepOpen: shouldKeepOpen,
       remainingCount: Object.keys(map).length + activeExternalAskMap.size,
     };
   });
 
   if (tId) {
+    verifiedExternalGeminiModels.delete(tId);
     await chrome.debugger.detach({ tabId: tId }).catch(() => {});
   }
-  if (winId) {
-    const winTabs = await chrome.tabs.query({ windowId: winId }).catch(() => []);
-    const isSafeSingleTemporaryWindow =
-      winTabs.length === 1 &&
-      !winTabs.some((t) => isHuellasUrl(t.url, t.title) || /\/notebook\//i.test(t.url || ''));
-    if (isSafeSingleTemporaryWindow) {
-      await chrome.windows.remove(winId).catch(() => {});
-    }
-  }
-  if (tId) {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const stillOpen = await chrome.tabs.get(tId).catch(() => null);
-      if (!stillOpen) break;
-      // Never close the user's Huellas Master or Notebook tab by accident
-      if (isHuellasUrl(stillOpen.url, stillOpen.title) || /\/notebook\//i.test(stillOpen.url || '')) {
-        break;
+  if (!keepOpen) {
+    if (winId) {
+      const winTabs = await chrome.tabs.query({ windowId: winId }).catch(() => []);
+      let canCloseSingleWin =
+        winTabs.length === 1 &&
+        !winTabs.some((t) => isHuellasUrl(t.url, t.title) || /\/notebook\//i.test(t.url || ''));
+      if (canCloseSingleWin && winTabs[0]) {
+        const u0 = String(winTabs[0].url || '');
+        if (/gemini\.google\.com/i.test(u0)) {
+          const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
+          if (allGem.length <= 1) canCloseSingleWin = false;
+        } else if (/chatgpt\.com|chat\.openai\.com/i.test(u0)) {
+          const allGpt = await chrome.tabs
+            .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
+            .catch(() => []);
+          if (allGpt.length <= 1) canCloseSingleWin = false;
+        }
       }
-      await chrome.tabs.remove(tId).catch(() => {});
-      await sleep(180);
+      if (canCloseSingleWin) {
+        await chrome.windows.remove(winId).catch(() => {});
+      }
+    }
+    if (tId) {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const stillOpen = await chrome.tabs.get(tId).catch(() => null);
+        if (!stillOpen) break;
+        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini or ChatGPT tab
+        const stillUrl = String(stillOpen.url || '');
+        if (isHuellasUrl(stillUrl, stillOpen.title) || /\/notebook\//i.test(stillUrl)) {
+          break;
+        }
+        if (/gemini\.google\.com/i.test(stillUrl)) {
+          const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
+          if (allGem.length <= 1) break;
+        } else if (/chatgpt\.com|chat\.openai\.com/i.test(stillUrl)) {
+          const allGpt = await chrome.tabs
+            .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
+            .catch(() => []);
+          if (allGpt.length <= 1) break;
+        }
+        await chrome.tabs.remove(tId).catch(() => {});
+        await sleep(180);
+      }
     }
   }
 
@@ -6000,24 +6439,20 @@ async function forceSubmitPromptInGeminiTab(tabId, rawPrompt) {
       try {
         await sleep(250);
         // Dismiss any overlay with Escape first
-        await chrome.debugger
-          .sendCommand(target, 'Input.dispatchKeyEvent', {
-            type: 'rawKeyDown',
-            key: 'Escape',
-            code: 'Escape',
-            windowsVirtualKeyCode: 27,
-            nativeVirtualKeyCode: 27,
-          })
-          .catch(() => {});
-        await chrome.debugger
-          .sendCommand(target, 'Input.dispatchKeyEvent', {
-            type: 'keyUp',
-            key: 'Escape',
-            code: 'Escape',
-            windowsVirtualKeyCode: 27,
-            nativeVirtualKeyCode: 27,
-          })
-          .catch(() => {});
+        await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', {
+          type: 'rawKeyDown',
+          key: 'Escape',
+          code: 'Escape',
+          windowsVirtualKeyCode: 27,
+          nativeVirtualKeyCode: 27,
+        });
+        await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', {
+          type: 'keyUp',
+          key: 'Escape',
+          code: 'Escape',
+          windowsVirtualKeyCode: 27,
+          nativeVirtualKeyCode: 27,
+        });
         await sleep(120);
 
         if (coords && coords.inputX > 0 && coords.inputY > 0) {
@@ -6048,49 +6483,57 @@ async function forceSubmitPromptInGeminiTab(tabId, rawPrompt) {
           })
           .catch(() => {});
 
-        await chrome.debugger
-          .sendCommand(target, 'Input.insertText', { text: cleanPrompt })
-          .catch(() => {});
-        await sleep(280);
+        await cdpSendWithTimeout(target, 'Input.insertText', { text: cleanPrompt }, 800);
+        await sleep(300);
 
-        // Locate send button coordinates after trusted insertText
+        // Click the newly-enabled send button directly in MAIN world first (works even in background/occluded tabs!),
+        // and return coordinates in case hardware click fallback is also needed.
         const sbRes = await chrome.scripting
           .executeScript({
             target: { tabId },
             world: 'MAIN',
             func: () => {
               const b = document.querySelector(
-                'button.send-button:not([disabled]):not([aria-disabled="true"]), .send-button-container button:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])'
+                'button.send-button:not([disabled]):not([aria-disabled="true"]), .send-button-container button:not([disabled]):not([aria-disabled="true"]), button[data-test-id*="send" i]:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Send" i]:not([disabled]):not([aria-disabled="true"]), button[aria-label*="Enviar" i]:not([disabled]):not([aria-disabled="true"])'
               );
               if (!b) return null;
+              try {
+                b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                b.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                b.click();
+              } catch {}
               const r = b.getBoundingClientRect();
-              if (r.width <= 0 || r.height <= 0) return null;
-              return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+              if (r.width <= 0 || r.height <= 0) return { clickedDom: true, x: 0, y: 0 };
+              return { clickedDom: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
             },
           })
           .catch(() => null);
         const sbCoords = (sbRes && sbRes[0] && sbRes[0].result) || null;
-        if (sbCoords && sbCoords.x > 0 && sbCoords.y > 0) {
-          await dispatchHardwareClick(target, sbCoords.x, sbCoords.y).catch(() => {});
-        } else {
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', {
+        await sleep(450);
+        const snapAfterDomClick = await inspectGeminiTabLatestResponse(tabId);
+        const alreadySubmitted = Boolean(
+          snapAfterDomClick &&
+            (snapAfterDomClick.userQueries > 0 || snapAfterDomClick.count > 0 || snapAfterDomClick.generating)
+        );
+        if (!alreadySubmitted) {
+          if (sbCoords && sbCoords.x > 0 && sbCoords.y > 0) {
+            await dispatchHardwareClick(target, sbCoords.x, sbCoords.y).catch(() => {});
+          } else {
+            await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', {
               type: 'rawKeyDown',
               key: 'Enter',
               code: 'Enter',
               windowsVirtualKeyCode: 13,
               nativeVirtualKeyCode: 13,
-            })
-            .catch(() => {});
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', {
+            });
+            await cdpSendWithTimeout(target, 'Input.dispatchKeyEvent', {
               type: 'keyUp',
               key: 'Enter',
               code: 'Enter',
               windowsVirtualKeyCode: 13,
               nativeVirtualKeyCode: 13,
-            })
-            .catch(() => {});
+            });
+          }
         }
       } finally {
         await chrome.debugger.detach(target).catch(() => {});
@@ -6136,7 +6579,7 @@ async function runExternalGeminiAskOrder(task) {
   let createdWindowId = null;
   let tabId = null;
   try {
-    const opened = await createTemporaryExternalWindowInAppBrowser('https://gemini.google.com/app');
+    const opened = await createTemporaryTabInAppWindow('https://gemini.google.com/app');
     createdWindowId = opened.createdWindowId;
     tabId = opened.tabId;
 
@@ -6168,7 +6611,8 @@ async function runExternalGeminiAskOrder(task) {
 
     const orderPayload = {
       target: 'GEMINI',
-      action: 'ASK_EXTERNAL_CARBON_HIGH',
+      action: 'ASK_EXTERNAL_CARBON_LOW',
+      thinkingLevel: 'LOW',
       requestId: task.id,
       prompt: task.prompt,
     };
@@ -6187,9 +6631,9 @@ async function runExternalGeminiAskOrder(task) {
     if (!deliveredAck) {
       const snapCheck = await inspectGeminiTabLatestResponse(tabId);
       const lbl = String((snapCheck && snapCheck.modeLabel) || '');
-      const alreadyCarbonHigh =
-        /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl);
-      if (!alreadyCarbonHigh) {
+      const alreadyCarbonLow =
+        /\b(carbon|argon)\b/i.test(lbl) && /\b(low|bajo)\b/i.test(lbl) && !/\b(high|alto|medium|medio|flash)\b/i.test(lbl);
+      if (!alreadyCarbonLow) {
         await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -6197,7 +6641,7 @@ async function runExternalGeminiAskOrder(task) {
             requestId: task.id,
             ok: false,
             verifiedModel: lbl || 'sin_confirmar',
-            error: `No se pudo inyectar el selector de 4 Carbon · High en Gemini Web (quedó en "${
+            error: `No se pudo inyectar el selector de 4 Carbon · Low en Gemini Web (quedó en "${
               lbl || 'desconocido'
             }"). Envío bloqueado para evitar usar un modelo distinto.`,
           }),
@@ -6222,8 +6666,7 @@ async function runExternalGeminiAskOrder(task) {
         !snap.generating &&
         (i === 6 || i === 12) &&
         /\b(carbon|argon)\b/i.test(String(snap.modeLabel || '')) &&
-        /\b(high|alto)\b/i.test(String(snap.modeLabel || '')) &&
-        !/\b(low|bajo|flash)\b/i.test(String(snap.modeLabel || ''))
+        !/\b(high|alto|medium|medio|flash)\b/i.test(String(snap.modeLabel || ''))
       ) {
         await forceSubmitPromptInGeminiTab(tabId, task.prompt);
         continue;
@@ -6235,14 +6678,18 @@ async function runExternalGeminiAskOrder(task) {
           lastText = snap.text;
           stableDoneTicks = 1;
         }
-        if (stableDoneTicks >= 2 || snap.hasActionBar) {
+        if (stableDoneTicks >= 3) {
+          const resolvedGemModel =
+            verifiedExternalGeminiModels.get(tabId) ||
+            (/\blow|bajo\b/i.test(String(snap.modeLabel || '')) ? snap.modeLabel : '') ||
+            '4 Carbon · Low';
           await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               requestId: task.id,
               ok: true,
-              verifiedModel: snap.modeLabel || '',
+              verifiedModel: resolvedGemModel,
               response: snap.text,
               chatUrl: snap.url,
             }),
@@ -6256,6 +6703,7 @@ async function runExternalGeminiAskOrder(task) {
     }
   } finally {
     activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    if (tabId) verifiedExternalGeminiModels.delete(tabId);
     await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId);
   }
 }
@@ -6275,6 +6723,16 @@ async function inspectChatGptTabLatestResponse(tabId) {
       target: { tabId },
       world: 'MAIN',
       func: () => {
+        if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+          window.__HUELLAS_BG_RAF_PATCHED__ = true;
+          const nativeRAF = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = (cb) => {
+            if (document.visibilityState === 'hidden') {
+              return window.setTimeout(() => cb(performance.now()), 16);
+            }
+            return nativeRAF(cb);
+          };
+        }
         const isVis = (el) => {
           if (!el) return false;
           const r = el.getBoundingClientRect();
@@ -6298,6 +6756,7 @@ async function inspectChatGptTabLatestResponse(tabId) {
           'div#prompt-textarea',
           'textarea#prompt-textarea',
           'div.ProseMirror[contenteditable="true"]',
+          'div[contenteditable="true"][role="textbox"]',
           '[data-testid="composer-text-input"] [contenteditable="true"]',
           'form textarea[placeholder]',
         ];
@@ -6331,69 +6790,149 @@ async function inspectChatGptTabLatestResponse(tabId) {
           'button[data-testid="stop-button"]',
           'button[aria-label*="Stop streaming" i]',
           'button[aria-label*="Stop generating" i]',
+          'button[aria-label*="Stop" i]',
           'button[aria-label*="Detener" i]',
         ];
         let generating = false;
         for (const s of stopSelectors) {
-          if (isVis(document.querySelector(s))) {
-            generating = true;
-            break;
+          const stopEls = document.querySelectorAll(s);
+          for (const stEl of stopEls) {
+            if (isVis(stEl)) {
+              generating = true;
+              break;
+            }
           }
+          if (generating) break;
         }
         if (!generating && document.querySelector('.result-streaming, [data-is-streaming="true"]')) {
           generating = true;
+        }
+        if (!generating) {
+          const turnStates = Array.from(document.querySelectorAll('[data-talvt-turn-state]'));
+          if (turnStates.length > 0) {
+            const lastState = (
+              turnStates[turnStates.length - 1].getAttribute('data-talvt-turn-state') || ''
+            )
+              .trim()
+              .toLowerCase();
+            if (lastState && lastState !== 'complete' && lastState !== 'completed' && lastState !== 'done') {
+              generating = true;
+            }
+          }
         }
 
         let verifiedModel = 'ChatGPT Web';
         const modelBtn =
           document.querySelector('button[data-testid="model-switcher-dropdown-button"]') ||
-          document.querySelector('[data-testid="model-switcher-dropdown-button"]');
+          document.querySelector('[data-testid="model-switcher-dropdown-button"]') ||
+          document.querySelector('button[aria-label*="Model selector" i]') ||
+          document.querySelector('button[aria-label*="Selector de modelo" i]');
         if (isVis(modelBtn)) {
           const txt = (modelBtn.innerText || modelBtn.textContent || '').replace(/\s+/g, ' ').trim();
           if (txt) verifiedModel = txt;
         }
 
-        const nodes = Array.from(
-          document.querySelectorAll(
-            '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
-          )
-        ).filter((el, idx, arr) => arr.indexOf(el) === idx);
+        const rawNodes = [
+          ...Array.from(
+            document.querySelectorAll(
+              '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"], [data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"]'
+            )
+          ),
+          ...Array.from(document.querySelectorAll('[data-chatgpt-agent-turn-start]'))
+            .map(
+              (m) =>
+                m.closest('article, [data-testid^="conversation-turn-"], [data-turn="assistant"]') ||
+                m.parentElement
+            )
+            .filter(Boolean),
+        ];
+        const uniqueNodes = rawNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+        const nodes = uniqueNodes.filter(
+          (el, _i, arr) => !arr.some((other) => other !== el && other.contains(el))
+        );
+
+        const extractCleanText = (rootEl) => {
+          if (!rootEl) return '';
+          const clone = rootEl.cloneNode(true);
+          clone
+            .querySelectorAll(
+              '.sr-only, button, [role="button"], [role="checkbox"], .copy-code-button, [data-testid*="copy" i], [data-testid*="thought" i], [data-chatgpt-agent-turn-start], script, style, svg'
+            )
+            .forEach((el) => el.remove());
+          clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
+          clone
+            .querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, tr, blockquote, hr')
+            .forEach((el) => {
+              el.prepend('\n');
+              el.append('\n');
+            });
+          return (clone.textContent || '')
+            .replace(/^(?:\s*(?:ChatGPT\s+(?:dijo|said))\s*:?\s*)+/i, '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        };
 
         let text = '';
+        let hasFinishActions = false;
+        let hasMarkdown = false;
         if (nodes.length > 0) {
           const lastNode = nodes[nodes.length - 1];
-          const markdownBlocks = Array.from(lastNode.querySelectorAll('.markdown, .prose')).filter(
+          const turnArticle =
+            lastNode.closest('article, [data-testid^="conversation-turn-"]') || lastNode;
+          hasFinishActions = Boolean(
+            turnArticle.querySelector(
+              'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
+            )
+          );
+          const rawMd = [
+            ...(lastNode.matches && lastNode.matches('.markdown, .prose') ? [lastNode] : []),
+            ...Array.from(lastNode.querySelectorAll('.markdown, .prose')),
+          ];
+          const markdownBlocks = rawMd.filter(
             (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
           );
+          hasMarkdown = markdownBlocks.length > 0;
           if (markdownBlocks.length > 0) {
             text = markdownBlocks
-              .map((b) => {
-                const clone = b.cloneNode(true);
-                clone
-                  .querySelectorAll('button, [role="button"], .copy-code-button, [data-testid*="copy" i]')
-                  .forEach((el) => el.remove());
-                return (clone.innerText || clone.textContent || '').trim();
-              })
+              .map((b) => extractCleanText(b))
               .filter(Boolean)
               .join('\n\n')
               .trim();
-          } else {
-            const clone = lastNode.cloneNode(true);
-            clone
-              .querySelectorAll('button, [role="button"], [data-testid*="thought" i]')
-              .forEach((el) => el.remove());
-            text = (clone.innerText || clone.textContent || '').trim();
           }
+          if (!text) {
+            text = extractCleanText(lastNode);
+          }
+          if (
+            /^(?:\d{1,6}|thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|thought\s+for\s+[^\n]{1,40})$/i.test(
+              text
+            )
+          ) {
+            text = '';
+          }
+        }
+
+        const userQueries = Math.max(
+          document.querySelectorAll('[data-message-author-role="user"]').length,
+          document.querySelectorAll(
+            '[data-chatgpt-search-unit-key$=":user"], [data-content-search-unit-key$=":user"]'
+          ).length,
+          document.querySelectorAll('[data-turn-key]').length
+        );
+        if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
+          generating = true;
         }
 
         return {
           url,
           blockReason,
           hasComposer: Boolean(composer),
-          userQueries: document.querySelectorAll('[data-message-author-role="user"]').length,
+          userQueries,
           generating,
           verifiedModel,
           count: nodes.length,
+          hasFinishActions,
+          hasMarkdown,
           text,
         };
       },
@@ -6406,12 +6945,48 @@ async function inspectChatGptTabLatestResponse(tabId) {
 
 async function forceSubmitPromptInChatGptTab(tabId, promptText) {
   try {
+    const snapBefore = await inspectChatGptTabLatestResponse(tabId);
+    const beforeUrl = (snapBefore && snapBefore.url) || '';
+    const beforeUserQueries = (snapBefore && snapBefore.userQueries) || 0;
+    const beforeCount = (snapBefore && snapBefore.count) || 0;
+
     const mainRes = await chrome.scripting
       .executeScript({
         target: { tabId },
         world: 'MAIN',
         args: [String(promptText || '')],
-        func: (rawText) => {
+        func: async (rawText) => {
+          if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+            window.__HUELLAS_BG_RAF_PATCHED__ = true;
+            const nativeRAF = window.requestAnimationFrame.bind(window);
+            window.requestAnimationFrame = (cb) => {
+              if (document.visibilityState === 'hidden') {
+                return window.setTimeout(() => cb(performance.now()), 16);
+              }
+              return nativeRAF(cb);
+            };
+          }
+          // Unthrottled macrotask yield even in hidden (active: false) tabs via MessageChannel
+          const yieldMacrotask = () =>
+            new Promise((resolve) => {
+              try {
+                const mc = new MessageChannel();
+                mc.port1.onmessage = () => resolve();
+                mc.port2.postMessage(0);
+              } catch {
+                setTimeout(resolve, 16);
+              }
+            });
+          const waitTick = async (ms) => {
+            if (document.visibilityState === 'hidden') {
+              const loops = Math.max(2, Math.min(8, Math.ceil(ms / 15)));
+              for (let k = 0; k < loops; k++) {
+                await yieldMacrotask();
+              }
+              return;
+            }
+            await new Promise((r) => setTimeout(r, ms));
+          };
           const isVis = (el) => {
             if (!el) return false;
             const r = el.getBoundingClientRect();
@@ -6422,6 +6997,7 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
             'div#prompt-textarea',
             'textarea#prompt-textarea',
             'div.ProseMirror[contenteditable="true"]',
+            'div[contenteditable="true"][role="textbox"]',
             '[data-testid="composer-text-input"] [contenteditable="true"]',
             'form textarea[placeholder]',
           ];
@@ -6436,6 +7012,9 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
           if (!inputEl) return { ok: false };
           inputEl.focus();
 
+          const normalizedTarget = String(rawText || '').replace(/\s+/g, ' ').trim();
+          const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
+
           if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
             const setter = Object.getOwnPropertyDescriptor(
               window.HTMLTextAreaElement.prototype,
@@ -6446,24 +7025,103 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
             inputEl.dispatchEvent(new Event('input', { bubbles: true }));
             inputEl.dispatchEvent(new Event('change', { bubbles: true }));
           } else {
+            // 1. Primary path (works 100% in active: false hidden tabs without OS focus): direct ProseMirror state transaction
+            let pmApplied = false;
             try {
-              const sel = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(inputEl);
-              sel.removeAllRanges();
-              sel.addRange(range);
-              document.execCommand('insertText', false, rawText);
+              const pmHost =
+                (inputEl.pmViewDesc && inputEl) ||
+                inputEl.closest('.ProseMirror') ||
+                inputEl.querySelector('.ProseMirror');
+              const pmView = pmHost && pmHost.pmViewDesc && pmHost.pmViewDesc.view;
+              if (pmView && pmView.state && pmView.dispatch) {
+                const { state } = pmView;
+                const schema = state.schema;
+                let tr = state.tr;
+                if (schema && schema.nodes && schema.nodes.paragraph) {
+                  const lines = String(rawText || '').split('\n');
+                  const paras = lines.map((line) =>
+                    line.length > 0
+                      ? schema.nodes.paragraph.create(null, schema.text(line))
+                      : schema.nodes.paragraph.create()
+                  );
+                  tr = state.tr.replaceWith(0, state.doc.content.size, paras);
+                } else {
+                  tr = state.tr.insertText(String(rawText || ''), 0, state.doc.content.size);
+                }
+                pmView.dispatch(tr);
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+                await waitTick(45);
+                const afterPm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+                if (afterPm && (!expectedPrefix || afterPm.startsWith(expectedPrefix))) {
+                  pmApplied = true;
+                }
+              }
             } catch {}
-            const cur = (inputEl.innerText || inputEl.textContent || '').trim();
-            if (!cur || cur.length < Math.min(10, rawText.length)) {
-              inputEl.innerHTML = '';
-              const p = document.createElement('p');
-              p.textContent = rawText;
-              inputEl.appendChild(p);
+
+            if (!pmApplied) {
+              try {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand('delete', false);
+              } catch {}
+              if (((inputEl.innerText || inputEl.textContent || '').trim()).length > 0) {
+                inputEl.innerHTML = '<p><br></p>';
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' })
+                );
+                await waitTick(45);
+              }
+
+              // 2. Dispatch synthetic paste with DataTransfer
+              try {
+                inputEl.focus();
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                const dt = new DataTransfer();
+                dt.setData('text/plain', String(rawText || ''));
+                const pasteEvt = new ClipboardEvent('paste', {
+                  bubbles: true,
+                  cancelable: true,
+                  clipboardData: dt,
+                });
+                inputEl.dispatchEvent(pasteEvt);
+                await waitTick(60);
+              } catch {}
+
+              let curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                try {
+                  const sel = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(inputEl);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  document.execCommand('insertText', false, rawText);
+                } catch {}
+                curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              }
+
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                inputEl.innerHTML = '';
+                for (const line of String(rawText || '').split('\n')) {
+                  const p = document.createElement('p');
+                  if (line.length > 0) p.textContent = line;
+                  else p.appendChild(document.createElement('br'));
+                  inputEl.appendChild(p);
+                }
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+              }
             }
-            inputEl.dispatchEvent(
-              new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
-            );
           }
 
           const findSend = () => {
@@ -6473,6 +7131,7 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
               'button[aria-label*="Enviar mensaje" i]',
               'button[aria-label*="Enviar prompt" i]',
               'button[aria-label="Send" i]',
+              'button[aria-label="Enviar" i]',
               'form button[type="submit"]',
             ];
             for (const s of sels) {
@@ -6482,20 +7141,42 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
             return null;
           };
 
-          const sendBtn = findSend();
+          let clickedSend = false;
+          let sendBtn = findSend();
+          for (let w = 0; w < 10 && !sendBtn; w++) {
+            await waitTick(30);
+            sendBtn = findSend();
+          }
           if (sendBtn) {
             sendBtn.click();
+            clickedSend = true;
           } else {
-            setTimeout(() => {
-              const delayedBtn = findSend();
-              if (delayedBtn) delayedBtn.click();
-            }, 120);
+            const form = inputEl.closest('form');
+            if (form && typeof form.requestSubmit === 'function') {
+              try {
+                form.requestSubmit();
+                clickedSend = true;
+              } catch {}
+            }
+            if (!clickedSend) {
+              inputEl.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  which: 13,
+                  bubbles: true,
+                  cancelable: true,
+                })
+              );
+            }
           }
 
           const r = inputEl.getBoundingClientRect();
           const sb = sendBtn ? sendBtn.getBoundingClientRect() : null;
           return {
             ok: true,
+            clickedSend,
             inputX: Math.round(r.left + Math.min(80, Math.max(12, r.width / 3))),
             inputY: Math.round(r.top + Math.max(10, r.height / 2)),
             sendX: sb ? Math.round(sb.left + sb.width / 2) : 0,
@@ -6505,16 +7186,46 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
       })
       .catch(() => null);
 
-    await sleep(650);
-    const snapAfterMain = await inspectChatGptTabLatestResponse(tabId);
-    if (
-      snapAfterMain &&
-      (snapAfterMain.userQueries > 0 || snapAfterMain.count > 0 || snapAfterMain.generating)
-    ) {
-      return true;
+    for (const waitMs of [550, 750]) {
+      await sleep(waitMs);
+      const snapAfterMain = await inspectChatGptTabLatestResponse(tabId);
+      if (
+        snapAfterMain &&
+        (snapAfterMain.generating ||
+          snapAfterMain.userQueries > beforeUserQueries ||
+          snapAfterMain.count > beforeCount ||
+          (snapAfterMain.url && snapAfterMain.url !== beforeUrl && /\/c\/[a-z0-9-]+/i.test(snapAfterMain.url)))
+      ) {
+        return true;
+      }
+      // Also check if clicking send already emptied the composer (meaning submission is in flight; do NOT re-insert a duplicate draft!)
+      const composerRemainingRes = await chrome.scripting
+        .executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: () => {
+            const el =
+              document.querySelector('#prompt-textarea[contenteditable="true"]') ||
+              document.querySelector('div#prompt-textarea') ||
+              document.querySelector('textarea#prompt-textarea') ||
+              document.querySelector('div.ProseMirror[contenteditable="true"]') ||
+              document.querySelector('div[contenteditable="true"][role="textbox"]');
+            if (!el) return -1;
+            const val = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.innerText || el.textContent;
+            return String(val || '').trim().length;
+          },
+        })
+        .catch(() => null);
+      const remainingLen =
+        composerRemainingRes && composerRemainingRes[0] && typeof composerRemainingRes[0].result === 'number'
+          ? composerRemainingRes[0].result
+          : -1;
+      if (remainingLen === 0) {
+        return true;
+      }
     }
 
-    // Hardware CDP fallback for unfocused background windows
+    // Hardware CDP fallback (guarded with cdpSendWithTimeout so occluded macOS windows never hang)
     const coords = (mainRes && mainRes[0] && mainRes[0].result) || null;
     const target = { tabId };
     let attached = false;
@@ -6523,16 +7234,17 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
       attached = true;
     } catch {
       try {
-        await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+        await cdpSendWithTimeout(target, 'Runtime.evaluate', { expression: '1' }, 450);
         attached = true;
       } catch {}
     }
     if (attached) {
       try {
-        await sleep(200);
+        await cdpSendWithTimeout(target, 'Emulation.setFocusEmulationEnabled', { enabled: true }, 450).catch(() => {});
+        await sleep(150);
         if (coords && coords.inputX > 0 && coords.inputY > 0) {
           await dispatchHardwareClick(target, coords.inputX, coords.inputY).catch(() => {});
-          await sleep(120);
+          await sleep(100);
         }
         await chrome.scripting
           .executeScript({
@@ -6543,30 +7255,23 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
                 document.querySelector('#prompt-textarea[contenteditable="true"]') ||
                 document.querySelector('div#prompt-textarea') ||
                 document.querySelector('textarea#prompt-textarea') ||
-                document.querySelector('div.ProseMirror[contenteditable="true"]');
+                document.querySelector('div.ProseMirror[contenteditable="true"]') ||
+                document.querySelector('div[contenteditable="true"][role="textbox"]');
               if (!el) return;
               el.focus();
               if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
                 el.value = '';
                 el.dispatchEvent(new Event('input', { bubbles: true }));
               } else {
-                try {
-                  const sel = window.getSelection();
-                  const range = document.createRange();
-                  range.selectNodeContents(el);
-                  sel.removeAllRanges();
-                  sel.addRange(range);
-                  document.execCommand('delete', false);
-                } catch {}
+                el.innerHTML = '<p><br></p>';
+                el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
               }
             },
           })
           .catch(() => {});
         await sleep(80);
-        await chrome.debugger
-          .sendCommand(target, 'Input.insertText', { text: String(promptText || '') })
-          .catch(() => {});
-        await sleep(280);
+        await cdpSendWithTimeout(target, 'Input.insertText', { text: String(promptText || '') }, 600).catch(() => {});
+        await sleep(240);
 
         const btnCoordsRes = await chrome.scripting
           .executeScript({
@@ -6577,6 +7282,9 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
                 'button[data-testid="send-button"]',
                 'button[aria-label*="Send prompt" i]',
                 'button[aria-label*="Enviar mensaje" i]',
+                'button[aria-label*="Enviar prompt" i]',
+                'button[aria-label="Send" i]',
+                'button[aria-label="Enviar" i]',
                 'form button[type="submit"]',
               ];
               for (const s of sels) {
@@ -6596,8 +7304,10 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
         if (btnCoords && btnCoords.x > 0 && btnCoords.y > 0) {
           await dispatchHardwareClick(target, btnCoords.x, btnCoords.y).catch(() => {});
         } else {
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', {
+          await cdpSendWithTimeout(
+            target,
+            'Input.dispatchKeyEvent',
+            {
               type: 'rawKeyDown',
               key: 'Enter',
               code: 'Enter',
@@ -6605,19 +7315,23 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
               nativeVirtualKeyCode: 13,
               text: '\r',
               unmodifiedText: '\r',
-            })
-            .catch(() => {});
-          await chrome.debugger
-            .sendCommand(target, 'Input.dispatchKeyEvent', {
+            },
+            450
+          ).catch(() => {});
+          await cdpSendWithTimeout(
+            target,
+            'Input.dispatchKeyEvent',
+            {
               type: 'keyUp',
               key: 'Enter',
               code: 'Enter',
               windowsVirtualKeyCode: 13,
               nativeVirtualKeyCode: 13,
-            })
-            .catch(() => {});
+            },
+            450
+          ).catch(() => {});
         }
-        await sleep(450);
+        await sleep(350);
       } finally {
         await chrome.debugger.detach(target).catch(() => {});
       }
@@ -6628,24 +7342,202 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
   }
 }
 
+let chatGptAcquireLockChain = Promise.resolve();
+function withChatGptAcquireLock(fn) {
+  const next = chatGptAcquireLockChain.then(fn, fn);
+  chatGptAcquireLockChain = next.catch(() => {});
+  return next;
+}
+
+async function acquireChatGptTabForExternalAsk(requestId) {
+  return withChatGptAcquireLock(async () => {
+    const presence = await getHuellasBrowserProfilePresence();
+    if (!presence.hasAppWindow && !presence.hasWorkspace) {
+      throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+    }
+
+    // Collect all tabs currently running an Antigravity external ask (both in-memory and persistent storage across SW wakes)
+    const busyTabIds = new Set();
+    for (const [reqId, v] of activeExternalAskMap.entries()) {
+      if (reqId !== requestId && v && v.tabId) busyTabIds.add(v.tabId);
+    }
+    const storedMap = await getStoredExternalAskMap();
+    const nowMs = Date.now();
+    for (const [reqId, v] of Object.entries(storedMap)) {
+      if (!v || !v.tabId || reqId === requestId) continue;
+      const ageMs = nowMs - Number(v.startedAt || 0);
+      if (ageMs < 360000 && (latestServerActiveExternalAskIds.has(reqId) || ageMs < 20000)) {
+        busyTabIds.add(v.tabId);
+      }
+    }
+
+    const openChatGptTabs = (
+      await chrome.tabs.query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] }).catch(() => [])
+    ).filter((t) => t && t.id && !busyTabIds.has(t.id));
+
+    if (openChatGptTabs.length > 0) {
+      const winTabCounts = new Map();
+      for (const t of openChatGptTabs) {
+        if (typeof t.windowId === 'number' && !winTabCounts.has(t.windowId)) {
+          const wTabs = await chrome.tabs.query({ windowId: t.windowId }).catch(() => []);
+          winTabCounts.set(t.windowId, wTabs.length || 99);
+        }
+      }
+      // Prefer standalone ChatGPT window if open, then background (!active) tabs so screen never shifts, then Huellas window
+      openChatGptTabs.sort((a, b) => {
+        const aStandalone = winTabCounts.get(a.windowId) === 1 ? 1 : 0;
+        const bStandalone = winTabCounts.get(b.windowId) === 1 ? 1 : 0;
+        if (bStandalone !== aStandalone) return bStandalone - aStandalone;
+        if (Boolean(a.active) !== Boolean(b.active)) return Number(Boolean(a.active)) - Number(Boolean(b.active));
+        const aInAppWin = a.windowId === presence.anchorWindowId ? 1 : 0;
+        const bInAppWin = b.windowId === presence.anchorWindowId ? 1 : 0;
+        if (bInAppWin !== aInAppWin) return bInAppWin - aInAppWin;
+        return (b.lastAccessed || b.id || 0) - (a.lastAccessed || a.id || 0);
+      });
+
+      for (const candidateTab of openChatGptTabs) {
+        const tabId = candidateTab.id;
+        const curSnap = await inspectChatGptTabLatestResponse(tabId);
+        // If this ChatGPT tab is actively streaming/generating for another call, skip it so we don't interrupt it
+        if (curSnap && curSnap.generating) {
+          continue;
+        }
+
+        await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+
+        let currentPathname = '';
+        try {
+          currentPathname = new URL((curSnap && curSnap.url) || candidateTab.url || '').pathname;
+        } catch {}
+        const isAlreadyFreshNewChat =
+          (currentPathname === '/' || currentPathname === '') &&
+          curSnap &&
+          curSnap.userQueries === 0 &&
+          curSnap.count === 0 &&
+          !curSnap.generating;
+
+        if (!isAlreadyFreshNewChat) {
+          // 1. Try clicking the top-level "Nuevo chat" / "New chat" button silently inside MAIN world (never activating the tab)
+          const clickedNewChatRes = await chrome.scripting
+            .executeScript({
+              target: { tabId },
+              world: 'MAIN',
+              func: () => {
+                const isVis = (el) => {
+                  if (!el) return false;
+                  const r = el.getBoundingClientRect();
+                  return r.width > 0 && r.height > 0;
+                };
+                const exactSelectors = [
+                  'header button[aria-label="Nuevo chat"]',
+                  'header button[aria-label="New chat"]',
+                  '[data-app-shell-titlebar] button[aria-label="Nuevo chat"]',
+                  '[data-app-shell-titlebar] button[aria-label="New chat"]',
+                  '[data-testid="create-new-chat-button"]',
+                  'a[href="/"]',
+                ];
+                for (const sel of exactSelectors) {
+                  const el = document.querySelector(sel);
+                  if (isVis(el)) {
+                    el.click();
+                    return true;
+                  }
+                }
+                const btns = Array.from(document.querySelectorAll('button, a')).filter((el) => {
+                  if (!isVis(el)) return false;
+                  const href = el.getAttribute('href') || '';
+                  if (/^\/c\/|^\/g\//i.test(href)) return false;
+                  const aria = (el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+                  const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  if (/\b(en|in)\s+\S+/i.test(aria) || /\b(en|in)\s+\S+/i.test(txt)) return false;
+                  return /^(?:nuevo\s+chat|new\s+chat)$/i.test(aria) || /^(?:nuevo\s+chat|new\s+chat)$/i.test(txt);
+                });
+                if (btns[0]) {
+                  btns[0].click();
+                  return true;
+                }
+                return false;
+              },
+            })
+            .catch(() => null);
+
+          const clickedNewChat = Boolean(clickedNewChatRes && clickedNewChatRes[0] && clickedNewChatRes[0].result);
+          let switchedCleanly = false;
+          if (clickedNewChat) {
+            for (let poll = 0; poll < 8; poll++) {
+              await sleep(220);
+              const s = await inspectChatGptTabLatestResponse(tabId);
+              let pName = '';
+              try {
+                pName = new URL((s && s.url) || '').pathname;
+              } catch {}
+              if (s && (pName === '/' || pName === '') && s.userQueries === 0 && s.count === 0 && !s.generating) {
+                switchedCleanly = true;
+                break;
+              }
+            }
+          }
+
+          if (!switchedCleanly) {
+            await chrome.tabs.update(tabId, { url: 'https://chatgpt.com/' }).catch(() => {});
+          }
+        }
+
+        // Register atomically inside the lock so any concurrent Antigravity chat immediately sees this tab as busy
+        if (requestId) {
+          await registerActiveExternalAskWindow(requestId, null, tabId, {
+            keepOpenOnCleanup: true,
+          });
+        }
+        return {
+          createdWindowId: null,
+          tabId,
+          reusedExisting: true,
+          hasAppWindow: presence.hasAppWindow,
+        };
+      }
+    }
+
+    // Either no ChatGPT tab is open OR another Antigravity chat is already running a call in the open ChatGPT tab:
+    // open a silent background temporary tab (active: false) in the Huellas Master browser window and close it when done
+    const opened = await createTemporaryTabInAppWindow('https://chatgpt.com/');
+    if (requestId) {
+      await registerActiveExternalAskWindow(requestId, opened.createdWindowId, opened.tabId, {
+        keepOpenOnCleanup: false,
+      });
+    }
+    return {
+      createdWindowId: opened.createdWindowId,
+      tabId: opened.tabId,
+      reusedExisting: false,
+      hasAppWindow: opened.hasAppWindow,
+    };
+  });
+}
+
 async function runExternalChatGptAskOrder(task) {
   if (!task || !task.id || !task.prompt) return;
   activeExternalAskCount += 1;
   let createdWindowId = null;
   let tabId = null;
+  let reusedExisting = false;
   try {
-    const opened = await createTemporaryTabInAppWindow('https://chatgpt.com/');
-    createdWindowId = null;
+    const opened = await acquireChatGptTabForExternalAsk(task.id);
+    createdWindowId = opened.createdWindowId;
     tabId = opened.tabId;
+    reusedExisting = Boolean(opened.reusedExisting);
 
-    await registerActiveExternalAskWindow(task.id, null, tabId);
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpenOnCleanup: reusedExisting,
+    });
     await fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: task.id,
-        windowId: null,
+        windowId: createdWindowId,
         tabId,
+        reusedExisting,
         hasAppWindow: opened.hasAppWindow,
         hasWorkspace: true,
       }),
@@ -6664,6 +7556,8 @@ async function runExternalChatGptAskOrder(task) {
               requestId: task.id,
               ok: false,
               tabId,
+              windowId: createdWindowId,
+              reusedExisting,
               chatUrl: snapReady.url || tInfo.url || '',
               error: snapReady.blockReason,
             }),
@@ -6675,7 +7569,7 @@ async function runExternalChatGptAskOrder(task) {
         }
       }
     }
-    await sleep(500);
+    await sleep(450);
 
     const checkBlock = await inspectChatGptTabLatestResponse(tabId);
     if (checkBlock && checkBlock.blockReason) {
@@ -6686,12 +7580,17 @@ async function runExternalChatGptAskOrder(task) {
           requestId: task.id,
           ok: false,
           tabId,
+          windowId: createdWindowId,
+          reusedExisting,
           chatUrl: checkBlock.url || '',
           error: checkBlock.blockReason,
         }),
       }).catch(() => {});
       return;
     }
+
+    const baselineCount = (checkBlock && checkBlock.count) || 0;
+    const baselineText = ((checkBlock && checkBlock.text) || '').trim();
 
     const orderPayload = {
       target: 'CHATGPT',
@@ -6732,6 +7631,8 @@ async function runExternalChatGptAskOrder(task) {
             requestId: task.id,
             ok: false,
             tabId,
+            windowId: createdWindowId,
+            reusedExisting,
             chatUrl: snap.url || '',
             error: snap.blockReason,
           }),
@@ -6742,14 +7643,19 @@ async function runExternalChatGptAskOrder(task) {
         await forceSubmitPromptInChatGptTab(tabId, task.prompt);
         continue;
       }
-      if (snap.count > 0 && !snap.generating && snap.text.trim().length > 2) {
+      const trimmedSnapText = snap.text.trim();
+      const isNewTurn =
+        snap.count > baselineCount || (trimmedSnapText.length > 2 && trimmedSnapText !== baselineText);
+      const readyEnough = snap.hasFinishActions ? trimmedSnapText.length >= 12 : trimmedSnapText.length >= 60;
+      const neededStableTicks = snap.hasFinishActions ? 3 : 4;
+      if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;
         } else {
           lastText = snap.text;
           stableDoneTicks = 1;
         }
-        if (stableDoneTicks >= 3) {
+        if (stableDoneTicks >= neededStableTicks) {
           await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6757,6 +7663,8 @@ async function runExternalChatGptAskOrder(task) {
               requestId: task.id,
               ok: true,
               tabId,
+              windowId: createdWindowId,
+              reusedExisting,
               verifiedModel: snap.verifiedModel || 'ChatGPT Web',
               response: snap.text,
               chatUrl: snap.url,
@@ -6771,7 +7679,64 @@ async function runExternalChatGptAskOrder(task) {
     }
   } finally {
     activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
-    await cleanupActiveExternalAskWindow(task.id, null, tabId);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpen: reusedExisting,
+    });
+  }
+}
+
+let lastResidentTabsCheckAt = 0;
+let isEnsuringResidentTabs = false;
+
+async function ensureResidentGeminiAndChatGptTabs(presence) {
+  if (isEnsuringResidentTabs) return;
+  if (!presence || !presence.hasAppWindow) return;
+  const now = Date.now();
+  if (now - lastResidentTabsCheckAt < 3500) return;
+  lastResidentTabsCheckAt = now;
+  isEnsuringResidentTabs = true;
+  try {
+    const winOpt = typeof presence.anchorWindowId === 'number' ? { windowId: presence.anchorWindowId } : {};
+
+    // 1. Always keep at least 1 Gemini tab open and alive (autoDiscardable: false)
+    const geminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
+    if (geminiTabs.length === 0) {
+      const createdGem = await chrome.tabs
+        .create({
+          url: 'https://gemini.google.com/app',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdGem && createdGem.id) {
+        await chrome.tabs.update(createdGem.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (geminiTabs[0] && geminiTabs[0].id && geminiTabs[0].autoDiscardable !== false) {
+      await chrome.tabs.update(geminiTabs[0].id, { autoDiscardable: false }).catch(() => {});
+    }
+
+    // 2. Always keep at least 1 ChatGPT tab open and alive (autoDiscardable: false)
+    const chatGptTabs = await chrome.tabs
+      .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
+      .catch(() => []);
+    if (chatGptTabs.length === 0) {
+      const createdGpt = await chrome.tabs
+        .create({
+          url: 'https://chatgpt.com/',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdGpt && createdGpt.id) {
+        reusedExternalTabIds.add(createdGpt.id);
+        await chrome.tabs.update(createdGpt.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (chatGptTabs[0] && chatGptTabs[0].id && chatGptTabs[0].autoDiscardable !== false) {
+      await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
+    }
+  } catch {
+  } finally {
+    isEnsuringResidentTabs = false;
   }
 }
 
@@ -6780,6 +7745,7 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
   isCheckingExtFingerprint = true;
   try {
     const presence = await getHuellasBrowserProfilePresence();
+    await ensureResidentGeminiAndChatGptTabs(presence);
     const qs = `?hasAppWindow=${presence.hasAppWindow ? '1' : '0'}&hasWorkspace=${
       presence.hasWorkspace ? '1' : '0'
     }${isStartup ? '&ack=1' : ''}`;
@@ -6814,75 +7780,77 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       }
     }
 
-    if (
-      canClaimInThisBrowser &&
-      data?.pendingExternalGeminiAsk &&
-      data.pendingExternalGeminiAsk.id &&
-      !claimedExternalAskIds.has(data.pendingExternalGeminiAsk.id)
-    ) {
-      const task = data.pendingExternalGeminiAsk;
-      claimedExternalAskIds.add(task.id);
-      const claimRes = await fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: task.id,
-          hasAppWindow: presence.hasAppWindow,
-          hasWorkspace: presence.hasWorkspace,
-        }),
-      })
-        .then((r) => r.json())
-        .catch(() => null);
-      if (claimRes && claimRes.ok) {
-        runExternalGeminiAskOrder(task).catch((err) => {
-          fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId: task.id,
-              ok: false,
-              error: String(err?.message || err),
-            }),
-          }).catch(() => {});
-        });
-      } else {
-        claimedExternalAskIds.delete(task.id);
+    if (canClaimInThisBrowser) {
+      const geminiTasks = Array.isArray(data?.pendingExternalGeminiAsks)
+        ? data.pendingExternalGeminiAsks
+        : data?.pendingExternalGeminiAsk
+          ? [data.pendingExternalGeminiAsk]
+          : [];
+      for (const task of geminiTasks) {
+        if (!task || !task.id || claimedExternalAskIds.has(task.id)) continue;
+        claimedExternalAskIds.add(task.id);
+        const claimRes = await fetch('http://localhost:4200/api/gemini-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: task.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalGeminiAskOrder(task).catch((err) => {
+            fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: false,
+                error: String(err?.message || err),
+              }),
+            }).catch(() => {});
+          });
+        } else {
+          claimedExternalAskIds.delete(task.id);
+        }
       }
-    }
 
-    if (
-      canClaimInThisBrowser &&
-      data?.pendingExternalChatGptAsk &&
-      data.pendingExternalChatGptAsk.id &&
-      !claimedExternalAskIds.has(data.pendingExternalChatGptAsk.id)
-    ) {
-      const chatGptTask = data.pendingExternalChatGptAsk;
-      claimedExternalAskIds.add(chatGptTask.id);
-      const claimRes = await fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: chatGptTask.id,
-          hasAppWindow: presence.hasAppWindow,
-          hasWorkspace: presence.hasWorkspace,
-        }),
-      })
-        .then((r) => r.json())
-        .catch(() => null);
-      if (claimRes && claimRes.ok) {
-        runExternalChatGptAskOrder(chatGptTask).catch((err) => {
-          fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId: chatGptTask.id,
-              ok: false,
-              error: String(err?.message || err),
-            }),
-          }).catch(() => {});
-        });
-      } else {
-        claimedExternalAskIds.delete(chatGptTask.id);
+      const chatGptTasks = Array.isArray(data?.pendingExternalChatGptAsks)
+        ? data.pendingExternalChatGptAsks
+        : data?.pendingExternalChatGptAsk
+          ? [data.pendingExternalChatGptAsk]
+          : [];
+      for (const chatGptTask of chatGptTasks) {
+        if (!chatGptTask || !chatGptTask.id || claimedExternalAskIds.has(chatGptTask.id)) continue;
+        claimedExternalAskIds.add(chatGptTask.id);
+        const claimRes = await fetch('http://localhost:4200/api/chatgpt-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: chatGptTask.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalChatGptAskOrder(chatGptTask).catch((err) => {
+            fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: chatGptTask.id,
+                ok: false,
+                error: String(err?.message || err),
+              }),
+            }).catch(() => {});
+          });
+        } else {
+          claimedExternalAskIds.delete(chatGptTask.id);
+        }
       }
     }
 
@@ -6897,7 +7865,9 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
       if (serverActiveAskIds.has(reqId) && ageMs < 360000) {
         hasRunningExternalAsk = true;
       } else if (ageMs > 5000 && !activeExternalAskMap.has(reqId)) {
-        await cleanupActiveExternalAskWindow(reqId, info && info.windowId, info && info.tabId);
+        await cleanupActiveExternalAskWindow(reqId, info && info.windowId, info && info.tabId, {
+          keepOpen: Boolean(info && info.keepOpenOnCleanup),
+        });
       }
     }
 
@@ -6940,7 +7910,7 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
 checkExtensionAutoReloadFromLocalServer(true);
 setInterval(() => {
   checkExtensionAutoReloadFromLocalServer(false);
-}, 2500);
+}, 1200);
 
 // ============================================================================
 // GEMINI NOTEBOOK: resume an order after a URL navigation (MODO TRIO consensus)
@@ -7257,7 +8227,7 @@ async function isGeminiTabCurrentlyBusy(tab) {
   const tabId = tab.id;
   if (
     activeExternalAskTabId === tabId ||
-    (typeof activeExternalAskMap !== "undefined" && Array.from(activeExternalAskMap.values()).some((v) => v && v.tabId === tabId))
+    Array.from(activeExternalAskMap.values()).some((v) => v && v.tabId === tabId)
   ) {
     return true;
   }
@@ -7491,4 +8461,3 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
     skipPrePosition: true,
   };
 }
-

@@ -1,10 +1,13 @@
 // ============================================================================
 // HUELLAS MASTER — EXTERNAL CHATGPT WEB BRIDGE (MODO CUATRO)
-// Runs inside temporary https://chatgpt.com/ windows opened by background.js
+// Runs inside https://chatgpt.com/ windows/tabs managed by background.js
 // ============================================================================
 (() => {
-  if (window.__HUELLAS_CHATGPT_CONTENT_LOADED__) return;
-  window.__HUELLAS_CHATGPT_CONTENT_LOADED__ = true;
+  if (window.__HUELLAS_CHATGPT_MESSAGE_LISTENER__) {
+    try {
+      chrome.runtime.onMessage.removeListener(window.__HUELLAS_CHATGPT_MESSAGE_LISTENER__);
+    } catch {}
+  }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,7 +41,6 @@
         /^(log\s*in|iniciar\s+sesi[oó]n)$/i.test(t)
       );
     });
-    const composer = findChatGptComposer();
     if (loginBtn || /\/uc(\/|$|\?)/i.test(url)) {
       return 'No hay sesión iniciada en ChatGPT Web dentro del navegador donde está abierto Huellas Master (https://chatgpt.com/). Inicia sesión allí e inténtalo de nuevo.';
     }
@@ -51,6 +53,7 @@
       'div#prompt-textarea',
       'textarea#prompt-textarea',
       'div.ProseMirror[contenteditable="true"]',
+      'div[contenteditable="true"][role="textbox"]',
       '[data-testid="composer-text-input"] [contenteditable="true"]',
       'form textarea[placeholder]',
     ];
@@ -68,6 +71,7 @@
       'button[aria-label*="Enviar mensaje" i]',
       'button[aria-label*="Enviar prompt" i]',
       'button[aria-label="Send" i]',
+      'button[aria-label="Enviar" i]',
       'form button[type="submit"]',
     ];
     for (const sel of selectors) {
@@ -79,18 +83,42 @@
     return null;
   }
 
+  function getUserTurnCount() {
+    const legacy = document.querySelectorAll('[data-message-author-role="user"]').length;
+    const unitKeys = document.querySelectorAll(
+      '[data-chatgpt-search-unit-key$=":user"], [data-content-search-unit-key$=":user"]'
+    ).length;
+    const turnKeys = document.querySelectorAll('[data-turn-key]').length;
+    return Math.max(legacy, unitKeys, turnKeys);
+  }
+
   function isChatGptStillGenerating() {
     const stopSelectors = [
       'button[data-testid="stop-button"]',
       'button[aria-label*="Stop streaming" i]',
       'button[aria-label*="Stop generating" i]',
+      'button[aria-label*="Stop" i]',
       'button[aria-label*="Detener" i]',
     ];
     for (const sel of stopSelectors) {
-      if (isVisible(document.querySelector(sel))) return true;
+      const els = document.querySelectorAll(sel);
+      for (const el of els) {
+        if (isVisible(el)) return true;
+      }
     }
     if (document.querySelector('.result-streaming, [data-is-streaming="true"]')) {
       return true;
+    }
+    const turnStates = Array.from(document.querySelectorAll('[data-talvt-turn-state]'));
+    if (turnStates.length > 0) {
+      const lastState = (
+        turnStates[turnStates.length - 1].getAttribute('data-talvt-turn-state') || ''
+      )
+        .trim()
+        .toLowerCase();
+      if (lastState && lastState !== 'complete' && lastState !== 'completed' && lastState !== 'done') {
+        return true;
+      }
     }
     return false;
   }
@@ -115,46 +143,91 @@
   }
 
   function getAssistantTurnElements() {
-    return Array.from(
-      document.querySelectorAll(
-        '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
+    const raw = [
+      ...Array.from(
+        document.querySelectorAll(
+          '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"], [data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"]'
+        )
+      ),
+      ...Array.from(document.querySelectorAll('[data-chatgpt-agent-turn-start]'))
+        .map(
+          (m) =>
+            m.closest('article, [data-testid^="conversation-turn-"], [data-turn="assistant"]') ||
+            m.parentElement
+        )
+        .filter(Boolean),
+    ];
+    const unique = raw.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+    // Keep only outermost assistant containers so parent + child of the same turn are not counted twice
+    return unique.filter((el, _i, arr) => !arr.some((other) => other !== el && other.contains(el)));
+  }
+
+  function extractCleanNodeText(rootEl) {
+    if (!rootEl) return '';
+    const clone = rootEl.cloneNode(true);
+    clone
+      .querySelectorAll(
+        '.sr-only, button, [role="button"], [role="checkbox"], .copy-code-button, [data-testid*="copy" i], [data-testid*="thought" i], [data-chatgpt-agent-turn-start], script, style, svg'
       )
-    ).filter((el, idx, arr) => arr.indexOf(el) === idx);
+      .forEach((el) => el.remove());
+    clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
+    clone
+      .querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, tr, blockquote, hr')
+      .forEach((el) => {
+        el.prepend('\n');
+        el.append('\n');
+      });
+    return (clone.textContent || '')
+      .replace(/^(?:\s*(?:ChatGPT\s+(?:dijo|said))\s*:?\s*)+/i, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   function extractLatestChatGptResponse() {
     const nodes = getAssistantTurnElements();
-    if (nodes.length === 0) return { count: 0, text: '' };
+    if (nodes.length === 0) return { count: 0, text: '', hasMarkdown: false, hasFinishActions: false };
     const lastNode = nodes[nodes.length - 1];
-    const markdownBlocks = Array.from(lastNode.querySelectorAll('.markdown, .prose')).filter(
+    const turnArticle = lastNode.closest('article, [data-testid^="conversation-turn-"]') || lastNode;
+    const hasFinishActions = Boolean(
+      turnArticle.querySelector(
+        'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
+      )
+    );
+    const rawMd = [
+      ...(lastNode.matches && lastNode.matches('.markdown, .prose') ? [lastNode] : []),
+      ...Array.from(lastNode.querySelectorAll('.markdown, .prose')),
+    ];
+    const markdownBlocks = rawMd.filter(
       (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
     );
     let text = '';
     if (markdownBlocks.length > 0) {
       text = markdownBlocks
-        .map((b) => {
-          const clone = b.cloneNode(true);
-          clone
-            .querySelectorAll('button, [role="button"], .copy-code-button, [data-testid*="copy" i]')
-            .forEach((el) => el.remove());
-          return (clone.innerText || clone.textContent || '').trim();
-        })
+        .map((b) => extractCleanNodeText(b))
         .filter(Boolean)
         .join('\n\n')
         .trim();
-    } else {
-      const clone = lastNode.cloneNode(true);
-      clone
-        .querySelectorAll('button, [role="button"], [data-testid*="thought" i]')
-        .forEach((el) => el.remove());
-      text = (clone.innerText || clone.textContent || '').trim();
     }
-    return { count: nodes.length, text };
+    if (!text) {
+      text = extractCleanNodeText(lastNode);
+    }
+    if (/^(?:\d{1,6}|thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|thought\s+for\s+[^\n]{1,40})$/i.test(text)) {
+      text = '';
+    }
+    return {
+      count: nodes.length,
+      text,
+      hasMarkdown: markdownBlocks.length > 0,
+      hasFinishActions,
+    };
   }
 
   function setComposerTextDomFallback(el, text) {
     if (!el) return;
     el.focus();
+    const normalizedTarget = String(text || '').replace(/\s+/g, ' ').trim();
+    const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       const setter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
@@ -172,20 +245,51 @@
       range.selectNodeContents(el);
       sel.removeAllRanges();
       sel.addRange(range);
+      document.execCommand('delete', false);
+    } catch {}
+    if (((el.innerText || el.textContent || '').trim()).length > 0) {
+      el.innerHTML = '<p><br></p>';
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+    }
+    try {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', String(text || ''));
+      el.dispatchEvent(
+        new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dt,
+        })
+      );
+      const pastedNorm = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (pastedNorm && (!expectedPrefix || pastedNorm.startsWith(expectedPrefix))) {
+        return;
+      }
+    } catch {}
+    try {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
       const ok = document.execCommand('insertText', false, text);
-      if (ok && (el.innerText || '').trim().length > 0) {
+      const curNorm = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (ok && curNorm && (!expectedPrefix || curNorm.startsWith(expectedPrefix))) {
         el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
         return;
       }
     } catch {}
     el.innerHTML = '';
-    const p = document.createElement('p');
-    p.textContent = text;
-    el.appendChild(p);
+    for (const line of String(text || '').split('\n')) {
+      const p = document.createElement('p');
+      if (line.length > 0) p.textContent = line;
+      else p.appendChild(document.createElement('br'));
+      el.appendChild(p);
+    }
     el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
   }
 
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  const onChatGptRuntimeMessage = (msg, _sender, sendResponse) => {
     if (!msg || msg.target !== 'CHATGPT') return false;
 
     if (msg.action === 'ASK_EXTERNAL_CHATGPT') {
@@ -234,31 +338,42 @@
           const verifiedModel = readDetectedModelLabel();
           const initialCount = getAssistantTurnElements().length;
           const initialLastText = (extractLatestChatGptResponse().text || '').trim();
-          const initialUserCount = document.querySelectorAll('[data-message-author-role="user"]').length;
+          const initialUserCount = getUserTurnCount();
+          const initialUrl = window.location.href;
 
           // Primary: hardware/MAIN-world injection & submit via background.js
-          await chrome.runtime
+          const mainInjectRes = await chrome.runtime
             .sendMessage({
               type: 'CHATGPT_MAIN_WORLD_INJECT_AND_SUBMIT',
               prompt: rawPrompt,
               autoSubmit: true,
             })
-            .catch(() => {});
+            .catch(() => null);
+          const mainHandled = Boolean(mainInjectRes && mainInjectRes.ok);
+          const normalizedTarget = String(rawPrompt || '').replace(/\s+/g, ' ').trim();
+          const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
 
           for (let attempt = 0; attempt < 14; attempt++) {
-            await sleep(attempt === 0 ? 500 : 550);
+            await sleep(attempt === 0 ? 550 : 550);
             const curCount = getAssistantTurnElements().length;
-            const curUserCount = document.querySelectorAll('[data-message-author-role="user"]').length;
+            const curUserCount = getUserTurnCount();
             if (
               isChatGptStillGenerating() ||
               curCount > initialCount ||
-              curUserCount > initialUserCount
+              curUserCount > initialUserCount ||
+              (/\/c\/[a-z0-9-]+/i.test(window.location.href) && window.location.href !== initialUrl)
             ) {
               break;
             }
             const curInput = findChatGptComposer() || inputEl;
-            const curText = (curInput.value ?? curInput.innerText ?? '').trim();
-            if (curText.length < 3) {
+            const curText = String(curInput.value ?? curInput.innerText ?? curInput.textContent ?? '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            // If mainInjectRes already clicked send and emptied the composer, give ChatGPT ~2.2s to transition to /c/... before re-typing
+            if (mainHandled && curText.length === 0 && attempt < 4) {
+              continue;
+            }
+            if (!curText || (expectedPrefix && !curText.startsWith(expectedPrefix))) {
               setComposerTextDomFallback(curInput, rawPrompt);
               await sleep(220);
             }
@@ -299,20 +414,24 @@
                 .catch(() => {});
               return;
             }
-            const generating = isChatGptStillGenerating();
+            const curUserCount = getUserTurnCount();
             const latest = extractLatestChatGptResponse();
             const latestText = (latest.text || '').trim();
+            const waitingFirstAssistantChunk = curUserCount > initialUserCount && !latestText;
+            const generating = isChatGptStillGenerating() || waitingFirstAssistantChunk;
             const hasNewTurn =
               latest.count > initialCount || (latestText.length > 2 && latestText !== initialLastText);
+            const readyEnough = latest.hasFinishActions ? latestText.length >= 12 : latestText.length >= 60;
+            const neededStableTicks = latest.hasFinishActions ? 3 : 4;
 
-            if (hasNewTurn && !generating && latestText.length > 2) {
+            if (hasNewTurn && !generating && readyEnough) {
               if (latestText === lastSeenText) {
                 stableDoneTicks += 1;
               } else {
                 lastSeenText = latestText;
                 stableDoneTicks = 1;
               }
-              if (stableDoneTicks >= 3) {
+              if (stableDoneTicks >= neededStableTicks) {
                 chrome.runtime
                   .sendMessage({
                     type: 'EXTERNAL_CHATGPT_ASK_RESULT',
@@ -361,5 +480,7 @@
       return false;
     }
     return false;
-  });
+  };
+  window.__HUELLAS_CHATGPT_MESSAGE_LISTENER__ = onChatGptRuntimeMessage;
+  chrome.runtime.onMessage.addListener(onChatGptRuntimeMessage);
 })();

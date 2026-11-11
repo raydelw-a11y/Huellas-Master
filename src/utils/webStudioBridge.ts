@@ -56,6 +56,8 @@ export interface WebBridgeCommandPayload {
   thinkingLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   enableDeepResearch?: boolean;
   enableCreateImage?: boolean;
+  standaloneNewChat?: boolean;
+  noNotebook?: boolean;
   skipModelSwitch?: boolean;
   clipNumber?: number | string;
   clipId?: string;
@@ -89,6 +91,7 @@ export interface WebBridgeCommandPayload {
   expectedCount?: number;
   trackNumber?: number;
   trackTitle?: string;
+  option?: string;
   optionLabel?: string;
   logoDataUrl?: string;
   autoSubmit?: boolean;

@@ -3304,6 +3304,58 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
 }
 
 /**
+ * Resilient parser for Stage 101 (3 Short Thumbnail On-Screen Text Options of 1–4 words).
+ * Handles both multi-line lists and pipe-separated single lines (`OPCIÓN 1 | OPCIÓN 2 | OPCIÓN 3`),
+ * strips conversational preambles, markdown bolding, quotes, and trailing explanations.
+ */
+export function parseStage101ShortHooksShared(rawText: string): string[] {
+  if (!rawText) return [];
+  const strippedFences = String(rawText)
+    .replace(/```[\w]*\n?/gi, '')
+    .replace(/```/g, '')
+    .replace(/\r\n/g, '\n');
+
+  const rawItems = strippedFences
+    .split(/\n+|\s+\|\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const hooks: string[] = [];
+  for (const rawLine of rawItems) {
+    if (
+      rawLine.endsWith(':') ||
+      /^(?:aqu[ií]\s+tienes|basado\s+en|opciones\s+de|propuestas|claro|por\s+supuesto|a\s+continuaci[oó]n)/i.test(
+        rawLine
+      )
+    ) {
+      continue;
+    }
+    let clean = rawLine
+      .replace(
+        /^\s*(?:\[?\s*(?:opci[oó]n|hook|texto|propuesta)[_\s\-]*\d+\s*\]?\s*[:.)\-—–]*|\d+\s*[:.)\-—–]+|[-•*]\s+)/i,
+        ''
+      )
+      .split(/\s+(?:—|–|\(|:\s)/)[0]
+      .replace(/[*_"`«»“”'']/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    clean = sanitizeBrandSafeEditorialText(clean).toUpperCase().trim();
+    if (!clean) continue;
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length >= 1 && words.length <= 6 && clean.length <= 42) {
+      const normalizedHook = words.slice(0, 5).join(' ');
+      if (!hooks.includes(normalizedHook)) {
+        hooks.push(normalizedHook);
+      }
+    }
+    if (hooks.length >= 3) break;
+  }
+  return hooks.slice(0, 3);
+}
+
+/**
  * Extracts multi-line (`(Line 1: "..." / Line 2: "...")`) or single-line (`reads "..."` / `reading "..."`)
  * overlay text embedded inside an English Stage 5 thumbnail prompt when a separate `TEXTO EN PANTALLA:` line is omitted.
  */
@@ -3371,13 +3423,17 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
   );
   pr = pr.replace(/\bIn\s+the\s+top[- ]left\s+corner,\s*the\s*,\s*/gi, '');
 
-  // 3. Remove ALL existing text-overlay sentences/clauses (whether written by Gemini with `reads (...)`, commas, word numbers, or previous normalizer runs)
+  // 3. Remove ALL existing text-overlay / typography sentences/clauses (including natural phrasings like `saying "..."` or `typography: "..."`)
   pr = pr.replace(
-    /(?:(?:Near|In|At)\s+the\s+(?:bottom[- ]left|middle|center)(?:\s+(?:area|part|corner))?(?:\s+of\s+the\s+(?:image|frame))?\s*,\s*)?(?:a\s+)?(?:bold\s*,?\s*)?(?:high[- ]contrast\s*,?\s*)?(?:cinematic\s*,?\s*)?(?:documentary\s*,?\s*)?(?:typography\s+)?text\s+overlay\b[^.]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    /(?:(?:Near|In|At)\s+the\s+(?:bottom[- ]left|lower[- ]left|middle|center|top[- ]left|bottom)(?:\s+(?:area|part|corner))?(?:\s+of\s+the\s+(?:image|frame))?\s*,\s*)?(?:a\s+)?(?:bold\s*,?\s*|large\s*,?\s*|massive\s*,?\s*|high[- ]contrast\s*,?\s*|cinematic\s*,?\s*|documentary\s*,?\s*|dramatic\s*,?\s*)*(?:typography\s+|text\s+overlay|title\s+text|lettering|words?\s+on\s+screen)\b[^.]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|(?:read(?:s|ing)|say(?:s|ing)|display(?:s|ing)|:)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
     ' '
   );
   pr = pr.replace(
     /Centered\s+and\s+middle[- ]justified\s+right\s+in\s+the\s+middle\s+center\s+of\s+the\s+image\s*,\s*(?:a\s+)?bold[\s\S]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    ' '
+  );
+  pr = pr.replace(
+    /\bstrictly\s+no\s+text\s+overlay\s+words\s+anywhere\s+on\s+the\s+image\s*[.,]?/gi,
     ' '
   );
 
@@ -3438,7 +3494,7 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
 
   const overlaySentence =
     overlayLines.length === 0
-      ? ''
+      ? 'Strictly no text overlay words anywhere on the image.'
       : overlayLines.length === 1
       ? `${posSentenceStart} reads "${overlayLines[0]}".`
       : `${posSentenceStart} stacked across ${overlayLines.length} exact separate lines reads (${overlayLines

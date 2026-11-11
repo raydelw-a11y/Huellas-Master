@@ -14,6 +14,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import {
   autoFitVoiceoverScriptToDuration,
   parseStage5TriggerBlocksShared,
+  parseStage101ShortHooksShared,
   cleanAndNormalizeStage5ThumbnailPrompt,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
@@ -6655,6 +6656,16 @@ const OFFICIAL_LOGO_ICLOUD_PNG = path.join(
   'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/LOGO DEFINITIVO.png'
 );
 
+function persistOfficialLogoPayloadServer(logoDataUrl: string): string {
+  const updatedAt = new Date().toISOString();
+  try {
+    const assetsDir = path.dirname(OFFICIAL_LOGO_ASSETS_FILE);
+    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
+    fs.writeFileSync(OFFICIAL_LOGO_ASSETS_FILE, JSON.stringify({ logoDataUrl, updatedAt }, null, 2), 'utf8');
+  } catch {}
+  return updatedAt;
+}
+
 function resolveOfficialLogoPayloadServer(): { logoDataUrl: string; updatedAt: string } {
   for (const jsonCandidate of [OFFICIAL_LOGO_ASSETS_FILE, OFFICIAL_LOGO_FILE]) {
     try {
@@ -6669,21 +6680,36 @@ function resolveOfficialLogoPayloadServer(): { logoDataUrl: string; updatedAt: s
       }
     } catch {}
   }
+  const pngCandidates: string[] = [
+    OFFICIAL_LOGO_ICLOUD_PNG,
+    path.join(process.cwd(), 'public', 'Logo_Huellas_de_la_Humanidad.png'),
+    path.join(process.cwd(), 'public', 'logo.png'),
+  ].filter(Boolean);
   try {
-    if (OFFICIAL_LOGO_ICLOUD_PNG && fs.existsSync(OFFICIAL_LOGO_ICLOUD_PNG)) {
-      const buf = fs.readFileSync(OFFICIAL_LOGO_ICLOUD_PNG);
-      if (buf.length > 100) {
-        const logoDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        const updatedAt = new Date().toISOString();
-        try {
-          const assetsDir = path.dirname(OFFICIAL_LOGO_ASSETS_FILE);
-          if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
-          fs.writeFileSync(OFFICIAL_LOGO_ASSETS_FILE, JSON.stringify({ logoDataUrl, updatedAt }, null, 2), 'utf8');
-        } catch {}
-        return { logoDataUrl, updatedAt };
+    const icloudVideosDir = path.join(
+      process.env.HOME || '',
+      'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos'
+    );
+    if (fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+      for (const entry of fs.readdirSync(icloudVideosDir)) {
+        const cand = path.join(icloudVideosDir, entry, '03_Miniaturas', 'Logo_Huellas_de_la_Humanidad.png');
+        pngCandidates.push(cand);
       }
     }
   } catch {}
+
+  for (const pngCandidate of pngCandidates) {
+    try {
+      if (pngCandidate && fs.existsSync(pngCandidate)) {
+        const buf = fs.readFileSync(pngCandidate);
+        if (buf.length > 100) {
+          const logoDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+          const updatedAt = persistOfficialLogoPayloadServer(logoDataUrl);
+          return { logoDataUrl, updatedAt };
+        }
+      }
+    } catch {}
+  }
   return { logoDataUrl: '', updatedAt: '' };
 }
 
@@ -6913,7 +6939,7 @@ function resolveLocalDocumentaryFolder(
 app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
-    const rawOpt = String(req.body?.option || 'A').trim().toUpperCase();
+    const rawOpt = String(req.body?.option || req.body?.optionLabel || 'A').trim().toUpperCase();
     const opt: 'A' | 'B' | 'C' = rawOpt === 'B' ? 'B' : rawOpt === 'C' ? 'C' : 'A';
     const imageDataUrl = String(req.body?.imageDataUrl || '').trim();
     if (!imageDataUrl.startsWith('data:image/')) {
@@ -6961,18 +6987,19 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       }
     }
 
-    // Build a crisp lightweight JPEG preview (<58,000 chars) so GitHub Cloud Sync preserves `thumbnailImageUrl` for mobile!
+    // Build a crisp lightweight JPEG preview (<=42,000 chars) so GitHub Cloud Sync preserves `thumbnailImageUrl` & A/B/C map for mobile!
     let previewDataUrl = imageDataUrl;
-    if (previewDataUrl.length > 56000) {
+    if (previewDataUrl.length > 42000) {
       const tmpBase = path.join(os.tmpdir(), `huellas_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
       const tmpIn = `${tmpBase}.png`;
       const tmpOut = `${tmpBase}.jpg`;
       try {
         fs.writeFileSync(tmpIn, imgBuffer);
         const attempts: Array<{ quality: number; maxDim: number }> = [
-          { quality: 65, maxDim: 860 },
-          { quality: 52, maxDim: 720 },
-          { quality: 42, maxDim: 580 },
+          { quality: 58, maxDim: 760 },
+          { quality: 48, maxDim: 640 },
+          { quality: 38, maxDim: 520 },
+          { quality: 30, maxDim: 420 },
         ];
         for (const att of attempts) {
           try {
@@ -6984,7 +7011,7 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
               const jpgBuf = fs.readFileSync(tmpOut);
               const candidate = `data:image/jpeg;base64,${jpgBuf.toString('base64')}`;
               previewDataUrl = candidate;
-              if (candidate.length <= 56000) break;
+              if (candidate.length <= 42000) break;
             }
           } catch {}
         }
@@ -6995,12 +7022,25 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     }
 
     if (idx >= 0) {
+      let prevMap: Record<string, string> = {};
+      try {
+        const rawMap = list[idx].promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON;
+        if (rawMap) {
+          const parsed = JSON.parse(rawMap);
+          if (parsed && typeof parsed === 'object') prevMap = parsed;
+        }
+      } catch {}
+      if (previewDataUrl.length <= 58000) {
+        prevMap[opt] = previewDataUrl;
+      }
       list[idx] = {
         ...list[idx],
         thumbnailImageUrl: previewDataUrl,
+        thumbnailPsychVariant: opt,
         thumbnailReady: true,
         promptConfig: {
           ...(list[idx].promptConfig || {}),
+          THUMBNAIL_PREVIEWS_MAP_JSON: JSON.stringify(prevMap),
           REMOTE_GEMINI_STAGE_STATUS: 'completed',
           REMOTE_GEMINI_STAGE_ERROR: '',
         },
@@ -7023,6 +7063,8 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
 
     res.json({
       ok: true,
+      option: opt,
+      previewDataUrl,
       folderPath: resolvedRoot,
       folderName: resolvedRoot ? path.basename(resolvedRoot) : '',
       savedPaths,
@@ -7030,6 +7072,51 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
   } catch (err: any) {
     console.error('[save-captured-thumbnail] Error:', err);
     res.status(500).json({ ok: false, error: err?.message || 'Error guardando miniatura.' });
+  }
+});
+
+// Report failed Gemini Web thumbnail generation so mobile & Mac UI never stay stuck in "running"
+app.post('/api/gemini-web/fail-captured-thumbnail', async (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const remoteCommandId = String(req.body?.remoteCommandId || '').trim();
+    const errorText = String(req.body?.error || 'Gemini Web no devolvió imagen para la miniatura.').trim().slice(0, 320);
+
+    for (const [k, v] of pendingGeminiCommands.entries()) {
+      if (
+        (remoteCommandId && (k === remoteCommandId || (v as any).remoteCommandId === remoteCommandId)) ||
+        (docId && v.docId === docId && (v.stageNumber === 505 || (v as any).mediaType === 'THUMBNAILS'))
+      ) {
+        pendingGeminiCommands.delete(k);
+      }
+    }
+
+    const list = readDocumentaries();
+    const idx = docId ? list.findIndex((d) => d && d.id === docId) : -1;
+    let resolvedCmdId = remoteCommandId;
+    if (idx >= 0) {
+      resolvedCmdId = resolvedCmdId || String(list[idx].promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || '');
+      list[idx] = {
+        ...list[idx],
+        promptConfig: {
+          ...(list[idx].promptConfig || {}),
+          REMOTE_GEMINI_STAGE_STATUS: 'failed',
+          REMOTE_GEMINI_STAGE_ERROR: errorText,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      writeDocumentaries(list);
+      syncDocumentariesWithGitHubServer(true).catch(() => null);
+      publishRemoteMacAck({
+        commandId: resolvedCmdId,
+        docId: list[idx].id,
+        status: 'gemini_stage_failed',
+      });
+    }
+
+    res.json({ ok: true, docId, error: errorText });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Error registrando fallo de miniatura.' });
   }
 });
 
@@ -14077,7 +14164,13 @@ function runAppleScriptInRunningChromiumBrowsers(buildScriptForBrowser: (browser
   );
 }
 
+let lastExtensionWakeAt = 0;
 function wakeExtensionInHuellasAppBrowser(forceReload = false) {
+  const nowWake = Date.now();
+  if (!forceReload && nowWake - lastExtensionWakeAt < 6000) {
+    return;
+  }
+  lastExtensionWakeAt = nowWake;
   const query = forceReload ? '?force=1' : '?wake=1';
   runAppleScriptInRunningChromiumBrowsers(
     (browserApp) => `tell application "${browserApp}"
@@ -14103,7 +14196,11 @@ function wakeExtensionInHuellasAppBrowser(forceReload = false) {
           end if
         end repeat
         if matchedWin then
+          set prevIdx to active tab index of w
           make new tab at end of tabs of w with properties {URL:"chrome-extension://" & detectedExtId & "/reloader.html${query}"}
+          try
+            set active tab index of w to prevIdx
+          end try
           return "MATCHED"
         end if
       end repeat
@@ -14125,26 +14222,39 @@ function closeTemporaryGeminiWindowFailsafe(opts: {
     .replace(/["'\\]/g, '');
   if (!winIdNum && !tabIdNum && !cleanChatUrl) return;
 
-  // Give chrome.windows.remove() 850ms to close it cleanly first; if still open (e.g. extension reloaded/slept), close ONLY that 1-tab /app window
+  // Give chrome.tabs.remove() 850ms to close the temporary tab cleanly first; if still open (e.g. extension reloaded/slept), close ONLY that specific tab
   setTimeout(() => {
     runAppleScriptInRunningChromiumBrowsers(
       (browserApp) => `tell application "${browserApp}"
+        set totalGemTabs to 0
         repeat with w in windows
-          if (count of tabs of w) is 1 then
-            set t1 to tab 1 of w
-            set u1 to URL of t1
-            if u1 starts with "https://gemini.google.com/app" and u1 does not contain "/notebook/" then
-              if (${winIdNum} > 0 and (id of w) is ${winIdNum}) or (${tabIdNum} > 0 and (id of t1) is ${tabIdNum}) or ("${cleanChatUrl}" is not "" and u1 is "${cleanChatUrl}") then
-                close w
+          repeat with t in tabs of w
+            if (URL of t) contains "gemini.google.com" then
+              set totalGemTabs to totalGemTabs + 1
+            end if
+          end repeat
+        end repeat
+        if totalGemTabs <= 1 then return "KEEP_LAST_GEMINI_OPEN"
+        repeat with w in windows
+          set tabCount to (count of tabs of w)
+          repeat with t in tabs of w
+            set u to URL of t
+            if u starts with "https://gemini.google.com/app" and u does not contain "/notebook/" then
+              if (${tabIdNum} > 0 and (id of t as text) is "${tabIdNum}") or (${winIdNum} > 0 and (id of w as text) is "${winIdNum}" and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://gemini.google.com/app" and "${cleanChatUrl}" is not "https://gemini.google.com/app/" and u is "${cleanChatUrl}") then
+                if tabCount is 1 then
+                  close w
+                else
+                  close t
+                end if
                 return "MATCHED"
               end if
             end if
-          end if
+          end repeat
         end repeat
         return "NO_MATCH"
       end tell`
     );
-  }, 850);
+  }, 2500);
 }
 
 function closeTemporaryChatGptWindowFailsafe(opts: {
@@ -14163,12 +14273,22 @@ function closeTemporaryChatGptWindowFailsafe(opts: {
   setTimeout(() => {
     runAppleScriptInRunningChromiumBrowsers(
       (browserApp) => `tell application "${browserApp}"
+        set totalGptTabs to 0
+        repeat with w in windows
+          repeat with t in tabs of w
+            set tu to URL of t
+            if (tu starts with "https://chatgpt.com") or (tu starts with "https://chat.openai.com") then
+              set totalGptTabs to totalGptTabs + 1
+            end if
+          end repeat
+        end repeat
+        if totalGptTabs <= 1 then return "KEEP_LAST_GPT_OPEN"
         repeat with w in windows
           set tabCount to (count of tabs of w)
           repeat with t in tabs of w
             set u to URL of t
             if u starts with "https://chatgpt.com" or u starts with "https://chat.openai.com" then
-              if (${tabIdNum} > 0 and (id of t) is ${tabIdNum}) or (${winIdNum} > 0 and (id of w) is ${winIdNum} and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://chatgpt.com/" and u is "${cleanChatUrl}") then
+              if (${tabIdNum} > 0 and (id of t as text) is "${tabIdNum}") or (${winIdNum} > 0 and (id of w as text) is "${winIdNum}" and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://chatgpt.com/" and u is "${cleanChatUrl}") then
                 if tabCount is 1 then
                   close w
                 else
@@ -14182,7 +14302,7 @@ function closeTemporaryChatGptWindowFailsafe(opts: {
         return "NO_MATCH"
       end tell`
     );
-  }, 850);
+  }, 2500);
 }
 
 app.get('/api/extension/fingerprint', (req, res) => {
@@ -14202,17 +14322,19 @@ app.get('/api/extension/fingerprint', (req, res) => {
   }
   let nextExternalAsk: { id: string; prompt: string } | null = null;
   let nextExternalChatGptAsk: { id: string; prompt: string } | null = null;
+  const unclaimedGeminiAsks: Array<{ id: string; prompt: string }> = [];
+  const unclaimedChatGptAsks: Array<{ id: string; prompt: string }> = [];
   if (canDeliverOrdersToCaller) {
     for (const item of pendingExternalGeminiAsks.values()) {
       if (!item.claimed) {
-        nextExternalAsk = { id: item.id, prompt: item.prompt };
-        break;
+        if (!nextExternalAsk) nextExternalAsk = { id: item.id, prompt: item.prompt };
+        unclaimedGeminiAsks.push({ id: item.id, prompt: item.prompt });
       }
     }
     for (const item of pendingExternalChatGptAsks.values()) {
       if (!item.claimed) {
-        nextExternalChatGptAsk = { id: item.id, prompt: item.prompt };
-        break;
+        if (!nextExternalChatGptAsk) nextExternalChatGptAsk = { id: item.id, prompt: item.prompt };
+        unclaimedChatGptAsks.push({ id: item.id, prompt: item.prompt });
       }
     }
   }
@@ -14244,7 +14366,9 @@ app.get('/api/extension/fingerprint', (req, res) => {
     lastAckFingerprint: lastExtensionAckFingerprint,
     allowWorkspaceFallback,
     pendingExternalGeminiAsk: nextExternalAsk,
+    pendingExternalGeminiAsks: unclaimedGeminiAsks,
     pendingExternalChatGptAsk: nextExternalChatGptAsk,
+    pendingExternalChatGptAsks: unclaimedChatGptAsks,
     activeExternalAskIds,
     pendingGeminiCommands: pendingCommandsList,
   });
@@ -14310,7 +14434,57 @@ app.post('/api/system/confirm-remote-rename', (req, res) => {
 // Background watchers on Mac:
 // 1) Persistent NDJSON stream (1 connection, <50ms latency, no 429 rate limits)
 // 2) Authenticated GitHub SHA watcher (every 3s, 5000 req/hr quota) as second guaranteed path
-// ===== Remote Gemini Stage (Paso 1 / Paso 2 Deep Research launched from mobile) =====
+const recentRemoteStageBurstGuard = new Map<string, number>();
+const inFlightRemoteTriggerIds = new Set<string>();
+
+function expireStaleRunningStage3JobsServer(): void {
+  try {
+    const list = readDocumentaries();
+    let mutated = false;
+    const now = Date.now();
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i];
+      if (!d || d.promptConfig?.REMOTE_GEMINI_STAGE_STATUS !== 'running') continue;
+      const raw = d.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+      if (!raw) continue;
+      try {
+        const cmd = JSON.parse(raw);
+        const stNum = Number(cmd?.stageNumber) || 0;
+        const isStage3Job =
+          stNum === 5 || stNum === 101 || stNum === 505 || Boolean(cmd?.enableCreateImage) || cmd?.mediaType === 'THUMBNAILS';
+        const reqAt = Number(cmd?.requestedAt || 0);
+        if (isStage3Job && reqAt > 0 && now - reqAt > 210000) {
+          for (const [k, v] of pendingGeminiCommands.entries()) {
+            if (v.docId === d.id && (v.stageNumber === stNum || v.stageNumber === 505)) {
+              pendingGeminiCommands.delete(k);
+            }
+          }
+          list[i] = {
+            ...d,
+            promptConfig: {
+              ...(d.promptConfig || {}),
+              REMOTE_GEMINI_STAGE_STATUS: 'failed',
+              REMOTE_GEMINI_STAGE_ERROR: 'Tiempo agotado esperando respuesta de Gemini Web (auto-recuperado).',
+            },
+            updatedAt: new Date().toISOString(),
+          };
+          mutated = true;
+          publishRemoteMacAck({
+            commandId: String(cmd?.commandId || d.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || ''),
+            docId: d.id,
+            status: 'gemini_stage_failed',
+          });
+        }
+      } catch {}
+    }
+    if (mutated) {
+      writeDocumentaries(list);
+      syncDocumentariesWithGitHubServer(true).catch(() => null);
+    }
+  } catch {}
+}
+
+// ===== Remote Gemini Stage (Paso 1 / Paso 2 Deep Research & Stage 3 Thumbnail launched from mobile) =====
 function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
   try {
     const raw = doc?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
@@ -14322,7 +14496,43 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
     if (Date.now() - Number(cmd.requestedAt || 0) > 2 * 60 * 60 * 1000) return false;
     processedRemoteCommandIds.add(cmd.commandId);
     const resolvedDocId = String(doc.id || cmd.docId || '');
-    const resolvedStageNum = Number(cmd.stageNumber) || 1;
+    const isThumbImageCmd =
+      Number(cmd.stageNumber) === 505 || Boolean(cmd.enableCreateImage) || cmd.mediaType === 'THUMBNAILS';
+    const resolvedStageNum = isThumbImageCmd ? 505 : Number(cmd.stageNumber) || 1;
+
+    // Anti-burst deduplication: block identical (docId, stage, option) fired multiple times within 15s
+    const burstKey = `${resolvedDocId}::${resolvedStageNum}::${String(cmd.optionLabel || '').toUpperCase()}`;
+    const prevBurstTs = recentRemoteStageBurstGuard.get(burstKey) || 0;
+    if (
+      (resolvedStageNum === 5 || resolvedStageNum === 101 || resolvedStageNum === 505) &&
+      Date.now() - prevBurstTs < 15000
+    ) {
+      try {
+        const list = readDocumentaries();
+        const idx = list.findIndex((d) => d && d.id === doc.id);
+        if (idx !== -1) {
+          list[idx] = {
+            ...list[idx],
+            promptConfig: {
+              ...(list[idx].promptConfig || {}),
+              REMOTE_GEMINI_STAGE_ACK_ID: cmd.commandId,
+            },
+          };
+          writeDocumentaries(list);
+        }
+      } catch {}
+      console.log(`[RemoteGeminiStage] Ignorado duplicado en ráfaga ${cmd.commandId} (${burstKey})`);
+      return false;
+    }
+    recentRemoteStageBurstGuard.set(burstKey, Date.now());
+
+    // Remove any older unclaimed pending command for the same (docId, stageNumber)
+    for (const [existingKey, existingVal] of pendingGeminiCommands.entries()) {
+      if (existingVal.docId === resolvedDocId && existingVal.stageNumber === resolvedStageNum && !existingVal.claimedAt) {
+        pendingGeminiCommands.delete(existingKey);
+      }
+    }
+
     // Persist idempotency (survives server restarts) + status for the phone
     try {
       const list = readDocumentaries();
@@ -14334,6 +14544,7 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
             ...(list[idx].promptConfig || {}),
             REMOTE_GEMINI_STAGE_ACK_ID: cmd.commandId,
             REMOTE_GEMINI_STAGE_STATUS: 'running',
+            REMOTE_GEMINI_STAGE_ERROR: '',
           },
           updatedAt: new Date().toISOString(),
         };
@@ -14349,14 +14560,15 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
 
     // Stage 505: Remote Thumbnail Image Generation launched from Mobile (`Create image` + Official Logo on Mac)
     // Runs in a NEW Chrome window (if none idle) on a NEW clean chat WITHOUT Notebook linkage
-    if (resolvedStageNum === 505 || Boolean(cmd.enableCreateImage) || cmd.mediaType === 'THUMBNAILS') {
-      const logoDataUrl =
-        String(cmd.logoDataUrl || '').trim() || resolveOfficialLogoPayloadServer().logoDataUrl;
-      const optLabel = String(cmd.optionLabel || 'A').trim().toUpperCase();
-      const thumbPromptClean = String(cmd.prompt || '')
-        .replace(/\r\n/g, '\n')
-        .replace(/\s+/g, ' ')
-        .trim();
+    if (isThumbImageCmd) {
+      const incomingLogo = String(cmd.logoDataUrl || '').trim();
+      const serverLogo = resolveOfficialLogoPayloadServer().logoDataUrl;
+      if (incomingLogo.startsWith('data:image/') && !serverLogo) {
+        persistOfficialLogoPayloadServer(incomingLogo);
+      }
+      const logoDataUrl = incomingLogo.startsWith('data:image/') ? incomingLogo : serverLogo;
+      const optLabel = String(cmd.optionLabel || cmd.option || 'A').trim().toUpperCase();
+      const thumbPromptClean = String(cmd.prompt || '').replace(/\r\n/g, '\n').trim();
 
       // Save Logo_Huellas_de_la_Humanidad.png + Prompts_Miniatura.txt silently into 03_Miniaturas on Mac
       try {
@@ -14411,6 +14623,7 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
         standaloneNewChat: true,
         noNotebook: true,
         mediaType: 'THUMBNAILS',
+        option: optLabel,
         optionLabel: optLabel,
         skipModelSwitch: false,
         autoSubmit: true,
@@ -14480,19 +14693,27 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
 async function handleRemoteGeminiStageTrigger(trigger: any) {
   const commandId = String(trigger?.commandId || '');
   const docId = String(trigger?.docId || '');
-  if (!commandId || !docId || processedRemoteCommandIds.has(commandId)) return;
-  // The full prompt travels through GitHub (ntfy only carries a tiny wake-up ping)
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const local = readDocumentaries().find((d) => d && d.id === docId);
-    try {
-      const raw = local?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
-      if (raw && JSON.parse(raw)?.commandId === commandId) {
-        enqueueRemoteGeminiStageFromDoc(local);
-        return;
-      }
-    } catch {}
-    await syncDocumentariesWithGitHubServer(true).catch(() => null);
-    await new Promise((r) => setTimeout(r, 3000));
+  if (!commandId || !docId || processedRemoteCommandIds.has(commandId) || inFlightRemoteTriggerIds.has(commandId)) {
+    return;
+  }
+  inFlightRemoteTriggerIds.add(commandId);
+  try {
+    // The full prompt travels through GitHub (ntfy only carries a tiny wake-up ping)
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (processedRemoteCommandIds.has(commandId)) return;
+      const local = readDocumentaries().find((d) => d && d.id === docId);
+      try {
+        const raw = local?.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+        if (raw && JSON.parse(raw)?.commandId === commandId) {
+          enqueueRemoteGeminiStageFromDoc(local);
+          return;
+        }
+      } catch {}
+      await syncDocumentariesWithGitHubServer(true).catch(() => null);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  } finally {
+    inFlightRemoteTriggerIds.delete(commandId);
   }
 }
 
@@ -14545,6 +14766,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
         4: 'voiceoverScript',
         5: 'thumbnailPrompt',
         101: 'thumbnailTextOverlay',
+        505: 'thumbnailImageUrl',
         6: 'rawReferencePrompts',
         7: 'clip1OptionsRaw',
         8: 'rawClipsText',
@@ -14608,6 +14830,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
 
         const existingUserOv = String(list[idx].thumbnailTextOverlay || '').trim();
         const hasExistingUserOv = parseOverlayLinesSrv(existingUserOv).length > 0;
+        const userLockedOv = list[idx].promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
         const prevAutoCandidates = new Set(
           [
             ...(Array.isArray(list[idx].thumbnailTextOptions) ? list[idx].thumbnailTextOptions : []),
@@ -14620,7 +14843,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
             .filter(Boolean)
         );
         const existingWasAutoOption =
-          !hasExistingUserOv || prevAutoCandidates.has(existingUserOv.toUpperCase());
+          !userLockedOv && (!hasExistingUserOv || prevAutoCandidates.has(existingUserOv.toUpperCase()));
 
         const sharedParsed = parseStage5TriggerBlocksShared(text);
         const parsedTriggers: Array<{
@@ -14631,7 +14854,10 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
           suggestedOverlay?: string;
         }> = [];
         for (const blk of sharedParsed.blocks) {
-          const triggerOverlay = blk.suggestedOverlay || (hasExistingUserOv ? existingUserOv : '');
+          const triggerOverlay =
+            userLockedOv && hasExistingUserOv
+              ? existingUserOv
+              : blk.suggestedOverlay || (hasExistingUserOv ? existingUserOv : '');
           const normalizedPrompt = blk.rawPrompt
             ? cleanAndNormalizeStage5ThumbnailPrompt(
                 blk.rawPrompt,
@@ -14671,7 +14897,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
             thumbOrientationSrv,
             resolvedActiveOverlay
           );
-          if (overlays.length > 0) {
+          if (overlays.length > 0 && (!Array.isArray(list[idx].thumbnailTextOptions) || list[idx].thumbnailTextOptions.length === 0)) {
             extraPatch.thumbnailTextOptions = overlays;
           }
           if (resolvedActiveOverlay) {
@@ -14690,20 +14916,26 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
           .replace(/\n?```\s*$/i, '')
           .trim();
       } else if (stageNumber === 101) {
-        const opts = text
-          .split(/\r?\n/)
-          .map((l: string) =>
-            l
-              .replace(/^\s*(?:opci[oó]n\s*\d+[:.)\-\s]*|\d+[:.)\-\s]+|[-•*]\s*)/i, '')
-              .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
-              .trim()
-              .toUpperCase()
-          )
-          .filter(Boolean)
-          .slice(0, 3);
+        const opts = parseStage101ShortHooksShared(text);
         if (opts.length > 0) {
           extraPatch.thumbnailTextOptions = opts;
-          extraPatch.thumbnailTextOverlay = String(list[idx].thumbnailTextOverlay || '').trim() || opts[0];
+          const userLockedOv = list[idx].promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
+          const curOv = String(list[idx].thumbnailTextOverlay || '').trim();
+          const chosenOv = userLockedOv && curOv ? curOv : opts[0];
+          extraPatch.thumbnailTextOverlay = chosenOv;
+          const isVert101 =
+            list[idx].thumbnailOrientation === 'VERTICAL_9X16' ||
+            (!list[idx].thumbnailOrientation &&
+              (list[idx].productionType === 'SHORT_9X16' ||
+                list[idx].promptConfig?.SUB_OPCION_REELS === '9X16'));
+          const orient101: 'HORIZONTAL_16X9' | 'VERTICAL_9X16' = isVert101 ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9';
+          if (String(list[idx].thumbnailPrompt || '').trim()) {
+            extraPatch.thumbnailPrompt = cleanAndNormalizeStage5ThumbnailPrompt(
+              String(list[idx].thumbnailPrompt || ''),
+              orient101,
+              chosenOv
+            );
+          }
         }
       } else if (stageNumber === 115) {
         const firstTitle = text
@@ -14739,8 +14971,10 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
         list[idx].geminiDeepResearchChatUrl || list[idx].promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL || ''
       ).trim();
       const replacesDeletedChat = Boolean(req.body?.replacesDeletedChat);
-      const nextMainChatUrl =
-        !isDeepResearch && validChatUrl && validChatUrl !== existingDeepUrl
+      const preserveExistingChatUrl = Boolean(req.body?.preserveExistingChatUrl);
+      const nextMainChatUrl = preserveExistingChatUrl
+        ? existingMainUrl
+        : !isDeepResearch && validChatUrl && validChatUrl !== existingDeepUrl
           ? existingMainUrl && !replacesDeletedChat
             ? existingMainUrl
             : validChatUrl
@@ -14759,8 +14993,14 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
           : {
               [fieldKey]:
                 stageNumber === 4
-                  ? autoFitVoiceoverScriptToDuration(text, list[idx])
-                  : text,
+                  ? normalizeFirstDayOfMonthInVoiceover(
+                      sanitizeBrandSafeEditorialText(
+                        autoFitVoiceoverScriptToDuration(text, list[idx])
+                      )
+                    )
+                  : stageNumber === 9
+                    ? text
+                    : sanitizeBrandSafeEditorialText(text),
             }),
         ...extraPatch,
         ...(nextDeepChatUrl ? { geminiDeepResearchChatUrl: nextDeepChatUrl } : {}),
@@ -14947,6 +15187,7 @@ async function checkGitHubRemoteRenameCommands() {
   if (isCheckingGitHubDocsSha) return;
   isCheckingGitHubDocsSha = true;
   try {
+    expireStaleRunningStage3JobsServer();
     const token = getLocalGitHubToken();
     if (!token) return;
     const sha = await getServerGitHubFileSha('data/documentaries.json', token);
@@ -15104,14 +15345,106 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
 
     setTimeout(() => {
       const current = pendingExternalGeminiAsks.get(id);
-      if (current && !current.claimed) {
+      if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
         wakeExtensionInHuellasAppBrowser();
       }
-    }, 1200);
+    }, 2200);
   });
 
   const outcome = await resultPromise;
   res.status(outcome.ok ? 200 : 504).json(outcome);
+});
+
+function runInternalSilentGeminiCarbonLow(
+  prompt: string,
+  timeoutMs = 180000
+): Promise<{
+  ok: boolean;
+  verifiedModel?: string;
+  response?: string;
+  chatUrl?: string;
+  error?: string;
+}> {
+  const cleanPrompt = String(prompt || '').trim();
+  if (!cleanPrompt) {
+    return Promise.resolve({ ok: false, error: 'Prompt vacío.' });
+  }
+  const boundedTimeout = Math.min(Math.max(Number(timeoutMs) || 180000, 15000), 360000);
+  const id = `ext_gem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      const expired = pendingExternalGeminiAsks.get(id);
+      pendingExternalGeminiAsks.delete(id);
+      if (expired) {
+        closeTemporaryGeminiWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de Gemini Web tras ${Math.round(boundedTimeout / 1000)}s.`,
+      });
+    }, boundedTimeout);
+
+    pendingExternalGeminiAsks.set(id, {
+      id,
+      prompt: cleanPrompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    if (Date.now() - lastHuellasAppWindowPollAt > 5000) {
+      wakeExtensionInHuellasAppBrowser();
+    }
+    setTimeout(() => {
+      const current = pendingExternalGeminiAsks.get(id);
+      if (current && !current.claimed) {
+        wakeExtensionInHuellasAppBrowser();
+      }
+    }, 2800);
+  });
+}
+
+app.post('/api/stage5-triggers/generate', async (req, res) => {
+  const docId = String(req.body?.docId || '').trim();
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!docId || !prompt) {
+    res.status(400).json({ ok: false, error: 'Faltan docId o prompt.' });
+    return;
+  }
+  const outcome = await runInternalSilentGeminiCarbonLow(prompt, 180000);
+  if (!outcome.ok || !String(outcome.response || '').trim()) {
+    res.status(504).json({
+      ok: false,
+      error: outcome.error || 'No se recibió respuesta de Gemini Web para los disparadores.',
+    });
+    return;
+  }
+  await fetch(`http://127.0.0.1:${PORT}/api/gemini-web/remote-stage-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      docId,
+      stageNumber: 5,
+      isDeepResearch: false,
+      preserveExistingChatUrl: true,
+      text: String(outcome.response || ''),
+    }),
+  }).catch(() => {});
+
+  const updatedDoc = readDocumentaries().find((d) => d && d.id === docId) || null;
+  res.json({
+    ok: true,
+    verifiedModel: outcome.verifiedModel,
+    rawText: outcome.response,
+    doc: updatedDoc,
+    triggers: updatedDoc?.thumbnailPsychTriggers || [],
+  });
 });
 
 app.post('/api/chatgpt-web/ask-external-claim', (req, res) => {
@@ -15239,10 +15572,10 @@ app.post('/api/chatgpt-web/ask-external', async (req, res) => {
 
     setTimeout(() => {
       const current = pendingExternalChatGptAsks.get(id);
-      if (current && !current.claimed) {
+      if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
         wakeExtensionInHuellasAppBrowser();
       }
-    }, 1200);
+    }, 2200);
   });
 
   const outcome = await resultPromise;

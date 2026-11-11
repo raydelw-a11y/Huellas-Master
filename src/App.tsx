@@ -97,6 +97,7 @@ import {
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
   parseStage5TriggerBlocksShared,
+  parseStage101ShortHooksShared,
   cleanAndNormalizeStage5ThumbnailPrompt,
   extractOverlayFromStage5PromptText,
 } from './utils/smartParsers';
@@ -144,7 +145,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:56 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:29 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -608,7 +609,8 @@ function buildOrUpdateThumbnailPrompt(
   currentPrompt: string,
   orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
   overlayText: string,
-  doc?: DocumentaryProject | null
+  doc?: DocumentaryProject | null,
+  allowEmptyOverlay = false
 ): string {
   const isVertical = orientation === 'VERTICAL_9X16';
   const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
@@ -636,6 +638,8 @@ function buildOrUpdateThumbnailPrompt(
   const effectiveOverlay =
     parseThumbnailOverlayLines(overlayText).length > 0
       ? overlayText
+      : allowEmptyOverlay
+      ? ''
       : extractOverlayFromStage5PromptText(rawTrimmed);
 
   return cleanAndNormalizeStage5ThumbnailPrompt(rawTrimmed, orientation, effectiveOverlay);
@@ -3514,17 +3518,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   >(null);
   // Global Official Logo shared across ALL documentaries (uploaded once)
   const [officialLogoUrl, setOfficialLogoUrl] = useState<string>(() => {
-    return localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
+    const cached = localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) || '';
+    return cached.startsWith('data:image/') ? cached : '';
   });
 
   useEffect(() => {
-    if (!officialLogoUrl && !isCloudMode) {
+    if (!isCloudMode) {
       fetch('/api/assets/official-logo')
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
-          if (data?.logoDataUrl) {
-            setOfficialLogoUrl(data.logoDataUrl);
-            localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
+          if (data?.logoDataUrl && String(data.logoDataUrl).startsWith('data:image/')) {
+            if (!officialLogoUrl || !officialLogoUrl.startsWith('data:image/')) {
+              setOfficialLogoUrl(data.logoDataUrl);
+              localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
+            }
+          } else if (officialLogoUrl && officialLogoUrl.startsWith('data:image/')) {
+            fetch('/api/assets/official-logo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ logoDataUrl: officialLogoUrl }),
+            }).catch(() => {});
           }
         })
         .catch(() => {});
@@ -4662,26 +4675,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }, 900);
       }
     } else if (stageNum === 5) {
+      const curDoc = activeDocRef.current || activeDoc;
+      const curOrientation = getDefaultThumbnailOrientation(curDoc);
       const patch: Partial<DocumentaryProject> = {
-        thumbnailOrientation: orientationForThumb,
+        thumbnailOrientation: curOrientation,
       };
       if (text.trim()) {
+        const isUserLocked = curDoc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
+        const explicitOverlay = isUserLocked
+          ? (curDoc.thumbnailTextOverlay || '').trim()
+          : (userExplicitlyPickedOverlayDocRef.current[curDoc.id] || '').trim();
         const parsedStage5 = parseStage5TriggersAndPrompts(
           text,
-          orientationForThumb,
-          activeDoc.thumbnailTextOverlay || '',
-          activeDoc
+          curOrientation,
+          explicitOverlay || curDoc.thumbnailTextOverlay || '',
+          curDoc
         );
         if (parsedStage5.triggers.length > 0) {
           const desiredVariant: 'A' | 'B' | 'C' =
-            activeDoc.thumbnailPsychVariant === 'B'
+            curDoc.thumbnailPsychVariant === 'B'
               ? 'B'
-              : activeDoc.thumbnailPsychVariant === 'C'
+              : curDoc.thumbnailPsychVariant === 'C'
               ? 'C'
               : 'A';
           const selectedTrigger =
             parsedStage5.triggers.find((t) => t.id === desiredVariant) || parsedStage5.triggers[0];
-          const explicitOverlay = (userExplicitlyPickedOverlayDocRef.current[activeDoc.id] || '').trim();
           const suggestedList = parsedStage5.triggers
             .map((t) => (t.suggestedOverlay || '').trim())
             .filter(Boolean);
@@ -4689,49 +4707,57 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             explicitOverlay ||
             selectedTrigger.suggestedOverlay ||
             suggestedList[0] ||
-            activeDoc.thumbnailTextOverlay ||
+            curDoc.thumbnailTextOverlay ||
             '';
           patch.thumbnailPsychTriggers = parsedStage5.triggers;
           patch.thumbnailPsychVariant = selectedTrigger.id;
           patch.thumbnailPrompt = buildOrUpdateThumbnailPrompt(
             selectedTrigger.prompt,
-            orientationForThumb,
+            curOrientation,
             resolvedOverlay,
-            activeDoc
+            curDoc
           );
-          if (suggestedList.length > 0) {
+          if (suggestedList.length > 0 && (!Array.isArray(curDoc.thumbnailTextOptions) || curDoc.thumbnailTextOptions.length === 0 || !isUserLocked)) {
             patch.thumbnailTextOptions = suggestedList;
-            if (!explicitOverlay) {
-              patch.thumbnailTextOverlay = resolvedOverlay;
-            }
+          }
+          if (!explicitOverlay && resolvedOverlay) {
+            patch.thumbnailTextOverlay = resolvedOverlay;
           }
         } else if (parsedStage5.fallbackPrompt) {
           patch.thumbnailPrompt = parsedStage5.fallbackPrompt;
         }
       }
       if (images.length > 0) {
-        patch.thumbnailImageUrl = images[images.length - 1];
+        const lastImg = images[images.length - 1];
+        if (lastImg.length <= 58000) {
+          patch.thumbnailImageUrl = lastImg;
+        }
         patch.thumbnailReady = true;
       }
       updateActiveDoc(patch);
     } else if (stageNum === 101) {
-      const options = text
-        .split(/\r?\n/)
-        .map((line: string) =>
-          line
-            .replace(/^\s*(?:opci[oó]n\s*\d+[:.)\-\s]*|\d+[:.)\-\s]+|[-•*]\s*)/i, '')
-            .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
-            .trim()
-            .toUpperCase()
-        )
-        .filter((line: string) => line.length > 0)
-        .slice(0, 3);
+      const curDoc = activeDocRef.current || activeDoc;
+      const curOrientation = getDefaultThumbnailOrientation(curDoc);
+      const options = parseStage101ShortHooksShared(text);
       if (options.length > 0) {
-        const chosenText = (activeDoc.thumbnailTextOverlay || '').trim() || options[0];
-        updateActiveDoc({
+        const isUserLocked = curDoc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
+        const chosenText =
+          isUserLocked && (curDoc.thumbnailTextOverlay || '').trim()
+            ? (curDoc.thumbnailTextOverlay || '').trim()
+            : options[0];
+        const nextPatch: Partial<DocumentaryProject> = {
           thumbnailTextOptions: options,
           thumbnailTextOverlay: chosenText,
-        });
+        };
+        if ((curDoc.thumbnailPrompt || '').trim()) {
+          nextPatch.thumbnailPrompt = buildOrUpdateThumbnailPrompt(
+            curDoc.thumbnailPrompt || '',
+            curOrientation,
+            chosenText,
+            curDoc
+          );
+        }
+        updateActiveDoc(nextPatch);
       }
     } else if (stageNum === 6) {
       const parsedRefs = parseReferencesFromRawText(text);
@@ -9227,6 +9253,54 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
+  const compressImageDataUrlForCloudSync = useCallback(
+    async (dataUrl: string, maxChars = 42000): Promise<string> => {
+      const clean = String(dataUrl || '').trim();
+      if (!clean) return '';
+      if (!clean.startsWith('data:image/') || clean.length <= maxChars) return clean;
+      if (typeof document === 'undefined') return clean.length <= 58000 ? clean : '';
+      return new Promise<string>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const w0 = img.naturalWidth || img.width || 1280;
+            const h0 = img.naturalHeight || img.height || 720;
+            const attempts: Array<{ maxDim: number; q: number }> = [
+              { maxDim: 760, q: 0.62 },
+              { maxDim: 640, q: 0.52 },
+              { maxDim: 520, q: 0.42 },
+              { maxDim: 420, q: 0.34 },
+            ];
+            let best = '';
+            for (const att of attempts) {
+              const scale = Math.min(1, att.maxDim / Math.max(w0, h0));
+              const cw = Math.max(1, Math.round(w0 * scale));
+              const ch = Math.max(1, Math.round(h0 * scale));
+              const canvas = document.createElement('canvas');
+              canvas.width = cw;
+              canvas.height = ch;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) continue;
+              ctx.drawImage(img, 0, 0, cw, ch);
+              const jpg = canvas.toDataURL('image/jpeg', att.q);
+              best = jpg;
+              if (jpg.length <= maxChars) {
+                resolve(jpg);
+                return;
+              }
+            }
+            resolve(best && best.length <= 58000 ? best : '');
+          } catch {
+            resolve('');
+          }
+        };
+        img.onerror = () => resolve('');
+        img.src = clean;
+      });
+    },
+    []
+  );
+
   // Audit a Thumbnail against the 5 Neuropsychological CTR Rules (0-100 Score, 100% Local — No API Call)
   const handleAuditThumbnailPsychology = async (
     optionLabel: 'A' | 'B' | 'C' | 'OFICIAL' = 'A',
@@ -9245,65 +9319,110 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
     setThumbnailPsychAuditing(true);
     try {
-      const pText = (doc.thumbnailPrompt || '').toLowerCase();
-      const hasFace = /face|close-up|eye contact|sclera|rostro/i.test(pText);
-      const hasGap = /curiosity|secret|catastrophe|betrayal|before/i.test(pText);
-      const hasContrast = /amber|crimson|cyan|contrast|chiaroscuro/i.test(pText);
-      const hasLogo = /official page logo|huellas de la humanidad/i.test(pText);
-      const baseScore =
-        optionLabel === 'A' ? 96 : optionLabel === 'B' ? 94 : optionLabel === 'C' ? 92 : 95;
+      const matchedTrigger =
+        optionLabel === 'OFICIAL'
+          ? (doc.thumbnailPsychTriggers || []).find((t) => t.id === (doc.thumbnailPsychVariant || 'A'))
+          : (doc.thumbnailPsychTriggers || []).find((t) => t.id === optionLabel);
+      const pText = String(matchedTrigger?.prompt || doc.thumbnailPrompt || '').toLowerCase();
+      const overlayRaw = String(
+        (doc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI'
+          ? doc.thumbnailTextOverlay
+          : matchedTrigger?.suggestedOverlay || doc.thumbnailTextOverlay) || ''
+      ).trim();
+      const overlayWords = overlayRaw ? overlayRaw.split(/\s+/).filter(Boolean).length : 0;
+
+      const r1 =
+        /13\s*milliseconds|3-element|ultra-clean|medium close-up/i.test(pText) && overlayWords <= 4
+          ? 20
+          : overlayWords <= 6
+          ? 18
+          : 15;
+      const r2 = /eye contact|sclera|close-up|face|expression|shock|visceral/i.test(pText) ? 20 : 17;
+      const r3 =
+        overlayWords >= 1 && overlayWords <= 4
+          ? 20
+          : /secret|forbidden|betrayal|hidden|before|enigma|mystery/i.test(pText)
+          ? 18
+          : 16;
+      const r4 = /chiaroscuro|amber|cyan|crimson|contrast|rim light|metallic gold/i.test(pText)
+        ? 19
+        : 17;
+      const r5 = /official page logo|huellas de la humanidad/i.test(pText) ? 19 : 16;
+
+      const totalScore = Math.min(100, r1 + r2 + r3 + r4 + r5);
+      const verdict: 'EXCELENTE' | 'BUENA' | 'MEJORABLE' =
+        totalScore >= 85 ? 'EXCELENTE' : totalScore >= 70 ? 'BUENA' : 'MEJORABLE';
+      const tips: string[] = [];
+      if (overlayWords === 0) tips.push('Agrega un gancho de 2 a 4 palabras en el Paso 1 para abrir el Curiosity Gap.');
+      if (overlayWords > 4) tips.push('Reduce el texto en pantalla a máximo 4 palabras para lectura en 13ms.');
+      if (r5 < 18) tips.push('Verifica que el prompt incluya el Logo Oficial "Huellas de la Humanidad" al 5%.');
+
       const result: ThumbnailPsychologyAuditResult = {
         optionLabel,
-        ctrScore: baseScore,
-        verdict: 'VIRAL_CTR',
-        rule1_13msClarity: {
-          score: 19,
-          feedback: 'Composición limpia de 3 elementos legible en 13ms en móvil.',
-        },
-        rule2_FaceAndEmotion: {
-          score: hasFace ? 20 : 18,
-          feedback: 'Rostro humano expresivo con contacto visual directo a cámara.',
-        },
-        rule3_CuriosityGap: {
-          score: hasGap ? 19 : 18,
-          feedback: 'Brecha de curiosidad abierta entre escena visual y texto corto.',
-        },
-        rule4_ColorContrast: {
-          score: hasContrast ? 19 : 18,
-          feedback: 'Alto contraste cromático cálido/frío para destacar en el feed.',
-        },
-        rule5_TitleAndBrandSync: {
-          score: hasLogo ? 19 : 18,
-          feedback:
-            'Sincronizada con el tema del documental y con el Logo Oficial en la esquina superior izquierda (5%).',
-        },
-        summary: `Miniatura Opción ${optionLabel} generada en Google Flow con el Logo Oficial en su posición (CTR estimado: ${baseScore}/100).`,
-        improvementTip: 'Lista para publicar en YouTube / Reels.',
+        ctrScore: totalScore,
+        rule1_13msClarity: r1,
+        rule2_faceEmotionEyeContact: r2,
+        rule3_curiosityGap: r3,
+        rule4_colorContrast: r4,
+        rule5_titleBrandSynergy: r5,
+        verdict,
+        summary: `Miniatura ${
+          optionLabel === 'OFICIAL' ? 'Oficial' : `Opción ${optionLabel}`
+        } evaluada para Gemini Web con Logo Oficial al 5% (CTR estimado: ${totalScore}/100).`,
+        improvementTip: tips[0] || 'Lista para publicar con alto impacto visual en YouTube / Reels.',
       };
-      setThumbnailPsychAudits((prev) => {
-        const next = { ...prev, [optionLabel]: result };
-        const entries = Object.entries(next);
-        if (entries.length > 0) {
-          entries.sort((a, b) => (b[1]?.ctrScore || 0) - (a[1]?.ctrScore || 0));
-          const bestOpt = entries[0][0];
-          const bestImg =
-            bestOpt === optionLabel
-              ? targetUrl
-              : capturedThumbnailsMap[bestOpt] || doc.thumbnailImageUrl;
-          if (bestImg) {
-            updateActiveDoc({ thumbnailImageUrl: bestImg, thumbnailReady: true });
-          }
-        }
-        return next;
-      });
+      setThumbnailPsychAudits((prev) => ({ ...prev, [optionLabel]: result }));
       setBridgeStatusType('SUCCESS');
       setBridgeStatusMsg(
-        `🧠 Auditoría Psicológica Opción ${optionLabel}: ${result.ctrScore}/100 (${result.verdict}) — ${result.summary}`
+        `🧠 Auditoría Psicológica ${
+          optionLabel === 'OFICIAL' ? 'Oficial' : `Opción ${optionLabel}`
+        }: ${result.ctrScore}/100 (${result.verdict}) — ${result.summary}`
       );
     } finally {
       setThumbnailPsychAuditing(false);
     }
   };
+
+  // Hydrate A/B/C captured thumbnails per documentary & clear stale audits when switching documentaries
+  const prevHydratedThumbDocIdRef = useRef<string>('');
+  useEffect(() => {
+    const docId = activeDoc?.id || '';
+    if (!docId) return;
+    const isDocSwitch = prevHydratedThumbDocIdRef.current !== docId;
+    prevHydratedThumbDocIdRef.current = docId;
+
+    let syncedMap: Record<string, string> = {};
+    try {
+      const rawMap = activeDoc?.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON;
+      if (rawMap) {
+        const parsed = JSON.parse(rawMap);
+        if (parsed && typeof parsed === 'object') {
+          for (const k of ['A', 'B', 'C']) {
+            if (typeof parsed[k] === 'string' && parsed[k].startsWith('data:image/')) {
+              syncedMap[k] = parsed[k];
+            }
+          }
+        }
+      }
+    } catch {}
+
+    if (isDocSwitch) {
+      setThumbnailPsychAudits({});
+      setCapturedThumbnailsMap(syncedMap);
+    } else if (Object.keys(syncedMap).length > 0) {
+      setCapturedThumbnailsMap((prev) => {
+        let changed = false;
+        const merged = { ...prev };
+        for (const [k, v] of Object.entries(syncedMap)) {
+          if (!merged[k]) {
+            merged[k] = v;
+            changed = true;
+          }
+        }
+        return changed ? merged : prev;
+      });
+    }
+  }, [activeDoc?.id, activeDoc?.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON]);
 
   // Clear mobile/desktop thumbnail spinner automatically when thumbnailImageUrl arrives via sync
   const prevSyncedThumbUrlRef = useRef<string>('');
@@ -9319,6 +9438,55 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     prevSyncedThumbUrlRef.current = curThumb;
   }, [activeDoc?.thumbnailImageUrl, thumbnailGeneratingOption]);
 
+  // Propagate remote Stage 3 failure (`REMOTE_GEMINI_STAGE_STATUS === 'failed'`) & safety watchdogs so spinners never lock forever
+  const prevRemoteStageStatusRef = useRef<string>('');
+  useEffect(() => {
+    const curStatus = String(activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS || '');
+    if (curStatus === 'failed' && prevRemoteStageStatusRef.current !== 'failed') {
+      if (thumbnailGeneratingOption !== null || thumbOptionsGenerating || (activeStage === 5 && aiGenerating)) {
+        setThumbnailGeneratingOption(null);
+        setThumbOptionsGenerating(false);
+        setAiGenerating(false);
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(
+          `⚠️ ${
+            activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_ERROR ||
+            'Gemini Web no completó la orden en Mac. Pulsa de nuevo para reintentar.'
+          }`
+        );
+      }
+    }
+    prevRemoteStageStatusRef.current = curStatus;
+  }, [
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS,
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_ERROR,
+    thumbnailGeneratingOption,
+    thumbOptionsGenerating,
+    activeStage,
+    aiGenerating,
+  ]);
+
+  useEffect(() => {
+    if (thumbnailGeneratingOption === null) return;
+    const wd = setTimeout(() => {
+      setThumbnailGeneratingOption(null);
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg(
+        '⚠️ Tiempo de espera agotado creando la miniatura en Gemini Web. Verifica que Chrome esté abierto en Mac y vuelve a pulsar.'
+      );
+    }, 195000);
+    return () => clearTimeout(wd);
+  }, [thumbnailGeneratingOption]);
+
+  useEffect(() => {
+    if (!thumbOptionsGenerating) return;
+    const wd = setTimeout(() => {
+      setThumbOptionsGenerating(false);
+      setAiGenerating(false);
+    }, 95000);
+    return () => clearTimeout(wd);
+  }, [thumbOptionsGenerating]);
+
   // ITEM 5: Send Stage 5 Prompt + Official Logo to Logged-In Gemini Web (Create image tool) & Auto-Import into Our Site + 03_Miniaturas Subfolder
   const handleSendThumbnailsToFlowAndCapture = async (
     optionLabel?: 'A' | 'B' | 'C',
@@ -9331,7 +9499,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const isRemoteMobileThumb =
       !isLocalOriginThumb && !extensionInstalled && !isHuellasExtensionDetected();
 
-    if ((!officialLogoUrl || !officialLogoUrl.trim()) && !isRemoteMobileThumb && !isCloudMode) {
+    let resolvedLogoDataUrl = officialLogoUrl && officialLogoUrl.startsWith('data:image/') ? officialLogoUrl : '';
+    if (!resolvedLogoDataUrl && !isCloudMode) {
+      try {
+        const logoRes = await fetch('/api/assets/official-logo');
+        if (logoRes.ok) {
+          const logoJson = await logoRes.json();
+          if (logoJson?.logoDataUrl && String(logoJson.logoDataUrl).startsWith('data:image/')) {
+            resolvedLogoDataUrl = String(logoJson.logoDataUrl);
+            setOfficialLogoUrl(resolvedLogoDataUrl);
+            localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, resolvedLogoDataUrl);
+          }
+        }
+      } catch {}
+    }
+
+    if (!resolvedLogoDataUrl && !isRemoteMobileThumb && !isCloudMode) {
       alert(
         '🔒 Obligatorio: Primero debes subir el Logo Oficial de "Huellas de la Humanidad" (se sube una sola vez y es el mismo para todos los documentales) antes de crear la miniatura.'
       );
@@ -9345,20 +9528,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? 'C'
         : 'A');
     const currentOrientation = getDefaultThumbnailOrientation(activeDoc);
+    const isUserLockedOv = activeDoc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
     const hasTypedLines = parseThumbnailOverlayLines(activeDoc.thumbnailTextOverlay || '').length > 0;
     const matchedDynamicTrigger = (activeDoc.thumbnailPsychTriggers || []).find(
       (t) => t.id === effectiveOptionLabel
     );
     const fallbackHooks = getDefaultCuriosityGapHooks(activeDoc);
-    const effectiveOverlay = hasTypedLines
-      ? activeDoc.thumbnailTextOverlay
-      : matchedDynamicTrigger?.suggestedOverlay ||
-        fallbackHooks[effectiveOptionLabel === 'B' ? 1 : effectiveOptionLabel === 'C' ? 2 : 0] ||
-        fallbackHooks[0] ||
-        '';
+    const effectiveOverlay =
+      isUserLockedOv && hasTypedLines
+        ? activeDoc.thumbnailTextOverlay
+        : matchedDynamicTrigger?.suggestedOverlay ||
+          (hasTypedLines ? activeDoc.thumbnailTextOverlay : '') ||
+          fallbackHooks[effectiveOptionLabel === 'B' ? 1 : effectiveOptionLabel === 'C' ? 2 : 0] ||
+          fallbackHooks[0] ||
+          '';
 
     const rawExistingPrompt = (activeDoc.thumbnailPrompt || '').trim();
     const existingPrompt = isCorruptedThumbnailPrompt(rawExistingPrompt) ? '' : rawExistingPrompt;
+    const candidateBasePrompt =
+      optionLabel && matchedDynamicTrigger?.prompt && activeDoc.thumbnailPsychVariant !== effectiveOptionLabel
+        ? matchedDynamicTrigger.prompt
+        : existingPrompt || matchedDynamicTrigger?.prompt || '';
     const promptText = usePsychVariant
       ? buildPsychologicalThumbnailVariantPrompt(
           effectiveOptionLabel,
@@ -9366,9 +9556,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           effectiveOverlay,
           activeDoc
         )
-      : existingPrompt
+      : candidateBasePrompt
       ? buildOrUpdateThumbnailPrompt(
-          existingPrompt,
+          candidateBasePrompt,
           currentOrientation,
           effectiveOverlay,
           activeDoc
@@ -9380,13 +9570,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           activeDoc
         );
 
-    const targetVideoBaseName = String(currentCanonicalVideoName || activeDoc.title || '')
-      .replace(/_\s*Deep\s*Research$/i, '')
-      .trim();
-
     // MÓVIL (GitHub Pages / sin extensión): NUNCA descargar archivos en el teléfono; enviar orden remota a la Mac
     if (isRemoteMobileThumb) {
       navigator.clipboard.writeText(promptText).catch(() => {});
+      try {
+        sessionStorage.setItem('huellas_ai_busy_until', String(Date.now() + 195000));
+      } catch {}
+      const mobileLogoCompact =
+        resolvedLogoDataUrl && resolvedLogoDataUrl.length <= 120000 ? resolvedLogoDataUrl : '';
       const commandId = `rgs_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const remoteTrigger = {
         type: 'REMOTE_GEMINI_STAGE',
@@ -9398,11 +9589,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const remoteFullCmd = {
         ...remoteTrigger,
         prompt: promptText,
+        ...(mobileLogoCompact ? { logoDataUrl: mobileLogoCompact } : {}),
         taskType: 'THUMBNAIL_IMAGE_GENERATION',
         enableCreateImage: true,
         standaloneNewChat: true,
         noNotebook: true,
         mediaType: 'THUMBNAILS',
+        option: effectiveOptionLabel,
         optionLabel: effectiveOptionLabel,
         aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
         enableHighModel: false,
@@ -9431,14 +9624,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         },
         updatedAt: new Date().toISOString(),
       };
+      const targetDocId = activeDoc.id;
       updateActiveDoc(remotePatch);
       setThumbnailGeneratingOption(effectiveOptionLabel);
       setBridgeStatusType('WORKING');
       setBridgeStatusMsg(
-        `📡 Enviando orden desde tu móvil a tu Mac: Gemini Web creará la Miniatura (Opción ${effectiveOptionLabel}) con el Logo Oficial y la guardará en 03_Miniaturas...`
+        `📡 Enviando orden desde tu móvil a tu Mac: Gemini Web creará la Miniatura (Opción ${effectiveOptionLabel}) en chat nuevo limpio con Create image + Logo Oficial...`
       );
       const nextDocsForRemote = documentaries.map((d) =>
-        d.id === activeDoc.id ? { ...d, ...remotePatch } : d
+        d.id === targetDocId ? { ...d, ...remotePatch } : d
       );
       pushDocumentariesToGitHub(nextDocsForRemote as any)
         .catch(() => null)
@@ -9449,10 +9643,79 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             body: JSON.stringify(remoteTrigger),
           }).catch(() => null)
         )
-        .then(() => {
+        .then(async () => {
           setBridgeStatusMsg(
-            `⏳ Tu Mac está creando la Miniatura (Opción ${effectiveOptionLabel}) en Gemini Web con Create image + Logo Oficial. Aparecerá aquí automáticamente en unos segundos...`
+            `⏳ Tu Mac está creando la Miniatura (Opción ${effectiveOptionLabel}) en Gemini Web con Create image + Logo Oficial. Aparecerá aquí automáticamente...`
           );
+          for (let pollIdx = 0; pollIdx < 42; pollIdx++) {
+            await new Promise((r) => setTimeout(r, 4000));
+            try {
+              const ackRes = await fetch(`${REMOTE_MAC_ACK_URL}/json?poll=1&since=120s`, {
+                cache: 'no-store',
+              }).catch(() => null);
+              let ackCompleted = false;
+              let ackFailed = false;
+              if (ackRes && ackRes.ok) {
+                const txt = await ackRes.text();
+                for (const ln of txt.split('\n')) {
+                  if (!ln.trim()) continue;
+                  try {
+                    const ev = JSON.parse(ln);
+                    const msgObj = ev?.message ? JSON.parse(ev.message) : ev;
+                    if (msgObj?.commandId === commandId || msgObj?.docId === targetDocId) {
+                      if (msgObj.status === 'gemini_stage_completed') ackCompleted = true;
+                      if (msgObj.status === 'gemini_stage_failed') ackFailed = true;
+                    }
+                  } catch {}
+                }
+              }
+              const remoteDocs = await fetchRemoteDocumentariesFromGitHub().catch(() => null);
+              if (remoteDocs && remoteDocs.length > 0) {
+                let remoteTarget: DocumentaryProject | undefined;
+                setDocumentaries((prev) => {
+                  const merged = mergeDocumentariesLists(prev, remoteDocs, getLocalDeletedDocIds());
+                  saveLocalCachedDocumentaries(merged);
+                  remoteTarget = merged.find((d) => d.id === targetDocId);
+                  return merged;
+                });
+                if (
+                  remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed' &&
+                  remoteTarget?.thumbnailImageUrl
+                ) {
+                  setThumbnailGeneratingOption(null);
+                  try {
+                    sessionStorage.removeItem('huellas_ai_busy_until');
+                  } catch {}
+                  setBridgeStatusType('SUCCESS');
+                  setBridgeStatusMsg(
+                    `✅ ¡Miniatura Opción ${effectiveOptionLabel} creada en tu Mac y sincronizada en tu móvil!`
+                  );
+                  break;
+                }
+                if (
+                  ackFailed ||
+                  remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'failed'
+                ) {
+                  setThumbnailGeneratingOption(null);
+                  try {
+                    sessionStorage.removeItem('huellas_ai_busy_until');
+                  } catch {}
+                  setBridgeStatusType('ERROR');
+                  setBridgeStatusMsg(
+                    `⚠️ ${
+                      remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ERROR ||
+                      'Gemini Web no pudo crear la miniatura en Mac.'
+                    }`
+                  );
+                  break;
+                }
+                if (ackCompleted && remoteTarget?.thumbnailImageUrl) {
+                  setThumbnailGeneratingOption(null);
+                  break;
+                }
+              }
+            } catch {}
+          }
         });
       return;
     }
@@ -9468,10 +9731,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     navigator.clipboard.writeText(promptText).catch(() => {});
 
     // Save the Official Logo and Thumbnail Prompt into 03_Miniaturas on Mac (never trigger browser download popups)
-    if (officialLogoUrl) {
+    if (resolvedLogoDataUrl) {
       await handleSaveAnyFileToChosenFolder(
         'Logo_Huellas_de_la_Humanidad.png',
-        officialLogoUrl,
+        resolvedLogoDataUrl,
         '03_Miniaturas',
         false
       );
@@ -9489,6 +9752,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       flowDownloadDirHandleRef.current?.name ||
       'tu carpeta raíz';
 
+    try {
+      sessionStorage.setItem('huellas_ai_busy_until', String(Date.now() + 195000));
+    } catch {}
     setThumbnailGeneratingOption(effectiveOptionLabel);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
@@ -9507,7 +9773,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       standaloneNewChat: true,
       noNotebook: true,
       prompt: promptText,
-      logoDataUrl: officialLogoUrl,
+      logoDataUrl: resolvedLogoDataUrl,
       aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
       stageNumber: 505,
       taskType: 'THUMBNAIL_IMAGE_GENERATION',
@@ -9519,6 +9785,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       enableDeepResearch: false,
       enableCreateImage: true,
       mediaType: 'THUMBNAILS',
+      option: effectiveOptionLabel,
       optionLabel: effectiveOptionLabel,
       autoSubmit: true,
       focusTab: false,
@@ -9928,6 +10195,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           } catch {}
           pendingStage11QueueRef.current = [];
           setAiGenerating(false);
+          setThumbOptionsGenerating(false);
           setThumbnailGeneratingOption(null);
         } else if (msg.status === 'COMPLETED') {
           setBridgeStatusType('SUCCESS');
@@ -10239,35 +10507,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const nextAttempt = prevAttempt + 1;
 
         if (msg.mediaType === 'THUMBNAILS') {
-          if (currentDoc && nextAttempt <= 3) {
+          const rawOpt = String(msg.optionLabel || msg.option || 'A').trim().toUpperCase();
+          const opt: 'A' | 'B' | 'C' = rawOpt === 'B' ? 'B' : rawOpt === 'C' ? 'C' : 'A';
+          const isSameThumbDoc = !msg.docId || !currentDoc || msg.docId === currentDoc.id;
+          if (currentDoc && isSameThumbDoc && nextAttempt <= 3) {
             const rawThumb = String(msg.prompt || currentDoc.thumbnailPrompt || '');
             const safeThumbPrompt = evadeFlowPolicyFilterInPrompt(rawThumb, currentDoc, nextAttempt);
             updateActiveDoc({ thumbnailPrompt: safeThumbPrompt });
-            const opt: 'A' | 'B' | 'C' =
-              msg.optionLabel === 'B' ? 'B' : msg.optionLabel === 'C' ? 'C' : 'A';
             const statusMsg = `🛡️ Gemini Web bloqueó la Miniatura (${
               msg.isProminentPeopleError ? 'Prominent People' : 'Política'
-            }). Prompt reajustado automáticamente para evadir el filtro y reenviando Opción ${opt} en Gemini Web (Intento #${nextAttempt})...`;
+            }). Prompt reajustado automáticamente para evadir el filtro y reenviando Opción ${opt} en ventana nueva limpia sin Notebook (Intento #${nextAttempt})...`;
             setBridgeStatusType('WORKING');
             setBridgeStatusMsg(statusMsg);
             setFlowStatusLog(statusMsg);
-            const retryVideoBaseName = String(currentDoc.title || '')
-              .replace(/_\s*Deep\s*Research$/i, '')
-              .trim();
             const retryOrientation = getDefaultThumbnailOrientation(currentDoc);
+            const retryLogo =
+              (officialLogoUrl && officialLogoUrl.startsWith('data:image/') ? officialLogoUrl : '') ||
+              localStorage.getItem(PERMANENT_LOGO_STORAGE_KEY) ||
+              '';
             setTimeout(() => {
               sendCommandToWebBridge('GEMINI', {
                 action: 'SEND_PROMPT',
                 docId: currentDoc.id,
-                videoName: retryVideoBaseName,
-                deepResearchVideoName: retryVideoBaseName
-                  ? `${retryVideoBaseName}_Deep Research`
-                  : '',
-                geminiChatUrl: getDocMainChatUrl(currentDoc),
-                geminiDeepResearchChatUrl: getDocDeepResearchChatUrl(currentDoc),
-                notebookName: 'Huellas de la Humanidad',
+                videoName: '',
+                deepResearchVideoName: '',
+                geminiChatUrl: '',
+                geminiDeepResearchChatUrl: '',
+                notebookName: '',
+                standaloneNewChat: true,
+                noNotebook: true,
                 prompt: safeThumbPrompt,
-                logoDataUrl: officialLogoUrl,
+                logoDataUrl: retryLogo,
                 aspectRatio: retryOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
                 stageNumber: 505,
                 taskType: 'THUMBNAIL_IMAGE_GENERATION',
@@ -10279,18 +10549,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 enableDeepResearch: false,
                 enableCreateImage: true,
                 mediaType: 'THUMBNAILS',
+                option: opt,
                 optionLabel: opt,
                 attempt: nextAttempt,
                 autoSubmit: true,
                 focusTab: false,
-                tabId: selectedGeminiTabId,
               });
             }, 1200);
           } else {
+            try {
+              sessionStorage.removeItem('huellas_ai_busy_until');
+            } catch {}
             setThumbnailGeneratingOption(null);
             setBridgeStatusType('ERROR');
+            const detailErr = String(msg.errorText || '').trim();
             setBridgeStatusMsg(
-              `⚠️ Gemini Web rechazó la miniatura tras ${prevAttempt} intentos. Ajusta el prompt y vuelve a intentarlo.`
+              detailErr
+                ? `⚠️ ${detailErr}`
+                : `⚠️ Gemini Web rechazó la miniatura tras ${prevAttempt} intentos. Ajusta el prompt y vuelve a intentarlo.`
             );
           }
         } else if (currentDoc && Array.isArray(currentDoc.clips)) {
@@ -10338,20 +10614,61 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'FLOW_THUMBNAIL_CAPTURED' || msg.type === 'GEMINI_THUMBNAIL_CAPTURED') {
         // ITEM 5: Auto-import captured Thumbnail A/B/C from Gemini Web into our site & save into 03_Miniaturas inside Root Folder
         setExtensionInstalled(true);
+        try {
+          sessionStorage.removeItem('huellas_ai_busy_until');
+        } catch {}
         setThumbnailGeneratingOption(null);
+        const msgThumbDocId = String(msg.docId || '').trim();
+        const curViewingDoc = activeDocRef.current || activeDoc;
+        if (msgThumbDocId && curViewingDoc && msgThumbDocId !== curViewingDoc.id) {
+          silentRealtimeSync();
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg('🖼️ Miniatura capturada y guardada automáticamente en su documental correspondiente.');
+          return;
+        }
+        const rawCapOpt = String(msg.option || msg.optionLabel || 'A').trim().toUpperCase();
         const opt: 'A' | 'B' | 'C' =
-          msg.option === 'B' ? 'B' : msg.option === 'C' ? 'C' : 'A';
+          rawCapOpt === 'B' ? 'B' : rawCapOpt === 'C' ? 'C' : 'A';
         const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
-        const sourceLabel = msg.provider === 'GEMINI' || msg.type === 'GEMINI_THUMBNAIL_CAPTURED' ? 'Gemini Web' : 'Gemini Web';
+        const sourceLabel = 'Gemini Web';
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
-          updateActiveDoc({ thumbnailImageUrl: dataUrl, thumbnailReady: true });
+          const serverPreview =
+            typeof msg.previewDataUrl === 'string' &&
+            msg.previewDataUrl.startsWith('data:image/') &&
+            msg.previewDataUrl.length <= 56000
+              ? msg.previewDataUrl
+              : '';
+          const syncSafePreview =
+            serverPreview || (await compressImageDataUrlForCloudSync(dataUrl, 42000));
+          let nextPreviewMap: Record<string, string> = {};
+          try {
+            const rawPrevMap = curViewingDoc?.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON;
+            if (rawPrevMap) {
+              const parsed = JSON.parse(rawPrevMap);
+              if (parsed && typeof parsed === 'object') nextPreviewMap = { ...parsed };
+            }
+          } catch {}
+          if (syncSafePreview) {
+            nextPreviewMap[opt] = syncSafePreview;
+          }
+          updateActiveDoc({
+            ...(syncSafePreview ? { thumbnailImageUrl: syncSafePreview } : {}),
+            thumbnailPsychVariant: opt,
+            thumbnailReady: true,
+            promptConfig: {
+              ...(curViewingDoc?.promptConfig || {}),
+              THUMBNAIL_PREVIEWS_MAP_JSON: JSON.stringify(nextPreviewMap),
+              REMOTE_GEMINI_STAGE_STATUS: 'completed',
+              REMOTE_GEMINI_STAGE_ERROR: '',
+            },
+          });
           const thumbFileName = `Miniatura_Opcion_${opt}.png`;
           await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
           await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
           const folderLabel =
             effectiveDocFolderName ||
-            getCanonicalFolderNameForDoc(activeDocRef.current || activeDoc) ||
+            getCanonicalFolderNameForDoc(curViewingDoc) ||
             flowDownloadDirHandleRef.current?.name ||
             'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
@@ -10645,6 +10962,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const remoteDeep = isDeepResearchRemote
           ? options?.enableDeepResearch ?? true
           : Boolean(options?.enableDeepResearch);
+        if (stageNum === 5) {
+          autoGeneratedStage5TriggersRef.current[currentDoc.id] = true;
+          try {
+            sessionStorage.setItem(`huellas_stage5_sent_${currentDoc.id}`, String(Date.now()));
+          } catch {}
+        }
+        try {
+          sessionStorage.setItem(
+            'huellas_ai_busy_until',
+            String(Date.now() + (remoteDeep ? 70 : 4) * 60 * 1000)
+          );
+        } catch {}
         const commandId = `rgs_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const remoteTrigger = {
           type: 'REMOTE_GEMINI_STAGE',
@@ -10689,7 +11018,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             : isDeepResearchRemote
             ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini 4 Carbon Low + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
             : stageNum === 5
-            ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura en Gemini Web...'
+            ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura dentro del chat del documental...'
+            : stageNum === 101
+            ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 opciones cortas de texto en pantalla dentro del chat del documental...'
             : '📡 Enviando orden de la etapa a tu Mac (Gemini 4 Carbon Low)...'
         );
         const nextDocsForRemote = documentaries.map((d) =>
@@ -10712,6 +11043,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
                 : stageNum === 5
                 ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (4 Carbon · Low). Se actualizará aquí automáticamente...'
+                : stageNum === 101
+                ? '⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (4 Carbon · Low)...'
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
             if (!isDeepResearchRemote) {
@@ -10759,6 +11092,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     if (completedAckMatch || (ackCompleted && ackSeenTicks >= 3)) {
                       setAiGenerating(false);
                       if (stageNum === 101) setThumbOptionsGenerating(false);
+                      try {
+                        sessionStorage.removeItem('huellas_ai_busy_until');
+                      } catch {}
                       setBridgeStatusType('SUCCESS');
                       setBridgeStatusMsg('✅ Resultado sincronizado automáticamente desde tu Mac.');
                       break;
@@ -10770,6 +11106,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     ) {
                       setAiGenerating(false);
                       if (stageNum === 101) setThumbOptionsGenerating(false);
+                      try {
+                        sessionStorage.removeItem('huellas_ai_busy_until');
+                      } catch {}
                       setBridgeStatusType('ERROR');
                       setBridgeStatusMsg(
                         `⚠️ Gemini Web en Mac reportó un error (${
@@ -10783,6 +11122,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }
               setAiGenerating(false);
               if (stageNum === 101) setThumbOptionsGenerating(false);
+              try {
+                sessionStorage.removeItem('huellas_ai_busy_until');
+              } catch {}
             } else {
               setAiGenerating(false);
             }
@@ -10808,6 +11150,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ? geminiDeepResearchEnabled
       : false;
 
+    if (stageNum === 5) {
+      autoGeneratedStage5TriggersRef.current[currentDoc.id] = true;
+      try {
+        sessionStorage.setItem(`huellas_stage5_sent_${currentDoc.id}`, String(Date.now()));
+      } catch {}
+    }
     setAiGenerating(true);
     try {
       sessionStorage.setItem(
@@ -10950,6 +11298,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     ) {
       return;
     }
+    if (activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'running') {
+      try {
+        const rawCmd = activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_COMMAND_JSON;
+        const parsedCmd = rawCmd ? JSON.parse(rawCmd) : null;
+        const reqAt = Number(parsedCmd?.requestedAt || 0);
+        if (!reqAt || Date.now() - reqAt < 210000) {
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
     const hasVideoStoryContext = Boolean(
       (
         activeDoc.voiceoverScript ||
@@ -10961,9 +11321,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!hasVideoStoryContext) return;
     const guardKey = activeDoc.id;
     if (autoGeneratedStage5TriggersRef.current[guardKey]) return;
+    try {
+      const prevAutoTs = Number(sessionStorage.getItem(`huellas_stage5_sent_${guardKey}`) || 0);
+      if (prevAutoTs > 0 && Date.now() - prevAutoTs < 90000) {
+        return;
+      }
+    } catch {}
 
     const timer = setTimeout(() => {
+      if (autoGeneratedStage5TriggersRef.current[guardKey]) return;
+      const latestDoc = activeDocRef.current;
+      if (!latestDoc || latestDoc.id !== guardKey) return;
+      if ((latestDoc.thumbnailPsychTriggers || []).length > 0) return;
       autoGeneratedStage5TriggersRef.current[guardKey] = true;
+      try {
+        sessionStorage.setItem(`huellas_stage5_sent_${guardKey}`, String(Date.now()));
+      } catch {}
       handleSendStageToGeminiWeb(5);
     }, 350);
     return () => clearTimeout(timer);
@@ -10974,6 +11347,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.voiceoverScript,
     activeDoc?.deepResearchResult,
     activeDoc?.topic,
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS,
     aiGenerating,
     bridgeStatusType,
     thumbnailGeneratingOption,
@@ -16399,6 +16773,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   extractOverlayFromStage5PromptText(matched?.prompt || '') ||
                   ''
                 ).trim();
+                const isUserLocked = activeDoc.promptConfig?.THUMBNAIL_OVERLAY_USER_LOCKED === 'SI';
                 const explicitUserChoice = (
                   userExplicitlyPickedOverlayDocRef.current[activeDoc.id] || ''
                 ).trim();
@@ -16407,8 +16782,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 // If the user explicitly clicked/typed an overlay in Step 1, keep their chosen overlay;
                 // otherwise switch automatically to the selected trigger's own overlay (never stay stuck on Option 1!)
                 const effectiveOverlay =
-                  explicitUserChoice &&
-                  explicitUserChoice.toUpperCase() === currentOverlayTrimmed.toUpperCase()
+                  (isUserLocked && currentOverlayTrimmed) ||
+                  (explicitUserChoice &&
+                    explicitUserChoice.toUpperCase() === currentOverlayTrimmed.toUpperCase())
                     ? currentOverlayTrimmed
                     : variantSuggestedOverlay || currentOverlayTrimmed;
 
@@ -16439,18 +16815,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               };
 
               const handleChangeThumbnailTextOverlay = (newText: string) => {
-                if (newText.trim()) {
+                const hasTrimmedText = Boolean(newText.trim());
+                if (hasTrimmedText) {
                   userExplicitlyPickedOverlayDocRef.current[activeDoc.id] = newText.trim();
                 } else {
                   delete userExplicitlyPickedOverlayDocRef.current[activeDoc.id];
                 }
+                const nextPromptCfg = {
+                  ...(activeDoc.promptConfig || {}),
+                  THUMBNAIL_OVERLAY_USER_LOCKED: hasTrimmedText ? 'SI' : 'NO',
+                };
                 const updatedTriggers = dynamicTriggers.map((t) => ({
                   ...t,
                   prompt: buildOrUpdateThumbnailPrompt(
                     t.prompt,
                     currentOrientation,
-                    newText || t.suggestedOverlay || '',
-                    activeDoc
+                    hasTrimmedText ? newText : '',
+                    activeDoc,
+                    true
                   ),
                 }));
                 const cleanExisting = isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
@@ -16464,12 +16846,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         cleanExisting,
                         currentOrientation,
                         newText,
-                        activeDoc
+                        activeDoc,
+                        true
                       );
                   updateActiveDoc({
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
                     thumbnailPrompt: updatedPrompt,
+                    promptConfig: nextPromptCfg,
                     ...(updatedTriggers.length > 0
                       ? { thumbnailPsychTriggers: updatedTriggers }
                       : {}),
@@ -16479,6 +16863,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     thumbnailTextOverlay: newText,
                     thumbnailOrientation: currentOrientation,
                     thumbnailPrompt: '',
+                    promptConfig: nextPromptCfg,
                     ...(updatedTriggers.length > 0
                       ? { thumbnailPsychTriggers: updatedTriggers }
                       : {}),
@@ -16516,9 +16901,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </button>
                         <button
                           type="button"
-                          disabled={thumbOptionsGenerating}
+                          disabled={thumbOptionsGenerating || aiGenerating}
                           onClick={handleGenerateThumbnailTextOptions}
-                          className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                          className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
                           title="Generar 3 opciones de texto en pantalla (1 a 3 palabras) para la miniatura"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
@@ -16528,9 +16913,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </button>
                         <button
                           type="button"
-                          disabled={aiGenerating}
+                          disabled={aiGenerating || thumbOptionsGenerating}
                           onClick={() => handleGenerateWithGemini(5)}
-                          className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
+                          className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 ${
                             hasOverlayText
                               ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20'
                               : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
@@ -16959,7 +17344,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </div>
                       ) : activeDoc.thumbnailImageUrl ? (
                         <img
-                          src={activeDoc.thumbnailImageUrl}
+                          src={
+                            capturedThumbnailsMap[activeDoc.thumbnailPsychVariant || 'A'] ||
+                            activeDoc.thumbnailImageUrl
+                          }
                           alt="Miniatura Oficial"
                           className="w-full h-full object-cover"
                         />
@@ -16981,17 +17369,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             const url = capturedThumbnailsMap[opt];
                             const audit = thumbnailPsychAudits[opt];
                             if (!url) return null;
-                            const isCurrent = activeDoc.thumbnailImageUrl === url;
+                            const isCurrent =
+                              activeDoc.thumbnailPsychVariant === opt ||
+                              activeDoc.thumbnailImageUrl === url;
                             return (
                               <div
                                 key={opt}
                                 onClick={async () => {
-                                  updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
+                                  const syncSafe = await compressImageDataUrlForCloudSync(url, 42000);
+                                  updateActiveDoc({
+                                    thumbnailImageUrl: syncSafe || (url.length <= 58000 ? url : activeDoc.thumbnailImageUrl),
+                                    thumbnailPsychVariant: opt,
+                                    thumbnailReady: true,
+                                  });
                                   await handleSaveAnyFileToChosenFolder(
                                     'Miniatura_Oficial.png',
                                     url,
                                     '03_Miniaturas'
                                   );
+                                  handleAuditThumbnailPsychology(opt, url);
                                 }}
                                 className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
                                   isCurrent
@@ -17023,44 +17419,77 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     {(() => {
                       const allAudits = Object.values(thumbnailPsychAudits) as ThumbnailPsychologyAuditResult[];
                       if (allAudits.length === 0) return null;
-                      allAudits.sort((a, b) => (b.ctrScore || 0) - (a.ctrScore || 0));
-                      const topAudit = allAudits[0];
+                      const activeOptAudit =
+                        thumbnailPsychAudits[activeDoc.thumbnailPsychVariant || 'A'] ||
+                        thumbnailPsychAudits.OFICIAL;
+                      const sortedAudits = [...allAudits].sort(
+                        (a, b) => (b.ctrScore || 0) - (a.ctrScore || 0)
+                      );
+                      const topAudit = activeOptAudit || sortedAudits[0];
+                      const safeRuleNum = (val: unknown, fallback: unknown): number => {
+                        if (typeof val === 'number' && Number.isFinite(val)) return val;
+                        if (val && typeof val === 'object' && 'score' in (val as any)) {
+                          return Number((val as any).score) || 18;
+                        }
+                        if (typeof fallback === 'number' && Number.isFinite(fallback)) return fallback;
+                        if (fallback && typeof fallback === 'object' && 'score' in (fallback as any)) {
+                          return Number((fallback as any).score) || 18;
+                        }
+                        return 18;
+                      };
+                      const r1Score = safeRuleNum(topAudit.rule1_13msClarity, undefined);
+                      const r2Score = safeRuleNum(
+                        topAudit.rule2_faceEmotionEyeContact,
+                        (topAudit as any).rule2_FaceAndEmotion
+                      );
+                      const r3Score = safeRuleNum(
+                        topAudit.rule3_curiosityGap,
+                        (topAudit as any).rule3_CuriosityGap
+                      );
+                      const r4Score = safeRuleNum(
+                        topAudit.rule4_colorContrast,
+                        (topAudit as any).rule4_ColorContrast
+                      );
+                      const r5Score = safeRuleNum(
+                        topAudit.rule5_titleBrandSynergy,
+                        (topAudit as any).rule5_TitleAndBrandSync
+                      );
                       return (
                         <div className="bg-slate-950/95 border border-indigo-500/40 rounded-xl p-3.5 space-y-2 text-xs">
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-indigo-300">
-                              🏆 Evaluación Neuropsicológica CTR ({topAudit.optionLabel}):
+                              🏆 Evaluación Neuropsicológica CTR ({String(topAudit.optionLabel || 'A')}):
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black">
-                              {topAudit.ctrScore}/100 — {topAudit.verdict}
+                              {Number(topAudit.ctrScore || 0)}/100 — {String(topAudit.verdict || 'EXCELENTE')}
                             </span>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[10px]">
                             <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
                               <div className="text-slate-400">1. Claridad 13ms</div>
-                              <div className="font-bold text-amber-300">{topAudit.rule1_13msClarity}/20</div>
+                              <div className="font-bold text-amber-300">{r1Score}/20</div>
                             </div>
                             <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
                               <div className="text-slate-400">2. Rostro/Ojos</div>
-                              <div className="font-bold text-amber-300">{topAudit.rule2_faceEmotionEyeContact}/20</div>
+                              <div className="font-bold text-amber-300">{r2Score}/20</div>
                             </div>
                             <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
                               <div className="text-slate-400">3. Curiosity Gap</div>
-                              <div className="font-bold text-amber-300">{topAudit.rule3_curiosityGap}/20</div>
+                              <div className="font-bold text-amber-300">{r3Score}/20</div>
                             </div>
                             <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
                               <div className="text-slate-400">4. Contraste Color</div>
-                              <div className="font-bold text-amber-300">{topAudit.rule4_colorContrast}/20</div>
+                              <div className="font-bold text-amber-300">{r4Score}/20</div>
                             </div>
                             <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
                               <div className="text-slate-400">5. Título/Logos</div>
-                              <div className="font-bold text-amber-300">{topAudit.rule5_titleBrandSynergy}/20</div>
+                              <div className="font-bold text-amber-300">{r5Score}/20</div>
                             </div>
                           </div>
-                          <p className="text-[11px] text-slate-300 leading-snug">{topAudit.summary}</p>
+                          <p className="text-[11px] text-slate-300 leading-snug">{String(topAudit.summary || '')}</p>
                           {topAudit.improvementTip && (
                             <p className="text-[10px] text-amber-300/90">
-                              💡 Mejora sugerida: {topAudit.improvementTip}
+                              💡 Mejora sugerida: {String(topAudit.improvementTip)}
                             </p>
                           )}
                         </div>
@@ -17079,8 +17508,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           await ensureSingleDownloadFolderReadyOnGesture();
                           const url = await uploadAssetFile(file);
                           if (url) {
-                            updateActiveDoc({ thumbnailImageUrl: url, thumbnailReady: true });
-                            await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', file);
+                            const syncSafeUrl = await compressImageDataUrlForCloudSync(url, 42000);
+                            updateActiveDoc({
+                              thumbnailImageUrl: syncSafeUrl || (url.length <= 58000 ? url : ''),
+                              thumbnailReady: true,
+                            });
+                            await handleSaveAnyFileToChosenFolder(
+                              'Miniatura_Oficial.png',
+                              file,
+                              '03_Miniaturas'
+                            );
                             handleAuditThumbnailPsychology('OFICIAL', url);
                           }
                         }}
