@@ -28,17 +28,18 @@ En **CADA tarea técnica del usuario**, el agente coordinador ejecuta obligatori
      - **B. Naturaleza del Problema**: ajuste claro de botones, textos, estilos o prompts (`0 pts`) · nueva lógica de estado, parsers, descargas o endpoints (`+2 pts`) · bug sin causa obvia, condiciones de carrera, FFmpeg, WebAudio o selectores DOM externos (`+3 pts`).
      - **C. Riesgo de Regresión**: zona aislada (`0 pts`) · toca flujos sensibles compartidos como Timeline del editor, `cloudSync.ts`, `background.js` o pipeline 4K (`+2 pts`).
      - **D. Reincidencia (Auto-Escalado)**: fallo que persiste o *"sigue sin funcionar"* tras un intento previo (`+4 pts` automáticos).
-   - **Umbrales de Decisión y Encabezado Visible (1 línea al inicio del turno, SIN `debate_robots.html` ni `<agent-embed>`)**:
+   - **Umbrales de Decisión y Encabezado Visible con Puntaje Desglosado (al principio del turno, SIN `debate_robots.html` ni `<agent-embed>`)**:
+     - **Formato obligatorio del desglose**: En **toda** tarea técnica, muestra siempre al inicio el puntaje total `X/10` junto con sus 4 componentes desglosados: **`(X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D)`** (y si el usuario pidió un modo explícito, añade `Override Manual` conservando el desglose informativo).
      - **`0–2 pts` → Ejecución Directa (`SOLO`)**:
-       Muestra **`⚡ [AUTO-TRIAJE: Complejidad Baja (X/10) → Ejecución Directa]`** (o `⚡ [MODO SOLO ACTIVADO]`) y resuelve de inmediato sin lanzar subagentes ni consultas web.
+       Muestra **`⚡ [AUTO-TRIAJE: Complejidad Baja (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → Ejecución Directa]`** (o `⚡ [MODO SOLO ACTIVADO (Override Manual — ...)]`) y resuelve de inmediato sin lanzar subagentes ni consultas web.
      - **`3–5 pts` → `MODO DUO` Rápido (Solo Subagentes Internos ~30s, SIN Webs Externas)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Media (X/10) → MODO DUO Rápido: Carbon + Argon]`** (o `🤝 [MODO DUO ACTIVADO: Carbon + Argon]`).
+       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Media (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO DUO Rápido: Carbon + Argon]`** (o `🤝 [MODO DUO ACTIVADO (Override Manual — ...): Carbon + Argon]`).
        - Lanza **únicamente** los 2 subagentes internos (`Model: 'inherit'` + `Model: 'pro'`) **sin** llamar a Gemini Web ni ChatGPT Web.
        - Ejecuta obligatoriamente **Ronda 1 + Ronda 2 de debate cruzado (`send_message` entre ambos)** antes de editar código.
      - **`6–7 pts` → `MODO TRIO` Completo (3 Subagentes + Gemini Web + ChatGPT Web)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Alta (X/10) → MODO TRIO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes]`** (o `🤝 [MODO TRIO ACTIVADO: ...]`).
+       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Alta (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO TRIO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes]`** (o `🤝 [MODO TRIO ACTIVADO (Override Manual — ...): ...]`).
      - **`8–10 pts` → `MODO CUATRO` Crítico (3 Subagentes + Gemini Web + ChatGPT Web + Auditoría Exhaustiva)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Crítica (X/10) → MODO CUATRO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes + Auditoría Profunda]`** (o `🤝 [MODO CUATRO ACTIVADO: ...]`).
+       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Crítica (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO CUATRO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes + Auditoría Profunda]`** (o `🤝 [MODO CUATRO ACTIVADO (Override Manual — ...): ...]`).
    - **Flujo Obligatorio cuando se ejecuta `MODO DUO`, `MODO TRIO` o `MODO CUATRO` (por Auto-Triaje o Manual)**:
      1. **Perspectiva Externa Doble en Paralelo (`Gemini Web` + `ChatGPT Web`) — EXCLUSIVA DE `MODO TRIO` Y `MODO CUATRO` (Omitida en `MODO DUO` Rápido) — PROMPTS SIEMPRE EN INGLÉS**:
         - **IDIOMA OBLIGATORIO 100% EN INGLÉS PARA LAS CONSULTAS WEB (`PROHIBIDO enviar prompts en español a Gemini Web o ChatGPT Web`)**: Aunque el usuario escriba su solicitud en español (y aunque al usuario se le responda en español en el chat), **TODOS los prompts enviados a `/api/gemini-web/ask-external` y a `/api/chatgpt-web/ask-external` DEBEN estar redactados SIEMPRE 100% en inglés técnico claro** (incluyendo contexto, restricciones, fragmentos de código relevantes y preguntas de arquitectura).
