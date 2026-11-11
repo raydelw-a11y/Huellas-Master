@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-11T12:34:43.697Z",
+    "updatedAt": "2026-11-11T12:34:47.635Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -3364,7 +3364,7 @@
       "LO IGNORARON\nPOR AÑOS",
       "LO RECHAZARON\n3 VECES"
     ],
-    "thumbnailPrompt": "Thumbnail: Create an image in 16:9 horizontal aspect ratio in a dramatic cinematic documentary style. In a messy London laboratory (1928), a British scientist in his 40s is, official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \"Huellas de la Humanidad\" without cropping, blurring, or omitting the sub-text, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), wearing wire-rimmed glasses and a worn lab coat, staring directly into the camera lens with wide, astonished, and intense eyes, showing the white of his sclera. He is holding a glass Petri dish up to the light, where a visible mold colony is destroying surrounding bacteria. In the background, cluttered shelves filled with glass flasks, culture plates, and old microscopes fade into deep, cold natural blue-cyan shadows, contrasted by warm cinematic amber light on his face. Near the bottom-left, a bold, high-contrast cinematic documentary typography text overlay stacked across two separate lines reads (Line 1: \"LO IGNORARON\" / Line 2: \"POR AÑOS\"). In the top-right corner, a small, discreet 5% scale logo displays \"8K\" in metallic gold. In the top-left corner, the, bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image stacked across 2 exact separate lines (Line 1: \"12 AÑOS\" / Line 2: \"OCULTA\"), a small discreet 5% scale logo in the top-right corner displaying \"8K\" in metallic gold, official page logo from image_0.png is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \"HUELLAS DE LA HUMANIDAD\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.",
+    "thumbnailPrompt": "Thumbnail: Create an image in 16:9 horizontal aspect ratio in a dramatic cinematic documentary style. In a dark, wood-paneled British office (1940s), a senior industrial executive in his 50s is, official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \"Huellas de la Humanidad\" without cropping, blurring, or omitting the sub-text, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), wearing a dark pinstripe suit, staring directly into the camera lens with a cold, dismissive, and intense expression, eyes wide with authority. In the foreground, his hand firmly pushes away an old glass bottle labeled \"Penicillin Oxford Batch\" on a cluttered desk filled with official documents. The background is filled with shadowy bookshelves, vintage desk lamps, and paperwork, illuminated by warm cinematic amber light while the rest of the room fades into deep, cold, natural blue-cyan shadows. Near the bottom-left, a bold, high-contrast cinematic documentary typography text overlay stacked across two separate lines reads (Line 1: \"LO RECHAZARON\" / Line 2: \"3 VECES\"). In the top-right corner, a small, discreet 5% scale logo displays \"8K\" in metallic gold. In the top-left corner, the, bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image stacked across 2 exact separate lines (Line 1: \"12 AÑOS\" / Line 2: \"OCULTA\"), a small discreet 5% scale logo in the top-right corner displaying \"8K\" in metallic gold, official page logo from image_0.png is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \"HUELLAS DE LA HUMANIDAD\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music. Aquí tienes la mejor opción visual para el disparador A:",
     "thumbnailTextOverlay": "12 AÑOS\nOCULTA",
     "thumbnailImageUrl": "",
     "thumbnailReady": false,
@@ -3409,7 +3409,7 @@
         "suggestedOverlay": "LO RECHAZARON\n3 VECES"
       }
     ],
-    "thumbnailPsychVariant": "B"
+    "thumbnailPsychVariant": "C"
   },
   {
     "id": "doc-1793459858927-xld0",
