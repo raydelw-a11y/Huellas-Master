@@ -28,24 +28,27 @@ En **CADA tarea técnica del usuario**, el agente coordinador ejecuta obligatori
      - **B. Naturaleza del Problema**: ajuste claro de botones, textos, estilos o prompts (`0 pts`) · nueva lógica de estado, parsers, descargas o endpoints (`+2 pts`) · bug sin causa obvia, condiciones de carrera, FFmpeg, WebAudio o selectores DOM externos (`+3 pts`).
      - **C. Riesgo de Regresión (`REGLA ANTI-REDONDEO A LA BAJA`)**: zona aislada (`0 pts`) · si **cualquiera** de los archivos previstos o tocados incluye flujos sensibles compartidos como Timeline del editor (`CapCutTimelineEditor.tsx`), `cloudSync.ts`, `smartParsers.ts`, `background.js`, `flow-content.js`, `gemini-content.js` o pipeline 4K, **es automático y obligatorio sumar `+2 pts` sin excepción** (**PROHIBIDO** poner `+0` o redondear a la baja cuando alguno de esos archivos está implicado; ante duda entre dos puntajes, aplica siempre el más alto).
      - **D. Reincidencia (Auto-Escalado)**: fallo que persiste o *"sigue sin funcionar"* tras un intento previo (`+4 pts` automáticos).
-   - **Umbrales de Decisión y Encabezado Visible (solo el modo elegido + desglose corto de tareas reales y sus puntos, SIN deliberación previa ni `debate_robots.html` / `<agent-embed>`)**:
-     - **Formato obligatorio en la PRIMERA línea visible del turno (`PROHIBIDO escribir párrafos o cuentas en voz alta antes del encabezado`)**: La primera línea del mensaje muestra **únicamente el modo que se va a usar**, con el total `(X/10)` seguido de un **desglose corto de las tareas/acciones concretas a realizar y los puntos que sumó cada una** (sin etiquetas genéricas vacías como `Regresión: +0 | Reincidencia: +0` ni mencionar los demás modos; si fue orden manual explícita, añade `Override Manual`).
-       - *Ejemplos reales*:
-         - `⚡ [AUTO-TRIAJE → Ejecución Directa (0/10): quitar botones de pausa en Etapa 2 de App.tsx (+0)]`
-         - `🤝 [AUTO-TRIAJE → MODO DUO Rápido: Carbon + Argon (4/10): conectar App.tsx + server.ts (+2) · detectar y mover descargas de Flow (+2)]`
-         - `🤝 [AUTO-TRIAJE → MODO TRIO (7/10): cruzar App.tsx + server.ts + background.js (+3) · sincronizar pestañas web (+2) · toca flujo compartido de extensión (+2)]`
+   - **Umbrales de Decisión y Encabezado Inicial en MODO LISTA (solo el modo elegido + viñetas cortas de tareas y puntos, SIN deliberación previa ni `debate_robots.html` / `<agent-embed>`)**:
+     - **Formato obligatorio en MODO LISTA al principio del turno (`PROHIBIDO escribir párrafos previos antes del encabezado y PROHIBIDO poner el desglose corrido en una sola línea`)**: El mensaje debe abrir directamente con el título del **único modo que se va a usar** y el total `(X/10)`, seguido inmediatamente debajo por una **lista vertical con viñetas (`-`)** indicando cada tarea concreta a realizar y los puntos que sumó (sin etiquetas genéricas vacías como `Regresión: +0` ni mencionar los demás modos; si fue orden manual explícita, añade `Override Manual`).
+       - *Ejemplo real*:
+         ```markdown
+         🤝 **[AUTO-TRIAJE → MODO TRIO: Gemini Web + ChatGPT Web + 3 Agentes (7/10)]**
+         - Cruzar `App.tsx` + `server.ts` + `background.js` (`+3 pts`)
+         - Nueva lógica de sincronización de pestañas web (`+2 pts`)
+         - Toca flujo compartido crítico de `background.js` (`+2 pts`)
+         ```
      - **`0–2 pts` → Ejecución Directa (`SOLO`)**:
-       Muestra **`⚡ [AUTO-TRIAJE → Ejecución Directa (X/10): <desglose corto de tareas y +pts>]`** y resuelve de inmediato sin lanzar subagentes ni consultas web.
+       Muestra **`⚡ [AUTO-TRIAJE → Ejecución Directa (X/10)]`** seguido de la lista `- <tarea> (+pts)` y resuelve de inmediato sin lanzar subagentes ni consultas web.
      - **`3–5 pts` → `MODO DUO` Rápido (Solo Subagentes Internos ~30s, SIN Webs Externas)**:
-       Muestra **`🤝 [AUTO-TRIAJE → MODO DUO Rápido: Carbon + Argon (X/10): <desglose corto de tareas y +pts>]`**.
+       Muestra **`🤝 [AUTO-TRIAJE → MODO DUO Rápido: Carbon + Argon (X/10)]`** seguido de la lista `- <tarea> (+pts)`.
        - Lanza **únicamente** los 2 subagentes internos (`Model: 'inherit'` + `Model: 'pro'`) **sin** llamar a Gemini Web ni ChatGPT Web, ejecutando **Ronda 1 + Ronda 2 de debate cruzado (`send_message` entre ambos)** antes de editar código.
      - **`6–7 pts` → `MODO TRIO` Completo (3 Subagentes + Gemini Web + ChatGPT Web)**:
-       Muestra **`🤝 [AUTO-TRIAJE → MODO TRIO: Gemini Web + ChatGPT Web + 3 Agentes (X/10): <desglose corto de tareas y +pts>]`**.
+       Muestra **`🤝 [AUTO-TRIAJE → MODO TRIO: Gemini Web + ChatGPT Web + 3 Agentes (X/10)]`** seguido de la lista `- <tarea> (+pts)`.
      - **`8–10 pts` → `MODO CUATRO` Crítico (3 Subagentes + Gemini Web + ChatGPT Web + Auditoría Exhaustiva)**:
-       Muestra **`🤝 [AUTO-TRIAJE → MODO CUATRO: Gemini Web + ChatGPT Web + 3 Agentes + Auditoría Profunda (X/10): <desglose corto de tareas y +pts>]`**.
+       Muestra **`🤝 [AUTO-TRIAJE → MODO CUATRO: Gemini Web + ChatGPT Web + 3 Agentes + Auditoría Profunda (X/10)]`** seguido de la lista `- <tarea> (+pts)`.
    - **Auto-Escalado Incremental Dinámico tras Exploración o Ronda 1 (`SIN hacer repetir a los modelos que ya completaron Ronda 1`)**:
-     - Si durante la inspección inicial o **al recibir las respuestas de la Ronda 1** el coordinador descubre nuevas tareas, archivos críticos compartidos, condiciones de carrera o riesgos adicionales que elevan el puntaje real a un modo superior, **DEBE recalcular y escalar inmediatamente al modo superior** mostrando una línea visible:
-       `🔼 [AUTO-ESCALADO → <NUEVO MODO> (X/10): <nuevas tareas/hallazgos detectados y +pts añadidos>]`
+     - Si durante la inspección inicial o **al recibir las respuestas de la Ronda 1** el coordinador descubre nuevas tareas, archivos críticos compartidos, condiciones de carrera o riesgos adicionales que elevan el puntaje real a un modo superior, **DEBE recalcular y escalar inmediatamente al modo superior** mostrando en **modo lista**:
+       `🔼 **[AUTO-ESCALADO → <NUEVO MODO> (X/10)]**` seguido debajo por viñetas `- <nueva tarea/hallazgo detectado> (+pts añadidos)`.
      - **Regla de Incorporación Incremental (`PROHIBIDO repetir la Ronda 1 en modelos que ya respondieron`)**:
        - Los modelos que **ya completaron su Ronda 1 conservan intacta su propuesta** y **NO** vuelven a ejecutar la Ronda 1.
        - El coordinador lanza **únicamente los modelos o consultas web que faltaban** entre el modo escogido inicialmente y el nuevo modo superior:
