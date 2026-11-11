@@ -378,7 +378,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
                 rows={2}
                 value={quickGeminiPrompt}
                 onChange={(e) => setQuickGeminiPrompt(e.target.value)}
-                placeholder="Escribe cualquier instrucción adicional para tu chat de Gemini y presiona Enviar..."
+                placeholder="Write your custom instruction in English for Gemini Web and click Send..."
                 className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200"
               />
               <button

@@ -146,14 +146,15 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:25 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:04 PM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
   if (!clean) return '';
   clean = clean
+    .replace(/^\[STAGE_11[1-5]_[A-Z0-9_]+\]\s*\n*/i, '')
     .replace(
-      /(?:^|\n)[⠀\s]*(?:[-—*]+\s*\n)?[⠀\s]*(?:¡?Metadata\s+completada!?|Una\s+vez\s+publicado\s+el\s+video|entramos\s+en\s+la\s+Etapa\s+12|Etapa\s+12\s*\(?Post-Producci[oó]n|A\s+medida\s+que\s+tu\s+audiencia\s+comente|ve\s+envi[aá]ndome\s+capturas\s+de\s+pantalla)[\s\S]*$/i,
+      /(?:^|\n)[⠀\s]*(?:[-—*]+\s*\n)?[⠀\s]*(?:¡?Metadata\s+completada!?|Metadata\s+complete[d!]?|Una\s+vez\s+publicado\s+el\s+video|Once\s+the\s+video\s+is\s+published|entramos\s+en\s+la\s+Etapa\s+12|Etapa\s+12\s*\(?Post-Producci[oó]n|Stage\s+12\s*\(?Post-Production|A\s+medida\s+que\s+tu\s+audiencia\s+comente|ve\s+envi[aá]ndome\s+capturas\s+de\s+pantalla)[\s\S]*$/i,
       ''
     )
     .replace(/[⠀\s]+$/g, '')
@@ -165,7 +166,7 @@ function formatConcisePinnedComment(raw: string): string {
   let clean = stripStage12ClosingChatter(raw)
     .replace(/^```(?:text|plaintext|markdown)?\s*\n?/i, '')
     .replace(/\n?```\s*$/i, '')
-    .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
+    .replace(/^(?:3\.\s*)?(?:(?:Comentario\s+Fijado(?:\s+del\s+Video)?|Pinned\s+Comment)\s*[:—-]?\s*)/i, '')
     .replace(/\s*\n+\s*/g, ' ')
     .trim();
   if (!clean) return '';
@@ -201,10 +202,10 @@ function cleanStage11SingleMetadataText(raw: string): string {
     .replace(/\n```(?:text|plaintext|markdown)?\s*\n/gi, '\n')
     .replace(/\n```\s*(?:\n|$)/g, '\n')
     .trim();
-  // Strip single-line conversational preamble if Gemini added one before the Title
+  // Strip single-line conversational preamble if Gemini added one before the Title (Spanish or English)
   clean = clean
     .replace(
-      /^(?:¡?claro[^:\n]*:|aqu[ií]\s+tienes\s+la\s+metadata[^:\n]*:|por\s+supuesto[^:\n]*:|a\s+continuaci[oó]n\s+te\s+(?:presento|entrego)[^:\n]*:)\s*\n+/i,
+      /^(?:¡?claro[^:\n]*:|aqu[ií]\s+tienes\s+la\s+metadata[^:\n]*:|por\s+supuesto[^:\n]*:|a\s+continuaci[oó]n\s+te\s+(?:presento|entrego)[^:\n]*:|here\s+(?:is|are)[^:\n]*:|sure[^:\n]*:|certainly[^:\n]*:|below\s+is[^:\n]*:)\s*\n+/i,
       ''
     )
     .trim();
@@ -286,7 +287,7 @@ function parseStage11FourSections(rawText: string): {
   if (!text) return { foundCount: 0 };
 
   const headerRegex =
-    /(?:^|\n)\s*(?:\*\*|#+\s*)?(?:===\s*SECCI[OÓ]N_(YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===|(?:\[?\s*(?:SECCI[OÓ]N\s*)?[1-4][.)\]:\-\s]+)?(?:METADATA\s+YOUTUBE|METADATA\s+FACEBOOK|COMENTARIO\s+FIJADO(?:\s+DEL\s+VIDEO)?|TAGS\s+DE\s+YOUTUBE|YOUTUBE\s+TAGS)\s*\]?)(?:\*\*)?\s*(?:\r?\n|$)/gi;
+    /(?:^|\n)\s*(?:\*\*|#+\s*)?(?:===\s*(?:SECCI[OÓ]N|SECTION)_(YOUTUBE|FACEBOOK|COMENTARIO|COMMENT|TAGS)\s*===|(?:\[?\s*(?:(?:SECCI[OÓ]N|SECTION)\s*)?[1-4][.)\]:\-\s]+)?(?:METADATA\s+YOUTUBE|YOUTUBE\s+METADATA|METADATA\s+FACEBOOK|FACEBOOK\s+METADATA|COMENTARIO\s+FIJADO(?:\s+DEL\s+VIDEO)?|PINNED\s+COMMENT|TAGS\s+DE\s+YOUTUBE|YOUTUBE\s+TAGS)\s*\]?)(?:\*\*)?\s*(?:\r?\n|$)/gi;
 
   const matches: Array<{ key: 'youtube' | 'facebook' | 'pinnedComment' | 'youtubeTags'; start: number; bodyStart: number }> = [];
   let match: RegExpExecArray | null;
@@ -297,7 +298,7 @@ function parseStage11FourSections(rawText: string): {
       key = 'youtube';
     } else if (rawHeader.includes('FACEBOOK')) {
       key = 'facebook';
-    } else if (rawHeader.includes('COMENTARIO')) {
+    } else if (rawHeader.includes('COMENTARIO') || rawHeader.includes('COMMENT')) {
       key = 'pinnedComment';
     } else if (rawHeader.includes('TAG')) {
       key = 'youtubeTags';
@@ -368,10 +369,10 @@ function parseClip1OptionsFromRawText(
   let pendingLine1 = '';
   for (const line of lines) {
     const l1Match = line.match(
-      /^(?:\*\*?)?L[íi]nea\s*1(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
+      /^(?:\*\*?)?(?:L[íi]nea|Line)\s*1(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
     );
     const l2Match = line.match(
-      /^(?:\*\*?)?L[íi]nea\s*2(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
+      /^(?:\*\*?)?(?:L[íi]nea|Line)\s*2(?:\*\*?)?\s*[:\-–—]\s*(.+)$/i
     );
     if (l1Match) {
       pendingLine1 = normalizeClip1Line1Format(
@@ -917,7 +918,7 @@ function parsePropositionSectionOptions(
 ): { summary: string; options: string[] } {
   if (!rawResearch || !rawResearch.trim()) return { summary: '', options: [] };
   const partRegex = new RegExp(
-    `PARTE\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=PARTE\\s*${partNum + 1}\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
+    `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*${partNum + 1}\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
     'i'
   );
   const match = rawResearch.match(partRegex);
@@ -925,7 +926,7 @@ function parsePropositionSectionOptions(
   const block = match[0];
 
   let summary = '';
-  const summaryMatch = block.match(/Resumen(?:\s+de\s+esta\s+parte)?\s*:\s*([^\n]+)/i);
+  const summaryMatch = block.match(/(?:Resumen(?:\s+de\s+esta\s+parte)?|Summary(?:\s+of\s+this\s+part)?)\s*:\s*([^\n]+)/i);
   if (summaryMatch?.[1]) {
     summary = summaryMatch[1].replace(/^\*+|\*+$/g, '').trim();
   }
@@ -933,7 +934,7 @@ function parsePropositionSectionOptions(
   const extracted: string[] = [];
   for (let i = 1; i <= 25; i++) {
     const optRegex = new RegExp(
-      `Opci[oó]n\\s*${i}(?:\\s*\\([^)]*\\))?\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*•]\\s*)?\\**Opci[oó]n\\s*\\d+|\\n\\s*PARTE\\s*\\d+|$)`,
+      `(?:Opci[oó]n|Option)\\s*${i}(?:\\s*\\([^)]*\\))?\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*•]\\s*)?\\**(?:Opci[oó]n|Option)\\s*\\d+|\\n\\s*(?:PARTE|PART)\\s*\\d+|$)`,
       'i'
     );
     const optMatch = block.match(optRegex);
@@ -1438,19 +1439,19 @@ function computeStage1RecommendedDuration(
   let aiSuggestedSec: number | null = null;
   let aiJustification = '';
   const explicitSecMatch = rawStep1Text.match(
-    /RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL\s*:\s*(\d{3,4})/i
+    /(?:RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL|RECOMMENDED_TOTAL_DURATION)\s*:\s*(\d{3,4})/i
   );
   if (explicitSecMatch?.[1]) {
     aiSuggestedSec = snapToValidTier(parseInt(explicitSecMatch[1], 10));
   } else {
     const textSuggestedMatch = rawStep1Text.match(
-      /DURACI[OÓ]N\s+TOTAL\s+SUGERIDA[^:\n]*:\s*([^\n]+)/i
+      /(?:DURACI[OÓ]N\s+TOTAL\s+SUGERIDA|SUGGESTED\s+TOTAL\s+DURATION)[^:\n]*:\s*([^\n]+)/i
     );
     if (textSuggestedMatch?.[1]) {
       const line = textSuggestedMatch[1];
       const secMatch = line.match(/\b(600|900|1200|1800|3600|7200)\s*s?\b/i);
-      const minMatch = line.match(/\b(10|15|20|30|60|120)\s*(?:min|minutos)\b/i);
-      const hourMatch = line.match(/\b(1|2)\s*hora/i);
+      const minMatch = line.match(/\b(10|15|20|30|60|120)\s*(?:min|minutos|minutes)\b/i);
+      const hourMatch = line.match(/\b(1|2)\s*(?:hora|hour)/i);
       if (secMatch?.[1]) {
         aiSuggestedSec = snapToValidTier(parseInt(secMatch[1], 10));
       } else if (minMatch?.[1]) {
@@ -1461,7 +1462,7 @@ function computeStage1RecommendedDuration(
     }
   }
   const justifMatch = rawStep1Text.match(
-    /JUSTIFICACI[OÓ]N\s+DE\s+DURACI[OÓ]N[^:\n]*:\s*([^\n]+(?:\n(?!\s*(?:[-*•]?\s*RECOMENDACI|\d+\.|===))[^\n]+)*)/i
+    /(?:JUSTIFICACI[OÓ]N\s+DE\s+DURACI[OÓ]N|DURATION\s+JUSTIFICATION)[^:\n]*:\s*([^\n]+(?:\n(?!\s*(?:[-*•]?\s*(?:RECOMENDACI|RECOMMENDED)|\d+\.|===))[^\n]+)*)/i
   );
   if (justifMatch?.[1]) {
     aiJustification = justifMatch[1].replace(/\s+/g, ' ').trim();
@@ -1860,11 +1861,11 @@ Este relato analiza los errores detrás de la quiebra de empresas que parecían 
         tags: ['pepsi cola', 'pepsi vs coca-cola', 'pepsi'],
         analyzedAt: '2026-11-09T00:22:24.989Z',
         commentsCount: 21,
-        structureSummary: `📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)
+        structureSummary: `📌 ANALYZED VIDEO TITLE: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Channel: Marca Cruda)
 
-🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi
+🏷️ EXTRACTED TAGS & KEYWORDS (3): pepsi cola, pepsi vs coca-cola, pepsi
 
-📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:
+📝 ANALYZED VIDEO DESCRIPTION:
 El martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.
 
 Nadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. 
@@ -1873,9 +1874,9 @@ Este relato analiza los errores detrás de la quiebra de empresas que parecían 
 
 🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.
 
-💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).
+💬 EXTRACTED & GROUPED COMMENTS: 21 public comments (16 unique grouped by repetition).
 
-🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.`,
+🔬 ACTIVE INSTRUCTION: Deeply analyze the Title, Description, Tags, and Comments of this reference video alongside its 8 viral axes to integrate its structural strengths into our documentary research without copying its topic.`,
         structuralBlocks: [
           {
             name: 'Intro (8s) + Hook Viral',
@@ -2977,7 +2978,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               const ytId =
                 extractYoutubeVideoIdClient(customVideoUrl) || `vid_${Date.now()}`;
               if (fallbackTitle) {
-                const fallbackSummary = `1. DECONSTRUCCIÓN DEL HOOK Y PROMESA DEL TÍTULO:\n   - Título Analizado: "${fallbackTitle}" (Canal: ${fallbackChannel || 'YouTube'}).\n2. RADIOGRAFÍA ESTRUCTURAL Y EJES VIRALES:\n   - Enlace: ${customVideoUrl}`;
+                const fallbackSummary = `1. HOOK DECONSTRUCTION & TITLE PROMISE:\n   - Analyzed Title: "${fallbackTitle}" (Channel: ${fallbackChannel || 'YouTube'}).\n2. STRUCTURAL X-RAY & VIRAL AXES:\n   - Link: ${customVideoUrl}`;
                 const newEntry = {
                   id: `vid_${ytId}`,
                   videoId: ytId,
@@ -8006,8 +8007,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     );
     const headerNeedsEngineSync =
       expectedHeader !== (activeDoc.operationalHeader || '').trim() ||
+      Boolean(
+        activeDoc.rawClipsText &&
+          (/(?:Act[uú]a\s+como\s+un\s+historiador|Cambia\s+los\s+nombres\s+de\s+los\s+clips)/i.test(
+            activeDoc.rawClipsText
+          ) ||
+            !/pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(
+              activeDoc.rawClipsText
+            ))
+      ) ||
       (activeDoc.rawClipsText &&
-        /Usa\s+omni\s*flash\s+para\s+videos/i.test(activeDoc.rawClipsText) &&
+        /(?:Usa|Use)\s+omni\s*(?:1\.1\s*)?flash\s+(?:para\s+videos|for\s+all\s+video\s+clips)/i.test(
+          activeDoc.rawClipsText
+        ) &&
         activeEngine === 'VEO_3_1_LITE_LOWER_PRIORITY');
 
     const normalizedChanged =
@@ -8047,6 +8059,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
 
     if (normalizedChanged || needsClipShield) {
+      const { clip1Sec: shieldClip1Sec, standardClipSec: shieldStdSec } =
+        getStage1ClipDurations(activeDoc);
       const nextClips = baseClips.map((c) => ({
         ...c,
         imagePrompt: (c.imagePrompt || '').trim()
@@ -8056,13 +8070,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
           : c.videoPrompt,
       }));
-      const nextRawWithHeader = ensureOperationalHeaderInRawClips(
-        nextClips.map((c) => `${c.imagePrompt}\n${c.videoPrompt}`).join('\n\n'),
-        expectedHeader
-      );
+      const hasAnyAuthoredPrompt =
+        Boolean((activeDoc.rawClipsText || '').trim()) &&
+        nextClips.some((c) => Boolean((c.imagePrompt || '').trim() || (c.videoPrompt || '').trim()));
+      const nextRawWithHeader = hasAnyAuthoredPrompt
+        ? buildRawClipsTextWithHeader(
+            nextClips,
+            expectedHeader,
+            activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+            shieldClip1Sec,
+            shieldStdSec
+          )
+        : activeDoc.rawClipsText || '';
       const actuallyChangedClips =
         !activeDoc.clips ||
-        nextRawWithHeader !== activeDoc.rawClipsText ||
+        (hasAnyAuthoredPrompt && nextRawWithHeader !== activeDoc.rawClipsText) ||
         nextClips.some(
           (nc, idx) =>
             nc.imagePrompt !== activeDoc.clips[idx]?.imagePrompt ||
@@ -8070,7 +8092,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         );
       if (actuallyChangedClips) {
         patch.clips = nextClips;
-        patch.rawClipsText = nextRawWithHeader;
+        if (hasAnyAuthoredPrompt) {
+          patch.rawClipsText = nextRawWithHeader;
+        }
       }
     }
 
@@ -8825,10 +8849,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const exactNamesList = upgradedRefs.map((r) => r.tag).join(', ');
     const headerLines = [
-      'Actúa como un historiador y director de fotografía documental.',
-      'Usa Nano Banana 2.1 para generar todas estas imágenes modelo de referencia.',
-      'Cada imagen DEBE contener exactamente 6 vistas en una sola imagen (6-view reference sheet en cuadrícula 3x2 con 100% de continuidad visual).',
-      `Cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador con @ y guiones bajos especificado en cada prompt (${exactNamesList}).`,
+      'Act as a historian and documentary director of photography.',
+      'Use Nano Banana 2.1 to generate all of these reference model images.',
+      'Every image MUST contain all 6 views inside a single 16:9 image (6-view reference sheet in a 3x2 grid with 100% visual continuity).',
+      `Mandatory: rename every generated image strictly to the exact @identifier with underscores specified in each prompt (${exactNamesList}).`,
     ].join('\n');
 
     const promptBlocks = upgradedRefs.map(
@@ -9160,7 +9184,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       prompt: formatReferencePromptForFlow(r, activeDoc),
     }));
     const header =
-      'Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.';
+      'Use Nano Banana 2.1 to generate these reference model images (6-view reference sheet in a single 16:9 image). Rename each generated image with @ followed by the exact character or location name.';
     const updatedRaw = `${header}\n\n${upgraded
       .map((r) => `${r.tag}: ${r.prompt.replace(/\n+/g, ' ')}`)
       .join('\n\n')}`;
@@ -9235,12 +9259,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
 
     const header =
-      'Cambia los nombres y ponles @ seguido del nombre de la persona o lugar correspondiente.';
+      'Use Nano Banana 2.1 to generate these reference model images (6-view reference sheet in a single 16:9 image). Rename each generated image with @ followed by the exact character or location name.';
     const builtFromList = referenceItems
       .map((item) => item.formattedPrompt)
       .join('\n\n');
-    const body = builtFromList || rawRefs;
-    const fullText = body.includes('Cambia los nombres') ? body : `${header}\n\n${body}`;
+    const cleanedRawRefs = rawRefs
+      .split(/\r?\n/)
+      .filter(
+        (line) =>
+          !/^\s*(?:Act[uú]a\s+como\s+un\s+historiador|Usa\s+Nano\s+Banana|Cada\s+imagen\s+DEBE\s+contener|Cambia(?:\s+obligatoriamente)?\s+(?:los\s+nombres|el\s+nombre))/i.test(
+            line
+          )
+      )
+      .join('\n')
+      .trim();
+    const body = builtFromList || cleanedRawRefs;
+    const fullText = /Rename each generated image with @|Mandatory:\s*rename every generated image/i.test(
+      body
+    )
+      ? body
+      : `${header}\n\n${body}`;
 
     await handleSaveAnyFileToChosenFolder(
       'Prompts_Referencias.txt',
@@ -10125,11 +10163,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
 
     // Determine the next pending stage and send its prompt to the logged-in Gemini Web tab
+    // NOTE: Stage 6 (internal stage 8: Clips & Initial Images) is strictly MANUAL per user rule — never auto-triggered here
     let nextStage = 2;
     if ((activeDoc.sectionsStructure || '').trim()) nextStage = 4;
     if ((activeDoc.voiceoverScript || '').trim()) nextStage = 5;
     if ((activeDoc.thumbnailPrompt || '').trim()) nextStage = 6;
-    if ((activeDoc.rawReferencePrompts || '').trim()) nextStage = 8;
+    if ((activeDoc.rawReferencePrompts || '').trim() && !(activeDoc.rawClipsText || '').trim()) {
+      setActiveStage(8);
+      setFullPreprodStepMsg(
+        '✋ Etapa 6 es manual: pulsa "✨ Generar Prompts en Gemini" cuando quieras crear los prompts de imágenes iniciales y clips.'
+      );
+      return;
+    }
     if ((activeDoc.rawClipsText || '').trim()) nextStage = 80;
     if ((activeDoc.rawSunoText || '').trim()) nextStage = 11;
 
@@ -11182,6 +11227,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ...(baseDoc.promptConfig || {}),
             ...lockedVideoPromptPatch,
             REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+            REMOTE_GEMINI_STAGE_CMD_ID: commandId,
             REMOTE_GEMINI_STAGE_ACK_ID: '',
             REMOTE_GEMINI_STAGE_STATUS: 'running',
             REMOTE_GEMINI_STAGE_ERROR: '',
@@ -12726,15 +12772,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
       lastBgProdSyncSigRef.current = sig;
       if (synced.length > 0 || didGenerateTimeline || needsOpHeaderHeal) {
-        const hasRawClipPrompts = /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(rawClips);
+        // Stage 6 is strictly manual: NEVER fabricate or populate rawClipsText unless the user already generated/pasted prompts
         const fullRawText =
-          !hasRawClipPrompts && synced.length > 0
-            ? buildRawClipsTextWithHeader(
-                synced,
-                cleanOpHeader,
-                activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-              )
-            : normalizedRaw && normalizedRaw !== activeDoc.rawClipsText
+          rawClips && normalizedRaw && normalizedRaw !== activeDoc.rawClipsText
             ? normalizedRaw
             : undefined;
         const targetMode =
@@ -15862,7 +15902,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       .filter((c) => nextIds.includes(c.id))
                                       .map(
                                         (c) =>
-                                          `- [Repetido ×${c.repeatCount} veces | 👍 ${c.totalLikes}] "${c.text}" (${c.videoTitle})`
+                                          `- [Repeated ×${c.repeatCount} times | 👍 ${c.totalLikes}] "${c.text}" (${c.videoTitle})`
                                       )
                                       .join('\n');
                                     updateActiveDoc({
@@ -16365,7 +16405,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 .filter((c) => selectedResearchCommentIds.includes(c.id))
                                 .map(
                                   (c) =>
-                                    `- [Repetido ×${c.repeatCount} veces | 👍 ${c.totalLikes} likes] "${c.text}" (Fuente: ${c.videoTitle})`
+                                    `- [Repeated ×${c.repeatCount} times | 👍 ${c.totalLikes} likes] "${c.text}" (Source: ${c.videoTitle})`
                                 )
                                 .join('\n');
                               const docForResearch = {
@@ -18275,7 +18315,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         {Boolean((activeDoc.rawReferencePrompts || '').trim()) && (
                           <button
                             type="button"
-                            onClick={() => copyText(activeDoc.rawReferencePrompts || '', 'copy-raw-ref-box')}
+                            onClick={() => {
+                              const { fullText } = buildSingleFlowReferencesBatchText(activeDoc);
+                              copyText(
+                                fullText.trim() || activeDoc.rawReferencePrompts || '',
+                                'copy-raw-ref-box'
+                              );
+                            }}
                             className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <Copy className="w-3 h-3" />
@@ -18825,23 +18871,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {/* Panel 2: Prompts de Imágenes Iniciales y Clips */}
                   <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-3">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div>
                           <span className="text-xs font-black uppercase tracking-wider text-purple-400">
-                            2. Prompts de Imágenes Iniciales y Clips
+                            2. Prompts de Imágenes Iniciales y Clips (Manual)
                           </span>
                           <p className="text-[11px] text-slate-400">
-                            Pega tus bloques <code className="text-purple-300">Image N:</code> y{' '}
-                            <code className="text-purple-300">Clip N:</code> o créalos con IA.
+                            Esta etapa es manual: pulsa <strong className="text-amber-300">Generar Prompts en Gemini</strong> o pega tus bloques <code className="text-purple-300">Image N:</code> y <code className="text-purple-300">Clip N:</code>.
                           </p>
                         </div>
                         <button
                           disabled={aiGenerating}
                           onClick={() => handleGenerateWithGemini(8)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center gap-1 cursor-pointer shrink-0"
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shrink-0 shadow"
                         >
-                          <Wand2 className="w-3 h-3" />
-                          {aiGenerating ? 'Creando...' : '✨ Crear Prompts con IA'}
+                          <Wand2 className="w-3.5 h-3.5" />
+                          {aiGenerating ? 'Generando en Gemini...' : '✨ Generar Prompts en Gemini'}
                         </button>
                       </div>
 
@@ -18854,8 +18899,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           {Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0 && (() => {
                             const currentMode =
                               activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                            const docRefsList = activeDoc.references || [];
                             const omniCount = activeDoc.clips.filter(
-                              (c) => resolveClipFlowVideoEngine(c, currentMode) === 'OMNI_1_1_FLASH'
+                              (c) => resolveClipFlowVideoEngine(c, currentMode, docRefsList) === 'OMNI_1_1_FLASH'
                             ).length;
                             const lowerCount = activeDoc.clips.length - omniCount;
                             return (
@@ -18891,30 +18937,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 key={eng.id}
                                 type="button"
                                 onClick={() => {
+                                  const { clip1Sec: engClip1Sec, standardClipSec: engStdSec } =
+                                    getStage1ClipDurations(activeDoc);
                                   const nextHeader = applyFlowVideoEngineToDirectiveText(
                                     activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                                     eng.id
                                   );
+                                  const docRefsList = activeDoc.references || [];
                                   const updatedClips = (activeDoc.clips || []).map((c) => {
-                                    const resolved = resolveClipFlowVideoEngine(c, eng.id);
+                                    const resolved = resolveClipFlowVideoEngine(c, eng.id, docRefsList);
+                                    const durForClip = c.clipNumber === 1 ? engClip1Sec : engStdSec;
                                     return {
                                       ...c,
-                                      videoPrompt: applyClipFlowVideoEngineTag(
-                                        c.videoPrompt || '',
-                                        resolved
-                                      ),
+                                      videoPrompt: c.videoPrompt
+                                        ? applyClipFlowVideoEngineTag(c.videoPrompt, resolved, durForClip)
+                                        : '',
                                     };
                                   });
-                                  const nextRaw =
-                                    updatedClips.length > 0
-                                      ? buildRawClipsTextWithHeader(updatedClips, nextHeader, eng.id)
-                                      : applyFlowVideoEngineToDirectiveText(
-                                          ensureOperationalHeaderInRawClips(
-                                            activeDoc.rawClipsText || '',
-                                            nextHeader
-                                          ),
+                                  const hasAuthoredPrompts = updatedClips.some(
+                                    (c) => Boolean((c.imagePrompt || '').trim() || (c.videoPrompt || '').trim())
+                                  );
+                                  const nextRaw = hasAuthoredPrompts
+                                    ? buildRawClipsTextWithHeader(
+                                        updatedClips,
+                                        nextHeader,
+                                        eng.id,
+                                        engClip1Sec,
+                                        engStdSec
+                                      )
+                                    : activeDoc.rawClipsText
+                                      ? applyFlowVideoEngineToDirectiveText(
+                                          ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, nextHeader),
                                           eng.id
-                                        );
+                                        )
+                                      : '';
                                   updateActiveDoc({
                                     flowVideoEngine: eng.id,
                                     operationalHeader: nextHeader,
@@ -18956,7 +19012,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           }
                         }}
                         placeholder={
-                          'Actúa como un historiador, director de cine, y periodista profesional...\nUsa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video... [Model: Omni 1.1 Flash] fix the name'
+                          'Act as a professional historian, film director, and investigative journalist.\nUse Omni 1.1 Flash strictly for video clips containing people, and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for all initial clip images.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video... [Model: Omni 1.1 Flash] fix the name'
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                       />
@@ -19144,16 +19200,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     const okCount = clipsList.filter((c) => c.auditStatus === 'ok').length;
                     const warnCount = clipsList.filter((c) => c.auditStatus === 'warning').length;
                     const mismatchCount = clipsList.filter((c) => c.auditStatus === 'mismatch').length;
+                    const videoIssueCount = clipsList.filter(
+                      (c) => c.videoAuditStatus === 'warning' || c.videoAuditStatus === 'rejected'
+                    ).length;
+                    const flaggedClips = clipsList.filter(
+                      (c) =>
+                        c.auditStatus === 'warning' ||
+                        c.auditStatus === 'mismatch' ||
+                        c.videoAuditStatus === 'warning' ||
+                        c.videoAuditStatus === 'rejected' ||
+                        Boolean(c.suggestedImagePrompt || c.suggestedVideoPrompt)
+                    );
                     const suggestionsCount = clipsList.filter(
                       (c) => c.suggestedImagePrompt || c.suggestedVideoPrompt
                     ).length;
 
-                    if (suggestionsCount === 0 && !auditSummary) {
+                    if (
+                      suggestionsCount === 0 &&
+                      warnCount === 0 &&
+                      mismatchCount === 0 &&
+                      videoIssueCount === 0 &&
+                      !auditSummary
+                    ) {
                       return null;
                     }
 
                     return (
-                      <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 space-y-3">
+                      <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-4 space-y-3">
                         <div className="flex items-center justify-between flex-wrap gap-3">
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="text-xs font-bold text-slate-200">
@@ -19166,19 +19239,75 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               ⚠️ {warnCount} Con Observación
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold">
-                              🚨 {mismatchCount} No coinciden / Incompletos
+                              🚨 {mismatchCount + videoIssueCount} No coinciden / Rechazados
                             </span>
                           </div>
-                          {suggestionsCount > 0 && (
-                            <button
-                              onClick={handleApplyAllClipSuggestions}
-                              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <Check className="w-4 h-4" />
-                              Aplicar Todos los Cambios Sugeridos ({suggestionsCount} clips)
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {flaggedClips.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setClipBatchFilter(0);
+                                  setClipStatusFilter(
+                                    clipStatusFilter === 'OBSERVACION_ERROR' ? 'ALL' : 'OBSERVACION_ERROR'
+                                  );
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-black text-xs cursor-pointer"
+                              >
+                                {clipStatusFilter === 'OBSERVACION_ERROR'
+                                  ? '📋 Volver a Ver Todos los Clips'
+                                  : `🔍 Ver los ${flaggedClips.length} Clips con Observación`}
+                              </button>
+                            )}
+                            {suggestionsCount > 0 && (
+                              <button
+                                onClick={handleApplyAllClipSuggestions}
+                                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Check className="w-4 h-4" />
+                                Aplicar Todos los Cambios Sugeridos ({suggestionsCount} clips)
+                              </button>
+                            )}
+                          </div>
                         </div>
+                        {flaggedClips.length > 0 && (
+                          <div className="bg-slate-950/85 border border-amber-500/30 rounded-xl p-3 space-y-1.5 text-xs">
+                            <p className="font-bold text-amber-300">
+                              📋 Detalle rápido de clips marcados ({flaggedClips.length}):
+                            </p>
+                            <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                              {flaggedClips.slice(0, 20).map((fc) => (
+                                <div
+                                  key={`flag-sum-${fc.id}`}
+                                  onClick={() => {
+                                    setClipBatchFilter(0);
+                                    setTimeout(() => {
+                                      document
+                                        .getElementById(`prod-clip-card-${fc.clipNumber}`)
+                                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }, 50);
+                                  }}
+                                  className="flex items-start gap-2 text-slate-200 hover:bg-slate-900/90 rounded-lg px-2 py-1 cursor-pointer"
+                                >
+                                  <span className="font-mono font-black text-amber-300 shrink-0">
+                                    Clip {String(fc.clipNumber).padStart(2, '0')} ({fc.timeRange || 'S/T'}):
+                                  </span>
+                                  <span className="text-slate-300">
+                                    {fc.auditReason ||
+                                      fc.videoAuditReason ||
+                                      (fc.videoAuditIssues && fc.videoAuditIssues.join(' • ')) ||
+                                      'Observación pendiente de revisión en los prompts de este clip.'}
+                                  </span>
+                                </div>
+                              ))}
+                              {flaggedClips.length > 20 && (
+                                <p className="text-[11px] text-slate-400 pl-2">
+                                  … y {flaggedClips.length - 20} clips más (pulsa &quot;Ver los {flaggedClips.length} Clips con Observación&quot; para listarlos todos).
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         {auditSummary && (
                           <p className="text-xs text-slate-300 bg-slate-950/80 border border-slate-800 rounded-xl p-3">
                             <strong className="text-amber-300">Diagnóstico General IA:</strong> {auditSummary}
@@ -19369,7 +19498,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               <button
                                 key={opt.key}
                                 type="button"
-                                onClick={() => setClipStatusFilter(opt.key)}
+                                onClick={() => {
+                                  setClipStatusFilter(opt.key);
+                                  if (opt.key === 'OBSERVACION_ERROR') {
+                                    setClipBatchFilter(0);
+                                  }
+                                }}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
                                   isActive ? opt.activeClass : opt.idleClass
                                 }`}
@@ -19479,7 +19613,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         ⏳ Pendiente
                                       </span>
                                     )}
+                                    {(clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected') && (
+                                      <span className="px-1.5 py-0.5 rounded bg-rose-500/25 border border-rose-400/50 text-[10px] font-black text-rose-200">
+                                        🚨 Rechazado / Desfase
+                                      </span>
+                                    )}
+                                    {clip.auditStatus === 'warning' || clip.videoAuditStatus === 'warning' ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/25 border border-amber-400/50 text-[10px] font-black text-amber-200">
+                                        ⚠️ Observación
+                                      </span>
+                                    ) : null}
                                   </div>
+
+                                  {(clip.auditStatus === 'warning' ||
+                                    clip.auditStatus === 'mismatch' ||
+                                    clip.videoAuditStatus === 'warning' ||
+                                    clip.videoAuditStatus === 'rejected') &&
+                                    (clip.auditReason || clip.videoAuditReason) && (
+                                      <p className="text-[11px] text-amber-200 bg-amber-950/50 border border-amber-500/40 rounded-lg px-2 py-1 line-clamp-2 leading-snug">
+                                        ⚠️ {clip.auditReason || clip.videoAuditReason}
+                                      </p>
+                                    )}
 
                                   <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed">
                                     {clip.clipNumber === 1 && !(clip.narrationSegment || '').trim()
@@ -19618,6 +19772,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                             activeEngine
                           );
+                          const { clip1Sec: batchClip1Sec, standardClipSec: batchStdSec } =
+                            getStage1ClipDurations(activeDoc);
+                          const docRefsList = activeDoc.references || [];
                           const visible = activeDoc.clips.filter((_, idx) =>
                             clipBatchFilter === 0
                               ? true
@@ -19627,10 +19784,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             clipBatchFilter <= 1 ? `${currentHeader}\n\n` : '';
                           const body = visible
                             .map((c) => {
-                              const resolved = resolveClipFlowVideoEngine(c, activeEngine);
+                              const resolved = resolveClipFlowVideoEngine(c, activeEngine, docRefsList);
+                              const durForClip = c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
                               const taggedVid = applyClipFlowVideoEngineTag(
                                 c.videoPrompt || '',
-                                resolved
+                                resolved,
+                                durForClip
                               );
                               return `${c.imagePrompt}\n${taggedVid}`;
                             })
@@ -19652,7 +19811,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {(activeDoc.clips || [])
                     .filter((clip, idx) => {
                       const batchOk =
-                        clipBatchFilter === 0
+                        clipBatchFilter === 0 || clipStatusFilter === 'OBSERVACION_ERROR'
                           ? true
                           : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10;
                       if (!batchOk) return false;
@@ -19708,8 +19867,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       );
                       const activeEngineMode =
                         activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
-                      const clipResolvedEngine = resolveClipFlowVideoEngine(clip, activeEngineMode);
-                      const clipAutoHasPeople = detectClipHasHumanSubjects(clip);
+                      const docRefsForCard = activeDoc.references || [];
+                      const { clip1Sec: cardClip1Sec, standardClipSec: cardStdSec } =
+                        getStage1ClipDurations(activeDoc);
+                      const cardClipDurSec = clip.clipNumber === 1 ? cardClip1Sec : cardStdSec;
+                      const clipResolvedEngine = resolveClipFlowVideoEngine(
+                        clip,
+                        activeEngineMode,
+                        docRefsForCard
+                      );
+                      const clipAutoHasPeople = detectClipHasHumanSubjects(clip, docRefsForCard);
+                      const cardHasPromptOrVideoIssue =
+                        clip.auditStatus === 'warning' ||
+                        clip.auditStatus === 'mismatch' ||
+                        clip.videoAuditStatus === 'warning' ||
+                        clip.videoAuditStatus === 'rejected' ||
+                        hasSuggestion;
 
                       const borderClass =
                         clip.auditStatus === 'mismatch'
@@ -19899,7 +20072,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     </span>
                                   )}
 
-                                  {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.1 Flash vs Lower Priority Gratis) */}
+                                    {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.1 Flash vs Lower Priority Gratis) */}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -19909,7 +20082,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           : 'OMNI_1_1_FLASH';
                                       const updatedVidPrompt = applyClipFlowVideoEngineTag(
                                         clip.videoPrompt || '',
-                                        nextClipEngine
+                                        nextClipEngine,
+                                        cardClipDurSec
                                       );
                                       const nextClips = [...activeDoc.clips];
                                       nextClips[realIdx] = {
@@ -19933,7 +20107,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         rawClipsText: buildRawClipsTextWithHeader(
                                           nextClips,
                                           nextHeader,
-                                          nextMode
+                                          nextMode,
+                                          cardClip1Sec,
+                                          cardStdSec
                                         ),
                                       });
                                     }}
@@ -19970,7 +20146,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       );
                                       const taggedVid = applyClipFlowVideoEngineTag(
                                         clip.videoPrompt || '',
-                                        clipResolvedEngine
+                                        clipResolvedEngine,
+                                        cardClipDurSec
                                       );
                                       copyText(
                                         `${header}\n\n${clip.imagePrompt}\n${taggedVid}`,
@@ -20025,6 +20202,57 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 </div>
                               </div>
                             </div>
+
+                            {/* VISIBLE DIAGNOSTIC BOX WHENEVER CLIP HAS OBSERVACIÓN / RECHAZADO (Prompt or Video Audit) */}
+                            {cardHasPromptOrVideoIssue && (
+                              <div
+                                className={`rounded-xl border p-3 space-y-1.5 text-xs ${
+                                  clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected'
+                                    ? 'bg-rose-950/55 border-rose-500/60 text-rose-100'
+                                    : 'bg-amber-950/50 border-amber-500/55 text-amber-100'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-300">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    {clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected'
+                                      ? `🚨 Problema Detectado en el Clip ${paddedNum} (${clip.timeRange || 'S/T'})`
+                                      : `⚠️ Observación en el Clip ${paddedNum} (${clip.timeRange || 'S/T'})`}
+                                  </span>
+                                  {clip.pauseNotes && (
+                                    <span className="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-slate-300">
+                                      🎙️ {clip.pauseNotes}
+                                    </span>
+                                  )}
+                                </div>
+                                {clip.auditReason && (
+                                  <p className="leading-relaxed">
+                                    <strong className="text-amber-200">Prompts / Sincronización:</strong>{' '}
+                                    {clip.auditReason}
+                                  </p>
+                                )}
+                                {clip.videoAuditReason && (
+                                  <p className="leading-relaxed">
+                                    <strong className="text-rose-200">Auditoría de Video IA:</strong>{' '}
+                                    {clip.videoAuditReason}
+                                  </p>
+                                )}
+                                {Array.isArray(clip.videoAuditIssues) && clip.videoAuditIssues.length > 0 && (
+                                  <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-amber-200/95">
+                                    {clip.videoAuditIssues.map((iss, issIdx) => (
+                                      <li key={`v-iss-${clip.id}-${issIdx}`}>{iss}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                                {!clip.auditReason &&
+                                  !clip.videoAuditReason &&
+                                  (!clip.videoAuditIssues || clip.videoAuditIssues.length === 0) && (
+                                    <p className="leading-relaxed">
+                                      Este clip está marcado para revisión de prompts o sugerencia pendiente abajo.
+                                    </p>
+                                  )}
+                              </div>
+                            )}
 
                             {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (FITS 100% ON SCREEN WITH REVISADO & REHACER OPTIONS) */}
                             <div className="w-full flex justify-center">
@@ -20151,7 +20379,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               onClick={() => {
                                 const taggedVid = applyClipFlowVideoEngineTag(
                                   (clip.videoPrompt || '').trim(),
-                                  clipResolvedEngine
+                                  clipResolvedEngine,
+                                  cardClipDurSec
                                 );
                                 copyText(
                                   `${(clip.imagePrompt || '').trim()}\n${taggedVid}`,
@@ -20167,8 +20396,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </button>
                           </div>
 
-                          {/* Collapsible Prompts Section (Hidden by default so Video Viewer + Recreación + Revisado stay clean) */}
-                          <details className="group bg-slate-950/60 border border-slate-800/80 rounded-xl overflow-hidden">
+                          {/* Collapsible Prompts Section (Auto-expanded when filtering or when clip has prompt issues) */}
+                          <details
+                            open={
+                              clipStatusFilter === 'OBSERVACION_ERROR' ||
+                              clip.auditStatus === 'warning' ||
+                              clip.auditStatus === 'mismatch'
+                                ? true
+                                : undefined
+                            }
+                            className={`group bg-slate-950/60 border rounded-xl overflow-hidden ${
+                              clip.auditStatus === 'mismatch'
+                                ? 'border-rose-500/50'
+                                : clip.auditStatus === 'warning'
+                                ? 'border-amber-500/50'
+                                : 'border-slate-800/80'
+                            }`}
+                          >
                             <summary className="px-3.5 py-2 text-xs font-bold text-slate-400 hover:text-amber-300 cursor-pointer flex items-center justify-between select-none">
                               <span>📝 Ver / Editar Prompts de Imagen y Video del Clip {paddedNum}</span>
                               <span className="text-[11px] text-slate-500 group-open:text-amber-300">
@@ -20253,7 +20497,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         copyText(
                                           applyClipFlowVideoEngineTag(
                                             clip.videoPrompt || '',
-                                            clipResolvedEngine
+                                            clipResolvedEngine,
+                                            cardClipDurSec
                                           ),
                                           `vid-${clip.id}`
                                         )

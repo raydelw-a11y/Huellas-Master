@@ -358,13 +358,13 @@ export interface ThumbnailPsychTriggerOption {
   suggestedOverlay?: string;
 }
 
-export const DEFAULT_OPERATIONAL_HEADER = `Actúa como un historiador, director de cine, y periodista profesional.
-Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
-Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
-Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
-Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
-No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico donde el prompt indique expresamente hacer dos shots de 5 segundos cada uno porque la voz narrativa cambió de escena) y asegúrate de que los clips de video no hagan desapariciones ni transformaciones, la imagen inicial creada se usará para el inicio de cada clip.
-Divide la creación en batches de 10.
+export const DEFAULT_OPERATIONAL_HEADER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or not, and give me a clear pre-generation report stating the exact total number of clips and how many clips will be made with Omni (Omni 1.1 Flash) and how many with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and only after delivering that report proceed with generating the images and clips.
+Rename the clips to the literal first 6 words of the provided pasted and submitted prompt, including the numbering.
+Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip.
+Create the images first and then the clips using each image as the starting frame.
+Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
+Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
+Divide creation into batches of 10.
 rename everything adding _ as the blank spaces between words
 from 1 to 9 change them to 01 to 09`;
 
@@ -374,23 +374,26 @@ export function sanitizeOperationalHeader(
 ): string {
   const engineLine =
     engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.'
+      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip.'
       : engine === 'OMNI_1_1_FLASH'
-      ? 'Usa Omni 1.1 Flash para videos y nano banana 2.1 para imágenes iniciales de cada clip.'
-      : 'Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.';
+      ? 'Use Omni 1.1 Flash for videos and nano banana 2.1 for the initial images of each clip.'
+      : 'Use Veo 3.1 - Lite [Lower Priority] for videos and nano banana 2.1 for the initial images of each clip.';
 
   const trimmed = String(rawHeader || '').trim();
-  const isCorruptedOrIncomplete =
+  const isLegacySpanishOrIncomplete =
     !trimmed ||
+    /^Act[uú]a como un historiador/i.test(trimmed) ||
+    /Cambia\s+los\s+nombres/i.test(trimmed) ||
     /del\s+1\s+al\s+10/i.test(trimmed) ||
     /Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes\s+me\s+avisas/i.test(trimmed) ||
-    !/^Act[uú]a como un historiador/i.test(trimmed) ||
-    !trimmed.includes('primeras 6 palabras') ||
-    !trimmed.includes('batches de 10') ||
+    !/^Act as a (?:professional |master )?historian/i.test(trimmed) ||
+    !/pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) ||
+    !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
+    !/batches of 10/i.test(trimmed) ||
     !trimmed.includes('01 to 09');
 
-  const base = isCorruptedOrIncomplete ? DEFAULT_OPERATIONAL_HEADER : trimmed;
+  const base = isLegacySpanishOrIncomplete ? DEFAULT_OPERATIONAL_HEADER : trimmed;
   const lineRegex =
-    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
+    /(?:Use|Usa)\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*(?:for\s+(?:the\s+)?(?:initial|starting(?:\s+keyframe)?)\s+images\s+of\s+each\s+clip|para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip)\.?/gi;
   return lineRegex.test(base) ? base.replace(lineRegex, engineLine) : DEFAULT_OPERATIONAL_HEADER.replace(lineRegex, engineLine);
 }

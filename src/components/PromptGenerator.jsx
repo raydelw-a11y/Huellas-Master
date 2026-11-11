@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { MASTER_TEMPLATE_EN } from '../utils/masterTemplateEn';
 
-const DEFAULT_TEMPLATE = `Actúa como un historiador, director de cine, y periodista profesional.
+const DEFAULT_TEMPLATE = MASTER_TEMPLATE_EN;
+const _LEGACY_SPANISH_DOC_ARCHIVE = `
 
 [#YOUTUBE_VIRAL_ANALYSIS]
 ================================================================================
@@ -1590,7 +1592,7 @@ const PromptGenerator = ({
       DURACION_CLIP_1: '6',
       DURACION_CLIPS: '10_SEGUNDOS',
       DURACION_CLIPS_SEGUNDOS: '10',
-      VOZ_NARRATIVA_EN_CLIPS: 'INCLUIR',
+      VOZ_NARRATIVA_EN_CLIPS: 'EXCLUIR',
       UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       YOUTUBE_VIRAL_LINK: '',
       YOUTUBE_COMMENTS_RESEARCH_BLOCK: '',
@@ -1699,7 +1701,7 @@ const PromptGenerator = ({
 
   // Cargar plantilla desde LocalStorage al iniciar
   useEffect(() => {
-    const key = 'huellas_master_template_v185';
+    const key = 'huellas_master_template_v186_en';
     const savedTemplate = localStorage.getItem(key);
     const initialText = savedTemplate ? savedTemplate : DEFAULT_TEMPLATE.trim();
     setTemplateText(initialText);
@@ -1709,7 +1711,7 @@ const PromptGenerator = ({
 
   // Guardar plantilla en LocalStorage MANUALMENTE
   const saveTemplate = () => {
-    const key = 'huellas_master_template_v185';
+    const key = 'huellas_master_template_v186_en';
     localStorage.setItem(key, templateText);
     alert('✅ Plantilla Base guardada con éxito.');
   };
@@ -1992,7 +1994,7 @@ const PromptGenerator = ({
         compiled = compiled.replace(/\[YOUTUBE_VIRAL_LINK\]/g, youtubeViralLink);
         compiled = compiled.replace(/\[YOUTUBE_COMMENTS_RESEARCH_BLOCK\]/g, youtubeCommentsBlock);
       } else {
-        const viralFallbackBlock = `\n\n================================================================================\n🔥 DIRECTRIZ PRIORITARIA DE INGENIERÍA INVERSA Y ANÁLISIS VIRAL DE YOUTUBE 🔥\nENLACE DEL VIDEO DE YOUTUBE A ANALIZAR: ${youtubeViralLink}\n================================================================================\nINSTRUCCIÓN OBLIGATORIA E INQUEBRANTABLE PARA LA IA (EJECUTAR SIN OBVIAR NADA):\nSe ha integrado a este Prompt Inicial el enlace de un video de YouTube (${youtubeViralLink}). Tienes la OBLIGACIÓN INQUEBRANTABLE de analizar e investigar este video de YouTube de forma PROFUNDA, MINUCIOSA, DETALLADA, INCISIVA E INTENSA, DETALLE POR DETALLE, SIN OBVIAR ABSOLUTAMENTE NADA, para entender con precisión quirúrgica cómo y por qué se hizo viral en la plataforma y RECREAR EXACTAMENTE LA MISMA ESTRUCTURA GANADORA en este episodio (Hook de primeros segundos, escaleta minuto a minuto, micro-ganchos de retención, gatillos psicológicos de viralidad, ritmo del guion, dirección visual/sonora y empaque).\n${youtubeCommentsBlock ? `\n${youtubeCommentsBlock}\n` : ''}`;
+        const viralFallbackBlock = `\n\n================================================================================\n🔥 PRIORITY DIRECTIVE: YOUTUBE VIRAL REVERSE-ENGINEERING & ANALYSIS 🔥\nYOUTUBE VIDEO URL TO ANALYZE: ${youtubeViralLink}\n================================================================================\nMANDATORY UNBREAKABLE INSTRUCTION FOR THE AI (EXECUTE IN FULL WITHOUT OMITTING ANYTHING):\nA reference YouTube video link (${youtubeViralLink}) has been attached to this Master Prompt. You MUST analyze and dissect this YouTube video in deep, surgical detail across all 8 viral axes (opening hook seconds 0-5/15/30, block-by-block structural escaleta, retention micro-hooks & open loops, psychological/emotional triggers, script cadence & sensory contrast, visual/acoustic direction, title/thumbnail curiosity gap, and structural recreation blueprint) so we recreate the exact same winning viral architecture in this episode.\n${youtubeCommentsBlock ? `\n${youtubeCommentsBlock}\n` : ''}`;
         const firstNewlineIdx = compiled.indexOf('\n');
         if (firstNewlineIdx !== -1) {
           compiled = compiled.slice(0, firstNewlineIdx) + viralFallbackBlock + compiled.slice(firstNewlineIdx);
@@ -2048,11 +2050,11 @@ const PromptGenerator = ({
       if (!value || value.trim() === '') {
         const deepResearchVars = ['CONTRADICCION_CENTRAL', 'PROMESA_NARRATIVA', 'ANCLAJE_DEL_HOOK', 'IMAGEN_FINAL'];
         if (deepResearchVars.includes(v)) {
-          value = 'por definir en deep research';
+          value = 'to be defined during deep research';
         } else if (v === 'TEMA_DEL_VIDEO') {
-          value = 'por definir';
+          value = 'to be defined';
         } else if (v === 'FECHA_EFEMERIDE') {
-          value = 'Día actual (o según solicite el usuario)';
+          value = 'Current date (or as requested by the user)';
         } else {
           value = `[${v}]`; // Marcador visual por defecto si no hay fallback
         }

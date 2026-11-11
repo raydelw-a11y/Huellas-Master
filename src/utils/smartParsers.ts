@@ -24,14 +24,20 @@ export function ensureOperationalHeaderInRawClips(
   }
 
   if (
-    /^Act[uú]a como un historiador/i.test(trimmed) &&
-    trimmed.includes('primeras 6 palabras') &&
+    /^Act as a (?:professional |master )?historian/i.test(trimmed) &&
+    /pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) &&
+    /(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) &&
     trimmed.includes('01 to 09')
   ) {
     return trimmed;
   }
-  // If rawText only contained a corrupted/incomplete header without clips yet, return the clean 9-line header
-  if (/del\s+1\s+al\s+10|Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes/i.test(trimmed)) {
+  // If rawText only contained a legacy Spanish or corrupted/incomplete header without clips yet, return the clean English 9-line header
+  if (
+    /^Act[uú]a como un historiador/i.test(trimmed) ||
+    /^Act as a (?:professional |master )?historian/i.test(trimmed) ||
+    /Cambia\s+los\s+nombres/i.test(trimmed) ||
+    /del\s+1\s+al\s+10|Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes/i.test(trimmed)
+  ) {
     return header;
   }
   return `${header}\n\n${trimmed}`;
@@ -148,14 +154,16 @@ export function applyAutomaticFlowPolicyShield(
  * Regla editorial inquebrantable de monetización y seguridad de marca para próximos videos
  * (YouTube, Facebook, Miniaturas, Ganchos de Clip 1, Guion de Voz Narrativa, Prompts y Metadata).
  */
-export const BRAND_SAFETY_LEXICAL_RULE_ES = `
-🛡️ REGLA EDITORIAL INQUEBRANTABLE DE MONETIZACIÓN (CERO "MUERTE", "ASESINO" Y DERIVADOS):
-- Queda TERMINANTEMENTE PROHIBIDO escribir en cualquier parte del entregable (guion de voz narrativa, títulos, textos de miniatura, ganchos del Clip 1, descripciones, capítulos, hashtags, tags SEO, comentarios fijados o prompts visuales en español/inglés) las palabras **"muerte"** y **"asesino"** ni NINGUNO de sus derivados o sinónimos letales directos:
-  • Prohibidos familia "muerte": *muerte, muertes, muerto, muerta, muertos, muertas, morir, morirse, murió, murieron, muriendo, muere, mueren, moría, morían, morirá, muriera, mortal, mortales, mortalidad, mortandad, mortífero, mortífera, moribundo, cadáver, cadáveres* (y en inglés: *death, dead, deadly, die, died, dying, corpse, cadaver*).
-  • Prohibidos familia "asesino" y violencia letal: *asesino, asesina, asesinos, asesinas, asesinato, asesinatos, asesinar, asesinó, asesinaron, asesinado, asesinada, homicidio, homicida, matar, mató, mataron, matanza, masacre, suicidio, suicida, suicidarse* (y en inglés: *murder, murderer, murdered, killer, killing, kill, killed, assassin, assassination, homicide, suicide*).
-- SUSTITUCIÓN DOCUMENTAL ELEGANTE OBLIGATORIA: Usa siempre lenguaje histórico, periodístico y cinematográfico de alta retención que mantenga toda la tensión dramática sin activar filtros algorítmicos:
-  • En lugar de *morir / murió / muerto / muerte / mortal*: usa *"perder la vida"*, *"perdió la vida"*, *"fallecer / falleció"*, *"perecer / pereció"*, *"sucumbir"*, *"apagarse"*, *"caer sin vida"*, *"el desenlace fatal"*, *"el último aliento"*, *"bajas humanas"*, *"letal"*, *"fulminante"*, *"pena capital"*.
-  • En lugar de *asesino / asesinar / asesinato / matar*: usa *"el perpetrador"*, *"el autor del crimen"*, *"el conspirador"*, *"el ejecutor en la sombra"*, *"el atacante"*, *"quitar la vida"*, *"arrebatar la vida"*, *"abatir / fue abatido"*, *"silenciar"*, *"el crimen"*, *"el atentado"*, *"la conjura"*.`;
+export const BRAND_SAFETY_LEXICAL_RULE_EN = `
+🛡️ UNBREAKABLE YOUTUBE MONETIZATION & BRAND-SAFETY LEXICAL RULE (ZERO "MUERTE" / "DEATH", "ASESINO" / "MURDERER" OR DERIVATIVES):
+- You are STRICTLY FORBIDDEN from writing anywhere in the deliverable (Spanish voiceover script, titles, thumbnail text overlays, Clip 1 hooks, descriptions, chapters, hashtags, SEO tags, pinned comments, or English visual prompts) the Spanish words **"muerte"** or **"asesino"** (or their English equivalents **"death"** / **"murderer"**) or ANY of their direct derivatives or lethal synonyms:
+  • Forbidden "muerte / death" family: *muerte, muertes, muerto, muerta, muertos, muertas, morir, morirse, murió, murieron, muriendo, muere, mueren, moría, morían, morirá, muriera, mortal, mortales, mortalidad, mortandad, mortífero, mortífera, moribundo, cadáver, cadáveres* (and in English: *death, dead, deadly, die, died, dying, corpse, cadaver*).
+  • Forbidden "asesino / murder" & lethal violence family: *asesino, asesina, asesinos, asesinas, asesinato, asesinatos, asesinar, asesinó, asesinaron, asesinado, asesinada, homicidio, homicida, matar, mató, mataron, matanza, masacre, suicidio, suicida, suicidarse* (and in English: *murder, murderer, murdered, killer, killing, kill, killed, assassin, assassination, homicide, suicide*).
+- MANDATORY ELEGANT DOCUMENTARY SUBSTITUTION: Always use high-retention historical, journalistic, and cinematic phrasing that preserves full dramatic tension without triggering algorithmic demonetization filters:
+  • In Spanish deliverables, instead of *morir / murió / muerto / muerte / mortal*, use: *"perder la vida"*, *"perdió la vida"*, *"fallecer / falleció"*, *"perecer / pereció"*, *"sucumbir"*, *"apagarse"*, *"caer sin vida"*, *"el desenlace fatal"*, *"el último aliento"*, *"bajas humanas"*, *"letal"*, *"fulminante"*, *"pena capital"*.
+  • In Spanish deliverables, instead of *asesino / asesinar / asesinato / matar*, use: *"el perpetrador"*, *"el autor del crimen"*, *"el conspirador"*, *"el ejecutor en la sombra"*, *"el atacante"*, *"quitar la vida"*, *"arrebatar la vida"*, *"abatir / fue abatido"*, *"silenciar"*, *"el crimen"*, *"el atentado"*, *"la conjura"*.`;
+
+export const BRAND_SAFETY_LEXICAL_RULE_ES = BRAND_SAFETY_LEXICAL_RULE_EN;
 
 function matchSpanishEditorialCase(source: string, replacement: string): string {
   if (!source) return replacement;
@@ -530,7 +538,7 @@ export function ensureAntiMutationPhysicsInPrompt(
   // Aplicar primero el blindaje Anti-Filtro "Prominent People" y Políticas
   p = applyAutomaticFlowPolicyShield(p, false);
 
-  // Limpiar cualquier cláusula previa para nunca duplicar
+  // Limpiar cualquier cláusula previa para nunca duplicar (incluyendo decimales como f/1.8 bokeh sin dejar residuos "8 bokeh).")
   p = p
     .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
     .replace(
@@ -541,7 +549,11 @@ export function ensureAntiMutationPhysicsInPrompt(
       /Sustained,\s*unhurried\s*continuous\s*action\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
       ''
     )
-    .replace(/Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[^.]*\.\s*/gi, '')
+    .replace(
+      /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
+      ''
+    )
+    .replace(/(?:\b\d+\s*bokeh\)\.\s*)+/gi, '')
     .replace(
       /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi,
       ''
@@ -571,6 +583,21 @@ export function ensureAntiMutationPhysicsInPrompt(
     return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
   }
 
+  // Ensure explicit Stage 1 duration phrase inside the English description while preserving "Create" as word 6
+  if (/^Create\s+a\s+(?:cinematic\s+|smooth\s+)?video\s+showing\b/i.test(p)) {
+    p = p.replace(
+      /^Create\s+a\s+(?:cinematic\s+|smooth\s+)?video\s+showing\b/i,
+      `Create a cinematic ${clipSec}-second video showing`
+    );
+  } else if (/^Create\s+a\s+cinematic\s+\d+-second\s+video\b/i.test(p)) {
+    p = p.replace(
+      /^Create\s+a\s+cinematic\s+\d+-second\s+video\b/i,
+      `Create a cinematic ${clipSec}-second video`
+    );
+  } else if (!new RegExp(`\\b${clipSec}-second\\b|\\b${clipSec}\\s*seconds\\b`, 'i').test(p) && /^Create\s+a\b/i.test(p)) {
+    p = p.replace(/^Create\s+a\s+/i, `Create a cinematic ${clipSec}-second `);
+  }
+
   // Conservar todos los movimientos de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt, orbit), pero hacerlos suaves y controlados
   p = p
     .replace(/\b(whip\s+pan|fast\s+pan|rapid\s+pan)\b/gi, 'smooth controlled fluid-head pan')
@@ -585,27 +612,48 @@ export function ensureAntiMutationPhysicsInPrompt(
     p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
   }
 
+  // Ensure [Duration: Xs] tag is explicitly present before [Model: ...] / fix the name
+  p = p.replace(/\s*\[Duration\s*:\s*\d+\s*s(?:ec(?:onds?)?)?\]\s*/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+  const durTag = `[Duration: ${clipSec}s]`;
+  if (/\[(?:Video\s+)?Model\s*:[^\]]*\]/i.test(p)) {
+    p = p.replace(/\s*(\[(?:Video\s+)?Model\s*:[^\]]*\])/i, ` ${durTag} $1`);
+  } else if (/fix the name\s*\.?\s*$/i.test(p)) {
+    p = p.replace(/\s*(fix the name\s*\.?\s*)$/i, ` ${durTag} $1`);
+  } else {
+    p = `${p} ${durTag}`;
+  }
+
   return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
 }
 
 export function buildRawClipsTextWithHeader(
   clips: DocumentaryClip[],
   operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
-  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+  clip1DurationSec?: number,
+  standardClipDurationSec?: number
 ): string {
   const header = sanitizeOperationalHeader(operationalHeader, projectEngineMode);
   const body = (clips || [])
     .map((c) => {
       const img = c.imagePrompt?.trim();
       const rawVid = c.videoPrompt?.trim();
+      const durSec =
+        c.clipNumber === 1
+          ? clip1DurationSec || undefined
+          : standardClipDurationSec || undefined;
       const vid = rawVid
-        ? applyClipFlowVideoEngineTag(rawVid, resolveClipFlowVideoEngine(c, projectEngineMode))
+        ? applyClipFlowVideoEngineTag(
+            rawVid,
+            resolveClipFlowVideoEngine(c, projectEngineMode),
+            durSec
+          )
         : '';
       return [img, vid].filter(Boolean).join('\n\n');
     })
     .filter(Boolean)
     .join('\n\n');
-  return body ? `${header}\n\n${body}` : header;
+  return body ? `${header}\n\n${body}` : '';
 }
 
 // ============================================================================
@@ -743,7 +791,8 @@ export function parseClipsFromRawText(
         ? bodyRaw
         : `Create an image of ${bodyRaw}`;
       const targetSec = num === 1 ? clip1Duration : standardClipDuration;
-      clip.imagePrompt = ensureAntiMutationPhysicsInPrompt(`Image ${num}: ${normalizedBody}`, true, targetSec);
+      const numStr = num < 10 ? String(num).padStart(2, '0') : String(num);
+      clip.imagePrompt = ensureAntiMutationPhysicsInPrompt(`Image ${numStr}: ${normalizedBody}`, true, targetSec);
       continue;
     }
 
@@ -759,10 +808,11 @@ export function parseClipsFromRawText(
       if (timeRange) clip.timeRange = timeRange;
       const normalizedBody = /^Create a/i.test(bodyRaw)
         ? bodyRaw
-        : `Create a video showing ${bodyRaw}`;
+        : `Create a cinematic ${num === 1 ? clip1Duration : standardClipDuration}-second video showing ${bodyRaw}`;
       const targetSec = num === 1 ? clip1Duration : standardClipDuration;
+      const numStr = num < 10 ? String(num).padStart(2, '0') : String(num);
       clip.videoPrompt = ensureAntiMutationPhysicsInPrompt(
-        `Clip ${num}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`,
+        `Clip ${numStr}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`,
         false,
         targetSec
       );
@@ -1402,7 +1452,7 @@ export function syncAndAuditProductionClips(
   const docTime = isObj ? (arg1.historicalTime || '').trim() : '';
   const docLocation = isObj ? (arg1.historicalLocation || '').trim() : '';
   const docRefs = isObj && Array.isArray(arg1.references) ? arg1.references : [];
-  const includeNarrationInClip = isObj ? arg1.includeNarrationInClip !== false : true;
+  const includeNarrationInClip = isObj ? Boolean(arg1.includeNarrationInClip === true) : false;
 
   const parsedFromPrompts = parseClipsFromRawText(
     rawClipsText,
@@ -1509,22 +1559,35 @@ export function syncAndAuditProductionClips(
   const parsedMaxClipNum =
     parsedFromPrompts.length > 0 ? Math.max(...parsedFromPrompts.map((c) => c.clipNumber)) : 0;
   const timelineExpectedClipNum = timelineSentences.length > 0 ? timelineSentences.length + 1 : 0;
-  // Never inflate maxClipNum with stale skeleton existingClips beyond the real Timeline / parsed prompts
+  // When Timeline exists, strictly enforce its exact clip count (e.g. 143) so phantom tail clips (144-147) are never kept
   const maxClipNum =
-    timelineExpectedClipNum > 0 || parsedMaxClipNum > 0
-      ? Math.max(timelineExpectedClipNum, parsedMaxClipNum)
-      : existingClips.length;
+    timelineExpectedClipNum > 0
+      ? timelineExpectedClipNum
+      : parsedMaxClipNum > 0
+        ? parsedMaxClipNum
+        : existingClips.length;
 
   if (maxClipNum === 0) return [];
+
+  const parseMmSsRangeSec = (rangeStr?: string): { start: number; end: number } | null => {
+    const m = String(rangeStr || '').match(/(\d{1,3}):(\d{2})\s*(?:-|–|—|to)\s*(\d{1,3}):(\d{2})/i);
+    if (!m) return null;
+    return {
+      start: parseInt(m[1], 10) * 60 + parseInt(m[2], 10),
+      end: parseInt(m[3], 10) * 60 + parseInt(m[4], 10),
+    };
+  };
+
+  const isAutoSkeletonPrompt = (text?: string): boolean =>
+    /\((?:Ruta Principal|Arco Integral|Tema Central)[^)]*\)|Authentic historical visual scene for|Create an image of a .* shot in \(Ruta Principal|depicting the historical documentary scene with dramatic cinematic lighting, historical accuracy, photorealistic 8k film still/i.test(
+      String(text || '')
+    );
 
   const byNum = new Map<number, DocumentaryClip>();
   for (const prev of existingClips) {
     if (prev.clipNumber >= 1 && prev.clipNumber <= maxClipNum) {
-      // Only carry over non-skeleton prompts or media state from existingClips when missing from parsedFromPrompts
       const isGenericAutoSkeleton =
-        /Create an image of a .* shot in \(Ruta Principal|depicting the historical scene \(/i.test(
-          prev.imagePrompt || ''
-        );
+        isAutoSkeletonPrompt(prev.imagePrompt) || isAutoSkeletonPrompt(prev.videoPrompt);
       byNum.set(
         prev.clipNumber,
         isGenericAutoSkeleton
@@ -1534,6 +1597,8 @@ export function syncAndAuditProductionClips(
               imagePrompt: '',
               videoPrompt: '',
               narrationSegment: '',
+              auditStatus: 'warning',
+              auditReason: '',
             }
           : { ...prev }
       );
@@ -1541,7 +1606,18 @@ export function syncAndAuditProductionClips(
   }
   parsedFromPrompts.forEach((c) => {
     if (c.clipNumber >= 1 && c.clipNumber <= maxClipNum) {
-      byNum.set(c.clipNumber, { ...c });
+      if (isAutoSkeletonPrompt(c.imagePrompt) || isAutoSkeletonPrompt(c.videoPrompt)) {
+        const prev = byNum.get(c.clipNumber);
+        byNum.set(c.clipNumber, {
+          ...(prev || c),
+          imagePrompt: '',
+          videoPrompt: '',
+          auditStatus: 'warning',
+          auditReason: '',
+        });
+      } else {
+        byNum.set(c.clipNumber, { ...c });
+      }
     }
   });
 
@@ -1554,33 +1630,50 @@ export function syncAndAuditProductionClips(
       const c1Range = clip1TimelineMarker
         ? `${formatMMSS(clip1TimelineMarker.start)} - ${formatMMSS(clip1TimelineMarker.end)}`
         : existing?.timeRange || `00:00 - 00:${String(c1EndSec).padStart(2, '0')}`;
-      const hookRefs = [primaryPersonTag, primaryPlaceTag].filter(Boolean).join(' at ');
-      const imgP = ensureAntiMutationPhysicsInPrompt(
-        existing?.imagePrompt?.trim() ||
-          `Image 1: Create an image of a dramatic cinematic wide establishing shot of ${
-            hookRefs ? `${hookRefs} in ` : ''
-          }${eraSetting}, volumetric chiaroscuro lighting, hyper-realistic historical accuracy, 8k documentary cinematography, no text.`,
-        true,
-        clip1Duration
-      );
-      const vidP = ensureAntiMutationPhysicsInPrompt(
-        existing?.videoPrompt?.trim() ||
-          `Clip 1 (${c1Range}): Create a video showing a slow, tense cinematic camera push-in across ${
-            primaryPlaceTag || eraSetting
-          }${
-            primaryPersonTag ? ` while ${primaryPersonTag} stands in solemn dramatic stillness` : ''
-          }, subtle drifting atmospheric mist and flickering warm torchlight. Ambient Foley: deep atmospheric wind, distant historical environment sounds, footsteps on stone, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name`,
-        false,
-        clip1Duration
-      );
+      const rawImg1 = existing?.imagePrompt?.trim() || '';
+      const rawVid1 = existing?.videoPrompt?.trim() || '';
+      // Stage 6 is strictly manual: NEVER fabricate synthetic prompts when empty
+      const imgP = rawImg1 ? ensureAntiMutationPhysicsInPrompt(rawImg1, true, clip1Duration) : '';
+      const vidP = rawVid1 ? ensureAntiMutationPhysicsInPrompt(rawVid1, false, clip1Duration) : '';
+
+      const c1VoiceStartLabel = clip1TimelineMarker ? formatMMSS(clip1TimelineMarker.end) : `00:${String(voiceEntrySec).padStart(2, '0')}`;
       let auditStatus: 'ok' | 'warning' | 'mismatch' = 'ok';
-      let auditReason =
-        clip1SyncMode === 'VOZ_EN_CLIP_2'
-          ? `Clip 1 (00:00 - 00:${String(clip1Duration).padStart(2, '0')} sin voz en off; la voz narrativa entra en el segundo ${voiceEntrySec}, a los 2s de iniciar el Clip 2).`
-          : `Clip 1 (Hook inicial de ${clip1Duration}s ralentizado a ${voiceEntrySec}s sin voz en off; la voz entra en el segundo ${voiceEntrySec} al iniciar el Clip 2).`;
-      if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
-        auditStatus = 'mismatch';
-        auditReason = 'El Clip 1 no debe llevar voz hablada; debe cerrar con "no music, no speech".';
+      let auditReason = '';
+      if (!imgP || !vidP) {
+        auditStatus = 'warning';
+        auditReason =
+          'Pendiente de generar prompts de Imagen Inicial y Video en Gemini (pulsa el botón "✨ Generar Prompts en Gemini").';
+      } else {
+        const c1Issues: string[] = [];
+        const promptHeaderRangeMatch = vidP.match(/^Clip\s+\d+\s*\(([^)]+)\)/i);
+        const promptParsedSec = parseMmSsRangeSec(promptHeaderRangeMatch?.[1]);
+        const expectedParsedSec = parseMmSsRangeSec(c1Range);
+        if (
+          promptParsedSec &&
+          expectedParsedSec &&
+          (Math.abs(promptParsedSec.start - expectedParsedSec.start) > 1 ||
+            Math.abs(promptParsedSec.end - expectedParsedSec.end) > 1)
+        ) {
+          c1Issues.push(
+            `Desfase de tiempo en el encabezado del Clip 1 (${promptHeaderRangeMatch?.[1]}) frente al Timeline real (${c1Range}).`
+          );
+        }
+        if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
+          c1Issues.push('El Clip 1 no debe llevar voz hablada; debe cerrar con "no music, no speech".');
+        }
+        if (/\b\d+\s*bokeh\)\./i.test(imgP) || /\b\d+\s*bokeh\)\./i.test(vidP)) {
+          c1Issues.push('Residuo de truncamiento "bokeh)." detectado en el prompt.');
+        }
+        if (c1Issues.length > 0) {
+          auditStatus = 'mismatch';
+          auditReason = c1Issues.join(' ');
+        } else {
+          auditStatus = 'ok';
+          auditReason =
+            clip1SyncMode === 'VOZ_EN_CLIP_2'
+              ? `Clip 1 (${c1Range} sin voz en off, duración Flow ${clip1Duration}s; la voz narrativa entra en ${c1VoiceStartLabel}).`
+              : `Clip 1 (${c1Range} Hook inicial sin voz en off, generado de ${clip1Duration}s en Flow y ralentizado en CapCut; la voz entra en ${c1VoiceStartLabel}).`;
+        }
       }
 
       finalClips.push({
@@ -1596,9 +1689,9 @@ export function syncAndAuditProductionClips(
         videoPrompt: vidP,
         narrationSegment:
           clip1SyncMode === 'VOZ_EN_CLIP_2'
-            ? `(00:00 - 00:${String(clip1Duration).padStart(2, '0')} Sin Voz Narrativa — La voz entra en el seg ${voiceEntrySec}, a los 2s del Clip 2)`
-            : `(00:00 - 00:${String(voiceEntrySec).padStart(2, '0')} Sin Voz Narrativa — Solo Audio Foley y Letrero Inicial)`,
-        pauseNotes: `Sin locución en los primeros ${voiceEntrySec} segundos del video`,
+            ? `(${c1Range} Sin Voz Narrativa — La voz entra en ${c1VoiceStartLabel})`
+            : `(${c1Range} Sin Voz Narrativa — Solo Audio Foley y Letrero Inicial; Flow ${clip1Duration}s ralentizado)`,
+        pauseNotes: `Sin locución en el tramo inicial (${c1Range})`,
         imageReady: existing?.imageReady || false,
         videoReady: existing?.videoReady || false,
         reviewedForEditor: Boolean(existing?.reviewedForEditor),
@@ -1631,37 +1724,19 @@ export function syncAndAuditProductionClips(
     }
 
     const narrationText = tSeg?.text || existing?.narrationSegment || '';
-    const isSilentPauseSlot = /^\[SIN\s+VOZ\s+NARRATIVA/i.test(narrationText.trim());
-    const cleanNarration = isSilentPauseSlot
-      ? ''
-      : stripPauseTags(narrationText).replace(/\s+/g, ' ').trim();
-    const matchedRefs = findMatchingRefTags(cleanNarration);
-    const shotAngle = SHOT_ANGLES[tIdx % SHOT_ANGLES.length];
-    const camMove = CAMERA_MOVES[tIdx % CAMERA_MOVES.length];
+    const rawImg = existing?.imagePrompt?.trim() || '';
+    const rawVid = existing?.videoPrompt?.trim() || '';
 
-    const imgP = ensureAntiMutationPhysicsInPrompt(
-      existing?.imagePrompt?.trim() ||
-        `Image ${num}: Create an image of a ${shotAngle} in ${eraSetting}${
-          matchedRefs ? ` featuring ${matchedRefs}` : ''
-        }, depicting the historical scene (${cleanNarration.slice(0, 130)}), dramatic cinematic lighting, historical accuracy, photorealistic 8k film still, no text.`,
-      true,
-      standardClipDuration
-    );
-
-    const vidP = ensureAntiMutationPhysicsInPrompt(
-      existing?.videoPrompt?.trim() ||
-        `Clip ${num} (${computedRange}): Create a video showing ${camMove} over the historical scene in ${eraSetting}${
-          matchedRefs ? ` with ${matchedRefs} performing subtle period-accurate physical movement` : ''
-        }. Ambient Foley: realistic historical environment sounds, subtle cloth movement, and footsteps, single continuous shot, strictly no shot changes, no music, no speech, no text. ${
-          includeNarrationInClip && cleanNarration ? `${cleanNarration} ` : ''
-        }fix the name`,
-      false,
-      standardClipDuration
-    );
+    // Stage 6 is strictly manual: NEVER synthesize placeholder prompts when empty
+    const imgP = rawImg ? ensureAntiMutationPhysicsInPrompt(rawImg, true, standardClipDuration) : '';
+    const vidP = rawVid ? ensureAntiMutationPhysicsInPrompt(rawVid, false, standardClipDuration) : '';
 
     // Buscar si esa frase en la Voz Narrativa Raw contiene una etiqueta [pausa: Xs]
-    let pauseNotes = existing?.pauseNotes || '';
-    if (rawVoiceoverWithPauses && narrationText) {
+    let pauseNotes = '';
+    const directPauses = narrationText.match(pauseRegex);
+    if (directPauses && directPauses.length > 0) {
+      pauseNotes = `Contiene ${directPauses.join(', ')} en la locución`;
+    } else if (rawVoiceoverWithPauses && narrationText) {
       const words = narrationText
         .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]/g, '')
         .trim()
@@ -1683,30 +1758,65 @@ export function syncAndAuditProductionClips(
       }
     }
 
-    // Auditoría rápida local de sentido y reglas
-    let auditStatus: 'ok' | 'warning' | 'mismatch' = existing?.auditStatus || 'ok';
-    let auditReason = existing?.auditReason || '';
+    // Auditoría determinista real en cada pasada (nunca congelar estados viejos)
+    let auditStatus: 'ok' | 'warning' | 'mismatch' = 'ok';
+    let auditReason = '';
 
-    if (!imgP && !vidP) {
+    if (!imgP || !vidP) {
       auditStatus = 'warning';
-      auditReason = 'Pendiente de prompt de Imagen Inicial y Video para este tramo de voz.';
-    } else if (!auditReason) {
+      auditReason = !imgP && !vidP
+        ? 'Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa "✨ Generar Prompts en Gemini").'
+        : !imgP
+          ? 'Falta el prompt de Imagen Inicial para este clip.'
+          : 'Falta el prompt de Video para este clip.';
+    } else {
       const issues: string[] = [];
-      if (pauseNotes && !/two-shot|5 seconds each|Shot 1|Shot 2/i.test(vidP)) {
+      let hasMismatch = false;
+
+      const promptHeaderRangeMatch = vidP.match(/^Clip\s+\d+\s*\(([^)]+)\)/i);
+      const promptParsedSec = parseMmSsRangeSec(promptHeaderRangeMatch?.[1]);
+      const expectedParsedSec = parseMmSsRangeSec(computedRange);
+      if (
+        promptParsedSec &&
+        expectedParsedSec &&
+        (Math.abs(promptParsedSec.start - expectedParsedSec.start) > 1 ||
+          Math.abs(promptParsedSec.end - expectedParsedSec.end) > 1)
+      ) {
+        hasMismatch = true;
         issues.push(
-          `Hay una pausa narrativa (${pauseNotes}) dentro de este clip: verifica si la voz cambia de escena a mitad del clip para usar 2 shots de 5s.`
+          `⏱️ Desfase de tiempo: el prompt indica (${promptHeaderRangeMatch?.[1]}) pero la voz narrativa suena en (${computedRange}).`
         );
       }
+
+      const durTagMatch = vidP.match(/\[Duration\s*:\s*(\d+)\s*s\]/i);
+      if (!durTagMatch) {
+        issues.push(`Falta la etiqueta de duración [Duration: ${standardClipDuration}s] de Etapa 1.`);
+      } else if (parseInt(durTagMatch[1], 10) !== standardClipDuration) {
+        issues.push(
+          `La duración en el prompt ([Duration: ${durTagMatch[1]}s]) no coincide con los ${standardClipDuration}s elegidos en Etapa 1.`
+        );
+      }
+
+      if (
+        /\((?:Ruta Principal|Arco Integral|Tema Central)[^)]*\)|—\s*Recomendada|\b\d+\s*bokeh\)\./i.test(
+          `${imgP} ${vidP}`
+        )
+      ) {
+        hasMismatch = true;
+        issues.push('El prompt contiene texto residual en español o fragmentos truncados.');
+      }
+
       if (vidP && !/fix the name/i.test(vidP)) {
         issues.push('Falta "fix the name" al final del prompt de video.');
       }
       if (imgP && !/no text/i.test(imgP)) {
         issues.push('El prompt de imagen inicial debe incluir "no text".');
       }
+
       const prevClip = finalClips[finalClips.length - 1];
       if (prevClip && prevClip.clipNumber === num - 1 && prevClip.imagePrompt && imgP) {
         const deskOfficeRegex = /\b(office|desk|counter|moneylender|clerk|notary|wooden table|ledger)\b/i;
-        const outdoorContrastRegex = /\b(outdoor|sunlit|harbor|pier|dock|street|plaza|courtyard|exterior|mountain|ocean|sea)\b/i;
+        const outdoorContrastRegex = /\b(outdoor|sunlit|harbor|pier|dock|street|plaza|courtyard|exterior|mountain|ocean|sea|corridor|ward|factory|vat|laboratory|greenhouse)\b/i;
         if (
           deskOfficeRegex.test(prevClip.imagePrompt) &&
           deskOfficeRegex.test(imgP) &&
@@ -1714,12 +1824,13 @@ export function syncAndAuditProductionClips(
           !outdoorContrastRegex.test(prevClip.imagePrompt)
         ) {
           issues.push(
-            `⚠️ Posible duplicación visual con el Clip ${num - 1} (ambos describen escritorio/mostrador en oficina interior). Según el Prompt Maestro, cuando la voz narrativa continúa en la misma escena o hilo, el siguiente clip debe mostrar un entorno o plano diferente pero visualmente referente (ej. exterior luminoso).`
+            `⚠️ Posible repetición de escenario de escritorio/oficina interior respecto al Clip ${num - 1}; alterna plano o espacio visual.`
           );
         }
       }
+
       if (issues.length > 0) {
-        auditStatus = 'warning';
+        auditStatus = hasMismatch ? 'mismatch' : 'warning';
         auditReason = issues.join(' ');
       } else {
         auditStatus = 'ok';
@@ -1840,7 +1951,7 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
     const line = lines[i].trim();
     if (!line) continue;
     if (
-      /^(?:Cambia\s+(?:los\s+nombres|obligatoriamente\s+el\s+nombre)|Actúa\s+como\s+un\s+historiador|Usa\s+Nano\s+Banana|Cada\s+imagen\s+DEBE|Nombra\s+(?:obligatoriamente\s+)?cada\s+imagen|Nombres\s+exactos\s+de\s+las\s+imágenes)/i.test(
+      /^(?:Act\s+as\s+a|Use\s+Nano\s+Banana|Generate\s+each\s+image\s+as\s+a\s+reference|Each\s+image\s+MUST|Mandatorily\s+(?:replace|rename)|Rename\s+(?:each|every|all)|Change\s+the\s+names|Deliver\s+(?:exclusively|only)|Cambia\s+(?:los\s+nombres|obligatoriamente\s+el\s+nombre)|Actúa\s+como\s+un\s+historiador|Usa\s+Nano\s+Banana|Cada\s+imagen\s+DEBE|Nombra\s+(?:obligatoriamente\s+)?cada\s+imagen|Nombres\s+exactos\s+de\s+las\s+imágenes)/i.test(
         line
       )
     ) {
@@ -1984,29 +2095,29 @@ export function parseSunoTracksFromRawText(rawText: string): SunoTrack[] {
   // Limpiar asteriscos de negrita alrededor de etiquetas numeradas para facilitar el parseo
   const normalized = rawText.replace(/\*\*([^*]+)\*\*/g, '$1');
 
-  // Separar si hay múltiples pistas o bloques "Canción X", "Pista X" o "1. Título..."
+  // Separar si hay múltiples pistas o bloques "Track X", "Song X", "Canción X", "Pista X" o "1. Track Title / Título..."
   const blocks = normalized
     .split(
-      /(?=(?:^|\n)\s*(?:[#*\-\s]*)(?:Pista\s+\d+|Canci[oó]n\s+\d+|Track\s+\d+|1\.\s*T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?\s*:))/i
+      /(?=(?:^|\n)\s*(?:[#*\-\s]*)(?:Pista\s+\d+|Canci[oó]n\s+\d+|Track\s+\d+|Song\s+\d+|1\.\s*(?:(?:Track|Song)\s+Title|Title(?:\s+of\s+the\s+(?:song|track))?|T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?)\s*:))/i
     )
     .filter((b) => b.trim());
 
   blocks.forEach((block) => {
     const titleMatch = block.match(
-      /(?:1\.\s*)?T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?\s*:\s*([^\n]+)/i
+      /(?:1\.\s*)?(?:(?:Track|Song)\s+Title|Title(?:\s+of\s+the\s+(?:song|track))?|T[ií]tulo(?:\s+de\s+la\s+(?:canci[oó]n|pista))?)\s*:\s*([^\n]+)/i
     );
-    const durationMatch = block.match(/(?:2\.\s*)?Duraci[oó]n\s*:\s*([^\n]+)/i);
+    const durationMatch = block.match(/(?:2\.\s*)?(?:Duraci[oó]n|Duration)\s*:\s*([^\n]+)/i);
     const rangeMatch = block.match(
-      /(?:3\.\s*)?(?:De d[oó]nde a d[oó]nde cubre|Rango de tiempo|Tramo)[^:]*:\s*([^\n]+)/i
+      /(?:3\.\s*)?(?:Video\s+Time\s+Range|Time\s+Range(?:\s+Covered)?|Segment\s+Covered|De d[oó]nde a d[oó]nde cubre|Rango de tiempo|Tramo)[^:]*:\s*([^\n]+)/i
     );
     const lyricsMatch = block.match(
-      /(?:4\.\s*)?Prompt de Lyrics\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:5\.|Prompt de Style))|$)/i
+      /(?:4\.\s*)?(?:Prompt de Lyrics|Lyrics Prompt)\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:5\.|Prompt de Style|Style Prompt))|$)/i
     );
     const styleMatch = block.match(
-      /(?:5\.\s*)?Prompt de Style\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:6\.|Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?))|$)/i
+      /(?:5\.\s*)?(?:Prompt de Style|Style Prompt)\s*:\s*([\s\S]*?)(?=(?:\n\s*(?:6\.|Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?|(?:Scene|Track|Song)\s+Explanation|Explanation))|$)/i
     );
     const expMatch = block.match(
-      /(?:6\.\s*)?Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?\s*:\s*([\s\S]*?)$/i
+      /(?:6\.\s*)?(?:Explicaci[oó]n(?:\s+de\s+la\s+Canci[oó]n)?|(?:Scene|Track|Song)\s+Explanation|Explanation)\s*:\s*([\s\S]*?)$/i
     );
 
     if (titleMatch || styleMatch || lyricsMatch) {
@@ -3057,9 +3168,15 @@ function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
   if (!rawPrompt) return '';
   return rawPrompt
     .replace(/\[(?:Video\s+)?Model\s*:[^\]]+\]/gi, ' ')
+    .replace(/\[Duration\s*:[^\]]+\]/gi, ' ')
+    .replace(/\bfix\s+the\s+name\b\.?/gi, ' ')
     .replace(/Cinematic historical drama reenactment[^.]*\.?/gi, ' ')
     .replace(/portrayed by anonymous historical reenactment actors[^.]*\.?/gi, ' ')
     .replace(/no real public figures or prominent people/gi, ' ')
+    .replace(
+      /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)/gi,
+      ' '
+    )
     .replace(/Fixed subject count[^.]*\.?/gi, ' ')
     .replace(/clear anatomical separation between subjects[^.]*\.?/gi, ' ')
     .replace(/strictly no morphing[^.]*\.?/gi, ' ')
@@ -3071,52 +3188,87 @@ function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
     .trim();
 }
 
+const KNOWN_LOCATION_AT_TAG_PREFIX_RE =
+  /^@(?:Enfermer[ií]a|Hospital|Laboratorio|Escuela|Sala|Mesa|Planta|Playas?|Boticas?|Sal[oó]n|Puerto|Muelle|Calle|Plaza|Palacio|Iglesia|Catedral|Castillo|Ciudad|Oficina|Banco|F[aá]brica|Estaci[oó]n|Tren|Barco|Puente|Valle|R[ií]o|Mina|Taller|Mercado|Archivo|Biblioteca|Tribunal|Parlamento|C[aá]mara|Universidad|Instituto|Cl[ií]nica|Farmacia|Almac[eé]n|Bodega|Cuartel|Trinchera|Campo| Playa| Costa| Isla| Bah[ií]a| Teatro| Museo)_/i;
+
 /**
- * Automatically detects whether a clip depicts live human subjects (people, characters, @Ref,
+ * Automatically detects whether a clip depicts live human subjects (people, characters, @Person Ref,
  * crowds, officers, hands in action) vs. a B-roll without people (landscapes, ships at sea,
- * maps, documents, lithographs, objects, architecture).
+ * maps, documents, lithographs, objects, architecture, empty @Location interiors).
  */
-export function detectClipHasHumanSubjects(clip: {
-  imagePrompt?: string;
-  videoPrompt?: string;
-  visualExplanation?: string;
-}): boolean {
+export function detectClipHasHumanSubjects(
+  clip: {
+    imagePrompt?: string;
+    videoPrompt?: string;
+    visualExplanation?: string;
+  },
+  references?: ReferenceAsset[]
+): boolean {
   const cleanImg = stripFlowPromptBoilerplateForSubjectCheck(clip.imagePrompt || '');
   const cleanVid = stripFlowPromptBoilerplateForSubjectCheck(clip.videoPrompt || '');
   const combined = `${cleanImg} ${cleanVid}`.trim();
   if (!combined) return false;
 
-  // 1. If it mentions a @Person reference tag, it definitely has a person
-  if (/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/.test(combined)) {
-    return true;
+  // 1. Inspect @Tags distinguishing @Person vs @Location references
+  const foundTags = combined.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/g) || [];
+  if (foundTags.length > 0) {
+    const refCategoryBySlug = new Map<string, string>();
+    if (Array.isArray(references)) {
+      for (const r of references) {
+        if (r?.tag) {
+          refCategoryBySlug.set(r.tag.trim().toLowerCase(), r.category || '');
+        }
+      }
+    }
+    for (const tag of foundTags) {
+      const lowerTag = tag.toLowerCase();
+      const knownCat = refCategoryBySlug.get(lowerTag);
+      if (knownCat === 'persona') return true;
+      if (knownCat === 'lugar' || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(tag)) continue;
+      // Heuristic: if not a location prefix and no explicit "no people" negation, treat character @Name as human
+      if (
+        !/\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|uninhabited|devoid\s+of\s+(?:people|humans))\b/i.test(
+          combined
+        )
+      ) {
+        return true;
+      }
+    }
   }
 
-  // 2. If it's explicitly a flat print/lithograph/engraving/map/document on a desk without live hands/actors interacting
+  // 2. Explicit zero-people / uninhabited scene clause overrides false positives from words like "no people present"
+  const explicitZeroPeopleRegex =
+    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|empty\s+uninhabited|uninhabited|devoid\s+of\s+(?:people|humans))\b/i;
+  if (explicitZeroPeopleRegex.test(combined)) {
+    return false;
+  }
+
+  // 3. If it's explicitly a flat print/lithograph/engraving/map/document on a desk without live hands/actors interacting
   const isPurePrintOrMap =
     /\b(satirical\s+lithograph|vintage\s+\d*\s*lithograph|woodcut\s+engraving|cartographic\s+map|overhead\s+view\s+of\s+an\s+antique|macro\s+close-up\s+on\s+an\s+antique\s+(?:historian's\s+)?wooden\s+desk)\b/i.test(
       combined
     ) &&
-    !/\b(hands?\s+(?:holding|signing|counting|writing|turning|resting|pointing|stamping)|man|woman|clerk|notary|official|actor)\b/i.test(
+    !/\b(hands?\s+(?:holding|signing|counting|writing|turning|resting|pointing|stamping|lifting|adjusting|placing|pouring)|man|woman|clerk|notary|official|actor|scientist|doctor|researcher|scholar)\b/i.test(
       combined
     );
   if (isPurePrintOrMap) {
     return false;
   }
 
-  // 3. Check for human subjects, roles, crowds, or visible human anatomy in action
+  // 4. Check for human subjects, roles, crowds, or visible human anatomy in action
   const humanSubjectRegex =
-    /\b(man|men|woman|women|boy|girl|child|children|person|people|crowd|passengers|peasants|workers|laborers|miners|sailors|soldiers|officers|guards|gendarmes|policemen|officials|inspectors|clerks|notary|moneylender|usurer|merchants|governor|captain|doctor|physician|surgeon|nurse|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching)|weathered\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering))\b/i;
+    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|spectators|delegates|passengers|peasants|workers|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|biochemist|mycologist|chemist|chemists|bacteriologist|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
 
   if (humanSubjectRegex.test(combined)) {
     return true;
   }
 
-  // 4. Fallback check in Spanish visualExplanation if prompts are still in Spanish/skeleton state
+  // 5. Fallback check in Spanish visualExplanation if prompts are empty
   const cleanExp = (clip.visualExplanation || '').trim();
   if (
     cleanExp &&
     !cleanImg &&
-    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
+    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|doctora|doctor|enfermera|paciente|científico|investigador|químico|policía|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
       cleanExp
     )
   ) {
@@ -3139,7 +3291,8 @@ export function resolveClipFlowVideoEngine(
     visualExplanation?: string;
     flowClipEngine?: FlowClipEngineType;
   },
-  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+  references?: ReferenceAsset[]
 ): FlowClipEngineType {
   if (projectEngineMode === 'OMNI_1_1_FLASH') return 'OMNI_1_1_FLASH';
   if (projectEngineMode === 'VEO_3_1_LITE_LOWER_PRIORITY') return 'VEO_3_1_LITE_LOWER_PRIORITY';
@@ -3149,25 +3302,35 @@ export function resolveClipFlowVideoEngine(
   ) {
     return clip.flowClipEngine;
   }
-  return detectClipHasHumanSubjects(clip) ? 'OMNI_1_1_FLASH' : 'VEO_3_1_LITE_LOWER_PRIORITY';
+  return detectClipHasHumanSubjects(clip, references) ? 'OMNI_1_1_FLASH' : 'VEO_3_1_LITE_LOWER_PRIORITY';
 }
 
 /**
- * Injects or updates the explicit `[Model: ...]` instruction at the end of a `Clip X` prompt
+ * Injects or updates the explicit `[Duration: Xs]` and `[Model: ...]` tags at the end of a `Clip X` prompt
  * (right before `fix the name` if present) so the first 6 words of `Clip X (MM:SS - MM:SS): Create`
  * remain 100% intact for Google Flow's file-renaming rule.
  */
 export function applyClipFlowVideoEngineTag(
   videoPrompt: string,
-  engine: FlowClipEngineType
+  engine: FlowClipEngineType,
+  durationSec?: number
 ): string {
   if (!videoPrompt || !videoPrompt.trim()) return videoPrompt;
   const modelLabel =
     engine === 'OMNI_1_1_FLASH' ? 'Omni 1.1 Flash' : 'Veo 3.1 - Lite [Lower Priority]';
-  const tagText = `[Model: ${modelLabel}]`;
+  const existingDurMatch = videoPrompt.match(/\[Duration\s*:\s*(\d+)\s*s(?:ec(?:onds?)?)?\]/i);
+  const resolvedDur =
+    typeof durationSec === 'number' && durationSec > 0
+      ? durationSec
+      : existingDurMatch
+        ? parseInt(existingDurMatch[1], 10)
+        : undefined;
+  const durTag = resolvedDur ? `[Duration: ${resolvedDur}s] ` : '';
+  const tagText = `${durTag}[Model: ${modelLabel}]`;
 
-  // Remove any existing [Model: ...] or [Video Model: ...] tag first
+  // Remove any existing [Duration: ...] or [Model: ...] or [Video Model: ...] tag first
   const cleaned = videoPrompt
+    .replace(/\s*\[Duration\s*:\s*\d+\s*s(?:ec(?:onds?)?)?\]\s*/gi, ' ')
     .replace(/\s*\[(?:Video\s+)?Model\s*:[^\]]*\]\s*(?:\])?/gi, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -3200,13 +3363,13 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
     .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
     .replace(/\n?```\s*$/i, '')
     .replace(
-      /\s+\|\s+(?=(?:[-•*# \t]|\d+[.)][ \t]*)*(?:\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)[_\s\-]*(?:[ABC]|[123])\b|T[IÍ]TULO\b|DESCRIPCI[OÓ]N\b|EXPLICACI[OÓ]N\b|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA\b|OVERLAY\b|PROMPT\b))/gi,
+      /\s+\|\s+(?=(?:[-•*# \t]|\d+[.)][ \t]*)*(?:\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|OPTION|TRIGGER)[_\s\-]*(?:[ABC]|[123])\b|T[IÍ]TULO\b|TITLE\b|DESCRIPCI[OÓ]N\b|DESCRIPTION\b|EXPLICACI[OÓ]N\b|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA\b|SCREEN[_\s]*TEXT\b|OVERLAY\b|PROMPT\b))/gi,
       '\n'
     )
     // Ensure DOM-concatenated paragraphs from Gemini (`...no music.[DISPARADOR_B] TITULO: ... DESCRIPCION: ...`) always split cleanly onto new lines
-    .replace(/([^\n])(\[\s*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)[_\s\-]*[ABC123]\s*\])/gi, '$1\n$2')
+    .replace(/([^\n])(\[\s*(?:DISPARADOR|OPCI[OÓ]N|OPTION|TRIGGER)[_\s\-]*[ABC123]\s*\])/gi, '$1\n$2')
     .replace(
-      /([^\n])\s+((?:\*+\s*)?(?:T[IÍ]TULO|DESCRIPCI[OÓ]N|EXPLICACI[OÓ]N|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY(?:[_\s]*TEXT)?|(?:IMAGE[ \t]+)?PROMPT(?:[ \t]+(?:T[EÉ]CNICO|EN[ \t]+INGL[EÉ]S|VISUAL))?)(?:\s*\*+)?\s*:)/gi,
+      /([^\n])\s+((?:\*+\s*)?(?:T[IÍ]TULO|TITLE|DESCRIPCI[OÓ]N|DESCRIPTION|EXPLICACI[OÓ]N|TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|SCREEN[_\s]*TEXT|OVERLAY(?:[_\s]*TEXT)?|(?:IMAGE[ \t]+)?PROMPT(?:[ \t]+(?:T[EÉ]CNICO|EN[ \t]+INGL[EÉ]S|VISUAL))?)(?:\s*\*+)?\s*:)/gi,
       '$1\n$2'
     )
     .trim();
@@ -3223,7 +3386,7 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
   };
 
   const headerLineRegex =
-    /(?:^|\n)[ \t]*(?:[-•*# \t]|\d+[.)][ \t]*)*\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|TRIGGER)(?:[ \t]+NEUROPSICOL[OÓ]GICO)?[_\s\-]*([ABC123])\b[ \t]*\]?(?:[ \t]*\*+)?(?:[ \t]*[:\-—–][ \t]*([^\n]*))?/gi;
+    /(?:^|\n)[ \t]*(?:[-•*# \t]|\d+[.)][ \t]*)*\[?[ \t]*(?:DISPARADOR|OPCI[OÓ]N|OPTION|TRIGGER)(?:[ \t]+NEUROPSICOL[OÓ]GICO)?[_\s\-]*([ABC123])\b[ \t]*\]?(?:[ \t]*\*+)?(?:[ \t]*[:\-—–][ \t]*([^\n]*))?/gi;
 
   const headerHits: Array<{
     id: 'A' | 'B' | 'C';
@@ -3261,20 +3424,20 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
     const body = cleaned.slice(cur.bodyStartIdx, nextStart);
 
     const titleMatch = body.match(
-      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?T[IÍ]TULO(?:[ \t]+DEL[ \t]+DISPARADOR)?[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:T[IÍ]TULO(?:[ \t]+DEL[ \t]+DISPARADOR)?|TITLE)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
     );
     const descMatch = body.match(
-      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:DESCRIPCI[OÓ]N|EXPLICACI[OÓ]N|JUSTIFICACI[OÓ]N)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+(?:\n(?![ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:DESCRIPCI[OÓ]N|DESCRIPTION|EXPLICACI[OÓ]N|JUSTIFICACI[OÓ]N)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+(?:\n(?![ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|SCREEN[_\s]*TEXT|OVERLAY|PROMPT|T[IÍ]TULO|TITLE)\b)[^\n]+)*)/i
     );
     const overlayMatch = body.match(
-      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|OVERLAY(?:[_\s]*TEXT)?)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
+      /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:TEXTO[_\s]*(?:EN[_\s]*)?PANTALLA|SCREEN[_\s]*TEXT|OVERLAY(?:[_\s]*TEXT)?)[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([^\n]+)/i
     );
     const promptMatch = body.match(
       /(?:^|\n)[ \t]*(?:[-•*][ \t]+)?(?:\*+[ \t]*)?(?:IMAGE[ \t]+)?PROMPT(?:[ \t]+(?:T[EÉ]CNICO|EN[ \t]+INGL[EÉ]S|VISUAL))?[ \t]*(?:\*+)?[ \t]*:[ \t]*(?:\*+)?[ \t]*([\s\S]+)$/i
     );
 
     const rawTitleCandidate = stripFieldMd(titleMatch?.[1] || cur.inlineTitle || '')
-      .replace(/^(?:opci[oó]n|disparador)\s*[abc123]\s*[:\-—–.]?\s*/i, '')
+      .replace(/^(?:opci[oó]n|option|disparador|trigger)\s*[abc123]\s*[:\-—–.]?\s*/i, '')
       .trim();
     const safeTitleCore = sanitizeBrandSafeEditorialText(rawTitleCandidate);
     const cleanTitle = safeTitleCore

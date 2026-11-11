@@ -1165,7 +1165,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Actúa como OpusClip Pro. Del siguiente guion con tiempos de "${sourceTitle}", selecciona los ${desiredClipCount} fragmentos más virales de entre ${minDur}s y ${maxDur}s. Devuelve únicamente un bloque JSON con {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. GUION: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", select the ${desiredClipCount} most viral standalone segments lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   sendCommandToWebBridge('GEMINI', {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,

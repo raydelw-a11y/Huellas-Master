@@ -1644,6 +1644,15 @@ function mergeTwoDocumentaryObjects(
     if (Array.isArray(oNorm.references) && oNorm.references.length > 0) {
       baseWinner.references = oNorm.references;
     }
+    if (oNorm.rawClipsText && String(oNorm.rawClipsText).trim()) {
+      baseWinner.rawClipsText = oNorm.rawClipsText;
+    }
+    if (oNorm.operationalHeader && String(oNorm.operationalHeader).trim()) {
+      baseWinner.operationalHeader = oNorm.operationalHeader;
+    }
+    if (Array.isArray(oNorm.clips) && oNorm.clips.length > 0) {
+      baseWinner.clips = oNorm.clips;
+    }
   }
 
   if (
@@ -2258,7 +2267,7 @@ export function buildStagePromptText(
   customInstruction?: string
 ): string {
   const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
-  const clipDurationLabel = `${standardClipSec} segundos`;
+  const clipDurationLabel = `${standardClipSec} seconds`;
   const c1Dur = clip1Sec;
   const voiceEntrySec = c1Dur + 2;
   const clip2StartSec = doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? c1Dur + 2 : c1Dur;
@@ -2311,27 +2320,28 @@ export function buildStagePromptText(
     youtubeVideoTitle || youtubeVideoDescription || youtubeVideoTags
   );
   const metadataAlreadyInCommentsBlock =
-    youtubeCommentsResearchBlock.includes('ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE');
+    youtubeCommentsResearchBlock.includes('ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE') ||
+    youtubeCommentsResearchBlock.includes('YOUTUBE VIDEO TITLE, DESCRIPTION & TAGS ANALYSIS');
 
   const standaloneYoutubeMetadataBlock =
     (hasExplicitMetadataFields || youtubeViralLink) && !metadataAlreadyInCommentsBlock
-      ? `\n================================================================================\n🏷️ ANÁLISIS DE PATRONES VIRALES (TÍTULO, DESCRIPCIÓN Y TAGS) DEL VIDEO GUÍA DE YOUTUBE (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- TÍTULO DEL VIDEO INVESTIGADO (USAR SOLO COMO GUÍA DE PATRÓN VIRAL, NO DUPLICAR SU TEMA): "${youtubeVideoTitle || youtubeViralLink}"${
-          youtubeVideoChannel ? `\n- CANAL DE ORIGEN: ${youtubeVideoChannel}` : ''
-        }\n- TAGS / PALABRAS CLAVE DEL VIDEO INVESTIGADO: ${
-          youtubeVideoTags || '(Analizar la estrategia de intención de búsqueda y psicología de tags del video guía)'
-        }\n- DESCRIPCIÓN DEL VIDEO INVESTIGADO:\n${
+      ? `\n================================================================================\n🏷️ VIRAL PATTERN ANALYSIS (TITLE, DESCRIPTION & TAGS) OF THE REFERENCE YOUTUBE VIDEO (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- ANALYZED VIDEO TITLE (USE STRICTLY AS A VIRAL PATTERN GUIDE, NEVER DUPLICATE ITS SUBJECT): "${youtubeVideoTitle || youtubeViralLink}"${
+          youtubeVideoChannel ? `\n- SOURCE CHANNEL: ${youtubeVideoChannel}` : ''
+        }\n- ANALYZED VIDEO TAGS / KEYWORDS: ${
+          youtubeVideoTags || '(Analyze search intent strategy and tag psychology of the reference video)'
+        }\n- ANALYZED VIDEO DESCRIPTION:\n${
           youtubeVideoDescription
             ? youtubeVideoDescription.slice(0, 3500)
-            : '(Analizar la arquitectura de capítulos, ritmo narrativo y ganchos de la descripción del video guía)'
-        }\n\n-> REGLA DE ORO (PROHIBIDO DUPLICAR EL VIDEO INVESTIGADO):\n   • NO queremos duplicar ni hacer un video sobre el mismo tema, marca, personaje o evento del video investigado.\n   • El video investigado se usa EXCLUSIVAMENTE como GUÍA, ESTRUCTURA Y ANÁLISIS para extraer los PATRONES, FÓRMULAS Y DETALLES PSICOLÓGICOS que hicieron que se viralizara en YouTube:\n     1. Del TÍTULO: Extrae su patrón psicológico y fórmula de CTR (ej. contraste numérico "cayó X veces / rechazado Y veces", paradoja de supervivencia, revelación oculta) para aplicar ese MISMO PATRÓN a un tema histórico 100% ORIGINAL de nuestro canal.\n     2. De la DESCRIPCIÓN: Extrae su arquitectura de capítulos/timestamps, cadencia de tensión, distribución de bloques y estilo de resumen para usarlos como molde estructural en nuestro documental.\n     3. De los TAGS y COMENTARIOS: Extrae los gatillos de curiosidad, emociones humanas y tipo de incógnitas que atraparon a la audiencia para replicar ese efecto viral en nuestra propia historia original.\n`
+            : '(Analyze chapter architecture, narrative pacing, and retention hooks from the reference video description)'
+        }\n\n-> GOLDEN ORIGINALITY RULE (STRICTLY FORBIDDEN TO DUPLICATE THE ANALYZED VIDEO):\n   • Do NOT duplicate or create a video about the same topic, brand, person, or event as the analyzed reference video.\n   • Use the analyzed video EXCLUSIVELY as a STRUCTURAL BLUEPRINT AND VIRAL PATTERN GUIDE to extract the psychological mechanics that made it go viral on YouTube:\n     1. From the TITLE: Extract its psychological pattern and CTR formula (e.g., numeric contrast, survival paradox, hidden historical revelation) and apply that EXACT SAME PATTERN to a 100% ORIGINAL historical topic for our channel.\n     2. From the DESCRIPTION: Extract its chapter/timestamp architecture, tension cadence, act proportions, and summary hooks as a structural mold for our documentary.\n     3. From TAGS & COMMENTS: Extract curiosity triggers, human emotions, and open questions that captivated viewers to replicate that retention effect in our own original historical story.\n`
       : '';
 
   const viralContextBlock = selectedStructureSummary
-    ? `\n================================================================================\n🏛️ GUÍA ESTRUCTURAL Y PATRONES VIRALES DEL VIDEO INVESTIGADO: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nRADIOGRAFÍA DE PATRONES VIRALES Y ESTRUCTURA EXTRAÍDA DE ESTE VIDEO:\n${selectedStructureSummary}\n\n⚠️ INSTRUCCIÓN OBLIGATORIA (NO DUPLICAR TEMA — USAR SOLO COMO GUÍA Y ESTRUCTURA VIRAL):\nPROHIBIDO duplicar o copiar el tema, personaje, marca o suceso del video investigado. Úsalo ÚNICAMENTE como guía, molde estructural y análisis de los patrones y detalles (fórmula del gancho, ritmo de bloques, micro-ganchos de retención, contrastes dramáticos y gatillos psicológicos) que hicieron que se viralizara en YouTube, aplicándolos a un documental 100% ORIGINAL de "Huellas de la Humanidad".\n${standaloneYoutubeMetadataBlock}${
+    ? `\n================================================================================\n🏛️ STRUCTURAL BLUEPRINT & VIRAL PATTERNS FROM ANALYZED REFERENCE VIDEO: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nVIRAL PATTERN BREAKDOWN & STRUCTURE EXTRACTED FROM THIS REFERENCE VIDEO:\n${selectedStructureSummary}\n\n⚠️ MANDATORY INSTRUCTION (DO NOT DUPLICATE TOPIC — USE ONLY AS STRUCTURAL & VIRAL BLUEPRINT):\nStrictly FORBIDDEN to duplicate or copy the topic, character, brand, or event of the analyzed video. Use it SOLELY as a structural mold and analysis of the viral mechanics (hook formula, act pacing, retention micro-hooks, dramatic contrasts, and psychological triggers) applied to a 100% ORIGINAL historical documentary for "Huellas de la Humanidad".\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : youtubeViralLink
-    ? `\n================================================================================\n🔥 VIDEO DE YOUTUBE A INVESTIGAR COMO GUÍA DE ESTRUCTURA Y PATRONES VIRALES: ${youtubeViralLink}\n================================================================================\n⚠️ INSTRUCCIÓN OBLIGATORIA (PROHIBIDO DUPLICAR EL VIDEO INVESTIGADO — USAR COMO GUÍA DE PATRONES VIRALES):\nNO queremos duplicar el tema ni la historia del video pegado (${youtubeViralLink}). Queremos analizar a fondo QUÉ PATRONES Y DETALLES HICIERON QUE SE VIRALIZARA EN YOUTUBE para usarlos como guía y estructura en un documental 100% ORIGINAL y DISTINTO de nuestro canal "Huellas de la Humanidad":\n1) Realiza la radiografía de viralidad del video guía (${youtubeViralLink}), descomponiendo su TÍTULO (fórmula de clic y contraste), DESCRIPCIÓN (estructura de capítulos y promesas), TAGS (intención de búsqueda) y sus 8 ejes virales: Hook (0-30s), Escaleta porcentual bloque por bloque, Micro-ganchos de retención, Gatillos psicológicos, Cadencia del guion, Dirección visual/sonora, Empaque viral y Patrón Maestro transferible.\n2) Aplica esos patrones virales, proporciones y mecanismos de retención a nuestro documental original en proceso (sin repetir jamás el tema del video investigado).\n${standaloneYoutubeMetadataBlock}${
+    ? `\n================================================================================\n🔥 REFERENCE YOUTUBE VIDEO TO ANALYZE AS STRUCTURAL & VIRAL BLUEPRINT: ${youtubeViralLink}\n================================================================================\n⚠️ MANDATORY INSTRUCTION (DO NOT DUPLICATE ANALYZED VIDEO — USE AS VIRAL PATTERN GUIDE):\nDo NOT duplicate the topic or story of the pasted video (${youtubeViralLink}). Analyze in depth WHAT PATTERNS AND DETAILS MADE IT GO VIRAL ON YOUTUBE and apply them as a structural blueprint for a 100% ORIGINAL and DIFFERENT historical documentary for our channel "Huellas de la Humanidad":\n1) Perform a viral X-ray of the reference video (${youtubeViralLink}), breaking down its TITLE (click formula & contrast), DESCRIPTION (chapter architecture & promises), TAGS (search intent), and 8 viral axes: Hook (0-30s), Percentage act outline, Retention micro-hooks, Psychological triggers, Script cadence, Visual/sound direction, Viral packaging, and Transferable Master Pattern.\n2) Apply those viral patterns, proportions, and retention mechanics to our original documentary in progress (never repeating the topic of the analyzed video).\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : standaloneYoutubeMetadataBlock || youtubeCommentsResearchBlock
@@ -2344,86 +2354,83 @@ export function buildStagePromptText(
     const cleanTypology = (doc.typology || '').trim();
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
-    stagePrompt = `Actúa como director e investigador jefe para "Huellas de la Humanidad".
-Esta es la FASE 1 DE LA ETAPA 1 (4 Carbon · Thinking level: Low · SIN Deep Research): Investigación de patrones virales del otro video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática para nuestro documental ORIGINAL.${viralContextBlock}
+    stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
+This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): Viral pattern analysis of the reference video + Determination of Historical Definition, Continuity, and Mathematical Calibration for our ORIGINAL documentary.${viralContextBlock}
+
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Write all explanatory prose, summaries, and option texts in Spanish (Neutral Documentary Spanish for our producer UI), while keeping the exact structural section markers requested below.
 
 ================================================================================
-🏛️ ESTADO ACTUAL DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA A DETERMINAR
+🏛️ CURRENT HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION STATE TO DETERMINE
 ================================================================================
-- Tipología del protocolo: ${
+- Protocol Typology: ${
       cleanTypology ||
-      'EN BLANCO (Determinar cuál de las 8 tipologías del protocolo usar O CREAR UNA NUEVA tipología universal basada en el PATRÓN VIRAL del video investigado, SIN copiar el tema del video investigado)'
+      'BLANK (Determine which of the 8 protocol typologies to use OR CREATE A NEW universal archetypal typology based on the VIRAL PATTERN of the analyzed video, WITHOUT copying the topic of the analyzed video)'
     }
-- Tema central del documental: ${
+- Central Documentary Topic: ${
       cleanTopic ||
-      'EN BLANCO (Proponer 3 temas históricos 100% ORIGINALES, DIFERENTES e INÉDITOS para "Huellas de la Humanidad" —PROHIBIDO duplicar el tema del video investigado— que utilicen exactamente los mismos patrones, contrastes y estructura que hicieron viral al video investigado)'
+      'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
     }
-- Tiempo / Época histórica (años en dígitos, siglos en romanos): ${
+- Historical Time / Era (years in digits, centuries in Roman numerals): ${
       cleanTime ||
-      'EN BLANCO (Determinar automáticamente con años en dígitos o Siglo en números romanos acorde con nuestro nuevo tema original, ej. Año 1888 / Siglo XIX)'
+      'BLANK (Automatically determine with years in digits or Century in Roman numerals matching our new original topic, e.g., Año 1888 / Siglo XIX)'
     }
-- Lugar histórico (Ciudad, País): ${
-      cleanLoc || 'EN BLANCO (Determinar automáticamente Ciudad, País acorde con nuestro nuevo tema original)'
+- Historical Location (City, Country): ${
+      cleanLoc || 'BLANK (Automatically determine City, Country matching our new original topic)'
     }
 ${
   excludePreviousParts
-    ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
+    ? `- Continuity / FORBIDDEN Elements that MUST NOT be repeated from previous episodes: ${excludePreviousParts}\n`
     : ''
-}- ⏱️ Calibración Matemática seleccionada:
-  • Duración Total Objetivo del Proyecto: ~${totalTargetSec} segundos (~${(totalTargetSec / 60).toFixed(0)} minutos)
-  • Intro Oficial de Marca: 00:00 - 00:08 (${fixedIntroSec}s fijos)
-  • Clip 1 (Hook visual sin voz): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
-  • Entrada de la Voz Narrativa y Cuerpo de Clips (${clipDurationLabel} c/u): Segundo ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) durante ~${effectiveNarratedSec}s de narración efectiva
-  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos
-${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS:\n${selectedAudienceQuestions}\n` : ''}
+}- ⏱️ Selected Mathematical Calibration:
+  • Target Total Project Duration: ~${totalTargetSec} seconds (~${(totalTargetSec / 60).toFixed(0)} minutes)
+  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed)
+  • Clip 1 (Visual Hook without voiceover): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
+  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
+  • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
+${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n${selectedAudienceQuestions}\n` : ''}
 ================================================================================
-⚡ TAREA DE LA FASE 1 (ANÁLISIS DE PATRONES VIRALES DEL VIDEO GUÍA + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA ORIGINAL Y CALIBRACIÓN MATEMÁTICA)
+⚡ PHASE 1 TASK (VIRAL PATTERN ANALYSIS + ORIGINAL HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION)
 ================================================================================
-⚠️ REGLA CRÍTICA DE ORIGINALIDAD:
-- NO queremos duplicar el video investigado ni hacer un documental sobre el mismo tema/marca/suceso del video investigado.
-- Queremos usar el video investigado EXCLUSIVAMENTE como guía, estructura y análisis para extraer los PATRONES y DETALLES que hicieron que se viralizara en YouTube (su arquetipo narrativo, su estructura de caídas y giros, su ritmo de capítulos, sus gatillos psicológicos y su fórmula de título/gancho) y aplicarlos a un documental 100% ORIGINAL de "Huellas de la Humanidad".
-- En la PARTE 1 (Tipología del Video), NUNCA pongas el nombre o tema del video investigado; define una tipología general/arquetípica del protocolo (o crea la Tipología #9 como un arquetipo narrativo viral reutilizable).
+⚠️ CRITICAL ORIGINALITY RULE:
+- Do NOT duplicate the analyzed video or create a documentary about the same subject/brand/event.
+- Use the analyzed video EXCLUSIVELY as a structural guide to extract the PATTERNS and DETAILS that made it viral on YouTube and apply them to a 100% ORIGINAL documentary for "Huellas de la Humanidad".
+- In PARTE 1 (Video Typology), NEVER write the name or specific topic of the analyzed video; define a reusable universal archetypal typology.
 
-Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4, 5, 6 o TANTAS OPCIONES COMO PATRONES, ÁNGULOS Y DETALLES DÉ EL VIDEO ANALIZADO, sin limitarte a 3) para cada parte de nuestro documental:
+Deliver this structured report in Spanish with MULTIPLE OPTIONS (3, 4, 5, 6, or as many options as angles emerge from the analyzed video) preserving the exact Spanish section headers below for parser compatibility:
 
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (TANTAS OPCIONES COMO PATRONES TENGA EL VIDEO ANALIZADO):
-   Entrega obligatoriamente este bloque con opciones numeradas (Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... tantas como salgan del análisis del video referente) para cada una de las 7 partes:
-   - PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO — PERMITE SELECCIONAR VARIAS OPCIONES):
-     • Resumen de esta parte: [Explica qué patrones narrativos/psicológicos hicieron viral al video guía y qué tipologías del protocolo y nuevas tipologías arquetípicas se pueden combinar en nuestro documental original]
-     • Opción 1: [Nueva tipología arquetípica universal #1 extraída del patrón central del video analizado — PROHIBIDO mencionar el tema específico del video investigado]
-     • Opción 2: [Nueva tipología arquetípica universal #2 extraída del patrón de apertura/subasta/crisis del video analizado]
-     • Opción 3: [Nueva tipología arquetípica universal #3 extraída del patrón de rivalidad/secreto del video analizado]
-     • Opción 4..N: [Agrega Opción 4, Opción 5, Opción 6... con todas las tipologías oficiales del protocolo (1 a 8) y nuevas tipologías arquetípicas adicionales que apliquen según el video analizado]
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL:
+   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 7 parts:
+   - PARTE 1 — TIPOLOGÍA DEL VIDEO:
+     • Resumen de esta parte: [Explain in Spanish which narrative/psychological patterns made the reference video go viral and which protocol/new archetypal typologies fit our original documentary]
+     • Opción 1..N: [Multiple universal archetypal typologies in Spanish — NEVER mention the specific topic of the analyzed video]
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
-     • Resumen de esta parte: [Explica cómo aplicamos la fórmula viral del video guía a múltiples temas históricos 100% ORIGINALES y DISTINTOS para "Huellas de la Humanidad"]
-     • Opción 1: [Tema histórico 100% ORIGINAL y DIFERENTE al video investigado, diseñado con el mismo patrón de impacto, contraste numérico y tensión dramática]
-     • Opción 2: [Segundo tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en hazañas, crisis ocultas o supervivencia humana]
-     • Opción 3: [Tercer tema histórico 100% ORIGINAL y DIFERENTE al video investigado, enfocado en un misterio, imperio o invención histórica olvidada]
-     • Opción 4..N: [Agrega Opción 4, Opción 5, Opción 6... con tantos temas históricos originales adicionales como ángulos y patrones virales se desprendan del video analizado]
-   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2):
-     • Resumen de esta parte: [Justificación del marco cronológico vinculado en concordancia con la Tipología (Parte 1) y el Tema Central seleccionado en la Parte 2]
-     • Opción 1..N: [Entrega múltiples delimitaciones cronológicas concordantes (años en dígitos y Siglo en números romanos: arco completo, década de apogeo/crisis, años exactos del punto de quiebre, etc.) ligadas al Tema Central principal de la Parte 2, además de la época exacta correspondiente a cada opción de la Parte 2]
-   - PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2):
-     • Resumen de esta parte: [Justificación de los escenarios geográficos vinculados en concordancia con la Tipología (Parte 1) y el Tema Central seleccionado en la Parte 2]
-     • Opción 1..N: [Entrega múltiples escenarios geográficos concordantes (Ciudad, País principal, epicentro operativo, ruta comercial/industrial y sede de poder) ligados al Tema Central principal de la Parte 2, además del lugar exacto correspondiente a cada opción de la Parte 2]
+     • Resumen de esta parte: [Explain in Spanish how the viral formula maps to 100% ORIGINAL historical topics for "Huellas de la Humanidad"]
+     • Opción 1..N: [Multiple 100% ORIGINAL historical topics in Spanish using the same contrast, tension, and retention mechanics]
+   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA:
+     • Resumen de esta parte: [Justification in Spanish of the chronological timeframe matching Parts 1 & 2]
+     • Opción 1..N: [Multiple chronological scopes in Spanish with years in digits and Centuries in Roman numerals, e.g., Año 1888 / Siglo XIX]
+   - PARTE 4 — LUGAR HISTÓRICO:
+     • Resumen de esta parte: [Justification in Spanish of the geographic settings matching Parts 1 & 2]
+     • Opción 1..N: [Multiple geographic settings in Spanish (City, Country)]
    - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
-     • Resumen de esta parte: [Cómo adaptamos todos los patrones de Hook del video guía a nuestro nuevo documental original]
-     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las variantes de Hook visual/narrativo (00:08) y paradoja central extraídas de los patrones del video analizado]
+     • Resumen de esta parte: [How we adapt the reference video's Hook patterns to our new original documentary]
+     • Opción 1..N: [Visual/narrative Hook variants (00:08) and central paradox in Spanish]
    - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN):
-     • Resumen de esta parte: [Cómo trasladamos los porcentajes y ritmo de bloques del video guía a nuestros ~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s]
-     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las variantes de escaleta matemática por bloques (%) y minutos (~${(totalTargetSec / 60).toFixed(0)} min con Intro 8s y Outro 8s) según el video analizado]
+     • Resumen de esta parte: [How we map block percentages and pacing to ~${(totalTargetSec / 60).toFixed(0)} min with 8s Intro and 8s Outro]
+     • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
    - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
-     • Resumen de esta parte: [Estrategia de desenlace emocional e histórico hacia el Outro de 8s]
-     • Opción 1..N: [Entrega Opción 1, Opción 2, Opción 3, Opción 4, Opción 5, Opción 6... con todas las opciones de clímax histórico y cierre reflexivo extraídas del video analizado]
+     • Resumen de esta parte: [Emotional and historical payoff strategy leading into the 8s Outro]
+     • Opción 1..N: [Historical climax and reflective ending options in Spanish]
 
-1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (QUÉ HIZO QUE SE VIRALIZARA Y CÓMO LO USAMOS DE GUÍA):
-   - Desglose de los patrones exactos que hicieron viral al video investigado (estructura del Título, ritmo de capítulos en la Descripción, intención de los Tags, detonantes de Comentarios, porcentajes por bloque y gatillos psicológicos) y cómo funcionan como molde para nuestro documental de ~${(totalTargetSec / 60).toFixed(0)} minutos.
+1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:
+   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${(totalTargetSec / 60).toFixed(0)}-minute documentary.
 
-2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL (SEGÚN TEMA, PARTES, DESENLACE, TRAMA E HISTORIA):
-   - Evalúa la complejidad del tema histórico propuesto, la densidad y número de partes/actos, el desarrollo de la trama, la fuerza del clímax/desenlace y el alcance cronológico de la historia para recomendar la duración total óptima del documental entre las opciones oficiales del estudio (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hora, 7200s = 2 horas).
-   - RECOMENDACIÓN_DURACIÓN_TOTAL: [Escribe exactamente uno de estos valores en segundos: 600 | 900 | 1200 | 1800 | 3600 | 7200]
-   - DURACIÓN TOTAL SUGERIDA: [Ej: 15 minutos (900s) o 20 minutos (1200s)]
-   - JUSTIFICACIÓN DE DURACIÓN (SEGÚN TEMA, PARTES, TRAMA, DESENLACE E HISTORIA): [Explica por qué esa duración exacta es la ideal según: 1) Tema e Historia, 2) Cantidad y ritmo de Partes/Actos, 3) Desarrollo de la Trama y giros, y 4) Construcción del Clímax y Desenlace].`;
+2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL:
+   - Evaluate topic complexity, act density, plot twists, climax weight, and chronological span to recommend the optimal official studio duration (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).
+   - RECOMENDACIÓN_DURACIÓN_TOTAL: [Write EXACTLY one of these values in seconds: 600 | 900 | 1200 | 1800 | 3600 | 7200]
+   - DURACIÓN TOTAL SUGERIDA: [e.g., 15 minutos (900s) o 20 minutos (1200s)]
+   - JUSTIFICACIÓN DE DURACIÓN: [Explain in Spanish why that exact duration is ideal based on topic, acts, plot development, and climax].`;
   } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
@@ -2444,51 +2451,54 @@ Entrega obligatoriamente este informe estructurado con MÚLTIPLES OPCIONES (3, 4
       youtubeViralLink ||
       selectedAnalyzedVideoId;
 
-    stagePrompt = `Actúa como un historiador, director de cine, e investigador documental jefe para "Huellas de la Humanidad".
-Esta es la FASE 2 DE LA ETAPA 1 (INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), utilizando la 🏛️ Definición Histórica y Continuidad, el 📚 Video Analizado de la Biblioteca seleccionado en el Paso 1 y la ⏱️ Calibración Matemática ya determinadas en la Fase 1.${viralContextBlock}
+    stagePrompt = `Act as a Master Historian, Film Director, and Chief Documentary Investigator for "Huellas de la Humanidad".
+This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}
+
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Deliver the entire historical research dossier and structural outline in clear, rigorous Documentary Spanish so it directly feeds the Spanish Voiceover Script in the next stage.
 
 ================================================================================
-🏛️ DEFINICIÓN HISTÓRICA, VIDEO REFERENTE DE BIBLIOTECA Y CALIBRACIÓN DETERMINADAS EN FASE 1
+🏛️ HISTORICAL DEFINITION, REFERENCE LIBRARY VIDEO & CALIBRATION FROM PHASE 1
 ================================================================================
 ${
   referenceVideoLabel
-    ? `- 📚 Video Analizado de la Biblioteca / Referente Estructural seleccionado en Paso 1 (FORMA PARTE DE ESTA INVESTIGACIÓN DEEP RESEARCH): "${referenceVideoLabel}"${
+    ? `- 📚 Selected Analyzed Library / Structural Reference Video from Step 1 (PART OF THIS DEEP RESEARCH): "${referenceVideoLabel}"${
         selectedAnalyzedVideoId ? ` [ID: ${selectedAnalyzedVideoId}]` : ''
       }${youtubeViralLink ? ` (${youtubeViralLink})` : ''}\n`
     : ''
-}- Tipología del protocolo determinada: ${cleanTypology || 'Por confirmar en la investigación'}
-- Tema central del documental determinado: ${cleanTopic || 'Por confirmar en la investigación'}
-- Tiempo / Época histórica determinada: ${cleanTime || 'Por confirmar en la investigación'}
-- Lugar histórico determinado (Ciudad, País): ${cleanLoc || 'Por confirmar en la investigación'}
-${chosenHookProp ? `- Gancho Inicial y Contradicción Central seleccionada (Parte 5): ${chosenHookProp}\n` : ''}${
-      chosenEscaletaProp ? `- Calibración Matemática y Escaleta por Actos seleccionada (Parte 6): ${chosenEscaletaProp}\n` : ''
-    }${chosenClimaxProp ? `- Clímax Histórico y Cierre Reflexivo seleccionado (Parte 7): ${chosenClimaxProp}\n` : ''}${
+}- Confirmed Protocol Typology: ${cleanTypology || 'To be confirmed in research'}
+- Confirmed Central Documentary Topic: ${cleanTopic || 'To be confirmed in research'}
+- Confirmed Historical Time / Era: ${cleanTime || 'To be confirmed in research'}
+- Confirmed Historical Location (City, Country): ${cleanLoc || 'To be confirmed in research'}
+${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 5): ${chosenHookProp}\n` : ''}${
+      chosenEscaletaProp ? `- Selected Mathematical Calibration & Act Outline (Part 6): ${chosenEscaletaProp}\n` : ''
+    }${chosenClimaxProp ? `- Selected Historical Climax & Reflective Ending (Part 7): ${chosenClimaxProp}\n` : ''}${
       excludePreviousParts
-        ? `- Continuidad / Elementos PROHIBIDOS que NO se deben repetir de partes anteriores: ${excludePreviousParts}\n`
+        ? `- Continuity / FORBIDDEN Elements NOT to repeat from previous parts: ${excludePreviousParts}\n`
         : ''
-    }- ⏱️ Calibración Matemática del Video (con Intro y Outro Oficiales de 8s):
-  • Duración Total Objetivo del Proyecto: ~${totalTargetSec} segundos (~${(totalTargetSec / 60).toFixed(1)} min)
-  • Intro Oficial de Marca: 00:00 - 00:08 (${fixedIntroSec}s fijos — sin voz ni música de fondo)
-  • Clip 1 (Hook visual con Texto en Pantalla sin voz): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
-  • Entrada de la Voz Narrativa y Cuerpo de Clips (${clipDurationLabel} c/u): Segundo ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) durante ~${effectiveNarratedSec}s de narración efectiva
-  • Outro Oficial de Marca al cierre: Últimos ${fixedOutroSec} segundos fijos
-${selectedAudienceQuestions ? `\n💬 COMENTARIOS Y DUDAS DE LA AUDIENCIA SELECCIONADOS PARA RESPONDER EN LA INVESTIGACIÓN PROFUNDA:\n${selectedAudienceQuestions}\n` : ''}${
+    }- ⏱️ Video Mathematical Calibration (with 8s Official Brand Intro & Outro):
+  • Target Total Project Duration: ~${totalTargetSec} seconds (~${(totalTargetSec / 60).toFixed(1)} min)
+  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed — no voiceover or background music)
+  • Clip 1 (Visual Hook with On-Screen Text, no voiceover): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
+  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
+  • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
+${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO ANSWER IN DEEP RESEARCH:\n${selectedAudienceQuestions}\n` : ''}${
       part1AnalysisText
-        ? `\n📌 CONCLUSIONES PREVIAS DE LA FASE 1 (DEFINICIÓN Y CALIBRACIÓN):\n${part1AnalysisText.slice(0, 3500)}\n`
+        ? `\n📌 PHASE 1 PRIOR CONCLUSIONS (DEFINITION & CALIBRATION):\n${part1AnalysisText.slice(0, 3500)}\n`
         : ''
     }
 ================================================================================
-🔬 TAREA DE INVESTIGACIÓN PROFUNDA (4 CARBON · THINKING LEVEL: LOW + DEEP RESEARCH)
+🔬 DEEP RESEARCH TASK (4 CARBON · THINKING LEVEL: LOW + DEEP RESEARCH)
 ================================================================================
-Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, época, lugar y estructura ya determinados arriba, integrando directamente el Video Analizado de la Biblioteca seleccionado en el Paso 1 como molde estructural y de retención (sin copiar su tema), y entrégala en estas 4 secciones claras:
-1. DESGLOSE MATEMÁTICO Y ESTRUCTURAL POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN CON INTRO 8S Y OUTRO 8S + PATRONES DEL VIDEO ANALIZADO EN PASO 1):
-   - Mapa exacto de los bloques narrativos con su porcentaje (%), rango de tiempo exacto, puntos de giro y micro-ganchos de retención calibrados según el video referente seleccionado en el Paso 1.
-2. RECUENTO HISTÓRICO CRONOLÓGICO, CURIOSIDADES INSÓLITAS Y CONTRADICCIONES DOCUMENTADAS:
-   - Desarrollo profundo acto por acto con fechas exactas, cifras reales, leyes, contratos, precios de la época, detalles sensoriales verificados (olores, sonidos, texturas, arquitectura) y respuestas históricas a las dudas de la audiencia.
-3. DOSSIER COMPLETO DE INVESTIGACIÓN PROFUNDA (FUENTES PRIMARIAS, ARCHIVOS Y CRÓNICAS):
-   - Hechos documentados, expedientes judiciales/comerciales/arqueológicos, micro-historias humanas con nombres reales y citas históricas listas para nutrir el Guion de Voz en Off en la Etapa 2.
-4. PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES CLAVE (PARA REFERENCIAS DE GOOGLE FLOW):
-   - Lista de los protagonistas históricos (@Nombre_Personaje) y escenarios principales (@Nombre_Lugar) con su descripción física, edad, rostro e indumentaria histórica exacta de la época (${cleanTime || 'época determinada'}, ${cleanLoc || 'lugar determinado'}).`;
+Execute an exhaustive Deep Research investigation on the topic, era, location, and structure above, integrating the Step 1 Analyzed Reference Video strictly as a structural and retention mold (never copying its topic), and deliver the report in Spanish organized into these 4 clear sections:
+1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO & 8S OUTRO + VIRAL PATTERNS FROM STEP 1):
+   - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks calibrated to the Step 1 reference blueprint.
+2. CHRONOLOGICAL HISTORICAL ACCOUNT, UNUSUAL FACTS & DOCUMENTED CONTRADICTIONS:
+   - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
+3. COMPLETE PRIMARY-SOURCE RESEARCH DOSSIER (ARCHIVES, CHRONICLES & RECORDS):
+   - Documented facts, judicial/commercial/archaeological records, real human micro-stories with verified names, and historical quotes ready to feed the Voiceover Script.
+4. EARLY PRE-DETECTION OF KEY @CHARACTERS & @LOCATIONS (FOR GOOGLE FLOW REFERENCES):
+   - List of historical protagonists (@Character_Name) and primary settings (@Location_Name) with physical traits, age, face, and exact period attire (${cleanTime || 'target era'}, ${cleanLoc || 'target location'}).`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
@@ -2513,11 +2523,11 @@ Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, é
     const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
     const chosenPropositionBlock =
       chosenHookProp || chosenActsProp || chosenClimaxProp
-        ? `\nProposición Seleccionada por Partes para Nuestro Documental:\n${
-            doc.typology ? `- Tipología: ${doc.typology}\n` : ''
-          }${chosenHookProp ? `- Gancho Inicial y Ángulo Central: ${chosenHookProp}\n` : ''}${
-            chosenActsProp ? `- Escaleta y Desarrollo por Actos: ${chosenActsProp}\n` : ''
-          }${chosenClimaxProp ? `- Clímax y Cierre Reflexivo: ${chosenClimaxProp}\n` : ''}`
+        ? `\nSelected Documentary Proposition by Parts:\n${
+            doc.typology ? `- Typology: ${doc.typology}\n` : ''
+          }${chosenHookProp ? `- Opening Hook & Central Angle: ${chosenHookProp}\n` : ''}${
+            chosenActsProp ? `- Act Outline & Development: ${chosenActsProp}\n` : ''
+          }${chosenClimaxProp ? `- Climax & Reflective Ending: ${chosenClimaxProp}\n` : ''}`
         : '';
 
     if (isRecalibratingExisting) {
@@ -2526,51 +2536,55 @@ Ejecuta una Investigación Profunda (Deep Research) exhaustiva sobre el tema, é
         .trim()
         .split(/\s+/)
         .filter(Boolean).length;
-      stagePrompt = `Actúa como historiador y editor jefe de guiones documentales de "Huellas de la Humanidad".
-En la Etapa 1 este documental fue configurado para una DURACIÓN TOTAL DE ${budget.totalMinutesLabel} MINUTOS (${budget.totalDurationSec} segundos).
-Sin embargo, el borrador actual del guion tiene ${currentWords} palabras, lo que al sintetizarse en nuestro motor TTS real (Charon, 147 palabras/minuto) produce un audio muy distinto a los ${budget.totalMinutesLabel} minutos pedidos.
+      stagePrompt = `Act as Lead Historian and Chief Documentary Script Editor for the Spanish-language channel "Huellas de la Humanidad".
+In Stage 1 this documentary was configured for a TOTAL DURATION OF ${budget.totalMinutesLabel} MINUTES (${budget.totalDurationSec} seconds).
+However, the current script draft has ${currentWords} words, which when synthesized by our TTS engine (Charon at 147 words/minute) produces an audio duration far from the requested ${budget.totalMinutesLabel} minutes.
 
-REESCRIBE Y CALIBRA este guion histórico para que cumpla EXACTAMENTE la duración de ${budget.totalMinutesLabel} minutos:
-- PRESUPUESTO ESTRICTO E INQUEBRANTABLE DE PALABRAS: El guion completo entregado DEBE tener ENTRE ${budget.minWords} Y ${budget.maxWords} PALABRAS en total (objetivo exacto: ~${budget.targetWords} palabras, ~${budget.targetChars} caracteres; si divides la historia en 6 bloques internos, destina ~${perActWords6} palabras por bloque). PROHIBIDO superar ${budget.maxWords} palabras o quedar por debajo de ${budget.minWords} palabras.
-- Conserva intactos todos los hitos históricos principales, fechas, nombres reales, tensión dramática, micro-ganchos y rigor documental del relato original, condensando descripciones redundantes sin amputar ningún acto de la historia.
-- Conserva obligatoriamente:
-  1) La primera oración en tríada cerrada con punto ("Año [dígitos], [Lugar, Ciudad, País]. [Premisa intrigante].").
-  2) El Párrafo 2 independiente con el Slogan Completo ("En los próximos minutos... Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros.")${
-    introPlacement === 'INTRO_POST_SLOGAN' ? ' seguido inmediatamente de [pausa: 8s]' : ''
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Output the calibrated voiceover script EXCLUSIVELY in Neutral Latin American Documentary Spanish (Español Neutro Documental), containing ONLY the exact spoken words for the narrator plus [pausa: Xs] pause tags.
+
+REWRITE AND CALIBRATE this Spanish historical script so it matches EXACTLY ${budget.totalMinutesLabel} minutes:
+- STRICT UNBREAKABLE WORD BUDGET: The complete delivered Spanish script MUST contain BETWEEN ${budget.minWords} AND ${budget.maxWords} WORDS in total (exact target: ~${budget.targetWords} words, ~${budget.targetChars} characters; ~${perActWords6} words per internal block across 6 blocks). Strictly FORBIDDEN to exceed ${budget.maxWords} words or fall below ${budget.minWords} words.
+- Preserve all key historical milestones, dates, real names, dramatic tension, retention micro-hooks, and documentary rigor of the original story, condensing redundant descriptions without amputating any act.
+- Mandatorily preserve in Spanish:
+  1) The opening triad first sentence closed with a period: "Año [digits], [Place, City, Country]. [Intriguing premise]." (Never write "en el" after the year).
+  2) Independent Paragraph 2 with the Full Channel Slogan: "En los próximos minutos... Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros."${
+    introPlacement === 'INTRO_POST_SLOGAN' ? ' followed immediately by [pausa: 8s]' : ''
   }.
-  3) Etiquetas de pausa estratégicas [pausa: 1.5s] o [pausa: 2s] (~${budget.estPauseSec}s de pausas en total).
-  4) El párrafo final con "Déjanos saber en los comentarios..." cerrando con "Cada historia deja una huella. Aquí seguimos sus rastros.".
-- Años siempre en dígitos, siglos y monarcas en números romanos, miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación (!).
-- REGLA OBLIGATORIA DEL PRIMER DÍA DEL MES EN LA VOZ NARRATIVA ("primero", NUNCA "1" NI "uno"): Cada vez que la voz narrativa mencione el primer día de cualquier mes, escríbelo SIEMPRE con la palabra "primero" (ej. "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Queda terminantemente prohibido escribir "1 de [mes]", "01 de [mes]", "1º de [mes]" o "uno de [mes]".
-- FORMATO DE ENTREGA 100% LIMPIO PARA VOXFLOW (PROHIBIDO BASURA TÉCNICA): Entrega ÚNICA Y EXCLUSIVAMENTE las palabras exactas que el narrador pronunciará en voz alta (con las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO incluir encabezados ("ETAPA 4..."), títulos de bloques o capítulos, marcas de minutos y segundos como "(00:00 - 00:08...)", "(00:16...)" o "(19:52 - 20:00...)", acotaciones entre paréntesis "(Intro...)", "(Clip 1...)", "(Outro...)" ni conteos o comentarios al pie. Tu primera palabra debe ser directamente "Año ..." (o la fecha inicial) y tus últimas palabras deben ser "...Aquí seguimos sus rastros.".
+  3) Strategic pause tags [pausa: 1.5s] or [pausa: 2s] (~${budget.estPauseSec}s total pauses).
+  4) The final paragraph starting with "Déjanos saber en los comentarios..." and closing with "Cada historia deja una huella. Aquí seguimos sus rastros.".
+- Write all years in digits, centuries and monarchs in Roman numerals (e.g., siglo XIX, Felipe II), thousands using the Spanish word "mil" (e.g., "70 mil"), and ZERO exclamation marks (!).
+- MANDATORY FIRST DAY OF THE MONTH PHONETIC RULE IN SPANISH NARRATION ("primero", NEVER "1" NOR "uno"): Whenever the Spanish voiceover mentions the first day of any month, ALWAYS spell it out with the Spanish word "primero" (e.g., "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Writing "1 de [month]", "01 de [month]", "1º de [month]", or "uno de [month]" is strictly forbidden.
+- 100% CLEAN VOXFLOW DELIVERY FORMAT (ZERO TECHNICAL CLUTTER): Output SOLELY the exact Spanish words the narrator will read aloud (with [pausa: Xs] tags). Strictly FORBIDDEN to include headers ("ETAPA 4...", "STAGE 4..."), act/chapter titles, timestamps like "(00:00 - 00:08...)", parenthetical stage/camera notes, or word-count footers. Start directly with "Año ..." and end directly with "...Aquí seguimos sus rastros.".
 
-GUION ACTUAL A CALIBRAR A ${budget.totalMinutesLabel} MINUTOS (~${budget.targetWords} PALABRAS):
+CURRENT SPANISH SCRIPT TO CALIBRATE TO ${budget.totalMinutesLabel} MINUTES (~${budget.targetWords} WORDS):
 """
 ${cleanedCurrent}
 """`;
     } else {
-      stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional para "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
-Tipología: ${doc.typology || 'Documental Histórico'}${chosenPropositionBlock}
-Duración Total Seleccionada en Etapa 1: ${budget.totalMinutesLabel} MINUTOS (${budget.totalDurationSec} segundos)
-Definición Histórica y Calibración (Paso 1):
+      stagePrompt = `Act as a Master Historian, Film Director, and Professional Investigative Journalist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Topic: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
+Typology: ${doc.typology || 'Historical Documentary'}${chosenPropositionBlock}
+Target Total Duration Selected in Stage 1: ${budget.totalMinutesLabel} MINUTES (${budget.totalDurationSec} seconds)
+Historical Definition & Calibration (Step 1):
 ${doc.deepResearchPrompt || ''}
-Investigación Profunda (Paso 2 — Deep Research):
+Deep Historical Research (Step 2 — Deep Research):
 ${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}
 
-Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas reglas inquebrantables:
-- PRESUPUESTO ESTRICTO DE DURACIÓN Y PALABRAS (${budget.totalMinutesLabel} MINUTOS REALES EN VOXFLOW): Nuestro motor TTS (Charon) narra a 147 palabras por minuto. Descontando ${effectiveVoiceEntrySec}s iniciales sin voz, ${FIXED_OUTRO_SEC}s de Outro final y ~${budget.estPauseSec}s de etiquetas [pausa: Xs], el tiempo neto de voz hablada es ~${budget.netSpeechSec}s. Por lo tanto, TODO EL GUION COMPLETO DEBE TENER OBLIGATORIAMENTE ENTRE ${budget.minWords} Y ${budget.maxWords} PALABRAS (objetivo exacto: ~${budget.targetWords} palabras / ~${budget.targetChars} caracteres; ~${perActWords6} palabras por cada uno de los 6 bloques internos). Selecciona con maestría narrativa los hechos más potentes del dossier de investigación: QUEDA TERMINANTEMENTE PROHIBIDO superar ${budget.maxWords} palabras para que el audio jamás se dispare por encima de los ${budget.totalMinutesLabel} minutos seleccionados.
-- FORMATO 100% PURO DE VOZ NARRATIVA (CERO ENCABEZADOS NI MINUTOS/SEGUNDOS): Entrega ÚNICA Y EXCLUSIVAMENTE el texto hablado exacto que leerá el locutor (más las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO escribir títulos como "ETAPA 4: GUION DE LA VOZ EN OFF", nombres de actos/bloques, rangos o marcas de tiempo como "(00:00 - 00:08 | Intro...)", "(00:08 - 00:16 | Clip 1...)", "(00:16 | Entrada...)" o "(19:52 - 20:00 | Outro...)", acotaciones de sonido/cámara entre paréntesis ni reportes de conteo de palabras/caracteres al pie. Empieza directamente con la primera palabra hablada ("Año ...") y termina directamente con "...Aquí seguimos sus rastros.".
-- Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
-- Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
-- REGLA OBLIGATORIA DEL PRIMER DÍA DEL MES EN LA VOZ NARRATIVA ("primero", NUNCA "1" NI "uno"): Cada vez que la voz narrativa vaya a decir el primer día del mes, escríbelo SIEMPRE con la palabra "primero" (ej. "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Queda terminantemente prohibido escribir "1 de [mes]", "01 de [mes]", "1º de [mes]" o "uno de [mes]".
-- Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
-- Si es documental largo, incluye antes del segundo 30 el Slogan Completo en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Write the complete VOICEOVER SCRIPT 100% in Neutral Latin American Documentary Spanish (Español Neutro Documental) obeying every unbreakable rule below:
+- STRICT DURATION & WORD BUDGET (${budget.totalMinutesLabel} REAL MINUTES IN VOXFLOW): Our TTS narrator (Charon) speaks at 147 words per minute. Subtracting ${effectiveVoiceEntrySec}s of initial non-spoken intro, ${FIXED_OUTRO_SEC}s of closing Outro, and ~${budget.estPauseSec}s of [pausa: Xs] tags leaves ~${budget.netSpeechSec}s of net speech. Therefore, THE ENTIRE SPANISH SCRIPT MUST CONTAIN BETWEEN ${budget.minWords} AND ${budget.maxWords} WORDS (exact target: ~${budget.targetWords} words / ~${budget.targetChars} characters; ~${perActWords6} words across each of 6 internal narrative blocks). Strictly FORBIDDEN to exceed ${budget.maxWords} words.
+- 100% PURE SPOKEN NARRATION FORMAT (ZERO HEADERS OR TIMESTAMPS): Output SOLELY the exact spoken Spanish prose read by the narrator (plus [pausa: Xs] tags). Strictly FORBIDDEN to write titles ("STAGE 4", "GUION"), act names, timestamps like "(00:00 - 00:08 | Intro...)", camera/sound notes in parentheses, or word-count reports at the end. Begin directly with the first spoken Spanish word ("Año ...") and finish directly with "...Aquí seguimos sus rastros.".
+- Open mandatorily with the triad in the very first sentence closed by a period: "Año [year in digits], [Place, City, Country]. [Intriguing premise]." (Never write "en el" after the year).
+- Write years in digits, centuries and monarchs in Roman numerals (e.g., siglo XIX, Felipe II), thousands with the word "mil" (e.g., "70 mil"), and ZERO exclamation marks (!).
+- MANDATORY FIRST DAY OF THE MONTH PHONETIC RULE IN SPANISH NARRATION ("primero", NEVER "1" NOR "uno"): Whenever the Spanish voiceover mentions the first day of any month, ALWAYS write the Spanish word "primero" (e.g., "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Strictly FORBIDDEN to write "1 de [month]", "01 de [month]", "1º de [month]", or "uno de [month]".
+- Include strategic pause tags such as [pausa: 1.5s] or [pausa: 2s].
+- For long-form documentaries, include before second 30 the Full Channel Slogan as a standalone Paragraph 2 ("En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
         introPlacement === 'INTRO_POST_SLOGAN'
-          ? ' e INMEDIATAMENTE al cerrar ese Párrafo 2 coloca OBLIGATORIAMENTE la etiqueta [pausa: 8s] para que durante esos 8 segundos exactos de silencio del narrador entre el Intro Oficial de Marca de 8s (Intro.mp4 — "Minimalismo en Piedra y Oro") antes del Párrafo 3'
+          ? ' and IMMEDIATELY at the end of Paragraph 2 place the mandatory tag [pausa: 8s] so the 8-second Official Brand Intro (Intro.mp4) plays cleanly before Paragraph 3'
           : ''
       }.
-- Cierra en párrafo aparte con "Déjanos saber en los comentarios..." y el lema final: "Cada historia deja una huella. Aquí seguimos sus rastros."`;
+- Close in a standalone final paragraph starting with "Déjanos saber en los comentarios..." and ending with the exact slogan: "Cada historia deja una huella. Aquí seguimos sus rastros."`;
     }
   } else if (stageNumber === 5) {
     const thumbOrientation =
@@ -2598,14 +2612,14 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
             .join(' / ')})`
       : '';
     const overlayInstructionBlock = hasUserOverlay
-      ? `Texto en pantalla elegido explícitamente por el usuario (OBLIGATORIO usar exactamente estas líneas en las 3 opciones): ${
+      ? `Explicit user-locked on-screen text (MANDATORY to use these exact Spanish lines across all 3 options): ${
           overlayLines.length === 1
             ? `"${overlayLines[0]}"`
-            : `${overlayLines.length} líneas separadas -> ${overlayLines
-                .map((l, idx) => `Línea ${idx + 1}: "${l}"`)
+            : `${overlayLines.length} separate lines -> ${overlayLines
+                .map((l, idx) => `Line ${idx + 1}: "${l}"`)
                 .join(' / ')}`
         }`
-      : `Texto en pantalla: Propón 3 ganchos DIFERENTES entre sí de Curiosity Gap en español en MAYÚSCULAS (uno distinto y específico para A, otro distinto para B y otro distinto para C; de 2 a 4 palabras en 1 o 2 líneas separadas por " / ", específicos de ESTE documental y que NO repitan el título).`;
+      : `On-screen text (TEXTO_PANTALLA): Propose 3 DISTINCT Curiosity-Gap hooks in UPPERCASE SPANISH (one unique hook for A, a different one for B, and a different one for C; 2 to 4 words across 1 or 2 lines separated by " / ", specific to THIS documentary and NEVER repeating the video title).`;
     const refsContext = Array.isArray(doc.references)
       ? doc.references
           .slice(0, 6)
@@ -2631,76 +2645,76 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
     const cleanDocTopic = stripStage1MetaLabel(doc.topic || doc.title);
     const cleanDocTime = stripStage1MetaLabel(doc.historicalTime || doc.clip1Line1LocationTime || '');
     const cleanDocLoc = stripStage1MetaLabel(doc.historicalLocation || '');
-    stagePrompt = `Actúa como diseñador experto en neuropsicología del clic (alto CTR en YouTube) para "Huellas de la Humanidad".
-Título del Proyecto: ${doc.title || ''}
-Tema Histórico: ${cleanDocTopic} (${cleanDocTime}, ${cleanDocLoc})
-Gancho Clip 1: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
-Guion / Investigación REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+    stagePrompt = `Act as an Expert YouTube CTR Neuropsychology Designer and Creative Art Director for "Huellas de la Humanidad".
+Project Title: ${doc.title || ''}
+Historical Topic: ${cleanDocTopic} (${cleanDocTime}, ${cleanDocLoc})
+Clip 1 Hook: ${doc.clip1Line1LocationTime || ''} — ${doc.clip1Line2Hook || ''}
+REAL Documentary Script / Research (ABSOLUTE PRIORITY over any provisional title):
 """
 ${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 2400)}
 """
-Personajes y Lugares del documental (@Referencias):
+Documentary Characters & Locations (@References):
 ${refsContext}
-Primeras escenas visuales del documental (Clips):
+Opening Visual Scenes (Clips):
 ${clipsContext}
-Orientación activa: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
+Active Orientation: ${isThumbHorizontal ? 'HORIZONTAL (16:9)' : 'VERTICAL (9:16)'}
 ${overlayInstructionBlock}
 
-TAREA OBLIGATORIA — 3 DISPARADORES NEUROPSICOLÓGICOS DINÁMICOS EXCLUSIVOS DE ESTE VIDEO + SUS 3 PROMPTS 100% EN INGLÉS:
-Diseña 3 opciones distintas de Disparadores Neuropsicológicos del Clic ([DISPARADOR_A], [DISPARADOR_B], [DISPARADOR_C]) creadas 100% A MEDIDA para la historia real de ESTE documental en proceso.
-PROHIBIDO usar nombres o descripciones genéricas fijas como "Rostro + Shock (13ms)", "Curiosity Gap" o "Escala + Peligro". Cada título y descripción debe nombrar el momento histórico concreto, el objeto físico detonante, el escenario real o el giro exacto de ESTE video específico, aplicando siempre los 5 principios neuropsicológicos del CTR:
-1. PROCESAMIENTO EN 13 MILISEGUNDOS (CERO RUIDO VISUAL): Composición ultra-limpia de máximo 3 elementos visuales (1 rostro dominante en primer plano + 1 objeto/elemento físico real de este guion + texto gancho), instantáneamente legible en móvil.
-2. ROSTRO HUMANO + EMOCIÓN EXTREMA + CONTACTO VISUAL DIRECTO: Protagonista de esta historia ocupando el 60% del encuadre en Medium Close-Up o Extreme Close-Up, mirando directo al lente ("direct piercing eye contact into the camera lens"), ojos muy abiertos mostrando la esclerótica blanca, emoción visceral auténtica, poros y sudor reales.
-3. BRECHA DE LA CURIOSIDAD (CURIOSITY GAP): Cada una de las 3 opciones debe describir una escena física, utilería de época y entorno real distintos de ESTE documental (PROHIBIDO usar frases vagas abstractas como "shadowy betrayal" o "enigmatic forbidden historical detail").
-4. PSICOLOGÍA DEL COLOR Y ALTO CONTRASTE: Claroscuro dramático con luz clave cálida (ámbar ardiente, oro o fuego carmesí) sobre el rostro y rim light que lo separe de un fondo oscuro frío (azul cian nocturno o sombras abismales).
-5. REGLAS TÉCNICAS INQUEBRANTABLES DENTRO DE CADA "PROMPT:" (EN UNA SOLA LÍNEA, 100% EN INGLÉS PURO — PROHIBIDO MEZCLAR ESPAÑOL):
-   - IDIOMA 100% INGLÉS: Dentro de "PROMPT:" queda TERMINANTEMENTE PROHIBIDO escribir palabras en español o copiar etiquetas del tema en español; las ÚNICAS palabras en español permitidas dentro de "PROMPT:" son el texto entre comillas del overlay en pantalla y el subtexto del logo "Huellas de la Humanidad".
-   - Inicia exactamente con: "Thumbnail: Create an image in ${aspectPhrase} "
+MANDATORY TASK — 3 DYNAMIC NEUROPSYCHOLOGICAL CLICK TRIGGERS TAILORED TO THIS VIDEO + THEIR 3 PROMPTS 100% IN ENGLISH:
+Design 3 distinct Neuropsychological Click Trigger options ([DISPARADOR_A], [DISPARADOR_B], [DISPARADOR_C]) crafted 100% custom for the real story of THIS documentary.
+Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curiosity Gap", or "Scale + Danger". Each TITULO and DESCRIPCION (in Spanish for our producer UI) must name the concrete historical moment, physical trigger object, real setting, or exact twist of THIS specific video, applying the 5 CTR neuropsychology laws:
+1. 13-MILLISECOND VISUAL PROCESSING (ZERO VISUAL CLUTTER): Ultra-clean composition of maximum 3 visual elements (1 dominant foreground face + 1 real physical story prop/element + hook overlay text), instantly readable on mobile.
+2. HUMAN FACE + EXTREME EMOTION + DIRECT EYE CONTACT: Story protagonist occupying 60% of the frame in Medium Close-Up or Extreme Close-Up, staring straight into the lens ("direct piercing eye contact into the camera lens"), wide eyes showing white sclera, authentic visceral emotion, skin pores, and sweat.
+3. CURIOSITY GAP: Each of the 3 options must depict a distinct concrete physical scene, period prop, and historical setting from THIS documentary (FORBIDDEN to write vague phrases like "shadowy betrayal" or "enigmatic forbidden historical detail").
+4. COLOR PSYCHOLOGY & HIGH CONTRAST: Dramatic chiaroscuro with warm key light (burning amber, gold, or crimson firelight) on the face and rim light separating the subject from a cold dark background (nocturnal cyan-blue or deep shadows).
+5. UNBREAKABLE TECHNICAL RULES INSIDE EVERY "PROMPT:" (SINGLE LINE, 100% PURE ENGLISH — ZERO SPANISH PROSE):
+   - 100% ENGLISH LANGUAGE: Inside "PROMPT:" it is STRICTLY FORBIDDEN to write Spanish prose or copy Spanish topic labels; the ONLY Spanish words allowed inside "PROMPT:" are the quoted on-screen text overlay and the brand logo sub-text "Huellas de la Humanidad".
+   - Start literally with: "Thumbnail: Create an image in ${aspectPhrase} "
    - ${
      hasUserOverlay
-       ? `Incluye textualmente: '${userOverlayEnglishClause}'`
-       : `Incluye el texto en pantalla de esa opción usando exactamente: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "LINEA UNICA"' (o si tiene 2 líneas en TEXTO_PANTALLA separadas por " / ", usa: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across 2 exact separate lines (Line 1: "PRIMERA" / Line 2: "SEGUNDA")')`
+       ? `Include verbatim: '${userOverlayEnglishClause}'`
+       : `Include that option's Spanish overlay text using verbatim: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "SINGLE LINE"' (or if TEXTO_PANTALLA has 2 lines separated by " / ", use: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across 2 exact separate lines (Line 1: "FIRST" / Line 2: "SECOND")')`
    }
-   - Incluye textualmente: 'a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold'
-   - Incluye textualmente: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
-   - BLINDAJE ANTI-FILTRO: Describe siempre al personaje por sus rasgos físicos, edad aproximada y vestimenta de época como actor anónimo de recreación histórica ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)"), sin poner nombres propios de figuras públicas reales dentro del prompt en inglés.
-   - Cierra con: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
+   - Include verbatim: 'a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold'
+   - Include verbatim: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
+   - ANTI-FILTER SHIELD: Always describe the character by physical traits, approximate adult age, and period attire as an anonymous historical reenactment actor ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)"), NEVER writing real public-figure proper names inside the English prompt.
+   - End verbatim with: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 
-FORMATO DE ENTREGA ESTRICTO (entrega ÚNICAMENTE estos 3 bloques exactos en texto plano SIN asteriscos ** en las etiquetas, sin saludos ni explicaciones fuera de ellos):
+STRICT DELIVERY FORMAT (output ONLY these 3 exact plain-text blocks WITHOUT ** asterisks around field labels and without greetings or closing remarks):
 [DISPARADOR_A]
-TITULO: Opción A: <Título específico de 3 a 7 palabras basado en un momento/objeto clave de ESTE documental>
-DESCRIPCION: <1 a 2 frases en español explicando la escena específica de este video, la expresión del rostro en 13ms y por qué abre una brecha de curiosidad irresistible>
-TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS (usa " / " si son 2 líneas)>'}
+TITULO: Opción A: <Specific 3-to-7 word Spanish title based on a key moment/object of THIS documentary>
+DESCRIPCION: <1 to 2 Spanish sentences explaining the specific scene, 13ms facial expression, and why it opens an irresistible curiosity gap>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<2 TO 4 WORD UPPERCASE SPANISH HOOK (use " / " if 2 lines)>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
 
 [DISPARADOR_B]
-TITULO: Opción B: <Segundo ángulo específico de 3 a 7 palabras basado en otro giro/escena real de ESTE documental>
-DESCRIPCION: <1 a 2 frases en español explicando este segundo disparador visual único de este video>
-TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<SEGUNDO GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS>'}
+TITULO: Opción B: <Second specific 3-to-7 word Spanish angle based on another real twist/scene of THIS documentary>
+DESCRIPCION: <1 to 2 Spanish sentences explaining this second unique visual trigger>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<SECOND 2 TO 4 WORD UPPERCASE SPANISH HOOK>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
 
 [DISPARADOR_C]
-TITULO: Opción C: <Tercer ángulo específico de 3 a 7 palabras basado en otra revelación/escena real de ESTE documental>
-DESCRIPCION: <1 a 2 frases en español explicando este tercer disparador visual único de este video>
-TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<TERCER GANCHO EN MAYÚSCULAS DE 2 A 4 PALABRAS>'}
+TITULO: Opción C: <Third specific 3-to-7 word Spanish angle based on another real revelation/scene of THIS documentary>
+DESCRIPCION: <1 to 2 Spanish sentences explaining this third unique visual trigger>
+TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<THIRD 2 TO 4 WORD UPPERCASE SPANISH HOOK>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...`;
   } else if (stageNumber === 6) {
     const isRefVertical =
       doc.productionType === 'SHORT_9X16' || doc.promptConfig?.SUB_OPCION_REELS === '9X16';
     const refAspect = isRefVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
-    stagePrompt = `Actúa como un historiador y director de fotografía para "Huellas de la Humanidad".
-Basado en este guion de voz en off y tema (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
+    stagePrompt = `Act as a Master Historian and Documentary Director of Photography for "Huellas de la Humanidad".
+Based on this voiceover script and historical topic (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
 """
 ${doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || ''}
 """
-Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.1 en Google Flow (**6 views en cada imagen** y especificando el **nombre exacto** de cada imagen con @ y guiones bajos _ sin espacios ni tildes):
-- Antepón en las primeras líneas la orden operativa para Google Flow:
-  Usa Nano Banana 2.1. Genera cada imagen como una lámina de referencia con exactamente 6 vistas en una sola imagen (6 views en cuadrícula 3x2) y cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador @Nombre_Con_Guiones_Bajos indicado en cada prompt.
-- Para cada PERSONAJE principal (@Personas), escribe una sola línea con el formato exacto (sin tildes ni espacios en el identificador @Nombre_Personaje):
-  Image @Nombre_Personaje [Image Name: @Nombre_Personaje]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [rasgos físicos detallados de adulto, cabello, rostro y vestimenta histórica de época (${doc.historicalTime}, ${doc.historicalLocation}) de pies a cabeza sobre fondo de estudio neutro limpio con iluminación uniforme, sin mencionar nombres propios de reyes o políticos reales en la descripción física, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Personaje
-- Para cada LUGAR principal (@Lugares), escribe una sola línea con el formato exacto (con @ y guiones bajos _ sin tildes ni espacios en @Nombre_Lugar):
-  Image @Nombre_Lugar [Image Name: @Nombre_Lugar]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [arquitectura histórica exacta, materiales, época (${doc.historicalTime}, ${doc.historicalLocation}) e iluminación atmosférica], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Nombre_Lugar
-- FORMATO DE ENTREGA PURO: Entrega ÚNICAMENTE el texto plano con la orden operativa inicial seguida de las líneas Image @Nombre_... separadas por una línea en blanco, SIN asteriscos **, SIN encabezados como "Personajes:" o "Lugares:", y SIN saludos ni despedidas.`;
+Generate STAGE 6: REFERENCE MODEL IMAGE PROMPTS 100% IN ENGLISH for Nano Banana 2.1 in Google Flow (**6 views in each single image** and specifying the **exact ASCII @Tag_With_Underscores** without spaces or accents):
+- Prepend at the very top this exact English operational directive for Google Flow:
+  Use Nano Banana 2.1. Generate each image as a single 6-view reference sheet (6 views in a 3x2 grid) and mandatorily rename every generated image to the exact @Tag_With_Underscores identifier specified in each prompt.
+- For each primary CHARACTER (@People), write a single-line prompt 100% in English with this exact format (no accents or spaces in @Character_Name):
+  Image @Character_Name [Image Name: @Character_Name]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [detailed adult physical traits, hair, facial structure, and head-to-toe authentic historical period attire (${doc.historicalTime}, ${doc.historicalLocation}) against a clean neutral studio background with even lighting, without mentioning real monarchs' or politicians' proper names in the physical description, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Character_Name
+- For each primary LOCATION (@Locations), write a single-line prompt 100% in English with this exact format (with @ and underscores _ without accents or spaces in @Location_Name):
+  Image @Location_Name [Image Name: @Location_Name]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [exact historical architecture, materials, period (${doc.historicalTime}, ${doc.historicalLocation}), and atmospheric lighting in English], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Location_Name
+- PURE DELIVERY FORMAT (100% ENGLISH): Output ONLY plain text starting with the English operational directive followed by the Image @Name_... lines separated by a blank line, WITHOUT ** asterisks, WITHOUT section headers like "Characters:" or "Locations:", and WITHOUT greetings or closing remarks.`;
   } else if (stageNumber === 7) {
     const scriptContext = (
       doc.voiceoverScript ||
@@ -2714,67 +2728,120 @@ Genera la ETAPA 6: PROMPTS DE IMÁGENES MODELO DE REFERENCIA para Nano Banana 2.
       .trim()
       .slice(0, 900);
     const clip1VisualContext = (doc.clips?.[0]?.imagePrompt || '').trim();
-    stagePrompt = `Actúa como director creativo de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title || ''} | Lugar: ${doc.historicalLocation || 'Por definir según el guion'} | Tiempo: ${doc.historicalTime || 'Por definir según el guion'}
-Título del video: ${doc.title || doc.topic || ''}
-Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || 'Ninguno'}
-${clip1VisualContext ? `Escena visual del Clip 1: ${clip1VisualContext}\n` : ''}Guion de referencia: "${scriptContext}"
-Propón EXACTAMENTE 3 opciones magnéticas para el TEXTO EN PANTALLA DEL CLIP 1 (Primeros ${voiceEntrySec}s del video, sin voz narrativa):
+    stagePrompt = `Act as Creative Director for the Spanish-language documentary channel "Huellas de la Humanidad".
+Topic: ${doc.topic || doc.title || ''} | Location: ${doc.historicalLocation || 'Determine from script'} | Era: ${doc.historicalTime || 'Determine from script'}
+Video Title: ${doc.title || doc.topic || ''}
+Thumbnail On-Screen Text: ${doc.thumbnailTextOverlay || 'None'}
+${clip1VisualContext ? `Clip 1 Visual Scene: ${clip1VisualContext}\n` : ''}Reference Script: "${scriptContext}"
+
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Write all 3 on-screen text options in SPANISH (since Spanish viewers read this opening title card on screen) using the exact Option/Line markers below:
+
+Propose EXACTLY 3 magnetic options for the CLIP 1 ON-SCREEN TEXT (First ${voiceEntrySec}s of the video, no voiceover):
 Opción 1:
-Línea 1: [Ciudad, País, Año XXXX (anteponiendo SIEMPRE la palabra "Año" con mayúscula inicial delante del año en dígitos, ej. "Santander, España, Año 1885") o Siglo XX (escribiendo SIEMPRE "Siglo" con S mayúscula y número romano, ej. "París, Francia, Siglo XIII")]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
+Línea 1: [City, Country, Año XXXX (ALWAYS prefixing the capitalized Spanish word "Año" before the 4-digit year, e.g., "Santander, España, Año 1885") OR Siglo XX (ALWAYS writing "Siglo" with capital S + Roman numeral, e.g., "París, Francia, Siglo XIII")]
+Línea 2: [INTRIGUING YET TOPIC-REVEALING SPANISH HOOK TITLE IN UPPERCASE, ZERO EXCLAMATION MARKS]
 
 Opción 2:
-Línea 1: [Ciudad, País, Año XXXX o Siglo XX]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
+Línea 1: [City, Country, Año XXXX or Siglo XX]
+Línea 2: [INTRIGUING YET TOPIC-REVEALING SPANISH HOOK TITLE IN UPPERCASE, ZERO EXCLAMATION MARKS]
 
 Opción 3:
-Línea 1: [Ciudad, País, Año XXXX o Siglo XX]
-Línea 2: [TÍTULO GANCHO INTRIGANTE Y A LA VEZ REVELADOR DEL TEMA CENTRAL DEL DOCUMENTAL EN MAYÚSCULAS]
+Línea 1: [City, Country, Año XXXX or Siglo XX]
+Línea 2: [INTRIGUING YET TOPIC-REVEALING SPANISH HOOK TITLE IN UPPERCASE, ZERO EXCLAMATION MARKS]
 
-REGLAS INQUEBRANTABLES DE LA ETAPA 7:
-1. FORMATO DE LA LÍNEA 1 ("Año" / "Siglo"): Si lleva un año específico, DEBE llevar obligatoriamente la palabra "Año" delante del número (ej. "Santander, España, Año 1885", "Londres, Inglaterra, Año 1888"). Si lleva un siglo, DEBE escribirse "Siglo" con S mayúscula seguido del número romano en mayúsculas (ej. "París, Francia, Siglo XIII").
-2. LÍNEA 2 INTRIGANTE PERO REVELADORA DEL TEMA: Queda terminantemente prohibido usar frases sueltas, poéticas, ambiguas o genéricas que no sugieran directamente de qué va a tratar el documental. La Línea 2 DEBE sugerir directamente el tema central del documental combinando intriga y revelación histórica concreta para que el espectador entienda al instante qué historia va a descubrir y se quede a verla.
-3. NO REPETICIÓN LITERAL: No repitas palabra por palabra el Título del video ni el Texto de la Miniatura.`;
+UNBREAKABLE STAGE 7 RULES:
+1. LINE 1 FORMAT ("Año" / "Siglo"): If using a specific year, it MUST start with "Año" before the digits (e.g., "Londres, Inglaterra, Año 1888"). If using a century, write "Siglo" + uppercase Roman numeral (e.g., "París, Francia, Siglo XIII").
+2. INTRIGUING YET TOPIC-SPECIFIC LINE 2: Strictly FORBIDDEN to use vague, poetic, or generic phrases that hide the documentary's subject. Line 2 MUST immediately signal the concrete historical topic while sparking intense curiosity.
+3. NO VERBATIM REPETITION: Do not copy word-for-word the Video Title or the Thumbnail Overlay Text.`;
   } else if (stageNumber === 8) {
     const opHeader = sanitizeOperationalHeader(
       doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
       doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
     );
-    const tlSentences = parseTimelineTextToSentences(doc.timelineFormattedText || '').filter(
+    const fmtMmSs = (sec: number): string => {
+      const s = Math.max(0, Math.round(sec));
+      const mm = Math.floor(s / 60);
+      const ss = s % 60;
+      return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    };
+    const stripMeta = (raw?: string) =>
+      String(raw || '')
+        .replace(/^\s*\([^)]*\)\s*:\s*/g, '')
+        .replace(/\s*—\s*(?:Recomendada|Arco hist[oó]rico completo[^)]*|Escenario hist[oó]rico principal[^)]*)/gi, '')
+        .trim();
+    const cleanStage8Topic = stripMeta(doc.topic || doc.title);
+    const cleanStage8Time = stripMeta(doc.historicalTime || '');
+    const cleanStage8Loc = stripMeta(doc.historicalLocation || '');
+    const cleanHookProposal = stripMeta(
+      doc.promptConfig?.PROPOSICION_GANCHO || doc.promptConfig?.ANGULO_CENTRAL || doc.clip1Line2Hook || ''
+    );
+    const rawTlAll = parseTimelineTextToSentences(doc.timelineFormattedText || '');
+    const clip1Marker = rawTlAll.find((s) =>
+      /^\[SIN\s+VOZ\s+NARRATIVA[^\]]*Clip\s+1/i.test((s.text || '').trim())
+    );
+    const tlSentences = rawTlAll.filter(
       (s) =>
         !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
           (s.text || '').trim()
         )
     );
+    const c1RangeLabel = clip1Marker
+      ? `${fmtMmSs(clip1Marker.start)} - ${fmtMmSs(clip1Marker.end)}`
+      : `00:00 - ${fmtMmSs(clip2StartSec)}`;
+    const c2StartLabel = clip1Marker
+      ? fmtMmSs(clip1Marker.end)
+      : fmtMmSs(clip2StartSec);
     const expectedTotalClips = tlSentences.length > 0 ? tlSentences.length + 1 : 0;
+    const preNumberedTimelineRows =
+      tlSentences.length > 0
+        ? [
+            `Clip 01 (${c1RangeLabel}) [Stage 1 Flow Duration: ${c1Dur}s — Silent Visual Hook]: ${
+              cleanHookProposal || 'Silent atmospheric historical opening visual hook establishing the central tension'
+            }`,
+            ...tlSentences.map((s, idx) => {
+              const num = idx + 2;
+              const numLabel = num < 10 ? `0${num}` : `${num}`;
+              const needsOff = tlSentences[0].start < 2.0 && !clip1Marker;
+              const st = needsOff ? s.start + clip2StartSec : s.start;
+              const en = needsOff ? s.end + clip2StartSec : s.end;
+              return `Clip ${numLabel} (${fmtMmSs(st)} - ${fmtMmSs(en)}) [Stage 1 Flow Duration: ${standardClipSec}s]: "${s.text}"`;
+            }),
+          ].join('\n')
+        : doc.timelineFormattedText || doc.voiceoverScript || '';
     const expectedClipsClause =
       expectedTotalClips > 1
-        ? `\nCANTIDAD EXACTA OBLIGATORIA DE CLIPS: El Timeline tiene ${tlSentences.length} tramos de narración de ${standardClipSec}s más el Clip 1 inicial (Hook sin voz), para un TOTAL EXACTO de ${expectedTotalClips} clips (desde Image 1 / Clip 1 hasta Image ${expectedTotalClips} / Clip ${expectedTotalClips}, 1 par Image+Clip por cada línea de narración sin agrupar líneas ni detenerte antes del Clip ${expectedTotalClips}).`
+        ? `\nMANDATORY 1:1 EXACT CLIP COUNT & TIMESTAMPS: The pre-numbered Timeline table below omits fixed Brand Intro/Outro MP4s and contains EXACTLY ${expectedTotalClips} production clips (Clip 01 = ${c1RangeLabel} silent visual Hook of ${c1Dur}s in Flow; Clips 02..${expectedTotalClips} = ${tlSentences.length} spoken segments starting at ${c2StartLabel} of ${standardClipSec}s each in Flow). Output 1 Image+Clip pair per numbered row from Image 01 / Clip 01 through Image ${expectedTotalClips} / Clip ${expectedTotalClips}, copying each row's exact (MM:SS - MM:SS) range verbatim without ever recalculating a 10s grid, grouping lines, or stopping early.`
         : '';
     const refsListText =
       Array.isArray(doc.references) && doc.references.length > 0
         ? doc.references
-            .map((r) => `${r.tag} (${r.category === 'persona' ? 'Personaje' : 'Lugar'})`)
+            .map((r) => `${r.tag} (${r.category === 'persona' ? 'Character — triggers Omni 1.1 Flash' : 'Location — use Veo 3.1 - Lite [Lower Priority] if zero humans appear'})`)
             .join(', ')
-        : 'Usar personajes y lugares del guion';
-    stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
-Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Modo Híbrido: Omni 1.1 Flash cuando haya personas / Veo 3.1 - Lite [Lower Priority] para el resto sin personas) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
-Referencias visuales obligatorias (@Personas y Lugares de Etapa 6): ${refsListText}.
-Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.${expectedClipsClause}
-Timeline de la Voz Narrativa:
+        : 'Use characters and locations from the script';
+    stagePrompt = `Act as a historian, film director, and professional journalist.
+Generate STAGE 8: INITIAL IMAGE PROMPTS (Nano Banana 2.1) AND VIDEO CLIP PROMPTS (Hybrid Mode: Omni 1.1 Flash when people appear / Veo 3.1 - Lite [Lower Priority] for scenes without people) 100% IN PURE ENGLISH for the documentary "${cleanStage8Topic}" (${cleanStage8Time}, ${cleanStage8Loc}).
+Mandatory visual references (@Characters & @Locations from Stage 4): ${refsListText}.
+Stage 1 Selected Clip Durations (MANDATORY inside EVERY video prompt):
+- Clip 01 (${c1RangeLabel}): ${c1Dur} seconds in Google Flow -> write "Create a cinematic ${c1Dur}-second video showing ..." AND place "[Duration: ${c1Dur}s]" right before "[Model: ...] fix the name".
+- Clips 02 through ${expectedTotalClips || 'N'} (starting at ${c2StartLabel}): ${standardClipSec} seconds in Google Flow -> write "Create a cinematic ${standardClipSec}-second video showing ..." AND place "[Duration: ${standardClipSec}s]" right before "[Model: ...] fix the name".${expectedClipsClause}
+Pre-Numbered 1:1 Voiceover Timeline Table (Spanish narration provided strictly so each English visual scene matches that exact spoken phrase in meaning and time — NEVER copy Spanish words into Image N or Clip N):
 """
-${doc.timelineFormattedText || doc.voiceoverScript || ''}
+${preNumberedTimelineRows}
 """
-Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial completo de 9 líneas:
+Your output MUST BEGIN MANDATORILY AND VERBATIM with this exact 9-line English operational header:
 ${opHeader}
 
-Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s + REGLA HÍBRIDA DE MOTOR DE VIDEO: escribe [Model: Omni 1.1 Flash] justo antes de "fix the name" únicamente en los clips donde aparezcan personas o personajes humanos, y escribe [Model: Veo 3.1 - Lite [Lower Priority]] justo antes de "fix the name" en los clips sin personas como paisajes, barcos en el mar, mapas, documentos u objetos + REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS: si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente jamás —prohibido poner dos oficinas seguidas, dos escritorios/mostradores con documentos seguidos o el mismo encuadre consecutivo—, sino mostrar algo visualmente diferente pero referente a la locución, alternando por ejemplo de un interior oscuro en un escritorio a un exterior luminoso en un muelle frente a un buque de vapor):
-Image [N]: Create an image of [escena clara ~20-35 palabras en inglés con época y lugar describiendo a los personajes por sus rasgos físicos y vestimenta de época como actores anónimos de recreación histórica sin usar títulos ni nombres propios de figuras públicas reales], clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
+CRITICAL LANGUAGE, DURATION & SAFETY LAWS FOR GOOGLE FLOW:
+- Write EVERY Image N and EVERY Clip N on its own separate line (zero-padded 01..09 for 1..9, NO ** bold markdown, NO bullets) 100% IN PURE ENGLISH from Clip 01 through Clip ${expectedTotalClips || 'N'}, where each Image N + Clip N visually depicts the exact historical moment, action, place, or object described in that numbered row's narration.
+- STRICTLY ZERO SPANISH INSIDE PROMPTS: Never embed, quote, or append the Spanish voiceover sentence or Spanish UI labels inside Image N or Clip N.
+- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/@Character appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag is used; explicitly write "with no people present" on empty scenes).
+- Apply Anti-"Prominent People" Filter Shield (describe historical characters by adult physical traits and period attire as anonymous historical reenactment actors, never real public-figure proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
+Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Character/@Location tags], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt u orbit) ejecutado de forma suave y controlada sobre cabezal fluido/Steadicam + 1 acción física continua y pausada en cámara lenta sostenida durante los ${clipDurationLabel} completos (de 0s a ${standardClipSec}s) terminando en postura estable hasta el último fotograma]. Rigid non-mutating walls and 3D architecture, fixed subject count from 0s to ${standardClipSec}s (no people appearing out of nowhere, vanishing, or morphing), all background props 100% gravity-locked and stationary, portrayed by anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [sonidos puntuales en inglés], single continuous shot, strictly no shot changes, no music, no speech, no text. ${doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR' ? '[oración exacta de la voz narrativa en español correspondiente a ese tramo]. ' : ''}[Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority] según haya o no personas] fix the name`;
+Clip 01 (${c1RangeLabel}): Create a cinematic ${c1Dur}-second video showing [smooth controlled Steadicam/fluid-head camera movement + 1 continuous measured physical action matching Clip 01's visual Hook sustained smoothly across the full ${c1Dur} seconds (from 0s to ${c1Dur}s)]. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${c1Dur}-second shot. Sustained, unhurried continuous action across the full ${c1Dur} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${c1Dur}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [specific English Foley sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: ${c1Dur}s] [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
   } else if (stageNumber === 80) {
-    // Calcular automáticamente la duración real del documental a partir del último clip, audio de voz o duración confirmada
+    // Compute exact documentary duration from last clip, voiceover audio, or confirmed duration
     const parseMmSsToSec = (str?: string): number => {
       if (!str) return 0;
       const m = String(str).match(/(\d{1,3}):(\d{2})/);
@@ -2815,7 +2882,6 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico 
     const outroStartSec = Math.max(0, totalDocSec - 90);
     const outroStartMmSs = formatSecToMmSs(outroStartSec);
 
-    // Determinar cantidad dinámica de canciones según la duración y riqueza visual del documental
     const minRecommendedTracks =
       totalDocSec >= 900 ? 5 : totalDocSec >= 660 ? 4 : totalDocSec >= 420 ? 3 : totalDocSec >= 240 ? 2 : 1;
     const maxRecommendedTracks =
@@ -2832,53 +2898,53 @@ Clip [N] ([MM:SS - MM:SS]): Create a video showing [movimiento cinematográfico 
             )
             .map(
               (c) =>
-                `Clip ${c.clipNumber} (${c.timeRange || ''}): ${(c.imagePrompt || '').slice(0, 120)} | Voz: "${(c.narrationSegment || '').slice(0, 90)}"`
+                `Clip ${c.clipNumber} (${c.timeRange || ''}): ${(c.imagePrompt || '').slice(0, 120)} | Narration: "${(c.narrationSegment || '').slice(0, 90)}"`
             )
             .join('\n')
         : '';
 
-    stagePrompt = `Actúa como compositor cinematográfico maestro de "Huellas de la Humanidad" para **FlowMusic (https://www.flowmusic.app/)**.
-Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración total exacta del documental (calculada automáticamente de la Voz Narrativa y los Clips): ${resolvedFinalDuration} (${totalDocSec} segundos en total)
-Total de clips visuales del documental: ${Array.isArray(doc.clips) ? doc.clips.length : 'Seguir Timeline'}
+    stagePrompt = `Act as Master Cinematic Film Composer for "Huellas de la Humanidad" targeting **FlowMusic (https://www.flowmusic.app/)**.
+Documentary Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Exact Total Documentary Duration (computed from Voiceover & Clips): ${resolvedFinalDuration} (${totalDocSec} seconds total)
+Total Visual Clips: ${Array.isArray(doc.clips) ? doc.clips.length : 'Follow Timeline'}
 
-Guion y estructura narrativa:
+Narrative Script & Structure:
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
 """
-${clipsVisualSummary ? `\nMapa de escenas visuales y clips del documental:\n${clipsVisualSummary}\n` : ''}
-Genera la **ETAPA 8: MÚSICA (FLOWMUSIC — flowmusic.app)** cumpliendo estrictamente estas leyes de dirección musical:
-1. **CANTIDAD DINÁMICA DE CANCIONES SEGÚN LA TRAMA Y LAS ESCENAS (${minRecommendedTracks} a ${maxRecommendedTracks} canciones)**: Diseña entre **${minRecommendedTracks} y ${maxRecommendedTracks} canciones instrumentales distintas** acompañando cada acto visual y emocional específico del documental.
-2. **ESPACIOS SIN MÚSICA OBLIGATORIOS ENTRE CADA CANCIÓN (MÍNIMO 30 SEGUNDOS Y MÁXIMO 1 MINUTO / 0:30 a 1:00)**: Entre el final de una canción y el inicio de la siguiente DEBE existir obligatoriamente un espacio sin música de **mínimo 30 segundos (0:30) y máximo 1 minuto (1:00 / 60 segundos)** ubicado exactamente en una transición de escena, pregunta retórica o golpe dramático donde solo se escuche la Voz Narrativa y el sonido ambiente (Foley) de los clips. Queda prohibido dejar menos de 30s o más de 1 minuto entre canciones.
-3. **ÚLTIMA CANCIÓN OBLIGATORIA DE 1:30 (${outroStartMmSs} - ${resolvedFinalDuration})**: La última canción que cierra el documental DEBE durar obligatoriamente **1:30** (1 minuto y 30 segundos), entrando en **${outroStartMmSs}** y cerrando en **${resolvedFinalDuration}**.
-4. **ETIQUETA OBLIGATORIA [End - M:SS] AL FINAL DE LA LETRA**: Al final del campo \`4. Prompt de Lyrics\` de CADA canción, pon OBLIGATORIAMENTE en la última línea \`[End - M:SS]\` con la duración deseada exacta de esa canción (ejemplo: \`[End - 2:30]\` si la canción dura 2:30, o \`[End - 1:30]\` en la última canción).
-5. **FADE-IN, FADE-OUT Y VOLUMEN POR DEBAJO DE LA VOZ NARRATIVA (DUCKING DOCUMENTAL)**:
-   - Todas las canciones deben entrar con **Fade-In suave (2.5s)** y salir con **Fade-Out gradual (3.0s)**.
-   - El **Prompt de Style (en inglés)** de CADA canción debe estar optimizado para **FlowMusic (flowmusic.app)** e incluir obligatoriamente: \`100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range\` junto con los instrumentos acústicos históricos auténticos de la época (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
-6. **FORMATO EXACTO DE ENTREGA (6 CAMPOS POR CANCIÓN)**:
-   Entrega cada canción numerada ("Canción 1", "Canción 2", ..., "Canción N") con estos 6 puntos exactos:
-   1. Título de la Canción: [Título evocador acorde a la escena]
-   2. Duración: [M:SS, ej. 2:30; última canción obligatoriamente 1:30]
-   3. De dónde a dónde cubre en el video en tiempo: [MM:SS - MM:SS (Clip X al Clip Y), respetando de 30s a 1:00 sin música entre cada canción]
-   4. Prompt de Lyrics: [Instrumental — mapa de evolución dinámica con [00:00 Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Subtle Emotional Swell], [Gentle 3s Fade-Out Outro] y cerrando al final con [End - 2:30] según la duración deseada de la canción]
-   5. Prompt de Style: [Prompt completo en inglés listo para enviar automáticamente a FlowMusic (flowmusic.app), 100% instrumental, con instrumentos de época, tempo BPM, atmósfera, fade-in intro, fade-out outro y mezcla cálida por debajo de la voz narrativa]
-   6. Explicación de la Canción: [Por qué cambia la música en esta escena visual y qué espacio sin música de 30s a 1:00 la precede]`;
+${clipsVisualSummary ? `\nVisual Scene & Clip Map:\n${clipsVisualSummary}\n` : ''}
+Generate **STAGE 8: SOUNDTRACK MUSIC (FLOWMUSIC — flowmusic.app)** strictly obeying these musical direction laws:
+1. **DYNAMIC TRACK COUNT MATCHING PLOT & SCENES (${minRecommendedTracks} to ${maxRecommendedTracks} tracks)**: Design between **${minRecommendedTracks} and ${maxRecommendedTracks} distinct instrumental tracks** accompanying each dramatic and visual act.
+2. **MANDATORY MUSIC-FREE BREATHING GAPS BETWEEN EVERY TRACK (MINIMUM 30 SECONDS, MAXIMUM 1 MINUTE / 0:30 to 1:00)**: Between the end of one track and the start of the next, leave a mandatory silent gap of **0:30 to 1:00 (30 to 60 seconds)** placed on a scene transition, rhetorical question, or dramatic beat where only Narration + ambient clip Foley play. Never leave less than 30s or more than 60s between tracks.
+3. **MANDATORY 1:30 FINAL CLOSING TRACK (${outroStartMmSs} - ${resolvedFinalDuration})**: The final track closing the documentary MUST last **1:30** (1 minute 30 seconds), entering at **${outroStartMmSs}** and ending at **${resolvedFinalDuration}**.
+4. **MANDATORY [End - M:SS] TAG AT THE END OF LYRICS PROMPT**: On the last line of field \`4. Lyrics Prompt\` for EVERY track, write \`[End - M:SS]\` matching that track's exact duration (e.g., \`[End - 2:30]\`, or \`[End - 1:30]\` on the final track).
+5. **FADE-IN, FADE-OUT & DOCUMENTARY DUCKING BELOW NARRATOR**:
+   - Every track enters with a **smooth 2.5s Fade-In** and exits with a **gentle 3.0s Fade-Out**.
+   - Every track's **Style Prompt (100% in English)** MUST include verbatim: \`100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range\` paired with authentic period acoustic instruments (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+6. **EXACT DELIVERY FORMAT (6 FIELDS PER TRACK)**:
+   Deliver each track numbered ("Track 1", "Track 2", ..., "Track N") with these exact 6 numbered fields:
+   1. Track Title: [Evocative title matching the scene]
+   2. Duration: [M:SS, e.g. 2:30; final track mandatorily 1:30]
+   3. Video Time Range: [MM:SS - MM:SS (Clip X to Clip Y), respecting 0:30 to 1:00 without music between tracks]
+   4. Lyrics Prompt: [100% English instrumental dynamic cue map with [00:00 Soft 2.5s Fade-In Intro], [Warm Documentary Underscore Below Voice], [Subtle Emotional Swell], [Gentle 3s Fade-Out Outro] and ending with [End - 2:30] matching exact duration]
+   5. Style Prompt: [Complete 100% English prompt ready for FlowMusic (flowmusic.app), 100% instrumental, period instruments, BPM tempo, mood, fade-in intro, fade-out outro, and warm ducking below narrator]
+   6. Scene Explanation: [Brief explanation in Spanish for our producer UI explaining why the score shifts here and what 30s-60s music-free gap precedes it]`;
   } else if (stageNumber === 101) {
-    stagePrompt = `Actúa como experto en neuropsicología del clic (alto CTR en YouTube) y director creativo de miniaturas para "Huellas de la Humanidad".
-Título del video: ${doc.title || ''}
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Tema histórico: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
-Guion REAL del documental (PRIORIDAD ABSOLUTA sobre cualquier título provisional):
+    stagePrompt = `Act as a YouTube CTR Neuropsychology Expert and Creative Thumbnail Director for the Spanish-language documentary channel "Huellas de la Humanidad".
+Video Title: ${doc.title || ''}
+Clip 1 Opening On-Screen Text (first ${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+Historical Topic: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
+REAL Documentary Script (ABSOLUTE PRIORITY over any provisional title):
 """
 ${(doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc.sectionsStructure || '').slice(0, 1400)}
 """
 
-Aplicando el principio psicológico de LA BRECHA DE LA CURIOSIDAD (Curiosity Gap) y procesamiento en 13 milisegundos:
-Genera EXACTAMENTE 3 opciones magnéticas de TEXTO EN PANTALLA para la miniatura basadas 100% en el Guion REAL de arriba (de 2 a 4 palabras máximo en ESPAÑOL y MAYÚSCULAS) que:
-1. Despierten una incógnita inmediata en el cerebro ("¿Qué pasó?", "¿Por qué hizo eso?") sin regalar la respuesta.
-2. Trabajen en equipo con el título del video pero SIN REPETIR ninguna frase del título ni del Texto del Clip 1.
-3. Sean legibles en 13 milisegundos en la pantalla de un teléfono móvil.
-Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`;
+Applying the CURIOSITY GAP principle and 13-millisecond visual processing:
+Generate EXACTLY 3 magnetic ON-SCREEN OVERLAY TEXT options for the thumbnail based 100% on the REAL Script above, written in **UPPERCASE SPANISH** (2 to 4 words maximum, ZERO exclamation marks) that:
+1. Trigger an immediate open question in the viewer's mind without giving away the answer.
+2. Complement the video title WITHOUT repeating any phrase from the Video Title or Clip 1 Text.
+3. Are instantly legible in 13 milliseconds on a mobile screen.
+Output ONLY the 3 Spanish lines, one per line, without numbering or quotation marks.`;
   } else if (
     stageNumber === 11 ||
     stageNumber === 111 ||
@@ -2933,12 +2999,12 @@ Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`
     const resolvedFinalDuration11 = formatSecToMmSs11(totalDocSec11);
     const isLongDoc11 = totalDocSec11 > 480;
     const titleSuffixRule11 = isLongDoc11
-      ? 'Al durar más de 8 minutos, el título DEBE finalizar obligatoriamente con el sufijo " | Documental Completo".'
-      : 'Termina con un separador "|" y una palabra clave corta referente al tema (sin sufijo de IA ni "| Huellas de la Humanidad").';
-    const specificTitleLaw11 = `REGLA INQUEBRANTABLE DEL TÍTULO DEL VIDEO (ESPECÍFICO, ALTAMENTE SUGERENTE Y FIEL A LA HISTORIA REAL DEL GUION):
-   - PROHIBIDO TÍTULOS GENÉRICOS, VAGOS O POÉTICOS: Queda terminantemente prohibido usar frases abstractas o genéricas que no revelen de qué historia específica trata el video (ej. prohibido "El Precio del Destino", "Sombras entre Dos Orillas", "Crónicas de un Imperio" o "Así Era Vivir en la Corte Real" sin nombrar al sujeto o suceso histórico real).
-   - FÓRMULA DE ESPECIFICIDAD HISTÓRICA + GANCHO MAGNÉTICO (ALTO CTR): El título DEBE nombrar explícitamente el sujeto, colectivo humano, lugar emblemático o hecho histórico concreto que protagoniza el Guion de referencia (con años en dígitos y siglos/monarcas en números romanos) UNIDO al conflicto, paradoja, sacrificio o revelación más impactante que transmite la historia (ej. "El Éxodo Español a América (1885-1939): Cómo 3 Millones de Emigrantes Cruzaron el Atlántico para Hacer la América | Documental Completo" o "Las Princesas de la Edad Media: El Oscuro Destino de las Jóvenes Usadas como Moneda de Alianza en el Siglo XIII | Documental Completo").
-   - NO REPETICIÓN BIEN APLICADA: No copies palabra por palabra la frase exacta de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni la del Texto del Clip 1 ("${doc.clip1Line2Hook || ''}"), pero SÍ es obligatorio mencionar el tema, lugar o protagonista histórico real del guion para que el espectador entienda al instante qué historia específica va a vivir. ${titleSuffixRule11}`;
+      ? 'Because the video exceeds 8 minutes, every title MUST end verbatim with the Spanish suffix " | Documental Completo".'
+      : 'End with a "|" separator and a short Spanish topic keyword (without AI suffix or "| Huellas de la Humanidad").';
+    const specificTitleLaw11 = `UNBREAKABLE SPANISH VIDEO TITLE LAW (ULTRA-SPECIFIC, HIGH-CTR & FAITHFUL TO THE REAL SCRIPT):
+   - FORBIDDEN GENERIC OR VAGUE TITLES: Never output abstract or poetic titles that hide the concrete historical topic (e.g., forbidden "El Precio del Destino", "Sombras entre Dos Orillas", "Crónicas de un Imperio").
+   - HISTORICAL SPECIFICITY + MAGNETIC HOOK FORMULA: Every Spanish title MUST explicitly name the historical protagonist, human group, emblematic place, or concrete event from the Script (years in digits, centuries/monarchs in Roman numerals, zero exclamation marks) paired with the central paradox, sacrifice, or revelation.
+   - SMART NON-REPETITION: Do not copy verbatim the Thumbnail Overlay ("${doc.thumbnailTextOverlay || ''}") or Clip 1 Hook ("${doc.clip1Line2Hook || ''}"), while still naming the real historical subject. ${titleSuffixRule11}`;
     const chaptersTimelineGuide =
       Array.isArray(doc.clips) && doc.clips.length > 0
         ? doc.clips
@@ -2956,121 +3022,130 @@ Entrega únicamente las 3 líneas, una por línea, sin numeración ni comillas.`
         : '';
 
     if (stageNumber === 11) {
-      stagePrompt = `Actúa como estratega jefe de publicación y SEO de "Huellas de la Humanidad".
-Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada del documental: ${resolvedFinalDuration11}
-Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1 Hook): "${doc.clip1Line2Hook || ''}"
-Guion REAL del documental (PRIORIDAD ABSOLUTA para extraer la historia central y el Título específico):
+      stagePrompt = `[STAGE_11_ALL_METADATA]
+Act as Chief Publishing & YouTube SEO Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Documentary Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Confirmed Final Duration: ${resolvedFinalDuration11}
+Thumbnail On-Screen Text: "${doc.thumbnailTextOverlay || ''}"
+Clip 1 Opening Hook (${voiceEntrySec}s): "${doc.clip1Line2Hook || ''}"
+REAL Documentary Script (ABSOLUTE PRIORITY):
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2200)}
 """
-${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental para los 10 capítulos:\n${chaptersTimelineGuide}\n` : ''}
-TAREA OBLIGATORIA: Genera de una sola vez las **4 SECCIONES INDEPENDIENTES DE PUBLICACIÓN** separadas EXACTAMENTE por estas 4 etiquetas en mayúsculas (escribe las etiquetas tal cual):
+${chaptersTimelineGuide ? `\nReal Documentary Timestamp Guide for the 10 Chapters:\n${chaptersTimelineGuide}\n` : ''}
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+All generated publication copy, chapters, disclaimers, slogans, hashtags, pinned comments, and SEO tags MUST be written 100% in SPANISH for our Hispanic audience, separated by these 4 exact uppercase markers:
 
 ===SECCION_YOUTUBE===
-[Entrega aquí la METADATA DE YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
-1. CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y SIN línea de Título al inicio (comienza directamente en el Párrafo 1 de la descripción), con la ÚNICA excepción obligatoria del encabezado "Capítulos:".
-2. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
-3. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
-4. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos desde 00:00 hasta antes de ${resolvedFinalDuration11} (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
-5. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
-6. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-7. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno.]
+[Deliver the SPANISH YOUTUBE METADATA in continuous "Todo Corrido" format separated ONLY by braille blank lines (⠀):
+1. ZERO section labels (forbidden "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") and NO Title line at the top (start directly at Paragraph 1 of the Spanish description), with the SINGLE mandatory exception of the Spanish header "Capítulos:".
+2. Total length ~2800 to 3000 characters counting spaces and braille lines (⠀).
+3. Spanish description divided into EXACTLY 3 dense, immersive paragraphs separated by a braille line (⠀).
+4. Mandatory Spanish section "Capítulos:" with 10 chronological Spanish chapters from 00:00 to before ${resolvedFinalDuration11} (00:00 must name the opening story beat, NEVER "Prólogo" or "Introducción").
+5. Verbatim Spanish AI Disclaimer: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+6. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
+7. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each.]
 
 ===SECCION_FACEBOOK===
-[Entrega aquí la METADATA DE FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀):
-1. CERO encabezados de sección en toda la entrega.
-2. SIN sección de Capítulos y SIN bloque de Tags SEO.
-3. Extensión de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀).
-4. Título directo altamente específico, sugerente y referente a la historia real del guion (cumpliendo la misma Regla Inquebrantable de Especificidad Histórica + Gancho Magnético, sin repetir literalmente la frase de la Miniatura ni del Hook del Clip 1) + línea braille (⠀) + EXACTAMENTE 3 PÁRRAFOS separados por línea braille (⠀) + línea braille (⠀) + Nota IA: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales). + línea braille (⠀) + Slogan: Cada historia deja una huella. Aquí seguimos sus rastros. + línea braille (⠀) + 5 hashtags en español en #CamelCase de DOS PALABRAS cada uno.]
+[Deliver the SPANISH FACEBOOK METADATA in continuous format separated ONLY by braille blank lines (⠀):
+1. ZERO section labels anywhere.
+2. NO Chapters section and NO SEO Tags block.
+3. Total length ~2800 to 3000 characters.
+4. Line 1: Ultra-specific Spanish Title (obeying Historical Specificity + Magnetic Hook without "| Documental Completo") + braille line (⠀) + EXACTLY 3 Spanish paragraphs separated by braille lines (⠀) + braille line (⠀) + verbatim Spanish AI Disclaimer: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales). + braille line (⠀) + verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros. + braille line (⠀) + 5 two-word #CamelCase Spanish hashtags.]
 
 ===SECCION_COMENTARIO===
-[Entrega aquí EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO sin ningún encabezado ni comillas: debe ser BREVE, DIRECTO Y CERCANO (~350 a 500 caracteres máximo, ~60 a 85 palabras, en 1 solo párrafo de EXACTAMENTE 3 ORACIONES: 1) una oración breve que conecte el hecho histórico con el presente o la huella humana actual, SIN volver a resumir todo el documental ni llenar de cifras; 2) una pregunta directa y cercana "¿...?" que invite al espectador a contar una historia familiar/personal relacionada o su opinión sobre el dilema central; 3) un cierre cálido tipo "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios.". Prohibido decir "dale like" o "suscríbete", prohibido usar signos de exclamación (!), años en dígitos y siglos/monarcas en números romanos.]
+[Deliver EXCLUSIVELY the SPANISH PINNED COMMENT without any label or quotes: concise (~350 to 500 characters max, ~60 to 85 words, 1 single paragraph of EXACTLY 3 Spanish sentences: 1) brief human connection between that historical event and today without summarizing the video; 2) warm direct question "¿...?" inviting viewers to share a family memory or opinion; 3) warm closing like "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios.". Forbidden "dale like" or "suscríbete", zero exclamation marks (!), years in digits, centuries/monarchs in Roman numerals.]
 
 ===SECCION_TAGS===
-[Entrega aquí EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE separados por comas en una sola línea continua (~460 a 500 caracteres máximo, sin encabezado "Tags:").]`;
+[Deliver EXCLUSIVELY the comma-separated SPANISH YOUTUBE SEO TAGS on a single continuous line (~460 to 500 characters max, never exceeding 500 characters, no "Tags:" prefix).]`;
     } else if (stageNumber === 111) {
-      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada: ${resolvedFinalDuration11}
-Plataforma: YOUTUBE
-Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion REAL de referencia: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
-${chaptersTimelineGuide ? `\nGuía de tiempos reales del documental:\n${chaptersTimelineGuide}\n` : ''}
-Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA YOUTUBE en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
-1. SIN LÍNEA DE TÍTULO AL INICIO (el título se maneja en una casilla separada; prohibido incluir el título arriba) y CERO encabezados de sección (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias ("Aquí tienes..."), con la ÚNICA excepción obligatoria del encabezado "Capítulos:". Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Párrafo 1 hasta los 5 hashtags finales sin cortar ninguna sección.
-2. Extensión completa de ~2800 a 3000 caracteres contando espacios y líneas braille (⠀) desde el inicio del primer párrafo hasta el final de los 5 hashtags.
-3. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS densos e inmersivos separados por línea con carácter braille (⠀).
-4. Sección obligatoria "Capítulos:" con 10 capítulos cronológicos reales (donde 00:00 es parte directa de la historia, NUNCA poner "Prólogo" ni "Introducción").
-5. Nota IA oficial: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
-6. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-7. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
-8. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
+      stagePrompt = `[STAGE_111_YOUTUBE_METADATA]
+Act as Publishing & YouTube SEO Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Confirmed Final Duration: ${resolvedFinalDuration11}
+Platform: YOUTUBE
+Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
+Clip 1 Opening Hook (${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+REAL Reference Script: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+${chaptersTimelineGuide ? `\nReal Documentary Timestamp Guide:\n${chaptersTimelineGuide}\n` : ''}
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the entire deliverable 100% in SPANISH.
+Generate STAGE 11: YOUTUBE PUBLICATION METADATA in continuous format separated ONLY by braille blank lines (⠀), obeying these unbreakable rules:
+1. NO TITLE LINE AT THE TOP (title is stored in a separate field) and ZERO section labels (forbidden "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") and ZERO conversational intros ("Here is...", "Aquí tienes..."), with the SINGLE mandatory exception of "Capítulos:". No markdown code blocks (\`\`\`).
+2. Total length ~2800 to 3000 characters from Paragraph 1 through the 5th hashtag.
+3. Spanish description divided into EXACTLY 3 dense paragraphs separated by a braille line (⠀).
+4. Mandatory "Capítulos:" section with 10 chronological Spanish chapters starting at 00:00 (NEVER write "Prólogo" or "Introducción").
+5. Verbatim Spanish AI Note: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+6. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
+7. Exactly 5 two-word #CamelCase Spanish hashtags at the very end.
+8. Strictly FORBIDDEN to add any closing remark after the 5th hashtag.`;
     } else if (stageNumber === 112) {
       const selectedPublishTitle = (doc.publishTitle || '').trim();
-      stagePrompt = `Actúa como estratega de publicación de "Huellas de la Humanidad".
-Tema: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada: ${resolvedFinalDuration11}
-Plataforma: FACEBOOK
-${selectedPublishTitle ? `Título oficial seleccionado para la primera línea (úsalo exactamente tal cual en la línea 1): ${selectedPublishTitle}\n` : ''}Texto en pantalla de la Miniatura: ${doc.thumbnailTextOverlay || ''}
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): ${doc.clip1Line2Hook || ''}
-Guion REAL de referencia (PRIORIDAD ABSOLUTA para redactar un Título específico y fiel a la historia): ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
+      stagePrompt = `[STAGE_112_FACEBOOK_METADATA]
+Act as Publishing Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Confirmed Final Duration: ${resolvedFinalDuration11}
+Platform: FACEBOOK
+${selectedPublishTitle ? `Official Selected Spanish Title for Line 1 (use verbatim on line 1 without "| Documental Completo"): ${selectedPublishTitle.replace(/\s*\|\s*Documental\s+Completo\s*$/i, '')}\n` : ''}Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
+Clip 1 Opening Hook (${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+REAL Reference Script: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 
-Genera la ETAPA 11: METADATA DE PUBLICACIÓN PARA FACEBOOK en formato "Todo Corrido" separada únicamente por líneas con carácter braille (⠀), cumpliendo estas reglas inquebrantables:
-1. CERO encabezados de sección en toda la entrega (prohibido "Título:", "Descripción:", "Nota IA:", "Slogan:", "Hashtags:") y CERO frases introductorias. Prohibido usar bloques de código markdown (\`\`\`); entrega todo en texto continuo directo desde el Título hasta los 5 hashtags finales.
-2. SIN sección de Capítulos y SIN bloque de Tags SEO (estrictamente prohibido incluir capítulos o tags en Facebook).
-3. Extensión completa de ~3000 caracteres contando espacios y líneas braille (⠀) medidos desde el inicio del título hasta el final de los 5 hashtags.
-4. ${selectedPublishTitle ? `En la primera línea escribe EXACTAMENTE este título oficial seleccionado: "${selectedPublishTitle}"` : specificTitleLaw11}
-5. Descripción dividida obligatoriamente en EXACTAMENTE 3 PÁRRAFOS separados por línea con carácter braille (⠀).
-6. Nota IA oficial: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
-7. Slogan oficial: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactamente 5 hashtags en español en #CamelCase compuestos obligatoriamente por DOS PALABRAS cada uno al cierre del texto.
-9. PROHIBIDO agregar mensajes de cierre después del quinto hashtag (prohibido escribir "¡Metadata completada!", "Una vez publicado el video", ni mencionar la "Etapa 12" o "Respuestas a Comentarios"); la respuesta debe terminar estrictamente en el quinto hashtag.`;
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the entire deliverable 100% in SPANISH.
+Generate STAGE 11: FACEBOOK PUBLICATION METADATA in continuous format separated ONLY by braille blank lines (⠀), obeying these unbreakable rules:
+1. ZERO section labels and ZERO conversational intros. No markdown code blocks (\`\`\`).
+2. NO Chapters section and NO SEO Tags block.
+3. Total length ~2800 to 3000 characters from Title through the 5th hashtag.
+4. ${selectedPublishTitle ? `On Line 1 write EXACTLY this Spanish title: "${selectedPublishTitle.replace(/\s*\|\s*Documental\s+Completo\s*$/i, '')}"` : specificTitleLaw11.replace(/\s*\|\s*Documental Completo/g, '')}
+5. Spanish description divided into EXACTLY 3 paragraphs separated by a braille line (⠀).
+6. Verbatim Spanish AI Note: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
+7. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
+8. Exactly 5 two-word #CamelCase Spanish hashtags at the end, with ZERO text after the 5th hashtag.`;
     } else if (stageNumber === 113) {
-      stagePrompt = `Actúa como estratega de comunidad y retención de "Huellas de la Humanidad".
-Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+      stagePrompt = `[STAGE_113_PINNED_COMMENT]
+Act as Community & Retention Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Video Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Script / Context: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
 
-Genera EXCLUSIVAMENTE el COMENTARIO FIJADO DEL VIDEO cumpliendo estas reglas inquebrantables:
-1. Entrega el texto directo en 1 solo párrafo corto sin ningún encabezado ni etiqueta (prohibido poner "Comentario Fijado:" o comillas).
-2. EXTENSIÓN BREVE Y CONCISA (~350 a 500 caracteres máximo, ~60 a 85 palabras, EXACTAMENTE 3 ORACIONES):
-   - Oración 1 (Conexión humana breve): Una sola oración corta que conecte aquella travesía, época o suceso con nuestras raíces, costumbres o memoria actual (PROHIBIDO iniciar con un párrafo largo que vuelva a resumir el documental o enumere estadísticas).
-   - Oración 2 (Pregunta cercana "¿...?"): Una pregunta directa que invite al espectador a compartir un recuerdo o historia familiar vinculada al tema o a opinar sobre el dilema humano central del episodio.
-   - Oración 3 (Cierre cálido): Una invitación breve a comentar (ej.: "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios.").
-3. Ejemplo exacto del largo, ritmo y estructura ideal (~490 caracteres):
-   "Muchos de nuestros apellidos, oficios y costumbres actuales nacieron de aquella travesía que comenzó en muelles como el de Santander en 1885. ¿Tu familia también guarda el recuerdo, las cartas o la historia de algún abuelo o bisabuelo que cruzó el océano con una maleta de madera buscando un nuevo destino en América, o qué opinas sobre las duras condiciones del sistema de dependientes de aquella época? Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios."
-4. Queda terminantemente prohibido pedir genéricamente "dale like" o "suscríbete", y prohibido usar signos de exclamación (!).
-5. Escribe todos los años en dígitos y los siglos/nombres con número en números romanos.`;
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the pinned comment 100% in SPANISH.
+Generate EXCLUSIVELY the VIDEO PINNED COMMENT obeying these unbreakable rules:
+1. Deliver 1 single short paragraph in Spanish with ZERO labels or quotes (forbidden "Comentario Fijado:" or "Pinned Comment:").
+2. CONCISE LENGTH (~350 to 500 characters max, ~60 to 85 words, EXACTLY 3 SPANISH SENTENCES):
+   - Sentence 1 (Brief human connection): Connect that historical era/journey with our present roots, memory, or daily life (NEVER re-summarize the whole video).
+   - Sentence 2 (Warm direct question "¿...?"): Invite viewers to share a family memory/story linked to the topic or their view on the central human dilemma.
+   - Sentence 3 (Warm closing): e.g. "Cuéntanos tu historia o reflexión aquí abajo, te leemos en los comentarios."
+3. Strictly FORBIDDEN to ask for "dale like" or "suscríbete", and ZERO exclamation marks (!).
+4. Write years in digits and centuries/monarchs in Roman numerals.`;
     } else if (stageNumber === 114) {
-      stagePrompt = `Actúa como especialista en SEO de YouTube para "Huellas de la Humanidad".
-Tema del video: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Guion / Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
+      stagePrompt = `[STAGE_114_YOUTUBE_SEO_TAGS]
+Act as a YouTube SEO Specialist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Video Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Script / Context: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1500)}
 
-Genera EXCLUSIVAMENTE el bloque de TAGS SEO DE YOUTUBE cumpliendo estas reglas inquebrantables:
-1. Entrega ÚNICAMENTE las etiquetas separadas por comas, en un solo bloque continuo, sin ningún encabezado (prohibido poner "Tags:" o "Tags SEO:").
-2. La longitud total del bloque debe ser de aproximadamente 460 a 500 caracteres contando espacios y comas (nunca superar los 500 caracteres).
-3. Incluye palabras clave de alto volumen de búsqueda en español sobre el tema histórico, personajes, época, lugar y documentales de historia.`;
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write all SEO tags 100% in SPANISH.
+Generate EXCLUSIVELY the YOUTUBE SEO TAGS block obeying these unbreakable rules:
+1. Deliver ONLY comma-separated Spanish tags in one single continuous line with ZERO labels (forbidden "Tags:" or "SEO Tags:").
+2. Total character length MUST be ~460 to 500 characters counting spaces and commas (strictly NEVER exceed 500 characters).
+3. Include high-search-volume Spanish keywords covering the historical event, figures, era, location, and history documentaries.`;
     } else if (stageNumber === 115) {
-      stagePrompt = `Actúa como director editorial y estratega de alto CTR en YouTube y Facebook para el canal documental "Huellas de la Humanidad".
-Tema del documental: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
-Duración final confirmada: ${resolvedFinalDuration11}
-Texto en pantalla de la Miniatura: "${doc.thumbnailTextOverlay || ''}"
-Texto en pantalla en los primeros ${voiceEntrySec} segundos (Clip 1): "${doc.clip1Line2Hook || ''}"
-Guion REAL del documental (PRIORIDAD ABSOLUTA — basa los títulos 100% en la historia real narrada aquí):
+      stagePrompt = `[STAGE_115_YOUTUBE_5_TITLES]
+Act as Editorial Director and High-CTR YouTube/Facebook Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".
+Documentary Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
+Confirmed Final Duration: ${resolvedFinalDuration11}
+Thumbnail Overlay Text: "${doc.thumbnailTextOverlay || ''}"
+Clip 1 Opening Hook (${voiceEntrySec}s): "${doc.clip1Line2Hook || ''}"
+REAL Documentary Script (ABSOLUTE PRIORITY — base all 5 titles 100% on the real story narrated here):
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
 """
 
-TAREA OBLIGATORIA: Genera EXACTAMENTE 5 OPCIONES DE TÍTULOS PARA EL VIDEO que sean ULTRA-ESPECÍFICOS, SUGERENTES, MAGNÉTICOS y directamente referentes a la historia central que se transmite en el guion.
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write all 5 video title options 100% in SPANISH.
+MANDATORY TASK: Generate EXACTLY 5 HIGH-CTR SPANISH VIDEO TITLE OPTIONS that are ULTRA-SPECIFIC, SUGGESTIVE, MAGNETIC, and faithful to the central story of the script.
 
-REGLAS INQUEBRANTABLES:
-1. PROHIBIDO TÍTULOS VAGOS O GENÉRICOS: Queda terminantemente prohibido entregar títulos poéticos o abstractos que no digan de qué historia concreta trata el documental (ej. prohibido "El Precio del Destino", "Sombras del Pasado", "Crónicas de Dos Orillas" o "Así Era Vivir en la Corte Real" sin nombrar al sujeto o suceso histórico real).
-2. ESPECIFICIDAD HISTÓRICA + TENSIÓN NARRATIVA: Cada uno de los 5 títulos DEBE nombrar explícitamente el hecho histórico, grupo humano, protagonista o lugar central del guion (con años en dígitos y siglos/monarcas en números romanos) combinado con la revelación, drama humano, paradoja o misterio real que cuenta el documental.
-3. NO REPETICIÓN LITERAL: No repitas la misma frase literal de la Miniatura ("${doc.thumbnailTextOverlay || ''}") ni del Texto del Clip 1 ("${doc.clip1Line2Hook || ''}"), pero SÍ nombra directamente el tema o protagonista histórico central desde ángulos aún más sugerentes y específicos.
+UNBREAKABLE RULES:
+1. FORBIDDEN VAGUE OR GENERIC TITLES: Never output abstract or poetic titles that hide what concrete story the documentary tells.
+2. HISTORICAL SPECIFICITY + NARRATIVE TENSION: Every Spanish title MUST explicitly name the historical event, human group, protagonist, or central place from the script (years in digits, centuries/monarchs in Roman numerals, zero exclamation marks) combined with its core revelation, human drama, or paradox.
+3. NO VERBATIM REPETITION: Do not repeat word-for-word the Thumbnail Overlay ("${doc.thumbnailTextOverlay || ''}") or Clip 1 Text ("${doc.clip1Line2Hook || ''}").
 4. ${titleSuffixRule11}
-5. FORMATO DE ENTREGA: Entrega ÚNICAMENTE los 5 títulos, uno por línea (5 líneas en total), sin numeración ("1.", "Opción 1:"), sin viñetas, sin comillas y sin texto introductorio ni de cierre.`;
+5. DELIVERY FORMAT: Output ONLY the 5 Spanish titles, one per line (5 lines total), with NO numbering ("1.", "Option 1:"), NO bullets, NO quotes, and NO intro or closing text.`;
     }
   }
 
@@ -3078,7 +3153,7 @@ REGLAS INQUEBRANTABLES:
     stagePrompt += `\n${BRAND_SAFETY_LEXICAL_RULE_ES}`;
   }
   if (customInstruction) {
-    stagePrompt += `\n\nInstrucción adicional del director: ${customInstruction}`;
+    stagePrompt += `\n\nAdditional director instruction: ${customInstruction}`;
   }
   return stagePrompt;
 }
@@ -3157,9 +3232,8 @@ export async function generateThumbnailImageClientSide(
 }
 
 export async function auditClipsClientSide(doc: DocumentaryProject, clipsList: any[]): Promise<any> {
-  const includeVoiceInClips = doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR';
-  const auditPrompt = `Actúa como Director de Cine, Historiador y Supervisor de Continuidad de "Huellas de la Humanidad".
-Audita la coherencia entre la voz narrativa y los clips del documental "${doc.topic || doc.title}":
+  const auditPrompt = `Act as Film Director, Historian, and Continuity Supervisor for "Huellas de la Humanidad".
+Audit narrative-to-visual coherence across the clips of documentary "${doc.topic || doc.title}":
 ${JSON.stringify(
   clipsList.map((c: any) => ({
     clipNumber: c.clipNumber,
@@ -3172,10 +3246,9 @@ ${JSON.stringify(
   null,
   2
 )}
-REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS (Clip N vs Clip N-1): Si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, el Clip [N] NO debe duplicar visualmente la misma puesta en escena del Clip [N-1] (ej. prohibido encadenar dos escenas seguidas de escritorio/mostrador de madera en una oficina con documentos, o dos habitaciones iguales seguidas). Si el Clip [N] repite un escenario o composición similar al Clip [N-1], márcalo como "warning" o "mismatch" y redacta en "suggestedImagePrompt" (~20-35 palabras) y "suggestedVideoPrompt" (1 sola oración física simple ~12-22 palabras) una escena visualmente diferente pero referente a la locución (ej. un exterior luminoso en un muelle frente a un buque de vapor, o un entorno/escala radicalmente distinto) ${
-    includeVoiceInClips ? 'con la voz narrativa y ' : ''
-  }cerrando con "fix the name".
-Devuelve EXCLUSIVAMENTE un JSON válido con {"summary": "...", "audits": [{"clipNumber": 1, "auditStatus": "ok"|"warning"|"mismatch", "auditReason": "...", "suggestedImagePrompt": "", "suggestedVideoPrompt": ""}]}`;
+UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (Clip N vs Clip N-1): If narration stays on the same topic across consecutive clips, Clip [N] MUST NOT visually duplicate the staging, room, desk, or framing of Clip [N-1]. If Clip [N] repeats a similar setting or framing, mark "auditStatus" as "warning" or "mismatch" and write in "suggestedImagePrompt" (~20-35 words, 100% in English starting with "Image [N]: Create an image of ...") and "suggestedVideoPrompt" (100% in English starting with "Clip [N] ([MM:SS - MM:SS]): Create a video showing ..." and ending with "fix the name", ZERO Spanish words inside prompts) a visually distinct scene matching the narration.
+Write "summary" and "auditReason" in Spanish for the producer UI.
+Return EXCLUSIVELY valid JSON: {"summary": "...", "audits": [{"clipNumber": 1, "auditStatus": "ok"|"warning"|"mismatch", "auditReason": "...", "suggestedImagePrompt": "", "suggestedVideoPrompt": ""}]}`;
 
   const raw = await callGeminiGenerateContentClientSide([{ text: auditPrompt }], true);
   return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
@@ -3187,44 +3260,40 @@ export async function auditClipVideoClientSide(
   frames: string[],
   attempt: number = 1
 ): Promise<any> {
-  const includeVoiceInClips = doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR';
-  const promptText = `Actúa como Director de Cine, Historiador y Supervisor de Control de Calidad Visual de "Huellas de la Humanidad".
-Acabas de recibir ${frames.length} fotogramas reales (inicio, mitad y final) de un video recién generado en Google Flow para el Clip #${clip.clipNumber} (Intento #${attempt}).
+  const promptText = `Act as Film Director, Historian, and Visual QA Supervisor for "Huellas de la Humanidad".
+You are inspecting ${frames.length} real extracted frames (start, middle, end) from a video generated in Google Flow for Clip #${clip.clipNumber} (Attempt #${attempt}).
 
-CONTEXTO DEL DOCUMENTAL:
-- Título / Tema: ${doc.topic || doc.title || ''}
-- Época Histórica: ${doc.historicalTime || ''}
-- Lugar Histórico: ${doc.historicalLocation || ''}
+DOCUMENTARY CONTEXT:
+- Title / Topic: ${doc.topic || doc.title || ''}
+- Historical Era: ${doc.historicalTime || ''}
+- Historical Location: ${doc.historicalLocation || ''}
 
-DATOS DEL CLIP #${clip.clipNumber} (${clip.timeRange || ''}):
-- Voz Narrativa en este clip: "${
+CLIP #${clip.clipNumber} DATA (${clip.timeRange || ''}):
+- Spanish Voiceover during this clip: "${
     clip.clipNumber === 1
-      ? '[Clip 1 Hook inicial sin voz — Solo Foley y Texto en pantalla: ' +
+      ? '[Clip 1 Silent Opening Hook — Foley & On-Screen Text only: ' +
         (doc.clip1Line1LocationTime || '') +
         ' / ' +
         (doc.clip1Line2Hook || '') +
         ']'
       : clip.narrationSegment || ''
   }"
-- Prompt de Imagen Inicial: ${clip.imagePrompt || ''}
-- Prompt de Video enviado a Google Flow: ${clip.videoPrompt || ''}
+- Initial Image Prompt: ${clip.imagePrompt || ''}
+- Video Prompt sent to Google Flow: ${clip.videoPrompt || ''}
 
-TU TAREA DE AUDITORÍA VISUAL (VIDEO REAL vs PROMPT vs VOZ NARRATIVA):
-Observa detenidamente los fotogramas reales adjuntos y evalúa:
-1. COHERENCIA CON LA VOZ NARRATIVA: ¿Lo que se ve en el video acompaña y tiene sentido directo con lo que dice la Voz Narrativa en este segmento?
-2. CUMPLIMIENTO DEL PROMPT E HISTORIA: ¿Se respeta la época histórica (${doc.historicalTime || ''}), escenario y acción principal del prompt?
-3. CALIDAD VISUAL Y LIBRE DE ERRORES IA: ¿Está libre de deformaciones graves (caras/manos monstruosas), anacronismos modernos evidentes, pantallas en negro o texto basura quemado?
+VISUAL QA AUDIT TASK:
+Inspect the attached frames and evaluate:
+1. NARRATION COHERENCE: Do the visuals match the Spanish voiceover meaning for this segment?
+2. HISTORICAL & PROMPT FIDELITY: Are historical era (${doc.historicalTime || ''}), setting, and primary action respected?
+3. VISUAL QUALITY & ZERO AI ARTIFACTS: Free from severe anatomical deformations, modern anachronisms, black frames, or unwanted burned-in text?
 
-CRITERIO DE VEREDICTO:
-- "approved": El video se ve bien, encaja con la voz narrativa y con el prompt (score >= 75).
-- "warning": El video es utilizable pero tiene un detalle menor (score 60-74).
-- "rejected": El video NO coincide con la voz narrativa, ignoró el prompt, tiene errores visuales graves o anacronismos (score < 60). Si es "rejected", redacta obligatoriamente en "fixedVideoPrompt" un prompt de video corregido, más claro y directo para Google Flow iniciando con "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." ${
-    includeVoiceInClips && clip.clipNumber > 1 && clip.narrationSegment
-      ? `incluyendo la oración narrativa "${clip.narrationSegment}" `
-      : ''
-  }y cerrando con "fix the name".
+VERDICT CRITERIA:
+- "approved": Strong visual quality matching narration and prompt (score >= 75).
+- "warning": Usable clip with minor imperfections (score 60-74).
+- "rejected": Fails narration coherence, ignores prompt, or shows severe AI artifacts/anachronisms (score < 60). If "rejected", write in "fixedVideoPrompt" a clean, corrected 100% English Google Flow prompt starting with "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." and ending with "fix the name" (strictly ZERO Spanish words inside fixedVideoPrompt).
 
-Devuelve EXCLUSIVAMENTE un objeto JSON válido:
+Write "auditReason" and "issues" in Spanish for the producer UI.
+Return EXCLUSIVELY valid JSON:
 {
   "clipNumber": ${clip.clipNumber},
   "verdict": "approved" | "warning" | "rejected",
@@ -3232,9 +3301,9 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido:
   "narrationMatch": true,
   "promptMatch": true,
   "visualQualityOk": true,
-  "auditReason": "Explicación concisa en español de lo que se ve en el video y por qué aprueba o falla frente a la voz narrativa y el prompt",
-  "issues": ["Lista de fallos si los hay"],
-  "fixedVideoPrompt": "Prompt corregido listo para re-enviar a Google Flow si verdict es rejected, o string vacío si aprobó"
+  "auditReason": "Concise Spanish explanation of what appears in the frames and why it passes or fails",
+  "issues": ["Spanish list of issues if any"],
+  "fixedVideoPrompt": "100% English replacement prompt for Google Flow if rejected, or empty string if approved"
 }`;
 
   const parts: any[] = [{ text: promptText }];
@@ -3273,18 +3342,19 @@ export async function auditThumbnailPsychologyClientSide(
   optionLabel: string = 'A'
 ): Promise<ThumbnailPsychologyAuditResult> {
   const overlayText = (doc.thumbnailTextOverlay || '').trim();
-  const promptText = `Actúa como Experto en Neuropsicología de Miniaturas de YouTube (CTR) y Director de Arte de "Huellas de la Humanidad".
-Evalúa la miniatura adjunta (Opción ${optionLabel}) para el documental "${doc.title || doc.topic}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
-Texto esperado en pantalla: "${overlayText}"
+  const promptText = `Act as a YouTube Thumbnail CTR Neuropsychology Expert and Art Director for "Huellas de la Humanidad".
+Evaluate the attached thumbnail image (Option ${optionLabel}) for documentary "${doc.title || doc.topic}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
+Expected Spanish on-screen text: "${overlayText}"
 
-Califica del 0 al 20 cada una de las 5 Reglas Psicológicas del Clic (Total 0 a 100):
-1. rule1_13msClarity (0-20): Procesamiento ultrarrápido en 13 milisegundos. ¿Es ultra-limpia (máximo 3 elementos), sin ruido visual y legible en un móvil pequeño?
-2. rule2_faceEmotionEyeContact (0-20): Rostro humano expresivo, emoción visceral intensa (asombro, shock, terror, misterio) y contacto visual directo con el espectador.
-3. rule3_curiosityGap (0-20): Brecha de la curiosidad (Curiosity Gap). ¿Plantea una incógnita visual irresistible ("¿Qué acaba de pasar?") sin regalar toda la respuesta?
-4. rule4_colorContrast (0-20): Psicología del color y contraste (luz cálida dorada/roja/ámbar de alto impacto contra fondo oscuro frío + legibilidad del texto).
-5. rule5_titleBrandSynergy (0-20): Sincronización con el título, texto en pantalla "${overlayText}" bien escrito, logo oficial "Huellas de la Humanidad" arriba a la izquierda y sello "8K"/"HD" arriba a la derecha.
+Score from 0 to 20 each of the 5 Psychological Click Laws (Total 0 to 100):
+1. rule1_13msClarity (0-20): Ultra-fast 13-millisecond visual readability (max 3 elements, zero visual clutter, mobile-legible).
+2. rule2_faceEmotionEyeContact (0-20): Expressive human face, intense visceral emotion, and direct eye contact with the viewer.
+3. rule3_curiosityGap (0-20): Irresistible visual Curiosity Gap without spoiling the entire answer.
+4. rule4_colorContrast (0-20): High-contrast warm key light against dark cool background + crisp text legibility.
+5. rule5_titleBrandSynergy (0-20): Synergy with video title, accurate Spanish overlay "${overlayText}", "Huellas de la Humanidad" logo top-left, and "8K"/"HD" badge top-right.
 
-Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura exacta:
+Write "summary" and "improvementTip" in Spanish for the producer UI, and use "EXCELENTE" | "BUENA" | "MEJORABLE" for "verdict".
+Return EXCLUSIVELY valid JSON:
 {
   "optionLabel": "${optionLabel}",
   "ctrScore": 92,
@@ -3294,8 +3364,8 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura exacta:
   "rule4_colorContrast": 18,
   "rule5_titleBrandSynergy": 18,
   "verdict": "EXCELENTE",
-  "summary": "Explicación concisa en español (1-2 oraciones) del impacto psicológico de esta miniatura.",
-  "improvementTip": "Sugerencia breve opcional si algún punto bajó de 17."
+  "summary": "Concise 1-2 sentence Spanish assessment of psychological CTR impact.",
+  "improvementTip": "Optional brief Spanish tip if any rule scored below 17."
 }`;
 
   const cleanB64 = String(imageDataUrl).replace(/^data:[^;]+;base64,/, '');
@@ -3323,13 +3393,13 @@ export async function replyCommentsClientSide(
   mimeType?: string,
   customInstruction?: string
 ): Promise<any> {
-  const promptText = `Actúa como el historiador principal y director de "Huellas de la Humanidad".
-Documental: ${doc.publishTitle || doc.topic || doc.title || 'Documental Histórico'} (${doc.historicalTime || ''} | ${doc.historicalLocation || ''})
-Contexto: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2500)}
-${commentText ? `Comentario:\n${commentText}\n` : ''}
-${customInstruction ? `Instrucción adicional: ${customInstruction}\n` : ''}
-Redacta respuestas certeras y concisas (1-3 oraciones, años en dígitos, siglos/monarcas en números romanos, miles con "mil", CERO signos de exclamación).
-Devuelve EXCLUSIVAMENTE un JSON válido: {"replies": [{"author": "@usuario", "commentText": "...", "replyConcise": "...", "replyAlternative": "...", "historicalContextNote": "..."}]}`;
+  const promptText = `Act as Lead Historian and Director of the Spanish-language documentary channel "Huellas de la Humanidad".
+Documentary: ${doc.publishTitle || doc.topic || doc.title || 'Historical Documentary'} (${doc.historicalTime || ''} | ${doc.historicalLocation || ''})
+Context: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2500)}
+${commentText ? `Viewer Comment(s):\n${commentText}\n` : ''}
+${customInstruction ? `Additional Director Instruction: ${customInstruction}\n` : ''}
+CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write all suggested replies ("replyConcise", "replyAlternative", "historicalContextNote") in warm, cultivated Neutral Spanish (1-3 sentences, years in digits, centuries/monarchs in Roman numerals, thousands with "mil", ZERO exclamation marks "!").
+Return EXCLUSIVELY valid JSON: {"replies": [{"author": "@user", "commentText": "...", "replyConcise": "...", "replyAlternative": "...", "historicalContextNote": "..."}]}`;
 
   const parts: any[] = [{ text: promptText }];
   if (imageBase64) {

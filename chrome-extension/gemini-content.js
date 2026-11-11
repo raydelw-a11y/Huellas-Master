@@ -472,33 +472,53 @@
       const { text } = extractCleanResponseFromElement(el);
       const clean = String(text || '').trim();
       if (!clean || clean.length < 35) continue;
-      if (/^Act[uú]a como (?:estratega|especialista)/i.test(clean)) continue;
+      if (/^(?:Act[uú]a como (?:estratega|especialista)|Act as (?:Chief Publishing|Publishing Strategist|Community & Retention|YouTube SEO|Editorial Director)|\[STAGE_11[1-5]_)/i.test(clean)) continue;
 
       const userPrompt = getPrecedingUserPromptForResponse(el);
       if (userPrompt) {
-        if (/5\s+OPCIONES\s+DE\s+T[IÍ]TULOS|director\s+editorial\s+y\s+estratega\s+de\s+alto\s+CTR/i.test(userPrompt)) {
+        if (
+          /\[STAGE_115_YOUTUBE_5_TITLES\]|5\s+OPCIONES\s+DE\s+T[IÍ]TULOS|5\s+VIDEO\s+TITLE\s+options|director\s+editorial\s+y\s+estratega\s+de\s+alto\s+CTR|Editorial\s+Director\s+and\s+High-CTR\s+Strategist/i.test(
+            userPrompt
+          )
+        ) {
           bundle.titles = clean;
           continue;
         }
-        if (/COMENTARIO\s+FIJADO\s+DEL\s+VIDEO/i.test(userPrompt) && clean.length <= 2000) {
-          bundle.pinnedComment = clean.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim();
-          continue;
-        }
-        if (/TAGS\s+SEO\s+DE\s+YOUTUBE/i.test(userPrompt) && clean.length <= 1200) {
-          bundle.youtubeTags = clean.replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '').trim();
+        if (
+          /\[STAGE_113_PINNED_COMMENT\]|COMENTARIO\s+FIJADO\s+DEL\s+VIDEO|VIDEO\s+PINNED\s+COMMENT/i.test(
+            userPrompt
+          ) &&
+          clean.length <= 2000
+        ) {
+          bundle.pinnedComment = clean
+            .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?|Pinned\s+Comment(?:\s+for\s+Video)?)\s*:\s*/i, '')
+            .trim();
           continue;
         }
         if (
-          (/METADATA\s+DE\s+PUBLICACI[OÓ]N\s+PARA\s+YOUTUBE/i.test(userPrompt) ||
-            /Plataforma:\s*YOUTUBE/i.test(userPrompt)) &&
+          /\[STAGE_114_SEO_TAGS\]|TAGS\s+SEO\s+DE\s+YOUTUBE|YOUTUBE\s+SEO\s+TAGS/i.test(userPrompt) &&
+          clean.length <= 1200
+        ) {
+          bundle.youtubeTags = clean
+            .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?|YouTube\s+(?:SEO\s+)?Tags|SEO\s+Tags)\s*:\s*/i, '')
+            .trim();
+          continue;
+        }
+        if (
+          (/\[STAGE_111_YOUTUBE_METADATA\]/i.test(userPrompt) ||
+            /METADATA\s+DE\s+PUBLICACI[OÓ]N\s+PARA\s+YOUTUBE/i.test(userPrompt) ||
+            /YOUTUBE\s+PUBLISHING\s+METADATA/i.test(userPrompt) ||
+            /(?:Plataforma|Platform):\s*YOUTUBE/i.test(userPrompt)) &&
           clean.length >= 400
         ) {
           bundle.youtube = clean;
           continue;
         }
         if (
-          (/METADATA\s+DE\s+PUBLICACI[OÓ]N\s+PARA\s+FACEBOOK/i.test(userPrompt) ||
-            /Plataforma:\s*FACEBOOK/i.test(userPrompt)) &&
+          (/\[STAGE_112_FACEBOOK_METADATA\]/i.test(userPrompt) ||
+            /METADATA\s+DE\s+PUBLICACI[OÓ]N\s+PARA\s+FACEBOOK/i.test(userPrompt) ||
+            /FACEBOOK\s+PUBLISHING\s+METADATA/i.test(userPrompt) ||
+            /(?:Plataforma|Platform):\s*FACEBOOK/i.test(userPrompt)) &&
           clean.length >= 400
         ) {
           bundle.facebook = clean;
@@ -539,7 +559,9 @@
           bundle.facebook = clean;
         }
       } else if (!hasChapters && !hasSlogan && !hasAiNote && hashtags.length < 3 && isCommaTagList) {
-        bundle.youtubeTags = clean.replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*:\s*)/i, '').trim();
+        bundle.youtubeTags = clean
+          .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?|YouTube\s+(?:SEO\s+)?Tags|SEO\s+Tags)\s*:\s*/i, '')
+          .trim();
       } else if (
         !hasChapters &&
         !hasSlogan &&
@@ -549,7 +571,9 @@
         clean.length <= 1800 &&
         !isCommaTagList
       ) {
-        bundle.pinnedComment = clean.replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*:\s*)/i, '').trim();
+        bundle.pinnedComment = clean
+          .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?|Pinned\s+Comment(?:\s+for\s+Video)?)\s*:\s*/i, '')
+          .trim();
       }
     }
 
@@ -1516,40 +1540,93 @@
 
             // Stage 8 Auto-Continuation (when 130-160+ clips exceed Gemini's single-turn output token limit)
             if (stageNum === 8) {
+              // Trim any half-cut trailing line after the last complete "Clip K ... fix the name" so continuation never leaves broken stubs
+              const sanitizeStage8Chunk = (chunkText) => {
+                const lines = String(chunkText || '').replace(/\r\n/g, '\n').split('\n');
+                let lastCompleteClipIdx = -1;
+                let lastClipNum = 0;
+                for (let li = 0; li < lines.length; li++) {
+                  const ln = lines[li].trim();
+                  const m = ln.match(/^(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[][^\)\]]*[\)\]])?\s*[:\-–]/i);
+                  if (m && /fix\s+the\s+name/i.test(ln)) {
+                    const parsedN = parseInt(m[1], 10);
+                    if (parsedN > 0) {
+                      lastCompleteClipIdx = li;
+                      if (parsedN > lastClipNum) lastClipNum = parsedN;
+                    }
+                  }
+                }
+                if (lastCompleteClipIdx >= 0) {
+                  return {
+                    cleanText: lines.slice(0, lastCompleteClipIdx + 1).join('\n').trim(),
+                    lastClipNum,
+                  };
+                }
+                return { cleanText: String(chunkText || '').trim(), lastClipNum: 0 };
+              };
+
               const prevAccumulated = String((meta && meta.accumulatedStage8Text) || '').trim();
+              const sanitizedTurn = sanitizeStage8Chunk(rawTurnText);
               const combinedStage8 = prevAccumulated
-                ? `${prevAccumulated}\n\n${rawTurnText.trim()}`
-                : rawTurnText.trim();
+                ? `${prevAccumulated}\n\n${sanitizedTurn.cleanText}`
+                : sanitizedTurn.cleanText;
               const expectedClips = Number(meta && meta.expectedClipCount) || 0;
               const contRound = Number(meta && meta.continuationRound) || 0;
               let maxGenClipNum = 0;
-              const clipRe = /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[][^\)\]]*[\)\]])?\s*[:\-–]/gi;
+              const clipRe = /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[][^\)\]]*[\)\]])?\s*[:\-–][^\n]*fix\s+the\s+name/gi;
               let cm;
               while ((cm = clipRe.exec(combinedStage8)) !== null) {
                 const n = parseInt(cm[1], 10);
                 if (n > maxGenClipNum) maxGenClipNum = n;
               }
               const prevMaxClipNum = Number(meta && meta.prevMaxClipNum) || 0;
+              const masterStage8Prompt = String(
+                (meta && (meta.rawOriginalStage8Prompt || meta.rawPrompt)) || ''
+              );
               if (
                 expectedClips > 10 &&
-                maxGenClipNum >= 15 &&
+                maxGenClipNum >= 10 &&
                 maxGenClipNum > prevMaxClipNum &&
-                maxGenClipNum < expectedClips - 1 &&
-                contRound < 4
+                maxGenClipNum < expectedClips &&
+                contRound < 8
               ) {
                 const nextStartClip = maxGenClipNum + 1;
-                const contPrompt = `Continúa EXACTAMENTE desde Image ${nextStartClip} y Clip ${nextStartClip} hasta completar TODOS los tramos restantes del Timeline hasta Image ${expectedClips} y Clip ${expectedClips}, sin repetir la orden operativa inicial de 9 líneas ni los clips 1 al ${maxGenClipNum}. Mantén exactamente el mismo formato (cada Image N en su línea y cada Clip N en su línea con su rango [MM:SS - MM:SS], su oración de voz narrativa y [Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority]] fix the name).`;
+                const batchEndClip = Math.min(expectedClips, nextStartClip + 49);
+                // Extract exact pre-numbered Timeline rows for [nextStartClip..batchEndClip] from original Stage 8 prompt
+                const sliceTimelineRows = [];
+                if (masterStage8Prompt) {
+                  const pLines = masterStage8Prompt.replace(/\r\n/g, '\n').split('\n');
+                  for (const pl of pLines) {
+                    const rm = pl.match(/^\s*Clip\s+0*(\d+)\s+\([0-9:]+\s*-\s*[0-9:]+\)\s*\[Stage 1 Flow Duration:/i);
+                    if (rm) {
+                      const rn = parseInt(rm[1], 10);
+                      if (rn >= nextStartClip && rn <= batchEndClip) {
+                        sliceTimelineRows.push(pl.trim());
+                      }
+                    }
+                  }
+                }
+                const refsLineMatch = masterStage8Prompt.match(/Mandatory visual references[^\n]+/i);
+                const durLineMatch = masterStage8Prompt.match(/-\s*Clips\s+02\s+through[^\n]+/i);
+                const sliceBlock =
+                  sliceTimelineRows.length > 0
+                    ? `\nExact Pre-Numbered Timeline Rows to generate in this batch (copy each exact (MM:SS - MM:SS) timestamp verbatim — ZERO Spanish inside Image N or Clip N):\n"""\n${sliceTimelineRows.join('\n')}\n"""`
+                    : '';
+                const contPrompt = `Continue Stage 8 in 100% PURE ENGLISH starting EXACTLY at Image ${nextStartClip < 10 ? '0' + nextStartClip : nextStartClip} and Clip ${nextStartClip < 10 ? '0' + nextStartClip : nextStartClip} through Image ${batchEndClip} and Clip ${batchEndClip} (out of ${expectedClips} total clips). Do NOT repeat the 9-line operational header or clips 1..${maxGenClipNum}. ${refsLineMatch ? refsLineMatch[0] : ''} ${durLineMatch ? durLineMatch[0] : ''}${sliceBlock}\nKeep the exact single-line format for every Image N (ending in "no text.") and every Clip N ("Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ... [Duration: {D}s] [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name"), zero Spanish words inside prompts, and zero duplicate consecutive settings.`;
                 reportStatus(
                   'GENERATING',
-                  `🔄 Gemini llegó al Clip ${maxGenClipNum}/${expectedClips} por límite de longitud por turno. Continuando automáticamente desde el Clip ${nextStartClip} hasta el ${expectedClips} (sin reiniciar)...`,
+                  `🔄 Gemini completó hasta el Clip ${maxGenClipNum}/${expectedClips}. Continuando automáticamente desde el Clip ${nextStartClip} al ${batchEndClip}...`,
                   meta
                 );
-                // Also send partial progress snapshot so the UI already displays clips 1..maxGenClipNum safely
+                // Send partial progress snapshot flagged with isPartialContinuation so remote/mobile tracking stays open
                 chrome.runtime
                   .sendMessage({
                     type: 'GEMINI_RESPONSE_READY',
                     stageNumber: 8,
                     docId: (meta && meta.docId) || '',
+                    remoteCommandId: (meta && meta.remoteCommandId) || '',
+                    isPartialContinuation: true,
+                    continuationRound: contRound + 1,
                     taskType: meta.taskType,
                     text: combinedStage8,
                     images: [],
@@ -1558,8 +1635,11 @@
                 executeSinglePromptOrder({
                   action: 'SEND_PROMPT',
                   docId: (meta && meta.docId) || '',
+                  remoteCommandId: (meta && meta.remoteCommandId) || '',
+                  forceOverwrite: true,
                   videoName: (meta && meta.targetChatTitle) || '',
                   prompt: contPrompt,
+                  rawOriginalStage8Prompt: masterStage8Prompt,
                   stageNumber: 8,
                   expectedClipCount: expectedClips,
                   continuationRound: contRound + 1,
@@ -4187,6 +4267,8 @@
             continuationRound: Number(payload.continuationRound) || 0,
             prevMaxClipNum: Number(payload.prevMaxClipNum) || 0,
             accumulatedStage8Text: String(payload.accumulatedStage8Text || ''),
+            rawOriginalStage8Prompt: String(payload.rawOriginalStage8Prompt || rawPrompt || ''),
+            remoteCommandId: String(payload.remoteCommandId || payload.commandId || ''),
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
             enableCreateImage: wantCreateImage,
