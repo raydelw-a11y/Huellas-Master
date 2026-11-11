@@ -139,7 +139,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:25 PM - 11/10/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:15 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -15835,11 +15835,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   />
                 </div>
 
-                {/* STEP 4B & 4C SIDE BY SIDE: VOXFLOW + TIMELINE EXTRACTOR */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* STEP 4B: VOXFLOW STUDIO INTEGRATED */}
+                {/* STEP 4B: VOXFLOW STUDIO INTEGRATED (Timeline & .SRT sync automatically in background) */}
+                <div>
                   <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
                           App Integrada #2
@@ -15848,10 +15847,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <Volume2 className="w-4 h-4 text-amber-400" /> Paso 4B — Estudio VoxFlow (Locución)
                         </h3>
                       </div>
+                      {(activeDoc.timelineSentences?.length || 0) > 0 && (() => {
+                        const totalEndSec = (activeDoc.timelineSentences || []).reduce(
+                          (m, s) => Math.max(m, Number(s?.end) || 0),
+                          0
+                        );
+                        const r = Math.max(0, Math.round(totalEndSec));
+                        const totalFmt = `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
+                        return (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-semibold text-emerald-300">
+                            ✓ Timeline y .SRT sincronizados en 2º plano · Total documental: {totalFmt}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Voice & Style Selectors */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                           Voz Narrativa
@@ -16109,6 +16121,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     <Download className="w-3.5 h-3.5" /> .MP3
                                   </button>
                                   <button
+                                    type="button"
+                                    onClick={() => {
+                                      const sentences =
+                                        activeDoc.timelineSentences && activeDoc.timelineSentences.length > 0
+                                          ? activeDoc.timelineSentences
+                                          : parseTimelineTextToSentences(activeDoc.timelineFormattedText || '');
+                                      if (!sentences || sentences.length === 0) {
+                                        alert('Primero genera o carga el audio de la Voz Narrativa para descargar el .SRT.');
+                                        return;
+                                      }
+                                      const srtContent =
+                                        (activeDoc.correctedSrt || '').trim() || generateSRT(sentences);
+                                      triggerFileDownload(
+                                        srtContent,
+                                        `${cleanBaseName}.srt`,
+                                        'text/plain;charset=utf-8'
+                                      );
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                                    title="Descargar subtítulos .SRT sincronizados automáticamente en segundo plano"
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> .SRT
+                                  </button>
+                                  <button
                                     onClick={() =>
                                       updateActiveDoc({
                                         audioTracks: activeDoc.audioTracks.filter(
@@ -16163,266 +16199,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           })}
                         </div>
                       )}
-                    </div>
-                  </div>
-
-                  {/* STEP 4C: NARRATION TIMELINE EXTRACTOR INTEGRATED */}
-                  <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
-                          App Integrada #3
-                        </span>
-                        <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-amber-400" /> Paso 4C — Narration Timeline Extractor
-                        </h3>
-                      </div>
-                      {(activeDoc.timelineSentences?.length || 0) > 0 ? (
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
-                          ✓ Alineado al Audio Real + Intro/Pausas/Outro (8s)
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
-                          ⏳ Se extrae al crear/cargar el Audio en Paso 4B
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-400">
-                      El Timeline y los subtítulos <code className="text-emerald-300">.SRT</code> se{' '}
-                      <strong className="text-emerald-300">
-                        extraen automáticamente después de crear o cargar el Audio en el Paso 4B
-                      </strong>{' '}
-                      para medir los timestamps acústicos exactos en{' '}
-                      <strong className="text-amber-300">intervalos de 8 segundos por defecto</strong>, incluyendo{' '}
-                      <strong>Intro Oficial (8s)</strong>, <strong>Clip 1 sin voz</strong>,{' '}
-                      <strong>pausas dramáticas</strong> y <strong>Outro Oficial (8s)</strong>:
-                    </p>
-
-                    {/* Timeline Segmentation Settings */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                          Modo de Segmentación de Clips
-                        </label>
-                        <select
-                          value={
-                            activeDoc.timelineSettings?.sentenceMode ||
-                            (activeDoc.clipDurationMode === '10_SEGUNDOS'
-                              ? 'split-10-seconds'
-                              : 'split-8-seconds')
-                          }
-                          onChange={async (e) => {
-                            const newMode = e.target.value as any;
-                            const nextSettings = {
-                              ...(activeDoc.timelineSettings || {}),
-                              sentenceMode: newMode,
-                            } as any;
-                            const leadTrack = activeDoc.audioTracks?.[0];
-                            const audioSrc =
-                              (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
-                              folderVoiceoverUrl ||
-                              activeDoc.masterAudioUrl ||
-                              leadTrack?.audioUrl ||
-                              '';
-                            const scriptText =
-                              (activeDoc.voiceoverScript || '').trim() ||
-                              (leadTrack?.text || '').trim();
-                            const waveInfo =
-                              audioSrc && scriptText
-                                ? await analyzeAudioWaveformTimingsInBrowser(audioSrc, scriptText)
-                                : { durationSec: Number(leadTrack?.duration) || 0 };
-                            const effDur =
-                              waveInfo.durationSec > 2
-                                ? waveInfo.durationSec
-                                : Number(leadTrack?.duration) || 0;
-                            const autoTl =
-                              scriptText && effDur > 2
-                                ? buildSmartClientTimeline(
-                                    scriptText,
-                                    { ...activeDoc, timelineSettings: nextSettings },
-                                    effDur,
-                                    newMode,
-                                    waveInfo.segmentTimings || leadTrack?.segmentTimings,
-                                    waveInfo.externalSilences
-                                  )
-                                : { sentences: [], formatted: '', srt: '' };
-                            updateActiveDoc({
-                              timelineSettings: nextSettings,
-                              ...(autoTl.sentences.length > 0
-                                ? {
-                                    timelineSentences: autoTl.sentences,
-                                    timelineFormattedText: autoTl.formatted,
-                                    correctedSrt: autoTl.srt,
-                                  }
-                                : {}),
-                            });
-                          }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-100"
-                        >
-                          <option value="split-8-seconds">
-                            Cortes exactos de 8 segundos (Por defecto)
-                          </option>
-                          <option value="split-10-seconds">Cortes exactos de 10 segundos</option>
-                          <option value="split-4-seconds">Cortes exactos de 4 segundos</option>
-                          <option value="one-sentence-per-line">Una oración por línea</option>
-                          <option value="combine-short">Combinar frases cortas</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                          Subir Audio Externo (ej. con silencios de CapCut)
-                        </label>
-                        <label className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-amber-300 font-semibold flex items-center justify-center gap-2 cursor-pointer">
-                          <Upload className="w-3.5 h-3.5" />
-                          {timelineExtracting ? 'Extrayendo Timeline...' : 'Subir Audio (.wav/.mp3/.m4a)'}
-                          <input
-                            type="file"
-                            accept="audio/*,video/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) handleUploadAudioForTimeline(f);
-                              e.currentTarget.value = '';
-                            }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Exact Duration Breakdown Badge (Voiceover vs Non-Voice Blocks vs Real Documentary Total) */}
-                    {(activeDoc.timelineSentences?.length || 0) > 0 && (() => {
-                      const tlList = activeDoc.timelineSentences || [];
-                      const totalEndSec = tlList.reduce((m, s) => Math.max(m, Number(s?.end) || 0), 0);
-                      const spokenList = tlList.filter(
-                        (s) => !/^\[SIN\s+VOZ\s+NARRATIVA/i.test(String(s?.text || '').trim())
-                      );
-                      const minSpoken = spokenList.length > 0
-                        ? spokenList.reduce((m, s) => Math.min(m, Number(s?.start) || 0), Infinity)
-                        : 0;
-                      const maxSpoken = spokenList.length > 0
-                        ? spokenList.reduce((m, s) => Math.max(m, Number(s?.end) || 0), 0)
-                        : totalEndSec;
-                      const realTrackDur = Number(activeDoc.audioTracks?.[0]?.duration) || 0;
-                      const voiceSec = realTrackDur > 2 ? realTrackDur : Math.max(0, maxSpoken - minSpoken);
-                      const nonVoiceSec = Math.max(0, Math.round(totalEndSec - voiceSec));
-                      const fmtSec = (sec: number) => {
-                        const r = Math.max(0, Math.round(sec));
-                        return `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
-                      };
-                      return (
-                        <div className="bg-slate-950/90 border border-emerald-500/25 rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-2 text-[11px]">
-                          <span className="text-slate-300">
-                            🎙️ Voz Narrativa: <strong className="text-amber-300">{fmtSec(voiceSec)}</strong> ({voiceSec.toFixed(1)}s)
-                          </span>
-                          <span className="text-slate-400">
-                            🎬 Intro + Hook + Outro sin voz: <strong className="text-slate-200">+{nonVoiceSec}s</strong>
-                          </span>
-                          <span className="text-emerald-300 font-bold">
-                            ⏱️ Duración Real del Documental: {fmtSec(totalEndSec)}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Timeline Output Box */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <span className="text-xs font-bold text-slate-300">
-                          Timeline Extraído ({activeDoc.timelineSentences?.length || 0} bloques)
-                        </span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() =>
-                              copyText(activeDoc.timelineFormattedText, 'copy-timeline')
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 flex items-center gap-1 cursor-pointer"
-                          >
-                            {copiedId === 'copy-timeline' ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                            Copiar Timeline
-                          </button>
-                          <button
-                            onClick={() => {
-                              const txtContent = (activeDoc.timelineFormattedText || '').trim();
-                              if (!txtContent) {
-                                alert('Primero genera o carga el audio de la Voz Narrativa en el Paso 4B para extraer el timeline.');
-                                return;
-                              }
-                              const baseName = getVoiceoverAudioName(activeDoc.title);
-                              triggerFileDownload(
-                                txtContent,
-                                `${baseName} - Timeline.txt`,
-                                'text/plain;charset=utf-8'
-                              );
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
-                            title="Descargar Timeline en archivo .TXT"
-                          >
-                            <Download className="w-3.5 h-3.5" /> Descargar .TXT
-                          </button>
-                          <button
-                            onClick={() => {
-                              const sentences =
-                                activeDoc.timelineSentences && activeDoc.timelineSentences.length > 0
-                                  ? activeDoc.timelineSentences
-                                  : parseTimelineTextToSentences(activeDoc.timelineFormattedText || '');
-                              if (!sentences || sentences.length === 0) {
-                                alert('Primero genera o carga el audio de la Voz Narrativa en el Paso 4B para extraer el .SRT.');
-                                return;
-                              }
-                              const srtContent =
-                                (activeDoc.correctedSrt || '').trim() || generateSRT(sentences);
-                              const baseName = getVoiceoverAudioName(activeDoc.title);
-                              triggerFileDownload(
-                                srtContent,
-                                `${baseName}.srt`,
-                                'text/plain;charset=utf-8'
-                              );
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-emerald-300 border border-emerald-500/30 flex items-center gap-1 cursor-pointer"
-                            title="Descargar subtítulos del Timeline en formato .SRT"
-                          >
-                            <Download className="w-3.5 h-3.5" /> Descargar .SRT
-                          </button>
-                          {((activeDoc.timelineSentences?.length || 0) > 0 ||
-                            !!activeDoc.timelineFormattedText?.trim()) && (
-                            <button
-                              onClick={() => {
-                                const synced = syncAndAuditProductionClips({
-                                  rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
-                                  timelineText: activeDoc.timelineFormattedText || '',
-                                  rawClipsText: activeDoc.rawClipsText || '',
-                                  existingClips: activeDoc.clips || [],
-                                  clip1Duration:
-                                    activeDoc.clip1DurationSeconds ||
-                                    (activeDoc.clip1SyncMode === 'VOZ_EN_CLIP_2' ? 6 : 4),
-                                  clip1SyncMode: activeDoc.clip1SyncMode || 'RALENTIZAR_CAPCUT',
-                                });
-                                updateActiveDoc({ clips: synced });
-                                setActiveStage(8);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                            >
-                              Ir a 8. Producción y Armar Timeline <ArrowRight className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <textarea
-                        rows={10}
-                        value={activeDoc.timelineFormattedText}
-                        onChange={(e) =>
-                          updateActiveDoc({ timelineFormattedText: e.target.value })
-                        }
-                        placeholder="Aquí aparecerá automáticamente el Timeline Maestro en intervalos de 8s en cuanto generes o cargues el audio de la Voz Narrativa en el Paso 4B (ej. 1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)] / 2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1...] / 3 00:16 - 00:24 Año 1941...)."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-300"
-                      />
                     </div>
                   </div>
                 </div>
