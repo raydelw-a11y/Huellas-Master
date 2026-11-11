@@ -536,6 +536,22 @@ function mergeServerDocObjects(winner: any, other: any) {
       baseWinner.thumbnailImageUrl = other.thumbnailImageUrl;
       if (other.thumbnailReady) baseWinner.thumbnailReady = true;
     }
+    if (
+      (!baseWinner.thumbnailHorizontalImageUrl || !String(baseWinner.thumbnailHorizontalImageUrl).trim()) &&
+      other.thumbnailHorizontalImageUrl &&
+      String(other.thumbnailHorizontalImageUrl).trim()
+    ) {
+      baseWinner.thumbnailHorizontalImageUrl = other.thumbnailHorizontalImageUrl;
+      if (other.thumbnailReady) baseWinner.thumbnailReady = true;
+    }
+    if (
+      (!baseWinner.thumbnailVerticalImageUrl || !String(baseWinner.thumbnailVerticalImageUrl).trim()) &&
+      other.thumbnailVerticalImageUrl &&
+      String(other.thumbnailVerticalImageUrl).trim()
+    ) {
+      baseWinner.thumbnailVerticalImageUrl = other.thumbnailVerticalImageUrl;
+      if (other.thumbnailReady) baseWinner.thumbnailReady = true;
+    }
 
     // Preserve linked Gemini Main & Deep Research chat URLs across server merges
     const winMainUrl = String(baseWinner.geminiChatUrl || baseWinner.promptConfig?.GEMINI_CHAT_URL || '').trim();
@@ -604,6 +620,18 @@ function stripHeavyMediaForGitHubServer(list: any[], stripReferenceImages = fals
     doc.thumbnailImageUrl.startsWith('data:') &&
     doc.thumbnailImageUrl.length > 60000
       ? { thumbnailImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
+    typeof doc.thumbnailHorizontalImageUrl === 'string' &&
+    doc.thumbnailHorizontalImageUrl.startsWith('data:') &&
+    doc.thumbnailHorizontalImageUrl.length > 60000
+      ? { thumbnailHorizontalImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
+    typeof doc.thumbnailVerticalImageUrl === 'string' &&
+    doc.thumbnailVerticalImageUrl.startsWith('data:') &&
+    doc.thumbnailVerticalImageUrl.length > 60000
+      ? { thumbnailVerticalImageUrl: '' }
       : {}),
     ...(stripReferenceImages &&
     typeof doc.masterAudioUrl === 'string' &&
@@ -990,6 +1018,8 @@ app.post('/api/documentaries', (req, res) => {
     thumbnailPrompt: body.thumbnailPrompt || '',
     thumbnailTextOverlay: body.thumbnailTextOverlay || '',
     thumbnailImageUrl: body.thumbnailImageUrl || '',
+    thumbnailHorizontalImageUrl: body.thumbnailHorizontalImageUrl || '',
+    thumbnailVerticalImageUrl: body.thumbnailVerticalImageUrl || '',
     thumbnailReady: false,
     platform: body.platform || 'YOUTUBE',
     rawMetadataText: body.rawMetadataText || '',
@@ -6960,6 +6990,9 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     const cleanBase64 = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
     const imgBuffer = Buffer.from(cleanBase64, 'base64');
 
+    const isVerticalCapture =
+      String(req.body?.orientation || doc?.thumbnailOrientation || '').toUpperCase() === 'VERTICAL_9X16';
+
     const savedPaths: string[] = [];
     if (resolvedRoot) {
       ensureDocumentarySubfolders(resolvedRoot);
@@ -6967,7 +7000,10 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       if (!fs.existsSync(thumbsDir)) {
         fs.mkdirSync(thumbsDir, { recursive: true });
       }
-      for (const name of [`Miniatura_Opcion_${opt}.png`, 'Miniatura_Oficial.png']) {
+      const targetNames = isVerticalCapture
+        ? [`Miniatura_Vertical_9x16.png`, `Miniatura_Opcion_${opt}_9x16.png`]
+        : [`Miniatura_Horizontal_16x9.png`, `Miniatura_Opcion_${opt}.png`, 'Miniatura_Oficial.png'];
+      for (const name of targetNames) {
         const targetFile = path.join(thumbsDir, name);
         fs.writeFileSync(targetFile, imgBuffer);
         try {
@@ -7035,7 +7071,12 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
       }
       list[idx] = {
         ...list[idx],
-        thumbnailImageUrl: previewDataUrl,
+        thumbnailImageUrl: isVerticalCapture
+          ? list[idx].thumbnailHorizontalImageUrl || previewDataUrl
+          : previewDataUrl,
+        ...(isVerticalCapture
+          ? { thumbnailVerticalImageUrl: previewDataUrl }
+          : { thumbnailHorizontalImageUrl: previewDataUrl }),
         thumbnailPsychVariant: opt,
         thumbnailReady: true,
         promptConfig: {

@@ -325,6 +325,8 @@ export interface DocumentaryProject {
   thumbnailPrompt: string;
   thumbnailTextOverlay: string;
   thumbnailImageUrl: string;
+  thumbnailHorizontalImageUrl?: string;
+  thumbnailVerticalImageUrl?: string;
   thumbnailReady: boolean;
 
   // Etapa 11: Metadata de Publicación

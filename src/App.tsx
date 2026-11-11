@@ -145,7 +145,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:29 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:02 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4317,6 +4317,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       thumbnailPrompt: '',
       thumbnailTextOverlay: '',
       thumbnailImageUrl: '',
+      thumbnailHorizontalImageUrl: '',
+      thumbnailVerticalImageUrl: '',
       thumbnailReady: false,
       platform: 'YOUTUBE',
       rawMetadataText: '',
@@ -4436,7 +4438,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       !!(doc.topic && doc.targetDurationSeconds > 0),
       !!(doc.sectionsStructure || doc.deepResearchResult),
       !!(doc.voiceoverScript && (doc.audioTracks?.length > 0 || doc.timelineSentences?.length > 0)),
-      !!(doc.thumbnailPrompt || doc.thumbnailImageUrl),
+      !!(
+        doc.thumbnailPrompt ||
+        doc.thumbnailImageUrl ||
+        doc.thumbnailHorizontalImageUrl ||
+        doc.thumbnailVerticalImageUrl
+      ),
       (doc.references?.length || 0) > 0 || !!doc.rawReferencePrompts,
       !!(doc.clip1Line1LocationTime || doc.clip1Line2Hook || doc.clip1OptionsRaw),
       (doc.clips?.length || 0) > 0,
@@ -4462,7 +4469,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       case 4:
         return !!(doc.voiceoverScript && (doc.audioTracks?.length > 0 || doc.timelineSentences?.length > 0));
       case 5:
-        return !!(doc.thumbnailPrompt || doc.thumbnailImageUrl);
+        return !!(
+          doc.thumbnailPrompt ||
+          doc.thumbnailImageUrl ||
+          doc.thumbnailHorizontalImageUrl ||
+          doc.thumbnailVerticalImageUrl
+        );
       case 6:
         return (doc.references?.length || 0) > 0 || !!doc.rawReferencePrompts;
       case 7:
@@ -9303,15 +9315,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Audit a Thumbnail against the 5 Neuropsychological CTR Rules (0-100 Score, 100% Local — No API Call)
   const handleAuditThumbnailPsychology = async (
-    optionLabel: 'A' | 'B' | 'C' | 'OFICIAL' = 'A',
+    optionLabel: 'A' | 'B' | 'C' | 'OFICIAL' | 'HORIZONTAL' | 'VERTICAL' = 'A',
     imageDataUrl?: string
   ) => {
     const doc = activeDocRef.current || activeDoc;
     if (!doc) return;
     const targetUrl =
       imageDataUrl ||
-      capturedThumbnailsMap[optionLabel] ||
-      doc.thumbnailImageUrl ||
+      (optionLabel === 'HORIZONTAL'
+        ? doc.thumbnailHorizontalImageUrl || doc.thumbnailImageUrl
+        : optionLabel === 'VERTICAL'
+        ? doc.thumbnailVerticalImageUrl || doc.thumbnailImageUrl
+        : capturedThumbnailsMap[optionLabel] ||
+          doc.thumbnailHorizontalImageUrl ||
+          doc.thumbnailVerticalImageUrl ||
+          doc.thumbnailImageUrl) ||
       '';
     if (!targetUrl) {
       alert('Primero genera o sube una imagen de miniatura para auditar su CTR psicológico.');
@@ -9320,7 +9338,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setThumbnailPsychAuditing(true);
     try {
       const matchedTrigger =
-        optionLabel === 'OFICIAL'
+        optionLabel === 'OFICIAL' || optionLabel === 'HORIZONTAL' || optionLabel === 'VERTICAL'
           ? (doc.thumbnailPsychTriggers || []).find((t) => t.id === (doc.thumbnailPsychVariant || 'A'))
           : (doc.thumbnailPsychTriggers || []).find((t) => t.id === optionLabel);
       const pText = String(matchedTrigger?.prompt || doc.thumbnailPrompt || '').toLowerCase();
@@ -9357,6 +9375,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (overlayWords > 4) tips.push('Reduce el texto en pantalla a máximo 4 palabras para lectura en 13ms.');
       if (r5 < 18) tips.push('Verifica que el prompt incluya el Logo Oficial "Huellas de la Humanidad" al 5%.');
 
+      const humanLabel =
+        optionLabel === 'HORIZONTAL'
+          ? 'Horizontal (16:9)'
+          : optionLabel === 'VERTICAL'
+          ? 'Vertical (9:16)'
+          : optionLabel === 'OFICIAL'
+          ? 'Oficial'
+          : `Opción ${optionLabel}`;
       const result: ThumbnailPsychologyAuditResult = {
         optionLabel,
         ctrScore: totalScore,
@@ -9366,17 +9392,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         rule4_colorContrast: r4,
         rule5_titleBrandSynergy: r5,
         verdict,
-        summary: `Miniatura ${
-          optionLabel === 'OFICIAL' ? 'Oficial' : `Opción ${optionLabel}`
-        } evaluada para Gemini Web con Logo Oficial al 5% (CTR estimado: ${totalScore}/100).`,
+        summary: `Miniatura ${humanLabel} evaluada con Logo Oficial al 5% (CTR estimado: ${totalScore}/100).`,
         improvementTip: tips[0] || 'Lista para publicar con alto impacto visual en YouTube / Reels.',
       };
       setThumbnailPsychAudits((prev) => ({ ...prev, [optionLabel]: result }));
       setBridgeStatusType('SUCCESS');
       setBridgeStatusMsg(
-        `🧠 Auditoría Psicológica ${
-          optionLabel === 'OFICIAL' ? 'Oficial' : `Opción ${optionLabel}`
-        }: ${result.ctrScore}/100 (${result.verdict}) — ${result.summary}`
+        `🧠 Auditoría Psicológica ${humanLabel}: ${result.ctrScore}/100 (${result.verdict}) — ${result.summary}`
       );
     } finally {
       setThumbnailPsychAuditing(false);
@@ -9424,11 +9446,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   }, [activeDoc?.id, activeDoc?.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON]);
 
-  // Clear mobile/desktop thumbnail spinner automatically when thumbnailImageUrl arrives via sync
+  // Clear mobile/desktop thumbnail spinner automatically when thumbnailImageUrl / horizontal / vertical arrives via sync
   const prevSyncedThumbUrlRef = useRef<string>('');
   useEffect(() => {
-    const curThumb = activeDoc?.thumbnailImageUrl || '';
-    if (curThumb && curThumb !== prevSyncedThumbUrlRef.current && thumbnailGeneratingOption !== null) {
+    const curThumb = `${activeDoc?.thumbnailImageUrl || ''}|${activeDoc?.thumbnailHorizontalImageUrl || ''}|${activeDoc?.thumbnailVerticalImageUrl || ''}`;
+    if (
+      curThumb !== '||' &&
+      curThumb !== prevSyncedThumbUrlRef.current &&
+      thumbnailGeneratingOption !== null
+    ) {
       setThumbnailGeneratingOption(null);
       setBridgeStatusType('SUCCESS');
       setBridgeStatusMsg(
@@ -9436,7 +9462,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       );
     }
     prevSyncedThumbUrlRef.current = curThumb;
-  }, [activeDoc?.thumbnailImageUrl, thumbnailGeneratingOption]);
+  }, [
+    activeDoc?.thumbnailImageUrl,
+    activeDoc?.thumbnailHorizontalImageUrl,
+    activeDoc?.thumbnailVerticalImageUrl,
+    thumbnailGeneratingOption,
+  ]);
 
   // Propagate remote Stage 3 failure (`REMOTE_GEMINI_STAGE_STATUS === 'failed'`) & safety watchdogs so spinners never lock forever
   const prevRemoteStageStatusRef = useRef<string>('');
@@ -9992,6 +10023,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             '03_Miniaturas'
           );
         }
+      }
+      if (doc.thumbnailHorizontalImageUrl) {
+        await handleSaveAnyFileToChosenFolder(
+          'Miniatura_Horizontal_16x9.png',
+          doc.thumbnailHorizontalImageUrl,
+          '03_Miniaturas'
+        );
+      }
+      if (doc.thumbnailVerticalImageUrl) {
+        await handleSaveAnyFileToChosenFolder(
+          'Miniatura_Vertical_9x16.png',
+          doc.thumbnailVerticalImageUrl,
+          '03_Miniaturas'
+        );
       }
       if (doc.thumbnailImageUrl) {
         await handleSaveAnyFileToChosenFolder(
@@ -10652,8 +10697,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           if (syncSafePreview) {
             nextPreviewMap[opt] = syncSafePreview;
           }
+          const isVertOrientation = curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16';
           updateActiveDoc({
-            ...(syncSafePreview ? { thumbnailImageUrl: syncSafePreview } : {}),
+            ...(syncSafePreview
+              ? isVertOrientation
+                ? {
+                    thumbnailVerticalImageUrl: syncSafePreview,
+                    thumbnailImageUrl:
+                      curViewingDoc?.thumbnailHorizontalImageUrl || syncSafePreview,
+                  }
+                : {
+                    thumbnailHorizontalImageUrl: syncSafePreview,
+                    thumbnailImageUrl: syncSafePreview,
+                  }
+              : {}),
             thumbnailPsychVariant: opt,
             thumbnailReady: true,
             promptConfig: {
@@ -10663,9 +10720,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               REMOTE_GEMINI_STAGE_ERROR: '',
             },
           });
-          const thumbFileName = `Miniatura_Opcion_${opt}.png`;
+          const thumbFileName = isVertOrientation
+            ? `Miniatura_Opcion_${opt}_9x16.png`
+            : `Miniatura_Opcion_${opt}.png`;
           await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
-          await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
+          await handleSaveAnyFileToChosenFolder(
+            isVertOrientation ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png',
+            dataUrl,
+            '03_Miniaturas'
+          );
+          if (!isVertOrientation) {
+            await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
+          }
           const folderLabel =
             effectiveDocFolderName ||
             getCanonicalFolderNameForDoc(curViewingDoc) ||
@@ -13700,9 +13766,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     <div>
                       {/* Thumbnail / Cover Header */}
                       <div className="h-36 bg-gradient-to-br from-slate-900 via-[#1d1812] to-slate-950 relative overflow-hidden border-b border-slate-800/80 flex items-center justify-center">
-                        {doc.thumbnailImageUrl ? (
+                        {doc.thumbnailHorizontalImageUrl || doc.thumbnailImageUrl || doc.thumbnailVerticalImageUrl ? (
                           <img
-                            src={doc.thumbnailImageUrl}
+                            src={doc.thumbnailHorizontalImageUrl || doc.thumbnailImageUrl || doc.thumbnailVerticalImageUrl}
                             alt={doc.title}
                             className="w-full h-full object-cover"
                           />
@@ -17270,260 +17336,582 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
                   </div>
 
-                  {/* Upload, Preview & 5-Rule CTR Psychology Audit */}
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-4">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <h3 className="text-base font-bold text-amber-300">
-                          Miniatura Final + Auditoría Psicológica CTR
-                        </h3>
-                        <span className="text-[11px] text-slate-400 font-semibold">
-                          Formato activo: {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16 (HD)' : 'Horizontal 16:9 (8K)'} • Carpeta raíz: <strong className="text-emerald-300">{effectiveDocFolderName ? effectiveDocFolderName.split('/').pop() : 'Etapa 1'}/03_Miniaturas</strong>
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {activeDoc.thumbnailImageUrl && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              await ensureSingleDownloadFolderReadyOnGesture();
-                              const ok = await handleSaveAnyFileToChosenFolder(
-                                'Miniatura_Oficial.png',
-                                activeDoc.thumbnailImageUrl,
-                                '03_Miniaturas'
-                              );
-                              if (ok) {
-                                const folderLabel =
-                                  flowDownloadDirHandleRef.current?.name ||
-                                  effectiveDocFolderName ||
-                                  'tu carpeta raíz';
-                                setBridgeStatusType('SUCCESS');
-                                setBridgeStatusMsg(
-                                  `💾 Miniatura_Oficial.png guardada en "${folderLabel}/03_Miniaturas".`
-                                );
+                  {/* Upload, Preview & 5-Rule CTR Psychology Audit — Dual Slots: Horizontal (16:9) + Vertical (9:16) */}
+                  {(() => {
+                    const effectiveHorizontalThumb =
+                      activeDoc.thumbnailHorizontalImageUrl ||
+                      (activeDoc.thumbnailOrientation !== 'VERTICAL_9X16' ? activeDoc.thumbnailImageUrl : '') ||
+                      '';
+                    const effectiveVerticalThumb =
+                      activeDoc.thumbnailVerticalImageUrl ||
+                      (activeDoc.thumbnailOrientation === 'VERTICAL_9X16' ? activeDoc.thumbnailImageUrl : '') ||
+                      '';
+                    const hasAnyThumb = Boolean(effectiveHorizontalThumb || effectiveVerticalThumb);
+
+                    const handleUploadSlotThumbnailFile = async (
+                      file: File,
+                      slot: 'HORIZONTAL_16X9' | 'VERTICAL_9X16'
+                    ) => {
+                      await ensureSingleDownloadFolderReadyOnGesture();
+                      const url = await uploadAssetFile(file);
+                      if (!url) return;
+                      const syncSafeUrl =
+                        (await compressImageDataUrlForCloudSync(url, 42000)) ||
+                        (url.length <= 58000 ? url : '');
+                      if (slot === 'HORIZONTAL_16X9') {
+                        updateActiveDoc({
+                          thumbnailHorizontalImageUrl: syncSafeUrl,
+                          thumbnailImageUrl: syncSafeUrl || activeDoc.thumbnailImageUrl,
+                          thumbnailReady: true,
+                        });
+                        await handleSaveAnyFileToChosenFolder(
+                          'Miniatura_Horizontal_16x9.png',
+                          file,
+                          '03_Miniaturas'
+                        );
+                        await handleSaveAnyFileToChosenFolder(
+                          'Miniatura_Oficial.png',
+                          file,
+                          '03_Miniaturas'
+                        );
+                        handleAuditThumbnailPsychology('HORIZONTAL', url);
+                      } else {
+                        updateActiveDoc({
+                          thumbnailVerticalImageUrl: syncSafeUrl,
+                          thumbnailImageUrl: effectiveHorizontalThumb || syncSafeUrl || activeDoc.thumbnailImageUrl,
+                          thumbnailReady: true,
+                        });
+                        await handleSaveAnyFileToChosenFolder(
+                          'Miniatura_Vertical_9x16.png',
+                          file,
+                          '03_Miniaturas'
+                        );
+                        handleAuditThumbnailPsychology('VERTICAL', url);
+                      }
+                    };
+
+                    return (
+                      <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-4">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div>
+                            <h3 className="text-base font-bold text-amber-300">
+                              Miniaturas Oficiales (Horizontal 16:9 + Vertical 9:16) + Auditoría CTR
+                            </h3>
+                            <span className="text-[11px] text-slate-400 font-semibold">
+                              Sube o genera ambas versiones • Carpeta destino:{' '}
+                              <strong className="text-emerald-300">
+                                {effectiveDocFolderName ? effectiveDocFolderName.split('/').pop() : 'Etapa 1'}
+                                /03_Miniaturas
+                              </strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {hasAnyThumb && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await ensureSingleDownloadFolderReadyOnGesture();
+                                  let savedCount = 0;
+                                  if (effectiveHorizontalThumb) {
+                                    const okH = await handleSaveAnyFileToChosenFolder(
+                                      'Miniatura_Horizontal_16x9.png',
+                                      effectiveHorizontalThumb,
+                                      '03_Miniaturas'
+                                    );
+                                    await handleSaveAnyFileToChosenFolder(
+                                      'Miniatura_Oficial.png',
+                                      effectiveHorizontalThumb,
+                                      '03_Miniaturas'
+                                    );
+                                    if (okH) savedCount++;
+                                  }
+                                  if (effectiveVerticalThumb) {
+                                    const okV = await handleSaveAnyFileToChosenFolder(
+                                      'Miniatura_Vertical_9x16.png',
+                                      effectiveVerticalThumb,
+                                      '03_Miniaturas'
+                                    );
+                                    if (okV) savedCount++;
+                                  }
+                                  if (savedCount > 0) {
+                                    const folderLabel =
+                                      flowDownloadDirHandleRef.current?.name ||
+                                      effectiveDocFolderName ||
+                                      'tu carpeta raíz';
+                                    setBridgeStatusType('SUCCESS');
+                                    setBridgeStatusMsg(
+                                      `💾 ${savedCount === 2 ? 'Ambas miniaturas (16:9 y 9:16) guardadas' : 'Miniatura guardada'} en "${folderLabel}/03_Miniaturas".`
+                                    );
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                                title="Guardar las miniaturas cargadas directamente en la subcarpeta 03_Miniaturas"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                {effectiveHorizontalThumb && effectiveVerticalThumb
+                                  ? 'Guardar Ambas en Carpeta'
+                                  : 'Guardar en Carpeta'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={thumbnailPsychAuditing || !hasAnyThumb}
+                              onClick={() => {
+                                if (currentOrientation === 'VERTICAL_9X16' && effectiveVerticalThumb) {
+                                  handleAuditThumbnailPsychology('VERTICAL', effectiveVerticalThumb);
+                                } else if (effectiveHorizontalThumb) {
+                                  handleAuditThumbnailPsychology('HORIZONTAL', effectiveHorizontalThumb);
+                                } else if (effectiveVerticalThumb) {
+                                  handleAuditThumbnailPsychology('VERTICAL', effectiveVerticalThumb);
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              {thumbnailPsychAuditing
+                                ? 'Auditando Psicología CTR...'
+                                : '🧠 Auditar CTR (5 Reglas)'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* DOS ESPACIOS DEDICADOS: HORIZONTAL (16:9) Y VERTICAL (9:16) */}
+                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
+                          {/* ESPACIO 1: MINIATURA HORIZONTAL 16:9 */}
+                          <div
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const file = e.dataTransfer.files?.[0];
+                              if (file && file.type.startsWith('image/')) {
+                                handleUploadSlotThumbnailFile(file, 'HORIZONTAL_16X9');
                               }
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-                            title="Guardar Miniatura_Oficial.png directamente en la subcarpeta 03_Miniaturas dentro de tu carpeta raíz"
+                            className={`xl:col-span-7 rounded-xl border p-3.5 flex flex-col justify-between gap-3 transition-all ${
+                              currentOrientation === 'HORIZONTAL_16X9'
+                                ? 'bg-slate-950/95 border-amber-400/70 shadow-md shadow-amber-500/10'
+                                : 'bg-slate-950/75 border-slate-800 hover:border-slate-700'
+                            }`}
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            Guardar en Carpeta
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={thumbnailPsychAuditing || !activeDoc.thumbnailImageUrl}
-                          onClick={() =>
-                            handleAuditThumbnailPsychology('OFICIAL', activeDoc.thumbnailImageUrl)
-                          }
-                          className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          {thumbnailPsychAuditing
-                            ? 'Auditando Psicología CTR...'
-                            : '🧠 Auditar CTR (5 Reglas)'}
-                        </button>
-                      </div>
-                    </div>
-                    <div
-                      className={`${
-                        currentOrientation === 'VERTICAL_9X16'
-                          ? 'aspect-[9/16] max-h-[380px] mx-auto'
-                          : 'aspect-video w-full'
-                      } bg-slate-950 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative`}
-                    >
-                      {thumbnailGeneratingOption ? (
-                        <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
-                          <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-                          <span className="text-xs font-bold text-amber-300">
-                            Creando e importando Miniatura Opción {thumbnailGeneratingOption} con tu prompt exacto...
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            Sin salir de esta ventana • Se guardará automáticamente en tu carpeta única
-                          </span>
-                        </div>
-                      ) : activeDoc.thumbnailImageUrl ? (
-                        <img
-                          src={
-                            capturedThumbnailsMap[activeDoc.thumbnailPsychVariant || 'A'] ||
-                            activeDoc.thumbnailImageUrl
-                          }
-                          alt="Miniatura Oficial"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs text-slate-500 px-4 text-center">
-                          Selecciona el disparador neuropsicológico y haz clic en &quot;🖼️ Crear Miniatura en Gemini Web&quot; para generar la miniatura con Create image + nuestro Logo Oficial e importarla aquí automáticamente
-                        </span>
-                      )}
-                    </div>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-extrabold text-amber-300">
+                                  🖥️ Miniatura Horizontal (16:9)
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  YouTube • 8K
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                    effectiveHorizontalThumb
+                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                      : 'bg-slate-900 text-slate-400 border-slate-700'
+                                  }`}
+                                >
+                                  {effectiveHorizontalThumb ? '✓ Lista (16:9)' : 'Sin subir'}
+                                </span>
+                                {effectiveHorizontalThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateActiveDoc({
+                                        thumbnailHorizontalImageUrl: '',
+                                        thumbnailImageUrl: effectiveVerticalThumb || '',
+                                        thumbnailReady: Boolean(effectiveVerticalThumb),
+                                      });
+                                    }}
+                                    className="p-1 rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-300 cursor-pointer"
+                                    title="Quitar miniatura horizontal"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
 
-                    {/* Captured A / B / C Thumbnails Strip + CTR Score Comparison */}
-                    {Object.keys(capturedThumbnailsMap).length > 0 && (
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-                        <span className="text-[11px] font-bold text-amber-300 block">
-                          Miniaturas Capturadas de Gemini Web (Haz clic para elegir como ganadora):
-                        </span>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(['A', 'B', 'C'] as const).map((opt) => {
-                            const url = capturedThumbnailsMap[opt];
-                            const audit = thumbnailPsychAudits[opt];
-                            if (!url) return null;
-                            const isCurrent =
-                              activeDoc.thumbnailPsychVariant === opt ||
-                              activeDoc.thumbnailImageUrl === url;
-                            return (
-                              <div
-                                key={opt}
-                                onClick={async () => {
-                                  const syncSafe = await compressImageDataUrlForCloudSync(url, 42000);
-                                  updateActiveDoc({
-                                    thumbnailImageUrl: syncSafe || (url.length <= 58000 ? url : activeDoc.thumbnailImageUrl),
-                                    thumbnailPsychVariant: opt,
-                                    thumbnailReady: true,
-                                  });
-                                  await handleSaveAnyFileToChosenFolder(
-                                    'Miniatura_Oficial.png',
-                                    url,
-                                    '03_Miniaturas'
-                                  );
-                                  handleAuditThumbnailPsychology(opt, url);
-                                }}
-                                className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
-                                  isCurrent
-                                    ? 'border-emerald-400 bg-emerald-500/10'
-                                    : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-                                }`}
-                              >
+                            <div className="aspect-video w-full bg-black/60 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative">
+                              {thumbnailGeneratingOption && currentOrientation === 'HORIZONTAL_16X9' ? (
+                                <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+                                  <div className="w-7 h-7 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                                  <span className="text-xs font-bold text-amber-300">
+                                    Creando Miniatura Horizontal 16:9 (Opción {thumbnailGeneratingOption})...
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    Se guardará como Miniatura_Horizontal_16x9.png en 03_Miniaturas
+                                  </span>
+                                </div>
+                              ) : effectiveHorizontalThumb ? (
                                 <img
-                                  src={url}
-                                  alt={`Opción ${opt}`}
-                                  className="w-full h-16 object-cover rounded"
+                                  src={effectiveHorizontalThumb}
+                                  alt="Miniatura Horizontal 16:9"
+                                  className="w-full h-full object-cover"
                                 />
-                                <div className="flex items-center justify-between mt-1 text-[10px]">
-                                  <span className="font-bold text-amber-300">Opción {opt}</span>
-                                  {audit && (
-                                    <span className="font-black text-emerald-400">
-                                      {audit.ctrScore}/100
-                                    </span>
-                                  )}
+                              ) : (
+                                <label className="w-full h-full flex flex-col items-center justify-center gap-1.5 px-4 text-center cursor-pointer hover:bg-amber-500/5 transition">
+                                  <Upload className="w-5 h-5 text-amber-400/80" />
+                                  <span className="text-xs font-bold text-amber-200">
+                                    Haz clic o arrastra aquí la Miniatura Horizontal (16:9)
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    Se guarda automáticamente en 03_Miniaturas/Miniatura_Horizontal_16x9.png
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadSlotThumbnailFile(file, 'HORIZONTAL_16X9');
+                                      e.currentTarget.value = '';
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <label className="flex-1 min-w-[160px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                                <Upload className="w-3.5 h-3.5" />
+                                {effectiveHorizontalThumb
+                                  ? '🔄 Cambiar Horizontal (16:9)'
+                                  : '📤 Subir Horizontal (16:9)'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUploadSlotThumbnailFile(file, 'HORIZONTAL_16X9');
+                                    e.currentTarget.value = '';
+                                  }}
+                                />
+                              </label>
+                              {effectiveHorizontalThumb && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAuditThumbnailPsychology('HORIZONTAL', effectiveHorizontalThumb)
+                                  }
+                                  disabled={thumbnailPsychAuditing}
+                                  className="py-2 px-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-400/40 text-indigo-200 font-bold text-[11px] cursor-pointer disabled:opacity-40"
+                                  title="Auditar CTR de la miniatura horizontal (16:9)"
+                                >
+                                  🧠 CTR 16:9
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ESPACIO 2: MINIATURA VERTICAL 9:16 */}
+                          <div
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const file = e.dataTransfer.files?.[0];
+                              if (file && file.type.startsWith('image/')) {
+                                handleUploadSlotThumbnailFile(file, 'VERTICAL_9X16');
+                              }
+                            }}
+                            className={`xl:col-span-5 rounded-xl border p-3.5 flex flex-col justify-between gap-3 transition-all ${
+                              currentOrientation === 'VERTICAL_9X16'
+                                ? 'bg-slate-950/95 border-amber-400/70 shadow-md shadow-amber-500/10'
+                                : 'bg-slate-950/75 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-extrabold text-amber-300">
+                                  📱 Miniatura Vertical (9:16)
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  Reels / Shorts • HD
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                    effectiveVerticalThumb
+                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                      : 'bg-slate-900 text-slate-400 border-slate-700'
+                                  }`}
+                                >
+                                  {effectiveVerticalThumb ? '✓ Lista (9:16)' : 'Sin subir'}
+                                </span>
+                                {effectiveVerticalThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateActiveDoc({
+                                        thumbnailVerticalImageUrl: '',
+                                        thumbnailImageUrl: effectiveHorizontalThumb || '',
+                                        thumbnailReady: Boolean(effectiveHorizontalThumb),
+                                      });
+                                    }}
+                                    className="p-1 rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-300 cursor-pointer"
+                                    title="Quitar miniatura vertical"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="aspect-[9/16] max-h-[260px] mx-auto w-full max-w-[150px] bg-black/60 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative">
+                              {thumbnailGeneratingOption && currentOrientation === 'VERTICAL_9X16' ? (
+                                <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
+                                  <div className="w-6 h-6 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                                  <span className="text-[11px] font-bold text-amber-300">
+                                    Creando 9:16 ({thumbnailGeneratingOption})...
+                                  </span>
+                                </div>
+                              ) : effectiveVerticalThumb ? (
+                                <img
+                                  src={effectiveVerticalThumb}
+                                  alt="Miniatura Vertical 9:16"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <label className="w-full h-full flex flex-col items-center justify-center gap-1.5 px-3 text-center cursor-pointer hover:bg-amber-500/5 transition">
+                                  <Upload className="w-5 h-5 text-amber-400/80" />
+                                  <span className="text-[11px] font-bold text-amber-200 leading-snug">
+                                    Clic o arrastra aquí la Vertical (9:16)
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 leading-tight">
+                                    Miniatura_Vertical_9x16.png
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadSlotThumbnailFile(file, 'VERTICAL_9X16');
+                                      e.currentTarget.value = '';
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <label className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                                <Upload className="w-3.5 h-3.5" />
+                                {effectiveVerticalThumb
+                                  ? '🔄 Cambiar Vertical (9:16)'
+                                  : '📤 Subir Vertical (9:16)'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUploadSlotThumbnailFile(file, 'VERTICAL_9X16');
+                                    e.currentTarget.value = '';
+                                  }}
+                                />
+                              </label>
+                              {effectiveVerticalThumb && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAuditThumbnailPsychology('VERTICAL', effectiveVerticalThumb)
+                                  }
+                                  disabled={thumbnailPsychAuditing}
+                                  className="py-2 px-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-400/40 text-indigo-200 font-bold text-[11px] cursor-pointer disabled:opacity-40"
+                                  title="Auditar CTR de la miniatura vertical (9:16)"
+                                >
+                                  🧠 CTR 9:16
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Captured A / B / C Thumbnails Strip + CTR Score Comparison */}
+                        {Object.keys(capturedThumbnailsMap).length > 0 && (
+                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                            <span className="text-[11px] font-bold text-amber-300 block">
+                              Miniaturas Capturadas de Gemini Web (Haz clic para asignarla al espacio{' '}
+                              {currentOrientation === 'VERTICAL_9X16' ? 'Vertical 9:16' : 'Horizontal 16:9'}):
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                              {(['A', 'B', 'C'] as const).map((opt) => {
+                                const url = capturedThumbnailsMap[opt];
+                                const audit = thumbnailPsychAudits[opt];
+                                if (!url) return null;
+                                const isCurrent =
+                                  activeDoc.thumbnailPsychVariant === opt ||
+                                  activeDoc.thumbnailImageUrl === url;
+                                return (
+                                  <div
+                                    key={opt}
+                                    onClick={async () => {
+                                      const syncSafe =
+                                        (await compressImageDataUrlForCloudSync(url, 42000)) ||
+                                        (url.length <= 58000 ? url : '');
+                                      if (currentOrientation === 'VERTICAL_9X16') {
+                                        updateActiveDoc({
+                                          thumbnailVerticalImageUrl:
+                                            syncSafe || activeDoc.thumbnailVerticalImageUrl,
+                                          thumbnailImageUrl:
+                                            effectiveHorizontalThumb ||
+                                            syncSafe ||
+                                            activeDoc.thumbnailImageUrl,
+                                          thumbnailPsychVariant: opt,
+                                          thumbnailReady: true,
+                                        });
+                                        await handleSaveAnyFileToChosenFolder(
+                                          'Miniatura_Vertical_9x16.png',
+                                          url,
+                                          '03_Miniaturas'
+                                        );
+                                      } else {
+                                        updateActiveDoc({
+                                          thumbnailHorizontalImageUrl:
+                                            syncSafe || activeDoc.thumbnailHorizontalImageUrl,
+                                          thumbnailImageUrl:
+                                            syncSafe || activeDoc.thumbnailImageUrl,
+                                          thumbnailPsychVariant: opt,
+                                          thumbnailReady: true,
+                                        });
+                                        await handleSaveAnyFileToChosenFolder(
+                                          'Miniatura_Horizontal_16x9.png',
+                                          url,
+                                          '03_Miniaturas'
+                                        );
+                                        await handleSaveAnyFileToChosenFolder(
+                                          'Miniatura_Oficial.png',
+                                          url,
+                                          '03_Miniaturas'
+                                        );
+                                      }
+                                      handleAuditThumbnailPsychology(opt, url);
+                                    }}
+                                    className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
+                                      isCurrent
+                                        ? 'border-emerald-400 bg-emerald-500/10'
+                                        : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Opción ${opt}`}
+                                      className="w-full h-16 object-cover rounded"
+                                    />
+                                    <div className="flex items-center justify-between mt-1 text-[10px]">
+                                      <span className="font-bold text-amber-300">Opción {opt}</span>
+                                      {audit && (
+                                        <span className="font-black text-emerald-400">
+                                          {audit.ctrScore}/100
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 5 Neuropsychological CTR Rules Scorecard */}
+                        {(() => {
+                          const allAudits = Object.values(
+                            thumbnailPsychAudits
+                          ) as ThumbnailPsychologyAuditResult[];
+                          if (allAudits.length === 0) return null;
+                          const preferredAuditKey =
+                            currentOrientation === 'VERTICAL_9X16' ? 'VERTICAL' : 'HORIZONTAL';
+                          const activeOptAudit =
+                            thumbnailPsychAudits[preferredAuditKey] ||
+                            thumbnailPsychAudits[activeDoc.thumbnailPsychVariant || 'A'] ||
+                            thumbnailPsychAudits.OFICIAL;
+                          const sortedAudits = [...allAudits].sort(
+                            (a, b) => (b.ctrScore || 0) - (a.ctrScore || 0)
+                          );
+                          const topAudit = activeOptAudit || sortedAudits[0];
+                          const safeRuleNum = (val: unknown, fallback: unknown): number => {
+                            if (typeof val === 'number' && Number.isFinite(val)) return val;
+                            if (val && typeof val === 'object' && 'score' in (val as any)) {
+                              return Number((val as any).score) || 18;
+                            }
+                            if (typeof fallback === 'number' && Number.isFinite(fallback))
+                              return fallback;
+                            if (
+                              fallback &&
+                              typeof fallback === 'object' &&
+                              'score' in (fallback as any)
+                            ) {
+                              return Number((fallback as any).score) || 18;
+                            }
+                            return 18;
+                          };
+                          const r1Score = safeRuleNum(topAudit.rule1_13msClarity, undefined);
+                          const r2Score = safeRuleNum(
+                            topAudit.rule2_faceEmotionEyeContact,
+                            (topAudit as any).rule2_FaceAndEmotion
+                          );
+                          const r3Score = safeRuleNum(
+                            topAudit.rule3_curiosityGap,
+                            (topAudit as any).rule3_CuriosityGap
+                          );
+                          const r4Score = safeRuleNum(
+                            topAudit.rule4_colorContrast,
+                            (topAudit as any).rule4_ColorContrast
+                          );
+                          const r5Score = safeRuleNum(
+                            topAudit.rule5_titleBrandSynergy,
+                            (topAudit as any).rule5_TitleAndBrandSync
+                          );
+                          return (
+                            <div className="bg-slate-950/95 border border-indigo-500/40 rounded-xl p-3.5 space-y-2 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="font-extrabold text-indigo-300">
+                                  🏆 Evaluación Neuropsicológica CTR (
+                                  {String(topAudit.optionLabel || 'A')}):
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black">
+                                  {Number(topAudit.ctrScore || 0)}/100 —{' '}
+                                  {String(topAudit.verdict || 'EXCELENTE')}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[10px]">
+                                <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                                  <div className="text-slate-400">1. Claridad 13ms</div>
+                                  <div className="font-bold text-amber-300">{r1Score}/20</div>
+                                </div>
+                                <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                                  <div className="text-slate-400">2. Rostro/Ojos</div>
+                                  <div className="font-bold text-amber-300">{r2Score}/20</div>
+                                </div>
+                                <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                                  <div className="text-slate-400">3. Curiosity Gap</div>
+                                  <div className="font-bold text-amber-300">{r3Score}/20</div>
+                                </div>
+                                <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                                  <div className="text-slate-400">4. Contraste Color</div>
+                                  <div className="font-bold text-amber-300">{r4Score}/20</div>
+                                </div>
+                                <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                                  <div className="text-slate-400">5. Título/Logos</div>
+                                  <div className="font-bold text-amber-300">{r5Score}/20</div>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+                              <p className="text-[11px] text-slate-300 leading-snug">
+                                {String(topAudit.summary || '')}
+                              </p>
+                              {topAudit.improvementTip && (
+                                <p className="text-[10px] text-amber-300/90">
+                                  💡 Mejora sugerida: {String(topAudit.improvementTip)}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    )}
-
-                    {/* 5 Neuropsychological CTR Rules Scorecard */}
-                    {(() => {
-                      const allAudits = Object.values(thumbnailPsychAudits) as ThumbnailPsychologyAuditResult[];
-                      if (allAudits.length === 0) return null;
-                      const activeOptAudit =
-                        thumbnailPsychAudits[activeDoc.thumbnailPsychVariant || 'A'] ||
-                        thumbnailPsychAudits.OFICIAL;
-                      const sortedAudits = [...allAudits].sort(
-                        (a, b) => (b.ctrScore || 0) - (a.ctrScore || 0)
-                      );
-                      const topAudit = activeOptAudit || sortedAudits[0];
-                      const safeRuleNum = (val: unknown, fallback: unknown): number => {
-                        if (typeof val === 'number' && Number.isFinite(val)) return val;
-                        if (val && typeof val === 'object' && 'score' in (val as any)) {
-                          return Number((val as any).score) || 18;
-                        }
-                        if (typeof fallback === 'number' && Number.isFinite(fallback)) return fallback;
-                        if (fallback && typeof fallback === 'object' && 'score' in (fallback as any)) {
-                          return Number((fallback as any).score) || 18;
-                        }
-                        return 18;
-                      };
-                      const r1Score = safeRuleNum(topAudit.rule1_13msClarity, undefined);
-                      const r2Score = safeRuleNum(
-                        topAudit.rule2_faceEmotionEyeContact,
-                        (topAudit as any).rule2_FaceAndEmotion
-                      );
-                      const r3Score = safeRuleNum(
-                        topAudit.rule3_curiosityGap,
-                        (topAudit as any).rule3_CuriosityGap
-                      );
-                      const r4Score = safeRuleNum(
-                        topAudit.rule4_colorContrast,
-                        (topAudit as any).rule4_ColorContrast
-                      );
-                      const r5Score = safeRuleNum(
-                        topAudit.rule5_titleBrandSynergy,
-                        (topAudit as any).rule5_TitleAndBrandSync
-                      );
-                      return (
-                        <div className="bg-slate-950/95 border border-indigo-500/40 rounded-xl p-3.5 space-y-2 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-indigo-300">
-                              🏆 Evaluación Neuropsicológica CTR ({String(topAudit.optionLabel || 'A')}):
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black">
-                              {Number(topAudit.ctrScore || 0)}/100 — {String(topAudit.verdict || 'EXCELENTE')}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[10px]">
-                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                              <div className="text-slate-400">1. Claridad 13ms</div>
-                              <div className="font-bold text-amber-300">{r1Score}/20</div>
-                            </div>
-                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                              <div className="text-slate-400">2. Rostro/Ojos</div>
-                              <div className="font-bold text-amber-300">{r2Score}/20</div>
-                            </div>
-                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                              <div className="text-slate-400">3. Curiosity Gap</div>
-                              <div className="font-bold text-amber-300">{r3Score}/20</div>
-                            </div>
-                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                              <div className="text-slate-400">4. Contraste Color</div>
-                              <div className="font-bold text-amber-300">{r4Score}/20</div>
-                            </div>
-                            <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                              <div className="text-slate-400">5. Título/Logos</div>
-                              <div className="font-bold text-amber-300">{r5Score}/20</div>
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-slate-300 leading-snug">{String(topAudit.summary || '')}</p>
-                          {topAudit.improvementTip && (
-                            <p className="text-[10px] text-amber-300/90">
-                              💡 Mejora sugerida: {String(topAudit.improvementTip)}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    <label className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
-                      <Upload className="w-4 h-4" /> Subir Imagen de Miniatura Oficial
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          await ensureSingleDownloadFolderReadyOnGesture();
-                          const url = await uploadAssetFile(file);
-                          if (url) {
-                            const syncSafeUrl = await compressImageDataUrlForCloudSync(url, 42000);
-                            updateActiveDoc({
-                              thumbnailImageUrl: syncSafeUrl || (url.length <= 58000 ? url : ''),
-                              thumbnailReady: true,
-                            });
-                            await handleSaveAnyFileToChosenFolder(
-                              'Miniatura_Oficial.png',
-                              file,
-                              '03_Miniaturas'
-                            );
-                            handleAuditThumbnailPsychology('OFICIAL', url);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
+                    );
+                  })()}
                 </div>
               );
             })()}

@@ -1373,6 +1373,18 @@ export function stripHeavyMediaForStorage(
       ? { thumbnailImageUrl: '' }
       : {}),
     ...(stripReferenceImages &&
+    typeof doc.thumbnailHorizontalImageUrl === 'string' &&
+    doc.thumbnailHorizontalImageUrl.startsWith('data:') &&
+    doc.thumbnailHorizontalImageUrl.length > 60000
+      ? { thumbnailHorizontalImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
+    typeof doc.thumbnailVerticalImageUrl === 'string' &&
+    doc.thumbnailVerticalImageUrl.startsWith('data:') &&
+    doc.thumbnailVerticalImageUrl.length > 60000
+      ? { thumbnailVerticalImageUrl: '' }
+      : {}),
+    ...(stripReferenceImages &&
     typeof doc.masterAudioUrl === 'string' &&
     doc.masterAudioUrl.startsWith('data:') &&
     doc.masterAudioUrl.length > 60000
@@ -1611,6 +1623,14 @@ function mergeTwoDocumentaryObjects(
       baseWinner.thumbnailImageUrl = oNorm.thumbnailImageUrl;
       baseWinner.thumbnailReady = true;
     }
+    if (oNorm.thumbnailHorizontalImageUrl && String(oNorm.thumbnailHorizontalImageUrl).trim()) {
+      baseWinner.thumbnailHorizontalImageUrl = oNorm.thumbnailHorizontalImageUrl;
+      baseWinner.thumbnailReady = true;
+    }
+    if (oNorm.thumbnailVerticalImageUrl && String(oNorm.thumbnailVerticalImageUrl).trim()) {
+      baseWinner.thumbnailVerticalImageUrl = oNorm.thumbnailVerticalImageUrl;
+      baseWinner.thumbnailReady = true;
+    }
   }
 
   if (
@@ -1649,6 +1669,22 @@ function mergeTwoDocumentaryObjects(
     String(oNorm.thumbnailImageUrl).trim()
   ) {
     baseWinner.thumbnailImageUrl = oNorm.thumbnailImageUrl;
+    if (oNorm.thumbnailReady) baseWinner.thumbnailReady = true;
+  }
+  if (
+    (!baseWinner.thumbnailHorizontalImageUrl || !String(baseWinner.thumbnailHorizontalImageUrl).trim()) &&
+    oNorm.thumbnailHorizontalImageUrl &&
+    String(oNorm.thumbnailHorizontalImageUrl).trim()
+  ) {
+    baseWinner.thumbnailHorizontalImageUrl = oNorm.thumbnailHorizontalImageUrl;
+    if (oNorm.thumbnailReady) baseWinner.thumbnailReady = true;
+  }
+  if (
+    (!baseWinner.thumbnailVerticalImageUrl || !String(baseWinner.thumbnailVerticalImageUrl).trim()) &&
+    oNorm.thumbnailVerticalImageUrl &&
+    String(oNorm.thumbnailVerticalImageUrl).trim()
+  ) {
+    baseWinner.thumbnailVerticalImageUrl = oNorm.thumbnailVerticalImageUrl;
     if (oNorm.thumbnailReady) baseWinner.thumbnailReady = true;
   }
 
