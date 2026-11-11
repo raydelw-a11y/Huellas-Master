@@ -139,7 +139,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:32 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:57 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -12697,7 +12697,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       className={`${
         mainView === 'capcut_editor'
           ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
-          : 'min-h-[100dvh]'
+          : 'min-h-[100dvh] pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-16'
       } bg-[#0b0a09] text-slate-100 flex flex-col w-full max-w-[100vw] overflow-x-hidden`}
     >
       {/* Floating Scroll-to-Top Button + Global Deployment Verification Timestamp Badge */}
@@ -13090,7 +13090,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           VIEW 1: DASHBOARD DE DOCUMENTALES
       ===================================================================== */}
       {(mainView === 'dashboard' || (mainView === 'studio' && !activeDoc)) && (
-        <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-1 space-y-5 sm:space-y-6">
+        <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 pt-4 pb-24 sm:py-8 sm:pb-16 flex-1 space-y-5 sm:space-y-6">
           {/* Hero Banner */}
           <div className="bg-gradient-to-r from-[#191510] via-[#211b13] to-[#16130f] border border-amber-500/30 rounded-2xl p-4 sm:p-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xl">
             <div className="space-y-1.5 min-w-0">
@@ -13576,7 +13576,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           {/* FULL-WIDTH MAIN WORKSPACE FOR THE SELECTED STAGE */}
           <section
             data-stage-scroll-container="true"
-            className="flex-1 w-full max-w-full min-w-0 p-2.5 sm:p-5 space-y-4 overflow-y-auto overflow-x-hidden"
+            className="flex-1 w-full max-w-full min-w-0 p-2.5 pb-28 sm:p-5 sm:pb-20 space-y-4 overflow-y-auto overflow-x-hidden"
           >
             {/* Stage Header Banner */}
             {(() => {
@@ -20791,6 +20791,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </div>
               </div>
             )}
+            <div className="h-12 sm:h-6 shrink-0" aria-hidden="true" />
           </section>
 
           <WebStudioDrawer
