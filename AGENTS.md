@@ -28,18 +28,21 @@ En **CADA tarea técnica del usuario**, el agente coordinador ejecuta obligatori
      - **B. Naturaleza del Problema**: ajuste claro de botones, textos, estilos o prompts (`0 pts`) · nueva lógica de estado, parsers, descargas o endpoints (`+2 pts`) · bug sin causa obvia, condiciones de carrera, FFmpeg, WebAudio o selectores DOM externos (`+3 pts`).
      - **C. Riesgo de Regresión**: zona aislada (`0 pts`) · toca flujos sensibles compartidos como Timeline del editor, `cloudSync.ts`, `background.js` o pipeline 4K (`+2 pts`).
      - **D. Reincidencia (Auto-Escalado)**: fallo que persiste o *"sigue sin funcionar"* tras un intento previo (`+4 pts` automáticos).
-   - **Umbrales de Decisión y Encabezado Visible con Puntaje Desglosado (al principio del turno, SIN `debate_robots.html` ni `<agent-embed>`)**:
-     - **Formato obligatorio del desglose**: En **toda** tarea técnica, muestra siempre al inicio el puntaje total `X/10` junto con sus 4 componentes desglosados: **`(X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D)`** (y si el usuario pidió un modo explícito, añade `Override Manual` conservando el desglose informativo).
+   - **Umbrales de Decisión y Encabezado Visible (solo el modo elegido + desglose corto de tareas reales y sus puntos, SIN `debate_robots.html` ni `<agent-embed>`)**:
+     - **Formato obligatorio al principio del turno**: Muestra **únicamente el modo que se va a usar**, con el total `(X/10)` seguido de un **desglose corto de las tareas/acciones concretas a realizar y los puntos que sumó cada una** (sin etiquetas genéricas vacías como `Regresión: +0 | Reincidencia: +0` ni mencionar los demás modos; si fue orden manual explícita, añade `Override Manual`).
+       - *Ejemplos reales*:
+         - `⚡ [AUTO-TRIAJE → Ejecución Directa (0/10): quitar botones de pausa en Etapa 2 de App.tsx (+0)]`
+         - `🤝 [AUTO-TRIAJE → MODO DUO Rápido: Carbon + Argon (4/10): conectar App.tsx + server.ts (+2) · detectar y mover descargas de Flow (+2)]`
+         - `🤝 [AUTO-TRIAJE → MODO TRIO (7/10): cruzar App.tsx + server.ts + background.js (+3) · sincronizar pestañas web (+2) · toca flujo compartido de extensión (+2)]`
      - **`0–2 pts` → Ejecución Directa (`SOLO`)**:
-       Muestra **`⚡ [AUTO-TRIAJE: Complejidad Baja (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → Ejecución Directa]`** (o `⚡ [MODO SOLO ACTIVADO (Override Manual — ...)]`) y resuelve de inmediato sin lanzar subagentes ni consultas web.
+       Muestra **`⚡ [AUTO-TRIAJE → Ejecución Directa (X/10): <desglose corto de tareas y +pts>]`** y resuelve de inmediato sin lanzar subagentes ni consultas web.
      - **`3–5 pts` → `MODO DUO` Rápido (Solo Subagentes Internos ~30s, SIN Webs Externas)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Media (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO DUO Rápido: Carbon + Argon]`** (o `🤝 [MODO DUO ACTIVADO (Override Manual — ...): Carbon + Argon]`).
-       - Lanza **únicamente** los 2 subagentes internos (`Model: 'inherit'` + `Model: 'pro'`) **sin** llamar a Gemini Web ni ChatGPT Web.
-       - Ejecuta obligatoriamente **Ronda 1 + Ronda 2 de debate cruzado (`send_message` entre ambos)** antes de editar código.
+       Muestra **`🤝 [AUTO-TRIAJE → MODO DUO Rápido: Carbon + Argon (X/10): <desglose corto de tareas y +pts>]`**.
+       - Lanza **únicamente** los 2 subagentes internos (`Model: 'inherit'` + `Model: 'pro'`) **sin** llamar a Gemini Web ni ChatGPT Web, ejecutando **Ronda 1 + Ronda 2 de debate cruzado (`send_message` entre ambos)** antes de editar código.
      - **`6–7 pts` → `MODO TRIO` Completo (3 Subagentes + Gemini Web + ChatGPT Web)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Alta (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO TRIO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes]`** (o `🤝 [MODO TRIO ACTIVADO (Override Manual — ...): ...]`).
+       Muestra **`🤝 [AUTO-TRIAJE → MODO TRIO: Gemini Web + ChatGPT Web + 3 Agentes (X/10): <desglose corto de tareas y +pts>]`**.
      - **`8–10 pts` → `MODO CUATRO` Crítico (3 Subagentes + Gemini Web + ChatGPT Web + Auditoría Exhaustiva)**:
-       Muestra **`🤝 [AUTO-TRIAJE: Complejidad Crítica (X/10 — Archivos: +A | Naturaleza: +B | Regresión: +C | Reincidencia: +D) → MODO CUATRO: Consultando Gemini Web (Carbon Low) + ChatGPT Web + 3 Agentes + Auditoría Profunda]`** (o `🤝 [MODO CUATRO ACTIVADO (Override Manual — ...): ...]`).
+       Muestra **`🤝 [AUTO-TRIAJE → MODO CUATRO: Gemini Web + ChatGPT Web + 3 Agentes + Auditoría Profunda (X/10): <desglose corto de tareas y +pts>]`**.
    - **Flujo Obligatorio cuando se ejecuta `MODO DUO`, `MODO TRIO` o `MODO CUATRO` (por Auto-Triaje o Manual)**:
      1. **Perspectiva Externa Doble en Paralelo (`Gemini Web` + `ChatGPT Web`) — EXCLUSIVA DE `MODO TRIO` Y `MODO CUATRO` (Omitida en `MODO DUO` Rápido) — PROMPTS SIEMPRE EN INGLÉS**:
         - **IDIOMA OBLIGATORIO 100% EN INGLÉS PARA LAS CONSULTAS WEB (`PROHIBIDO enviar prompts en español a Gemini Web o ChatGPT Web`)**: Aunque el usuario escriba su solicitud en español (y aunque al usuario se le responda en español en el chat), **TODOS los prompts enviados a `/api/gemini-web/ask-external` y a `/api/chatgpt-web/ask-external` DEBEN estar redactados SIEMPRE 100% en inglés técnico claro** (incluyendo contexto, restricciones, fragmentos de código relevantes y preguntas de arquitectura).
