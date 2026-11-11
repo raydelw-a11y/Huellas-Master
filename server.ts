@@ -11,7 +11,12 @@ import speech from '@google-cloud/speech';
 import textToSpeech from '@google-cloud/text-to-speech';
 import { createServer as createViteServer } from 'vite';
 import ffmpegStatic from 'ffmpeg-static';
-import { autoFitVoiceoverScriptToDuration } from './src/utils/smartParsers';
+import {
+  autoFitVoiceoverScriptToDuration,
+  parseStage5TriggerBlocksShared,
+  sanitizeBrandSafeEditorialText,
+  normalizeFirstDayOfMonthInVoiceover,
+} from './src/utils/smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
   polishCleanTtsPcmBlock,
@@ -14491,12 +14496,9 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
         extraPatch.timelineSentences = [];
         extraPatch.timelineFormattedText = '';
       } else if (stageNumber === 5) {
-        const cleanStage5 = text
-          .replace(/^```(?:text|markdown|plaintext)?\s*\n?/i, '')
-          .replace(/\n?```\s*$/i, '')
-          .trim();
-        const blockRegex =
-          /\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*([ABC])\s*\]?([\s\S]*?)(?=\n\s*(?:#{1,4}\s*)?\[?\s*(?:DISPARADOR|OPCI[OÓ]N)[_\s\-]*[ABC]\s*\]?|$)/gi;
+        const existingUserOv = String(list[idx].thumbnailTextOverlay || '');
+        const hasExistingUserOv = parseOverlayLinesSrv(existingUserOv).length > 0;
+        const sharedParsed = parseStage5TriggerBlocksShared(text);
         const parsedTriggers: Array<{
           id: 'A' | 'B' | 'C';
           title: string;
@@ -14504,51 +14506,20 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           prompt: string;
           suggestedOverlay?: string;
         }> = [];
-        let mBlock: RegExpExecArray | null;
-        while ((mBlock = blockRegex.exec(cleanStage5)) !== null) {
-          const id = mBlock[1].toUpperCase() as 'A' | 'B' | 'C';
-          const body = mBlock[2] || '';
-          const titleMatch = body.match(
-            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*T[IÍ]TULO\s*(?:\*\*)?\s*:\s*([^\n]+)/i
-          );
-          const descMatch = body.match(
-            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*DESCRIPCI[OÓ]N\s*(?:\*\*)?\s*:\s*([^\n]+(?:\n(?!\s*(?:\*\*|[-•*])?\s*(?:TEXTO_PANTALLA|PROMPT|T[IÍ]TULO)\b)[^\n]+)*)/i
-          );
-          const overlayMatch = body.match(
-            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*TEXTO[_\s]*PANTALLA\s*(?:\*\*)?\s*:\s*([^\n]+)/i
-          );
-          const promptMatch = body.match(
-            /(?:^|\n)\s*(?:\*\*|[-•*])?\s*PROMPT\s*(?:\*\*)?\s*:\s*([\s\S]+)$/i
-          );
-          const rawTitleVal = (titleMatch?.[1] || '').replace(/^\*+|\*+$/g, '').trim();
-          const cleanTitle = rawTitleVal
-            ? /^opci[oó]n\s*[abc]\b/i.test(rawTitleVal)
-              ? rawTitleVal
-              : `Opción ${id}: ${rawTitleVal}`
-            : `Opción ${id}`;
-          const cleanDesc = (descMatch?.[1] || '').replace(/\s+/g, ' ').replace(/^\*+|\*+$/g, '').trim();
-          const cleanOverlay = (overlayMatch?.[1] || '')
-            .replace(/^\*+|\*+$/g, '')
-            .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
-            .split(/\s*(?:\/|\|)\s*/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .join('\n');
-          const rawPrompt = (promptMatch?.[1] || '')
-            .split(/\n\s*(?:#{1,4}|\*\*Nota|\*\*Explicaci|---)/i)[0]
-            .replace(/^["'`*]+|["'`*]+$/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-          const normalizedPrompt = rawPrompt
-            ? normalizeSrvThumbPrompt(rawPrompt, hasExistingUserOv ? existingUserOv : cleanOverlay)
+        for (const blk of sharedParsed.blocks) {
+          const normalizedPrompt = blk.rawPrompt
+            ? normalizeSrvThumbPrompt(
+                blk.rawPrompt,
+                hasExistingUserOv ? existingUserOv : blk.suggestedOverlay
+              )
             : '';
-          if (normalizedPrompt && !parsedTriggers.some((t) => t.id === id)) {
+          if (normalizedPrompt && !parsedTriggers.some((t) => t.id === blk.id)) {
             parsedTriggers.push({
-              id,
-              title: cleanTitle,
-              description: cleanDesc,
+              id: blk.id,
+              title: blk.title,
+              description: blk.description,
               prompt: normalizedPrompt,
-              ...(cleanOverlay ? { suggestedOverlay: cleanOverlay } : {}),
+              ...(blk.suggestedOverlay ? { suggestedOverlay: blk.suggestedOverlay } : {}),
             });
           }
         }
@@ -14567,10 +14538,17 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           const overlays = parsedTriggers
             .map((t) => t.suggestedOverlay)
             .filter((v): v is string => Boolean(v));
-          if (!String(list[idx].thumbnailTextOverlay || '').trim() && overlays.length > 0) {
-            extraPatch.thumbnailTextOverlay = chosen.suggestedOverlay || overlays[0];
+          if (overlays.length > 0) {
             extraPatch.thumbnailTextOptions = overlays;
+            if (!hasExistingUserOv) {
+              extraPatch.thumbnailTextOverlay = chosen.suggestedOverlay || overlays[0];
+            }
           }
+        } else if (sharedParsed.directEnglishCandidate) {
+          extraPatch.thumbnailPrompt = normalizeSrvThumbPrompt(
+            sharedParsed.directEnglishCandidate,
+            existingUserOv
+          );
         }
       } else if (stageNumber === 9) {
         extraPatch.correctedSrt = text
