@@ -3232,7 +3232,7 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
     );
 
     const rawOverlayStr = stripFieldMd(overlayMatch?.[1] || '');
-    const suggestedOverlay = rawOverlayStr
+    let suggestedOverlay = rawOverlayStr
       .split(/\s*(?:\/|\||\\n)\s*/)
       .map((s) =>
         sanitizeBrandSafeEditorialText(
@@ -3252,16 +3252,25 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
         rawPromptCandidate = fallbackImgInBody[0];
       }
     }
-    const rawPrompt = applyAutomaticFlowPolicyShield(
-      rawPromptCandidate
-        .split(/\n[ \t]*(?:#{1,5}[ \t]|\*\*(?:Nota|Explicaci|Resumen|Conclusi)|---+\s*$)/i)[0]
-        .replace(/^```[a-z]*\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .replace(/^["'`*]+|["'`*]+$/g, '')
-        .replace(/\s+/g, ' ')
-        .trim(),
-      false
-    );
+    const trimmedPromptCandidate = rawPromptCandidate
+      .split(/\n[ \t]*(?:#{1,5}[ \t]|\*\*(?:Nota|Explicaci|Resumen|Conclusi)|---+\s*$)/i)[0]
+      .replace(/^```[a-z]*\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .replace(/^["'`*]+|["'`*]+$/g, '')
+      .replace(/\s+/g, ' ')
+      // Strip any trailing Spanish conversational remarks appended after the English closing clause (e.g. "Aquí tienes la mejor opción visual...")
+      .replace(/(no\s+(?:unintended\s+)?floating\s+text,\s*no\s+music\.)[\s\S]*$/i, '$1')
+      .replace(
+        /(?:\.\s+|\s+)(?:Aqu[ií]\s+tienes|Espero\s+que|¿Deseas|¿Quieres|Nota\s*:|Explicaci[oó]n\s*:|Resumen\s*:|Selecci[oó]n\s+recomendada|La\s+mejor\s+opci[oó]n)[\s\S]*$/i,
+        '.'
+      )
+      .trim();
+
+    if (!suggestedOverlay) {
+      suggestedOverlay = extractOverlayFromStage5PromptText(trimmedPromptCandidate);
+    }
+
+    const rawPrompt = applyAutomaticFlowPolicyShield(trimmedPromptCandidate, false);
 
     if (rawPrompt && !blocks.some((b) => b.id === cur.id)) {
       blocks.push({
@@ -3283,6 +3292,7 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
       directEnglishCandidate = applyAutomaticFlowPolicyShield(
         directMatch[0]
           .split(/\n[ \t]*(?:\[?DISPARADOR|#{1,5}|---)/i)[0]
+          .replace(/(no\s+(?:unintended\s+)?floating\s+text,\s*no\s+music\.)[\s\S]*$/i, '$1')
           .replace(/\s+/g, ' ')
           .trim(),
         false
@@ -3292,5 +3302,165 @@ export function parseStage5TriggerBlocksShared(rawText: string): {
 
   return { blocks, directEnglishCandidate };
 }
+
+/**
+ * Extracts multi-line (`(Line 1: "..." / Line 2: "...")`) or single-line (`reads "..."` / `reading "..."`)
+ * overlay text embedded inside an English Stage 5 thumbnail prompt when a separate `TEXTO EN PANTALLA:` line is omitted.
+ */
+export function extractOverlayFromStage5PromptText(promptText: string): string {
+  const src = String(promptText || '');
+  if (!src) return '';
+  const multiMatch = src.match(
+    /\(\s*Line\s*1\s*:\s*["“”']([^"“”']+)["“”'](?:\s*\/\s*Line\s*2\s*:\s*["“”']([^"“”']+)["“”'])?(?:\s*\/\s*Line\s*3\s*:\s*["“”']([^"“”']+)["“”'])?(?:\s*\/\s*Line\s*4\s*:\s*["“”']([^"“”']+)["“”'])?\s*\)/i
+  );
+  if (multiMatch) {
+    const lines = [multiMatch[1], multiMatch[2], multiMatch[3], multiMatch[4]]
+      .map((s) => sanitizeBrandSafeEditorialText(String(s || '').trim()).toUpperCase())
+      .filter((s) => Boolean(s) && !/^\[?\s*TEXTO\s+EN\s+PANTALLA\s*\]?$/i.test(s));
+    if (lines.length > 0) return lines.join('\n');
+  }
+  const singleMatch = src.match(
+    /text\s+overlay[^.;]*?\bread(?:s|ing)\s*["“”']([^"“”'\[\]]{2,60})["“”']/i
+  );
+  if (singleMatch?.[1]) {
+    const cleaned = sanitizeBrandSafeEditorialText(singleMatch[1].trim()).toUpperCase();
+    if (cleaned && !/^TEXTO\s+EN\s+PANTALLA$/i.test(cleaned)) {
+      return cleaned;
+    }
+  }
+  return '';
+}
+
+/**
+ * Cleanly normalizes a Stage 5 English thumbnail prompt without EVER splitting sentences mid-phrase
+ * (`is portrayed by...`, `In the top-left corner, the...`) and guarantees ONLY the selected `overlayText`
+ * appears in the prompt (eliminating any previous/first-option overlay clauses and trailing Spanish remarks).
+ */
+export function cleanAndNormalizeStage5ThumbnailPrompt(
+  rawInputPrompt: string,
+  orientation: 'HORIZONTAL_16X9' | 'VERTICAL_9X16',
+  overlayText: string
+): string {
+  let pr = String(rawInputPrompt || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!pr) return '';
+
+  const isVert = orientation === 'VERTICAL_9X16';
+  const aspectPhrase = isVert ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
+  const overlayLines = String(overlayText || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((l) => l.replace(/["“”']/g, '').replace(/\s+/g, ' ').trim())
+    .filter((l) => Boolean(l) && !/^\[?\s*texto\s+en\s+pantalla\s*\]?$/i.test(l));
+
+  // 1. Strip any trailing Spanish conversational chatter after the English prompt closes
+  pr = pr
+    .replace(/(no\s+(?:unintended\s+)?floating\s+text,\s*no\s+music\.)[\s\S]*$/i, '$1')
+    .replace(
+      /(?:\.\s+|\s+)(?:Aqu[ií]\s+tienes|Espero\s+que|¿Deseas|¿Quieres|Nota\s*:|Explicaci[oó]n\s*:|Resumen\s*:|Selecci[oó]n\s+recomendada|La\s+mejor\s+opci[oó]n)[\s\S]*$/i,
+      '.'
+    )
+    .trim();
+
+  // 2. Repair any previously damaged mid-sentence logo splice (`...in his 50s is, official page logo ... sub-text, portrayed by...`)
+  pr = pr.replace(
+    /\b(is|are|was|were|stands|sits|appears)\s*,\s*official\s+page\s+logo\s+cleanly\s+integrated[\s\S]*?omitting\s+the\s+sub-text\s*,\s*(portrayed\s+by\b)/gi,
+    '$1 $2'
+  );
+  pr = pr.replace(/\bIn\s+the\s+top[- ]left\s+corner,\s*the\s*,\s*/gi, '');
+
+  // 3. Remove ALL existing text-overlay sentences/clauses (whether written by Gemini with `reads (...)`, commas, word numbers, or previous normalizer runs)
+  pr = pr.replace(
+    /(?:(?:Near|In|At)\s+the\s+(?:bottom[- ]left|middle|center)(?:\s+(?:area|part|corner))?(?:\s+of\s+the\s+(?:image|frame))?\s*,\s*)?(?:a\s+)?(?:bold\s*,?\s*)?(?:high[- ]contrast\s*,?\s*)?(?:cinematic\s*,?\s*)?(?:documentary\s*,?\s*)?(?:typography\s+)?text\s+overlay\b[^.]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    ' '
+  );
+  pr = pr.replace(
+    /Centered\s+and\s+middle[- ]justified\s+right\s+in\s+the\s+middle\s+center\s+of\s+the\s+image\s*,\s*(?:a\s+)?bold[\s\S]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    ' '
+  );
+
+  // 4. Remove ALL existing top-right 8K/HD logo sentences/clauses
+  pr = pr.replace(
+    /(?:In\s+the\s+top[- ]right\s+corner\s*,\s*)?a\s+small\s*,?\s*discreet\s+5%\s+scale\s+logo(?:\s+in\s+the\s+top[- ]right\s+corner)?\s+display(?:s|ing)\s*["“”']?(?:8K|HD)["“”']?\s*in\s+metallic\s+gold\s*[.,]?/gi,
+    ' '
+  );
+
+  // 5. Remove ALL existing top-left official page logo sentences/clauses (`image_0.png` or `provided reference image`)
+  pr = pr.replace(
+    /(?:In\s+the\s+top[- ]left\s+corner\s*,\s*(?:the\s+)?)?official\s+page\s+logo(?:\s+cleanly\s+integrated|\s+from\s+[^,]+?\s+(?:is\s+)?cleanly\s+integrated)[\s\S]*?omitting\s+the\s+sub-text\s*[.,]?/gi,
+    ' '
+  );
+
+  // 6. Strip trailing quality closing sentence/clause so we can append the canonical blocks cleanly in exact sentence order
+  pr = pr.replace(
+    /(?:The\s+scene\s+has\s+|,\s*)?cinematic\s+documentary\s+realism\s*,\s*8k\s+resolution[\s\S]*?no\s+music\.?\s*$/i,
+    ''
+  );
+
+  // Clean orphaned connectors or double punctuation left after stripping
+  pr = pr
+    .replace(/\b(?:In\s+the\s+top[- ](?:left|right)\s+corner|Near\s+the\s+bottom[- ]left)\s*,\s*(?:the\s*)?(?=[.,]|$)/gi, '')
+    .replace(/\s+([.,])/g, '$1')
+    .replace(/([.,])\s*[.,]+/g, '$1')
+    .replace(/,\s*$/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!/^Thumbnail:\s*Create an image/i.test(pr)) {
+    pr = `Thumbnail: Create an image ${pr.replace(/^Create an image\s*/i, '')}`;
+  }
+
+  if (/(?:16:9|9:16)\s*(?:horizontal|vertical)?\s*(?:aspect ratio|format)?/i.test(pr)) {
+    pr = pr.replace(
+      /(?:16:9|9:16)\s*(?:horizontal|vertical)?\s*(?:aspect ratio|format)?/gi,
+      aspectPhrase
+    );
+  } else {
+    pr = pr.replace(
+      /^Thumbnail:\s*Create an image\b/i,
+      `Thumbnail: Create an image in ${aspectPhrase}`
+    );
+  }
+
+  // Ensure anonymous historical reenactment shield is present if prompt mentions a person without it
+  if (!/anonymous historical reenactment actor/i.test(pr)) {
+    pr = `${pr.replace(/[.,\s]+$/, '')}, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people).`;
+  } else if (!/[.!?]$/.test(pr)) {
+    pr = `${pr}.`;
+  }
+
+  // 7. Append ONLY the exact selected text overlay, top-right 8K/HD badge, top-left Official Logo, and closing quality specs as complete sentences
+  const posSentenceStart = isVert
+    ? 'Centered and middle-justified right in the middle center of the image, a bold high-contrast cinematic documentary typography text overlay'
+    : 'In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay';
+
+  const overlaySentence =
+    overlayLines.length === 0
+      ? ''
+      : overlayLines.length === 1
+      ? `${posSentenceStart} reads "${overlayLines[0]}".`
+      : `${posSentenceStart} stacked across ${overlayLines.length} exact separate lines reads (${overlayLines
+          .map((ln, idx) => `Line ${idx + 1}: "${ln}"`)
+          .join(' / ')}).`;
+
+  const rightLogoSentence = isVert
+    ? 'In the top-right corner, a small discreet 5% scale logo displays "HD" in metallic gold.'
+    : 'In the top-right corner, a small discreet 5% scale logo displays "8K" in metallic gold.';
+
+  const leftLogoSentence =
+    'In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text.';
+
+  const closingSentence =
+    'The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
+
+  return [pr, overlaySentence, rightLogoSentence, leftLogoSentence, closingSentence]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 
 

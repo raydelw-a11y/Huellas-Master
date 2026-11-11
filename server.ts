@@ -14,6 +14,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import {
   autoFitVoiceoverScriptToDuration,
   parseStage5TriggerBlocksShared,
+  cleanAndNormalizeStage5ThumbnailPrompt,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
 } from './src/utils/smartParsers';
@@ -14402,7 +14403,7 @@ async function handleRemoteGeminiStageTrigger(trigger: any) {
   }
 }
 
-app.post('/api/gemini-web/remote-stage-result', (req, res) => {
+app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
   const remoteCommandId = String(req.body?.remoteCommandId || '').trim();
   const docId = String(req.body?.docId || '').trim();
   const stageNumber = Number(req.body?.stageNumber) || 1;
@@ -14412,7 +14413,8 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
   const isError =
     trimmed.length < 400 &&
     /encountering an error|something went wrong|algo sali[oó] mal|se produjo un error|try something else/i.test(trimmed);
-  if (!docId || trimmed.length < 50 || isError) {
+  const minValidLen = stageNumber === 101 || stageNumber === 115 ? 6 : 50;
+  if (!docId || trimmed.length < minValidLen || isError) {
     try {
       const list = readDocumentaries();
       const idx = list.findIndex((d) => d && d.id === docId);
@@ -14496,8 +14498,37 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
         extraPatch.timelineSentences = [];
         extraPatch.timelineFormattedText = '';
       } else if (stageNumber === 5) {
-        const existingUserOv = String(list[idx].thumbnailTextOverlay || '');
+        const isVertThumb =
+          list[idx].thumbnailOrientation === 'VERTICAL_9X16' ||
+          (!list[idx].thumbnailOrientation &&
+            (list[idx].productionType === 'SHORT_9X16' ||
+              list[idx].promptConfig?.SUB_OPCION_REELS === '9X16'));
+        const thumbOrientationSrv: 'HORIZONTAL_16X9' | 'VERTICAL_9X16' = isVertThumb
+          ? 'VERTICAL_9X16'
+          : 'HORIZONTAL_16X9';
+        const parseOverlayLinesSrv = (rawOv: string) =>
+          String(rawOv || '')
+            .replace(/\r\n/g, '\n')
+            .split('\n')
+            .map((l) => l.replace(/["“”']/g, '').replace(/\s+/g, ' ').trim())
+            .filter((l) => Boolean(l) && !/^\[?\s*texto\s+en\s+pantalla\s*\]?$/i.test(l));
+
+        const existingUserOv = String(list[idx].thumbnailTextOverlay || '').trim();
         const hasExistingUserOv = parseOverlayLinesSrv(existingUserOv).length > 0;
+        const prevAutoCandidates = new Set(
+          [
+            ...(Array.isArray(list[idx].thumbnailTextOptions) ? list[idx].thumbnailTextOptions : []),
+            ...(Array.isArray(list[idx].thumbnailPsychTriggers)
+              ? list[idx].thumbnailPsychTriggers.map((t: any) => t?.suggestedOverlay || '')
+              : []),
+            '12 AÑOS\nOCULTA',
+          ]
+            .map((s) => String(s || '').trim().toUpperCase())
+            .filter(Boolean)
+        );
+        const existingWasAutoOption =
+          !hasExistingUserOv || prevAutoCandidates.has(existingUserOv.toUpperCase());
+
         const sharedParsed = parseStage5TriggerBlocksShared(text);
         const parsedTriggers: Array<{
           id: 'A' | 'B' | 'C';
@@ -14507,10 +14538,12 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
           suggestedOverlay?: string;
         }> = [];
         for (const blk of sharedParsed.blocks) {
+          const triggerOverlay = blk.suggestedOverlay || (hasExistingUserOv ? existingUserOv : '');
           const normalizedPrompt = blk.rawPrompt
-            ? normalizeSrvThumbPrompt(
+            ? cleanAndNormalizeStage5ThumbnailPrompt(
                 blk.rawPrompt,
-                hasExistingUserOv ? existingUserOv : blk.suggestedOverlay
+                thumbOrientationSrv,
+                triggerOverlay
               )
             : '';
           if (normalizedPrompt && !parsedTriggers.some((t) => t.id === blk.id)) {
@@ -14533,20 +14566,28 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
               ? 'C'
               : 'A';
           const chosen = parsedTriggers.find((t) => t.id === selVar) || parsedTriggers[0];
-          extraPatch.thumbnailPsychVariant = chosen.id;
-          extraPatch.thumbnailPrompt = chosen.prompt;
           const overlays = parsedTriggers
             .map((t) => t.suggestedOverlay)
             .filter((v): v is string => Boolean(v));
+          const resolvedActiveOverlay = existingWasAutoOption
+            ? chosen.suggestedOverlay || overlays[0] || existingUserOv
+            : existingUserOv;
+          extraPatch.thumbnailPsychVariant = chosen.id;
+          extraPatch.thumbnailPrompt = cleanAndNormalizeStage5ThumbnailPrompt(
+            chosen.prompt,
+            thumbOrientationSrv,
+            resolvedActiveOverlay
+          );
           if (overlays.length > 0) {
             extraPatch.thumbnailTextOptions = overlays;
-            if (!hasExistingUserOv) {
-              extraPatch.thumbnailTextOverlay = chosen.suggestedOverlay || overlays[0];
-            }
+          }
+          if (resolvedActiveOverlay) {
+            extraPatch.thumbnailTextOverlay = resolvedActiveOverlay;
           }
         } else if (sharedParsed.directEnglishCandidate) {
-          extraPatch.thumbnailPrompt = normalizeSrvThumbPrompt(
+          extraPatch.thumbnailPrompt = cleanAndNormalizeStage5ThumbnailPrompt(
             sharedParsed.directEnglishCandidate,
+            thumbOrientationSrv,
             existingUserOv
           );
         }
@@ -14645,6 +14686,7 @@ app.post('/api/gemini-web/remote-stage-result', (req, res) => {
       };
       writeDocumentaries(list);
       console.log(`[RemoteGeminiStage] Resultado etapa ${stageNumber} (${fieldKey}, ${text.length} chars) guardado en ${docId}`);
+      await syncDocumentariesWithGitHubServer(true).catch(() => null);
     }
   } catch (e) {
     console.warn('[RemoteGeminiStage] Error guardando resultado:', e);

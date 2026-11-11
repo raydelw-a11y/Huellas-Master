@@ -97,6 +97,8 @@ import {
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
   parseStage5TriggerBlocksShared,
+  cleanAndNormalizeStage5ThumbnailPrompt,
+  extractOverlayFromStage5PromptText,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -142,7 +144,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:18 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:56 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -609,8 +611,6 @@ function buildOrUpdateThumbnailPrompt(
   doc?: DocumentaryProject | null
 ): string {
   const isVertical = orientation === 'VERTICAL_9X16';
-  const overlayLines = parseThumbnailOverlayLines(overlayText);
-  const hasCleanText = overlayLines.length > 0;
   const aspectPhrase = isVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
   const positionOnlyPhrase = isVertical
     ? 'centered and middle-justified right in the middle center of the image'
@@ -624,102 +624,21 @@ function buildOrUpdateThumbnailPrompt(
   const closingClause =
     'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
-  // Eliminar cualquier cláusula literal "[TEXTO EN PANTALLA]" o prompt corrupto mezclado en español
-  let prompt = isCorruptedThumbnailPrompt(currentPrompt)
-    ? ''
-    : (currentPrompt || '')
-        .replace(
-          /,?\s*bold high-contrast cinematic documentary typography text overlay[^,.;]*reading\s*["“”']\[TEXTO EN PANTALLA\]["“”']/gi,
-          ''
-        )
-        .trim();
-
-  if (!prompt) {
+  const rawTrimmed = isCorruptedThumbnailPrompt(currentPrompt) ? '' : String(currentPrompt || '').trim();
+  if (!rawTrimmed) {
     const sceneContext = extractCleanEnglishThumbnailSceneFromDoc(doc);
-    const textPart = textPositionClause ? `${textPositionClause}, ` : '';
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) making direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, dramatic high-impact chiaroscuro contrast with warm golden-amber rim lighting against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    const seedPrompt = `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) making direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, dramatic high-impact chiaroscuro contrast with warm golden-amber rim lighting against a deep cold midnight-cyan background, ${
+      textPositionClause ? `${textPositionClause}, ` : ''
+    }${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return cleanAndNormalizeStage5ThumbnailPrompt(seedPrompt, orientation, overlayText);
   }
 
-  if (!/^Thumbnail:\s*Create an image/i.test(prompt)) {
-    prompt = `Thumbnail: Create an image ${prompt.replace(/^Create an image\s*/i, '')}`;
-  }
+  const effectiveOverlay =
+    parseThumbnailOverlayLines(overlayText).length > 0
+      ? overlayText
+      : extractOverlayFromStage5PromptText(rawTrimmed);
 
-  // 1. Update aspect ratio (16:9 horizontal vs 9:16 vertical)
-  if (/(?:16:9|9:16)\s*(?:horizontal|vertical)?\s*(?:aspect ratio|format)?/i.test(prompt)) {
-    prompt = prompt.replace(
-      /(?:16:9|9:16)\s*(?:horizontal|vertical)?\s*(?:aspect ratio|format)?/gi,
-      aspectPhrase
-    );
-  } else {
-    prompt = prompt.replace(
-      /^Thumbnail:\s*Create an image\b/i,
-      `Thumbnail: Create an image in ${aspectPhrase}`
-    );
-  }
-
-  // 2. Update or insert text overlay ONLY if cleanText was explicitly typed in the field (supports 1 or multiple stacked lines)
-  const textOverlayRegex =
-    /bold high-contrast cinematic documentary typography text overlay\s+(?:centered and middle-justified right in the middle center of the image|positioned in the bottom-left area of the image|[^,.;]*?)\s+(?:stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”']([^"“”']*)["“”'])/i;
-  const genericTextOverlayRegex =
-    /(?:bold\s+)?(?:high-contrast\s+)?(?:cinematic\s+)?(?:documentary\s+)?(?:typography\s+)?text(?:\s+overlay)?\s+(?:centered|positioned|placed|in the bottom-left|in the middle|in the center)[^,.;]*(?:stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”']([^"“”']*)["“”'])/i;
-
-  if (hasCleanText) {
-    if (textOverlayRegex.test(prompt)) {
-      prompt = prompt.replace(textOverlayRegex, textPositionClause);
-    } else if (genericTextOverlayRegex.test(prompt)) {
-      prompt = prompt.replace(genericTextOverlayRegex, textPositionClause);
-    } else {
-      const logoIdx = prompt.search(
-        /a small discreet 5% scale logo|official page logo|cinematic documentary realism/i
-      );
-      if (logoIdx !== -1) {
-        const before = prompt.slice(0, logoIdx).replace(/[,.\s]+$/, '');
-        const after = prompt.slice(logoIdx);
-        prompt = `${before}, ${textPositionClause}, ${after}`;
-      } else {
-        prompt = `${prompt.replace(/[,.\s]+$/, '')}, ${textPositionClause}.`;
-      }
-    }
-  } else if (textOverlayRegex.test(prompt)) {
-    // Si el campo está vacío pero había un bloque generado antes con texto real, solo ajusta su posición (16:9 vs 9:16) conservando su texto/líneas
-    prompt = prompt.replace(textOverlayRegex, (fullMatch) => {
-      const tailMatch = fullMatch.match(
-        /(stacked across \d+ exact separate lines \((?:Line \d+:\s*["“”'][^"“”']*["“”'](?:\s*\/\s*)?)+\)|reading\s*["“”'][^"“”']*["“”'])/i
-      );
-      const preservedTail = tailMatch ? tailMatch[1] : 'reading ""';
-      return `bold high-contrast cinematic documentary typography text overlay ${positionOnlyPhrase} ${preservedTail}`;
-    });
-  }
-
-  // 3. Update or insert top-right 5% logo ("8K" for horizontal vs "HD" for vertical)
-  const rightLogoRegex =
-    /a small discreet 5% scale logo in the top[- ]right corner displaying\s*["“”']?(?:8K|HD)["“”']?\s*in metallic gold/i;
-  if (rightLogoRegex.test(prompt)) {
-    prompt = prompt.replace(rightLogoRegex, rightLogoClause);
-  } else {
-    const leftLogoIdx = prompt.search(/official page logo|cinematic documentary realism/i);
-    if (leftLogoIdx !== -1) {
-      const before = prompt.slice(0, leftLogoIdx).replace(/[,.\s]+$/, '');
-      const after = prompt.slice(leftLogoIdx);
-      prompt = `${before}, ${rightLogoClause}, ${after}`;
-    } else {
-      prompt = `${prompt.replace(/[,.\s]+$/, '')}, ${rightLogoClause}.`;
-    }
-  }
-
-  // 4. Ensure official page logo top-left 5% is present
-  if (!/official page logo cleanly integrated in the top-left corner/i.test(prompt)) {
-    const closeIdx = prompt.search(/portrayed by an anonymous historical|cinematic documentary realism/i);
-    if (closeIdx !== -1) {
-      const before = prompt.slice(0, closeIdx).replace(/[,.\s]+$/, '');
-      const after = prompt.slice(closeIdx);
-      prompt = `${before}, ${leftLogoClause}, ${after}`;
-    } else {
-      prompt = `${prompt.replace(/[,.\s]+$/, '')}, ${leftLogoClause}, ${closingClause}`;
-    }
-  }
-
-  return prompt;
+  return cleanAndNormalizeStage5ThumbnailPrompt(rawTrimmed, orientation, effectiveOverlay);
 }
 
 function extractDocVideoNumFromAnyText(text?: string): string {
@@ -751,11 +670,12 @@ function parseStage5TriggersAndPrompts(
       !isCorruptedThumbnailPrompt(blk.rawPrompt) &&
       !triggers.some((t) => t.id === blk.id)
     ) {
-      const effectiveOverlay = hasUserOverlay ? userOverlayText : blk.suggestedOverlay;
+      // Store each trigger with its own suggestedOverlay by default so selecting A, B, or C brings its matching hook cleanly
+      const triggerOwnOverlay = blk.suggestedOverlay || (hasUserOverlay ? userOverlayText : '');
       const normalizedPrompt = buildOrUpdateThumbnailPrompt(
         blk.rawPrompt,
         orientation,
-        effectiveOverlay,
+        triggerOwnOverlay,
         doc
       );
       triggers.push({
@@ -4574,6 +4494,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const pendingStage11QueueRef = useRef<number[]>([]);
   const autoExpandedShortScriptRef = useRef<Record<string, boolean>>({});
   const autoGeneratedStage5TriggersRef = useRef<Record<string, boolean>>({});
+  const userExplicitlyPickedOverlayDocRef = useRef<Record<string, string>>({});
 
   const applyGeneratedStageText = (
     stageNum: number,
@@ -4760,17 +4681,28 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               : 'A';
           const selectedTrigger =
             parsedStage5.triggers.find((t) => t.id === desiredVariant) || parsedStage5.triggers[0];
-          patch.thumbnailPsychTriggers = parsedStage5.triggers;
-          patch.thumbnailPsychVariant = selectedTrigger.id;
-          patch.thumbnailPrompt = selectedTrigger.prompt;
+          const explicitOverlay = (userExplicitlyPickedOverlayDocRef.current[activeDoc.id] || '').trim();
           const suggestedList = parsedStage5.triggers
             .map((t) => (t.suggestedOverlay || '').trim())
             .filter(Boolean);
+          const resolvedOverlay =
+            explicitOverlay ||
+            selectedTrigger.suggestedOverlay ||
+            suggestedList[0] ||
+            activeDoc.thumbnailTextOverlay ||
+            '';
+          patch.thumbnailPsychTriggers = parsedStage5.triggers;
+          patch.thumbnailPsychVariant = selectedTrigger.id;
+          patch.thumbnailPrompt = buildOrUpdateThumbnailPrompt(
+            selectedTrigger.prompt,
+            orientationForThumb,
+            resolvedOverlay,
+            activeDoc
+          );
           if (suggestedList.length > 0) {
             patch.thumbnailTextOptions = suggestedList;
-            if (parseThumbnailOverlayLines(activeDoc.thumbnailTextOverlay || '').length === 0) {
-              patch.thumbnailTextOverlay =
-                selectedTrigger.suggestedOverlay || suggestedList[0] || '';
+            if (!explicitOverlay) {
+              patch.thumbnailTextOverlay = resolvedOverlay;
             }
           }
         } else if (parsedStage5.fallbackPrompt) {
@@ -9490,10 +9422,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         promptConfig: {
           ...(activeDoc.promptConfig || {}),
           REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+          REMOTE_GEMINI_STAGE_ACK_ID: '',
           REMOTE_GEMINI_STAGE_STATUS: 'running',
           REMOTE_GEMINI_STAGE_ERROR: '',
         },
-        updatedAt: Date.now() as any,
+        updatedAt: new Date().toISOString(),
       };
       updateActiveDoc(remotePatch);
       setThumbnailGeneratingOption(effectiveOptionLabel);
@@ -10817,18 +10750,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             ...(baseDoc.promptConfig || {}),
             ...lockedVideoPromptPatch,
             REMOTE_GEMINI_STAGE_COMMAND_JSON: JSON.stringify(remoteFullCmd),
+            REMOTE_GEMINI_STAGE_ACK_ID: '',
             REMOTE_GEMINI_STAGE_STATUS: 'running',
             REMOTE_GEMINI_STAGE_ERROR: '',
           },
           updatedAt: new Date().toISOString(),
         };
         updateActiveDoc(remotePatch);
+        setAiGenerating(true);
         setBridgeStatusType('WORKING');
         setBridgeStatusMsg(
           isPart1Remote
             ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Carbon Low)...'
             : isDeepResearchRemote
             ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini 4 Carbon Low + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
+            : stageNum === 5
+            ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura en Gemini Web...'
             : '📡 Enviando orden de la etapa a tu Mac (Gemini 4 Carbon Low)...'
         );
         const nextDocsForRemote = documentaries.map((d) =>
@@ -10849,10 +10786,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ? '⏳ Orden enviada a tu Mac. Ejecutando Paso 1 en Gemini Web...'
                 : isDeepResearchRemote
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
+                : stageNum === 5
+                ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (4 Carbon · Low). Se actualizará aquí automáticamente...'
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
             if (!isDeepResearchRemote) {
-              const maxPollLoops = 30;
+              const maxPollLoops = 36;
+              let ackSeenTicks = 0;
               for (let pollIdx = 0; pollIdx < maxPollLoops; pollIdx++) {
                 await new Promise((r) => setTimeout(r, 4000));
                 try {
@@ -10875,6 +10815,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       } catch {}
                     }
                   }
+                  if (ackCompleted) ackSeenTicks++;
                   const remoteDocs = await fetchRemoteDocumentariesFromGitHub().catch(() => null);
                   if (remoteDocs && remoteDocs.length > 0) {
                     let remoteTarget: DocumentaryProject | undefined;
@@ -10888,15 +10829,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       remoteTarget = merged.find((d) => d.id === currentDoc.id);
                       return merged;
                     });
-                    const hasStage5Result =
-                      stageNum === 5 &&
-                      Array.isArray(remoteTarget?.thumbnailPsychTriggers) &&
-                      remoteTarget!.thumbnailPsychTriggers!.length > 0;
                     const completedAckMatch =
                       remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === commandId &&
                       remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'completed';
-                    if (hasStage5Result || completedAckMatch || ackCompleted) {
-                      setBridgeStatusType('READY');
+                    if (completedAckMatch || (ackCompleted && ackSeenTicks >= 3)) {
+                      setAiGenerating(false);
+                      if (stageNum === 101) setThumbOptionsGenerating(false);
+                      setBridgeStatusType('SUCCESS');
                       setBridgeStatusMsg('✅ Resultado sincronizado automáticamente desde tu Mac.');
                       break;
                     }
@@ -10905,6 +10844,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       (remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID === commandId &&
                         remoteTarget?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'failed')
                     ) {
+                      setAiGenerating(false);
+                      if (stageNum === 101) setThumbOptionsGenerating(false);
                       setBridgeStatusType('ERROR');
                       setBridgeStatusMsg(
                         `⚠️ Gemini Web en Mac reportó un error (${
@@ -10916,6 +10857,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   }
                 } catch {}
               }
+              setAiGenerating(false);
+              if (stageNum === 101) setThumbOptionsGenerating(false);
+            } else {
+              setAiGenerating(false);
             }
           });
         return;
@@ -11055,9 +11000,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       (activeDoc.thumbnailPsychTriggers || []).length > 0 &&
       bridgeStatusType === 'WORKING' &&
       !aiGenerating &&
-      thumbnailGeneratingOption === null
+      thumbnailGeneratingOption === null &&
+      activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_STATUS !== 'running'
     ) {
-      setBridgeStatusType('READY');
+      setBridgeStatusType('SUCCESS');
     }
   }, [
     activeStage,
@@ -16522,9 +16468,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
               const handleSelectThumbnailPsychVariant = (newVariant: 'A' | 'B' | 'C') => {
                 const matched = dynamicTriggers.find((t) => t.id === newVariant);
-                const effectiveOverlay = hasOverlayText
-                  ? activeDoc.thumbnailTextOverlay || ''
-                  : matched?.suggestedOverlay || '';
+                const variantIdx = newVariant === 'B' ? 1 : newVariant === 'C' ? 2 : 0;
+                const variantSuggestedOverlay = (
+                  matched?.suggestedOverlay ||
+                  (activeDoc.thumbnailTextOptions || [])[variantIdx] ||
+                  extractOverlayFromStage5PromptText(matched?.prompt || '') ||
+                  ''
+                ).trim();
+                const explicitUserChoice = (
+                  userExplicitlyPickedOverlayDocRef.current[activeDoc.id] || ''
+                ).trim();
+                const currentOverlayTrimmed = (activeDoc.thumbnailTextOverlay || '').trim();
+
+                // If the user explicitly clicked/typed an overlay in Step 1, keep their chosen overlay;
+                // otherwise switch automatically to the selected trigger's own overlay (never stay stuck on Option 1!)
+                const effectiveOverlay =
+                  explicitUserChoice &&
+                  explicitUserChoice.toUpperCase() === currentOverlayTrimmed.toUpperCase()
+                    ? currentOverlayTrimmed
+                    : variantSuggestedOverlay || currentOverlayTrimmed;
+
                 const cleanExisting = isCorruptedThumbnailPrompt(activeDoc.thumbnailPrompt)
                   ? ''
                   : (activeDoc.thumbnailPrompt || '').trim();
@@ -16535,15 +16498,28 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       effectiveOverlay,
                       activeDoc
                     )
-                  : cleanExisting;
+                  : cleanExisting
+                  ? buildOrUpdateThumbnailPrompt(
+                      cleanExisting,
+                      currentOrientation,
+                      effectiveOverlay,
+                      activeDoc
+                    )
+                  : '';
                 updateActiveDoc({
                   thumbnailPsychVariant: newVariant,
                   thumbnailOrientation: currentOrientation,
+                  ...(effectiveOverlay ? { thumbnailTextOverlay: effectiveOverlay } : {}),
                   thumbnailPrompt: built,
                 });
               };
 
               const handleChangeThumbnailTextOverlay = (newText: string) => {
+                if (newText.trim()) {
+                  userExplicitlyPickedOverlayDocRef.current[activeDoc.id] = newText.trim();
+                } else {
+                  delete userExplicitlyPickedOverlayDocRef.current[activeDoc.id];
+                }
                 const updatedTriggers = dynamicTriggers.map((t) => ({
                   ...t,
                   prompt: buildOrUpdateThumbnailPrompt(
