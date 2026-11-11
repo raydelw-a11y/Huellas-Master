@@ -20,6 +20,7 @@ import {
   polishCleanTtsPcmBlock,
   hasEmbeddedC2paInAudioBytes,
   cleanMasterWavEmbeddedC2paInPlace,
+  trimDuplicatedTakeInPcm,
 } from './geminiTtsAudioClean';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
@@ -148,8 +149,8 @@ export function normalizeVoiceoverUrlString(url?: string): string {
   if (trimmed.startsWith('/tts-files/')) {
     trimmed = trimmed.slice(1);
   }
-  if (/^tts-files\/tts-video-77-penicilina\.mp3$/i.test(trimmed)) {
-    return 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix';
+  if (/^tts-files\/tts-video-77-penicilina\.mp3(?:\?.*)?$/i.test(trimmed)) {
+    return 'tts-files/tts-video-77-penicilina.mp3?v=nodup2';
   }
   return trimmed;
 }
@@ -182,7 +183,7 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
   const isDeadOrEmptyUrl = (u?: string) => !u || u.startsWith('blob:');
 
   if (isVideo77Penicilina && isDeadOrEmptyUrl(masterAudioUrl)) {
-    masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix';
+    masterAudioUrl = 'tts-files/tts-video-77-penicilina.mp3?v=nodup2';
     if (audioTracks.length === 0 || audioTracks.every((t) => isDeadOrEmptyUrl(t.audioUrl))) {
       audioTracks = [
         {
@@ -195,12 +196,12 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           language: doc.selectedLanguage || 'es-la',
           consistencyMode: true,
           filename: 'tts-video-77-penicilina.mp3',
-          audioUrl: 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix',
+          audioUrl: 'tts-files/tts-video-77-penicilina.mp3?v=nodup2',
           createdAt: doc.updatedAt || new Date().toISOString(),
           storageMode: 'local',
           wordCount: 2787,
-          duration: 1161.2,
-          providerUsed: 'Gemini 3.8 Flash TTS (Charon · Limpieza C2PA)',
+          duration: 1139.7,
+          providerUsed: 'Gemini 3.8 Flash TTS (Charon · Limpieza C2PA + Anti-Duplicado)',
         },
       ];
     } else {
@@ -209,9 +210,9 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
           ? {
               ...t,
               audioUrl: isDeadOrEmptyUrl(t.audioUrl)
-                ? 'tts-files/tts-video-77-penicilina.mp3?v=c2pafix'
+                ? 'tts-files/tts-video-77-penicilina.mp3?v=nodup2'
                 : t.audioUrl,
-              duration: 1161.2,
+              duration: 1139.7,
             }
           : t
       );
@@ -3619,22 +3620,25 @@ ${segText}`;
         bytes[i] = binary.charCodeAt(i);
       }
       const extracted = extractCleanPcmFromGeminiAudio(bytes, 24000);
-      const rawPcm = extracted.pcmBytes;
-
-      // Guard against occasional TTS paragraph duplication
-      const byteRate = Math.max(16000, extracted.sampleRate * 2);
-      const tempSec = rawPcm.byteLength / byteRate;
+      const sr = extracted.sampleRate || 24000;
       const wCount = segText.split(/\s+/).filter(Boolean).length;
-      const expectedSec = wCount / 2.0;
-      if (wCount >= 20 && tempSec > expectedSec * 2.3 && hardAttempt < 2) {
-        hardAttempt++;
+      const deduped = trimDuplicatedTakeInPcm(extracted.pcmBytes, sr, wCount);
+      if (deduped.wasTrimmed) {
         console.warn(
-          `[VoxFlow Client] Posible duplicación en bloque ${blockNum} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando...`
+          `[VoxFlow Client] Toma duplicada recortada en bloque ${blockNum}: ${deduped.originalDurationSec.toFixed(2)}s -> ${deduped.trimmedDurationSec.toFixed(2)}s`
         );
-        continue;
+      } else {
+        const tempSec = deduped.pcmBytes.byteLength / Math.max(16000, sr * 2);
+        if (wCount >= 8 && tempSec > 6 && wCount / tempSec < 1.35 && hardAttempt < 2) {
+          hardAttempt++;
+          console.warn(
+            `[VoxFlow Client] Posible duplicación sin valle limpio en bloque ${blockNum} (${tempSec.toFixed(1)}s para ${wCount} pal.). Reintentando...`
+          );
+          continue;
+        }
       }
 
-      return polishCleanTtsPcmBlock(rawPcm, extracted.sampleRate || 24000);
+      return polishCleanTtsPcmBlock(deduped.pcmBytes, sr);
     }
 
     throw new Error(lastErrorMsg || 'No se pudo sintetizar el bloque de voz.');

@@ -17,6 +17,7 @@ import {
   polishCleanTtsPcmBlock,
   hasEmbeddedC2paInAudioBytes,
   cleanMasterWavEmbeddedC2paInPlace,
+  trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 
 // Load local .env first
@@ -1620,14 +1621,16 @@ ${cleanText}`;
       if (generation?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
         const rawData = generation.candidates[0].content.parts[0].inlineData.data;
         const tempBuffer = Buffer.from(rawData, 'base64');
-        const tempSec = tempBuffer.length / 48000;
+        const tempExtracted = extractCleanPcmFromGeminiAudio(tempBuffer, 24000);
+        const srCheck = tempExtracted.sampleRate || 24000;
         const wCount = cleanText.split(/\s+/).filter(Boolean).length;
-        const expectedSec = wCount / 2.0;
+        const dedupCheck = trimDuplicatedTakeInPcm(tempExtracted.pcmBytes, srCheck, wCount);
+        const tempSec = dedupCheck.pcmBytes.byteLength / Math.max(16000, srCheck * 2);
 
-        if (wCount >= 20 && tempSec > expectedSec * 2.3 && hardAttempt < 2) {
+        if (!dedupCheck.wasTrimmed && wCount >= 8 && tempSec > 6 && wCount / tempSec < 1.35 && hardAttempt < 2) {
           hardAttempt++;
           console.warn(
-            `[Gemini TTS] Posible duplicación detectada en ${targetModel} (${tempSec.toFixed(1)}s vs ~${expectedSec.toFixed(1)}s). Reintentando con ${targetModel}...`
+            `[Gemini TTS] Posible duplicación sin valle limpio en ${targetModel} (${tempSec.toFixed(1)}s para ${wCount} pal.). Reintentando...`
           );
           await new Promise((r) => setTimeout(r, 800));
           continue;
@@ -1690,12 +1693,20 @@ ${cleanText}`;
 
   const rawAudioBuffer = Buffer.from(base64Audio, 'base64');
   const extracted = extractCleanPcmFromGeminiAudio(rawAudioBuffer, 24000);
+  const finalSr = extracted.sampleRate || 24000;
+  const finalWordCount = cleanText.split(/\s+/).filter(Boolean).length;
+  const deduped = trimDuplicatedTakeInPcm(extracted.pcmBytes, finalSr, finalWordCount);
+  if (deduped.wasTrimmed) {
+    console.warn(
+      `[Gemini TTS] Toma duplicada recortada automáticamente: ${deduped.originalDurationSec.toFixed(2)}s -> ${deduped.trimmedDurationSec.toFixed(2)}s`
+    );
+  }
   const cleanPcm = Buffer.from(
-    extracted.pcmBytes.buffer,
-    extracted.pcmBytes.byteOffset,
-    extracted.pcmBytes.byteLength
+    deduped.pcmBytes.buffer,
+    deduped.pcmBytes.byteOffset,
+    deduped.pcmBytes.byteLength
   );
-  const buffer = pcmToWav(cleanPcm, extracted.sampleRate || 24000);
+  const buffer = pcmToWav(cleanPcm, finalSr);
 
   return {
     buffer,

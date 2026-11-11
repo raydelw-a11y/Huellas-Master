@@ -675,3 +675,197 @@ export function cleanMasterWavEmbeddedC2paInPlace(wavBytes: Uint8Array): {
     totalSamples: Math.floor((dataEnd - dataOffset) / 2),
   };
 }
+
+/**
+ * Detects and surgically trims 2x full-take hallucinations from `gemini-3.8-flash-tts`,
+ * where the model occasionally reads a short dramatic question or transition sentence twice
+ * separated by a 250ms–900ms silence valley (dropping effective words/sec from ~2.4 to ~1.0–1.4).
+ */
+export function trimDuplicatedTakeInPcm(
+  pcmBytes: Uint8Array,
+  sampleRate: number = DEFAULT_GEMINI_TTS_SAMPLE_RATE,
+  wordCount: number = 0
+): {
+  pcmBytes: Uint8Array;
+  wasTrimmed: boolean;
+  originalDurationSec: number;
+  trimmedDurationSec: number;
+} {
+  const evenBytes = pcmBytes.byteLength & ~1;
+  const totalSamples = evenBytes >> 1;
+  const safeSr = sampleRate > 0 ? sampleRate : DEFAULT_GEMINI_TTS_SAMPLE_RATE;
+  const durationSec = totalSamples / safeSr;
+
+  if (wordCount < 6 || durationSec < 5.0) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  const wps = wordCount / durationSec;
+  // Single-take Spanish documentary speech runs at ~2.15–2.90 wps; only inspect suspiciously slow (<1.68 wps) blocks
+  if (wps >= 1.68) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  const view = new DataView(pcmBytes.buffer, pcmBytes.byteOffset, evenBytes);
+  const winSamples = Math.max(120, Math.round(safeSr * 0.02)); // 20ms windows
+  const nWins = Math.floor(totalSamples / winSamples);
+  if (nWins < 60) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  const rms20 = new Float32Array(nWins);
+  for (let w = 0; w < nWins; w++) {
+    const base = w * winSamples;
+    let sumSq = 0;
+    for (let i = 0; i < winSamples; i++) {
+      const s = view.getInt16((base + i) * 2, true) / 32768;
+      sumSq += s * s;
+    }
+    rms20[w] = Math.sqrt(sumSq / winSamples);
+  }
+
+  // Search [35%..65%] of block for the longest clean silence valley (rms < 0.0025 for >= 240ms = 12 windows)
+  const searchFrom = Math.floor(nWins * 0.35);
+  const searchTo = Math.ceil(nWins * 0.65);
+  let bestRunStart = -1;
+  let bestRunEnd = -1;
+  let bestRunLen = 0;
+
+  let w = searchFrom;
+  while (w < searchTo) {
+    if (rms20[w] < 0.0025) {
+      let end = w + 1;
+      while (end < Math.min(nWins, searchTo + 25) && rms20[end] < 0.0025) {
+        end++;
+      }
+      const len = end - w;
+      if (len >= 12 && len > bestRunLen) {
+        bestRunLen = len;
+        bestRunStart = w;
+        bestRunEnd = end;
+      }
+      w = end;
+    } else {
+      w++;
+    }
+  }
+
+  if (bestRunStart < 0) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  // Align speech onset of Take 1 and Take 2 so leading silence differences (e.g. 200ms at t=0) never skew correlation
+  let onset1 = 0;
+  while (onset1 < bestRunStart && rms20[onset1] < 0.015) onset1++;
+  let end1 = bestRunStart;
+  while (end1 > onset1 && rms20[end1 - 1] < 0.005) end1--;
+
+  let onset2 = bestRunEnd;
+  while (onset2 < nWins && rms20[onset2] < 0.015) onset2++;
+  let end2 = nWins;
+  while (end2 > onset2 && rms20[end2 - 1] < 0.005) end2--;
+
+  const speechLen1 = end1 - onset1;
+  const speechLen2 = end2 - onset2;
+  const lengthRatio = Math.min(speechLen1, speechLen2) / Math.max(1, Math.max(speechLen1, speechLen2));
+  if (Math.min(speechLen1, speechLen2) < 25 || lengthRatio < 0.72) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  // Time-normalize Take 1 [onset1..end1) and Take 2 [onset2..end2) onto 64 proportional bins
+  // so a 2-5% speaking-speed difference between the two takes still aligns syllable-for-syllable
+  const N_BINS = 64;
+  const env1 = new Float32Array(N_BINS);
+  const env2 = new Float32Array(N_BINS);
+  let mean1 = 0;
+  let mean2 = 0;
+
+  for (let b = 0; b < N_BINS; b++) {
+    const f0 = b / N_BINS;
+    const f1 = (b + 1) / N_BINS;
+
+    const a0 = onset1 + Math.floor(f0 * speechLen1);
+    const a1 = Math.max(a0 + 1, onset1 + Math.ceil(f1 * speechLen1));
+    let s1 = 0;
+    let c1 = 0;
+    for (let k = a0; k < Math.min(end1, a1); k++) {
+      s1 += rms20[k];
+      c1++;
+    }
+    env1[b] = c1 > 0 ? s1 / c1 : 0;
+    mean1 += env1[b];
+
+    const b0 = onset2 + Math.floor(f0 * speechLen2);
+    const b1 = Math.max(b0 + 1, onset2 + Math.ceil(f1 * speechLen2));
+    let s2 = 0;
+    let c2 = 0;
+    for (let k = b0; k < Math.min(end2, b1); k++) {
+      s2 += rms20[k];
+      c2++;
+    }
+    env2[b] = c2 > 0 ? s2 / c2 : 0;
+    mean2 += env2[b];
+  }
+  mean1 /= N_BINS;
+  mean2 /= N_BINS;
+
+  let num = 0;
+  let den1 = 0;
+  let den2 = 0;
+  for (let b = 0; b < N_BINS; b++) {
+    const d1 = env1[b] - mean1;
+    const d2 = env2[b] - mean2;
+    num += d1 * d2;
+    den1 += d1 * d1;
+    den2 += d2 * d2;
+  }
+  const bestCorr = num / (Math.sqrt(den1 * den2) + 1e-9);
+
+  if (bestCorr < 0.35) {
+    return {
+      pcmBytes: pcmBytes.subarray(0, evenBytes),
+      wasTrimmed: false,
+      originalDurationSec: durationSec,
+      trimmedDurationSec: durationSec,
+    };
+  }
+
+  // Keep Take 1 + up to 260ms (13 windows) of natural trailing room decay inside the dead silence valley
+  const cutWin = Math.min(bestRunEnd, bestRunStart + 13);
+  const cutSamples = Math.min(totalSamples, cutWin * winSamples);
+  const cutBytes = cutSamples * 2;
+  const trimmed = new Uint8Array(cutBytes);
+  trimmed.set(pcmBytes.subarray(0, cutBytes));
+
+  return {
+    pcmBytes: trimmed,
+    wasTrimmed: true,
+    originalDurationSec: durationSec,
+    trimmedDurationSec: cutSamples / safeSr,
+  };
+}
