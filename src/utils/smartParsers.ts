@@ -2073,6 +2073,86 @@ export function normalizeQuantitiesToMil(text: string): string {
 }
 
 /**
+ * Regla de Locución Documental para Próximos Videos:
+ * Cada vez que la voz narrativa mencione el primer día del mes ("1 de enero", "01 de septiembre",
+ * "1º de mayo", "uno de noviembre", "el 1 del mes"), lo convierte a "primero" ("primero de enero",
+ * "Primero de septiembre") para que el motor TTS jamás pronuncie "uno".
+ */
+export function normalizeFirstDayOfMonthInVoiceover(text: string): string {
+  if (!text || typeof text !== 'string') return text || '';
+
+  const MONTHS_PATTERN =
+    'enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre';
+
+  // 1. Expandir "1er día de <mes>" -> "primer día de <mes>"
+  let out = text.replace(
+    new RegExp(
+      `(?<![0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ.,/:-])(1\\s*\\.?\\s*er)(\\s+d[ií]a\\s+de\\s+)(${MONTHS_PATTERN})(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_])`,
+      'gi'
+    ),
+    (fullMatch, _ord, middle, month, offset, whole) => {
+      const monthLetters = String(month).replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+      const isAllCaps = monthLetters.length >= 2 && monthLetters === monthLetters.toUpperCase();
+      if (isAllCaps) return `PRIMER${middle}${month}`;
+      const prefixClean = String(whole)
+        .slice(0, offset)
+        .replace(/(?:\[\s*(?:pausa|pause|silencio)[^\]]*\]\s*)+$/gi, '')
+        .replace(/[«"“'¿¡(\[—\-\s]+$/, '');
+      const isSentenceStart = prefixClean.length === 0 || /[.!?:;\n]$/.test(prefixClean);
+      return `${isSentenceStart ? 'Primer' : 'primer'}${middle}${month}`;
+    }
+  );
+
+  // 2. Convertir "1 / 01 / 1º / 1° / 1ro / 1ero / uno + de + <mes>" -> "primero de <mes>"
+  const firstOfNamedMonthRegex = new RegExp(
+    `(?<![0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ.,/:-])(0?1(?:\\s*\\.?\\s*[º°ª]|ro|ero)?|uno)(\\s+de\\s+)(${MONTHS_PATTERN})(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_])`,
+    'gi'
+  );
+
+  out = out.replace(
+    firstOfNamedMonthRegex,
+    (fullMatch, dayToken, dePart, monthWord, offset, whole) => {
+      const beforeRaw = String(whole).slice(0, offset);
+      if (
+        /\b(?:n[uú]mero|cap[ií]tulo|parte|acto|volumen|tomo|p[aá]gina|bloque|punto|art[ií]culo|inciso|nota)\s*$/i.test(
+          beforeRaw
+        )
+      ) {
+        return fullMatch;
+      }
+
+      const monthLetters = String(monthWord).replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+      const isAllCaps = monthLetters.length >= 2 && monthLetters === monthLetters.toUpperCase();
+      if (isAllCaps) {
+        return `PRIMERO${dePart}${monthWord}`;
+      }
+
+      const dayStr = String(dayToken);
+      if (/^Uno$/.test(dayStr)) {
+        return `Primero${dePart}${monthWord}`;
+      }
+
+      const prefixClean = beforeRaw
+        .replace(/(?:\[\s*(?:pausa|pause|silencio)[^\]]*\]\s*)+$/gi, '')
+        .replace(/[«"“'¿¡(\[—\-\s]+$/, '');
+      const isSentenceStart = prefixClean.length === 0 || /[.!?:;\n]$/.test(prefixClean);
+      return `${isSentenceStart ? 'Primero' : 'primero'}${dePart}${monthWord}`;
+    }
+  );
+
+  // 3. Convertir "el 1 del mes" / "el uno del mes" / "día 1 del mes" / "cada 1 de mes"
+  out = out.replace(
+    /(?<=\b(?:el|del|al|cada|d[ií]a)\s+)(?:0?1(?:\s*\.?\s*[º°ª]|ro|ero)?|uno)(\s+(?:del|de)\s+mes\b)/gi,
+    (_m, tail: string) => {
+      const isCaps = tail === tail.toUpperCase() && /[A-Z]/.test(tail);
+      return `${isCaps ? 'PRIMERO' : 'primero'}${tail}`;
+    }
+  );
+
+  return out;
+}
+
+/**
  * Formats Stage 7 Line 1 (Location + Time) so that:
  * - "Siglo" is always capitalized ("Siglo XIX", "Siglo XIII")
  * - "Año" (capitalized) is always placed before a year in digits ("Santander, España, Año 1885")

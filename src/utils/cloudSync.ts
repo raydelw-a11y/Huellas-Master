@@ -16,6 +16,7 @@ import {
   applyClipFlowVideoEngineTag,
   BRAND_SAFETY_LEXICAL_RULE_ES,
   sanitizeBrandSafeEditorialText,
+  normalizeFirstDayOfMonthInVoiceover,
 } from './smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -2384,6 +2385,7 @@ REESCRIBE Y CALIBRA este guion histórico para que cumpla EXACTAMENTE la duraci�
   3) Etiquetas de pausa estratégicas [pausa: 1.5s] o [pausa: 2s] (~${budget.estPauseSec}s de pausas en total).
   4) El párrafo final con "Déjanos saber en los comentarios..." cerrando con "Cada historia deja una huella. Aquí seguimos sus rastros.".
 - Años siempre en dígitos, siglos y monarcas en números romanos, miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación (!).
+- REGLA OBLIGATORIA DEL PRIMER DÍA DEL MES EN LA VOZ NARRATIVA ("primero", NUNCA "1" NI "uno"): Cada vez que la voz narrativa mencione el primer día de cualquier mes, escríbelo SIEMPRE con la palabra "primero" (ej. "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Queda terminantemente prohibido escribir "1 de [mes]", "01 de [mes]", "1º de [mes]" o "uno de [mes]".
 - FORMATO DE ENTREGA 100% LIMPIO PARA VOXFLOW (PROHIBIDO BASURA TÉCNICA): Entrega ÚNICA Y EXCLUSIVAMENTE las palabras exactas que el narrador pronunciará en voz alta (con las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO incluir encabezados ("ETAPA 4..."), títulos de bloques o capítulos, marcas de minutos y segundos como "(00:00 - 00:08...)", "(00:16...)" o "(19:52 - 20:00...)", acotaciones entre paréntesis "(Intro...)", "(Clip 1...)", "(Outro...)" ni conteos o comentarios al pie. Tu primera palabra debe ser directamente "Año ..." (o la fecha inicial) y tus últimas palabras deben ser "...Aquí seguimos sus rastros.".
 
 GUION ACTUAL A CALIBRAR A ${budget.totalMinutesLabel} MINUTOS (~${budget.targetWords} PALABRAS):
@@ -2405,6 +2407,7 @@ Redacta el GUION DE LA VOZ EN OFF en español neutro documental cumpliendo estas
 - FORMATO 100% PURO DE VOZ NARRATIVA (CERO ENCABEZADOS NI MINUTOS/SEGUNDOS): Entrega ÚNICA Y EXCLUSIVAMENTE el texto hablado exacto que leerá el locutor (más las etiquetas [pausa: Xs]). QUEDA TERMINANTEMENTE PROHIBIDO escribir títulos como "ETAPA 4: GUION DE LA VOZ EN OFF", nombres de actos/bloques, rangos o marcas de tiempo como "(00:00 - 00:08 | Intro...)", "(00:08 - 00:16 | Clip 1...)", "(00:16 | Entrada...)" o "(19:52 - 20:00 | Outro...)", acotaciones de sonido/cámara entre paréntesis ni reportes de conteo de palabras/caracteres al pie. Empieza directamente con la primera palabra hablada ("Año ...") y termina directamente con "...Aquí seguimos sus rastros.".
 - Comienza obligatoriamente con la tríada en la primera oración cerrada con punto: "Año [número en dígitos], [Lugar, Ciudad, País]. [Premisa intrigante]." (Prohibido poner "en el" después del año).
 - Años siempre en dígitos, siglos y monarcas en números romanos (ej. siglo XIX, Felipe II), miles con palabra "mil" (ej. "70 mil"), cero signos de exclamación.
+- REGLA OBLIGATORIA DEL PRIMER DÍA DEL MES EN LA VOZ NARRATIVA ("primero", NUNCA "1" NI "uno"): Cada vez que la voz narrativa vaya a decir el primer día del mes, escríbelo SIEMPRE con la palabra "primero" (ej. "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Queda terminantemente prohibido escribir "1 de [mes]", "01 de [mes]", "1º de [mes]" o "uno de [mes]".
 - Incluye etiquetas de pausa estratégicas como [pausa: 1.5s] o [pausa: 2s].
 - Si es documental largo, incluye antes del segundo 30 el Slogan Completo en párrafo aparte (Párrafo 2: "En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
         introPlacement === 'INTRO_POST_SLOGAN'
@@ -2904,7 +2907,9 @@ export async function generateStageClientSide(
 ): Promise<string> {
   const stagePrompt = buildStagePromptText(stageNumber, doc, customInstruction);
   const rawOut = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
-  const out = stageNumber === 9 ? rawOut : sanitizeBrandSafeEditorialText(rawOut);
+  const sanitizedOut = stageNumber === 9 ? rawOut : sanitizeBrandSafeEditorialText(rawOut);
+  const out =
+    stageNumber === 4 ? normalizeFirstDayOfMonthInVoiceover(sanitizedOut) : sanitizedOut;
   if (stageNumber === 8) {
     return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
   }
@@ -3440,9 +3445,10 @@ export async function synthesizeTtsClientSide(params: {
     throw new Error('Configura primero tu Gemini API Key para generar audio TTS.');
   }
   const durationTarget = params.docContext || params.targetDurationSeconds;
+  const firstDaySafeInput = normalizeFirstDayOfMonthInVoiceover(params.text || '');
   const rawInput = durationTarget
-    ? autoFitVoiceoverScriptToDuration(params.text || '', durationTarget)
-    : cleanVoiceoverNarrationOnly(params.text || '');
+    ? autoFitVoiceoverScriptToDuration(firstDaySafeInput, durationTarget)
+    : cleanVoiceoverNarrationOnly(firstDaySafeInput);
   const cleanText = stripPauseTags(rawInput).trim();
   if (!cleanText) {
     throw new Error('El texto del guion está vacío.');

@@ -95,6 +95,7 @@ import {
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
   sanitizeBrandSafeEditorialText,
+  normalizeFirstDayOfMonthInVoiceover,
 } from './utils/smartParsers';
 import {
   checkUrlHashSetup,
@@ -140,7 +141,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:14 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:38 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -4731,7 +4732,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
     } else if (stageNum === 4) {
       const normalizedScript = autoFitVoiceoverScriptToDuration(
-        normalizeQuantitiesToMil(text),
+        normalizeFirstDayOfMonthInVoiceover(normalizeQuantitiesToMil(text)),
         activeDoc
       );
       // Audio-First: Paso 4C se extrae automáticamente DESPUÉS de crear/cargar el audio de la voz narrativa para garantizar timestamps exactos
@@ -12057,9 +12058,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
     if (!activeDoc) return;
     const isFullDocScript = (textToSpeak || '').trim() === (activeDoc.voiceoverScript || '').trim();
+    const firstDayNormalizedInput = normalizeFirstDayOfMonthInVoiceover(textToSpeak || '');
     const sanitizedScript = isFullDocScript
-      ? autoFitVoiceoverScriptToDuration(textToSpeak || '', activeDoc)
-      : cleanVoiceoverNarrationOnly(textToSpeak || '');
+      ? autoFitVoiceoverScriptToDuration(firstDayNormalizedInput, activeDoc)
+      : cleanVoiceoverNarrationOnly(firstDayNormalizedInput);
     if (!sanitizedScript.trim()) {
       alert('Escribe o pega primero el texto del guion para generar la voz.');
       return;
@@ -17517,7 +17519,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       <button
                         onClick={() =>
                           updateActiveDoc({
-                            voiceoverScript: normalizeQuantitiesToMil(activeDoc.voiceoverScript || ''),
+                            voiceoverScript: normalizeFirstDayOfMonthInVoiceover(
+                              normalizeQuantitiesToMil(activeDoc.voiceoverScript || '')
+                            ),
                           })
                         }
                         className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 font-semibold cursor-pointer"
