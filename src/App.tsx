@@ -50,6 +50,7 @@ import {
   AVAILABLE_SPEEDS,
   AVAILABLE_LANGUAGES,
   DEFAULT_OPERATIONAL_HEADER,
+  sanitizeOperationalHeader,
   ServerStatus,
   Sentence,
   DocumentaryClip,
@@ -145,7 +146,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:23 AM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:25 AM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -434,20 +435,15 @@ function applyFlowVideoEngineToDirectiveText(
     | 'VEO_3_1_LITE_LOWER_PRIORITY'
     | 'OMNI_1_1_FLASH' = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
 ): string {
-  const targetLine =
-    engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.'
-      : engine === 'OMNI_1_1_FLASH'
-      ? 'Usa Omni 1.1 Flash para videos y nano banana 2.1 para imágenes iniciales de cada clip.'
-      : 'Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.';
   const src = String(text || '').trim();
-  if (!src) return targetLine;
-  const lineRegex =
-    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
-  if (lineRegex.test(src)) {
-    return src.replace(lineRegex, targetLine);
+  const hasClipPrompts = /(?:^|\n)\s*(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(src);
+  if (!hasClipPrompts) {
+    return sanitizeOperationalHeader(src, engine);
   }
-  return src;
+  const cleanHeader = sanitizeOperationalHeader(DEFAULT_OPERATIONAL_HEADER, engine);
+  const firstPromptIdx = src.search(/(?:^|\n)\s*(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i);
+  const bodyOnly = firstPromptIdx >= 0 ? src.slice(firstPromptIdx).trim() : src;
+  return `${cleanHeader}\n\n${bodyOnly}`;
 }
 
 // Persist FileSystemDirectoryHandle in IndexedDB so once selected in Stage 1,
@@ -4809,8 +4805,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           : {}),
       });
     } else if (stageNum === 8) {
-      const textWithHeader = ensureOperationalHeaderInRawClips(text, activeDoc.operationalHeader);
+      const cleanOpHeader = sanitizeOperationalHeader(
+        activeDoc.operationalHeader,
+        activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+      );
+      const textWithHeader = ensureOperationalHeaderInRawClips(text, cleanOpHeader);
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+      const parsedDirectly = parseClipsFromRawText(textWithHeader, [], clip1Sec, standardClipSec);
       const syncedClips = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
@@ -4827,7 +4828,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       });
       const rebuiltRaw =
         syncedClips.length > 0
-          ? buildRawClipsTextWithHeader(syncedClips, activeDoc.operationalHeader)
+          ? buildRawClipsTextWithHeader(
+              syncedClips,
+              cleanOpHeader,
+              activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+            )
           : textWithHeader;
 
       // Auto-calculate total documentary duration from the last clip's end timestamp or voiceover duration
@@ -4843,20 +4848,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       }
       updateActiveDoc({
+        operationalHeader: cleanOpHeader,
         rawClipsText: rebuiltRaw,
         clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
         confirmedFinalDuration: autoFinalDuration,
       });
 
-      // Automatically chain Stage 10 (Flow Music Multi-Scene Soundtrack) once Voiceover & Clip Prompts exist
+      // Only auto-chain Stage 80 (Flow Music) when Gemini genuinely completed the full clip list
+      const isCompleteGeneration =
+        parsedDirectly.length > 0 && parsedDirectly.length >= Math.max(1, syncedClips.length - 2);
       if (
+        isCompleteGeneration &&
         syncedClips.length > 0 &&
         (activeDoc.voiceoverScript || '').trim() &&
         (!activeDoc.sunoTracks || activeDoc.sunoTracks.length === 0)
       ) {
         setTimeout(() => {
           handleGenerateWithGemini(80);
-        }, 1400);
+        }, 2500);
       }
     } else if (stageNum === 9) {
       const cleanSrt = text
@@ -11001,6 +11010,88 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         : currentDoc;
 
+    let stage8ExpectedClipCount = 0;
+    let stage8PreparedDoc = enrichedCurrentDoc;
+    if (stageNum === 8) {
+      const { standardClipSec } = getStage1ClipDurations(enrichedCurrentDoc);
+      const cleanOpHeader = sanitizeOperationalHeader(
+        enrichedCurrentDoc.operationalHeader,
+        enrichedCurrentDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+      );
+      let workingTimelineText = (enrichedCurrentDoc.timelineFormattedText || '').trim();
+      let workingSentences = enrichedCurrentDoc.timelineSentences || [];
+      const existingNarrLines = parseTimelineTextToSentences(workingTimelineText).filter(
+        (s) =>
+          !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
+            (s.text || '').trim()
+          )
+      );
+      const sampleIntervals = existingNarrLines
+        .slice(0, 12)
+        .map((s) => Math.round((s.end || 0) - (s.start || 0)))
+        .filter((d) => d > 0);
+      const avgInterval =
+        sampleIntervals.length > 0
+          ? sampleIntervals.reduce((a, b) => a + b, 0) / sampleIntervals.length
+          : 0;
+      const hasIntervalMismatch =
+        sampleIntervals.length >= 3 && Math.abs(avgInterval - standardClipSec) >= 1.2;
+
+      if ((!workingTimelineText || hasIntervalMismatch) && (enrichedCurrentDoc.voiceoverScript || '').trim()) {
+        const leadTrackDur = Number(enrichedCurrentDoc.audioTracks?.[0]?.duration) || 0;
+        const targetMode =
+          standardClipSec === 10 ? 'split-10-seconds' : standardClipSec === 4 ? 'split-4-seconds' : 'split-8-seconds';
+        const rebuiltTl = buildSmartClientTimeline(
+          enrichedCurrentDoc.voiceoverScript,
+          enrichedCurrentDoc,
+          leadTrackDur > 2 ? leadTrackDur : undefined,
+          targetMode,
+          enrichedCurrentDoc.audioTracks?.[0]?.segmentTimings
+        );
+        if (rebuiltTl.formatted) {
+          workingTimelineText = rebuiltTl.formatted;
+          workingSentences = rebuiltTl.sentences;
+          updateActiveDoc({
+            operationalHeader: cleanOpHeader,
+            timelineFormattedText: workingTimelineText,
+            timelineSentences: workingSentences,
+            timelineSettings: {
+              ...(enrichedCurrentDoc.timelineSettings || {
+                language: 'es',
+                customLanguage: '',
+                quality: 'high',
+                outputStyle: 'timeline',
+                timestampFormat: 'MM:SS',
+                noBlankLines: true,
+                strictNarration: false,
+                removeFiller: false,
+                mergeShort: false,
+                preservePunctuation: true,
+                includeLineNumbers: true,
+              }),
+              sentenceMode: targetMode,
+            },
+          });
+        }
+      } else if (cleanOpHeader !== (enrichedCurrentDoc.operationalHeader || '').trim()) {
+        updateActiveDoc({ operationalHeader: cleanOpHeader });
+      }
+
+      const finalNarrLines = parseTimelineTextToSentences(workingTimelineText).filter(
+        (s) =>
+          !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
+            (s.text || '').trim()
+          )
+      );
+      stage8ExpectedClipCount = finalNarrLines.length > 0 ? finalNarrLines.length + 1 : 0;
+      stage8PreparedDoc = {
+        ...enrichedCurrentDoc,
+        operationalHeader: cleanOpHeader,
+        timelineFormattedText: workingTimelineText || enrichedCurrentDoc.timelineFormattedText,
+        timelineSentences: workingSentences,
+      };
+    }
+
     const docForPayload =
       stageNum === 5
         ? {
@@ -11014,6 +11105,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : ('A' as const),
             thumbnailTextOverlay: workingOverlay,
           }
+        : stageNum === 8
+        ? stage8PreparedDoc
         : enrichedCurrentDoc;
 
     const promptText = buildStagePromptText(stageNum, docForPayload, aiCustomInstruction);
@@ -11056,7 +11149,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         try {
           sessionStorage.setItem(
             'huellas_ai_busy_until',
-            String(Date.now() + (remoteDeep ? 70 : 4) * 60 * 1000)
+            String(Date.now() + (remoteDeep ? 70 : stageNum === 8 ? 25 : 4) * 60 * 1000)
           );
         } catch {}
         const commandId = `rgs_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -11070,6 +11163,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const remoteFullCmd = {
           ...remoteTrigger,
           prompt: promptText,
+          ...(stage8ExpectedClipCount > 0 ? { expectedClipCount: stage8ExpectedClipCount } : {}),
           taskType: isPart1Remote ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
           enableHighModel: false,
           enableArgonLow: true,
@@ -11137,7 +11231,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
             if (!isDeepResearchRemote) {
-              const maxPollLoops = 36;
+              const maxPollLoops = stageNum === 8 ? 260 : 36;
               let ackSeenTicks = 0;
               for (let pollIdx = 0; pollIdx < maxPollLoops; pollIdx++) {
                 await new Promise((r) => setTimeout(r, 4000));
@@ -11249,7 +11343,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     try {
       sessionStorage.setItem(
         'huellas_ai_busy_until',
-        String(Date.now() + (useDeepResearch ? 70 : 10) * 60 * 1000)
+        String(Date.now() + (useDeepResearch ? 70 : stageNum === 8 ? 25 : 10) * 60 * 1000)
       );
     } catch {}
     setBridgeStatusType('WORKING');
@@ -11258,6 +11352,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Carbon · Thinking level: Low (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: Low + Deep Research activo (con Auto-Iniciar Plan)...`
+        : stageNum === 8 && stage8ExpectedClipCount > 0
+        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en 4 Carbon · Low (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
         : `⚡ Enviando prompt a Gemini Web en modo 4 Carbon (Thinking level: Low)...`
     );
     const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
@@ -11273,6 +11369,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       notebookName: 'Huellas de la Humanidad',
       prompt: promptText,
       stageNumber: stageNum,
+      ...(stage8ExpectedClipCount > 0 ? { expectedClipCount: stage8ExpectedClipCount } : {}),
       taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
@@ -11991,7 +12088,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     };
 
     const { standardClipSec, voiceEntrySec } = getStage1ClipDurations(doc);
-    const mode = overrideSentenceMode || settings.sentenceMode || defaultSentenceMode;
+    // Stage 1 clipDurationMode (8_SEGUNDOS vs 10_SEGUNDOS) always governs unless an explicit overrideSentenceMode is passed
+    const mode =
+      overrideSentenceMode ||
+      (doc.clipDurationMode === '10_SEGUNDOS'
+        ? 'split-10-seconds'
+        : doc.clipDurationMode === '8_SEGUNDOS'
+        ? 'split-8-seconds'
+        : settings.sentenceMode || defaultSentenceMode);
     const segLen =
       mode === 'split-10-seconds'
         ? 10
@@ -12553,22 +12657,46 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!rawVo && !rawTl && !rawClips) return;
 
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
-    const sig = `${activeDoc.id}|${clip1Sec}|${standardClipSec}|${activeDoc.clip1SyncMode || ''}|${activeDoc.references?.length || 0}|${rawVo.length}:${rawVo.slice(0, 80)}:${rawVo.slice(-80)}|${rawTl.length}:${rawTl.slice(0, 80)}|${rawClips.length}:${rawClips.slice(0, 80)}:${rawClips.slice(-80)}`;
+    const cleanOpHeader = sanitizeOperationalHeader(
+      activeDoc.operationalHeader,
+      activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+    );
+    const sig = `${activeDoc.id}|${clip1Sec}|${standardClipSec}|${activeDoc.clip1SyncMode || ''}|${activeDoc.references?.length || 0}|${cleanOpHeader.length}|${rawVo.length}:${rawVo.slice(0, 80)}:${rawVo.slice(-80)}|${rawTl.length}:${rawTl.slice(0, 80)}|${rawClips.length}:${rawClips.slice(0, 80)}:${rawClips.slice(-80)}`;
     const hasExistingClips = Array.isArray(activeDoc.clips) && activeDoc.clips.length > 0;
-    if (hasExistingClips && lastBgProdSyncSigRef.current === sig) return;
+    const needsOpHeaderHeal = cleanOpHeader !== (activeDoc.operationalHeader || '').trim();
+    if (hasExistingClips && !needsOpHeaderHeal && lastBgProdSyncSigRef.current === sig) return;
 
     const timer = window.setTimeout(() => {
       let effectiveTimelineText = rawTl;
       let effectiveSentences = activeDoc.timelineSentences || [];
       let didGenerateTimeline = false;
 
-      if (!effectiveTimelineText && rawVo) {
+      const existingNarrLines = parseTimelineTextToSentences(effectiveTimelineText).filter(
+        (s) =>
+          !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
+            (s.text || '').trim()
+          )
+      );
+      const sampleIntervals = existingNarrLines
+        .slice(0, 12)
+        .map((s) => Math.round((s.end || 0) - (s.start || 0)))
+        .filter((d) => d > 0);
+      const avgInterval =
+        sampleIntervals.length > 0
+          ? sampleIntervals.reduce((a, b) => a + b, 0) / sampleIntervals.length
+          : 0;
+      const hasTimelineIntervalMismatch =
+        sampleIntervals.length >= 3 && Math.abs(avgInterval - standardClipSec) >= 1.2;
+
+      if ((!effectiveTimelineText || hasTimelineIntervalMismatch) && rawVo) {
         const leadTrackDur = Number(activeDoc.audioTracks?.[0]?.duration) || 0;
+        const targetMode =
+          standardClipSec === 10 ? 'split-10-seconds' : standardClipSec === 4 ? 'split-4-seconds' : 'split-8-seconds';
         const autoTl = buildSmartClientTimeline(
           activeDoc.voiceoverScript,
           activeDoc,
           leadTrackDur > 2 ? leadTrackDur : undefined,
-          undefined,
+          targetMode,
           activeDoc.audioTracks?.[0]?.segmentTimings
         );
         if (autoTl.formatted) {
@@ -12579,7 +12707,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
 
       const normalizedRaw = rawClips
-        ? ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, activeDoc.operationalHeader)
+        ? ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, cleanOpHeader)
         : '';
       const synced = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
@@ -12597,19 +12725,36 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       });
 
       lastBgProdSyncSigRef.current = sig;
-      if (synced.length > 0 || didGenerateTimeline) {
+      if (synced.length > 0 || didGenerateTimeline || needsOpHeaderHeal) {
         const hasRawClipPrompts = /(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i.test(rawClips);
         const fullRawText =
           !hasRawClipPrompts && synced.length > 0
-            ? buildRawClipsTextWithHeader(synced, activeDoc.operationalHeader)
+            ? buildRawClipsTextWithHeader(
+                synced,
+                cleanOpHeader,
+                activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+              )
+            : normalizedRaw && normalizedRaw !== activeDoc.rawClipsText
+            ? normalizedRaw
             : undefined;
+        const targetMode =
+          standardClipSec === 10 ? 'split-10-seconds' : standardClipSec === 4 ? 'split-4-seconds' : 'split-8-seconds';
         updateActiveDoc({
+          ...(needsOpHeaderHeal ? { operationalHeader: cleanOpHeader } : {}),
           ...(synced.length > 0 ? { clips: synced } : {}),
           ...(fullRawText ? { rawClipsText: fullRawText } : {}),
           ...(didGenerateTimeline
             ? {
                 timelineFormattedText: effectiveTimelineText,
                 timelineSentences: effectiveSentences,
+                ...(activeDoc.timelineSettings && activeDoc.timelineSettings.sentenceMode !== targetMode
+                  ? {
+                      timelineSettings: {
+                        ...activeDoc.timelineSettings,
+                        sentenceMode: targetMode,
+                      },
+                    }
+                  : {}),
               }
             : {}),
         });
@@ -18509,7 +18654,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       <button
                         onClick={() =>
                           copyText(
-                            activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                            sanitizeOperationalHeader(
+                              activeDoc.operationalHeader,
+                              activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                            ),
                             'copy-op-header'
                           )
                         }
@@ -18523,7 +18671,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
                   {showOpHeaderInProd && (
                     <pre className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono text-amber-200/90 whitespace-pre-wrap">
-                      {activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER}
+                      {sanitizeOperationalHeader(
+                        activeDoc.operationalHeader,
+                        activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                      )}
                     </pre>
                   )}
                 </div>

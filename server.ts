@@ -262,7 +262,7 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
 const DEFAULT_OPERATIONAL_HEADER_SERVER = `Actúa como un historiador, director de cine, y periodista profesional.
-Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración, el tiempo y las palabras entre paréntesis en caso de que existan.
+Cambia los nombres de los clips a las primeras 6 palabras literales del prompt proveído pegado y enviado que incluyen la numeración.
 Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.
 Crea las imágenes primero y luego los clips usando cada imagen como fotograma inicial.
 Usa las imágenes de referencia de personas y lugares para generar las imágenes iniciales y los clips para mantener fidelidad visual.
@@ -271,15 +271,39 @@ Divide la creación en batches de 10.
 rename everything adding _ as the blank spaces between words
 from 1 to 9 change them to 01 to 09`;
 
+function sanitizeOperationalHeaderServer(operationalHeader?: string): string {
+  const trimmed = String(operationalHeader || '').trim();
+  const isCorruptedOrIncomplete =
+    !trimmed ||
+    /del\s+1\s+al\s+10/i.test(trimmed) ||
+    /Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes\s+me\s+avisas/i.test(trimmed) ||
+    !/^Act[uú]a como un historiador/i.test(trimmed) ||
+    !trimmed.includes('primeras 6 palabras') ||
+    !trimmed.includes('batches de 10') ||
+    !trimmed.includes('01 to 09');
+  return isCorruptedOrIncomplete ? DEFAULT_OPERATIONAL_HEADER_SERVER : trimmed;
+}
+
 function ensureOperationalHeaderText(rawText: string, operationalHeader?: string): string {
-  const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
+  const header = sanitizeOperationalHeaderServer(operationalHeader);
   const trimmed = (rawText || '').trim();
   if (!trimmed) return '';
+
+  const firstPromptIdx = trimmed.search(/(?:^|\n)\s*(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i);
+  if (firstPromptIdx >= 0) {
+    const bodyOnly = trimmed.slice(firstPromptIdx).trim();
+    return bodyOnly ? `${header}\n\n${bodyOnly}` : header;
+  }
+
   if (
-    /^Act[uú]a como un historiador/i.test(trimmed) ||
-    trimmed.includes('Cambia los nombres de los clips a las primeras 6 palabras')
+    /^Act[uú]a como un historiador/i.test(trimmed) &&
+    trimmed.includes('primeras 6 palabras') &&
+    trimmed.includes('01 to 09')
   ) {
     return trimmed;
+  }
+  if (/del\s+1\s+al\s+10|Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes/i.test(trimmed)) {
+    return header;
   }
   return `${header}\n\n${trimmed}`;
 }
@@ -291,11 +315,18 @@ function readDocumentaries(): any[] {
       if (Array.isArray(data)) {
         let modified = false;
         for (const doc of data) {
-          if (doc && typeof doc.rawClipsText === 'string' && doc.rawClipsText.trim()) {
-            const fixed = ensureOperationalHeaderText(doc.rawClipsText, doc.operationalHeader);
-            if (fixed !== doc.rawClipsText) {
-              doc.rawClipsText = fixed;
+          if (doc) {
+            const cleanHeader = sanitizeOperationalHeaderServer(doc.operationalHeader);
+            if (doc.operationalHeader && cleanHeader !== doc.operationalHeader) {
+              doc.operationalHeader = cleanHeader;
               modified = true;
+            }
+            if (typeof doc.rawClipsText === 'string' && doc.rawClipsText.trim()) {
+              const fixed = ensureOperationalHeaderText(doc.rawClipsText, cleanHeader);
+              if (fixed !== doc.rawClipsText) {
+                doc.rawClipsText = fixed;
+                modified = true;
+              }
             }
           }
         }
@@ -2640,7 +2671,7 @@ Línea 1: [Ciudad, País, Año XXXX (con la palabra "Año" delante del año en d
 Línea 2: [Título Gancho sugerente de lo que va a tratar el documental: intrigante a la vez que revelador del tema central. PROHIBIDO usar una frase suelta o abstracta que no sugiera directamente el tema del documental]
 REGLA INQUEBRANTABLE DE NO REPETICIÓN: Lo que NO podemos hacer es repetir lo mismo entre la Miniatura, el Título del video y el Texto en pantalla en los primeros ${voiceEntrySec} segundos. Asegúrate de que la Línea 2 (el gancho en pantalla de los primeros ${voiceEntrySec}s) sea distinta y NO repita lo mismo que el Título del video ni el Texto de la Miniatura, pero que sí revele e intrigue directamente sobre el tema central del documental.`;
     } else if (stageNumber === 8) {
-      const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER_SERVER).trim();
+      const opHeader = sanitizeOperationalHeaderServer(doc.operationalHeader);
       stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
 Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Modo Híbrido: Omni 1.1 Flash cuando haya personas / Veo 3.1 - Lite [Lower Priority] para el resto sin personas) para el documental "${doc.topic || doc.title}" (${doc.historicalTime}, ${doc.historicalLocation}).
 Duración de cada clip a partir del Clip 2: ${clipDurationLabel}.
@@ -14388,12 +14419,13 @@ app.get('/api/extension/fingerprint', (req, res) => {
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
   if (canDeliverOrdersToCaller) {
     for (const [k, cmd] of pendingGeminiCommands.entries()) {
-      const ttlMs = cmd.remoteStage ? 2 * 60 * 60 * 1000 : 180000;
+      const ttlMs =
+        cmd.remoteStage || cmd.action === 'SEND_PROMPT' ? 2 * 60 * 60 * 1000 : 180000;
       if (now - cmd.createdAt > ttlMs) {
         pendingGeminiCommands.delete(k);
         continue;
       }
-      if (cmd.remoteStage || (cmd as any).noReclaim) {
+      if (cmd.remoteStage || cmd.action === 'SEND_PROMPT' || (cmd as any).noReclaim) {
         if (!cmd.claimedAt) pendingCommandsList.push(cmd);
         continue;
       }
@@ -14687,7 +14719,12 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
     // Stage 5 (Neuropsychological Click Triggers), Stage 101 & Stage 6 (@Referencias 6 Views) preserve structured newlines and run INSIDE the documentary's chat
     // (opening a new Chrome window on the documentary's chat if none is open or open ones are in use)
     const safePrompt =
-      resolvedStageNum === 5 || resolvedStageNum === 101 || resolvedStageNum === 6
+      resolvedStageNum === 4 ||
+      resolvedStageNum === 5 ||
+      resolvedStageNum === 6 ||
+      resolvedStageNum === 8 ||
+      resolvedStageNum === 80 ||
+      resolvedStageNum === 101
         ? String(cmd.prompt || '').replace(/\r\n/g, '\n').trim()
         : String(cmd.prompt)
             .replace(/\r\n/g, '\n')
@@ -14701,6 +14738,9 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
       action: 'SEND_PROMPT',
       prompt: safePrompt,
       stageNumber: resolvedStageNum,
+      ...(Number(cmd.expectedClipCount) > 0
+        ? { expectedClipCount: Number(cmd.expectedClipCount) }
+        : {}),
       taskType: cmd.taskType || 'STAGE_GENERATION',
       enableHighModel: false,
       enableArgonLow: true,

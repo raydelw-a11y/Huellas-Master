@@ -367,3 +367,30 @@ No hagas cambios de shot nunca en ningun clip (excepto en aquel clip específico
 Divide la creación en batches de 10.
 rename everything adding _ as the blank spaces between words
 from 1 to 9 change them to 01 to 09`;
+
+export function sanitizeOperationalHeader(
+  rawHeader?: string,
+  engine: 'HYBRID_PEOPLE_OMNI_REST_LOWER' | 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH' = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+): string {
+  const engineLine =
+    engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+      ? 'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas; usa nano banana 2.1 para imágenes iniciales de cada clip.'
+      : engine === 'OMNI_1_1_FLASH'
+      ? 'Usa Omni 1.1 Flash para videos y nano banana 2.1 para imágenes iniciales de cada clip.'
+      : 'Usa Veo 3.1 - Lite [Lower Priority] para videos y nano banana 2.1 para imágenes iniciales de cada clip.';
+
+  const trimmed = String(rawHeader || '').trim();
+  const isCorruptedOrIncomplete =
+    !trimmed ||
+    /del\s+1\s+al\s+10/i.test(trimmed) ||
+    /Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes\s+me\s+avisas/i.test(trimmed) ||
+    !/^Act[uú]a como un historiador/i.test(trimmed) ||
+    !trimmed.includes('primeras 6 palabras') ||
+    !trimmed.includes('batches de 10') ||
+    !trimmed.includes('01 to 09');
+
+  const base = isCorruptedOrIncomplete ? DEFAULT_OPERATIONAL_HEADER : trimmed;
+  const lineRegex =
+    /Usa\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip\.?/gi;
+  return lineRegex.test(base) ? base.replace(lineRegex, engineLine) : DEFAULT_OPERATIONAL_HEADER.replace(lineRegex, engineLine);
+}

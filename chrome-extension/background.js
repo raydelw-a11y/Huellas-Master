@@ -3079,7 +3079,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const shouldAutoSubmit = message.autoSubmit !== false;
     const stageNumForInject = Number(message.stageNumber) || 0;
     const preserveNewlinesForStage =
-      stageNumForInject === 5 || stageNumForInject === 101 || stageNumForInject === 505;
+      stageNumForInject === 4 ||
+      stageNumForInject === 5 ||
+      stageNumForInject === 6 ||
+      stageNumForInject === 8 ||
+      stageNumForInject === 80 ||
+      stageNumForInject === 101 ||
+      stageNumForInject === 505;
     chrome.scripting
       .executeScript({
         target: { tabId: geminiTabId },

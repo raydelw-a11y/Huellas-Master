@@ -1,12 +1,14 @@
 import {
   DocumentaryProject,
   DEFAULT_OPERATIONAL_HEADER,
+  sanitizeOperationalHeader,
   TTSRecord,
   TTSSegmentTiming,
 } from '../types';
 import {
   ensureOperationalHeaderInRawClips,
   getStage1ClipDurations,
+  parseTimelineTextToSentences,
   stripPauseTags,
   cleanVoiceoverNarrationOnly,
   computeCalibratedVoiceoverBudget,
@@ -969,8 +971,13 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     }
   }
 
-  const nextOperationalHeader = normalizeEngineRefs(doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER);
-  nextRawClipsText = normalizeEngineRefs(nextRawClipsText);
+  const nextOperationalHeader = sanitizeOperationalHeader(
+    normalizeEngineRefs(doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER),
+    nextFlowVideoEngine
+  );
+  nextRawClipsText = nextRawClipsText?.trim()
+    ? ensureOperationalHeaderInRawClips(normalizeEngineRefs(nextRawClipsText), nextOperationalHeader)
+    : nextRawClipsText;
   const nextRawReferencePrompts = doc.rawReferencePrompts || '';
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
   const isVideo77Doc =
@@ -2730,7 +2737,21 @@ REGLAS INQUEBRANTABLES DE LA ETAPA 7:
 2. LÍNEA 2 INTRIGANTE PERO REVELADORA DEL TEMA: Queda terminantemente prohibido usar frases sueltas, poéticas, ambiguas o genéricas que no sugieran directamente de qué va a tratar el documental. La Línea 2 DEBE sugerir directamente el tema central del documental combinando intriga y revelación histórica concreta para que el espectador entienda al instante qué historia va a descubrir y se quede a verla.
 3. NO REPETICIÓN LITERAL: No repitas palabra por palabra el Título del video ni el Texto de la Miniatura.`;
   } else if (stageNumber === 8) {
-    const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+    const opHeader = sanitizeOperationalHeader(
+      doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+    );
+    const tlSentences = parseTimelineTextToSentences(doc.timelineFormattedText || '').filter(
+      (s) =>
+        !/^\[SIN\s+VOZ\s+NARRATIVA[^\]]*(?:Intro\s+Oficial|Outro\s+Oficial|Clip\s+1)/i.test(
+          (s.text || '').trim()
+        )
+    );
+    const expectedTotalClips = tlSentences.length > 0 ? tlSentences.length + 1 : 0;
+    const expectedClipsClause =
+      expectedTotalClips > 1
+        ? `\nCANTIDAD EXACTA OBLIGATORIA DE CLIPS: El Timeline tiene ${tlSentences.length} tramos de narración de ${standardClipSec}s más el Clip 1 inicial (Hook sin voz), para un TOTAL EXACTO de ${expectedTotalClips} clips (desde Image 1 / Clip 1 hasta Image ${expectedTotalClips} / Clip ${expectedTotalClips}, 1 par Image+Clip por cada línea de narración sin agrupar líneas ni detenerte antes del Clip ${expectedTotalClips}).`
+        : '';
     const refsListText =
       Array.isArray(doc.references) && doc.references.length > 0
         ? doc.references
@@ -2740,12 +2761,12 @@ REGLAS INQUEBRANTABLES DE LA ETAPA 7:
     stagePrompt = `Actúa como un historiador, director de cine, y periodista profesional.
 Genera la ETAPA 8: PROMPTS DE IMÁGENES INICIALES (Nano Banana 2.1) Y CLIPS DE VIDEO (Modo Híbrido: Omni 1.1 Flash cuando haya personas / Veo 3.1 - Lite [Lower Priority] para el resto sin personas) para el documental "${doc.topic || doc.title}" (${doc.historicalTime || ''}, ${doc.historicalLocation || ''}).
 Referencias visuales obligatorias (@Personas y Lugares de Etapa 6): ${refsListText}.
-Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.
+Duración de cada clip a partir del Clip 2: ${clipDurationLabel}. Clip 1 (00:00 - 00:0${clip2StartSec}) es el Hook inicial sin voz narrativa. Clip 2 comienza en 00:0${clip2StartSec} con la línea 1 del Timeline.${expectedClipsClause}
 Timeline de la Voz Narrativa:
 """
 ${doc.timelineFormattedText || doc.voiceoverScript || ''}
 """
-Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial de 9 líneas:
+Tu respuesta DEBE COMENZAR OBLIGATORIA Y LITERALMENTE con este párrafo inicial completo de 9 líneas:
 ${opHeader}
 
 Escribe cada Image N y cada Clip N en su propia línea separada (SIN negritas ** ni viñetas) para TODOS los tramos del Timeline hasta el final, aplicando todos los blindajes (Anti-Filtro "Prominent People" con actores anónimos de recreación histórica + Física Anti-Mutación de 0s a ${standardClipSec}s + REGLA HÍBRIDA DE MOTOR DE VIDEO: escribe [Model: Omni 1.1 Flash] justo antes de "fix the name" únicamente en los clips donde aparezcan personas o personajes humanos, y escribe [Model: Veo 3.1 - Lite [Lower Priority]] justo antes de "fix the name" en los clips sin personas como paisajes, barcos en el mar, mapas, documentos u objetos + REGLA INQUEBRANTABLE DE NO DUPLICACIÓN ENTRE CLIPS CONSECUTIVOS: si la voz narrativa continúa en la misma escena o hilo argumental por más de un clip, los siguientes clips NO deben duplicarse visualmente jamás —prohibido poner dos oficinas seguidas, dos escritorios/mostradores con documentos seguidos o el mismo encuadre consecutivo—, sino mostrar algo visualmente diferente pero referente a la locución, alternando por ejemplo de un interior oscuro en un escritorio a un exterior luminoso en un muelle frente a un buque de vapor):

@@ -1,18 +1,38 @@
-import { DocumentaryClip, ReferenceAsset, SunoTrack, Sentence, DEFAULT_OPERATIONAL_HEADER } from '../types';
+import {
+  DocumentaryClip,
+  ReferenceAsset,
+  SunoTrack,
+  Sentence,
+  DEFAULT_OPERATIONAL_HEADER,
+  sanitizeOperationalHeader,
+} from '../types';
 import { formatMMSS } from './formatTime';
 
 export function ensureOperationalHeaderInRawClips(
   rawText: string,
   operationalHeader: string = DEFAULT_OPERATIONAL_HEADER
 ): string {
-  const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+  const header = sanitizeOperationalHeader(operationalHeader);
   const trimmed = (rawText || '').trim();
   if (!trimmed) return header;
+
+  // Strip any leading operational/corrupted header(s) before the first Image N / Clip N block
+  const firstPromptIdx = trimmed.search(/(?:^|\n)\s*(?:Image|Imagen|Clip)\s*\[?0*1\]?\s*[:(\-]/i);
+  if (firstPromptIdx >= 0) {
+    const bodyOnly = trimmed.slice(firstPromptIdx).trim();
+    return bodyOnly ? `${header}\n\n${bodyOnly}` : header;
+  }
+
   if (
-    /^Act[uú]a como un historiador/i.test(trimmed) ||
-    trimmed.includes('Cambia los nombres de los clips a las primeras 6 palabras')
+    /^Act[uú]a como un historiador/i.test(trimmed) &&
+    trimmed.includes('primeras 6 palabras') &&
+    trimmed.includes('01 to 09')
   ) {
     return trimmed;
+  }
+  // If rawText only contained a corrupted/incomplete header without clips yet, return the clean 9-line header
+  if (/del\s+1\s+al\s+10|Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes/i.test(trimmed)) {
+    return header;
   }
   return `${header}\n\n${trimmed}`;
 }
@@ -573,7 +593,7 @@ export function buildRawClipsTextWithHeader(
   operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
   projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER'
 ): string {
-  const header = (operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
+  const header = sanitizeOperationalHeader(operationalHeader, projectEngineMode);
   const body = (clips || [])
     .map((c) => {
       const img = c.imagePrompt?.trim();
@@ -664,28 +684,33 @@ export function parseClipsFromRawText(
     .replace(/\s*\|\s*(?=(?:[#*\-\d.)\s]*)(?:Image|Imagen|Clip)\s*\[?\d+)/gi, '\n');
   const lines = normalizedText.split('\n');
   const clipsMap = new Map<number, DocumentaryClip>();
-
-  // Inicializar con los existentes si los hay
+  const existingByNum = new Map<number, DocumentaryClip>();
   for (const c of existingClips) {
-    clipsMap.set(c.clipNumber, { ...c });
+    existingByNum.set(c.clipNumber, c);
   }
 
   let currentClipNum = 0;
 
   const ensureClip = (num: number): DocumentaryClip => {
     if (!clipsMap.has(num)) {
-      clipsMap.set(num, {
-        id: `clip-${num}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        clipNumber: num,
-        timeRange: num === 1 ? `00:00 - 00:${String(clip1Duration).padStart(2, '0')}` : '',
-        cameraSelection: '',
-        visualExplanation: '',
-        imagePrompt: '',
-        videoPrompt: '',
-        narrationSegment: '',
-        imageReady: false,
-        videoReady: false,
-      });
+      const prev = existingByNum.get(num);
+      clipsMap.set(
+        num,
+        prev
+          ? { ...prev }
+          : {
+              id: `clip-${num}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              clipNumber: num,
+              timeRange: num === 1 ? `00:00 - 00:${String(clip1Duration).padStart(2, '0')}` : '',
+              cameraSelection: '',
+              visualExplanation: '',
+              imagePrompt: '',
+              videoPrompt: '',
+              narrationSegment: '',
+              imageReady: false,
+              videoReady: false,
+            }
+      );
     }
     return clipsMap.get(num)!;
   };
@@ -764,6 +789,7 @@ export function parseClipsFromRawText(
     }
   }
 
+  if (clipsMap.size === 0) return existingClips;
   return Array.from(clipsMap.values()).sort((a, b) => a.clipNumber - b.clipNumber);
 }
 
@@ -1480,16 +1506,44 @@ export function syncAndAuditProductionClips(
   // Extraer fragmentos con sus pausas desde la Voz Narrativa Raw
   const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
 
-  const maxClipNum = Math.max(
-    parsedFromPrompts.length > 0 ? Math.max(...parsedFromPrompts.map((c) => c.clipNumber)) : 0,
-    timelineSentences.length > 0 ? timelineSentences.length + 1 : 0,
-    existingClips.length
-  );
+  const parsedMaxClipNum =
+    parsedFromPrompts.length > 0 ? Math.max(...parsedFromPrompts.map((c) => c.clipNumber)) : 0;
+  const timelineExpectedClipNum = timelineSentences.length > 0 ? timelineSentences.length + 1 : 0;
+  // Never inflate maxClipNum with stale skeleton existingClips beyond the real Timeline / parsed prompts
+  const maxClipNum =
+    timelineExpectedClipNum > 0 || parsedMaxClipNum > 0
+      ? Math.max(timelineExpectedClipNum, parsedMaxClipNum)
+      : existingClips.length;
 
   if (maxClipNum === 0) return [];
 
   const byNum = new Map<number, DocumentaryClip>();
-  parsedFromPrompts.forEach((c) => byNum.set(c.clipNumber, { ...c }));
+  for (const prev of existingClips) {
+    if (prev.clipNumber >= 1 && prev.clipNumber <= maxClipNum) {
+      // Only carry over non-skeleton prompts or media state from existingClips when missing from parsedFromPrompts
+      const isGenericAutoSkeleton =
+        /Create an image of a .* shot in \(Ruta Principal|depicting the historical scene \(/i.test(
+          prev.imagePrompt || ''
+        );
+      byNum.set(
+        prev.clipNumber,
+        isGenericAutoSkeleton
+          ? {
+              ...prev,
+              timeRange: '',
+              imagePrompt: '',
+              videoPrompt: '',
+              narrationSegment: '',
+            }
+          : { ...prev }
+      );
+    }
+  }
+  parsedFromPrompts.forEach((c) => {
+    if (c.clipNumber >= 1 && c.clipNumber <= maxClipNum) {
+      byNum.set(c.clipNumber, { ...c });
+    }
+  });
 
   const finalClips: DocumentaryClip[] = [];
 

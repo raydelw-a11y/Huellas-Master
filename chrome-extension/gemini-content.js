@@ -1208,16 +1208,35 @@
     let elapsedMs = 0;
     let stableTicks = 0;
     let lastObservedText = '';
+    let maxObservedLen = 0;
+    let lastTextGrowthAtMs = 0;
     let hasStarted = false;
     let hasClickedStartResearchPlan = false;
     let planClickedAtMs = 0;
     let textAtPlanClick = '';
     const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
     const isImageOrder = Boolean(meta && (meta.enableCreateImage || meta.mediaType === 'THUMBNAILS'));
+    const stageNumInit = Number(meta && meta.stageNumber) || 0;
+    const isLongProductionStage =
+      stageNumInit === 4 ||
+      stageNumInit === 6 ||
+      stageNumInit === 80 ||
+      stageNumInit === 9 ||
+      stageNumInit === 11 ||
+      stageNumInit === 111 ||
+      stageNumInit === 112;
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
     const initialLastImageUrl = String((meta && meta.initialLastImageUrl) || '').trim();
     const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
-    const maxTimeoutMs = isDeepResearch ? 1200000 : 180000; // 20 min for Deep Research, 3 min normal
+    // Stage 8 (140+ Image & Clip prompts) gets 25 min; Deep Research gets 20 min; other long stages get 10 min
+    const maxTimeoutMs =
+      stageNumInit === 8
+        ? 1500000
+        : isDeepResearch
+        ? 1200000
+        : isLongProductionStage
+        ? 600000
+        : 180000;
 
     reportStatus(
       'GENERATING',
@@ -1366,6 +1385,10 @@
           stableTicks++;
         } else {
           stableTicks = 0;
+          if (latest.text.length > maxObservedLen) {
+            maxObservedLen = latest.text.length;
+            lastTextGrowthAtMs = elapsedMs;
+          }
           lastObservedText = latest.text;
           reportStatus(
             'STREAMING',
@@ -1377,8 +1400,8 @@
           );
         }
 
-        // For Stage 9 YouTube/Facebook metadata (~3000 chars), do not cut off mid-stream in background tabs before the closing #Hashtags / Slogan arrive
-        let requiredStableTicks = isDeepResearch ? 5 : isImageOrder ? 3 : 4;
+        // For Stage 8 (100-160+ Image/Clip pairs) & Stage 9 metadata, wait extra stable ticks so mid-batch thinking pauses never cut off early
+        let requiredStableTicks = stageNum === 8 ? 7 : isDeepResearch ? 5 : isImageOrder ? 3 : 4;
         if (isLongMetadataStage && !semanticallyComplete && elapsedMs < 65000) {
           requiredStableTicks = hasFooterActions ? 10 : 18;
         }
@@ -1489,8 +1512,81 @@
               stageNum === 113 ||
               stageNum === 114;
             const stage11Bundle = isStage11Family ? scanAllStage11ResponsesFromChat() : undefined;
+            const rawTurnText = finalLatest.text || latest.text;
+
+            // Stage 8 Auto-Continuation (when 130-160+ clips exceed Gemini's single-turn output token limit)
+            if (stageNum === 8) {
+              const prevAccumulated = String((meta && meta.accumulatedStage8Text) || '').trim();
+              const combinedStage8 = prevAccumulated
+                ? `${prevAccumulated}\n\n${rawTurnText.trim()}`
+                : rawTurnText.trim();
+              const expectedClips = Number(meta && meta.expectedClipCount) || 0;
+              const contRound = Number(meta && meta.continuationRound) || 0;
+              let maxGenClipNum = 0;
+              const clipRe = /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[][^\)\]]*[\)\]])?\s*[:\-–]/gi;
+              let cm;
+              while ((cm = clipRe.exec(combinedStage8)) !== null) {
+                const n = parseInt(cm[1], 10);
+                if (n > maxGenClipNum) maxGenClipNum = n;
+              }
+              const prevMaxClipNum = Number(meta && meta.prevMaxClipNum) || 0;
+              if (
+                expectedClips > 10 &&
+                maxGenClipNum >= 15 &&
+                maxGenClipNum > prevMaxClipNum &&
+                maxGenClipNum < expectedClips - 1 &&
+                contRound < 4
+              ) {
+                const nextStartClip = maxGenClipNum + 1;
+                const contPrompt = `Continúa EXACTAMENTE desde Image ${nextStartClip} y Clip ${nextStartClip} hasta completar TODOS los tramos restantes del Timeline hasta Image ${expectedClips} y Clip ${expectedClips}, sin repetir la orden operativa inicial de 9 líneas ni los clips 1 al ${maxGenClipNum}. Mantén exactamente el mismo formato (cada Image N en su línea y cada Clip N en su línea con su rango [MM:SS - MM:SS], su oración de voz narrativa y [Model: Omni 1.1 Flash o Veo 3.1 - Lite [Lower Priority]] fix the name).`;
+                reportStatus(
+                  'GENERATING',
+                  `🔄 Gemini llegó al Clip ${maxGenClipNum}/${expectedClips} por límite de longitud por turno. Continuando automáticamente desde el Clip ${nextStartClip} hasta el ${expectedClips} (sin reiniciar)...`,
+                  meta
+                );
+                // Also send partial progress snapshot so the UI already displays clips 1..maxGenClipNum safely
+                chrome.runtime
+                  .sendMessage({
+                    type: 'GEMINI_RESPONSE_READY',
+                    stageNumber: 8,
+                    docId: (meta && meta.docId) || '',
+                    taskType: meta.taskType,
+                    text: combinedStage8,
+                    images: [],
+                  })
+                  .catch(() => {});
+                executeSinglePromptOrder({
+                  action: 'SEND_PROMPT',
+                  docId: (meta && meta.docId) || '',
+                  videoName: (meta && meta.targetChatTitle) || '',
+                  prompt: contPrompt,
+                  stageNumber: 8,
+                  expectedClipCount: expectedClips,
+                  continuationRound: contRound + 1,
+                  prevMaxClipNum: maxGenClipNum,
+                  accumulatedStage8Text: combinedStage8,
+                  taskType: (meta && meta.taskType) || 'STAGE_GENERATION',
+                  enableHighModel: false,
+                  enableArgonLow: true,
+                  enableCarbonLow: true,
+                  preferredModel: 'CARBON_4_LOW',
+                  thinkingLevel: 'LOW',
+                  enableDeepResearch: false,
+                  skipModelSwitch: true,
+                  sameTabAlreadyPositioned: true,
+                  autoSubmit: true,
+                  focusTab: false,
+                });
+                return;
+              }
+            }
+
+            const prevStage8Text =
+              stageNum === 8 ? String((meta && meta.accumulatedStage8Text) || '').trim() : '';
             const resolvedText =
-              stageNum === 111 && stage11Bundle?.youtube && stage11Bundle.youtube.length > finalLatest.text.length
+              stageNum === 8 && prevStage8Text
+                ? `${prevStage8Text}\n\n${rawTurnText.trim()}`
+                : stageNum === 111 && stage11Bundle?.youtube && stage11Bundle.youtube.length > finalLatest.text.length
                 ? stage11Bundle.youtube
                 : stageNum === 112 && stage11Bundle?.facebook && stage11Bundle.facebook.length > finalLatest.text.length
                 ? stage11Bundle.facebook
@@ -1498,9 +1594,12 @@
                 ? stage11Bundle.pinnedComment
                 : stageNum === 114 && stage11Bundle?.youtubeTags
                 ? stage11Bundle.youtubeTags
-                : finalLatest.text || latest.text;
+                : rawTurnText;
 
             isBusyWithOrder = false;
+            try {
+              chrome.storage.local.remove('huellasActiveGeminiStageOrder').catch(() => {});
+            } catch {}
             chrome.runtime
               .sendMessage({
                 type: 'GEMINI_RESPONSE_READY',
@@ -1554,11 +1653,18 @@
         }
       }
 
-      if (elapsedMs >= maxTimeoutMs) {
+      // Never cut off a response that is STILL actively streaming fresh characters (up to 40 min absolute safety ceiling)
+      if (
+        elapsedMs >= maxTimeoutMs &&
+        !(stillStreaming && elapsedMs - lastTextGrowthAtMs < 45000 && elapsedMs < 2400000)
+      ) {
         clearInterval(activeWatchTimer);
         activeWatchTimer = null;
         window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
         isBusyWithOrder = false;
+        try {
+          chrome.storage.local.remove('huellasActiveGeminiStageOrder').catch(() => {});
+        } catch {}
         const finalLatest = extractLatestGeminiResponse();
         if (isImageOrder) {
           const optLabel = (meta && meta.optionLabel) || 'A';
@@ -3739,6 +3845,17 @@
 
   function executeSinglePromptOrder(payload) {
     isBusyWithOrder = true;
+    try {
+      chrome.storage.local
+        .set({
+          huellasActiveGeminiStageOrder: {
+            startedAt: Date.now(),
+            stageNumber: Number(payload.stageNumber) || 0,
+            docId: String(payload.docId || ''),
+          },
+        })
+        .catch(() => {});
+    } catch {}
     (async () => {
       try {
         // 1. Wait if Gemini is still finishing a previous response so the Stop button turns back into Send
@@ -3760,7 +3877,14 @@
             payload.mediaType === 'THUMBNAILS' ||
             Number(payload.stageNumber) === 505
         );
-        const chatState = isStandaloneNoNotebook
+        const chatState = payload.sameTabAlreadyPositioned
+          ? {
+              standaloneNewChat: false,
+              isNewChat: false,
+              nbPath: '',
+              targetChatTitle: String(payload.videoName || ''),
+            }
+          : isStandaloneNoNotebook
           ? { standaloneNewChat: true, isNewChat: false, nbPath: '', targetChatTitle: '' }
           : await ensureCorrectVideoChatBeforePrompt(payload);
         if (chatState && chatState.navigating) {
@@ -3964,7 +4088,13 @@
         const rawPrompt = String(payload.prompt || '');
         const stageNumPayload = Number(payload.stageNumber) || 0;
         const preserveStageNewlines =
-          stageNumPayload === 5 || stageNumPayload === 101 || stageNumPayload === 505;
+          stageNumPayload === 4 ||
+          stageNumPayload === 5 ||
+          stageNumPayload === 6 ||
+          stageNumPayload === 8 ||
+          stageNumPayload === 80 ||
+          stageNumPayload === 101 ||
+          stageNumPayload === 505;
         const promptFingerprint = normalizeCompareText(rawPrompt.slice(0, 120));
         setInputText(inputEl, rawPrompt, preserveStageNewlines);
         reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web, enviando orden...', {
@@ -4053,6 +4183,10 @@
           watchForNewResponse(initialCount, initialLastText, {
             stageNumber: payload.stageNumber,
             taskType: payload.taskType || 'STAGE_GENERATION',
+            expectedClipCount: Number(payload.expectedClipCount) || 0,
+            continuationRound: Number(payload.continuationRound) || 0,
+            prevMaxClipNum: Number(payload.prevMaxClipNum) || 0,
+            accumulatedStage8Text: String(payload.accumulatedStage8Text || ''),
             enableHighModel: Boolean(payload.enableHighModel),
             enableDeepResearch: Boolean(payload.enableDeepResearch),
             enableCreateImage: wantCreateImage,
@@ -4076,10 +4210,16 @@
           }
         } else {
           isBusyWithOrder = false;
+          try {
+            chrome.storage.local.remove('huellasActiveGeminiStageOrder').catch(() => {});
+          } catch {}
           processNextQueuedPrompt();
         }
       } catch {
         isBusyWithOrder = false;
+        try {
+          chrome.storage.local.remove('huellasActiveGeminiStageOrder').catch(() => {});
+        } catch {}
         processNextQueuedPrompt();
       }
     })();
