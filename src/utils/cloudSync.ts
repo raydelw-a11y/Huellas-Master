@@ -148,9 +148,68 @@ export function applyStoredClipReviewStateToDocs(
   });
 }
 
+export function isLocalRuntimeOrigin(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { hostname, protocol } = window.location;
+  if (protocol === 'file:') return true;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '[::1]' ||
+    hostname === '::1' ||
+    hostname.endsWith('.local')
+  );
+}
+
+export function isWorkstationOnlyAudioUrl(rawUrl?: string | null): boolean {
+  if (!rawUrl || typeof rawUrl !== 'string') return false;
+  const u = rawUrl.trim();
+  if (!u) return false;
+  return (
+    /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(?::\d+)?(?:\/|$)/i.test(
+      u
+    ) ||
+    /\/api\/flow\/serve-folder-file\b/i.test(u) ||
+    /^(?:file:\/\/|\/Users\/|\/private\/)/i.test(u)
+  );
+}
+
+export function isNonPortableAudioUrl(rawUrl?: string | null): boolean {
+  if (!rawUrl || typeof rawUrl !== 'string') return true;
+  const u = rawUrl.trim();
+  return !u || u.startsWith('blob:') || isWorkstationOnlyAudioUrl(u);
+}
+
+export function isUnusableAudioUrlForCurrentRuntime(
+  rawUrl?: string | null,
+  treatBlobAsDead = false
+): boolean {
+  if (!rawUrl || typeof rawUrl !== 'string') return true;
+  const u = rawUrl.trim();
+  if (!u) return true;
+  if (treatBlobAsDead && u.startsWith('blob:')) return true;
+  if (
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    /^http:\/\//i.test(u)
+  ) {
+    return true;
+  }
+  if (!isLocalRuntimeOrigin() && isWorkstationOnlyAudioUrl(u)) {
+    return true;
+  }
+  return false;
+}
+
 export function normalizeVoiceoverUrlString(url?: string): string {
   if (!url || typeof url !== 'string') return '';
   let trimmed = url.trim();
+  if (!trimmed) return '';
+  trimmed = trimmed
+    .replace(/^(?:\.\/|\/+)?Huellas-Master\/(?=tts-files\/)/i, '')
+    .replace(/^(?:\.\/|\/+)?(?:docs|data)\/(?=tts-files\/)/i, '')
+    .replace(/^\.\/(?=tts-files\/)/i, '');
   if (/^\/?tts-files\/(.+)\.wav$/i.test(trimmed)) {
     trimmed = trimmed.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
   }
@@ -173,6 +232,55 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
       }))
     : [];
 
+  // Promote portable tracks (`tts-files/...` or `https://...`) ahead of workstation-only `tts-folder-*` / `localhost` entries
+  const firstPortableIdx = audioTracks.findIndex(
+    (t) => !String(t?.id || '').startsWith('tts-folder-') && !isNonPortableAudioUrl(t?.audioUrl)
+  );
+  if (firstPortableIdx >= 0) {
+    const portableTrack = audioTracks[firstPortableIdx];
+    const folderDonor = audioTracks.find(
+      (t) =>
+        (String(t?.id || '').startsWith('tts-folder-') || isWorkstationOnlyAudioUrl(t?.audioUrl)) &&
+        Array.isArray(t?.segmentTimings) &&
+        t.segmentTimings.length > 0
+    );
+    const enrichedPortable =
+      folderDonor &&
+      (!Array.isArray(portableTrack.segmentTimings) || portableTrack.segmentTimings.length === 0) &&
+      Math.abs((Number(portableTrack.duration) || 0) - (Number(folderDonor.duration) || 0)) <= 6
+        ? {
+            ...portableTrack,
+            segmentTimings: folderDonor.segmentTimings,
+            duration: portableTrack.duration || folderDonor.duration,
+          }
+        : portableTrack;
+    const remainingTracks = audioTracks.filter(
+      (t, idx) =>
+        idx !== firstPortableIdx &&
+        !String(t?.id || '').startsWith('tts-folder-') &&
+        !isWorkstationOnlyAudioUrl(t?.audioUrl)
+    );
+    if (
+      firstPortableIdx !== 0 ||
+      enrichedPortable !== portableTrack ||
+      remainingTracks.length !== audioTracks.length - 1
+    ) {
+      audioTracks = [enrichedPortable, ...remainingTracks];
+    }
+    if (isNonPortableAudioUrl(masterAudioUrl)) {
+      masterAudioUrl = enrichedPortable.audioUrl;
+    }
+  } else if (!isLocalRuntimeOrigin()) {
+    if (isUnusableAudioUrlForCurrentRuntime(masterAudioUrl, true)) {
+      masterAudioUrl = '';
+    }
+    if (audioTracks.some((t) => isUnusableAudioUrlForCurrentRuntime(t?.audioUrl, true))) {
+      audioTracks = audioTracks.filter(
+        (t) => !String(t?.id || '').startsWith('tts-folder-') && !isUnusableAudioUrlForCurrentRuntime(t?.audioUrl, true)
+      );
+    }
+  }
+
   const combinedText = `${doc.title || ''} ${doc.topic || ''} ${doc.downloadFolderName || ''} ${(doc.voiceoverScript || '').slice(0, 400)}`.toLowerCase();
   const isVideo76Exodo =
     combinedText.includes('76') ||
@@ -188,7 +296,7 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     combinedText.includes('video 77') ||
     combinedText.includes('penicilina');
 
-  const isDeadOrEmptyUrl = (u?: string) => !u || u.startsWith('blob:');
+  const isDeadOrEmptyUrl = (u?: string) => isNonPortableAudioUrl(u);
 
   let nextTimelineSentences = doc.timelineSentences;
   let nextTimelineFormattedText = doc.timelineFormattedText;
@@ -1371,61 +1479,76 @@ export function stripHeavyMediaForStorage(
   list: DocumentaryProject[],
   stripReferenceImages = false
 ): DocumentaryProject[] {
-  return (list || []).map((doc) => ({
-    ...doc,
-    ...(typeof doc.compiledMasterPrompt === 'string' && doc.compiledMasterPrompt.length > 500
-      ? { compiledMasterPrompt: doc.compiledMasterPrompt.slice(0, 200) }
-      : {}),
-    ...(stripReferenceImages &&
-    typeof doc.thumbnailImageUrl === 'string' &&
-    doc.thumbnailImageUrl.startsWith('data:') &&
-    doc.thumbnailImageUrl.length > 60000
-      ? { thumbnailImageUrl: '' }
-      : {}),
-    ...(stripReferenceImages &&
-    typeof doc.thumbnailHorizontalImageUrl === 'string' &&
-    doc.thumbnailHorizontalImageUrl.startsWith('data:') &&
-    doc.thumbnailHorizontalImageUrl.length > 60000
-      ? { thumbnailHorizontalImageUrl: '' }
-      : {}),
-    ...(stripReferenceImages &&
-    typeof doc.thumbnailVerticalImageUrl === 'string' &&
-    doc.thumbnailVerticalImageUrl.startsWith('data:') &&
-    doc.thumbnailVerticalImageUrl.length > 60000
-      ? { thumbnailVerticalImageUrl: '' }
-      : {}),
-    ...(stripReferenceImages &&
-    typeof doc.masterAudioUrl === 'string' &&
-    doc.masterAudioUrl.startsWith('data:') &&
-    doc.masterAudioUrl.length > 60000
-      ? { masterAudioUrl: '' }
-      : {}),
-    ...(stripReferenceImages && Array.isArray(doc.audioTracks)
-      ? {
-          audioTracks: doc.audioTracks.map((t) =>
-            typeof t.audioUrl === 'string' && t.audioUrl.startsWith('data:') && t.audioUrl.length > 60000
-              ? { ...t, audioUrl: '' }
-              : t
-          ),
+  return (list || []).map((doc) => {
+    const rawTracks = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
+    const cleanedTracks = rawTracks
+      .filter((t) => !String(t?.id || '').startsWith('tts-folder-'))
+      .map((t) => {
+        const cleanUrl = normalizeVoiceoverUrlString(t?.audioUrl);
+        if (
+          isNonPortableAudioUrl(cleanUrl) ||
+          (stripReferenceImages && cleanUrl.startsWith('data:') && cleanUrl.length > 60000)
+        ) {
+          return { ...t, audioUrl: '' };
         }
-      : {}),
-    ...(stripReferenceImages && Array.isArray(doc.references)
-      ? {
-          references: doc.references.map((r) =>
-            typeof r.imageUrl === 'string' && r.imageUrl.startsWith('data:') && r.imageUrl.length > 60000
-              ? { ...r, imageUrl: '' }
-              : r
-          ),
-        }
-      : {}),
-    clips: Array.isArray(doc.clips)
-      ? doc.clips.map((c) => {
-          if (!c.videoFrames || c.videoFrames.length === 0) return c;
-          const { videoFrames, ...rest } = c;
-          return rest;
-        })
-      : [],
-  }));
+        return cleanUrl !== t.audioUrl ? { ...t, audioUrl: cleanUrl } : t;
+      });
+    const rawMaster = normalizeVoiceoverUrlString(doc.masterAudioUrl);
+    const masterStrippedBySize =
+      stripReferenceImages && rawMaster.startsWith('data:') && rawMaster.length > 60000;
+    let cleanedMaster =
+      masterStrippedBySize || isNonPortableAudioUrl(rawMaster) ? '' : rawMaster;
+    if (!cleanedMaster) {
+      const portableCandidate = cleanedTracks.find(
+        (t) => t?.audioUrl && !isNonPortableAudioUrl(t.audioUrl)
+      );
+      if (portableCandidate?.audioUrl) {
+        cleanedMaster = portableCandidate.audioUrl;
+      }
+    }
+    return {
+      ...doc,
+      masterAudioUrl: cleanedMaster,
+      audioTracks: cleanedTracks,
+      ...(typeof doc.compiledMasterPrompt === 'string' && doc.compiledMasterPrompt.length > 500
+        ? { compiledMasterPrompt: doc.compiledMasterPrompt.slice(0, 200) }
+        : {}),
+      ...(stripReferenceImages &&
+      typeof doc.thumbnailImageUrl === 'string' &&
+      doc.thumbnailImageUrl.startsWith('data:') &&
+      doc.thumbnailImageUrl.length > 60000
+        ? { thumbnailImageUrl: '' }
+        : {}),
+      ...(stripReferenceImages &&
+      typeof doc.thumbnailHorizontalImageUrl === 'string' &&
+      doc.thumbnailHorizontalImageUrl.startsWith('data:') &&
+      doc.thumbnailHorizontalImageUrl.length > 60000
+        ? { thumbnailHorizontalImageUrl: '' }
+        : {}),
+      ...(stripReferenceImages &&
+      typeof doc.thumbnailVerticalImageUrl === 'string' &&
+      doc.thumbnailVerticalImageUrl.startsWith('data:') &&
+      doc.thumbnailVerticalImageUrl.length > 60000
+        ? { thumbnailVerticalImageUrl: '' }
+        : {}),
+      ...(stripReferenceImages && Array.isArray(doc.references)
+        ? {
+            references: doc.references.map((r) =>
+              typeof r.imageUrl === 'string' && r.imageUrl.startsWith('data:') && r.imageUrl.length > 60000
+                ? { ...r, imageUrl: '' }
+                : r
+            ),
+          }
+        : {}),
+      clips: Array.isArray(doc.clips)
+        ? doc.clips.map((c) => {
+            if (!c.videoFrames || c.videoFrames.length === 0) return c;
+            const { videoFrames, ...rest } = c;
+            return rest;
+          })
+        : [],
+    };
+  });
 }
 
 export function saveLocalCachedDocumentaries(list: DocumentaryProject[]) {
@@ -1507,17 +1630,25 @@ function mergeTwoDocumentaryObjects(
   const wNorm = normalizeDocumentaryVoiceoverAudio(winner);
   const oNorm = normalizeDocumentaryVoiceoverAudio(other);
   const mergedMasterAudio =
-    wNorm.masterAudioUrl && !wNorm.masterAudioUrl.startsWith('blob:')
+    wNorm.masterAudioUrl && !isNonPortableAudioUrl(wNorm.masterAudioUrl)
+      ? wNorm.masterAudioUrl
+      : oNorm.masterAudioUrl && !isNonPortableAudioUrl(oNorm.masterAudioUrl)
+      ? oNorm.masterAudioUrl
+      : wNorm.masterAudioUrl && !wNorm.masterAudioUrl.startsWith('blob:')
       ? wNorm.masterAudioUrl
       : oNorm.masterAudioUrl || wNorm.masterAudioUrl || '';
   const mergedAudioTracks =
     Array.isArray(wNorm.audioTracks) &&
     wNorm.audioTracks.length > 0 &&
-    wNorm.audioTracks.some((t) => t.audioUrl && !t.audioUrl.startsWith('blob:'))
+    wNorm.audioTracks.some((t) => t.audioUrl && !isNonPortableAudioUrl(t.audioUrl))
       ? wNorm.audioTracks
-      : Array.isArray(oNorm.audioTracks) && oNorm.audioTracks.length > 0
+      : Array.isArray(oNorm.audioTracks) &&
+        oNorm.audioTracks.length > 0 &&
+        oNorm.audioTracks.some((t) => t.audioUrl && !isNonPortableAudioUrl(t.audioUrl))
       ? oNorm.audioTracks
-      : wNorm.audioTracks || [];
+      : Array.isArray(wNorm.audioTracks) && wNorm.audioTracks.length > 0
+      ? wNorm.audioTracks
+      : oNorm.audioTracks || [];
 
   let baseWinner: DocumentaryProject = {
     ...wNorm,
@@ -1809,7 +1940,7 @@ function mergeTwoDocumentaryObjects(
     }
   } catch {}
 
-  // Preserve newer voiceover audioTracks & permanent non-blob URLs across concurrent cloud/local syncs
+  // Preserve newer voiceover audioTracks & permanent portable URLs across concurrent cloud/local syncs
   try {
     const wTracks = Array.isArray(baseWinner.audioTracks) ? baseWinner.audioTracks : [];
     const oTracks = Array.isArray(oNorm.audioTracks) ? oNorm.audioTracks : [];
@@ -1818,7 +1949,14 @@ function mergeTwoDocumentaryObjects(
       const latestOTime = Date.parse(oTracks[0]?.createdAt || '') || 0;
       if (latestOTime > latestWTime) {
         const wIds = new Set(wTracks.map((t) => t.id));
-        const missingNewer = oTracks.filter((t) => t && t.id && !wIds.has(t.id));
+        const missingNewer = oTracks.filter(
+          (t) =>
+            t &&
+            t.id &&
+            !wIds.has(t.id) &&
+            !String(t.id).startsWith('tts-folder-') &&
+            !isNonPortableAudioUrl(t.audioUrl)
+        );
         if (missingNewer.length > 0) {
           const mergedTracks = [...missingNewer, ...wTracks];
           baseWinner = {
@@ -1828,16 +1966,16 @@ function mergeTwoDocumentaryObjects(
           };
         }
       }
-      // Upgrade any dead blob: audioUrl in winner if other holds a permanent tts-files/ URL for the same track
+      // Upgrade any dead/non-portable audioUrl in winner if other holds a permanent portable tts-files/ URL for the same track
       const oById = new Map(oTracks.filter((t) => t?.id).map((t) => [t.id, t]));
       let upgradedAny = false;
       const upgradedTracks = (baseWinner.audioTracks || []).map((t) => {
         const match = oById.get(t.id);
         if (
           match &&
-          (!t.audioUrl || t.audioUrl.startsWith('blob:')) &&
+          isNonPortableAudioUrl(t.audioUrl) &&
           match.audioUrl &&
-          !match.audioUrl.startsWith('blob:')
+          !isNonPortableAudioUrl(match.audioUrl)
         ) {
           upgradedAny = true;
           return { ...t, audioUrl: match.audioUrl, filename: match.filename || t.filename };
@@ -1847,7 +1985,7 @@ function mergeTwoDocumentaryObjects(
       const wMaster = baseWinner.masterAudioUrl || '';
       const oMaster = oNorm.masterAudioUrl || '';
       const betterMaster =
-        (!wMaster || wMaster.startsWith('blob:')) && oMaster && !oMaster.startsWith('blob:')
+        isNonPortableAudioUrl(wMaster) && oMaster && !isNonPortableAudioUrl(oMaster)
           ? oMaster
           : wMaster;
       if (upgradedAny || betterMaster !== wMaster) {

@@ -121,21 +121,28 @@ try {
   console.warn('[Init] Could not seed initial config from VoxFlow:', e);
 }
 
-// Serve static local audio & asset files (with automatic .wav -> .mp3 fallback)
+// Serve static local & Git-tracked portable audio files (with automatic .wav -> .mp3 fallback and Render docs/tts-files support)
+const DOCS_TTS_DIR = path.join(process.cwd(), 'docs', 'tts-files');
 app.use(
   '/tts-files',
   (req, res, next) => {
     if (req.path.toLowerCase().endsWith('.wav')) {
-      const wavPath = path.join(TTS_DIR, req.path);
-      const mp3Path = wavPath.replace(/\.wav$/i, '.mp3');
-      if (!fs.existsSync(wavPath) && fs.existsSync(mp3Path)) {
-        res.sendFile(mp3Path);
-        return;
+      for (const baseDir of [TTS_DIR, DOCS_TTS_DIR]) {
+        const wavPath = path.join(baseDir, req.path);
+        const mp3Path = wavPath.replace(/\.wav$/i, '.mp3');
+        if (!fs.existsSync(wavPath) && fs.existsSync(mp3Path)) {
+          res.sendFile(mp3Path);
+          return;
+        }
       }
     }
     next();
   },
-  express.static(TTS_DIR)
+  express.static(TTS_DIR),
+  express.static(DOCS_TTS_DIR),
+  (_req, res) => {
+    res.status(404).json({ error: 'TTS audio file not found' });
+  }
 );
 app.use('/assets', express.static(ASSETS_DIR));
 
@@ -408,8 +415,82 @@ function getLocalGitHubToken(): string {
 
 let lastPushedGitHubJson = '';
 
+function isServerNonPortableAudioUrl(rawUrl?: any): boolean {
+  if (!rawUrl || typeof rawUrl !== 'string') return true;
+  const u = rawUrl.trim();
+  if (!u || u.startsWith('blob:')) return true;
+  return (
+    /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(?::\d+)?(?:\/|$)/i.test(
+      u
+    ) ||
+    /\/api\/flow\/serve-folder-file\b/i.test(u) ||
+    /^(?:file:\/\/|\/Users\/|\/private\/)/i.test(u)
+  );
+}
+
+function normalizeServerPortableAudioUrl(rawUrl?: any): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let u = rawUrl
+    .trim()
+    .replace(/^(?:\.\/|\/+)?Huellas-Master\/(?=tts-files\/)/i, '')
+    .replace(/^(?:\.\/|\/+)?(?:docs|data)\/(?=tts-files\/)/i, '')
+    .replace(/^\.\/(?=tts-files\/)/i, '');
+  if (u.startsWith('/tts-files/')) u = u.slice(1);
+  if (/^tts-files\/tts-video-77-penicilina\.mp3(?:\?.*)?$/i.test(u)) {
+    return 'tts-files/tts-video-77-penicilina.mp3?v=nodup3';
+  }
+  return u;
+}
+
+function sanitizeServerDocAudioUrls(doc: any): any {
+  if (!doc || typeof doc !== 'object') return doc;
+  const rawTracks = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
+  const folderDonor = rawTracks.find(
+    (t: any) =>
+      (String(t?.id || '').startsWith('tts-folder-') || isServerNonPortableAudioUrl(t?.audioUrl)) &&
+      Array.isArray(t?.segmentTimings) &&
+      t.segmentTimings.length > 0
+  );
+  const cleanedTracks = rawTracks
+    .filter((t: any) => !String(t?.id || '').startsWith('tts-folder-'))
+    .map((t: any) => {
+      const cleanUrl = normalizeServerPortableAudioUrl(t?.audioUrl);
+      if (isServerNonPortableAudioUrl(cleanUrl)) {
+        return { ...t, audioUrl: '' };
+      }
+      const nextTrack = cleanUrl !== t?.audioUrl ? { ...t, audioUrl: cleanUrl } : { ...t };
+      if (
+        folderDonor &&
+        (!Array.isArray(nextTrack.segmentTimings) || nextTrack.segmentTimings.length === 0) &&
+        Math.abs((Number(nextTrack.duration) || 0) - (Number(folderDonor.duration) || 0)) <= 6
+      ) {
+        nextTrack.segmentTimings = folderDonor.segmentTimings;
+        nextTrack.duration = nextTrack.duration || folderDonor.duration;
+      }
+      return nextTrack;
+    });
+  const normMaster = normalizeServerPortableAudioUrl(doc.masterAudioUrl);
+  let cleanedMaster = isServerNonPortableAudioUrl(normMaster) ? '' : normMaster;
+  if (!cleanedMaster) {
+    const portableTrack = cleanedTracks.find(
+      (t: any) => t?.audioUrl && !isServerNonPortableAudioUrl(t.audioUrl)
+    );
+    if (portableTrack?.audioUrl) {
+      cleanedMaster = portableTrack.audioUrl;
+    } else if (doc.id === 'doc-video-77-huellas') {
+      cleanedMaster = 'tts-files/tts-video-77-penicilina.mp3?v=nodup3';
+    }
+  }
+  return {
+    ...doc,
+    masterAudioUrl: cleanedMaster,
+    audioTracks: cleanedTracks,
+  };
+}
+
 function writeDocumentaries(list: any[], skipCloudPush = false) {
-  const jsonStr = JSON.stringify(list, null, 2);
+  const sanitizedList = Array.isArray(list) ? list.map(sanitizeServerDocAudioUrls) : list;
+  const jsonStr = JSON.stringify(sanitizedList, null, 2);
   try {
     const currentDisk = fs.existsSync(DOCS_FILE) ? fs.readFileSync(DOCS_FILE, 'utf8') : '';
     if (currentDisk !== jsonStr) {
@@ -646,6 +727,21 @@ function mergeServerDocObjects(winner: any, other: any) {
     if ((!baseWinner.geminiChatTitle || !String(baseWinner.geminiChatTitle).trim()) && other.geminiChatTitle) {
       baseWinner.geminiChatTitle = other.geminiChatTitle;
     }
+    const wCleanDoc = sanitizeServerDocAudioUrls(baseWinner);
+    const oCleanDoc = sanitizeServerDocAudioUrls(other);
+    baseWinner.masterAudioUrl = wCleanDoc.masterAudioUrl || oCleanDoc.masterAudioUrl || '';
+    const wPortableTracks = Array.isArray(wCleanDoc.audioTracks)
+      ? wCleanDoc.audioTracks.filter((t: any) => t?.audioUrl)
+      : [];
+    const oPortableTracks = Array.isArray(oCleanDoc.audioTracks)
+      ? oCleanDoc.audioTracks.filter((t: any) => t?.audioUrl)
+      : [];
+    baseWinner.audioTracks =
+      wPortableTracks.length > 0
+        ? wCleanDoc.audioTracks
+        : oPortableTracks.length > 0
+        ? oCleanDoc.audioTracks
+        : wCleanDoc.audioTracks || [];
   } catch {}
   if (!Array.isArray(baseWinner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
     return baseWinner;
@@ -677,7 +773,7 @@ function mergeServerDocObjects(winner: any, other: any) {
 }
 
 function stripHeavyMediaForGitHubServer(list: any[], stripReferenceImages = false): any[] {
-  return (list || []).map((doc: any) => ({
+  return (list || []).map(sanitizeServerDocAudioUrls).map((doc: any) => ({
     ...doc,
     ...(stripReferenceImages &&
     typeof doc.thumbnailImageUrl === 'string' &&
@@ -8153,6 +8249,15 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       const candidate4k = path.join(dir, `${baseNoExt}_4K${ext}`);
       if (fs.existsSync(candidate4k) && fs.statSync(candidate4k).isFile()) {
         filePath = candidate4k;
+      } else if (/^\.(?:wav|mp3|m4a)$/i.test(ext)) {
+        const altExt = ext.toLowerCase() === '.wav' ? '.mp3' : '.wav';
+        const altAudioCandidate = path.join(dir, `${path.basename(filePath, ext)}${altExt}`);
+        if (fs.existsSync(altAudioCandidate) && fs.statSync(altAudioCandidate).isFile()) {
+          filePath = altAudioCandidate;
+        } else {
+          res.status(404).send('Archivo no encontrado');
+          return;
+        }
       } else {
         res.status(404).send('Archivo no encontrado');
         return;

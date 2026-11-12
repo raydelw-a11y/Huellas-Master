@@ -136,6 +136,10 @@ import {
   loadTtsAudioBlobUrlFromVault,
   normalizeDocumentaryVoiceoverAudio,
   normalizeVoiceoverUrlString,
+  isLocalRuntimeOrigin,
+  isWorkstationOnlyAudioUrl,
+  isNonPortableAudioUrl,
+  isUnusableAudioUrlForCurrentRuntime,
   confirmPaidGeminiApiUsage,
   PUBLIC_GITHUB_PAGES_URL,
   REMOTE_MAC_RELAY_URL,
@@ -152,7 +156,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:32 PM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:29 PM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
@@ -3609,6 +3613,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const [commentCustomFocus, setCommentCustomFocus] = useState<string>('');
   const [commentReplying, setCommentReplying] = useState<boolean>(false);
   const [folderVoiceoverUrl, setFolderVoiceoverUrl] = useState<string>('');
+  const [stage8AudioFallbackIdx, setStage8AudioFallbackIdx] = useState<number>(0);
   const [brokenTrackIds, setBrokenTrackIds] = useState<Record<string, boolean>>({});
   const [restoredVaultTrackUrls, setRestoredVaultTrackUrls] = useState<Record<string, string>>({});
 
@@ -7408,11 +7413,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const aspectRatio = isVertical ? '9:16' : '16:9';
       const expectedFileName = buildClipSixWordFileName(clip, currentDoc || null);
 
-      const isLocalhostOrigin =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const isLocalhostOrigin = isLocalRuntimeOrigin();
+      const isHttpsOrigin =
+        typeof window !== 'undefined' && window.location.protocol === 'https:';
       const apiBases = isLocalhostOrigin
         ? ['']
+        : isHttpsOrigin
+        ? isCloudMode
+          ? []
+          : ['']
         : isCloudMode
         ? ['http://localhost:4200']
         : ['', 'http://localhost:4200'];
@@ -7691,11 +7700,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
       const queryParams = `folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
 
-      const isLocalhostOrigin =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const isLocalhostOrigin = isLocalRuntimeOrigin();
+      const isHttpsOrigin =
+        typeof window !== 'undefined' && window.location.protocol === 'https:';
       const apiBases = isLocalhostOrigin
         ? ['']
+        : isHttpsOrigin
+        ? isCloudMode
+          ? []
+          : ['']
         : isCloudMode
         ? ['http://localhost:4200']
         : ['', 'http://localhost:4200'];
@@ -7792,13 +7805,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             });
           }
           if (Array.isArray(data.voiceoverFiles) && data.voiceoverFiles.length > 0) {
-            setFolderVoiceoverUrl((prev) => prev || prefixUrl(data.voiceoverFiles[0].url));
+            const candidateVoiceUrl = prefixUrl(data.voiceoverFiles[0].url);
+            if (!isUnusableAudioUrlForCurrentRuntime(candidateVoiceUrl)) {
+              setFolderVoiceoverUrl((prev) => prev || candidateVoiceUrl);
+            }
           } else if (
             !currentDoc?.masterAudioUrl &&
             Array.isArray(data.localTtsFiles) &&
             data.localTtsFiles.length > 0
           ) {
-            setFolderVoiceoverUrl((prev) => prev || prefixUrl(data.localTtsFiles[0].url));
+            const candidateLocalTtsUrl = prefixUrl(data.localTtsFiles[0].url);
+            if (!isUnusableAudioUrlForCurrentRuntime(candidateLocalTtsUrl)) {
+              setFolderVoiceoverUrl((prev) => prev || candidateLocalTtsUrl);
+            }
           }
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
             break;
@@ -11905,16 +11924,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
   };
 
-  // Persist client-synthesized or uploaded audio blob to permanent tts-files/*.mp3 when local server is reachable
+  // Persist client-synthesized or uploaded audio blob to permanent tts-files/*.mp3 when server is reachable
   const persistAudioBlobPermanently = async (
     blob: Blob,
     label: string,
     docTitle: string
   ): Promise<{ audioUrl?: string; filename?: string }> => {
-    const isLocalOrigin =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const candidateBases = isLocalOrigin ? [''] : ['http://localhost:4200'];
+    const isLocalOrigin = isLocalRuntimeOrigin();
+    const isHttpsPage =
+      typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const candidateBases =
+      isLocalOrigin || !isCloudMode
+        ? ['']
+        : isHttpsPage
+        ? []
+        : ['http://localhost:4200'];
     const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'wav';
     const safeName = `${(label || docTitle || 'Voz_Narrativa').replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     for (const base of candidateBases) {
@@ -12511,23 +12535,107 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     };
   }, [activeDoc?.id, activeDoc?.audioTracks?.length]);
 
-  // Automatically adopt voiceover audio found in 02_Audio/ (folderVoiceoverUrl) into Paso 4B & Paso 4C when app track is missing, expired blob:, or outdated
+  const stage8VoiceCandidates = useMemo(() => {
+    if (!activeDoc) return [] as string[];
+    const normalizedDoc = normalizeDocumentaryVoiceoverAudio(activeDoc);
+    const list: string[] = [];
+    const seen = new Set<string>();
+    const pushCandidate = (raw?: string | null) => {
+      if (!raw || typeof raw !== 'string') return;
+      const norm = normalizeVoiceoverUrlString(raw);
+      if (!norm || seen.has(norm) || isUnusableAudioUrlForCurrentRuntime(norm)) return;
+      seen.add(norm);
+      list.push(norm);
+    };
+
+    const leadTrack = normalizedDoc.audioTracks?.[0];
+    if (leadTrack?.id && restoredVaultTrackUrls[leadTrack.id]) {
+      pushCandidate(restoredVaultTrackUrls[leadTrack.id]);
+    }
+    if (activeDoc.id && restoredVaultTrackUrls[`doc:${activeDoc.id}`]) {
+      pushCandidate(restoredVaultTrackUrls[`doc:${activeDoc.id}`]);
+    }
+    if (normalizedDoc.masterAudioUrl && !isNonPortableAudioUrl(normalizedDoc.masterAudioUrl)) {
+      pushCandidate(normalizedDoc.masterAudioUrl);
+    }
+    for (const track of normalizedDoc.audioTracks || []) {
+      if (!track) continue;
+      if (track.id && restoredVaultTrackUrls[track.id]) {
+        pushCandidate(restoredVaultTrackUrls[track.id]);
+      }
+      if (!String(track.id || '').startsWith('tts-folder-') && !isNonPortableAudioUrl(track.audioUrl)) {
+        pushCandidate(track.audioUrl);
+      }
+    }
+    if (folderVoiceoverUrl && folderVoiceoverUrl.startsWith('blob:')) {
+      pushCandidate(folderVoiceoverUrl);
+    }
+    if (folderVoiceoverUrl) {
+      pushCandidate(folderVoiceoverUrl);
+    }
+    for (const track of normalizedDoc.audioTracks || []) {
+      if (track?.audioUrl) {
+        pushCandidate(track.audioUrl);
+      }
+    }
+    return list;
+  }, [
+    activeDoc,
+    folderVoiceoverUrl,
+    restoredVaultTrackUrls,
+  ]);
+
+  const stage8VoiceCandidatesKey = stage8VoiceCandidates.join('||');
+  useEffect(() => {
+    setStage8AudioFallbackIdx(0);
+  }, [activeDoc?.id, stage8VoiceCandidatesKey]);
+
+  // Automatically adopt voiceover audio found in 02_Audio/ (folderVoiceoverUrl) into Paso 4B & Paso 4C when app track is missing, expired blob:, or lacks acoustic timings — NEVER overwriting portable tts-files/... URLs with localhost URLs
   useEffect(() => {
     if (!activeDoc || !folderVoiceoverUrl) return;
+    if (isUnusableAudioUrlForCurrentRuntime(folderVoiceoverUrl)) return;
     let cancelled = false;
     (async () => {
-      const leadTrack = activeDoc.audioTracks?.[0];
+      const normalizedDoc = normalizeDocumentaryVoiceoverAudio(activeDoc);
+      const portableTrack = (normalizedDoc.audioTracks || []).find(
+        (t) => !String(t?.id || '').startsWith('tts-folder-') && !isNonPortableAudioUrl(t?.audioUrl)
+      );
+      const leadTrack = portableTrack || normalizedDoc.audioTracks?.[0];
       const leadUrl =
         (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
         leadTrack?.audioUrl ||
         '';
-      const leadIsDeadOrMissing = !leadTrack || !leadUrl || (leadUrl.startsWith('blob:') && leadUrl !== folderVoiceoverUrl);
+      const leadIsDeadOrMissing =
+        !leadTrack ||
+        !leadUrl ||
+        (leadUrl.startsWith('blob:') && leadUrl !== folderVoiceoverUrl) ||
+        isUnusableAudioUrlForCurrentRuntime(leadUrl);
+
+      // If a portable track already exists and already has valid duration & segmentTimings, never overwrite it with a local workstation URL
+      if (
+        portableTrack &&
+        (Number(portableTrack.duration) || 0) > 2 &&
+        Array.isArray(portableTrack.segmentTimings) &&
+        portableTrack.segmentTimings.length > 0
+      ) {
+        if (isNonPortableAudioUrl(activeDoc.masterAudioUrl)) {
+          updateActiveDoc({
+            masterAudioUrl: portableTrack.audioUrl,
+            audioTracks: normalizedDoc.audioTracks,
+          });
+        }
+        return;
+      }
+
       const folderDur = await measureAudioDurationInBrowser(folderVoiceoverUrl);
       if (cancelled || folderDur <= 2) return;
 
       const durMismatch =
         leadTrack && Math.abs((Number(leadTrack.duration) || 0) - folderDur) > 8;
-      if (!leadIsDeadOrMissing && !durMismatch) return;
+      const missingTimings =
+        Boolean(portableTrack) &&
+        (!Array.isArray(portableTrack?.segmentTimings) || portableTrack.segmentTimings.length === 0);
+      if (!leadIsDeadOrMissing && !durMismatch && !missingTimings) return;
 
       const scriptSource = (activeDoc.voiceoverScript || leadTrack?.text || '').trim();
       const waveInfo = scriptSource
@@ -12537,8 +12645,66 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
       const wordCount = stripPauseTags(scriptSource).trim().split(/\s+/).filter(Boolean).length;
       const pauseInfo = extractPausesInfo(scriptSource);
+      const autoTl = scriptSource
+        ? buildSmartClientTimeline(
+            scriptSource,
+            activeDoc,
+            waveInfo.durationSec,
+            undefined,
+            waveInfo.segmentTimings,
+            waveInfo.externalSilences
+          )
+        : { sentences: [], formatted: '', srt: '' };
+
+      // Preserve portable tts-files/... URL whenever one exists so cloud/mobile playback never breaks
+      if (portableTrack) {
+        const updatedPortable: TTSRecord = {
+          ...portableTrack,
+          duration:
+            (Number(portableTrack.duration) || 0) > 2
+              ? portableTrack.duration
+              : Number(waveInfo.durationSec.toFixed(1)),
+          wordCount: portableTrack.wordCount || wordCount,
+          pauseCount: portableTrack.pauseCount ?? pauseInfo.count,
+          ...(waveInfo.segmentTimings &&
+          (!Array.isArray(portableTrack.segmentTimings) || portableTrack.segmentTimings.length === 0)
+            ? { segmentTimings: waveInfo.segmentTimings }
+            : {}),
+        };
+        const restPortable = (normalizedDoc.audioTracks || []).filter(
+          (t) =>
+            t.id !== updatedPortable.id &&
+            !String(t.id || '').startsWith('tts-folder-') &&
+            !isNonPortableAudioUrl(t.audioUrl)
+        );
+        updateActiveDoc({
+          audioTracks: [updatedPortable, ...restPortable],
+          masterAudioUrl: updatedPortable.audioUrl,
+          ...(autoTl.sentences.length > 0 && (activeDoc.timelineSentences?.length || 0) === 0
+            ? {
+                timelineSentences: autoTl.sentences,
+                timelineFormattedText: autoTl.formatted,
+                correctedSrt: autoTl.srt,
+              }
+            : {}),
+        });
+        return;
+      }
+
+      // Only if no portable track exists at all and folderVoiceoverUrl is portable (not workstation localhost), persist track; otherwise update timeline only
+      if (isNonPortableAudioUrl(folderVoiceoverUrl)) {
+        if (autoTl.sentences.length > 0 && (activeDoc.timelineSentences?.length || 0) === 0) {
+          updateActiveDoc({
+            timelineSentences: autoTl.sentences,
+            timelineFormattedText: autoTl.formatted,
+            correctedSrt: autoTl.srt,
+          });
+        }
+        return;
+      }
+
       const recoveredTrack: TTSRecord = {
-        id: leadTrack?.id || `tts-folder-${activeDoc.id}`,
+        id: leadTrack?.id || `tts-portable-${activeDoc.id}`,
         text: scriptSource,
         voice: activeDoc.selectedVoice || leadTrack?.voice || 'Charon',
         style: activeDoc.selectedStyle || leadTrack?.style || 'dramatic',
@@ -12558,23 +12724,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ...(waveInfo.segmentTimings ? { segmentTimings: waveInfo.segmentTimings } : {}),
       };
 
-      const otherTracks = (activeDoc.audioTracks || []).filter(
-        (t) => t.id !== recoveredTrack.id && !(t.audioUrl || '').startsWith('blob:')
+      const otherTracks = (normalizedDoc.audioTracks || []).filter(
+        (t) => t.id !== recoveredTrack.id && !isNonPortableAudioUrl(t.audioUrl)
       );
-      const autoTl = scriptSource
-        ? buildSmartClientTimeline(
-            scriptSource,
-            activeDoc,
-            waveInfo.durationSec,
-            undefined,
-            waveInfo.segmentTimings,
-            waveInfo.externalSilences
-          )
-        : { sentences: [], formatted: '', srt: '' };
 
       updateActiveDoc({
         audioTracks: [recoveredTrack, ...otherTracks],
-        masterAudioUrl: folderVoiceoverUrl,
+        masterAudioUrl: recoveredTrack.audioUrl,
         ...(autoTl.sentences.length > 0
           ? {
               timelineSentences: autoTl.sentences,
@@ -12598,12 +12754,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!sourceText) return;
 
     const leadTrack = activeDoc.audioTracks?.[0];
-    const effectiveAudioUrl =
-      folderVoiceoverUrl ||
-      (leadTrack?.id ? restoredVaultTrackUrls[leadTrack.id] : '') ||
-      activeDoc.masterAudioUrl ||
-      leadTrack?.audioUrl ||
-      '';
+    const effectiveAudioUrl = stage8VoiceCandidates[0] || '';
     if (!effectiveAudioUrl) return;
 
     let cancelled = false;
@@ -16937,14 +17088,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 : track.label;
                             const cleanBaseName = displayName.replace(/\.(?:wav|mp3)$/i, '').trim();
                             const downloadName = `${cleanBaseName}.mp3`;
+                            const normalizedTrackUrl = normalizeVoiceoverUrlString(track.audioUrl);
+                            const trackUrlUsable = !isUnusableAudioUrlForCurrentRuntime(normalizedTrackUrl);
                             const effectiveTrackUrl =
                               restoredVaultTrackUrls[track.id] ||
+                              (trackUrlUsable ? normalizedTrackUrl : '') ||
+                              (trackIdx === 0 ? stage8VoiceCandidates[0] || '' : '') ||
                               (trackIdx === 0 &&
                               folderVoiceoverUrl &&
-                              (!track.audioUrl || track.audioUrl.startsWith('blob:'))
+                              !isUnusableAudioUrlForCurrentRuntime(folderVoiceoverUrl)
                                 ? folderVoiceoverUrl
-                                : track.audioUrl);
-                            const isTrackBroken = Boolean(brokenTrackIds[track.id]) && !restoredVaultTrackUrls[track.id];
+                                : '');
+                            const isTrackBroken =
+                              (Boolean(brokenTrackIds[track.id]) || !effectiveTrackUrl) &&
+                              !restoredVaultTrackUrls[track.id];
                             return (
                             <div
                               key={track.id}
@@ -17028,26 +17185,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   </button>
                                 </div>
                               </div>
-                              <audio
-                                controls
-                                src={effectiveTrackUrl}
-                                onError={() =>
-                                  setBrokenTrackIds((prev) => ({ ...prev, [track.id]: true }))
-                                }
-                                onLoadedMetadata={() =>
-                                  setBrokenTrackIds((prev) => {
-                                    if (!prev[track.id]) return prev;
-                                    const next = { ...prev };
-                                    delete next[track.id];
-                                    return next;
-                                  })
-                                }
-                                className="w-full h-8"
-                              />
+                              {effectiveTrackUrl ? (
+                                <audio
+                                  key={`${track.id}-${effectiveTrackUrl}`}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  src={effectiveTrackUrl}
+                                  onError={() =>
+                                    setBrokenTrackIds((prev) => ({ ...prev, [track.id]: true }))
+                                  }
+                                  onLoadedMetadata={() =>
+                                    setBrokenTrackIds((prev) => {
+                                      if (!prev[track.id]) return prev;
+                                      const next = { ...prev };
+                                      delete next[track.id];
+                                      return next;
+                                    })
+                                  }
+                                  className="w-full h-8"
+                                />
+                              ) : null}
                               {isTrackBroken && (
                                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap text-[11px] text-amber-200">
                                   <span>
-                                    ⚠️ Esta pista se generó como enlace temporal (<code>blob:</code>) en otra sesión. Vincula el archivo descargado para dejarlo permanente:
+                                    ⚠️ Esta pista procedía de un enlace temporal o local de otra sesión. Vincula el archivo descargado para dejarlo permanente:
                                   </span>
                                   <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer shrink-0">
                                     📂 Vincular archivo descargado (.wav/.mp3)
@@ -18761,14 +18923,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 leading-relaxed font-sans"
                       />
 
-                      {/* Reproductor y Descarga Directa del Audio Maestro de Voz Narrativa en Etapa 8 */}
+                      {/* Reproductor y Descarga Directa del Audio Maestro de Voz Narrativa en Etapa 6 (interna 8) */}
                       {(() => {
-                        const normalizedDoc = normalizeDocumentaryVoiceoverAudio(activeDoc);
+                        const clampedIdx =
+                          stage8VoiceCandidates.length > 0
+                            ? Math.min(stage8AudioFallbackIdx, stage8VoiceCandidates.length - 1)
+                            : -1;
                         const stage8VoiceUrl =
-                          folderVoiceoverUrl ||
-                          normalizedDoc.masterAudioUrl ||
-                          normalizedDoc.audioTracks?.find((t) => t.audioUrl)?.audioUrl ||
-                          '';
+                          clampedIdx >= 0 ? stage8VoiceCandidates[clampedIdx] || '' : '';
                         const cleanTitleSlug = (activeDoc.title || 'Documental').replace(
                           /[^a-zA-Z0-9_-]/g,
                           '_'
@@ -18784,9 +18946,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      const ext = stage8VoiceUrl.toLowerCase().endsWith('.wav')
-                                        ? 'wav'
-                                        : 'mp3';
+                                      const cleanQueryless = stage8VoiceUrl.split('?')[0].toLowerCase();
+                                      const ext = cleanQueryless.endsWith('.wav') ? 'wav' : 'mp3';
                                       const fName = `Voz_Narrativa_Master_${cleanTitleSlug}.${ext}`;
                                       await handleSaveAnyFileToChosenFolder(
                                         fName,
@@ -18809,21 +18970,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     type="file"
                                     accept="audio/*,.mp3,.wav,.m4a"
                                     className="hidden"
-                                    onChange={async (e) => {
+                                    onChange={(e) => {
                                       const f = e.target.files?.[0];
-                                      if (!f) return;
-                                      const url = URL.createObjectURL(f);
-                                      setFolderVoiceoverUrl(url);
-                                      updateActiveDoc({ masterAudioUrl: url });
-                                      await handleSaveAnyFileToChosenFolder(
-                                        f.name,
-                                        f,
-                                        '02_Audio'
-                                      );
-                                      setFlowStatusLog(
-                                        `✅ Audio de Voz "${f.name}" cargado y guardado en 02_Audio.`
-                                      );
-                                      e.target.value = '';
+                                      if (f) {
+                                        setStage8AudioFallbackIdx(0);
+                                        void handleAttachDownloadedVoiceover(f);
+                                      }
+                                      e.currentTarget.value = '';
                                     }}
                                   />
                                 </label>
@@ -18832,38 +18985,34 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   onClick={() => setActiveStage(4)}
                                   className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold cursor-pointer"
                                 >
-                                  Ir a Etapa 4
+                                  Ir a Etapa 2
                                 </button>
                               </div>
                             </div>
                             {stage8VoiceUrl ? (
                               <audio
+                                key={stage8VoiceUrl}
                                 controls
+                                playsInline
+                                preload="metadata"
                                 src={stage8VoiceUrl}
+                                onError={() => {
+                                  setStage8AudioFallbackIdx((prev) =>
+                                    prev < stage8VoiceCandidates.length - 1 ? prev + 1 : prev
+                                  );
+                                }}
                                 className="w-full h-8 rounded"
                               />
                             ) : (
                               <p className="text-[11px] text-amber-300/90">
-                                ⚠️ Aún no hay archivo de audio de voz conectado. Súbelo con &quot;📤 Subir Audio Voz&quot; o genéralo en la Etapa 4 (VoxFlow).
+                                ⚠️ Aún no hay archivo de audio de voz conectado. Súbelo con &quot;📤 Subir Audio Voz&quot; o genéralo en la Etapa 2 (Guion + Voz).
                               </p>
                             )}
                           </div>
                         );
                       })()}
                     </div>
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <button
-                        onClick={() =>
-                          updateActiveDoc({
-                            voiceoverScript: normalizeFirstDayOfMonthInVoiceover(
-                              normalizeQuantitiesToMil(activeDoc.voiceoverScript || '')
-                            ),
-                          })
-                        }
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 font-semibold cursor-pointer"
-                      >
-                        🔧 Normalizar &quot;mil&quot;
-                      </button>
+                    <div className="flex items-center justify-end gap-2 pt-1">
                       <button
                         onClick={() => copyText(activeDoc.voiceoverScript, 'copy-prod-raw-voice')}
                         className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 cursor-pointer"
@@ -19044,11 +19193,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   getStage1ClipDurations(activeDoc);
                                 const nextClips = autoAssignPeriodicStaticBrollClips(
                                   activeDoc.clips || [],
-                                  activeDoc.references || [],
                                   intMin,
-                                  bClip1,
                                   bStd,
-                                  true
+                                  activeDoc.references || []
                                 );
                                 const activeEngine =
                                   activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
