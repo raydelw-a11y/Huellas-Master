@@ -1777,6 +1777,15 @@ function mergeTwoDocumentaryObjects(
         const oBlocks = countAuthoredBlocksInRawText(ov);
         if (oBlocks > wBlocks && wBlocks < Math.floor(oBlocks * 0.5)) {
           (baseWinner as any).rawClipsText = ov;
+        } else if (
+          oBlocks >= wBlocks &&
+          /IMAGE\s+ONLY\s*[—–-]\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(String(ov || '')) &&
+          /STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(String(wv || ''))
+        ) {
+          (baseWinner as any).rawClipsText = ov;
+          if (oNorm.operationalHeader) {
+            baseWinner.operationalHeader = oNorm.operationalHeader;
+          }
         }
       }
       continue;
@@ -2099,20 +2108,34 @@ function mergeTwoDocumentaryObjects(
       const wHasReal = isClipRealAuthored(c);
       const oHasReal = isClipRealAuthored(o);
       const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
+      const effectiveStaticBroll = rescuePrompts
+        ? (typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll)
+        : c.isStaticBroll;
       return {
         ...c,
         ...(rescuePrompts
           ? {
               imagePrompt: o.imagePrompt || c.imagePrompt,
-              videoPrompt: o.videoPrompt || c.videoPrompt,
-              isStaticBroll:
-                typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll,
+              videoPrompt: effectiveStaticBroll ? '' : (o.videoPrompt || c.videoPrompt),
+              previousVideoPrompt:
+                c.previousVideoPrompt ||
+                o.previousVideoPrompt ||
+                (effectiveStaticBroll && (c.videoPrompt || o.videoPrompt)
+                  ? c.videoPrompt || o.videoPrompt
+                  : undefined),
+              isStaticBroll: effectiveStaticBroll,
               brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
               flowClipEngine: o.flowClipEngine || c.flowClipEngine,
               cameraSelection: c.cameraSelection || o.cameraSelection,
               visualExplanation: c.visualExplanation || o.visualExplanation,
             }
-          : {}),
+          : {
+              videoPrompt: c.isStaticBroll ? '' : c.videoPrompt,
+              previousVideoPrompt:
+                c.previousVideoPrompt ||
+                o.previousVideoPrompt ||
+                (c.isStaticBroll && o.videoPrompt ? o.videoPrompt : undefined),
+            }),
         reviewedForEditor:
           c.reviewedForEditor !== undefined
             ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
@@ -2149,12 +2172,17 @@ function mergeTwoDocumentaryObjects(
             ? mergedClips.map((mc) => {
                 const pc = parsedByNum.get(mc.clipNumber);
                 if (!pc || !isClipRealAuthored(pc)) return mc;
+                const nextIsBroll =
+                  typeof pc.isStaticBroll === 'boolean' ? pc.isStaticBroll : mc.isStaticBroll;
                 return {
                   ...mc,
                   imagePrompt: pc.imagePrompt || mc.imagePrompt,
-                  videoPrompt: pc.videoPrompt || mc.videoPrompt,
-                  isStaticBroll:
-                    typeof pc.isStaticBroll === 'boolean' ? pc.isStaticBroll : mc.isStaticBroll,
+                  videoPrompt: nextIsBroll ? '' : (pc.videoPrompt || mc.videoPrompt),
+                  previousVideoPrompt:
+                    pc.previousVideoPrompt ||
+                    mc.previousVideoPrompt ||
+                    (nextIsBroll && mc.videoPrompt ? mc.videoPrompt : undefined),
+                  isStaticBroll: nextIsBroll,
                   brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
                   flowClipEngine: pc.flowClipEngine || mc.flowClipEngine,
                 };
@@ -3119,7 +3147,7 @@ UNBREAKABLE STAGE 7 RULES:
               const en = needsOff ? s.end + clip2StartSec : s.end;
               const brollMot = periodicBrollTargets.get(num);
               const brollSuffix = brollMot
-                ? ` ★ [MANDATORY STATIC B-ROLL CAMERA CLIP — Tag: [B-Roll: ${BROLL_MOTION_TAG_BY_KEY[brollMot]}] | Camera Motion: ${BROLL_MOTION_ENGLISH_PHRASE[brollMot]} over a 100% frozen archival/documentary still plate, strictly zero live people, zero readable text, [Model: Veo 3.1 - Lite [Lower Priority]]]`
+                ? ` ★ [MANDATORY IMAGE-ONLY STATIC B-ROLL PLATE — Output ONLY "Image ${numLabel}: Create an image ... [Time: ${fmtMmSs(st)} - ${fmtMmSs(en)}] [Duration: ${standardClipSec}s] [Model: Nano Banana 2.1] [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: ${BROLL_MOTION_TAG_BY_KEY[brollMot]}] fix the name" and DO NOT output a "Clip ${numLabel}:" line! Strictly zero live people, zero readable text; 4K 60fps ${BROLL_MOTION_ENGLISH_PHRASE[brollMot]} is rendered locally in our editor]`
                 : '';
               return `Clip ${numLabel} (${fmtMmSs(st)} - ${fmtMmSs(en)}) [Stage 1 Flow Duration: ${standardClipSec}s]: "${s.text}"${brollSuffix}`;
             }),
@@ -3127,11 +3155,11 @@ UNBREAKABLE STAGE 7 RULES:
         : doc.timelineFormattedText || doc.voiceoverScript || '';
     const periodicBrollClause =
       brollIntervalMin > 0
-        ? `\n- PERIODIC STATIC B-ROLL CAMERA CLIPS (~EVERY ${brollIntervalMin} MINUTES): Roughly every ${brollIntervalMin} minutes (and on every row marked ★ [MANDATORY STATIC B-ROLL CAMERA CLIP] above), design Image NN as a 100% still archival/documentary B-roll plate (historical artifact, specimen, apparatus, architecture, scientific plate, map, or document with strictly zero live people and zero readable text/proper names), and design Clip NN as a pure optical camera movement chosen for that scene ([B-Roll: STATIC_ZOOM_IN], [B-Roll: STATIC_ZOOM_OUT], [B-Roll: STATIC_PAN_RIGHT], [B-Roll: STATIC_PAN_LEFT], [B-Roll: STATIC_TILT_UP], or [B-Roll: STATIC_TILT_DOWN]) executing ONLY that camera motion across the 100% frozen starting image with zero internal animation, placing "[B-Roll: STATIC_...] [Duration: ${standardClipSec}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" at the end.`
+        ? `\n- PERIODIC IMAGE-ONLY STATIC B-ROLL PLATES (~EVERY ${brollIntervalMin} MINUTES — ZERO VIDEO CLIP IN FLOW): Roughly every ${brollIntervalMin} minutes (and on every row marked ★ [MANDATORY IMAGE-ONLY STATIC B-ROLL PLATE] above), design ONLY "Image NN: Create an image ..." as a 100% still archival/documentary B-roll plate (historical artifact, specimen, apparatus, architecture, scientific plate, map, or document with strictly zero live people and zero readable text/proper names) ending with "[Time: MM:SS - MM:SS] [Duration: ${standardClipSec}s] [Model: Nano Banana 2.1] [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_<MOTION>] fix the name" (choosing STATIC_ZOOM_IN, STATIC_ZOOM_OUT, STATIC_PAN_RIGHT, STATIC_PAN_LEFT, STATIC_TILT_UP, or STATIC_TILT_DOWN), and STRICTLY OMIT "Clip NN:" for that scene number so Google Flow generates ONLY the still image while our Mac video editor applies the 4K 60fps camera movement locally.`
         : '';
     const expectedClipsClause =
       expectedTotalClips > 1
-        ? `\nMANDATORY 1:1 EXACT CLIP COUNT & TIMESTAMPS: The pre-numbered Timeline table below omits fixed Brand Intro/Outro MP4s and contains EXACTLY ${expectedTotalClips} production clips (Clip 01 = ${c1RangeLabel} silent visual Hook of ${c1Dur}s in Flow; Clips 02..${expectedTotalClips} = ${tlSentences.length} spoken segments starting at ${c2StartLabel} of ${standardClipSec}s each in Flow). Output 1 Image+Clip pair per numbered row from Image 01 / Clip 01 through Image ${expectedTotalClips} / Clip ${expectedTotalClips}, copying each row's exact (MM:SS - MM:SS) range verbatim without ever recalculating a 10s grid, grouping lines, or stopping early.`
+        ? `\nMANDATORY 1:1 EXACT SCENE COUNT & TIMESTAMPS: The pre-numbered Timeline table below omits fixed Brand Intro/Outro MP4s and contains EXACTLY ${expectedTotalClips} production scenes (Clip 01 = ${c1RangeLabel} silent visual Hook of ${c1Dur}s in Flow; Scenes 02..${expectedTotalClips} = ${tlSentences.length} spoken segments starting at ${c2StartLabel} of ${standardClipSec}s each). Output 1 Image+Clip pair for every regular scene and ONLY 1 standalone "Image NN:" line (with [Time: MM:SS - MM:SS] and [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP]) for Static B-Roll scenes, covering scene numbers 01 through ${expectedTotalClips} with zero skipped numbers, copying each row's exact (MM:SS - MM:SS) range verbatim without ever recalculating a 10s grid, grouping lines, or stopping early.`
         : '';
     const refsListText =
       Array.isArray(doc.references) && doc.references.length > 0

@@ -28,7 +28,7 @@ import {
   RotateCw,
   Scissors,
 } from 'lucide-react';
-import { DocumentaryProject, DocumentaryClip } from '../types';
+import { DocumentaryProject, DocumentaryClip, BrollCameraMotion } from '../types';
 import {
   stripPauseTags,
   normalizeQuantitiesToMil,
@@ -36,6 +36,8 @@ import {
   normalizeClip1Line1Format,
   splitWordsIntoShortLines,
   reformatCaptionItems,
+  BROLL_MOTION_UI_LABEL_ES,
+  normalizeBrollImagePrompt,
 } from '../utils/smartParsers';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
@@ -55,6 +57,8 @@ export interface TimelineClipItem {
   narrationSegment: string;
   imagePrompt?: string;
   videoPrompt?: string;
+  isStaticBroll?: boolean;
+  brollCameraMotion?: BrollCameraMotion;
   duration: number; // effective duration on timeline in seconds
   sourceDuration: number;
   speed: number; // e.g., 0.75x for slowed Clip 1, 1.0x default
@@ -355,6 +359,17 @@ export function buildClipSixWordFileName(
   resolutionBadge?: string
 ): string {
   const padded = String(clip.clipNumber).padStart(2, '0');
+  if (clip.isStaticBroll) {
+    const imgBody = String(clip.imagePrompt || '')
+      .replace(/^(?:Image|Imagen)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*:\s*/i, '')
+      .replace(/[^a-zA-Z0-9\s]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 5);
+    const brollSlug = imgBody.length >= 2 ? imgBody.join('_') : 'Create_an_image_in_16_9';
+    return `${padded}_${brollSlug}_Broll_4K.mp4`;
+  }
   const rawSource =
     clip.clipNumber === 1 && !(clip.narrationSegment || '').trim()
       ? doc?.clip1Line2Hook || doc?.topic || clip.videoPrompt || 'Intro_Documental'
@@ -4175,13 +4190,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         c.imagePreviewUrl ||
         '';
 
+      const computedFileName = c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc);
+      const isBrollClip = Boolean(
+        c.isStaticBroll || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl)
+      );
+
       return {
         id: c.id || `tl-clip-${c.clipNumber}`,
         clipNumber: c.clipNumber,
-        fileName: c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc),
+        fileName: computedFileName,
         narrationSegment: c.narrationSegment || '',
         imagePrompt: c.imagePrompt || '',
         videoPrompt: c.videoPrompt || '',
+        isStaticBroll: isBrollClip || undefined,
+        brollCameraMotion: isBrollClip ? c.brollCameraMotion || 'zoom_in' : undefined,
         duration: isClip1 ? clip1HookDur : existingItem ? existingItem.duration : srcDur,
         sourceDuration: existingItem?.sourceDuration || srcDur,
         speed: existingItem ? existingItem.speed : 1,
@@ -4196,9 +4218,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         parentGroupId: existingItem?.parentGroupId,
         originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
         partLabel: existingItem?.partLabel,
-        foleyVolume: existingItem ? existingItem.foleyVolume : isClip1 ? 80 : 20,
+        foleyVolume: existingItem
+          ? existingItem.foleyVolume
+          : isBrollClip
+            ? 0
+            : isClip1
+              ? 80
+              : 20,
         customVolumeSet: existingItem?.customVolumeSet,
-        audioMuted: existingItem?.audioMuted,
+        audioMuted: existingItem?.audioMuted !== undefined ? existingItem.audioMuted : isBrollClip,
         audioFadeInSec: existingItem?.audioFadeInSec,
         audioFadeOutSec: existingItem?.audioFadeOutSec,
         transition: isClip1 ? 'fade_black' : existingItem ? existingItem.transition : defaultTransition,
@@ -4230,11 +4258,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const m = decoded.match(/\/([^/?#]+\.(?:mp4|webm|mov))/i);
           if (m && m[1]) extractedFileName = m[1];
         } catch {}
+        const isFolderBroll = /_broll_4k/i.test(extractedFileName) || /_broll_4k/i.test(rawVidUrl);
         bodyClips.push({
           id: `folder-clip-${num}`,
           clipNumber: num,
           fileName: extractedFileName,
           narrationSegment: '',
+          isStaticBroll: isFolderBroll || undefined,
+          brollCameraMotion: isFolderBroll ? 'zoom_in' : undefined,
           duration: srcDur,
           sourceDuration: srcDur,
           speed: 1,
@@ -4242,7 +4273,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           trimEnd: srcDur,
           smoothSlowMo: false,
           originalSlotDuration: srcDur,
-          foleyVolume: isClip1 ? 80 : 20,
+          foleyVolume: isFolderBroll ? 0 : isClip1 ? 80 : 20,
+          audioMuted: isFolderBroll || undefined,
           transition: isClip1 ? 'fade_black' : defaultTransition,
           videoUrl: rawVidUrl,
           posterUrl: firstFrameByClip[num] || '',
@@ -4382,6 +4414,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? baseOpticalFlowUrl
               : undefined;
 
+          const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
+          const isRestoredBroll = Boolean(
+            docClipMatch?.isStaticBroll ||
+              tc.isStaticBroll ||
+              /_broll_4k/i.test(tc.fileName || '') ||
+              /_broll_4k/i.test(effectiveVideoUrl || '')
+          );
           const isIntroOrOutroRestored =
             tc.id === 'fixed-doc-intro' ||
             tc.id === 'fixed-doc-outro' ||
@@ -4392,8 +4431,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             Boolean(tc.customVolumeSet) ||
             Boolean(tc.audioMuted) ||
             (typeof tc.foleyVolume === 'number' && tc.foleyVolume !== 40);
-          const repairedFoleyVolume =
-            isIntroOrOutroRestored || isClip1Restored || hasExplicitAudioVolume
+          const repairedFoleyVolume = isRestoredBroll && !tc.customVolumeSet
+            ? 0
+            : isIntroOrOutroRestored || isClip1Restored || hasExplicitAudioVolume
               ? tc.foleyVolume
               : 20;
 
@@ -4461,8 +4501,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           return {
             ...tc,
+            isStaticBroll: isRestoredBroll || undefined,
+            brollCameraMotion: isRestoredBroll
+              ? docClipMatch?.brollCameraMotion || tc.brollCameraMotion || 'zoom_in'
+              : undefined,
+            audioMuted: isRestoredBroll && !tc.customVolumeSet ? true : tc.audioMuted,
             foleyVolume: repairedFoleyVolume,
-            customVolumeSet: Boolean(tc.customVolumeSet) || Boolean(tc.audioMuted) || repairedFoleyVolume !== (isIntroOrOutroRestored ? 100 : isClip1Restored ? 80 : 20),
+            customVolumeSet: isRestoredBroll
+              ? Boolean(tc.customVolumeSet)
+              : Boolean(tc.customVolumeSet) ||
+                Boolean(tc.audioMuted) ||
+                repairedFoleyVolume !== (isIntroOrOutroRestored ? 100 : isClip1Restored ? 80 : 20),
             videoUrl: effectiveVideoUrl,
             opticalFlowUrl: effectiveOpticalFlowUrl,
             opticalFlowBakedKey: effectiveOpticalFlowUrl ? tc.opticalFlowBakedKey : undefined,
@@ -7970,13 +8019,147 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     window.addEventListener('mouseup', onUp);
   };
 
+  const [rerenderingBrollClipNum, setRerenderingBrollClipNum] = useState<number | null>(null);
+
+  const handleRerenderBrollCameraMotion = async (
+    targetClip: TimelineClipItem,
+    nextMotion: BrollCameraMotion
+  ) => {
+    if (!targetClip || targetClip.clipNumber <= 0) return;
+    const clipNum = targetClip.clipNumber;
+    const padded = String(clipNum).padStart(2, '0');
+    const motionLabel = BROLL_MOTION_UI_LABEL_ES[nextMotion] || nextMotion;
+    setRerenderingBrollClipNum(clipNum);
+    setStatusMessage(
+      `🎥 Re-renderizando cámara óptica B-Roll (${motionLabel}) en 4K · 60fps para la Escena ${padded}...`
+    );
+
+    const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
+    const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
+    const dTitle = (activeDoc?.title || '').trim();
+    const docClip = activeDoc?.clips?.find((dc) => dc.clipNumber === clipNum);
+    const durSec = Math.max(2, Math.round(targetClip.sourceDuration || targetClip.duration || 8));
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+
+    try {
+      let renderedData: any = null;
+      let chosenBase = '';
+      let lastErr = '';
+      for (const base of bases) {
+        try {
+          const resp = await fetch(`${base}/api/flow/rerender-broll-clip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: activeDoc?.id || '',
+              folderPath: fPath,
+              folderName: fName,
+              docTitle: dTitle,
+              aspectRatio,
+              clipNumber: clipNum,
+              motion: nextMotion,
+              durationSec: durSec,
+              imagePrompt: docClip?.imagePrompt || targetClip.imagePrompt || '',
+              currentFileName: targetClip.fileName || '',
+            }),
+          });
+          const data = await resp.json().catch(() => null);
+          if (resp.ok && data?.ok && data.url) {
+            renderedData = data;
+            chosenBase = base;
+            break;
+          }
+          if (data?.error) lastErr = data.error;
+        } catch (e: any) {
+          lastErr = e?.message || lastErr;
+        }
+      }
+
+      if (!renderedData?.url) {
+        throw new Error(
+          lastErr ||
+            `No se pudo re-renderizar la Escena B-Roll ${padded}. Verifica que la imagen fuente esté en la carpeta del proyecto.`
+        );
+      }
+
+      const freshUrl =
+        renderedData.url.startsWith('/') && chosenBase
+          ? `${chosenBase}${renderedData.url}`
+          : renderedData.url;
+      const freshFileName = renderedData.fileName || targetClip.fileName;
+
+      setLocalServerClipVideosMap((prev) => ({ ...prev, [clipNum]: freshUrl }));
+      delete extractedVideoUrlByClipRef.current[clipNum];
+
+      const docId = activeDoc?.id || 'default';
+      setTimelineClips((prev) => {
+        const updated = prev.map((c) =>
+          c.clipNumber === clipNum
+            ? {
+                ...c,
+                isStaticBroll: true,
+                brollCameraMotion: nextMotion,
+                fileName: freshFileName,
+                videoUrl: freshUrl,
+                opticalFlowUrl: undefined,
+                opticalFlowBakedKey: undefined,
+                cleanFoleyOnlyVideoUrl: undefined,
+                cleanOpticalFlowOnlyUrl: undefined,
+                originalVideoUrlBeforeSeparation: freshUrl,
+                originalOpticalFlowUrlBeforeSeparation: undefined,
+              }
+            : c
+        );
+        persistDocOverlaysPatch({ customTimelineClips: updated }, docId);
+        return updated;
+      });
+
+      if (activeDoc && Array.isArray(activeDoc.clips)) {
+        const nextDocClips = activeDoc.clips.map((dc) =>
+          dc.clipNumber === clipNum
+            ? {
+                ...dc,
+                isStaticBroll: true,
+                brollCameraMotion: nextMotion,
+                videoPrompt: '',
+                videoSavedFileName: freshFileName,
+                imagePrompt: dc.imagePrompt
+                  ? normalizeBrollImagePrompt(
+                      dc.imagePrompt,
+                      dc.clipNumber,
+                      dc.timeRange,
+                      durSec,
+                      nextMotion
+                    )
+                  : dc.imagePrompt,
+              }
+            : dc
+        );
+        updateActiveDoc({ clips: nextDocClips });
+      }
+
+      setStatusMessage(
+        `✅ Escena B-Roll ${padded} actualizada en vivo a "${motionLabel}" (4K UHD · 60fps).`
+      );
+    } catch (err: any) {
+      setStatusMessage(`⚠️ ${err?.message || 'Error al cambiar el movimiento B-Roll.'}`);
+    } finally {
+      setRerenderingBrollClipNum(null);
+    }
+  };
+
   // Detect, separate, and eliminate BOTH music and voices from selected clip(s), leaving ONLY ambient Foley audio
   const handleIsolateFoleyOnlyFromClips = async (targetClipIds: string[]) => {
     setClipContextMenu(null);
     const validIds = Array.from(new Set(targetClipIds.filter(Boolean)));
     if (validIds.length === 0) return;
 
-    const targetClips = clipsWithTimelineBounds.filter((c) => validIds.includes(c.id));
+    const targetClips = clipsWithTimelineBounds.filter(
+      (c) => validIds.includes(c.id) && !c.isStaticBroll && !/_broll_4k/i.test(c.fileName || '')
+    );
     if (targetClips.length === 0) return;
 
     setIsIsolatingFoley(true);
@@ -12957,6 +13140,68 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   </div>
 
+                  {/* LIVE B-ROLL OPTICAL CAMERA SELECTOR (4K · 60FPS) */}
+                  {(() => {
+                    const selectedDocClip = activeDoc?.clips?.find(
+                      (dc) => dc.clipNumber === selectedClip.clipNumber
+                    );
+                    const isSelectedBroll = Boolean(
+                      selectedDocClip?.isStaticBroll ||
+                        selectedClip.isStaticBroll ||
+                        /_broll_4k/i.test(selectedClip.fileName || '')
+                    );
+                    if (!isSelectedBroll || selectedClip.clipNumber <= 0 || selectedClip.clipNumber === 999) {
+                      return null;
+                    }
+                    const activeMotion: BrollCameraMotion =
+                      selectedDocClip?.brollCameraMotion ||
+                      selectedClip.brollCameraMotion ||
+                      'zoom_in';
+                    const isBusyBroll = rerenderingBrollClipNum === selectedClip.clipNumber;
+                    const motionButtons: Array<{ key: BrollCameraMotion; label: string }> = [
+                      { key: 'zoom_in', label: '🔍 Zoom In' },
+                      { key: 'zoom_out', label: '🔎 Zoom Out' },
+                      { key: 'pan_right', label: '➡️ Pan Der.' },
+                      { key: 'pan_left', label: '⬅️ Pan Izq.' },
+                      { key: 'tilt_up', label: '⬆️ Tilt Arriba' },
+                      { key: 'tilt_down', label: '⬇️ Tilt Abajo' },
+                    ];
+                    return (
+                      <div className="bg-sky-950/35 border border-sky-400/50 rounded-lg p-2.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
+                            🖼️ Cámara Óptica B-Roll (4K · 60fps)
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-400/40 text-[10px] font-bold text-sky-200">
+                            {isBusyBroll
+                              ? '⏳ Renderizando 4K 60fps...'
+                              : `Activo: ${BROLL_MOTION_UI_LABEL_ES[activeMotion]}`}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {motionButtons.map((opt) => {
+                            const isActiveOpt = activeMotion === opt.key;
+                            return (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                disabled={isBusyBroll}
+                                onClick={() => handleRerenderBrollCameraMotion(selectedClip, opt.key)}
+                                className={`px-2 py-1.5 rounded-lg border text-[10px] font-black transition cursor-pointer ${
+                                  isActiveOpt
+                                    ? 'bg-sky-400 text-slate-950 border-sky-300 shadow'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-sky-200 border-slate-700'
+                                } ${isBusyBroll ? 'opacity-60 cursor-wait' : ''}`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* AUDIO DE CLIP(S) SELECCIONADO(S): VOLUMEN + FADE IN + FADE OUT (INDIVIDUAL O MÚLTIPLES CLIPS) */}
                   <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-lg p-2.5 space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -13176,11 +13421,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          const isSelBroll = Boolean(
+                            selectedClip.isStaticBroll ||
+                              /_broll_4k/i.test(selectedClip.fileName || '') ||
+                              activeDoc?.clips?.some(
+                                (dc) => dc.clipNumber === selectedClip.clipNumber && dc.isStaticBroll
+                              )
+                          );
                           handleUpdateClipsAudio({
-                            foleyVolume: selectedClip.clipNumber === 1 ? 80 : 20,
+                            foleyVolume: isSelBroll ? 0 : selectedClip.clipNumber === 1 ? 80 : 20,
                             audioFadeInSec: undefined,
                             audioFadeOutSec: undefined,
-                            audioMuted: false,
+                            audioMuted: isSelBroll,
                             customVolumeSet: false,
                           });
                           setStatusMessage('🔄 Volumen y Fades del clip restaurados.');
@@ -16170,13 +16422,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   </span>
                                 )}
                                 <div className="absolute top-1 right-1 flex flex-col items-end gap-0.5">
-                                  {activeDoc?.clips?.some(
-                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
-                              ) && (
-                                <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
-                                  🖼️ B-Roll
-                                </span>
-                              )}
+                                  {(() => {
+                                    const brollDocClip = activeDoc?.clips?.find(
+                                      (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                                    );
+                                    const isCardBroll = Boolean(
+                                      brollDocClip ||
+                                        clip.isStaticBroll ||
+                                        /_broll_4k/i.test(clip.fileName || '')
+                                    );
+                                    if (!isCardBroll) return null;
+                                    const mKey: BrollCameraMotion =
+                                      brollDocClip?.brollCameraMotion ||
+                                      clip.brollCameraMotion ||
+                                      'zoom_in';
+                                    return (
+                                      <span className="px-1 py-0.5 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none shadow">
+                                        🖼️ B-Roll · {BROLL_MOTION_UI_LABEL_ES[mKey]}
+                                      </span>
+                                    );
+                                  })()}
                               {clip.foleyOnlyIsolated && (
                                     <span className="px-1.5 py-0.5 rounded bg-teal-400/95 text-[8px] font-black text-slate-950 shadow">
                                       🌿 Solo Foley

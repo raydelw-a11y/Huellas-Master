@@ -36,11 +36,100 @@ export const BROLL_MOTION_ENGLISH_PHRASE: Record<BrollCameraMotion, string> = {
   tilt_down: 'smooth, continuous vertical rostrum camera tilt downward from top to bottom',
 };
 
+export const IMAGE_ONLY_BROLL_DIRECTIVE_TAG = '[IMAGE ONLY — DO NOT GENERATE VIDEO CLIP]';
+
+export function isImageOnlyBrollPrompt(text?: string | null): boolean {
+  if (!text) return false;
+  return (
+    /\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(text) ||
+    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(text)
+  );
+}
+
+export function extractInlineTimeRangeFromPrompt(text?: string | null): string | undefined {
+  if (!text) return undefined;
+  const tagMatch = text.match(/\[Time\s*:\s*(\d{1,3}:\d{2}(?:\.\d+)?\s*-\s*\d{1,3}:\d{2}(?:\.\d+)?)\]/i);
+  if (tagMatch?.[1]) return tagMatch[1].replace(/\s*-\s*/, ' - ').trim();
+  const headerMatch = text.match(
+    /^(?:Image|Imagen|Clip)\s*\[?0*\d+\]?\s*\((\d{1,3}:\d{2}(?:\.\d+)?\s*(?:-|–|—|to)\s*\d{1,3}:\d{2}(?:\.\d+)?)\)/i
+  );
+  if (headerMatch?.[1]) return headerMatch[1].replace(/\s*(?:-|–|—|to)\s*/, ' - ').trim();
+  return undefined;
+}
+
+export function stripBrollControlTagsFromImagePrompt(rawPrompt: string): string {
+  return String(rawPrompt || '')
+    .replace(/\s*\[Time\s*:\s*[^\]]+\]/gi, ' ')
+    .replace(/\s*\[Duration\s*:\s*[^\]]+\]/gi, ' ')
+    .replace(/\s*\[(?:Video\s+)?Model\s*:\s*[^\]]+\]/gi, ' ')
+    .replace(/\s*\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/gi, ' ')
+    .replace(/\s*\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, ' ')
+    .replace(/\s*\bfix\s+the\s+name\b\.?\s*$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function normalizeBrollImagePrompt(
+  rawImg: string,
+  clipNumber: number,
+  timeRange?: string,
+  durationSec: number = 8,
+  motion: BrollCameraMotion = 'zoom_in'
+): string {
+  const inferredNum = Number.isFinite(clipNumber) && clipNumber > 0
+    ? clipNumber
+    : Number(String(rawImg || '').match(/^(?:Image|Imagen)\s*\[?0*(\d+)\]?/i)?.[1] || 1);
+  const numStr = inferredNum < 10 ? `0${inferredNum}` : `${inferredNum}`;
+  const resolvedTime = (timeRange || extractInlineTimeRangeFromPrompt(rawImg) || '').trim();
+  let body = stripBrollControlTagsFromImagePrompt(rawImg)
+    .replace(/^(?:(?:Image|Imagen)\s*(?:\[?0*\d+\]?|undefined|NaN)(?:\s*\([^)]*\))?\s*:\s*)+/i, '')
+    .trim();
+
+  // Deduplicate any nested/repeated B-Roll plate phrasing from earlier passes
+  body = body
+    .replace(
+      /^Create\s+an\s+image(?:\s+in\s+(16:9\s+horizontal|9:16\s+vertical)\s+aspect\s+ratio)?\s+(?:of\s+)?/i,
+      (_, ar) => `Create an image in ${ar || '16:9 horizontal'} aspect ratio `
+    )
+    .replace(
+      /\bstructured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+(?:showing|depicting)\s+(?:an?\s+(?:moody\s+|stark\s+|somber\s+|warm\s+|\d{4}\s+)*archival\s+still[- ]photograph\s+plate\s+(?:showing\s+|of\s+)?)?/gi,
+      ''
+    )
+    .replace(
+      /\ban?\s+archival\s+still[- ]photograph\s+plate\s+(?:on|inside|along|at|of|showing)\s+/gi,
+      (m) => {
+        const prep = m.match(/\b(on|inside|along|at|of|showing)\s+$/i)?.[1] || '';
+        return prep.toLowerCase() === 'showing' || prep.toLowerCase() === 'of' ? '' : `${prep} `;
+      }
+    )
+    .replace(/,?\s*designed\s+as\s+a\s+100%\s+frozen\s+documentary\s+B-roll\s+still\s+plate\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  body = body.replace(
+    /^(Create\s+an\s+image\s+in\s+(?:16:9\s+horizontal|9:16\s+vertical)\s+aspect\s+ratio)\s+(?:structured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+)?(?:(on|inside|along|at|beneath|under|across)\b|(?:showing\s+|depicting\s+|of\s+)?)/i,
+    (_, prefix, locPrep) =>
+      locPrep
+        ? `${prefix} structured as a completely still archival documentary B-roll plate ${locPrep.toLowerCase()}`
+        : `${prefix} structured as a completely still archival documentary B-roll plate showing `
+  );
+
+  const shielded = ensureAntiMutationPhysicsInPrompt(`Image ${numStr}: ${body}`, true, durationSec);
+  const coreClean = stripBrollControlTagsFromImagePrompt(shielded).replace(/\.?\s*$/, '.');
+  const timeTag = resolvedTime ? `[Time: ${resolvedTime}] ` : '';
+  const durTag = durationSec > 0 ? `[Duration: ${durationSec}s] ` : '';
+  const brollTag = `[B-Roll: ${BROLL_MOTION_TAG_BY_KEY[motion] || 'STATIC_ZOOM_IN'}]`;
+  return `${coreClean} ${timeTag}${durTag}[Model: Nano Banana 2.1] ${IMAGE_ONLY_BROLL_DIRECTIVE_TAG} ${brollTag} fix the name`
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export function parseBrollMotionFromText(
-  videoPrompt?: string,
-  cameraSelection?: string
+  promptOrVideoText?: string,
+  cameraSelection?: string,
+  extraText?: string
 ): { isStaticBroll: boolean; brollCameraMotion?: BrollCameraMotion } {
-  const combined = `${videoPrompt || ''} ${cameraSelection || ''}`;
+  const combined = `${promptOrVideoText || ''} ${cameraSelection || ''} ${extraText || ''}`;
   const tagMatch = combined.match(/\[B-Roll\s*:\s*STATIC_([A-Z_]+)\]/i);
   if (tagMatch) {
     const raw = tagMatch[1].toUpperCase();
@@ -56,7 +145,11 @@ export function parseBrollMotionFromText(
     };
     return { isStaticBroll: true, brollCameraMotion: map[raw] || 'zoom_in' };
   }
-  if (/STATIC\s+B-ROLL\s+PLATE\s+LOCK|B-Roll\s+Est[áa]tico/i.test(combined)) {
+  if (
+    /STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP|Static\s+B-Roll\s+Plate|B-Roll\s+Est[áa]tico/i.test(
+      combined
+    )
+  ) {
     let inferred: BrollCameraMotion = 'zoom_in';
     if (/zoom[-\s]*out/i.test(combined)) inferred = 'zoom_out';
     else if (/pan[-\s]*left|izquierda/i.test(combined)) inferred = 'pan_left';
@@ -620,7 +713,10 @@ export function ensureAntiMutationPhysicsInPrompt(
     )
     .trim();
 
-  const isStaticBrollScene = /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(p);
+  const isStaticBrollScene =
+    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(
+      p
+    );
   const isExplicitZeroPeopleScene =
     isStaticBrollScene ||
     /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans)|strictly\s+empty\s+environment|uninhabited)\b/i.test(
@@ -628,6 +724,14 @@ export function ensureAntiMutationPhysicsInPrompt(
     );
 
   if (isImagePrompt) {
+    let preservedTrailingTags = '';
+    const trailingTagsMatch = p.match(
+      /((?:\s*\[(?:Time|Duration|Video\s+Model|Model|B-Roll|IMAGE\s+ONLY)[^\]]*\])+(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?)\s*$/i
+    );
+    if (trailingTagsMatch) {
+      preservedTrailingTags = ` ${trailingTagsMatch[1].trim()}`;
+      p = p.slice(0, p.length - trailingTagsMatch[0].length).trim();
+    }
     const imgClause = isExplicitZeroPeopleScene
       ? 'clean uncluttered composition with rigid architectural perspective, stationary period props, strictly empty environment with no people present'
       : 'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
@@ -640,7 +744,7 @@ export function ensureAntiMutationPhysicsInPrompt(
     } else if (!isExplicitZeroPeopleScene && !/no real public figures/i.test(p)) {
       p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
     }
-    return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+    return `${prefix}${p}${preservedTrailingTags}`.replace(/\s{2,}/g, ' ').trim();
   }
 
   // Ensure explicit Stage 1 duration phrase inside the English description while preserving "Create" as word 6
@@ -699,18 +803,29 @@ export function buildRawClipsTextWithHeader(
   const header = sanitizeOperationalHeader(operationalHeader, projectEngineMode);
   const body = (clips || [])
     .map((c) => {
-      const img = c.imagePrompt?.trim();
-      const rawVid = c.videoPrompt?.trim();
+      const rawImg = c.imagePrompt?.trim() || '';
+      const rawVid = c.videoPrompt?.trim() || '';
       const durSec =
         c.clipNumber === 1
-          ? clip1DurationSec || undefined
-          : standardClipDurationSec || undefined;
+          ? clip1DurationSec || 6
+          : standardClipDurationSec || 8;
+      if (c.isStaticBroll) {
+        if (!rawImg) return '';
+        return normalizeBrollImagePrompt(
+          rawImg,
+          c.clipNumber,
+          c.timeRange,
+          durSec,
+          c.brollCameraMotion || 'zoom_in'
+        );
+      }
+      const img = stripBrollControlTagsFromImagePrompt(rawImg);
       const vid = rawVid
         ? applyClipFlowVideoEngineTag(
             rawVid,
             resolveClipFlowVideoEngine(c, projectEngineMode, references),
             durSec,
-            c.isStaticBroll ? c.brollCameraMotion || 'zoom_in' : undefined
+            null
           )
         : '';
       return [img, vid].filter(Boolean).join('\n\n');
@@ -784,14 +899,15 @@ export function countRealAuthoredClips(clips?: DocumentaryClip[] | null): number
 export function countAuthoredBlocksInRawText(raw?: string | null): number {
   const body = stripOperationalHeaderOnly(raw);
   if (!body || isAutoSkeletonPromptText(body)) return 0;
-  const clipMatches = body.match(
-    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
-  );
-  if (clipMatches && clipMatches.length > 0) return clipMatches.length;
-  const imgMatches = body.match(
-    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
-  );
-  return imgMatches ? imgMatches.length : 0;
+  const uniqueSceneNumbers = new Set<number>();
+  const blockRe =
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip|Image|Imagen)\s*\[?0*(\d+)\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(body)) !== null) {
+    const num = parseInt(m[1], 10);
+    if (num > 0) uniqueSceneNumbers.add(num);
+  }
+  return uniqueSceneNumbers.size;
 }
 
 export interface SafeRebuildRawClipsOptions {
@@ -1017,7 +1133,7 @@ export function parseClipsFromRawText(
       /^(?:[#*\-\s]*)(?:CLIP|Clip)\s*\[?0*(\d+)\]?\b(?:\s*[\(\[]([0-9:]+\s*(?:-|–|—|to)\s*[0-9:]+)[\)\]])?$/i
     );
     const imageLineMatch = line.match(
-      /^(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*(\d+)\]?\s*[:\-–]\s*(.+)$/i
+      /^(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*(\d+)\]?\s*(?:[\(\[]([0-9:]+\s*(?:-|–|—|to)\s*[0-9:]+)[\)\]])?\s*[:\-–]\s*(.+)$/i
     );
     const clipPromptMatch = line.match(
       /^(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*(\d+)\]?\s*(?:[\(\[]([0-9:]+\s*(?:-|–|—|to)\s*[0-9:]+)[\)\]])?\s*[:\-–]\s*(.+)$/i
@@ -1025,17 +1141,40 @@ export function parseClipsFromRawText(
 
     if (imageLineMatch) {
       const num = parseInt(imageLineMatch[1], 10);
-      const bodyRaw = imageLineMatch[2].trim();
+      const headerRangeRaw = imageLineMatch[2]
+        ? imageLineMatch[2].replace(/\s*(?:-|–|—|to)\s*/, ' - ').trim()
+        : '';
+      const bodyRaw = imageLineMatch[3].trim();
       // Ignore template placeholder lines such as "Image [N]: Create an image of [escena..."
       if (/^\[escena/i.test(bodyRaw) || num <= 0) continue;
       currentClipNum = num;
       const clip = ensureClip(num);
+      const inlineTimeRange = extractInlineTimeRangeFromPrompt(bodyRaw) || headerRangeRaw;
+      if (inlineTimeRange) clip.timeRange = inlineTimeRange;
       const normalizedBody = /^Create an image/i.test(bodyRaw)
         ? bodyRaw
         : `Create an image of ${bodyRaw}`;
       const targetSec = num === 1 ? clip1Duration : standardClipDuration;
       const numStr = num < 10 ? String(num).padStart(2, '0') : String(num);
-      clip.imagePrompt = ensureAntiMutationPhysicsInPrompt(`Image ${numStr}: ${normalizedBody}`, true, targetSec);
+      const imgBrollMeta = parseBrollMotionFromText(normalizedBody, clip.cameraSelection, clip.visualExplanation);
+      if (isImageOnlyBrollPrompt(normalizedBody) || imgBrollMeta.isStaticBroll) {
+        const motion = imgBrollMeta.brollCameraMotion || clip.brollCameraMotion || 'zoom_in';
+        clip.isStaticBroll = true;
+        clip.brollCameraMotion = motion;
+        if (clip.videoPrompt && !/STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(clip.videoPrompt)) {
+          clip.previousVideoPrompt = clip.previousVideoPrompt || clip.videoPrompt;
+        }
+        clip.videoPrompt = '';
+        clip.imagePrompt = normalizeBrollImagePrompt(
+          `Image ${numStr}: ${normalizedBody}`,
+          num,
+          clip.timeRange,
+          targetSec,
+          motion
+        );
+      } else {
+        clip.imagePrompt = ensureAntiMutationPhysicsInPrompt(`Image ${numStr}: ${normalizedBody}`, true, targetSec);
+      }
       continue;
     }
 
@@ -1054,15 +1193,29 @@ export function parseClipsFromRawText(
         : `Create a cinematic ${num === 1 ? clip1Duration : standardClipDuration}-second video showing ${bodyRaw}`;
       const targetSec = num === 1 ? clip1Duration : standardClipDuration;
       const numStr = num < 10 ? String(num).padStart(2, '0') : String(num);
-      clip.videoPrompt = ensureAntiMutationPhysicsInPrompt(
+      const candidateVideoPrompt = ensureAntiMutationPhysicsInPrompt(
         `Clip ${numStr}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`,
         false,
         targetSec
       );
-      const brollMeta = parseBrollMotionFromText(clip.videoPrompt, clip.cameraSelection);
+      const brollMeta = parseBrollMotionFromText(candidateVideoPrompt, clip.cameraSelection);
       if (brollMeta.isStaticBroll) {
+        const motion = brollMeta.brollCameraMotion || clip.brollCameraMotion || 'zoom_in';
         clip.isStaticBroll = true;
-        clip.brollCameraMotion = brollMeta.brollCameraMotion || clip.brollCameraMotion || 'zoom_in';
+        clip.brollCameraMotion = motion;
+        clip.previousVideoPrompt = clip.previousVideoPrompt || candidateVideoPrompt;
+        clip.videoPrompt = '';
+        if (clip.imagePrompt) {
+          clip.imagePrompt = normalizeBrollImagePrompt(
+            clip.imagePrompt,
+            num,
+            clip.timeRange,
+            targetSec,
+            motion
+          );
+        }
+      } else {
+        clip.videoPrompt = candidateVideoPrompt;
       }
       continue;
     }
@@ -1975,9 +2128,34 @@ export function syncAndAuditProductionClips(
     const rawImg = existing?.imagePrompt?.trim() || '';
     const rawVid = existing?.videoPrompt?.trim() || '';
 
+    const parsedBroll = parseBrollMotionFromText(
+      `${rawImg} ${rawVid}`,
+      existing?.cameraSelection,
+      existing?.visualExplanation
+    );
+    const resolvedIsStaticBroll =
+      existing?.isStaticBroll !== undefined ? Boolean(existing.isStaticBroll) : parsedBroll.isStaticBroll;
+    const resolvedBrollMotion = resolvedIsStaticBroll
+      ? existing?.brollCameraMotion || parsedBroll.brollCameraMotion || 'zoom_in'
+      : undefined;
+
     // Stage 6 is strictly manual: NEVER synthesize placeholder prompts when empty
-    const imgP = rawImg ? ensureAntiMutationPhysicsInPrompt(rawImg, true, standardClipDuration) : '';
-    const vidP = rawVid ? ensureAntiMutationPhysicsInPrompt(rawVid, false, standardClipDuration) : '';
+    const imgP = rawImg
+      ? resolvedIsStaticBroll
+        ? normalizeBrollImagePrompt(
+            rawImg,
+            num,
+            computedRange,
+            standardClipDuration,
+            resolvedBrollMotion || 'zoom_in'
+          )
+        : ensureAntiMutationPhysicsInPrompt(rawImg, true, standardClipDuration)
+      : '';
+    const vidP = resolvedIsStaticBroll
+      ? ''
+      : rawVid
+        ? ensureAntiMutationPhysicsInPrompt(rawVid, false, standardClipDuration)
+        : '';
 
     // Buscar si esa frase en la Voz Narrativa Raw contiene una etiqueta [pausa: Xs]
     let pauseNotes = '';
@@ -2010,7 +2188,15 @@ export function syncAndAuditProductionClips(
     let auditStatus: 'ok' | 'warning' | 'mismatch' = 'ok';
     let auditReason = '';
 
-    if (!imgP || !vidP) {
+    if (resolvedIsStaticBroll) {
+      if (!imgP) {
+        auditStatus = 'warning';
+        auditReason = 'Falta el prompt de Imagen B-Roll para esta escena.';
+      } else {
+        auditStatus = 'ok';
+        auditReason = `🖼️ Escena B-Roll Solo Imagen (${BROLL_MOTION_UI_LABEL_ES[resolvedBrollMotion || 'zoom_in']}) lista — movimiento 4K 60fps local en Editor.`;
+      }
+    } else if (!imgP || !vidP) {
       auditStatus = 'warning';
       auditReason = !imgP && !vidP
         ? 'Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa "✨ Generar Prompts en Gemini").'
@@ -2086,13 +2272,6 @@ export function syncAndAuditProductionClips(
       }
     }
 
-    const parsedBroll = parseBrollMotionFromText(vidP, existing?.cameraSelection);
-    const resolvedIsStaticBroll =
-      existing?.isStaticBroll !== undefined ? Boolean(existing.isStaticBroll) : parsedBroll.isStaticBroll;
-    const resolvedBrollMotion = resolvedIsStaticBroll
-      ? existing?.brollCameraMotion || parsedBroll.brollCameraMotion || 'zoom_in'
-      : undefined;
-
     finalClips.push({
       ...existing,
       id: existing?.id || `clip-${num}-${Date.now()}-${num}`,
@@ -2102,6 +2281,9 @@ export function syncAndAuditProductionClips(
       visualExplanation: existing?.visualExplanation || '',
       imagePrompt: imgP,
       videoPrompt: vidP,
+      previousVideoPrompt:
+        existing?.previousVideoPrompt ||
+        (resolvedIsStaticBroll && rawVid ? rawVid : undefined),
       narrationSegment: narrationText,
       pauseNotes,
       imageReady: existing?.imageReady || false,
@@ -3464,17 +3646,22 @@ export function detectClipHasHumanSubjects(
 ): boolean {
   if (
     clip.isStaticBroll ||
-    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(clip.videoPrompt || '')
+    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(
+      `${clip.imagePrompt || ''} ${clip.videoPrompt || ''}`
+    )
   ) {
     return false;
   }
-  const cleanImg = stripFlowPromptBoilerplateForSubjectCheck(clip.imagePrompt || '');
-  const cleanVid = stripFlowPromptBoilerplateForSubjectCheck(clip.videoPrompt || '');
+  const rawImgOrig = clip.imagePrompt || '';
+  const rawVidOrig = clip.videoPrompt || '';
+  const cleanExp = (clip.visualExplanation || '').trim();
+  const cleanImg = stripFlowPromptBoilerplateForSubjectCheck(rawImgOrig);
+  const cleanVid = stripFlowPromptBoilerplateForSubjectCheck(rawVidOrig);
   const combined = `${cleanImg} ${cleanVid}`.trim();
-  if (!combined) return false;
+  if (!combined && !cleanExp) return false;
 
-  // 1. Inspect @Tags distinguishing @Person vs @Location references
-  const foundTags = combined.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/g) || [];
+  // 1. Inspect @Tags distinguishing @Person vs @Location references (including visualExplanation!)
+  const foundTags = `${combined} ${cleanExp}`.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/g) || [];
   if (foundTags.length > 0) {
     const refCategoryBySlug = new Map<string, string>();
     if (Array.isArray(references)) {
@@ -3489,7 +3676,6 @@ export function detectClipHasHumanSubjects(
       const knownCat = refCategoryBySlug.get(lowerTag);
       if (knownCat === 'persona') return true;
       if (knownCat === 'lugar' || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(tag)) continue;
-      // Heuristic: if not a location prefix and no explicit "no people" negation, treat character @Name as human
       if (
         !/\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|uninhabited|devoid\s+of\s+(?:people|humans))\b/i.test(
           combined
@@ -3503,8 +3689,17 @@ export function detectClipHasHumanSubjects(
   // 2. Explicit zero-people / uninhabited scene clause overrides false positives from words like "no people present"
   const explicitZeroPeopleRegex =
     /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|empty\s+uninhabited|uninhabited|devoid\s+of\s+(?:people|humans))\b/i;
-  if (explicitZeroPeopleRegex.test(combined)) {
+  if (explicitZeroPeopleRegex.test(`${rawImgOrig} ${rawVidOrig}`)) {
     return false;
+  }
+
+  // Detect explicit actor reenactment boilerplate when zero-people negation is absent
+  if (
+    /\bportrayed\s+by\s+anonymous\s+(?:mature\s+adult\s+)?historical\s+reenactment\s+actors?\b|\bfictionalized\s+theatre\s+actors\b/i.test(
+      `${rawImgOrig} ${rawVidOrig}`
+    )
+  ) {
+    return true;
   }
 
   // 3. If it's explicitly a flat print/lithograph/engraving/map/document on a desk without live hands/actors interacting
@@ -3519,20 +3714,18 @@ export function detectClipHasHumanSubjects(
     return false;
   }
 
-  // 4. Check for human subjects, roles, crowds, or visible human anatomy in action
+  // 4. Check for human subjects, roles, crowds, pronouns, or visible human anatomy in action
   const humanSubjectRegex =
-    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|spectators|delegates|passengers|peasants|workers|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|biochemist|mycologist|chemist|chemists|bacteriologist|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
+    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|biochemist|mycologist|chemist|chemists|bacteriologist|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
 
   if (humanSubjectRegex.test(combined)) {
     return true;
   }
 
-  // 5. Fallback check in Spanish visualExplanation if prompts are empty
-  const cleanExp = (clip.visualExplanation || '').trim();
+  // 5. Always check Spanish visualExplanation as well (even when English prompts exist, in case @Tag was sanitized)
   if (
     cleanExp &&
-    !cleanImg &&
-    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|doctora|doctor|enfermera|paciente|científico|investigador|químico|policía|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
+    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|oyentes|público|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|doctora|doctor|enfermera|paciente|científico|investigador|químico|policía|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
       cleanExp
     )
   ) {
@@ -3656,91 +3849,112 @@ export function applyStaticBrollMotionToClip(
 ): DocumentaryClip {
   const numStr = clip.clipNumber < 10 ? `0${clip.clipNumber}` : `${clip.clipNumber}`;
   if (!enabled) {
-    const cleanedVid = (clip.videoPrompt || '')
+    const cleanedImgBase = stripBrollControlTagsFromImagePrompt(clip.imagePrompt || '')
       .replace(
-        /STATIC\s+B-ROLL\s+PLATE\s+LOCK\s*\(CAMERA\s+MOTION\s+ONLY\)\s*:[^.]*\.\s*/gi,
-        ''
+        /\bstructured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+(?:showing|depicting)\s+/gi,
+        'of '
       )
-      .replace(
-        /^Clip\s+\d+\s*\(([^)]+)\):\s*Create\s+a\s+cinematic\s+\d+-second\s+static\s+B-roll\s+video\s+executing\s+ONLY\s+a\s+[^,]+(?:,\s*[^,]+)*\s+across\s+/i,
-        `Clip ${numStr} ($1): Create a cinematic ${durationSec}-second video showing a smooth optical camera glide across `
+      .replace(/,?\s*designed\s+as\s+a\s+100%\s+frozen\s+documentary\s+B-roll\s+still\s+plate\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    const cleanedImg = cleanedImgBase
+      ? ensureAntiMutationPhysicsInPrompt(cleanedImgBase, true, durationSec)
+      : clip.imagePrompt;
+
+    const candidatePrevVid = [clip.previousVideoPrompt, clip.videoPrompt]
+      .map((v) => String(v || '').trim())
+      .find(
+        (v) =>
+          v.length > 20 &&
+          !/STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(v) &&
+          !/\[B-Roll\s*:\s*STATIC_/i.test(v)
       );
+
+    let restoredVid = '';
+    if (candidatePrevVid) {
+      restoredVid = applyClipFlowVideoEngineTag(
+        ensureAntiMutationPhysicsInPrompt(candidatePrevVid, false, durationSec),
+        clip.flowClipEngine || 'VEO_3_1_LITE_LOWER_PRIORITY',
+        durationSec,
+        null
+      );
+    } else {
+      const cleanSubject = cleanedImgBase
+        .replace(/^(?:Image|Imagen)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*:\s*/i, '')
+        .replace(
+          /^Create\s+an\s+image(?:\s+in\s+(?:16:9\s+horizontal|9:16\s+vertical)\s+aspect\s+ratio)?\s+(?:of\s+|showing\s+|depicting\s+)?/i,
+          ''
+        )
+        .replace(/,?\s*8k\s+photorealistic[\s\S]*$/i, '')
+        .replace(/\.?\s*$/, '')
+        .trim();
+      const synthRaw = `Clip ${numStr} (${clip.timeRange || '00:00 - 00:08'}): Create a cinematic ${durationSec}-second video showing a smooth, controlled fluid-head camera glide across ${cleanSubject || 'the historical documentary scene'}. Ambient Foley: subtle period room tone and natural atmospheric acoustics, single continuous shot, strictly no shot changes, no music, no speech, no text.`;
+      restoredVid = applyClipFlowVideoEngineTag(
+        ensureAntiMutationPhysicsInPrompt(synthRaw, false, durationSec),
+        clip.flowClipEngine || 'VEO_3_1_LITE_LOWER_PRIORITY',
+        durationSec,
+        null
+      );
+    }
+
     const cleanedCam = (clip.cameraSelection || '')
       .replace(/^🖼️\s*B-Roll\s+Est[áa]tico\s*\([^)]+\)\s*—\s*/i, '')
+      .replace(/^Static\s+B-Roll\s+Plate\s*[—–-]\s*/i, '')
       .trim();
     return {
       ...clip,
       isStaticBroll: undefined,
       brollCameraMotion: undefined,
-      cameraSelection: cleanedCam,
-      videoPrompt: cleanedVid
-        ? applyClipFlowVideoEngineTag(cleanedVid, 'VEO_3_1_LITE_LOWER_PRIORITY', durationSec, null)
-        : clip.videoPrompt,
+      cameraSelection: cleanedCam || 'Plano Documental Cinematográfico',
+      imagePrompt: cleanedImg,
+      videoPrompt: restoredVid,
+      previousVideoPrompt: undefined,
     };
   }
 
-  const motionPhrase = BROLL_MOTION_ENGLISH_PHRASE[motion] || BROLL_MOTION_ENGLISH_PHRASE.zoom_in;
   const motionLabelEs = BROLL_MOTION_UI_LABEL_ES[motion] || 'Zoom In';
   const baseCam = (clip.cameraSelection || 'Lámina Documental de Archivo')
     .replace(/^🖼️\s*B-Roll\s+Est[áa]tico\s*\([^)]+\)\s*—\s*/i, '')
+    .replace(/^Static\s+B-Roll\s+Plate\s*[—–-]\s*/i, '')
     .trim();
-  const updatedCameraSelection = `🖼️ B-Roll Estático (${motionLabelEs}) — ${baseCam}`;
+  const updatedCameraSelection = `🖼️ B-Roll Estático (${motionLabelEs}) — ${baseCam || 'Lámina Documental de Archivo'}`;
 
-  let updatedImg = (clip.imagePrompt || '').trim();
-  if (updatedImg && !/still\s+archival\s+documentary\s+B-roll\s+plate/i.test(updatedImg)) {
-    updatedImg = updatedImg.replace(
-      /^(Image\s+\d+\s*:\s*Create\s+an\s+image(?:\s+in\s+16:9\s+horizontal\s+aspect\s+ratio)?)\s+(?:of\s+)?/i,
-      '$1 structured as a completely still archival documentary B-roll plate showing '
-    );
-  }
+  const currentVid = String(clip.videoPrompt || '').trim();
+  const preservedPrevVid =
+    currentVid.length > 20 &&
+    !/STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(currentVid) &&
+    !/\[B-Roll\s*:\s*STATIC_/i.test(currentVid)
+      ? currentVid
+      : clip.previousVideoPrompt;
 
-  let updatedVid = (clip.videoPrompt || '').trim();
-  if (updatedVid) {
-    const headerMatch = updatedVid.match(/^(Clip\s+\d+\s*(?:\([^)]+\))?\s*:\s*)/i);
-    const prefix = headerMatch ? headerMatch[1] : `Clip ${numStr} (${clip.timeRange}): `;
-    let rest = headerMatch ? updatedVid.slice(prefix.length) : updatedVid;
-    rest = rest
-      .replace(
-        /^Create\s+a\s+cinematic\s+\d+-second\s+(?:static\s+B-roll\s+)?video\s+(?:executing\s+ONLY\s+a\s+.*?\s+(?:across|over|toward|along)|showing\s+a\s+[^t]+?(?=\b(?:toward|across|along|over|around|down|up|inside|from|past|onto)\b))/i,
-        `Create a cinematic ${durationSec}-second static B-roll video executing ONLY a ${motionPhrase} `
-      )
-      .replace(
-        /STATIC\s+B-ROLL\s+PLATE\s+LOCK\s*\(CAMERA\s+MOTION\s+ONLY\)\s*:[^.]*\.\s*/gi,
-        ''
-      );
-    if (!/^Create\s+a\s+cinematic\s+\d+-second\s+static\s+B-roll\s+video/i.test(rest)) {
-      rest = rest.replace(
-        /^Create\s+a\s+cinematic\s+\d+-second\s+video\s+showing\s+/i,
-        `Create a cinematic ${durationSec}-second static B-roll video executing ONLY a ${motionPhrase} over the frozen scene: `
-      );
-    }
-    const staticLockSentence = `STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to ${durationSec}s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the ${motionLabelEs.toLowerCase()} movement.`;
-    if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(rest)) {
-      rest = rest.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${staticLockSentence} $1`);
-    } else {
-      rest = `${rest.replace(/\.?\s*$/, '')}. ${staticLockSentence}`;
-    }
-    updatedVid = applyClipFlowVideoEngineTag(
-      `${prefix}${rest}`.replace(/\s{2,}/g, ' ').trim(),
-      'VEO_3_1_LITE_LOWER_PRIORITY',
-      durationSec,
-      motion
-    );
-  }
+  const updatedImg = normalizeBrollImagePrompt(
+    clip.imagePrompt || '',
+    clip.clipNumber,
+    clip.timeRange,
+    durationSec,
+    motion
+  );
 
   return {
     ...clip,
     isStaticBroll: true,
     brollCameraMotion: motion,
-    flowClipEngine: 'VEO_3_1_LITE_LOWER_PRIORITY',
     cameraSelection: updatedCameraSelection,
-    imagePrompt: updatedImg || clip.imagePrompt,
-    videoPrompt: updatedVid || clip.videoPrompt,
+    imagePrompt: updatedImg,
+    videoPrompt: '',
+    previousVideoPrompt: preservedPrevVid,
   };
 }
 
 export function pickPeriodicStaticBrollTimelineTargets(
-  rows: Array<{ clipNum: number; startSec: number; endSec: number; text: string; isNonHuman?: boolean }>,
+  rows: Array<{
+    clipNum: number;
+    startSec: number;
+    endSec: number;
+    text: string;
+    isNonHuman?: boolean;
+    authoredBrollMotion?: BrollCameraMotion;
+  }>,
   intervalMinutes: number = 2
 ): Map<number, BrollCameraMotion> {
   const result = new Map<number, BrollCameraMotion>();
@@ -3762,16 +3976,18 @@ export function pickPeriodicStaticBrollTimelineTargets(
         r.startSec >= 50 &&
         r.endSec <= totalEndSec - 16 &&
         Math.abs(r.startSec - targetSec) <= 28 &&
+        r.isNonHuman !== false &&
         !result.has(r.clipNum)
     );
     if (windowRows.length === 0) continue;
 
-    let bestRow = windowRows[0];
+    let bestRow: (typeof windowRows)[number] | null = null;
     let bestScore = -9999;
     for (const r of windowRows) {
+      if (r.isNonHuman === false) continue;
       let score = 0;
       if (r.isNonHuman === true) score += 45;
-      else if (r.isNonHuman === false) score -= 60;
+      if (r.authoredBrollMotion) score += 120;
       const matches = r.text.match(archivalScoreRe);
       if (matches) score += matches.length * 14;
       if (/\[pausa/i.test(r.text)) score += 12;
@@ -3782,7 +3998,9 @@ export function pickPeriodicStaticBrollTimelineTargets(
         bestRow = r;
       }
     }
-    const motion = inferBestBrollMotionForNarration(bestRow.text, '', slotIdx);
+    if (!bestRow) continue;
+    const motion =
+      bestRow.authoredBrollMotion || inferBestBrollMotionForNarration(bestRow.text, '', slotIdx);
     result.set(bestRow.clipNum, motion);
     slotIdx++;
   }
@@ -3826,20 +4044,30 @@ export function autoAssignPeriodicStaticBrollClips(
   const rows = clips.map((c, idx) => {
     const { startSec, endSec } = parseStartEnd(c.timeRange, idx);
     const hasHumans = detectClipHasHumanSubjects({ ...c, isStaticBroll: false }, references);
+    const authoredParse = parseBrollMotionFromText(
+      `${c.imagePrompt || ''} ${c.videoPrompt || ''}`,
+      c.cameraSelection,
+      c.visualExplanation
+    );
     return {
       clipNum: c.clipNumber,
       startSec,
       endSec,
       text: `${c.narrationSegment || ''} ${c.visualExplanation || ''}`,
       isNonHuman: !hasHumans,
+      authoredBrollMotion: !hasHumans && authoredParse.isStaticBroll
+        ? authoredParse.brollCameraMotion || 'zoom_in'
+        : undefined,
     };
   });
 
   const targets = pickPeriodicStaticBrollTimelineTargets(rows, intervalMinutes);
-  return clips.map((c) => {
+  return clips.map((c, idx) => {
     const dur = c.clipNumber === 1 ? 6 : standardClipDurationSec;
-    const assignedMotion = targets.get(c.clipNumber);
-    if (assignedMotion) {
+    const row = rows[idx];
+    // Preserve explicit zero-human B-Roll plates authored by Gemini even if slightly outside the 28s window
+    const assignedMotion = targets.get(c.clipNumber) || row?.authoredBrollMotion;
+    if (assignedMotion && row?.isNonHuman !== false) {
       return applyStaticBrollMotionToClip(c, true, assignedMotion, dur);
     }
     if (c.isStaticBroll) {

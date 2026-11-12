@@ -268,10 +268,10 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // ============================================================================
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
-const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or not, and give me a clear pre-generation report stating the exact total number of clips, how many clips will be made with Omni (Omni 1.1 Flash), and how many with Lower Priority (Veo 3.1 - Lite [Lower Priority]) including how many of those are Static B-Roll camera-move plates ([B-Roll: STATIC_...]), and only after delivering that report proceed with generating the images and clips.
-Rename the clips to the literal first 6 words of the provided pasted and submitted prompt, including the numbering.
-Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip.
-Create the images first and then the clips using each image as the starting frame. For any clip tagged [B-Roll: STATIC_...], keep the starting image 100% frozen as a still documentary B-roll plate with zero internal object animation or morphing, executing ONLY the specified smooth continuous optical camera movement (zoom-in, zoom-out, pan, or tilt).
+const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) the exact total number of scenes, (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates (for which ONLY the image is generated in Nano Banana 2.1 and NO video clip is created in Flow because optical camera motion is rendered locally in our editor), and only after delivering that report proceed with generation.
+Rename every generated image and video clip to the literal first 6 words of its pasted prompt, including the numbering.
+Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
+Create the images first and then the video clips using each image as the starting frame, EXCEPT for any prompt tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]: for those B-Roll scenes, generate ONLY the high-resolution Nano Banana 2.1 still image and strictly SKIP creating any video clip in Flow.
 Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
 Divide creation into batches of 10.
@@ -284,10 +284,10 @@ function sanitizeOperationalHeaderServer(
 ): string {
   const engineLine =
     engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip.'
+      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
       : engine === 'OMNI_1_1_FLASH'
-      ? 'Use Omni 1.1 Flash for videos and nano banana 2.1 for the initial images of each clip.'
-      : 'Use Veo 3.1 - Lite [Lower Priority] for videos and nano banana 2.1 for the initial images of each clip.';
+      ? 'Use Omni 1.1 Flash for videos and nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
+      : 'Use Veo 3.1 - Lite [Lower Priority] for videos and nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.';
 
   const trimmed = String(operationalHeader || '').trim();
   const isCorruptedOrIncomplete =
@@ -296,15 +296,16 @@ function sanitizeOperationalHeaderServer(
     /Cambia\s+los\s+nombres/i.test(trimmed) ||
     /del\s+1\s+al\s+10/i.test(trimmed) ||
     /Cuando\s+se\s+hayan\s+generado\s+todas\s+las\s+im[áa]genes\s+me\s+avisas/i.test(trimmed) ||
+    /keep\s+the\s+starting\s+image\s+100%\s+frozen\s+as\s+a\s+still\s+documentary\s+B-roll\s+plate\s+with\s+zero\s+internal\s+object\s+animation/i.test(trimmed) ||
     !/^Act as a (?:professional |master )?historian/i.test(trimmed) ||
-    !/pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) ||
-    !/Static\s+B-Roll|\[B-Roll:\s*STATIC_/i.test(trimmed) ||
+    !/pre-generation\s+report/i.test(trimmed) ||
+    !/IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
     !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
     !/batches of 10/i.test(trimmed) ||
     !trimmed.includes('01 to 09');
   const base = isCorruptedOrIncomplete ? DEFAULT_OPERATIONAL_HEADER_SERVER : trimmed;
   const lineRegex =
-    /(?:Use|Usa)\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*(?:for\s+(?:the\s+)?(?:initial|starting(?:\s+keyframe)?)\s+images\s+of\s+each\s+clip|para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip)\.?/gi;
+    /(?:Use|Usa)\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*(?:Static\s+B-Roll\s+plates|for\s+(?:the\s+)?(?:initial|starting(?:\s+keyframe)?)\s+images\s+of\s+each\s+clip|para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip)\.?/gi;
   return lineRegex.test(base) ? base.replace(lineRegex, engineLine) : DEFAULT_OPERATIONAL_HEADER_SERVER.replace(lineRegex, engineLine);
 }
 
@@ -609,14 +610,15 @@ function countServerRealAuthoredClips(clips?: any): number {
 function countServerAuthoredBlocksInRawText(raw?: any): number {
   const body = stripServerOperationalHeaderOnly(raw);
   if (!body || isServerAutoSkeletonPromptText(body)) return 0;
-  const clipMatches = body.match(
-    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
-  );
-  if (clipMatches && clipMatches.length > 0) return clipMatches.length;
-  const imgMatches = body.match(
-    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
-  );
-  return imgMatches ? imgMatches.length : 0;
+  const uniqueSceneNums = new Set<number>();
+  const re =
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip|Image|Imagen)\s*\[?0*(\d+)\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (n > 0) uniqueSceneNums.add(n);
+  }
+  return uniqueSceneNums.size;
 }
 
 function sanitizeServerClipSkeleton(clip: any): any {
@@ -659,20 +661,30 @@ function mergeServerClipsPreservingAuthored(
     const wHasReal = isServerClipRealAuthored(c);
     const oHasReal = isServerClipRealAuthored(o);
     const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
+    const resolvedIsBroll = rescuePrompts
+      ? typeof o.isStaticBroll === 'boolean'
+        ? o.isStaticBroll
+        : c.isStaticBroll
+      : c.isStaticBroll;
     return {
       ...c,
       ...(rescuePrompts
         ? {
             imagePrompt: o.imagePrompt || c.imagePrompt,
-            videoPrompt: o.videoPrompt || c.videoPrompt,
-            isStaticBroll:
-              typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll,
+            videoPrompt: resolvedIsBroll ? '' : o.videoPrompt || c.videoPrompt,
+            previousVideoPrompt: o.previousVideoPrompt || c.previousVideoPrompt,
+            isStaticBroll: resolvedIsBroll,
             brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
             flowClipEngine: o.flowClipEngine || c.flowClipEngine,
             cameraSelection: c.cameraSelection || o.cameraSelection,
             visualExplanation: c.visualExplanation || o.visualExplanation,
           }
-        : {}),
+        : resolvedIsBroll
+          ? {
+              videoPrompt: '',
+              previousVideoPrompt: c.previousVideoPrompt || o.previousVideoPrompt,
+            }
+          : {}),
       reviewedForEditor:
         c.reviewedForEditor !== undefined
           ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
@@ -834,7 +846,18 @@ function mergeServerDocObjects(winner: any, other: any) {
         } else if (wTier === 2 && oTier === 2) {
           const wBlocks = countServerAuthoredBlocksInRawText(wv);
           const oBlocks = countServerAuthoredBlocksInRawText(ov);
-          if (oBlocks > wBlocks && wBlocks < Math.floor(oBlocks * 0.5)) {
+          const wHasImgOnly = /\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(
+            String(wv || '')
+          );
+          const oHasImgOnly = /\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(
+            String(ov || '')
+          );
+          if (!wHasImgOnly && oHasImgOnly && oBlocks >= Math.floor(wBlocks * 0.9)) {
+            baseWinner.rawClipsText = ov;
+            if (other.operationalHeader) {
+              baseWinner.operationalHeader = other.operationalHeader;
+            }
+          } else if (oBlocks > wBlocks && wBlocks < Math.floor(oBlocks * 0.5)) {
             baseWinner.rawClipsText = ov;
           }
         }
@@ -7568,10 +7591,11 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             if (mVid) {
               const cNum = parseInt(mVid[1], 10);
               if (cNum <= 0) continue;
-              const is4kName = /[_\-]4k\.(mp4|webm|mov)$/i.test(entry);
-              const isReal4k = is4kName && st.size >= 12 * 1024 * 1024;
+              const isReal4k = isVerified4kClipOnDisk(entry, st.size);
               const ext = path.extname(entry);
-              const cleanBase = path.basename(entry, ext).replace(/[_\-]4k$/i, '');
+              const cleanBase = path
+                .basename(entry, ext)
+                .replace(/[_\-](?:broll[_\-])?4k$/i, '');
               if (
                 new RegExp(`^0*${cNum}_[a-zA-Z0-9]`, 'i').test(entry) &&
                 !/^(?:clip|video|scene|escena)[_\-\s.]/i.test(entry)
@@ -7849,7 +7873,15 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       }
     }
 
-    const clipPrompts: Record<number, { imagePrompt?: string; videoPrompt?: string }> = {};
+    const clipPrompts: Record<
+      number,
+      {
+        imagePrompt?: string;
+        videoPrompt?: string;
+        isStaticBroll?: boolean;
+        brollCameraMotion?: string;
+      }
+    > = {};
     if (resolvedRoot) {
       const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
       if (fs.existsSync(promptsTxtPath)) {
@@ -7857,15 +7889,25 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           const txt = fs.readFileSync(promptsTxtPath, 'utf8');
           for (const rawLine of txt.split(/\r?\n/)) {
             const line = rawLine.trim();
-            const mImg = line.match(/^Image\s+(\d+)\s*:\s*(.+)$/i);
+            const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
             if (mImg) {
               const num = parseInt(mImg[1], 10);
               if (num > 0) {
-                clipPrompts[num] = { ...(clipPrompts[num] || {}), imagePrompt: line };
+                const parsedBroll = parseServerBrollMotionFromText(line);
+                clipPrompts[num] = {
+                  ...(clipPrompts[num] || {}),
+                  imagePrompt: line,
+                  ...(parsedBroll.isStaticBroll
+                    ? {
+                        isStaticBroll: true,
+                        brollCameraMotion: parsedBroll.brollCameraMotion || 'zoom_in',
+                      }
+                    : {}),
+                };
               }
               continue;
             }
-            const mClip = line.match(/^Clip\s+(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+            const mClip = line.match(/^Clip\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
             if (mClip) {
               const num = parseInt(mClip[1], 10);
               if (num > 0) {
@@ -8514,19 +8556,113 @@ function normalizeWordTokensForMatch(str: string): string[] {
     .filter((w) => w.length >= 2);
 }
 
+type ServerBrollCameraMotion =
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'pan_right'
+  | 'pan_left'
+  | 'tilt_up'
+  | 'tilt_down';
+
+function normalizeServerBrollMotion(raw?: string | null): ServerBrollCameraMotion {
+  const clean = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^static_/, '');
+  const allowed: ServerBrollCameraMotion[] = [
+    'zoom_in',
+    'zoom_out',
+    'pan_right',
+    'pan_left',
+    'tilt_up',
+    'tilt_down',
+  ];
+  return (allowed.includes(clean as ServerBrollCameraMotion)
+    ? clean
+    : 'zoom_in') as ServerBrollCameraMotion;
+}
+
+function parseServerBrollMotionFromText(text?: string | null): {
+  isStaticBroll: boolean;
+  brollCameraMotion?: ServerBrollCameraMotion;
+} {
+  const s = String(text || '');
+  const tagMatch = s.match(/\[B-Roll\s*:\s*STATIC_([A-Z_]+)\]/i);
+  if (tagMatch) {
+    return {
+      isStaticBroll: true,
+      brollCameraMotion: normalizeServerBrollMotion(tagMatch[1]),
+    };
+  }
+  if (/\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(s)) {
+    return { isStaticBroll: true, brollCameraMotion: 'zoom_in' };
+  }
+  return { isStaticBroll: false };
+}
+
+function isVerified4kClipOnDisk(fileName: string, sizeBytes: number): boolean {
+  if (/_broll_4k\.(mp4|mov|webm)$/i.test(fileName)) {
+    return sizeBytes >= 512 * 1024;
+  }
+  return /[_\-]4k\.(mp4|mov|webm)$/i.test(fileName) && sizeBytes >= 12 * 1024 * 1024;
+}
+
+function isEligibleBrollImageEntry(entryName: string): boolean {
+  if (!/\.(png|jpg|jpeg|webp)$/i.test(entryName)) return false;
+  if (entryName.startsWith('.') || entryName.startsWith('@')) return false;
+  if (/^Ref_|_Imagen_Inicial_|_Broll_Source|miniatura|thumbnail/i.test(entryName)) return false;
+  return true;
+}
+
+function buildBrollSixWordBaseName(clipNum: number, imagePrompt?: string, fallbackName?: string): string {
+  const padded = String(clipNum).padStart(2, '0');
+  const rawBody = String(imagePrompt || '')
+    .replace(/^(?:Image|Imagen)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*:\s*/i, '')
+    .trim();
+  const words = rawBody
+    .replace(/[^a-zA-Z0-9\s]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5);
+  if (words.length >= 2) {
+    return `${padded}_${words.join('_')}`;
+  }
+  if (fallbackName) {
+    const cleaned = path
+      .basename(fallbackName, path.extname(fallbackName))
+      .replace(/[_\-](?:broll[_\-])?4k$/i, '')
+      .replace(/^(?:(?:image|imagen|clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    if (cleaned) return `${padded}_${cleaned}`;
+  }
+  return `${padded}_Create_an_image_in_16_9`;
+}
+
 function inferClipNumberFromFileName(
   fileName: string,
-  clipsList: Array<{ clipNumber: number; videoPrompt?: string; narrationSegment?: string }>
+  clipsList: Array<{
+    clipNumber: number;
+    imagePrompt?: string;
+    videoPrompt?: string;
+    narrationSegment?: string;
+  }>
 ): number {
   const base = path.basename(fileName, path.extname(fileName));
-  // 1. Direct leading number or Clip_XX prefix
-  const mDirect = base.match(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i);
+  // 1. Direct leading number or Clip_XX / Image_XX prefix
+  const mDirect = base.match(
+    /^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
+  );
   if (mDirect) {
     const n = parseInt(mDirect[1], 10);
-    if (n > 0 && n <= 300) return n;
+    if (n > 0 && n <= 400) return n;
   }
-  // 2. Match against narrationSegment or videoPrompt words
-  const fileTokens = normalizeWordTokensForMatch(base.replace(/[_\-]?4k$/i, ''));
+  // 2. Match against narrationSegment, videoPrompt, or imagePrompt words
+  const fileTokens = normalizeWordTokensForMatch(
+    base.replace(/[_\-]?(?:broll[_\-])?4k$/i, '')
+  );
   if (fileTokens.length >= 2 && Array.isArray(clipsList) && clipsList.length > 0) {
     let bestClipNum = 0;
     let bestScore = 0;
@@ -8537,11 +8673,15 @@ function inferClipNumberFromFileName(
       const vidTokens = normalizeWordTokensForMatch(
         String(c.videoPrompt || '').replace(/^Clip\s*\d+\s*\([^)]*\)\s*:\s*/i, '')
       );
+      const imgTokens = normalizeWordTokensForMatch(
+        String(c.imagePrompt || '').replace(/^(?:Image|Imagen)\s*\d+(?:\s*\([^)]*\))?\s*:\s*/i, '')
+      );
       let score = 0;
-      for (let i = 0; i < Math.min(fileTokens.length, 7); i++) {
+      for (let i = 0; i < Math.min(fileTokens.length, 8); i++) {
         const tok = fileTokens[i];
         if (narTokens.slice(0, 10).includes(tok)) score += 3;
         if (vidTokens.slice(0, 12).includes(tok)) score += 2;
+        if (imgTokens.slice(0, 14).includes(tok)) score += 2;
       }
       if (score > bestScore && score >= 5) {
         bestScore = score;
@@ -8551,6 +8691,263 @@ function inferClipNumberFromFileName(
     if (bestClipNum > 0) return bestClipNum;
   }
   return 0;
+}
+
+function archiveBrollSourceImage(
+  clipsDir: string,
+  clipNumber: number,
+  sourceImagePath: string,
+  meta: { motion: ServerBrollCameraMotion; durationSec: number; aspectRatio: string; baseName: string }
+): string {
+  const brollSourcesDir = path.join(clipsDir, '_broll_sources');
+  fs.mkdirSync(brollSourcesDir, { recursive: true });
+  const padded = String(clipNumber).padStart(2, '0');
+  const ext = (path.extname(sourceImagePath) || '.png').toLowerCase();
+  const archivedImgPath = path.join(brollSourcesDir, `${padded}_Broll_Source${ext}`);
+  if (path.resolve(sourceImagePath) !== path.resolve(archivedImgPath)) {
+    // Remove any older archived source with a different extension for this clip
+    for (const existing of fs.readdirSync(brollSourcesDir)) {
+      if (
+        existing.startsWith(`${padded}_Broll_Source.`) &&
+        !/\.meta\.json$/i.test(existing) &&
+        path.resolve(path.join(brollSourcesDir, existing)) !== path.resolve(archivedImgPath)
+      ) {
+        try {
+          fs.unlinkSync(path.join(brollSourcesDir, existing));
+        } catch {}
+      }
+    }
+    fs.copyFileSync(sourceImagePath, archivedImgPath);
+  }
+  const metaPath = path.join(brollSourcesDir, `${padded}_Broll_Source.meta.json`);
+  fs.writeFileSync(
+    metaPath,
+    JSON.stringify(
+      {
+        clipNumber,
+        sourceFileName: path.basename(archivedImgPath),
+        motion: meta.motion,
+        durationSec: meta.durationSec,
+        aspectRatio: meta.aspectRatio,
+        baseName: meta.baseName,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf8'
+  );
+  return archivedImgPath;
+}
+
+function findArchivedBrollSourceImage(
+  clipsDir: string,
+  clipNumber: number
+): { imagePath: string; meta?: any } | null {
+  const brollSourcesDir = path.join(clipsDir, '_broll_sources');
+  const padded = String(clipNumber).padStart(2, '0');
+  if (fs.existsSync(brollSourcesDir) && fs.statSync(brollSourcesDir).isDirectory()) {
+    let meta: any = undefined;
+    const metaPath = path.join(brollSourcesDir, `${padded}_Broll_Source.meta.json`);
+    if (fs.existsSync(metaPath)) {
+      try {
+        meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      } catch {}
+    }
+    for (const entry of fs.readdirSync(brollSourcesDir)) {
+      if (
+        new RegExp(`^0*${clipNumber}_Broll_Source\\.(png|jpg|jpeg|webp)$`, 'i').test(entry)
+      ) {
+        return { imagePath: path.join(brollSourcesDir, entry), meta };
+      }
+    }
+  }
+  // Fallback: check 05_Clips_Video for `XX_Imagen_Inicial_...jpg`
+  if (fs.existsSync(clipsDir) && fs.statSync(clipsDir).isDirectory()) {
+    for (const entry of fs.readdirSync(clipsDir)) {
+      if (
+        new RegExp(`^0*${clipNumber}_Imagen_Inicial_.*\\.(png|jpg|jpeg|webp)$`, 'i').test(entry)
+      ) {
+        return { imagePath: path.join(clipsDir, entry) };
+      }
+    }
+  }
+  return null;
+}
+
+async function renderStaticBrollImageTo4K60OnDisk(
+  inputImagePath: string,
+  outputVideoPath: string,
+  motionRaw: string = 'zoom_in',
+  durationSecRaw: number = 8,
+  aspectRatio: string = '16:9'
+): Promise<void> {
+  const ffmpegBin = resolveFfmpegBin();
+  const motion = normalizeServerBrollMotion(motionRaw);
+  const durationSec = Math.max(2, Math.min(30, Number(durationSecRaw) || 8));
+  const fps = 60;
+  const totalFrames = Math.max(2, Math.round(durationSec * fps));
+  const isVertical = aspectRatio === '9:16';
+  const preW = isVertical ? 4320 : 7680;
+  const preH = isVertical ? 7680 : 4320;
+  const outW = isVertical ? 2160 : 3840;
+  const outH = isVertical ? 3840 : 2160;
+
+  // Empirically verified on local FFmpeg: `on` in vf_zoompan is 0-indexed (0 .. totalFrames - 1)
+  const P = `clip(on/max(1,${totalFrames - 1}),0,1)`;
+  let zExpr = `'1.0+0.12*${P}'`;
+  let xExpr = `'iw/2-(iw/zoom/2)'`;
+  let yExpr = `'ih/2-(ih/zoom/2)'`;
+
+  switch (motion) {
+    case 'zoom_in':
+      zExpr = `'1.0+0.12*${P}'`;
+      xExpr = `'iw/2-(iw/zoom/2)'`;
+      yExpr = `'ih/2-(ih/zoom/2)'`;
+      break;
+    case 'zoom_out':
+      zExpr = `'1.12-0.12*${P}'`;
+      xExpr = `'iw/2-(iw/zoom/2)'`;
+      yExpr = `'ih/2-(ih/zoom/2)'`;
+      break;
+    case 'pan_right':
+      zExpr = `'1.12'`;
+      xExpr = `'(iw-iw/zoom)*(0.04+0.92*${P})'`;
+      yExpr = `'ih/2-(ih/zoom/2)'`;
+      break;
+    case 'pan_left':
+      zExpr = `'1.12'`;
+      xExpr = `'(iw-iw/zoom)*(0.96-0.92*${P})'`;
+      yExpr = `'ih/2-(ih/zoom/2)'`;
+      break;
+    case 'tilt_up':
+      zExpr = `'1.12'`;
+      xExpr = `'iw/2-(iw/zoom/2)'`;
+      yExpr = `'(ih-ih/zoom)*(0.96-0.92*${P})'`;
+      break;
+    case 'tilt_down':
+      zExpr = `'1.12'`;
+      xExpr = `'iw/2-(iw/zoom/2)'`;
+      yExpr = `'(ih-ih/zoom)*(0.04+0.92*${P})'`;
+      break;
+  }
+
+  // Single-frame 8K Lanczos cover+crop (NO -loop 1!) -> subpixel zoompan direct to 4K 60fps
+  const vfFilter = [
+    `scale=${preW}:${preH}:force_original_aspect_ratio=increase:flags=lanczos`,
+    `crop=${preW}:${preH}`,
+    `setsar=1`,
+    `format=yuv420p`,
+    `zoompan=z=${zExpr}:x=${xExpr}:y=${yExpr}:d=${totalFrames}:s=${outW}x${outH}:fps=${fps}`,
+    `unsharp=3:3:0.35:3:3:0.0`,
+    `format=yuv420p`,
+  ].join(',');
+
+  const runFfmpegCmd = (args: string[]) =>
+    new Promise<void>((resolve, reject) => {
+      const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+      proc.on('error', reject);
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputVideoPath) && fs.statSync(outputVideoPath).size > 50000) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg b-roll render exited with code ${code}`));
+        }
+      });
+    });
+
+  const durStr = durationSec.toFixed(3);
+  try {
+    await runFfmpegCmd([
+      '-nostdin',
+      '-y',
+      '-threads',
+      '0',
+      '-i',
+      inputImagePath,
+      '-f',
+      'lavfi',
+      '-i',
+      'anullsrc=channel_layout=stereo:sample_rate=48000',
+      '-vf',
+      vfFilter,
+      '-map',
+      '0:v:0',
+      '-map',
+      '1:a:0',
+      '-c:v',
+      'h264_videotoolbox',
+      '-allow_sw',
+      '1',
+      '-b:v',
+      '24M',
+      '-maxrate',
+      '32M',
+      '-bufsize',
+      '48M',
+      '-profile:v',
+      'high',
+      '-pix_fmt',
+      'yuv420p',
+      '-r',
+      '60',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-t',
+      durStr,
+      '-movflags',
+      '+faststart',
+      outputVideoPath,
+    ]);
+  } catch {
+    await runFfmpegCmd([
+      '-nostdin',
+      '-y',
+      '-threads',
+      '0',
+      '-i',
+      inputImagePath,
+      '-f',
+      'lavfi',
+      '-i',
+      'anullsrc=channel_layout=stereo:sample_rate=48000',
+      '-vf',
+      vfFilter,
+      '-map',
+      '0:v:0',
+      '-map',
+      '1:a:0',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '17',
+      '-pix_fmt',
+      'yuv420p',
+      '-r',
+      '60',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-t',
+      durStr,
+      '-movflags',
+      '+faststart',
+      outputVideoPath,
+    ]);
+  }
 }
 
 async function upscaleFileTo4KOnDisk(
@@ -8651,17 +9048,76 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
     const downloadsDir = path.join(process.env.HOME || '', 'Downloads');
     const clipsList = Array.isArray(clips) ? clips : [];
 
+    // Build authoritative map of Static B-Roll scenes (from payload + Prompts_Clips_Flow.txt fallback)
+    const brollClipMap = new Map<
+      number,
+      { motion: ServerBrollCameraMotion; durationSec: number; imagePrompt: string }
+    >();
+    for (const c of clipsList) {
+      const cNum = Number(c?.clipNumber);
+      if (!cNum) continue;
+      const parsedFromPrompt = parseServerBrollMotionFromText(
+        `${c.imagePrompt || ''} ${c.videoPrompt || ''}`
+      );
+      if (c.isStaticBroll || parsedFromPrompt.isStaticBroll) {
+        brollClipMap.set(cNum, {
+          motion: normalizeServerBrollMotion(
+            c.brollCameraMotion || parsedFromPrompt.brollCameraMotion || 'zoom_in'
+          ),
+          durationSec: Math.max(2, Math.min(30, Number(c.durationSeconds) || (cNum === 1 ? 6 : 8))),
+          imagePrompt: String(c.imagePrompt || ''),
+        });
+      }
+    }
+    const promptsTxtFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
+    if (fs.existsSync(promptsTxtFallback)) {
+      try {
+        const rawTxt = fs.readFileSync(promptsTxtFallback, 'utf8');
+        for (const rawLine of rawTxt.split(/\r?\n/)) {
+          const line = rawLine.trim();
+          const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mImg) {
+            const cNum = parseInt(mImg[1], 10);
+            const parsed = parseServerBrollMotionFromText(line);
+            if (cNum > 0 && parsed.isStaticBroll && !brollClipMap.has(cNum)) {
+              const durMatch = line.match(/\[Duration\s*:\s*(\d+)s\]/i);
+              brollClipMap.set(cNum, {
+                motion: parsed.brollCameraMotion || 'zoom_in',
+                durationSec: durMatch ? parseInt(durMatch[1], 10) : cNum === 1 ? 6 : 8,
+                imagePrompt: line,
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+
     activeClipsPipelineStatus = {
       running: true,
       phase: 'locating',
       current: 0,
       total: 0,
       currentFileName: '',
-      message: 'Localizando clips y verificando archivos ZIP...',
+      message: 'Localizando clips, láminas B-Roll y verificando archivos ZIP...',
       extractedZipsCount: 0,
       importedFilesCount: 0,
       upscaled4kCount: 0,
       already4kCount: 0,
+    };
+
+    const stagedBrollImagesByClip = new Map<number, { fullPath: string; mtimeMs: number; fromDownloads?: boolean }>();
+    const registerStagedBrollImage = (
+      clipNum: number,
+      imgFullPath: string,
+      mtimeMs: number,
+      fromDownloads = false
+    ) => {
+      if (!brollClipMap.has(clipNum)) return false;
+      const prev = stagedBrollImagesByClip.get(clipNum);
+      if (!prev || mtimeMs >= prev.mtimeMs) {
+        stagedBrollImagesByClip.set(clipNum, { fullPath: imgFullPath, mtimeMs, fromDownloads });
+      }
+      return true;
     };
 
     // ------------------------------------------------------------------------
@@ -8680,7 +9136,7 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
       }
     }
 
-    // Also check ~/Downloads for recent .zip files (last 24h) that contain clip videos
+    // Also check ~/Downloads for recent .zip files (last 24h) that contain clip videos OR B-Roll images from Flow
     if (downloadsDir && fs.existsSync(downloadsDir)) {
       const nowMs = Date.now();
       for (const entry of fs.readdirSync(downloadsDir)) {
@@ -8697,7 +9153,12 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
             /\.(mp4|mov|webm)/i.test(listOut) &&
             (/(?:^|\s|\/)(?:0*\d+_|clip|video|create_a_video)/i.test(listOut) ||
               /flow/i.test(entry));
-          if (hasClipVideos) {
+          const hasBrollFlowImages =
+            brollClipMap.size > 0 &&
+            /\.(png|jpg|jpeg|webp)/i.test(listOut) &&
+            (/(?:^|\s|\/)(?:0*\d+_|image[_\-\s.]*0*\d+|create_an_image)/i.test(listOut) ||
+              /flow/i.test(entry));
+          if (hasClipVideos || hasBrollFlowImages) {
             zipCandidates.push(fullZip);
           }
         } catch {}
@@ -8716,18 +9177,32 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
         execSync(`unzip -o -j "${zipFull.replace(/"/g, '\\"')}" -d "${tmpUnzipDir}"`, {
           stdio: 'ignore',
         });
+        let importedAnyFromZip = false;
         for (const extracted of fs.readdirSync(tmpUnzipDir)) {
           if (extracted.startsWith('.') || extracted.startsWith('__MACOSX')) continue;
+          const srcFile = path.join(tmpUnzipDir, extracted);
           if (/\.(mp4|mov|webm)$/i.test(extracted)) {
-            const srcFile = path.join(tmpUnzipDir, extracted);
             const destFile = path.join(clipsDir, extracted);
             fs.copyFileSync(srcFile, destFile);
             activeClipsPipelineStatus.importedFilesCount++;
+            importedAnyFromZip = true;
+          } else if (brollClipMap.size > 0 && isEligibleBrollImageEntry(extracted)) {
+            const inferredNum = inferClipNumberFromFileName(extracted, clipsList);
+            if (inferredNum > 0 && brollClipMap.has(inferredNum)) {
+              const destImg = path.join(clipsDir, extracted);
+              fs.copyFileSync(srcFile, destImg);
+              const imgSt = fs.statSync(destImg);
+              registerStagedBrollImage(inferredNum, destImg, imgSt.mtimeMs, false);
+              activeClipsPipelineStatus.importedFilesCount++;
+              importedAnyFromZip = true;
+            }
           }
         }
-        // Delete the .zip file immediately after extraction as requested
-        fs.unlinkSync(zipFull);
-        activeClipsPipelineStatus.extractedZipsCount++;
+        // Delete .zip only after at least one valid project media file was extracted
+        if (importedAnyFromZip) {
+          fs.unlinkSync(zipFull);
+          activeClipsPipelineStatus.extractedZipsCount++;
+        }
       } catch (e) {
         console.warn('[ClipsPipeline] Warning extracting zip:', zipFull, e);
       } finally {
@@ -8740,38 +9215,67 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
     }
 
     // ------------------------------------------------------------------------
-    // STEP 2: LOCATE LOOSE CLIP VIDEOS IN resolvedRoot OR ~/Downloads (RECENT) AND MOVE TO 05_Clips_Video
+    // STEP 2: LOCATE LOOSE CLIP VIDEOS & STATIC B-ROLL IMAGES IN resolvedRoot, 05_Clips_Video, OR ~/Downloads
     // ------------------------------------------------------------------------
     activeClipsPipelineStatus.phase = 'locating';
     if (fs.existsSync(resolvedRoot)) {
       for (const entry of fs.readdirSync(resolvedRoot)) {
-        if (entry.startsWith('.') || !/\.(mp4|mov|webm)$/i.test(entry)) continue;
+        if (entry.startsWith('.')) continue;
         if (/^Documental_|_Master|_Final/i.test(entry)) continue;
         const fullSrc = path.join(resolvedRoot, entry);
         try {
-          if (fs.statSync(fullSrc).isFile()) {
+          const st = fs.statSync(fullSrc);
+          if (!st.isFile()) continue;
+          if (/\.(mp4|mov|webm)$/i.test(entry)) {
             const dest = path.join(clipsDir, entry);
             fs.renameSync(fullSrc, dest);
             activeClipsPipelineStatus.importedFilesCount++;
+          } else if (brollClipMap.size > 0 && isEligibleBrollImageEntry(entry)) {
+            const inferredNum = inferClipNumberFromFileName(entry, clipsList);
+            if (inferredNum > 0 && brollClipMap.has(inferredNum)) {
+              const dest = path.join(clipsDir, entry);
+              fs.renameSync(fullSrc, dest);
+              registerStagedBrollImage(inferredNum, dest, st.mtimeMs, false);
+              activeClipsPipelineStatus.importedFilesCount++;
+            }
           }
         } catch {}
       }
     }
 
-    if (downloadsDir && fs.existsSync(downloadsDir) && clipsList.length > 0) {
+    // Also scan loose B-Roll images dropped directly inside 05_Clips_Video
+    if (brollClipMap.size > 0 && fs.existsSync(clipsDir)) {
+      for (const entry of fs.readdirSync(clipsDir)) {
+        if (!isEligibleBrollImageEntry(entry)) continue;
+        const fullImg = path.join(clipsDir, entry);
+        try {
+          const st = fs.statSync(fullImg);
+          if (!st.isFile() || st.size < 5000) continue;
+          const inferredNum = inferClipNumberFromFileName(entry, clipsList);
+          if (inferredNum > 0 && brollClipMap.has(inferredNum)) {
+            registerStagedBrollImage(inferredNum, fullImg, st.mtimeMs, false);
+          }
+        } catch {}
+      }
+    }
+
+    if (downloadsDir && fs.existsSync(downloadsDir) && (clipsList.length > 0 || brollClipMap.size > 0)) {
       const nowMs = Date.now();
       for (const entry of fs.readdirSync(downloadsDir)) {
-        if (entry.startsWith('.') || !/\.(mp4|mov|webm)$/i.test(entry)) continue;
+        if (entry.startsWith('.')) continue;
         if (/^Documental_|_Master|_Final/i.test(entry)) continue;
+        const isVidExt = /\.(mp4|mov|webm)$/i.test(entry);
+        const isImgExt = brollClipMap.size > 0 && isEligibleBrollImageEntry(entry);
+        if (!isVidExt && !isImgExt) continue;
         const fullDl = path.join(downloadsDir, entry);
         try {
           const st = fs.statSync(fullDl);
           if (!st.isFile() || nowMs - st.mtimeMs > 12 * 3600 * 1000) continue;
           const inferredNum = inferClipNumberFromFileName(entry, clipsList);
           if (inferredNum > 0) {
-            // Verify word overlap with this documentary's clip so we only import clips belonging to this project
             const targetClip = clipsList.find((c: any) => Number(c.clipNumber) === inferredNum);
-            if (targetClip) {
+            const brollSpec = brollClipMap.get(inferredNum);
+            if (isVidExt && targetClip && !brollSpec) {
               const fileToks = normalizeWordTokensForMatch(entry);
               const clipToks = normalizeWordTokensForMatch(
                 `${targetClip.narrationSegment || ''} ${targetClip.videoPrompt || ''}`
@@ -8783,8 +9287,144 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
                 fs.unlinkSync(fullDl);
                 activeClipsPipelineStatus.importedFilesCount++;
               }
+            } else if (isImgExt && brollSpec) {
+              const fileToks = normalizeWordTokensForMatch(entry);
+              const clipToks = normalizeWordTokensForMatch(
+                `${targetClip?.narrationSegment || ''} ${brollSpec.imagePrompt || ''}`
+              );
+              const overlap = fileToks.filter((t) => clipToks.includes(t)).length;
+              if (overlap >= 2 || /^image[_\-\s.]*0*\d+_/i.test(entry)) {
+                const dest = path.join(clipsDir, entry);
+                fs.copyFileSync(fullDl, dest);
+                fs.unlinkSync(fullDl);
+                registerStagedBrollImage(inferredNum, dest, st.mtimeMs, true);
+                activeClipsPipelineStatus.importedFilesCount++;
+              }
             }
           }
+        } catch {}
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // STEP 2.5: RENDER STATIC B-ROLL IMAGES TO 4K 60FPS (_Broll_4K.mp4) & ARCHIVE SOURCE IN _broll_sources/
+    // ------------------------------------------------------------------------
+    for (const [clipNum, staged] of stagedBrollImagesByClip.entries()) {
+      const brollSpec = brollClipMap.get(clipNum);
+      if (!brollSpec || !fs.existsSync(staged.fullPath)) continue;
+      const paddedNum = String(clipNum).padStart(2, '0');
+      const canonicalBase = buildBrollSixWordBaseName(
+        clipNum,
+        brollSpec.imagePrompt,
+        path.basename(staged.fullPath)
+      );
+      const finalBrollName = `${canonicalBase}_Broll_4K.mp4`;
+      const finalBrollFull = path.join(clipsDir, finalBrollName);
+
+      // Skip re-rendering if finalBrollFull already exists and is newer than staged image with matching motion
+      let alreadyRenderedCurrent = false;
+      if (fs.existsSync(finalBrollFull)) {
+        try {
+          const vidSt = fs.statSync(finalBrollFull);
+          const archived = findArchivedBrollSourceImage(clipsDir, clipNum);
+          if (
+            isVerified4kClipOnDisk(finalBrollName, vidSt.size) &&
+            vidSt.mtimeMs >= staged.mtimeMs &&
+            archived?.meta?.motion === brollSpec.motion
+          ) {
+            alreadyRenderedCurrent = true;
+          }
+        } catch {}
+      }
+
+      const archivedSourcePath = archiveBrollSourceImage(clipsDir, clipNum, staged.fullPath, {
+        motion: brollSpec.motion,
+        durationSec: brollSpec.durationSec,
+        aspectRatio,
+        baseName: canonicalBase,
+      });
+
+      // Remove loose image from 05_Clips_Video now that it's safely archived in _broll_sources/
+      if (path.resolve(staged.fullPath) !== path.resolve(archivedSourcePath) && fs.existsSync(staged.fullPath)) {
+        try {
+          fs.unlinkSync(staged.fullPath);
+        } catch {}
+      }
+
+      if (alreadyRenderedCurrent) continue;
+
+      activeClipsPipelineStatus.phase = 'upscaling_4k';
+      activeClipsPipelineStatus.currentFileName = finalBrollName;
+      activeClipsPipelineStatus.message = `Renderizando cámara óptica B-Roll 4K 60fps (${brollSpec.motion}) para escena ${paddedNum}...`;
+
+      const tmpBrollFull = path.join(
+        os.tmpdir(),
+        `huellas_broll_4k_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
+      );
+      try {
+        await renderStaticBrollImageTo4K60OnDisk(
+          archivedSourcePath,
+          tmpBrollFull,
+          brollSpec.motion,
+          brollSpec.durationSec,
+          aspectRatio
+        );
+        if (fs.existsSync(tmpBrollFull) && fs.statSync(tmpBrollFull).size >= 512 * 1024) {
+          fs.copyFileSync(tmpBrollFull, finalBrollFull);
+          try {
+            execSync(`chflags nohidden "${finalBrollFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+          } catch {}
+          const prefix = `${paddedNum}_`;
+          for (const existing of fs.readdirSync(clipsDir)) {
+            const fullExisting = path.join(clipsDir, existing);
+            if (
+              path.resolve(fullExisting) !== path.resolve(finalBrollFull) &&
+              /\.(mp4|mov|webm)$/i.test(existing) &&
+              existing.startsWith(prefix)
+            ) {
+              try {
+                fs.unlinkSync(fullExisting);
+              } catch {}
+            }
+          }
+          for (const subCache of ['.optical_flow_cache', '.foley_only_cache']) {
+            const cacheDir = path.join(clipsDir, subCache);
+            if (fs.existsSync(cacheDir) && fs.statSync(cacheDir).isDirectory()) {
+              for (const cFile of fs.readdirSync(cacheDir)) {
+                if (cFile.startsWith(prefix)) {
+                  try {
+                    fs.unlinkSync(path.join(cacheDir, cFile));
+                  } catch {}
+                }
+              }
+            }
+          }
+          // Save initial frame poster .jpg
+          const suffixWithoutNum = canonicalBase.replace(/^0*\d+_/, '');
+          const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+          const frameFullPath = path.join(clipsDir, frameFileName);
+          try {
+            const ffmpegBin = getFfmpegPath();
+            await new Promise<void>((resolve) => {
+              const proc = spawn(
+                ffmpegBin,
+                ['-y', '-i', archivedSourcePath, '-frames:v', '1', '-q:v', '2', frameFullPath],
+                { stdio: 'ignore' }
+              );
+              proc.on('error', () => resolve());
+              proc.on('close', () => resolve());
+            });
+            if (fs.existsSync(frameFullPath)) {
+              execSync(`chflags nohidden "${frameFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+            }
+          } catch {}
+          activeClipsPipelineStatus.upscaled4kCount++;
+        }
+      } catch (err) {
+        console.warn(`[ClipsPipeline] Error rendering B-Roll scene ${paddedNum}:`, err);
+      } finally {
+        try {
+          if (fs.existsSync(tmpBrollFull)) fs.unlinkSync(tmpBrollFull);
         } catch {}
       }
     }
@@ -8809,12 +9449,15 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
 
         const clipNum = inferClipNumberFromFileName(entry, clipsList);
         if (clipNum > 0) {
-          const isAlready4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(entry);
+          const isBroll4k = /_broll_4k\.(mp4|mov|webm)$/i.test(entry);
+          const isAlready4k = isBroll4k || /[_\-]4k\.(mp4|mov|webm)$/i.test(entry);
           const ext = path.extname(entry);
-          let rawBase = path.basename(entry, ext).replace(/[_\-]4k$/i, '');
+          let rawBase = path
+            .basename(entry, ext)
+            .replace(/[_\-](?:broll[_\-])?4k$/i, '');
           // Strip leading Clip_01 / 01_ prefix so we can re-prefix cleanly with 2-digit pad
           rawBase = rawBase
-            .replace(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+            .replace(/^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
             .replace(/\s+/g, '_')
             .replace(/_+/g, '_')
             .replace(/^_|_$/g, '');
@@ -8822,7 +9465,8 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
             rawBase = 'Clip';
           }
           const numPrefix = String(clipNum).padStart(2, '0');
-          const normalizedName = `${numPrefix}_${rawBase}${isAlready4k ? '_4K' : ''}${ext}`;
+          const suffix4k = isBroll4k ? '_Broll_4K' : isAlready4k ? '_4K' : '';
+          const normalizedName = `${numPrefix}_${rawBase}${suffix4k}${ext}`;
           if (normalizedName !== entry) {
             const fullNormalized = path.join(clipsDir, normalizedName);
             if (!fs.existsSync(fullNormalized)) {
@@ -8850,13 +9494,13 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
           )
       : [];
 
-    // Separate files that already have real _4K (>=12MB) vs files that need 4K conversion
+    // Separate files that already have real _4K (>=12MB or _Broll_4K >=512KB) vs files that need 4K conversion
     const mtimeReal4kByClip = new Map<number, number>();
     for (const entry of allVideoEntries) {
       if (/[_\-]4k\.(mp4|mov|webm)$/i.test(entry)) {
         try {
           const st = fs.statSync(path.join(clipsDir, entry));
-          if (st.size >= 12 * 1024 * 1024) {
+          if (isVerified4kClipOnDisk(entry, st.size)) {
             const cNum = inferClipNumberFromFileName(entry, clipsList);
             if (cNum > 0) {
               const prev = mtimeReal4kByClip.get(cNum) || 0;
@@ -8874,7 +9518,7 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
       try {
         st = fs.statSync(fullPath);
       } catch {}
-      const isReal4k = /[_\-]4k\.(mp4|mov|webm)$/i.test(entry) && !!st && st.size >= 12 * 1024 * 1024;
+      const isReal4k = !!st && isVerified4kClipOnDisk(entry, st.size);
       if (isReal4k) {
         activeClipsPipelineStatus.already4kCount++;
       } else if (st && st.size > 10000) {
@@ -9112,15 +9756,58 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     ensureDocumentarySubfolders(resolvedRoot);
     const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
     const downloadsDir = path.join(process.env.HOME || '', 'Downloads');
+    const parsedSingleBroll = parseServerBrollMotionFromText(
+      `${clip.imagePrompt || ''} ${clip.videoPrompt || ''}`
+    );
+    const isSingleStaticBroll = Boolean(clip.isStaticBroll || parsedSingleBroll.isStaticBroll);
+    const singleBrollMotion = normalizeServerBrollMotion(
+      clip.brollCameraMotion || parsedSingleBroll.brollCameraMotion || 'zoom_in'
+    );
+    const singleDurationSec = Math.max(
+      2,
+      Math.min(30, Number(clip.durationSeconds) || (clipNumber === 1 ? 6 : 8))
+    );
     const singleClipList = [
       {
         clipNumber,
+        imagePrompt: String(clip.imagePrompt || ''),
         videoPrompt: String(clip.videoPrompt || ''),
         narrationSegment: String(clip.narrationSegment || ''),
       },
     ];
 
-    // 1. Extract any .zip files sitting in 05_Clips_Video or resolvedRoot
+    // 1. Extract any .zip files sitting in 05_Clips_Video or resolvedRoot (preserving all B-Roll scene images in mixed batch zips)
+    const knownProjectBrollNums = new Set<number>();
+    if (isSingleStaticBroll) knownProjectBrollNums.add(clipNumber);
+    const singlePromptsFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
+    if (fs.existsSync(singlePromptsFallback)) {
+      try {
+        for (const rawLine of fs.readFileSync(singlePromptsFallback, 'utf8').split(/\r?\n/)) {
+          const mImg = rawLine.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mImg && parseServerBrollMotionFromText(rawLine).isStaticBroll) {
+            knownProjectBrollNums.add(parseInt(mImg[1], 10));
+          }
+        }
+      } catch {}
+    }
+    if (fs.existsSync(DOCS_FILE)) {
+      try {
+        const dbDocs = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+        if (Array.isArray(dbDocs)) {
+          const matchedDoc = dbDocs.find(
+            (d: any) => d?.localProjectFolderPath && path.resolve(d.localProjectFolderPath) === path.resolve(resolvedRoot)
+          );
+          if (matchedDoc && Array.isArray(matchedDoc.clips)) {
+            for (const dc of matchedDoc.clips) {
+              if (dc?.isStaticBroll && Number(dc.clipNumber) > 0) {
+                knownProjectBrollNums.add(Number(dc.clipNumber));
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
     for (const dir of [clipsDir, resolvedRoot]) {
       if (!fs.existsSync(dir)) continue;
       for (const entry of fs.readdirSync(dir)) {
@@ -9135,13 +9822,27 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
           execSync(`unzip -o -j "${zipFull.replace(/"/g, '\\"')}" -d "${tmpUnzipDir}"`, {
             stdio: 'ignore',
           });
+          let extractedAnyFromSingleZip = false;
           for (const extracted of fs.readdirSync(tmpUnzipDir)) {
             if (extracted.startsWith('.') || extracted.startsWith('__MACOSX')) continue;
-            if (/\.(mp4|mov|webm)$/i.test(extracted)) {
+            const mExtractedNum = extracted.match(
+              /^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
+            );
+            const extractedClipNum = mExtractedNum
+              ? parseInt(mExtractedNum[1], 10)
+              : inferClipNumberFromFileName(extracted, singleClipList);
+            const isMatchedBrollImg =
+              isEligibleBrollImageEntry(extracted) &&
+              extractedClipNum > 0 &&
+              knownProjectBrollNums.has(extractedClipNum);
+            if (/\.(mp4|mov|webm)$/i.test(extracted) || isMatchedBrollImg) {
               fs.copyFileSync(path.join(tmpUnzipDir, extracted), path.join(clipsDir, extracted));
+              extractedAnyFromSingleZip = true;
             }
           }
-          fs.unlinkSync(zipFull);
+          if (extractedAnyFromSingleZip) {
+            fs.unlinkSync(zipFull);
+          }
         } catch {
         } finally {
           try {
@@ -9151,24 +9852,31 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       }
     }
 
-    // 2. Gather all candidate video files for this clipNumber across 05_Clips_Video, resolvedRoot, Clips_Aprobados, and recent ~/Downloads
-    const candidates: Array<{ fullPath: string; fileName: string; mtimeMs: number; dir: string }> = [];
+    // 2. Gather all candidate video (or B-Roll image) files for this clipNumber across 05_Clips_Video, resolvedRoot, Clips_Aprobados, and recent ~/Downloads
+    const candidates: Array<{
+      fullPath: string;
+      fileName: string;
+      mtimeMs: number;
+      dir: string;
+      isImageSource?: boolean;
+    }> = [];
     const matchesTargetClip = (entryName: string, checkOverlap = false): boolean => {
       if (entryName.startsWith('.') || /\.tmp\.(mp4|mov|webm)$/i.test(entryName)) return false;
-      if (!/\.(mp4|mov|webm)$/i.test(entryName)) return false;
+      const isVid = /\.(mp4|mov|webm)$/i.test(entryName);
+      const isImg = isSingleStaticBroll && isEligibleBrollImageEntry(entryName);
+      if (!isVid && !isImg) return false;
       if (/^Documental_|_Master|_Final/i.test(entryName)) return false;
       const mPrefix = entryName.match(
-        /^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
+        /^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
       );
       if (mPrefix && parseInt(mPrefix[1], 10) === clipNumber) {
         if (!checkOverlap) return true;
-        // If from ~/Downloads, verify either explicit Clip_XX / 6-word overlap so we don't grab another project's file unless it's clearly this clip
         const fileToks = normalizeWordTokensForMatch(entryName);
         const clipToks = normalizeWordTokensForMatch(
-          `${clip.narrationSegment || ''} ${clip.videoPrompt || ''}`
+          `${clip.narrationSegment || ''} ${clip.imagePrompt || ''} ${clip.videoPrompt || ''}`
         );
         const overlap = fileToks.filter((t) => clipToks.includes(t)).length;
-        if (overlap >= 1 || /^clip[_\-\s.]*0*\d+/i.test(entryName)) return true;
+        if (overlap >= 1 || /^(?:clip|image|imagen)[_\-\s.]*0*\d+/i.test(entryName)) return true;
       }
       const inferred = inferClipNumberFromFileName(entryName, singleClipList);
       return inferred === clipNumber;
@@ -9186,8 +9894,14 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
         const full = path.join(d, entry);
         try {
           const st = fs.statSync(full);
-          if (st.isFile() && st.size > 10000) {
-            candidates.push({ fullPath: full, fileName: entry, mtimeMs: st.mtimeMs, dir: d });
+          if (st.isFile() && st.size > 5000) {
+            candidates.push({
+              fullPath: full,
+              fileName: entry,
+              mtimeMs: st.mtimeMs,
+              dir: d,
+              isImageSource: isEligibleBrollImageEntry(entry),
+            });
           }
         } catch {}
       }
@@ -9200,17 +9914,39 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
         const full = path.join(downloadsDir, entry);
         try {
           const st = fs.statSync(full);
-          if (st.isFile() && st.size > 10000 && nowMs - st.mtimeMs <= 12 * 3600 * 1000) {
-            candidates.push({ fullPath: full, fileName: entry, mtimeMs: st.mtimeMs, dir: downloadsDir });
+          if (st.isFile() && st.size > 5000 && nowMs - st.mtimeMs <= 12 * 3600 * 1000) {
+            candidates.push({
+              fullPath: full,
+              fileName: entry,
+              mtimeMs: st.mtimeMs,
+              dir: downloadsDir,
+              isImageSource: isEligibleBrollImageEntry(entry),
+            });
           }
         } catch {}
+      }
+    }
+
+    if (candidates.length === 0 && isSingleStaticBroll) {
+      const archivedBroll = findArchivedBrollSourceImage(clipsDir, clipNumber);
+      if (archivedBroll && fs.existsSync(archivedBroll.imagePath)) {
+        const st = fs.statSync(archivedBroll.imagePath);
+        candidates.push({
+          fullPath: archivedBroll.imagePath,
+          fileName: path.basename(archivedBroll.imagePath),
+          mtimeMs: st.mtimeMs,
+          dir: path.dirname(archivedBroll.imagePath),
+          isImageSource: true,
+        });
       }
     }
 
     if (candidates.length === 0) {
       res.status(404).json({
         ok: false,
-        error: `No se encontró ningún archivo de video para el Clip ${String(clipNumber).padStart(2, '0')} en 05_Clips_Video ni en Descargas.`,
+        error: isSingleStaticBroll
+          ? `No se encontró ninguna imagen o video B-Roll para la Escena ${String(clipNumber).padStart(2, '0')} en 05_Clips_Video ni en Descargas.`
+          : `No se encontró ningún archivo de video para el Clip ${String(clipNumber).padStart(2, '0')} en 05_Clips_Video ni en Descargas.`,
       });
       return;
     }
@@ -9225,22 +9961,25 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     const existingCanonical = candidates.find(
       (c) =>
         c.dir === clipsDir &&
+        !c.isImageSource &&
         new RegExp(`^0*${clipNumber}_[a-zA-Z0-9]`, 'i').test(c.fileName) &&
-        !/^(?:clip|video)[_\-\s.]/i.test(c.fileName)
+        !/^(?:clip|video|image|imagen)[_\-\s.]/i.test(c.fileName)
     );
-    if (clip.expectedFileName) {
+    if (isSingleStaticBroll && newest.isImageSource) {
+      canonicalBase = buildBrollSixWordBaseName(clipNumber, String(clip.imagePrompt || ''), newest.fileName);
+    } else if (clip.expectedFileName) {
       canonicalBase = path
         .basename(String(clip.expectedFileName), path.extname(String(clip.expectedFileName)))
-        .replace(/[_\-]4k$/i, '');
+        .replace(/[_\-](?:broll[_\-])?4k$/i, '');
     } else if (existingCanonical) {
       canonicalBase = path
         .basename(existingCanonical.fileName, path.extname(existingCanonical.fileName))
-        .replace(/[_\-]4k$/i, '');
+        .replace(/[_\-](?:broll[_\-])?4k$/i, '');
     } else {
       let rawBase = path
         .basename(newest.fileName, path.extname(newest.fileName))
-        .replace(/[_\-]4k$/i, '')
-        .replace(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+        .replace(/[_\-](?:broll[_\-])?4k$/i, '')
+        .replace(/^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
         .replace(/\s+/g, '_')
         .replace(/_+/g, '_')
         .replace(/^_|_$/g, '');
@@ -9248,17 +9987,46 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       canonicalBase = `${paddedNum}_${rawBase}`;
     }
 
-    const final4kName = `${canonicalBase}_4K.mp4`;
+    const useBrollSuffix = isSingleStaticBroll && (newest.isImageSource || /_broll_4k\./i.test(newest.fileName));
+    const final4kName = `${canonicalBase}${useBrollSuffix ? '_Broll_4K' : '_4K'}.mp4`;
     const final4kFull = path.join(clipsDir, final4kName);
 
-    // Check if the newest file is ALREADY a real 4K file (>=12MB) in clipsDir
+    // Check if the newest file is ALREADY a real 4K file (>=12MB or _Broll_4K >=512KB) in clipsDir
     const isNewestAlready4KName =
-      /[_\-]4k\.(mp4|mov|webm)$/i.test(newest.fileName) &&
+      !newest.isImageSource &&
       fs.existsSync(newest.fullPath) &&
-      fs.statSync(newest.fullPath).size >= 12 * 1024 * 1024;
+      isVerified4kClipOnDisk(newest.fileName, fs.statSync(newest.fullPath).size);
     let wasUpscaled = false;
 
-    if (isNewestAlready4KName && path.resolve(newest.fullPath) === path.resolve(final4kFull)) {
+    if (newest.isImageSource) {
+      const archivedImg = archiveBrollSourceImage(clipsDir, clipNumber, newest.fullPath, {
+        motion: singleBrollMotion,
+        durationSec: singleDurationSec,
+        aspectRatio,
+        baseName: canonicalBase,
+      });
+      const tmpBrollFull = path.join(
+        os.tmpdir(),
+        `huellas_single_broll_4k_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
+      );
+      try {
+        await renderStaticBrollImageTo4K60OnDisk(
+          archivedImg,
+          tmpBrollFull,
+          singleBrollMotion,
+          singleDurationSec,
+          aspectRatio
+        );
+        if (fs.existsSync(tmpBrollFull) && fs.statSync(tmpBrollFull).size >= 512 * 1024) {
+          fs.copyFileSync(tmpBrollFull, final4kFull);
+          wasUpscaled = true;
+        }
+      } finally {
+        try {
+          if (fs.existsSync(tmpBrollFull)) fs.unlinkSync(tmpBrollFull);
+        } catch {}
+      }
+    } else if (isNewestAlready4KName && path.resolve(newest.fullPath) === path.resolve(final4kFull)) {
       // Touch mtime so cache-buster refreshes
       const now = new Date();
       try {
@@ -9297,11 +10065,13 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       } catch {}
     }
 
-    // Clean up any other older / non-4K video files for this clipNumber in clipsDir (and if newest came from Downloads, remove the duplicate from Downloads)
+    // Clean up any other older / non-4K video or loose B-Roll image files for this clipNumber in clipsDir/Downloads (never touch _broll_sources)
+    const brollSourcesResolved = path.resolve(path.join(clipsDir, '_broll_sources'));
     if (fs.existsSync(final4kFull)) {
       for (const c of candidates) {
         if (
-          (c.dir === clipsDir || c.dir === downloadsDir) &&
+          (c.dir === clipsDir || c.dir === downloadsDir || c.dir === resolvedRoot) &&
+          !path.resolve(c.fullPath).startsWith(brollSourcesResolved) &&
           path.resolve(c.fullPath) !== path.resolve(final4kFull) &&
           fs.existsSync(c.fullPath)
         ) {
@@ -9356,6 +10126,253 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: err?.message || 'Error cargando y mejorando el clip a 4K.',
+    });
+  }
+});
+
+// ============================================================================
+// LIVE B-ROLL CAMERA RE-RENDERER FOR CAPCUT EDITOR (~1.8s 4K 60FPS)
+// ============================================================================
+const activeBrollRerenderLocks = new Map<string, Promise<any>>();
+
+app.post('/api/flow/rerender-broll-clip', async (req, res) => {
+  try {
+    const {
+      docId = '',
+      folderPath = '',
+      folderName = '',
+      docTitle = '',
+      aspectRatio = '16:9',
+      clipNumber: rawClipNum = 0,
+      motion: rawMotion = 'zoom_in',
+      durationSec: rawDurSec = 8,
+      imagePrompt = '',
+      currentFileName = '',
+    } = req.body || {};
+
+    const clipNumber = Number(rawClipNum || 0);
+    if (!clipNumber || clipNumber <= 0) {
+      res.status(400).json({ ok: false, error: 'Número de clip B-Roll inválido.' });
+      return;
+    }
+
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (!resolvedRoot || !fs.existsSync(resolvedRoot)) {
+      res.status(400).json({
+        ok: false,
+        error: 'No se encontró la carpeta local del documental en tu Mac.',
+      });
+      return;
+    }
+
+    ensureDocumentarySubfolders(resolvedRoot);
+    const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
+    const motion = normalizeServerBrollMotion(rawMotion);
+    const durationSec = Math.max(2, Math.min(30, Number(rawDurSec) || (clipNumber === 1 ? 6 : 8)));
+    const lockKey = `${path.resolve(clipsDir)}::${clipNumber}`;
+
+    const prevLock = activeBrollRerenderLocks.get(lockKey);
+    if (prevLock) {
+      try {
+        await prevLock;
+      } catch {}
+    }
+
+    const taskPromise = (async () => {
+      const paddedNum = String(clipNumber).padStart(2, '0');
+      const prefix = `${paddedNum}_`;
+
+      // 1. Locate archived high-res source image, or rescue frame 0 from existing video on disk
+      let sourceImgInfo = findArchivedBrollSourceImage(clipsDir, clipNumber);
+      let existingVideoOnDisk = '';
+      if (fs.existsSync(clipsDir)) {
+        for (const entry of fs.readdirSync(clipsDir)) {
+          if (/\.(mp4|mov|webm)$/i.test(entry) && entry.startsWith(prefix)) {
+            existingVideoOnDisk = path.join(clipsDir, entry);
+            break;
+          }
+        }
+      }
+
+      if (!sourceImgInfo && existingVideoOnDisk && fs.existsSync(existingVideoOnDisk)) {
+        const rescuePng = path.join(
+          os.tmpdir(),
+          `huellas_broll_rescue_${paddedNum}_${Date.now()}.png`
+        );
+        try {
+          const ffmpegBin = resolveFfmpegBin();
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(
+              ffmpegBin,
+              ['-nostdin', '-y', '-i', existingVideoOnDisk, '-frames:v', '1', rescuePng],
+              { stdio: 'ignore' }
+            );
+            proc.on('error', reject);
+            proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(String(code)))));
+          });
+          if (fs.existsSync(rescuePng) && fs.statSync(rescuePng).size > 5000) {
+            const baseForRescue = buildBrollSixWordBaseName(
+              clipNumber,
+              imagePrompt,
+              currentFileName || path.basename(existingVideoOnDisk)
+            );
+            const archivedPath = archiveBrollSourceImage(clipsDir, clipNumber, rescuePng, {
+              motion,
+              durationSec,
+              aspectRatio,
+              baseName: baseForRescue,
+            });
+            sourceImgInfo = { imagePath: archivedPath };
+          }
+        } finally {
+          try {
+            if (fs.existsSync(rescuePng)) fs.unlinkSync(rescuePng);
+          } catch {}
+        }
+      }
+
+      if (!sourceImgInfo || !fs.existsSync(sourceImgInfo.imagePath)) {
+        throw new Error(
+          `No se encontró la imagen fuente de la Escena B-Roll ${paddedNum} en _broll_sources ni en 05_Clips_Video.`
+        );
+      }
+
+      const canonicalBase =
+        sourceImgInfo.meta?.baseName ||
+        buildBrollSixWordBaseName(
+          clipNumber,
+          imagePrompt,
+          currentFileName || (existingVideoOnDisk ? path.basename(existingVideoOnDisk) : '')
+        );
+
+      archiveBrollSourceImage(clipsDir, clipNumber, sourceImgInfo.imagePath, {
+        motion,
+        durationSec,
+        aspectRatio,
+        baseName: canonicalBase,
+      });
+
+      const finalBrollName = `${canonicalBase}_Broll_4K.mp4`;
+      const finalBrollFull = path.join(clipsDir, finalBrollName);
+      const tmpBrollFull = path.join(
+        os.tmpdir(),
+        `huellas_rerender_broll_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
+      );
+
+      try {
+        await renderStaticBrollImageTo4K60OnDisk(
+          sourceImgInfo.imagePath,
+          tmpBrollFull,
+          motion,
+          durationSec,
+          aspectRatio
+        );
+        fs.copyFileSync(tmpBrollFull, finalBrollFull);
+        try {
+          execSync(`chflags nohidden "${finalBrollFull.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+        } catch {}
+      } finally {
+        try {
+          if (fs.existsSync(tmpBrollFull)) fs.unlinkSync(tmpBrollFull);
+        } catch {}
+      }
+
+      // Remove older video variants and clear stale optical-flow / foley caches for this clip
+      for (const existing of fs.readdirSync(clipsDir)) {
+        const fullExisting = path.join(clipsDir, existing);
+        if (
+          path.resolve(fullExisting) !== path.resolve(finalBrollFull) &&
+          /\.(mp4|mov|webm)$/i.test(existing) &&
+          existing.startsWith(prefix)
+        ) {
+          try {
+            fs.unlinkSync(fullExisting);
+          } catch {}
+        }
+      }
+      for (const subCache of ['.optical_flow_cache', '.foley_only_cache']) {
+        const cacheDir = path.join(clipsDir, subCache);
+        if (fs.existsSync(cacheDir) && fs.statSync(cacheDir).isDirectory()) {
+          for (const cFile of fs.readdirSync(cacheDir)) {
+            if (cFile.startsWith(prefix)) {
+              try {
+                fs.unlinkSync(path.join(cacheDir, cFile));
+              } catch {}
+            }
+          }
+        }
+      }
+
+      // Persist updated brollCameraMotion & tag in documentaries.json if docId was supplied
+      if (docId && fs.existsSync(DOCS_FILE)) {
+        try {
+          const allDocs = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+          if (Array.isArray(allDocs)) {
+            const tagMap: Record<ServerBrollCameraMotion, string> = {
+              zoom_in: 'STATIC_ZOOM_IN',
+              zoom_out: 'STATIC_ZOOM_OUT',
+              pan_right: 'STATIC_PAN_RIGHT',
+              pan_left: 'STATIC_PAN_LEFT',
+              tilt_up: 'STATIC_TILT_UP',
+              tilt_down: 'STATIC_TILT_DOWN',
+            };
+            const nextTag = `[B-Roll: ${tagMap[motion]}]`;
+            let changedDb = false;
+            for (const d of allDocs) {
+              if (d && d.id === docId && Array.isArray(d.clips)) {
+                for (const c of d.clips) {
+                  if (Number(c?.clipNumber) === clipNumber) {
+                    c.isStaticBroll = true;
+                    c.brollCameraMotion = motion;
+                    c.videoPrompt = '';
+                    c.videoSavedFileName = finalBrollName;
+                    if (typeof c.imagePrompt === 'string' && /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(c.imagePrompt)) {
+                      c.imagePrompt = c.imagePrompt.replace(/\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, nextTag);
+                    }
+                    changedDb = true;
+                  }
+                }
+                if (changedDb && typeof d.rawClipsText === 'string') {
+                  d.rawClipsText = d.rawClipsText.replace(
+                    new RegExp(`(^|\\n)(Image\\s+0*${clipNumber}\\b[^\\n]*?)\\[B-Roll\\s*:\\s*STATIC_[A-Z_]+\\]`, 'i'),
+                    `$1$2${nextTag}`
+                  );
+                }
+              }
+            }
+            if (changedDb) {
+              fs.writeFileSync(DOCS_FILE, JSON.stringify(allDocs, null, 2), 'utf8');
+              const docsMirrorPath = path.join(process.cwd(), 'docs', 'data', 'documentaries.json');
+              if (fs.existsSync(path.dirname(docsMirrorPath))) {
+                fs.writeFileSync(docsMirrorPath, JSON.stringify(allDocs, null, 2), 'utf8');
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const st = fs.statSync(finalBrollFull);
+      return {
+        clipNumber,
+        motion,
+        fileName: finalBrollName,
+        url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(finalBrollFull)}&v=${Math.floor(st.mtimeMs)}&t=${Date.now()}`,
+      };
+    })();
+
+    activeBrollRerenderLocks.set(lockKey, taskPromise);
+    try {
+      const out = await taskPromise;
+      res.json({ ok: true, ...out });
+    } finally {
+      if (activeBrollRerenderLocks.get(lockKey) === taskPromise) {
+        activeBrollRerenderLocks.delete(lockKey);
+      }
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al re-renderizar movimiento B-Roll en 4K 60fps.',
     });
   }
 });

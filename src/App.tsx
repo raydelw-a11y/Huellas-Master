@@ -103,6 +103,7 @@ import {
   resolveClipFlowVideoEngine,
   applyClipFlowVideoEngineTag,
   BROLL_MOTION_UI_LABEL_ES,
+  normalizeBrollImagePrompt,
   applyStaticBrollMotionToClip,
   autoAssignPeriodicStaticBrollClips,
   inferBestBrollMotionForNarration,
@@ -161,7 +162,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:02 PM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:09 AM - 11/12/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -195,13 +196,18 @@ function hydrateClipsFromRawIfNeeded(
   const merged = existing.map((ec) => {
     const pc = parsedByNum.get(Number(ec.clipNumber));
     if (!pc) return ec;
+    const mergedIsBroll = pc.isStaticBroll ?? ec.isStaticBroll;
     return {
       ...ec,
       imagePrompt: pc.imagePrompt || ec.imagePrompt,
-      videoPrompt: pc.videoPrompt || ec.videoPrompt,
+      videoPrompt: mergedIsBroll ? '' : pc.videoPrompt || ec.videoPrompt,
+      previousVideoPrompt:
+        pc.previousVideoPrompt ||
+        ec.previousVideoPrompt ||
+        (mergedIsBroll && ec.videoPrompt ? ec.videoPrompt : undefined),
       cameraSelection: pc.cameraSelection || ec.cameraSelection,
       visualExplanation: pc.visualExplanation || ec.visualExplanation,
-      isStaticBroll: pc.isStaticBroll ?? ec.isStaticBroll,
+      isStaticBroll: mergedIsBroll,
       brollCameraMotion: pc.brollCameraMotion || ec.brollCameraMotion,
       flowClipEngine: pc.flowClipEngine || ec.flowClipEngine,
     };
@@ -7132,6 +7138,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         : '';
 
     if (isImagePrompt) {
+      let trailingImgTags = '';
+      p = p
+        .replace(
+          /\s*((?:\[(?:Time|Duration|Video\s+Model|Model|IMAGE\s+ONLY[^\]]*|B-Roll)\s*:?[^\]]*\]\s*)+(?:\bfix\s+the\s+name\b\.?)?|\bfix\s+the\s+name\b\.?)\s*$/i,
+          (_, tags) => {
+            trailingImgTags = String(tags || '').trim();
+            return '';
+          }
+        )
+        .trim();
       if (isZeroPeopleShot) {
         p = p.replace(
           /,?\s*portrayed by anonymous(?: mature adult)? historical reenactment actors in authentic period costume\s*\(no real public figures or prominent people\)/gi,
@@ -7163,7 +7179,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (erraticActingClause) {
         p = `${p.replace(/\.?\s*$/, '')}. ${erraticActingClause}`;
       }
-      return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+      const rebuiltImg = `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+      return trailingImgTags
+        ? `${rebuiltImg.replace(/\.?\s*$/, '.')} ${trailingImgTags}`.replace(/\s{2,}/g, ' ').trim()
+        : rebuiltImg;
     }
 
     // Keep all Master Prompt camera movements (pan, dolly, crane, tracking, tilt, orbit), but ensure they are smooth & controlled (never abrupt/whip)
@@ -7278,12 +7297,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       true,
       clipSec
     );
-    const shieldedVid = applyAntiMutationShieldToPrompt(
-      clip.videoPrompt || '',
-      normalizedModes,
-      false,
-      clipSec
-    );
+    const shieldedVid = clip.isStaticBroll
+      ? ''
+      : applyAntiMutationShieldToPrompt(
+          clip.videoPrompt || '',
+          normalizedModes,
+          false,
+          clipSec
+        );
 
     const modeLabels: Record<
       | 'PEOPLE'
@@ -7354,10 +7375,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const updatedClipObj = nextClips.find((c) => c.id === clip.id) || {
       ...clip,
       imagePrompt: shieldedImg || clip.imagePrompt,
-      videoPrompt: shieldedVid || clip.videoPrompt,
+      videoPrompt: clip.isStaticBroll ? '' : shieldedVid || clip.videoPrompt,
     };
 
-    const singlePairToCopy = `${currentHeader}\n\n${updatedClipObj.imagePrompt}\n${updatedClipObj.videoPrompt}`;
+    const singlePairToCopy = updatedClipObj.isStaticBroll
+      ? `${currentHeader}\n\n${updatedClipObj.imagePrompt}`
+      : `${currentHeader}\n\n${updatedClipObj.imagePrompt}\n${updatedClipObj.videoPrompt}`;
     try {
       navigator.clipboard.writeText(singlePairToCopy);
       setCopiedId(`rehacer-${clip.id}`);
@@ -7385,9 +7408,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         imagePrompt: (c.imagePrompt || '').trim()
           ? applyAntiMutationShieldToPrompt(c.imagePrompt || '', 'ALL', true, targetSec)
           : c.imagePrompt,
-        videoPrompt: (c.videoPrompt || '').trim()
-          ? applyAntiMutationShieldToPrompt(c.videoPrompt || '', 'ALL', false, targetSec)
-          : c.videoPrompt,
+        videoPrompt: c.isStaticBroll
+          ? ''
+          : (c.videoPrompt || '').trim()
+            ? applyAntiMutationShieldToPrompt(c.videoPrompt || '', 'ALL', false, targetSec)
+            : c.videoPrompt,
       };
     });
 
@@ -7474,9 +7499,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
 
       if (matchedFile) {
+        const isBroll4kFile =
+          /_broll_4k\.(mp4|webm|mov)$/i.test(matchedFile.name) &&
+          matchedFile.size >= 512 * 1024;
         const is4kFile =
-          /[_\-]4k\.(mp4|webm|mov)$/i.test(matchedFile.name) &&
-          matchedFile.size >= 12 * 1024 * 1024;
+          isBroll4kFile ||
+          (/[_\-]4k\.(mp4|webm|mov)$/i.test(matchedFile.name) &&
+            matchedFile.size >= 12 * 1024 * 1024);
         const isRecentRegen = Date.now() - matchedFile.lastModified <= 3 * 3600 * 1000;
 
         // If the clip file in 05_Clips_Video was recently regenerated manually and is not yet 4K, upscale it to 4K first on the local server before loading
@@ -7509,6 +7538,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             currentDoc?.promptConfig?.SUB_OPCION_REELS === '9X16';
           const aspectRatio = isVertical ? '9:16' : '16:9';
 
+          const { clip1Sec: singleClip1Sec, standardClipSec: singleStdSec } =
+            getStage1ClipDurations(currentDoc);
+          const singleDurSec = clip.clipNumber === 1 ? singleClip1Sec : singleStdSec;
+
           for (const baseOrigin of apiBases) {
             try {
               const res = await fetch(`${baseOrigin}/api/flow/load-and-upscale-single-clip`, {
@@ -7523,7 +7556,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     clipNumber: clip.clipNumber,
                     expectedFileName: expectedName,
                     narrationSegment: clip.narrationSegment || '',
+                    imagePrompt: clip.imagePrompt || '',
                     videoPrompt: clip.videoPrompt || '',
+                    isStaticBroll: Boolean(clip.isStaticBroll),
+                    brollCameraMotion: clip.brollCameraMotion || 'zoom_in',
+                    durationSeconds: singleDurSec,
                   },
                 }),
               });
@@ -7614,6 +7651,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? ['http://localhost:4200']
         : ['', 'http://localhost:4200'];
 
+      const { clip1Sec: loadClip1Sec, standardClipSec: loadStdSec } =
+        getStage1ClipDurations(currentDoc);
+      const loadDurSec = clipNum === 1 ? loadClip1Sec : loadStdSec;
+
       let loadedFromServer = false;
       for (const baseOrigin of apiBases) {
         try {
@@ -7629,7 +7670,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 clipNumber: clipNum,
                 expectedFileName,
                 narrationSegment: clip.narrationSegment || '',
+                imagePrompt: clip.imagePrompt || '',
                 videoPrompt: clip.videoPrompt || '',
+                isStaticBroll: Boolean(clip.isStaticBroll),
+                brollCameraMotion: clip.brollCameraMotion || 'zoom_in',
+                durationSeconds: loadDurSec,
               },
             }),
           });
@@ -7783,9 +7828,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   const num = parseInt(m[1], 10);
                   if (num > 0) {
                     const file = await entryHandle.getFile();
+                    const isBroll4kCandidate =
+                      /_broll_4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
+                      file.size >= 512 * 1024;
                     const is4kCandidate =
-                      /[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
-                      file.size >= 12 * 1024 * 1024;
+                      isBroll4kCandidate ||
+                      (/[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
+                        file.size >= 12 * 1024 * 1024);
                     const isRecentNon4k =
                       !is4kCandidate && Date.now() - file.lastModified <= 3 * 3600 * 1000;
                     // Skip loading a recently regenerated non-4K clip via raw browser handle so /api/flow/list-folder-media upscales it to 4K first
@@ -8106,6 +8155,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         } catch {}
       }, 900);
 
+      const { clip1Sec: pipeClip1Sec, standardClipSec: pipeStdSec } =
+        getStage1ClipDurations(currentDoc);
+
       const res = await fetch(`${chosenBase}/api/flow/process-clips-pipeline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -8119,6 +8171,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             imagePrompt: c.imagePrompt,
             videoPrompt: c.videoPrompt,
             narrationSegment: c.narrationSegment,
+            isStaticBroll: Boolean(c.isStaticBroll),
+            brollCameraMotion: c.brollCameraMotion || 'zoom_in',
+            durationSeconds: c.clipNumber === 1 ? pipeClip1Sec : pipeStdSec,
           })),
         }),
       });
@@ -8226,7 +8281,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           (/(?:Act[uú]a\s+como\s+un\s+historiador|Cambia\s+los\s+nombres\s+de\s+los\s+clips)/i.test(
             activeDoc.rawClipsText
           ) ||
-            !/pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(
+            /STATIC\s+B-ROLL\s+PLATE\s+LOCK\s*\(CAMERA\s+MOTION\s+ONLY\)/i.test(
+              activeDoc.rawClipsText
+            ) ||
+            !/\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(
               activeDoc.rawClipsText
             ))
       ) ||
@@ -8245,7 +8303,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       hasClips &&
       baseClips.some(
         (c) =>
-          ((c.videoPrompt || '').trim() &&
+          (c.isStaticBroll && Boolean((c.videoPrompt || '').trim())) ||
+          (!c.isStaticBroll &&
+            (c.videoPrompt || '').trim() &&
             (!/Fixed subject count from 0s to \d+s|Strictly zero people or human figures/i.test(
               c.videoPrompt || ''
             ) ||
@@ -8280,9 +8340,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         imagePrompt: (c.imagePrompt || '').trim()
           ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
           : c.imagePrompt,
-        videoPrompt: (c.videoPrompt || '').trim()
-          ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
-          : c.videoPrompt,
+        videoPrompt: c.isStaticBroll
+          ? ''
+          : (c.videoPrompt || '').trim()
+            ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
+            : c.videoPrompt,
       }));
       const hasAnyAuthoredPrompt =
         getRawClipsQualityTier(activeDoc.rawClipsText) === 2 &&
@@ -20397,8 +20459,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             clipBatchFilter <= 1 ? `${currentHeader}\n\n` : '';
                           const body = visible
                             .map((c) => {
-                              const resolved = resolveClipFlowVideoEngine(c, activeEngine, docRefsList);
                               const durForClip = c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
+                              if (c.isStaticBroll) {
+                                return normalizeBrollImagePrompt(
+                                  c.imagePrompt || '',
+                                  c.clipNumber,
+                                  c.timeRange,
+                                  durForClip,
+                                  c.brollCameraMotion || 'zoom_in'
+                                );
+                              }
+                              const resolved = resolveClipFlowVideoEngine(c, activeEngine, docRefsList);
                               const taggedVid = applyClipFlowVideoEngineTag(
                                 c.videoPrompt || '',
                                 resolved,
@@ -20879,6 +20950,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                                         activeEngineMode
                                       );
+                                      if (clip.isStaticBroll) {
+                                        const brollImgOnly = normalizeBrollImagePrompt(
+                                          clip.imagePrompt || '',
+                                          clip.clipNumber,
+                                          clip.timeRange,
+                                          cardClipDurSec,
+                                          clip.brollCameraMotion || 'zoom_in'
+                                        );
+                                        copyText(`${header}\n\n${brollImgOnly}`, `copy-clip-${clip.id}`);
+                                        return;
+                                      }
                                       const taggedVid = applyClipFlowVideoEngineTag(
                                         clip.videoPrompt || '',
                                         clipResolvedEngine,
@@ -20890,11 +20972,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       );
                                     }}
                                     className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-[10px] text-emerald-200 font-bold cursor-pointer"
-                                    title="Copiar directiva + Image y Clip de este segmento para Google Flow Agent"
+                                    title={
+                                      clip.isStaticBroll
+                                        ? 'Copiar directiva + Image B-Roll (SOLO IMAGEN en Google Flow)'
+                                        : 'Copiar directiva + Image y Clip de este segmento para Google Flow Agent'
+                                    }
                                   >
                                     {copiedId === `copy-clip-${clip.id}`
                                       ? '✅ Copiado'
-                                      : '📋 Copiar Clip'}
+                                      : clip.isStaticBroll
+                                        ? '📋 Copiar Image B-Roll'
+                                        : '📋 Copiar Clip'}
                                   </button>
 
                                   <label className="flex items-center gap-0.5 text-[10px] text-slate-300 cursor-pointer">
@@ -21085,20 +21173,32 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           ? `Mejorando Clip ${paddedNum} a 4K...`
                                           : '📥 Cargar Clip (Mejorar a 4K y Actualizar)'}
                                       </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
-                                        }
-                                        className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
-                                      >
-                                        🎬 Crear Video en Flow
-                                      </button>
+                                      {clip.isStaticBroll ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSendPromptToFlow(clip.imagePrompt, 'IMAGE', clip.id)
+                                          }
+                                          className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-500/50 text-amber-200 text-xs font-black cursor-pointer"
+                                        >
+                                          🖼️ Crear Imagen B-Roll en Flow
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                          }
+                                          className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
+                                        >
+                                          🎬 Crear Video en Flow
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 )}
                                 <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
-                                  🎬 Clip {paddedNum} ({clip.timeRange || 'S/T'})
+                                  {clip.isStaticBroll ? '🖼️ B-Roll' : '🎬 Clip'} {paddedNum} ({clip.timeRange || 'S/T'})
                                   {clip.videoAttempts && clip.videoAttempts > 1
                                     ? ` • Intento #${clip.videoAttempts}`
                                     : ''}
@@ -21112,6 +21212,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <button
                               type="button"
                               onClick={() => {
+                                if (clip.isStaticBroll) {
+                                  const brollImgOnly = normalizeBrollImagePrompt(
+                                    (clip.imagePrompt || '').trim(),
+                                    clip.clipNumber,
+                                    clip.timeRange,
+                                    cardClipDurSec,
+                                    clip.brollCameraMotion || 'zoom_in'
+                                  );
+                                  copyText(brollImgOnly, `both-prompts-${clip.id}`);
+                                  return;
+                                }
                                 const taggedVid = applyClipFlowVideoEngineTag(
                                   (clip.videoPrompt || '').trim(),
                                   clipResolvedEngine,
@@ -21123,11 +21234,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 );
                               }}
                               className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-xs font-black text-amber-200 flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
-                              title={`Copiar juntos el Prompt de Imagen + el Prompt de Video del Clip ${paddedNum}`}
+                              title={
+                                clip.isStaticBroll
+                                  ? `Copiar el Prompt de Imagen B-Roll ${paddedNum} (SOLO IMAGEN para Flow)`
+                                  : `Copiar juntos el Prompt de Imagen + el Prompt de Video del Clip ${paddedNum}`
+                              }
                             >
                               {copiedId === `both-prompts-${clip.id}`
-                                ? `✅ Prompts Imagen + Clip ${paddedNum} Copiados`
-                                : `📋 Copiar Prompts Imagen + Clip ${paddedNum} Juntos`}
+                                ? clip.isStaticBroll
+                                  ? `✅ Prompt Imagen B-Roll ${paddedNum} Copiado`
+                                  : `✅ Prompts Imagen + Clip ${paddedNum} Copiados`
+                                : clip.isStaticBroll
+                                  ? `📋 Copiar Prompt Imagen B-Roll ${paddedNum} (Solo Imagen)`
+                                  : `📋 Copiar Prompts Imagen + Clip ${paddedNum} Juntos`}
                             </button>
                           </div>
 
@@ -21149,7 +21268,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             }`}
                           >
                             <summary className="px-3.5 py-2 text-xs font-bold text-slate-400 hover:text-amber-300 cursor-pointer flex items-center justify-between select-none">
-                              <span>📝 Ver / Editar Prompts de Imagen y Video del Clip {paddedNum}</span>
+                              <span>
+                                {clip.isStaticBroll
+                                  ? `📝 Ver / Editar Prompt de Imagen B-Roll ${paddedNum} (Movimiento Local 4K · 60fps)`
+                                  : `📝 Ver / Editar Prompts de Imagen y Video del Clip ${paddedNum}`}
+                              </span>
                               <span className="text-[11px] text-slate-500 group-open:text-amber-300">
                                 Haz clic para desplegar / ocultar ▾
                               </span>
@@ -21159,7 +21282,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between flex-wrap gap-1.5">
                                   <span className="text-xs font-semibold text-amber-300">
-                                    🖼️ Prompt de Imagen Inicial (Nano Banana 2.1)
+                                    {clip.isStaticBroll
+                                      ? '🖼️ Prompt de Imagen B-Roll (Nano Banana 2.1 • SOLO IMAGEN en Flow)'
+                                      : '🖼️ Prompt de Imagen Inicial (Nano Banana 2.1)'}
                                   </span>
                                   <div className="flex items-center gap-1.5">
                                     <button
@@ -21192,69 +21317,91 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 />
                               </div>
 
-                              {/* Video Prompt */}
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between flex-wrap gap-1.5">
-                                  <span className="text-xs font-semibold text-emerald-300">
-                                    🎬 Prompt de Video (
-                                    {clipResolvedEngine === 'OMNI_1_1_FLASH'
-                                      ? '⚡ Omni 1.1 Flash • Con Personas'
-                                      : '🟢 Veo 3.1 - Lite [Lower Priority] • Sin Personas'}{' '}
-                                    + Foley)
-                                  </span>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleEvadeFilterAndResendClip(
-                                          clip,
-                                          (clip.videoAttempts || 1) + 1,
-                                          'Reajuste manual Anti-Filtro Prominent People'
-                                        )
-                                      }
-                                      className="px-2.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-300 font-semibold cursor-pointer"
-                                      title="Si este clip falló por política de Personas Prominentes en Google Flow, reajusta el prompt para evadir el filtro y lo reenvía automáticamente"
-                                    >
-                                      🛡️ Evadir Filtro y Re-enviar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
-                                      }
-                                      className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
-                                      title="Enviar prompt de video a Google Flow (Gratis)"
-                                    >
-                                      🎬 Flow Video
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        copyText(
-                                          applyClipFlowVideoEngineTag(
-                                            clip.videoPrompt || '',
-                                            clipResolvedEngine,
-                                            cardClipDurSec
-                                          ),
-                                          `vid-${clip.id}`
-                                        )
-                                      }
-                                      className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
-                                    >
-                                      {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
-                                    </button>
+                              {/* Video Prompt OR Local B-Roll Optical Camera Info */}
+                              {clip.isStaticBroll ? (
+                                <div className="rounded-xl border border-amber-500/40 bg-amber-950/25 p-3.5 flex flex-col justify-between gap-2.5">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-xs font-black text-amber-300">
+                                        🎥 Cámara Óptica Local 4K · 60fps (Sin Clip en Google Flow)
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-400/40 text-[11px] font-bold text-sky-200">
+                                        {BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in']}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-amber-100/90 leading-relaxed">
+                                      Para esta escena B-Roll, <strong>Google Flow solo genera la imagen fija</strong> (Nano Banana 2.1, sin gastar créditos ni tiempo en Veo/Omni). Al pulsar <strong>⚡ Procesar Clips</strong> o <strong>📥 Cargar Clip</strong>, nuestra app aplica localmente el movimiento óptico <strong>{BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in']}</strong> en <strong>4K UHD a 60fps</strong> ({cardClipDurSec}s, audio Foley 0%) y podrás cambiarlo en vivo desde el Editor de Video.
+                                    </p>
+                                  </div>
+                                  <div className="text-[11px] text-amber-300/80 font-mono">
+                                    Etiqueta activa: [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll:{' '}
+                                    {(clip.brollCameraMotion || 'zoom_in').toUpperCase()}]
                                   </div>
                                 </div>
-                                <textarea
-                                  rows={4}
-                                  value={clip.videoPrompt}
-                                  onChange={(e) => {
-                                    const next = [...activeDoc.clips];
-                                    next[realIdx] = { ...clip, videoPrompt: e.target.value };
-                                    updateActiveDoc({ clips: next });
-                                  }}
-                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
-                                />
-                              </div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                    <span className="text-xs font-semibold text-emerald-300">
+                                      🎬 Prompt de Video (
+                                      {clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                        ? '⚡ Omni 1.1 Flash • Con Personas'
+                                        : '🟢 Veo 3.1 - Lite [Lower Priority] • Sin Personas'}{' '}
+                                      + Foley)
+                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleEvadeFilterAndResendClip(
+                                            clip,
+                                            (clip.videoAttempts || 1) + 1,
+                                            'Reajuste manual Anti-Filtro Prominent People'
+                                          )
+                                        }
+                                        className="px-2.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-300 font-semibold cursor-pointer"
+                                        title="Si este clip falló por política de Personas Prominentes en Google Flow, reajusta el prompt para evadir el filtro y lo reenvía automáticamente"
+                                      >
+                                        🛡️ Evadir Filtro y Re-enviar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleSendPromptToFlow(clip.videoPrompt, 'VIDEO', clip.id)
+                                        }
+                                        className="px-2.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-semibold cursor-pointer"
+                                        title="Enviar prompt de video a Google Flow (Gratis)"
+                                      >
+                                        🎬 Flow Video
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          copyText(
+                                            applyClipFlowVideoEngineTag(
+                                              clip.videoPrompt || '',
+                                              clipResolvedEngine,
+                                              cardClipDurSec
+                                            ),
+                                            `vid-${clip.id}`
+                                          )
+                                        }
+                                        className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-300 cursor-pointer"
+                                      >
+                                        {copiedId === `vid-${clip.id}` ? '✓ Copiado' : '📋 Copiar Clip'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <textarea
+                                    rows={4}
+                                    value={clip.videoPrompt}
+                                    onChange={(e) => {
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = { ...clip, videoPrompt: e.target.value };
+                                      updateActiveDoc({ clips: next });
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
+                                  />
+                                </div>
+                              )}
                             </div>
                           </details>
 
