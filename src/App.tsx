@@ -31,6 +31,7 @@ import {
   Globe,
   Lock,
   Play,
+  AlertTriangle,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
@@ -151,7 +152,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:47 PM - 11/11/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:32 PM - 11/11/2026';
 
 function stripStage12ClosingChatter(raw: string): string {
   let clean = String(raw || '').replace(/\r\n/g, '\n').trim();
