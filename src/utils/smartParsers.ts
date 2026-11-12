@@ -720,6 +720,185 @@ export function buildRawClipsTextWithHeader(
   return body ? `${header}\n\n${body}` : '';
 }
 
+export const AUTO_SKELETON_PROMPT_RE =
+  /\((?:Ruta Principal(?:\s+Completa)?|Arco Integral|Tema Central)[^)]*\)|Authentic historical visual scene for|Create an image of a .* shot in \(Ruta Principal|Create an image of escena cinematogr[aá]fica documental correspondiente a:|depicting the historical documentary scene with dramatic cinematic lighting, historical accuracy, photorealistic 8k film still/i;
+
+export function isAutoSkeletonPromptText(text?: string | null): boolean {
+  if (!text) return false;
+  const trimmed = String(text).trim();
+  if (!trimmed) return false;
+  return AUTO_SKELETON_PROMPT_RE.test(trimmed);
+}
+
+export function stripOperationalHeaderOnly(raw?: string | null): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  const firstPromptIdx = trimmed.search(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen|Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:(\-–]/i
+  );
+  if (firstPromptIdx >= 0) {
+    return trimmed.slice(firstPromptIdx).trim();
+  }
+  if (
+    /^(?:Act[uú]a como un historiador|Act as a (?:professional |master )?historian|Before generating anything)/i.test(
+      trimmed
+    ) ||
+    /Cambia\s+los\s+nombres\s+de\s+los\s+clips/i.test(trimmed)
+  ) {
+    return '';
+  }
+  return trimmed;
+}
+
+/**
+ * Clasificación semántica de calidad para rawClipsText:
+ *  2 = Prompts reales de autor / Gemini (sin marcadores de auto-esqueleto)
+ *  1 = Auto-esqueleto sintético ((Ruta Principal...), (Arco Integral...), (Tema Central...))
+ *  0 = Vacío o únicamente el Operational Header sin bloques de prompts
+ */
+export function getRawClipsQualityTier(raw?: string | null): 0 | 1 | 2 {
+  const body = stripOperationalHeaderOnly(raw);
+  if (!body) return 0;
+  if (isAutoSkeletonPromptText(body)) return 1;
+  return 2;
+}
+
+export function isClipRealAuthored(clip?: Partial<DocumentaryClip> | null): boolean {
+  if (!clip) return false;
+  const img = String(clip.imagePrompt || '').trim();
+  const vid = String(clip.videoPrompt || '').trim();
+  if (!img && !vid) return false;
+  if (isAutoSkeletonPromptText(img) || isAutoSkeletonPromptText(vid)) return false;
+  return true;
+}
+
+export function countRealAuthoredClips(clips?: DocumentaryClip[] | null): number {
+  if (!Array.isArray(clips) || clips.length === 0) return 0;
+  let count = 0;
+  for (const c of clips) {
+    if (isClipRealAuthored(c)) count++;
+  }
+  return count;
+}
+
+export function countAuthoredBlocksInRawText(raw?: string | null): number {
+  const body = stripOperationalHeaderOnly(raw);
+  if (!body || isAutoSkeletonPromptText(body)) return 0;
+  const clipMatches = body.match(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
+  );
+  if (clipMatches && clipMatches.length > 0) return clipMatches.length;
+  const imgMatches = body.match(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
+  );
+  return imgMatches ? imgMatches.length : 0;
+}
+
+export interface SafeRebuildRawClipsOptions {
+  clips?: DocumentaryClip[] | null;
+  previousRawText?: string | null;
+  fallbackRawText?: string | null;
+  operationalHeader?: string;
+  engineMode?: FlowProjectEngineMode;
+  projectEngineMode?: FlowProjectEngineMode;
+  clip1Sec?: number;
+  clip1DurationSec?: number;
+  standardClipSec?: number;
+  standardClipDurationSec?: number;
+  references?: ReferenceAsset[];
+}
+
+/**
+ * Reconstruye o resuelve el texto completo de prompts (con encabezado operativo actualizado)
+ * garantizando que NUNCA devuelva vacío ni ampute bloques cuando clips[] son esqueletos vacíos o parciales.
+ */
+export function safeRebuildRawClipsText(options: SafeRebuildRawClipsOptions): string;
+export function safeRebuildRawClipsText(
+  clips: DocumentaryClip[] | undefined | null,
+  fallbackRawText: string | undefined | null,
+  operationalHeader?: string,
+  projectEngineMode?: FlowProjectEngineMode,
+  clip1DurationSec?: number,
+  standardClipDurationSec?: number,
+  references?: ReferenceAsset[]
+): string;
+export function safeRebuildRawClipsText(
+  clipsOrOptions: DocumentaryClip[] | SafeRebuildRawClipsOptions | undefined | null,
+  fallbackRawText?: string | null,
+  operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
+  projectEngineMode: FlowProjectEngineMode = 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+  clip1DurationSec?: number,
+  standardClipDurationSec?: number,
+  references?: ReferenceAsset[]
+): string {
+  const isOptionsObj =
+    Boolean(clipsOrOptions) && !Array.isArray(clipsOrOptions) && typeof clipsOrOptions === 'object';
+  const clips = isOptionsObj
+    ? (clipsOrOptions as SafeRebuildRawClipsOptions).clips
+    : (clipsOrOptions as DocumentaryClip[] | undefined | null);
+  const prevRaw = String(
+    (isOptionsObj
+      ? (clipsOrOptions as SafeRebuildRawClipsOptions).previousRawText ??
+        (clipsOrOptions as SafeRebuildRawClipsOptions).fallbackRawText
+      : fallbackRawText) || ''
+  );
+  const effEngineMode: FlowProjectEngineMode =
+    (isOptionsObj
+      ? (clipsOrOptions as SafeRebuildRawClipsOptions).engineMode ||
+        (clipsOrOptions as SafeRebuildRawClipsOptions).projectEngineMode
+      : projectEngineMode) || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+  const effHeaderInput =
+    (isOptionsObj
+      ? (clipsOrOptions as SafeRebuildRawClipsOptions).operationalHeader
+      : operationalHeader) || DEFAULT_OPERATIONAL_HEADER;
+  const effClip1Sec = isOptionsObj
+    ? (clipsOrOptions as SafeRebuildRawClipsOptions).clip1Sec ??
+      (clipsOrOptions as SafeRebuildRawClipsOptions).clip1DurationSec
+    : clip1DurationSec;
+  const effStdSec = isOptionsObj
+    ? (clipsOrOptions as SafeRebuildRawClipsOptions).standardClipSec ??
+      (clipsOrOptions as SafeRebuildRawClipsOptions).standardClipDurationSec
+    : standardClipDurationSec;
+  const effRefs = isOptionsObj
+    ? (clipsOrOptions as SafeRebuildRawClipsOptions).references
+    : references;
+
+  const cleanHeader = sanitizeOperationalHeader(effHeaderInput, effEngineMode);
+  const authoredClipCount = countRealAuthoredClips(clips);
+  const prevTier = getRawClipsQualityTier(prevRaw);
+  const prevBlockCount = countAuthoredBlocksInRawText(prevRaw);
+
+  const normalizeFallback = (): string => {
+    if (!prevRaw.trim() || prevTier === 0) return '';
+    return ensureOperationalHeaderInRawClips(prevRaw, cleanHeader);
+  };
+
+  if (authoredClipCount === 0) {
+    return normalizeFallback();
+  }
+
+  if (
+    prevTier === 2 &&
+    prevBlockCount > authoredClipCount &&
+    authoredClipCount < Math.floor(prevBlockCount * 0.85)
+  ) {
+    return normalizeFallback();
+  }
+
+  const rebuilt = buildRawClipsTextWithHeader(
+    clips || [],
+    cleanHeader,
+    effEngineMode,
+    effClip1Sec,
+    effStdSec,
+    effRefs
+  );
+  if (!rebuilt.trim()) {
+    return normalizeFallback();
+  }
+  return rebuilt;
+}
+
 // ============================================================================
 // 0. HELPER DE DURACIONES SELECCIONADAS EN ETAPA 1 (Clip 1 y Clips 2+)
 // ============================================================================

@@ -551,9 +551,146 @@ async function getServerGitHubFileSha(filePath: string, token: string): Promise<
   return null;
 }
 
+const SERVER_AUTO_SKELETON_RE =
+  /\((?:Ruta Principal(?:\s+Completa)?|Arco Integral|Tema Central)[^)]*\)|Authentic historical visual scene for|Create an image of a .* shot in \(Ruta Principal|Create an image of escena cinematogr[aá]fica documental correspondiente a:|depicting the historical documentary scene with dramatic cinematic lighting, historical accuracy, photorealistic 8k film still/i;
+
+function isServerAutoSkeletonPromptText(text?: any): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+  if (!t) return false;
+  return SERVER_AUTO_SKELETON_RE.test(t);
+}
+
+function stripServerOperationalHeaderOnly(raw?: any): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  const firstPromptIdx = trimmed.search(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen|Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:(\-–]/i
+  );
+  if (firstPromptIdx >= 0) {
+    return trimmed.slice(firstPromptIdx).trim();
+  }
+  if (
+    /^(?:Act[uú]a como un historiador|Act as a (?:professional |master )?historian|Before generating anything)/i.test(
+      trimmed
+    ) ||
+    /Cambia\s+los\s+nombres\s+de\s+los\s+clips/i.test(trimmed)
+  ) {
+    return '';
+  }
+  return trimmed;
+}
+
+function getServerRawClipsQualityTier(raw?: any): 0 | 1 | 2 {
+  const body = stripServerOperationalHeaderOnly(raw);
+  if (!body) return 0;
+  if (isServerAutoSkeletonPromptText(body)) return 1;
+  return 2;
+}
+
+function isServerClipRealAuthored(clip?: any): boolean {
+  if (!clip || typeof clip !== 'object') return false;
+  const img = String(clip.imagePrompt || '').trim();
+  const vid = String(clip.videoPrompt || '').trim();
+  if (!img && !vid) return false;
+  if (isServerAutoSkeletonPromptText(img) || isServerAutoSkeletonPromptText(vid)) return false;
+  return true;
+}
+
+function countServerRealAuthoredClips(clips?: any): number {
+  if (!Array.isArray(clips) || clips.length === 0) return 0;
+  let count = 0;
+  for (const c of clips) {
+    if (isServerClipRealAuthored(c)) count++;
+  }
+  return count;
+}
+
+function countServerAuthoredBlocksInRawText(raw?: any): number {
+  const body = stripServerOperationalHeaderOnly(raw);
+  if (!body || isServerAutoSkeletonPromptText(body)) return 0;
+  const clipMatches = body.match(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Clip)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
+  );
+  if (clipMatches && clipMatches.length > 0) return clipMatches.length;
+  const imgMatches = body.match(
+    /(?:^|\n)\s*(?:[#*\-\d.)\s]*)(?:Image|Imagen)\s*\[?0*\d+\]?\s*(?:\([^)]*\))?\s*[:\-–]/gi
+  );
+  return imgMatches ? imgMatches.length : 0;
+}
+
+function sanitizeServerClipSkeleton(clip: any): any {
+  if (!clip || typeof clip !== 'object') return clip;
+  const badImg = isServerAutoSkeletonPromptText(clip.imagePrompt);
+  const badVid = isServerAutoSkeletonPromptText(clip.videoPrompt);
+  if (!badImg && !badVid) return clip;
+  return {
+    ...clip,
+    ...(badImg ? { imagePrompt: '' } : {}),
+    ...(badVid ? { videoPrompt: '' } : {}),
+  };
+}
+
+function mergeServerClipsPreservingAuthored(
+  winnerClipsRaw: any,
+  otherClipsRaw: any,
+  rawClipsLegitimatelyTombstoned = false
+): any[] {
+  const wClips = Array.isArray(winnerClipsRaw)
+    ? winnerClipsRaw.map(sanitizeServerClipSkeleton)
+    : [];
+  const oClips = Array.isArray(otherClipsRaw)
+    ? otherClipsRaw.map(sanitizeServerClipSkeleton)
+    : [];
+  if (wClips.length === 0) {
+    return !rawClipsLegitimatelyTombstoned && oClips.length > 0 ? oClips : [];
+  }
+  if (oClips.length === 0) return wClips;
+
+  const otherClipByNum = new Map<number, any>();
+  for (const c of oClips) {
+    if (c && typeof c.clipNumber === 'number') {
+      otherClipByNum.set(c.clipNumber, c);
+    }
+  }
+  return wClips.map((c: any) => {
+    const o = otherClipByNum.get(c.clipNumber);
+    if (!o) return c;
+    const wHasReal = isServerClipRealAuthored(c);
+    const oHasReal = isServerClipRealAuthored(o);
+    const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
+    return {
+      ...c,
+      ...(rescuePrompts
+        ? {
+            imagePrompt: o.imagePrompt || c.imagePrompt,
+            videoPrompt: o.videoPrompt || c.videoPrompt,
+            isStaticBroll:
+              typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll,
+            brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
+            flowClipEngine: o.flowClipEngine || c.flowClipEngine,
+            cameraSelection: c.cameraSelection || o.cameraSelection,
+            visualExplanation: c.visualExplanation || o.visualExplanation,
+          }
+        : {}),
+      reviewedForEditor:
+        c.reviewedForEditor !== undefined
+          ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
+          : Boolean(o.reviewedForEditor),
+      recreated: Boolean(c.recreated || o.recreated),
+      videoReady: Boolean(c.videoReady || o.videoReady),
+      imageReady: Boolean(c.imageReady || o.imageReady),
+      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+      videoFrames:
+        Array.isArray(c.videoFrames) && c.videoFrames.length > 0 ? c.videoFrames : o.videoFrames,
+    };
+  });
+}
+
 function mergeServerDocObjects(winner: any, other: any) {
   if (!winner || !other) return winner || other;
   let baseWinner = { ...winner };
+  let outerRawClipsLegitimatelyTombstoned = false;
   try {
     const wCmdRaw = winner.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
     const oCmdRaw = other.promptConfig?.REMOTE_RENAME_COMMAND_JSON;
@@ -609,6 +746,17 @@ function mergeServerDocObjects(winner: any, other: any) {
     }
     const otherSavedMs = toMs(other.updatedAt || other.createdAt);
     const stage1Tombstoned = clearedAt > 0 && clearedAt >= otherSavedMs;
+    const promptsRestoredAt = Math.max(
+      Number(baseWinner.promptConfig?.PROMPTS_RESTORED_AT || 0),
+      Number(other.promptConfig?.PROMPTS_RESTORED_AT || 0)
+    );
+    if (promptsRestoredAt > 0) {
+      baseWinner.promptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        PROMPTS_RESTORED_AT: String(promptsRestoredAt),
+      };
+    }
+    let rawClipsLegitimatelyTombstoned = false;
     for (const k of [
       'deepResearchResult',
       'deepResearchPrompt',
@@ -630,17 +778,31 @@ function mergeServerDocObjects(winner: any, other: any) {
       'publishTitle',
     ]) {
       const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
-      const fieldClearedAt = Math.max(
+      let fieldClearedAt = Math.max(
         Number(baseWinner.promptConfig?.[fieldClearedKey] || 0),
         Number(other.promptConfig?.[fieldClearedKey] || 0)
       );
-      if (fieldClearedAt > 0) {
+      if (k === 'rawClipsText' && promptsRestoredAt > 0 && fieldClearedAt <= promptsRestoredAt) {
+        fieldClearedAt = 0;
+        baseWinner.promptConfig = {
+          ...(baseWinner.promptConfig || {}),
+          [fieldClearedKey]: '0',
+          PROMPTS_RESTORED_AT: String(promptsRestoredAt),
+        };
+      } else if (fieldClearedAt > 0) {
         baseWinner.promptConfig = {
           ...(baseWinner.promptConfig || {}),
           [fieldClearedKey]: String(fieldClearedAt),
         };
       }
-      const fieldTombstoned = fieldClearedAt > 0 && fieldClearedAt >= otherSavedMs;
+      const fieldTombstoned =
+        fieldClearedAt > 0 &&
+        fieldClearedAt >= otherSavedMs &&
+        (k !== 'rawClipsText' || fieldClearedAt > promptsRestoredAt);
+      if (k === 'rawClipsText') {
+        rawClipsLegitimatelyTombstoned = fieldTombstoned;
+        outerRawClipsLegitimatelyTombstoned = fieldTombstoned;
+      }
       if (fieldTombstoned || (stage1Tombstoned && ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'].includes(k))) continue;
       const wv = baseWinner[k];
       const ov = other[k];
@@ -652,6 +814,30 @@ function mergeServerDocObjects(winner: any, other: any) {
         const wClean = wv && !isBadThumb(wv) ? String(wv) : '';
         const oClean = ov && !isBadThumb(ov) ? String(ov) : '';
         baseWinner.thumbnailPrompt = wClean || oClean || '';
+        continue;
+      }
+      if (k === 'rawClipsText') {
+        const wTier = getServerRawClipsQualityTier(wv);
+        const oTier = getServerRawClipsQualityTier(ov);
+        if (wTier === 1 && oTier === 2) {
+          baseWinner.rawClipsText = ov;
+          if (!baseWinner.operationalHeader && other.operationalHeader) {
+            baseWinner.operationalHeader = other.operationalHeader;
+          }
+        } else if (wTier === 1 && oTier < 2) {
+          baseWinner.rawClipsText = '';
+        } else if (wTier === 0 && oTier === 2) {
+          baseWinner.rawClipsText = ov;
+          if (!baseWinner.operationalHeader && other.operationalHeader) {
+            baseWinner.operationalHeader = other.operationalHeader;
+          }
+        } else if (wTier === 2 && oTier === 2) {
+          const wBlocks = countServerAuthoredBlocksInRawText(wv);
+          const oBlocks = countServerAuthoredBlocksInRawText(ov);
+          if (oBlocks > wBlocks && wBlocks < Math.floor(oBlocks * 0.5)) {
+            baseWinner.rawClipsText = ov;
+          }
+        }
         continue;
       }
       if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) baseWinner[k] = ov;
@@ -743,32 +929,11 @@ function mergeServerDocObjects(winner: any, other: any) {
         ? oCleanDoc.audioTracks
         : wCleanDoc.audioTracks || [];
   } catch {}
-  if (!Array.isArray(baseWinner.clips) || !Array.isArray(other.clips) || other.clips.length === 0) {
-    return baseWinner;
-  }
-  const otherClipByNum = new Map<number, any>();
-  for (const c of other.clips) {
-    if (c && typeof c.clipNumber === 'number') {
-      otherClipByNum.set(c.clipNumber, c);
-    }
-  }
-  const mergedClips = baseWinner.clips.map((c: any) => {
-    const o = otherClipByNum.get(c.clipNumber);
-    if (!o) return c;
-    return {
-      ...c,
-      reviewedForEditor:
-        c.reviewedForEditor !== undefined
-          ? Boolean(c.reviewedForEditor)
-          : Boolean(o.reviewedForEditor),
-      recreated: Boolean(c.recreated || o.recreated),
-      videoReady: Boolean(c.videoReady || o.videoReady),
-      imageReady: Boolean(c.imageReady || o.imageReady),
-      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
-      videoFrames:
-        Array.isArray(c.videoFrames) && c.videoFrames.length > 0 ? c.videoFrames : o.videoFrames,
-    };
-  });
+  const mergedClips = mergeServerClipsPreservingAuthored(
+    baseWinner.clips,
+    other.clips,
+    outerRawClipsLegitimatelyTombstoned
+  );
   return { ...baseWinner, clips: mergedClips };
 }
 
@@ -1255,6 +1420,16 @@ app.put('/api/documentaries/:id', (req, res) => {
 
   // SMART FIELD-LEVEL MERGE: When _patchKeys is provided by updateActiveDoc(patch),
   // apply ONLY the explicitly edited fields onto currentDiskDoc so stale fields in an un-refreshed tab's memory never overwrite disk changes!
+  const diskPromptsRestoredAt = Number(currentDiskDoc.promptConfig?.PROMPTS_RESTORED_AT || 0);
+  const incPromptsRestoredAt = Number(incomingBody?.promptConfig?.PROMPTS_RESTORED_AT || 0);
+  const effectivePromptsRestoredAt = Math.max(diskPromptsRestoredAt, incPromptsRestoredAt);
+  const rawIncomingClearedAt = Number(incomingBody?.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0);
+  const diskSavedMs = Date.parse(String(currentDiskDoc.updatedAt || '')) || 0;
+  const hasValidExplicitPromptClear =
+    rawIncomingClearedAt > 0 &&
+    rawIncomingClearedAt > effectivePromptsRestoredAt &&
+    rawIncomingClearedAt >= diskSavedMs - 5000;
+
   let updated: any;
   if (patchKeys && patchKeys.length > 0) {
     const surgicalPatch: Record<string, any> = {};
@@ -1278,6 +1453,43 @@ app.put('/api/documentaries/:id', (req, res) => {
         surgicalPatch[key] = incomingBody[key];
       }
     }
+
+    if (effectivePromptsRestoredAt > 0 || surgicalPatch.promptConfig) {
+      const nextPc: Record<string, any> = {
+        ...(currentDiskDoc.promptConfig || {}),
+        ...(surgicalPatch.promptConfig || {}),
+      };
+      if (effectivePromptsRestoredAt > 0) {
+        nextPc.PROMPTS_RESTORED_AT = String(effectivePromptsRestoredAt);
+        const pcCleared = Number(nextPc.FIELD_CLEARED_AT_rawClipsText || 0);
+        if (pcCleared > 0 && pcCleared <= effectivePromptsRestoredAt) {
+          nextPc.FIELD_CLEARED_AT_rawClipsText = '0';
+        }
+      }
+      surgicalPatch.promptConfig = nextPc;
+    }
+
+    if ('rawClipsText' in surgicalPatch) {
+      const diskTier = getServerRawClipsQualityTier(currentDiskDoc.rawClipsText);
+      const patchTier = getServerRawClipsQualityTier(surgicalPatch.rawClipsText);
+      if (diskTier === 2 && patchTier < 2 && !hasValidExplicitPromptClear) {
+        console.warn(
+          `[ServerDataLossGuard] Blocked destructive PUT rawClipsText (tier ${patchTier}) over Tier 2 prompts on ${currentDiskDoc.id}`
+        );
+        delete surgicalPatch.rawClipsText;
+      } else if (patchTier === 1) {
+        surgicalPatch.rawClipsText = '';
+      }
+    }
+
+    if ('clips' in surgicalPatch) {
+      surgicalPatch.clips = mergeServerClipsPreservingAuthored(
+        surgicalPatch.clips,
+        currentDiskDoc.clips,
+        hasValidExplicitPromptClear
+      );
+    }
+
     updated = {
       ...currentDiskDoc,
       ...surgicalPatch,
@@ -1285,43 +1497,9 @@ app.put('/api/documentaries/:id', (req, res) => {
       updatedAt: new Date().toISOString(),
     };
   } else {
-    const diskMainUrl = String(
-      currentDiskDoc.geminiChatUrl || currentDiskDoc.promptConfig?.GEMINI_CHAT_URL || ''
-    ).trim();
-    const incMainUrl = String(
-      incomingBody.geminiChatUrl || incomingBody.promptConfig?.GEMINI_CHAT_URL || ''
-    ).trim();
-    const finalMainUrl = incMainUrl || diskMainUrl;
-
-    const diskDeepUrl = String(
-      currentDiskDoc.geminiDeepResearchChatUrl ||
-        currentDiskDoc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
-        ''
-    ).trim();
-    const incDeepUrl = String(
-      incomingBody.geminiDeepResearchChatUrl ||
-        incomingBody.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
-        ''
-    ).trim();
-    const finalDeepUrl =
-      (incDeepUrl || diskDeepUrl) && (incDeepUrl || diskDeepUrl) !== finalMainUrl
-        ? incDeepUrl || diskDeepUrl
-        : '';
-
+    const mergedFull = mergeServerDocObjects(incomingBody, currentDiskDoc);
     updated = {
-      ...currentDiskDoc,
-      ...incomingBody,
-      ...(finalMainUrl ? { geminiChatUrl: finalMainUrl } : {}),
-      ...(finalDeepUrl ? { geminiDeepResearchChatUrl: finalDeepUrl } : {}),
-      ...(!incomingBody.geminiChatTitle && currentDiskDoc.geminiChatTitle
-        ? { geminiChatTitle: currentDiskDoc.geminiChatTitle }
-        : {}),
-      promptConfig: {
-        ...(currentDiskDoc.promptConfig || {}),
-        ...(incomingBody.promptConfig || {}),
-        ...(finalMainUrl ? { GEMINI_CHAT_URL: finalMainUrl } : {}),
-        ...(finalDeepUrl ? { GEMINI_DEEP_RESEARCH_CHAT_URL: finalDeepUrl } : {}),
-      },
+      ...mergedFull,
       id: currentDiskDoc.id,
       updatedAt: new Date().toISOString(),
     };

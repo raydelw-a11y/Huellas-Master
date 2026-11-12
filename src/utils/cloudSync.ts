@@ -8,6 +8,7 @@ import {
 import {
   ensureOperationalHeaderInRawClips,
   getStage1ClipDurations,
+  parseClipsFromRawText,
   parseTimelineTextToSentences,
   stripPauseTags,
   cleanVoiceoverNarrationOnly,
@@ -22,6 +23,12 @@ import {
   BRAND_SAFETY_LEXICAL_RULE_ES,
   sanitizeBrandSafeEditorialText,
   normalizeFirstDayOfMonthInVoiceover,
+  isAutoSkeletonPromptText,
+  getRawClipsQualityTier,
+  isClipRealAuthored,
+  countRealAuthoredClips,
+  countAuthoredBlocksInRawText,
+  safeRebuildRawClipsText,
 } from './smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -1463,7 +1470,9 @@ export function loadLocalCachedDocumentaries(): DocumentaryProject[] {
       const bTime = Date.parse(b.updatedAt || b.createdAt || '') || 0;
       const eTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
       if (bTime >= eTime) {
-        byId.set(b.id, { ...existing, ...b });
+        byId.set(b.id, mergeTwoDocumentaryObjects(b, existing));
+      } else {
+        byId.set(b.id, mergeTwoDocumentaryObjects(existing, b));
       }
     }
   }
@@ -1586,13 +1595,13 @@ export function saveLocalCachedDocumentaries(list: DocumentaryProject[]) {
       localStorage.setItem(LOCAL_DOCS_CACHE_KEY, JSON.stringify(ultraLightList));
     } catch {
       try {
-        // Fallback 3: Also strip redundant rawClipsText on completed docs that already have parsed clips[]
+        // Fallback 3: Also strip redundant rawClipsText ONLY on completed docs whose clips[] actually hold real authored prompts
         const minimalList = stripHeavyMediaForStorage(list, true).map((d, idx) =>
           idx === 0
             ? d
             : {
                 ...d,
-                rawClipsText: Array.isArray(d.clips) && d.clips.length > 0 ? '' : d.rawClipsText,
+                rawClipsText: countRealAuthoredClips(d.clips) > 0 ? '' : d.rawClipsText,
                 capcutRawSrt: d.correctedSrt ? '' : d.capcutRawSrt,
               }
         );
@@ -1672,6 +1681,21 @@ function mergeTwoDocumentaryObjects(
   const otherSavedAt = toMs((oNorm as any).updatedAt || (oNorm as any).createdAt);
   const stage1Tombstoned = stage1ClearedAt > 0 && stage1ClearedAt >= otherSavedAt;
   const STAGE1_TEXT_KEYS = ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'];
+  const promptsRestoredAt = Math.max(
+    Number(baseWinner.promptConfig?.PROMPTS_RESTORED_AT || 0),
+    Number(oNorm.promptConfig?.PROMPTS_RESTORED_AT || 0)
+  );
+  if (promptsRestoredAt > 0) {
+    baseWinner = {
+      ...baseWinner,
+      promptConfig: {
+        ...(baseWinner.promptConfig || {}),
+        PROMPTS_RESTORED_AT: String(promptsRestoredAt),
+      },
+    };
+  }
+  let rawClipsLegitimatelyTombstoned = false;
+
   for (const k of [
     'deepResearchResult',
     'deepResearchPrompt',
@@ -1693,17 +1717,33 @@ function mergeTwoDocumentaryObjects(
     'publishTitle',
   ] as const) {
     const fieldClearedKey = `FIELD_CLEARED_AT_${k}`;
-    const fieldClearedAt = Math.max(
+    let fieldClearedAt = Math.max(
       Number(baseWinner.promptConfig?.[fieldClearedKey] || 0),
       Number(oNorm.promptConfig?.[fieldClearedKey] || 0)
     );
-    if (fieldClearedAt > 0) {
+    if (k === 'rawClipsText' && promptsRestoredAt > 0 && fieldClearedAt <= promptsRestoredAt) {
+      fieldClearedAt = 0;
+      baseWinner = {
+        ...baseWinner,
+        promptConfig: {
+          ...(baseWinner.promptConfig || {}),
+          [fieldClearedKey]: '0',
+          PROMPTS_RESTORED_AT: String(promptsRestoredAt),
+        },
+      };
+    } else if (fieldClearedAt > 0) {
       baseWinner = {
         ...baseWinner,
         promptConfig: { ...(baseWinner.promptConfig || {}), [fieldClearedKey]: String(fieldClearedAt) },
       };
     }
-    const fieldTombstoned = fieldClearedAt > 0 && fieldClearedAt >= otherSavedAt;
+    const fieldTombstoned =
+      fieldClearedAt > 0 &&
+      fieldClearedAt >= otherSavedAt &&
+      (k !== 'rawClipsText' || fieldClearedAt > promptsRestoredAt);
+    if (k === 'rawClipsText') {
+      rawClipsLegitimatelyTombstoned = fieldTombstoned;
+    }
     if (fieldTombstoned || (stage1Tombstoned && STAGE1_TEXT_KEYS.includes(k))) continue;
     const wv = (baseWinner as any)[k];
     const ov = (oNorm as any)[k];
@@ -1715,6 +1755,30 @@ function mergeTwoDocumentaryObjects(
       const wClean = wv && !isBadThumb(wv) ? String(wv) : '';
       const oClean = ov && !isBadThumb(ov) ? String(ov) : '';
       (baseWinner as any).thumbnailPrompt = wClean || oClean || '';
+      continue;
+    }
+    if (k === 'rawClipsText') {
+      const wTier = getRawClipsQualityTier(wv);
+      const oTier = getRawClipsQualityTier(ov);
+      if (wTier === 1 && oTier === 2) {
+        (baseWinner as any).rawClipsText = ov;
+        if (!baseWinner.operationalHeader && oNorm.operationalHeader) {
+          baseWinner.operationalHeader = oNorm.operationalHeader;
+        }
+      } else if (wTier === 1 && oTier < 2) {
+        (baseWinner as any).rawClipsText = '';
+      } else if (wTier === 0 && oTier === 2) {
+        (baseWinner as any).rawClipsText = ov;
+        if (!baseWinner.operationalHeader && oNorm.operationalHeader) {
+          baseWinner.operationalHeader = oNorm.operationalHeader;
+        }
+      } else if (wTier === 2 && oTier === 2) {
+        const wBlocks = countAuthoredBlocksInRawText(wv);
+        const oBlocks = countAuthoredBlocksInRawText(ov);
+        if (oBlocks > wBlocks && wBlocks < Math.floor(oBlocks * 0.5)) {
+          (baseWinner as any).rawClipsText = ov;
+        }
+      }
       continue;
     }
     if ((!wv || !String(wv).trim()) && ov && String(ov).trim()) {
@@ -1998,35 +2062,124 @@ function mergeTwoDocumentaryObjects(
     }
   } catch {}
 
-  if (!Array.isArray(baseWinner.clips) || !Array.isArray(oNorm.clips) || oNorm.clips.length === 0) {
-    return baseWinner;
+  const sanitizeSingleClipSkeleton = (
+    clip: DocumentaryProject['clips'][number]
+  ): DocumentaryProject['clips'][number] => {
+    if (!clip) return clip;
+    const badImg = isAutoSkeletonPromptText(clip.imagePrompt);
+    const badVid = isAutoSkeletonPromptText(clip.videoPrompt);
+    if (!badImg && !badVid) return clip;
+    return {
+      ...clip,
+      ...(badImg ? { imagePrompt: '' } : {}),
+      ...(badVid ? { videoPrompt: '' } : {}),
+    };
+  };
+
+  const wClipsInit = Array.isArray(baseWinner.clips)
+    ? baseWinner.clips.map(sanitizeSingleClipSkeleton)
+    : [];
+  const oClipsInit = Array.isArray(oNorm.clips)
+    ? oNorm.clips.map(sanitizeSingleClipSkeleton)
+    : [];
+
+  let mergedClips: DocumentaryProject['clips'] = wClipsInit;
+  if (wClipsInit.length === 0 && oClipsInit.length > 0 && !rawClipsLegitimatelyTombstoned) {
+    mergedClips = oClipsInit;
+  } else if (wClipsInit.length > 0 && oClipsInit.length > 0) {
+    const otherClipByNum = new Map<number, DocumentaryProject['clips'][number]>();
+    for (const c of oClipsInit) {
+      if (c && typeof c.clipNumber === 'number') {
+        otherClipByNum.set(c.clipNumber, c);
+      }
+    }
+    mergedClips = wClipsInit.map((c) => {
+      const o = otherClipByNum.get(c.clipNumber);
+      if (!o) return c;
+      const wHasReal = isClipRealAuthored(c);
+      const oHasReal = isClipRealAuthored(o);
+      const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
+      return {
+        ...c,
+        ...(rescuePrompts
+          ? {
+              imagePrompt: o.imagePrompt || c.imagePrompt,
+              videoPrompt: o.videoPrompt || c.videoPrompt,
+              isStaticBroll:
+                typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll,
+              brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
+              flowClipEngine: o.flowClipEngine || c.flowClipEngine,
+              cameraSelection: c.cameraSelection || o.cameraSelection,
+              visualExplanation: c.visualExplanation || o.visualExplanation,
+            }
+          : {}),
+        reviewedForEditor:
+          c.reviewedForEditor !== undefined
+            ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
+            : Boolean(o.reviewedForEditor),
+        recreated: Boolean(c.recreated || o.recreated),
+        videoReady: Boolean(c.videoReady || o.videoReady),
+        imageReady: Boolean(c.imageReady || o.imageReady),
+        videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+        videoFrames:
+          Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+            ? c.videoFrames
+            : o.videoFrames,
+      };
+    });
   }
-  const otherClipByNum = new Map<number, DocumentaryProject['clips'][number]>();
-  for (const c of oNorm.clips) {
-    if (c && typeof c.clipNumber === 'number') {
-      otherClipByNum.set(c.clipNumber, c);
+
+  let finalRawClipsText = baseWinner.rawClipsText || '';
+  if (!rawClipsLegitimatelyTombstoned) {
+    const rawTier = getRawClipsQualityTier(finalRawClipsText);
+    const authoredClips = countRealAuthoredClips(mergedClips);
+    if (rawTier === 2 && authoredClips === 0) {
+      const { clip1Sec, standardClipSec } = getStage1ClipDurations(baseWinner);
+      const parsed = parseClipsFromRawText(
+        finalRawClipsText,
+        mergedClips,
+        clip1Sec,
+        standardClipSec
+      );
+      if (parsed.length > 0) {
+        const parsedByNum = new Map<number, DocumentaryProject['clips'][number]>();
+        for (const p of parsed) parsedByNum.set(p.clipNumber, p);
+        mergedClips =
+          mergedClips.length > 0
+            ? mergedClips.map((mc) => {
+                const pc = parsedByNum.get(mc.clipNumber);
+                if (!pc || !isClipRealAuthored(pc)) return mc;
+                return {
+                  ...mc,
+                  imagePrompt: pc.imagePrompt || mc.imagePrompt,
+                  videoPrompt: pc.videoPrompt || mc.videoPrompt,
+                  isStaticBroll:
+                    typeof pc.isStaticBroll === 'boolean' ? pc.isStaticBroll : mc.isStaticBroll,
+                  brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
+                  flowClipEngine: pc.flowClipEngine || mc.flowClipEngine,
+                };
+              })
+            : parsed;
+      }
+    } else if (rawTier === 0 && authoredClips > 0) {
+      const { clip1Sec, standardClipSec } = getStage1ClipDurations(baseWinner);
+      finalRawClipsText = safeRebuildRawClipsText(
+        mergedClips,
+        finalRawClipsText,
+        baseWinner.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+        baseWinner.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+        clip1Sec,
+        standardClipSec,
+        baseWinner.references
+      );
     }
   }
-  const mergedClips = baseWinner.clips.map((c) => {
-    const o = otherClipByNum.get(c.clipNumber);
-    if (!o) return c;
-    return {
-      ...c,
-      reviewedForEditor:
-        c.reviewedForEditor !== undefined
-          ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
-          : Boolean(o.reviewedForEditor),
-      recreated: Boolean(c.recreated || o.recreated),
-      videoReady: Boolean(c.videoReady || o.videoReady),
-      imageReady: Boolean(c.imageReady || o.imageReady),
-      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
-      videoFrames:
-        Array.isArray(c.videoFrames) && c.videoFrames.length > 0
-          ? c.videoFrames
-          : o.videoFrames,
-    };
-  });
-  return { ...baseWinner, clips: mergedClips };
+
+  return {
+    ...baseWinner,
+    rawClipsText: finalRawClipsText,
+    clips: mergedClips,
+  };
 }
 
 export function mergeDocumentariesLists(
