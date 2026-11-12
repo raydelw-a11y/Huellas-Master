@@ -5,5 +5,7 @@ dist/
 data/config.json
 data/tts-files/
 data/assets/
+data/flow-pc/
+data/flow_pc_*.local.json
 .DS_Store
 *.log

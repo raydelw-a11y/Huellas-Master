@@ -47,6 +47,7 @@ interface WebStudioDrawerProps {
   lastMirroredGeminiImages: string[];
   lastMirroredFlowVideos: string[];
   lastMirroredFlowImages: string[];
+  onOpenFlowPc?: () => void;
 }
 
 export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
@@ -72,6 +73,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
   lastMirroredGeminiImages,
   lastMirroredFlowVideos,
   lastMirroredFlowImages,
+  onOpenFlowPc,
 }) => {
   const [activeTab, setActiveTab] = useState<'gemini' | 'flow' | 'setup'>('gemini');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -233,6 +235,16 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
           >
             ⚙️ Extensión
           </button>
+          {onOpenFlowPc && (
+            <button
+              type="button"
+              onClick={onOpenFlowPc}
+              className="px-2.5 py-1 mb-0.5 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 transition"
+              title="Abrir escritorio aislado Flow PC (Agent) para iPhone / 5G sin tocar el ratón de la Mac"
+            >
+              🖥️ Flow PC (Agent)
+            </button>
+          )}
         </div>
 
         {/* Refresh & Switch Tab in Same Window Controls */}

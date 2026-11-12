@@ -44,6 +44,7 @@ import {
   PERMANENT_LOGO_STORAGE_KEY,
 } from './components/CapCutEditor';
 import { ViralClipsStudio } from './components/ViralClipsStudio';
+import { FlowPcModal } from './components/FlowPcModal';
 import {
   DocumentaryProject,
   AVAILABLE_VOICES,
@@ -162,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:09 AM - 11/12/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:25 PM - 11/12/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1670,9 +1671,9 @@ export default function App() {
   });
   const [passwordInput, setPasswordInput] = useState('');
 
-  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips'
+  // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips' | 'flow_pc'
   const [mainView, setMainView] = useState<
-    'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips'
+    'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips' | 'flow_pc'
   >(() => {
     const saved = localStorage.getItem('huellas_master_view');
     if (
@@ -1680,6 +1681,7 @@ export default function App() {
       saved === 'standalone_prompt' ||
       saved === 'capcut_editor' ||
       saved === 'viral_clips' ||
+      saved === 'flow_pc' ||
       saved === 'dashboard'
     )
       return saved;
@@ -3412,7 +3414,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Space bar Play / Pause shortcut + Fullscreen ArrowLeft / ArrowRight (-10s / +10s) for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
   useEffect(() => {
-    if (mainView === 'capcut_editor') return;
+    if (mainView === 'capcut_editor' || mainView === 'flow_pc') return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
@@ -14017,14 +14019,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   return (
     <div
       className={`${
-        mainView === 'capcut_editor'
+        mainView === 'capcut_editor' || mainView === 'flow_pc'
           ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
           : 'min-h-[100dvh] pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-16'
       } bg-[#0b0a09] text-slate-100 flex flex-col w-full max-w-[100vw] overflow-x-hidden`}
     >
       {/* Floating Scroll-to-Top Button + Global Deployment Verification Timestamp Badge */}
       <div className="fixed bottom-2 right-3 z-50 flex flex-col items-end gap-1.5 pointer-events-none">
-        {mainView !== 'capcut_editor' && (
+        {mainView !== 'capcut_editor' && mainView !== 'flow_pc' && (
           <button
             type="button"
             onClick={() => {
@@ -14050,7 +14052,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       {/* TOP NAVIGATION BAR */}
       <header
         className={`sticky top-0 z-40 w-full max-w-full bg-[#12100e]/95 backdrop-blur border-b border-amber-500/20 px-3 sm:px-4 shrink-0 ${
-          mainView === 'capcut_editor'
+          mainView === 'capcut_editor' || mainView === 'flow_pc'
             ? 'py-1 flex items-center justify-between gap-2 overflow-x-auto flex-nowrap whitespace-nowrap [-webkit-overflow-scrolling:touch]'
             : mainView === 'studio' && isStagesBarCompact
             ? 'py-1.5 flex items-center justify-between gap-2 flex-wrap'
@@ -14064,14 +14066,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           >
             <div
               className={`${
-                mainView === 'capcut_editor' || (mainView === 'studio' && isStagesBarCompact)
+                mainView === 'capcut_editor' || mainView === 'flow_pc' || (mainView === 'studio' && isStagesBarCompact)
                   ? 'w-6 h-6'
                   : 'w-9 h-9'
               } rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition shrink-0`}
             >
               <Film
                 className={
-                  mainView === 'capcut_editor' || (mainView === 'studio' && isStagesBarCompact)
+                  mainView === 'capcut_editor' || mainView === 'flow_pc' || (mainView === 'studio' && isStagesBarCompact)
                     ? 'w-3.5 h-3.5'
                     : 'w-5 h-5'
                 }
@@ -14081,18 +14083,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span
                   className={`font-bold tracking-wider text-amber-300 uppercase ${
-                    mainView === 'capcut_editor' ? 'text-xs' : 'text-sm'
+                    mainView === 'capcut_editor' || mainView === 'flow_pc' ? 'text-xs' : 'text-sm'
                   }`}
                 >
                   Huellas Master
                 </span>
-                {mainView !== 'capcut_editor' && (
+                {mainView !== 'capcut_editor' && mainView !== 'flow_pc' && (
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">
                     {isCloudMode ? '📱 Nube Móvil + GitHub' : '💻 Laptop + Nube GitHub'}
                   </span>
                 )}
               </div>
-              {mainView !== 'capcut_editor' && !(mainView === 'studio' && isStagesBarCompact) && (
+              {mainView !== 'capcut_editor' && mainView !== 'flow_pc' && !(mainView === 'studio' && isStagesBarCompact) && (
                 <p className="text-[11px] text-slate-400 hidden sm:block">
                   Prompt Maestro + VoxFlow + Narration Timeline Extractor + Corrector .SRT
                 </p>
@@ -14104,7 +14106,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         {/* Navigation Pills (Horizontal Scroll on Mobile & Tablet) */}
         <div
           className={
-            mainView === 'capcut_editor'
+            mainView === 'capcut_editor' || mainView === 'flow_pc'
               ? 'flex items-center gap-1.5 shrink-0 flex-nowrap whitespace-nowrap'
               : 'w-full lg:w-auto min-w-0 flex items-center gap-1.5 overflow-x-auto flex-nowrap lg:flex-wrap whitespace-nowrap pb-1 lg:pb-0 [-webkit-overflow-scrolling:touch]'
           }
@@ -14115,7 +14117,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setMainView('dashboard');
             }}
             className={`${
-              mainView === 'capcut_editor'
+              mainView === 'capcut_editor' || mainView === 'flow_pc'
                 ? 'px-2 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
             } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
@@ -14135,7 +14137,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 setMainView('studio');
               }}
               className={`${
-                mainView === 'capcut_editor'
+                mainView === 'capcut_editor' || mainView === 'flow_pc'
                   ? 'px-2 py-0.5 text-[11px]'
                   : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
               } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
@@ -14157,7 +14159,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setMainView('standalone_prompt');
             }}
             className={`${
-              mainView === 'capcut_editor'
+              mainView === 'capcut_editor' || mainView === 'flow_pc'
                 ? 'px-2 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
             } shrink-0 whitespace-nowrap rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer ${
@@ -14186,7 +14188,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setMainView('capcut_editor');
             }}
             className={`${
-              mainView === 'capcut_editor'
+              mainView === 'capcut_editor' || mainView === 'flow_pc'
                 ? 'px-2.5 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
             } shrink-0 whitespace-nowrap rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
@@ -14209,7 +14211,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setMainView('viral_clips');
             }}
             className={`${
-              mainView === 'capcut_editor'
+              mainView === 'capcut_editor' || mainView === 'flow_pc'
                 ? 'px-2.5 py-0.5 text-[11px]'
                 : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
             } shrink-0 whitespace-nowrap rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
@@ -14221,6 +14223,29 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span>⚡ Viral Clips</span>
+          </button>
+
+          <button
+            onClick={() => {
+              saveCurrentSectionScrollPosition();
+              if (!activeDoc && documentaries.length > 0) {
+                setActiveDocId(documentaries[0].id);
+              }
+              setMainView('flow_pc');
+            }}
+            className={`${
+              mainView === 'capcut_editor' || mainView === 'flow_pc'
+                ? 'px-2.5 py-0.5 text-[11px]'
+                : 'px-2.5 sm:px-3.5 py-1.5 text-xs'
+            } shrink-0 whitespace-nowrap rounded-lg font-black flex items-center gap-1.5 transition cursor-pointer border ${
+              mainView === 'flow_pc'
+                ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-cyan-300 shadow-lg shadow-cyan-500/20'
+                : 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 border-cyan-500/40'
+            }`}
+            title="Abrir escritorio aislado Google Flow PC (Agent) desde Chrome en iPhone (Wi-Fi o 5G) sin ocupar el ratón/teclado de la Mac y con descargas automáticas a las carpetas del documental"
+          >
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span>🖥️ Flow PC (Agent)</span>
           </button>
         </div>
 
@@ -14703,6 +14728,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           onSelectDoc={(docId) => setActiveDocId(docId)}
           downloadFolderName={effectiveDocFolderName}
           downloadFolderPath={flowServerFolderPath || activeDoc?.downloadFolderPath || ''}
+        />
+      )}
+
+      {/* =====================================================================
+          VIEW 2D: FLOW PC (AGENT) — AISLADO EN ORBSTACK + KASMVNC + 5G CLOUDFLARE TUNNEL
+      ===================================================================== */}
+      {mainView === 'flow_pc' && (
+        <FlowPcModal
+          lastUpdatedText={LAST_UPDATED_TEXT}
+          documentaries={documentaries}
+          activeDoc={activeDoc}
+          onSelectDocId={(docId) => setActiveDocId(docId)}
+          onBackToStudio={() => setMainView(activeDoc ? 'studio' : 'dashboard')}
         />
       )}
 
@@ -23238,6 +23276,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             lastMirroredGeminiImages={lastMirroredGeminiImages}
             lastMirroredFlowVideos={lastMirroredFlowVideos}
             lastMirroredFlowImages={lastMirroredFlowImages}
+            onOpenFlowPc={() => {
+              setShowWebStudio(false);
+              setMainView('flow_pc');
+            }}
           />
         </div>
       )}

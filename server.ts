@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -6,6 +7,7 @@ import { exec, execFile, execSync, spawn, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import { createFlowPcManager } from './server/flowPcManager';
 import { GoogleGenAI, Type } from '@google/genai';
 import speech from '@google-cloud/speech';
 import textToSpeech from '@google-cloud/text-to-speech';
@@ -77,7 +79,11 @@ app.use((req, res, next) => {
   );
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  if (req.method === 'GET' && !req.path.startsWith('/api/flow/serve-folder-file')) {
+  if (
+    req.method === 'GET' &&
+    !req.path.startsWith('/api/flow/serve-folder-file') &&
+    !req.path.startsWith('/flow-cap/')
+  ) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -89,6 +95,14 @@ app.use((req, res, next) => {
   next();
 });
 app.use(cors({ origin: '*', optionsSuccessStatus: 200 }));
+let flowCapEarlyHandler: express.RequestHandler | null = null;
+app.use((req, res, next) => {
+  if (flowCapEarlyHandler) {
+    flowCapEarlyHandler(req, res, next);
+    return;
+  }
+  next();
+});
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
@@ -7212,6 +7226,22 @@ function extractVideoNumberFromText(text?: string): string {
   return '';
 }
 
+let icloudDriveVerifiedReady = false;
+let icloudDriveProbeInFlight = false;
+function probeIcloudDriveReadyAsync(icloudVideosDir: string) {
+  if (icloudDriveVerifiedReady || icloudDriveProbeInFlight) return;
+  icloudDriveProbeInFlight = true;
+  fs.promises
+    .readdir(icloudVideosDir)
+    .then(() => {
+      icloudDriveVerifiedReady = true;
+      icloudDriveProbeInFlight = false;
+    })
+    .catch(() => {
+      icloudDriveProbeInFlight = false;
+    });
+}
+
 function resolveLocalDocumentaryFolder(
   folderPathQuery?: string,
   folderNameQuery?: string,
@@ -7232,6 +7262,21 @@ function resolveLocalDocumentaryFolder(
     'Huellas de la Humanidad',
     'Videos'
   );
+  probeIcloudDriveReadyAsync(icloudVideosDir);
+  if (!icloudDriveVerifiedReady) {
+    if (
+      rawPath &&
+      !rawPath.includes('Mobile Documents') &&
+      !rawPath.includes('/Desktop/') &&
+      !rawPath.includes('/Documents/') &&
+      !rawPath.includes('/Downloads/') &&
+      fs.existsSync(rawPath) &&
+      fs.statSync(rawPath).isDirectory()
+    ) {
+      return rawPath;
+    }
+    return '';
+  }
 
   const titleVidNum = extractVideoNumberFromText(rawTitle);
   const pathVidNum = extractVideoNumberFromText(rawPath);
@@ -15134,6 +15179,8 @@ function ensureIcloudVideoFoldersInitialized() {
   try {
     const icloudVideosDir =
       '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+    probeIcloudDriveReadyAsync(icloudVideosDir);
+    if (!icloudDriveVerifiedReady) return;
     if (!fs.existsSync(icloudVideosDir)) return;
     const subfolders = [
       '01_Guion_y_SEO',
@@ -15527,6 +15574,7 @@ interface PendingExternalGeminiAsk {
 
 const pendingExternalGeminiAsks = new Map<string, PendingExternalGeminiAsk>();
 const pendingExternalChatGptAsks = new Map<string, PendingExternalGeminiAsk>();
+const pendingExternalCopilotAsks = new Map<string, PendingExternalGeminiAsk>();
 let lastHuellasAppWindowPollAt = 0;
 
 function runAppleScriptInRunningChromiumBrowsers(buildScriptForBrowser: (browserApp: string) => string) {
@@ -15703,6 +15751,54 @@ function closeTemporaryChatGptWindowFailsafe(opts: {
   }, 2500);
 }
 
+function closeTemporaryCopilotWindowFailsafe(opts: {
+  windowId?: number | null;
+  tabId?: number | null;
+  chatUrl?: string;
+}) {
+  if (process.platform !== 'darwin') return;
+  const winIdNum = Number(opts.windowId) || 0;
+  const tabIdNum = Number(opts.tabId) || 0;
+  const cleanChatUrl = String(opts.chatUrl || '')
+    .trim()
+    .replace(/["'\\]/g, '');
+  if (!winIdNum && !tabIdNum && !cleanChatUrl) return;
+
+  setTimeout(() => {
+    runAppleScriptInRunningChromiumBrowsers(
+      (browserApp) => `tell application "${browserApp}"
+        set totalCopTabs to 0
+        repeat with w in windows
+          repeat with t in tabs of w
+            set tu to URL of t
+            if (tu contains "copilot.microsoft.com") or (tu starts with "https://copilot.com") then
+              set totalCopTabs to totalCopTabs + 1
+            end if
+          end repeat
+        end repeat
+        if totalCopTabs <= 1 then return "KEEP_LAST_COPILOT_OPEN"
+        repeat with w in windows
+          set tabCount to (count of tabs of w)
+          repeat with t in tabs of w
+            set u to URL of t
+            if u contains "copilot.microsoft.com" or u starts with "https://copilot.com" then
+              if (${tabIdNum} > 0 and (id of t as text) is "${tabIdNum}") or (${winIdNum} > 0 and (id of w as text) is "${winIdNum}" and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://copilot.microsoft.com/" and "${cleanChatUrl}" is not "https://copilot.com/" and u is "${cleanChatUrl}") then
+                if tabCount is 1 then
+                  close w
+                else
+                  close t
+                end if
+                return "MATCHED"
+              end if
+            end if
+          end repeat
+        end repeat
+        return "NO_MATCH"
+      end tell`
+    );
+  }, 2500);
+}
+
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
   const now = Date.now();
@@ -15720,8 +15816,10 @@ app.get('/api/extension/fingerprint', (req, res) => {
   }
   let nextExternalAsk: { id: string; prompt: string } | null = null;
   let nextExternalChatGptAsk: { id: string; prompt: string } | null = null;
+  let nextExternalCopilotAsk: { id: string; prompt: string } | null = null;
   const unclaimedGeminiAsks: Array<{ id: string; prompt: string }> = [];
   const unclaimedChatGptAsks: Array<{ id: string; prompt: string }> = [];
+  const unclaimedCopilotAsks: Array<{ id: string; prompt: string }> = [];
   if (canDeliverOrdersToCaller) {
     for (const item of pendingExternalGeminiAsks.values()) {
       if (!item.claimed) {
@@ -15735,10 +15833,17 @@ app.get('/api/extension/fingerprint', (req, res) => {
         unclaimedChatGptAsks.push({ id: item.id, prompt: item.prompt });
       }
     }
+    for (const item of pendingExternalCopilotAsks.values()) {
+      if (!item.claimed) {
+        if (!nextExternalCopilotAsk) nextExternalCopilotAsk = { id: item.id, prompt: item.prompt };
+        unclaimedCopilotAsks.push({ id: item.id, prompt: item.prompt });
+      }
+    }
   }
   const activeExternalAskIds = [
     ...Array.from(pendingExternalGeminiAsks.keys()),
     ...Array.from(pendingExternalChatGptAsks.keys()),
+    ...Array.from(pendingExternalCopilotAsks.keys()),
   ];
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
   if (canDeliverOrdersToCaller) {
@@ -15768,6 +15873,8 @@ app.get('/api/extension/fingerprint', (req, res) => {
     pendingExternalGeminiAsks: unclaimedGeminiAsks,
     pendingExternalChatGptAsk: nextExternalChatGptAsk,
     pendingExternalChatGptAsks: unclaimedChatGptAsks,
+    pendingExternalCopilotAsk: nextExternalCopilotAsk,
+    pendingExternalCopilotAsks: unclaimedCopilotAsks,
     activeExternalAskIds,
     pendingGeminiCommands: pendingCommandsList,
   });
@@ -17034,6 +17141,141 @@ app.post('/api/chatgpt-web/ask-external', async (req, res) => {
   res.status(outcome.ok ? 200 : 504).json(outcome);
 });
 
+app.post('/api/copilot-web/ask-external-claim', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  const item = pendingExternalCopilotAsks.get(id);
+  if (!item) {
+    res.json({ ok: false, error: 'not_found' });
+    return;
+  }
+  const isAttachingWindow = req.body?.windowId !== undefined || req.body?.tabId !== undefined;
+  if (!isAttachingWindow) {
+    const hasAppWindow = Boolean(req.body?.hasAppWindow);
+    const hasWorkspace = Boolean(req.body?.hasWorkspace);
+    const allowFallback = Date.now() - lastHuellasAppWindowPollAt > 15000;
+    if (!hasAppWindow && !(allowFallback && hasWorkspace)) {
+      res.status(409).json({ ok: false, error: 'wrong_browser_profile' });
+      return;
+    }
+    if (item.claimed) {
+      res.status(409).json({ ok: false, error: 'already_claimed' });
+      return;
+    }
+    item.claimed = true;
+  } else {
+    item.claimed = true;
+    if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
+    if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+    if (req.body?.reusedExisting !== undefined) {
+      item.reusedExisting = Boolean(req.body.reusedExisting);
+    }
+  }
+  res.json({ ok: true, id });
+});
+
+app.post('/api/copilot-web/ask-external-result', (req, res) => {
+  const id = String(req.body?.requestId || req.body?.id || '').trim();
+  const chatUrl = String(req.body?.chatUrl || '').trim();
+  const bodyTabId = Number(req.body?.tabId) || null;
+  const bodyWinId = Number(req.body?.windowId) || null;
+  const bodyReused = Boolean(req.body?.reusedExisting);
+  const item = pendingExternalCopilotAsks.get(id);
+  if (!item) {
+    if (!bodyReused && (chatUrl || bodyTabId || bodyWinId)) {
+      closeTemporaryCopilotWindowFailsafe({ windowId: bodyWinId, tabId: bodyTabId, chatUrl });
+    }
+    res.json({ ok: false, error: 'already_resolved_or_not_found' });
+    return;
+  }
+  clearTimeout(item.timer);
+  pendingExternalCopilotAsks.delete(id);
+  item.chatUrl = chatUrl || item.chatUrl;
+  const keepOpen = Boolean(item.reusedExisting || bodyReused);
+  if (!keepOpen) {
+    closeTemporaryCopilotWindowFailsafe({
+      windowId: item.windowId || bodyWinId,
+      tabId: item.tabId || bodyTabId,
+      chatUrl: item.chatUrl,
+    });
+  }
+  item.resolve({
+    ok: Boolean(req.body?.ok !== false),
+    verifiedModel: req.body?.verifiedModel ? String(req.body.verifiedModel) : undefined,
+    response: String(req.body?.response || req.body?.text || ''),
+    chatUrl,
+    error: req.body?.error ? String(req.body.error) : undefined,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/copilot-web/ask-external', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) {
+    res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
+    return;
+  }
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
+  const id = `ext_cop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const resultPromise = new Promise<{
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }>((resolve) => {
+    const timer = setTimeout(() => {
+      const expired = pendingExternalCopilotAsks.get(id);
+      pendingExternalCopilotAsks.delete(id);
+      if (expired && !expired.reusedExisting) {
+        closeTemporaryCopilotWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de Microsoft Copilot Web tras ${Math.round(timeoutMs / 1000)}s.`,
+      });
+    }, timeoutMs);
+    pendingExternalCopilotAsks.set(id, {
+      id,
+      prompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      const aborted = pendingExternalCopilotAsks.get(id);
+      if (aborted) {
+        clearTimeout(aborted.timer);
+        pendingExternalCopilotAsks.delete(id);
+        if (!aborted.reusedExisting) {
+          closeTemporaryCopilotWindowFailsafe({
+            windowId: aborted.windowId,
+            tabId: aborted.tabId,
+            chatUrl: aborted.chatUrl,
+          });
+        }
+      }
+    });
+
+    setTimeout(() => {
+      const current = pendingExternalCopilotAsks.get(id);
+      if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
+        wakeExtensionInHuellasAppBrowser();
+      }
+    }, 2200);
+  });
+
+  const outcome = await resultPromise;
+  res.status(outcome.ok ? 200 : 504).json(outcome);
+});
+
 app.post('/api/extension/reload', (_req, res) => {
   extensionManualReloadCounter += 1;
   const fp = computeChromeExtensionFingerprint();
@@ -17045,14 +17287,32 @@ app.post('/api/extension/reload', (_req, res) => {
   });
 });
 
+// Setup Flow PC (Agent) isolated desktop container manager + KasmVNC proxy + 5G tunnel
+const flowPcManager = createFlowPcManager(
+  {
+    dataDir: DATA_DIR,
+    resolveLocalDocumentaryFolder,
+    ensureDocumentarySubfolders,
+    getLocalGitHubToken,
+    githubOwner: GITHUB_OWNER,
+    githubRepo: GITHUB_REPO,
+    githubBranch: GITHUB_BRANCH,
+  },
+  PORT
+);
+flowCapEarlyHandler = flowPcManager.earlyMiddleware;
+flowPcManager.registerRoutes(app);
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
         watch: {
-          ignored: ['**/data/**', '**/dist/**', '**/docs/**', '**/chrome-extension/**', '**/*.log'],
+          ignored: ['**/data/**', '**/dist/**', '**/docs/**', '**/docker/**', '**/chrome-extension/**', '**/*.log'],
         },
       },
       appType: 'spa',
@@ -17066,7 +17326,9 @@ async function bootstrap() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  flowPcManager.attachServer(httpServer);
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Huellas Master running at http://localhost:${PORT}`);
   });
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="Flow PC">
+    <item label="Google Chrome (Flow)" icon="/usr/share/icons/hicolor/48x48/apps/google-chrome.png">
+      <action name="Execute">
+        <command>/usr/bin/google-chrome-stable --password-store=basic --no-first-run --no-default-browser-check --start-maximized https://labs.google/fx/tools/flow</command>
+      </action>
+    </item>
+  </menu>
+</openbox_menu>

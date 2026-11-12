@@ -943,31 +943,64 @@ function checkBottomEditorSubmitted() {
   };
 }
 
+async function cdpSendWithTimeout(target, method, params = {}, timeoutMs = 450) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      chrome.debugger.sendCommand(target, method, params).then(() => true),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(false), Math.max(120, Number(timeoutMs) || 450));
+      }),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function dispatchHardwareClick(target, x, y) {
-  await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x,
-    y,
-    button: 'none',
-  });
-  await sleep(40);
-  await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
-    type: 'mousePressed',
-    x,
-    y,
-    button: 'left',
-    buttons: 1,
-    clickCount: 1,
-  });
-  await sleep(55);
-  await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
-    type: 'mouseReleased',
-    x,
-    y,
-    button: 'left',
-    buttons: 0,
-    clickCount: 1,
-  });
+  const okMove = await cdpSendWithTimeout(
+    target,
+    'Input.dispatchMouseEvent',
+    {
+      type: 'mouseMoved',
+      x,
+      y,
+      button: 'none',
+    },
+    360
+  );
+  if (!okMove) return false;
+  await sleep(35);
+  const okDown = await cdpSendWithTimeout(
+    target,
+    'Input.dispatchMouseEvent',
+    {
+      type: 'mousePressed',
+      x,
+      y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    },
+    360
+  );
+  if (!okDown) return false;
+  await sleep(45);
+  return await cdpSendWithTimeout(
+    target,
+    'Input.dispatchMouseEvent',
+    {
+      type: 'mouseReleased',
+      x,
+      y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    },
+    360
+  );
 }
 
 async function sendHardwareEnterKey(target) {
@@ -5815,6 +5848,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === 'HUELLAS_UNTHROTTLED_SLEEP') {
+    const delayMs = Math.min(Math.max(Number(message.ms) || 50, 10), 15000);
+    setTimeout(() => {
+      try {
+        sendResponse({ ok: true });
+      } catch {}
+    }, delayMs);
+    return true;
+  }
+
   if (message.type === 'EXTERNAL_GEMINI_ASK_RESULT') {
     (async () => {
       await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
@@ -5858,6 +5901,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const rawPrompt = String(message.prompt || '');
     (async () => {
       const ok = await forceSubmitPromptInChatGptTab(tabId, rawPrompt);
+      sendResponse({ ok });
+    })();
+    return true;
+  }
+
+  if (message.type === 'EXTERNAL_COPILOT_ASK_RESULT') {
+    (async () => {
+      const memEntry = message.requestId ? activeExternalAskMap.get(message.requestId) : null;
+      const tabIdFromSender = sender?.tab?.id || null;
+      const reusedExisting = Boolean(
+        (memEntry && memEntry.keepOpenOnCleanup) ||
+          (tabIdFromSender && reusedExternalTabIds.has(tabIdFromSender))
+      );
+      await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...message,
+          tabId: tabIdFromSender,
+          reusedExisting,
+        }),
+      }).catch(() => {});
+      await cleanupActiveExternalAskWindow(message.requestId, null, tabIdFromSender, {
+        keepOpen: reusedExisting,
+      });
+    })();
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'COPILOT_MAIN_WORLD_INJECT_AND_SUBMIT' && sender?.tab?.id) {
+    const tabId = sender.tab.id;
+    const rawPrompt = String(message.prompt || '');
+    (async () => {
+      const ok = await forceSubmitPromptInCopilotTab(tabId, rawPrompt);
       sendResponse({ ok });
     })();
     return true;
@@ -6010,6 +6088,18 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
             .catch(() => []);
           if (allGpt.length <= 1) canCloseSingleWin = false;
+        } else if (/copilot\.microsoft\.com|(^|\/\/|\.)copilot\.com/i.test(u0)) {
+          const allCop = await chrome.tabs
+            .query({
+              url: [
+                'https://copilot.microsoft.com/*',
+                'https://*.copilot.microsoft.com/*',
+                'https://copilot.com/*',
+                'https://*.copilot.com/*',
+              ],
+            })
+            .catch(() => []);
+          if (allCop.length <= 1) canCloseSingleWin = false;
         }
       }
       if (canCloseSingleWin) {
@@ -6020,7 +6110,7 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
       for (let attempt = 0; attempt < 4; attempt++) {
         const stillOpen = await chrome.tabs.get(tId).catch(() => null);
         if (!stillOpen) break;
-        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini or ChatGPT tab
+        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, or Copilot tab
         const stillUrl = String(stillOpen.url || '');
         if (isHuellasUrl(stillUrl, stillOpen.title) || /\/notebook\//i.test(stillUrl)) {
           break;
@@ -6033,6 +6123,18 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
             .catch(() => []);
           if (allGpt.length <= 1) break;
+        } else if (/copilot\.microsoft\.com|(^|\/\/|\.)copilot\.com/i.test(stillUrl)) {
+          const allCop = await chrome.tabs
+            .query({
+              url: [
+                'https://copilot.microsoft.com/*',
+                'https://*.copilot.microsoft.com/*',
+                'https://copilot.com/*',
+                'https://*.copilot.com/*',
+              ],
+            })
+            .catch(() => []);
+          if (allCop.length <= 1) break;
         }
         await chrome.tabs.remove(tId).catch(() => {});
         await sleep(180);
@@ -6439,13 +6541,17 @@ async function forceSubmitPromptInGeminiTab(tabId, rawPrompt) {
     const target = { tabId };
     let attached = false;
     try {
-      await chrome.debugger.attach(target, '1.3');
+      await Promise.race([
+        chrome.debugger.attach(target, '1.3'),
+        sleep(500).then(() => {
+          throw new Error('attach_timeout');
+        }),
+      ]);
       attached = true;
     } catch {
-      try {
-        await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: '1' });
+      if (await cdpSendWithTimeout(target, 'Runtime.evaluate', { expression: '1' }, 400)) {
         attached = true;
-      } catch {}
+      }
     }
     if (attached) {
       try {
@@ -6667,6 +6773,7 @@ async function runExternalGeminiAskOrder(task) {
     let lastText = '';
     for (let i = 0; i < 150; i++) {
       await sleep(2000);
+      await chrome.runtime.getPlatformInfo().catch(() => null);
       if (!pendingExternalCheckActive(task.id)) break;
       const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
       if (!tStillExists) break;
@@ -6802,20 +6909,21 @@ async function inspectChatGptTabLatestResponse(tabId) {
           'button[data-testid="stop-button"]',
           'button[aria-label*="Stop streaming" i]',
           'button[aria-label*="Stop generating" i]',
-          'button[aria-label*="Stop" i]',
-          'button[aria-label*="Detener" i]',
+          'form button[aria-label="Stop" i]',
+          'form button[aria-label*="Detener" i]',
         ];
-        let generating = false;
+        let hasExplicitStopBtn = false;
         for (const s of stopSelectors) {
           const stopEls = document.querySelectorAll(s);
           for (const stEl of stopEls) {
             if (isVis(stEl)) {
-              generating = true;
+              hasExplicitStopBtn = true;
               break;
             }
           }
-          if (generating) break;
+          if (hasExplicitStopBtn) break;
         }
+        let generating = hasExplicitStopBtn;
         if (!generating && document.querySelector('.result-streaming, [data-is-streaming="true"]')) {
           generating = true;
         }
@@ -6844,20 +6952,11 @@ async function inspectChatGptTabLatestResponse(tabId) {
           if (txt) verifiedModel = txt;
         }
 
-        const rawNodes = [
-          ...Array.from(
-            document.querySelectorAll(
-              '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"], [data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"]'
-            )
-          ),
-          ...Array.from(document.querySelectorAll('[data-chatgpt-agent-turn-start]'))
-            .map(
-              (m) =>
-                m.closest('article, [data-testid^="conversation-turn-"], [data-turn="assistant"]') ||
-                m.parentElement
-            )
-            .filter(Boolean),
-        ];
+        const rawNodes = Array.from(
+          document.querySelectorAll(
+            '[data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"], [data-markdown-text-style="assistant-message"], [data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
+          )
+        );
         const uniqueNodes = rawNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
         const nodes = uniqueNodes.filter(
           (el, _i, arr) => !arr.some((other) => other !== el && other.contains(el))
@@ -6891,15 +6990,21 @@ async function inspectChatGptTabLatestResponse(tabId) {
         if (nodes.length > 0) {
           const lastNode = nodes[nodes.length - 1];
           const turnArticle =
-            lastNode.closest('article, [data-testid^="conversation-turn-"]') || lastNode;
-          hasFinishActions = Boolean(
-            turnArticle.querySelector(
-              'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
-            )
-          );
+            lastNode.closest('article, [data-testid^="conversation-turn-"], [data-talvt-turn-state], [data-turn-key]') || lastNode;
+          const turnStateAttr = (turnArticle.getAttribute('data-talvt-turn-state') || '').trim().toLowerCase();
+          hasFinishActions =
+            turnStateAttr === 'complete' ||
+            turnStateAttr === 'completed' ||
+            turnStateAttr === 'done' ||
+            Boolean(
+              turnArticle.querySelector(
+                'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
+              )
+            );
+          const mdSelector = '[data-markdown-text-style="assistant-message"], [class*="MarkdownRoot"], .markdown, .prose';
           const rawMd = [
-            ...(lastNode.matches && lastNode.matches('.markdown, .prose') ? [lastNode] : []),
-            ...Array.from(lastNode.querySelectorAll('.markdown, .prose')),
+            ...(lastNode.matches && lastNode.matches(mdSelector) ? [lastNode] : []),
+            ...Array.from(lastNode.querySelectorAll(mdSelector)),
           ];
           const markdownBlocks = rawMd.filter(
             (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
@@ -6931,7 +7036,9 @@ async function inspectChatGptTabLatestResponse(tabId) {
           ).length,
           document.querySelectorAll('[data-turn-key]').length
         );
-        if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
+        if (hasFinishActions && !hasExplicitStopBtn) {
+          generating = false;
+        } else if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
           generating = true;
         }
 
@@ -7242,13 +7349,17 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
     const target = { tabId };
     let attached = false;
     try {
-      await chrome.debugger.attach(target, '1.3');
+      await Promise.race([
+        chrome.debugger.attach(target, '1.3'),
+        sleep(500).then(() => {
+          throw new Error('attach_timeout');
+        }),
+      ]);
       attached = true;
     } catch {
-      try {
-        await cdpSendWithTimeout(target, 'Runtime.evaluate', { expression: '1' }, 450);
+      if (await cdpSendWithTimeout(target, 'Runtime.evaluate', { expression: '1' }, 450)) {
         attached = true;
-      } catch {}
+      }
     }
     if (attached) {
       try {
@@ -7302,10 +7413,14 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
               for (const s of sels) {
                 const b = document.querySelector(s);
                 if (b && !b.disabled && b.getAttribute('aria-disabled') !== 'true') {
+                  try {
+                    b.click();
+                  } catch {}
                   const r = b.getBoundingClientRect();
                   if (r.width > 0 && r.height > 0) {
-                    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+                    return { clickedDom: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
                   }
+                  return { clickedDom: true, x: 0, y: 0 };
                 }
               }
               return null;
@@ -7313,9 +7428,9 @@ async function forceSubmitPromptInChatGptTab(tabId, promptText) {
           })
           .catch(() => null);
         const btnCoords = (btnCoordsRes && btnCoordsRes[0] && btnCoordsRes[0].result) || null;
-        if (btnCoords && btnCoords.x > 0 && btnCoords.y > 0) {
+        if (!btnCoords?.clickedDom && btnCoords && btnCoords.x > 0 && btnCoords.y > 0) {
           await dispatchHardwareClick(target, btnCoords.x, btnCoords.y).catch(() => {});
-        } else {
+        } else if (!btnCoords?.clickedDom) {
           await cdpSendWithTimeout(
             target,
             'Input.dispatchKeyEvent',
@@ -7378,7 +7493,7 @@ async function acquireChatGptTabForExternalAsk(requestId) {
     for (const [reqId, v] of Object.entries(storedMap)) {
       if (!v || !v.tabId || reqId === requestId) continue;
       const ageMs = nowMs - Number(v.startedAt || 0);
-      if (ageMs < 360000 && (latestServerActiveExternalAskIds.has(reqId) || ageMs < 20000)) {
+      if (ageMs < 360000 && ((latestServerActiveExternalAskIds && latestServerActiveExternalAskIds.has(reqId)) || ageMs < 20000)) {
         busyTabIds.add(v.tabId);
       }
     }
@@ -7529,6 +7644,35 @@ async function acquireChatGptTabForExternalAsk(requestId) {
 
 async function runExternalChatGptAskOrder(task) {
   if (!task || !task.id || !task.prompt) return;
+  if (task.prompt === '__READ_CURRENT__') {
+    const gptTabs = await chrome.tabs
+      .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
+      .catch(() => []);
+    const preferredTab = gptTabs[gptTabs.length - 1] || gptTabs[0] || null;
+    if (!preferredTab || !preferredTab.id) {
+      await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: task.id, ok: false, error: 'No hay pestaña de ChatGPT abierta.' }),
+      }).catch(() => {});
+      return;
+    }
+    const snap = await inspectChatGptTabLatestResponse(preferredTab.id);
+    await fetch('http://localhost:4200/api/chatgpt-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: task.id,
+        ok: Boolean(snap && snap.text),
+        reusedExisting: true,
+        verifiedModel: (snap && snap.verifiedModel) || 'ChatGPT Web',
+        response: (snap && snap.text) || '',
+        chatUrl: (snap && snap.url) || preferredTab.url || '',
+        error: snap && !snap.text ? 'Respuesta vacía en la pestaña actual de ChatGPT.' : undefined,
+      }),
+    }).catch(() => {});
+    return;
+  }
   activeExternalAskCount += 1;
   let createdWindowId = null;
   let tabId = null;
@@ -7630,6 +7774,7 @@ async function runExternalChatGptAskOrder(task) {
     let lastText = '';
     for (let i = 0; i < 150; i++) {
       await sleep(2000);
+      await chrome.runtime.getPlatformInfo().catch(() => null);
       if (!pendingExternalCheckActive(task.id)) break;
       const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
       if (!tStillExists) break;
@@ -7657,9 +7802,9 @@ async function runExternalChatGptAskOrder(task) {
       }
       const trimmedSnapText = snap.text.trim();
       const isNewTurn =
-        snap.count > baselineCount || (trimmedSnapText.length > 2 && trimmedSnapText !== baselineText);
-      const readyEnough = snap.hasFinishActions ? trimmedSnapText.length >= 12 : trimmedSnapText.length >= 60;
-      const neededStableTicks = snap.hasFinishActions ? 3 : 4;
+        snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
+      const readyEnough = snap.hasFinishActions ? trimmedSnapText.length >= 2 : trimmedSnapText.length >= 2;
+      const neededStableTicks = snap.hasFinishActions ? 2 : 3;
       if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;
@@ -7746,9 +7891,1056 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
     } else if (chatGptTabs[0] && chatGptTabs[0].id && chatGptTabs[0].autoDiscardable !== false) {
       await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
     }
+
+    // 3. Always keep at least 1 Microsoft Copilot tab open and alive (autoDiscardable: false)
+    const copilotTabs = await chrome.tabs
+      .query({
+        url: [
+          'https://copilot.microsoft.com/*',
+          'https://*.copilot.microsoft.com/*',
+          'https://copilot.com/*',
+          'https://*.copilot.com/*',
+          'https://m365.cloud.microsoft/*',
+          'https://copilot.cloud.microsoft/*',
+        ],
+      })
+      .catch(() => []);
+    if (copilotTabs.length === 0) {
+      const createdCop = await chrome.tabs
+        .create({
+          url: 'https://copilot.microsoft.com/',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdCop && createdCop.id) {
+        reusedExternalTabIds.add(createdCop.id);
+        await chrome.tabs.update(createdCop.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (copilotTabs[0] && copilotTabs[0].id && copilotTabs[0].autoDiscardable !== false) {
+      await chrome.tabs.update(copilotTabs[0].id, { autoDiscardable: false }).catch(() => {});
+    }
   } catch {
   } finally {
     isEnsuringResidentTabs = false;
+  }
+}
+
+const COPILOT_TAB_URL_PATTERNS = [
+  'https://copilot.microsoft.com/*',
+  'https://*.copilot.microsoft.com/*',
+  'https://copilot.com/*',
+  'https://*.copilot.com/*',
+  'https://m365.cloud.microsoft/*',
+  'https://copilot.cloud.microsoft/*',
+];
+
+async function inspectCopilotTabLatestResponse(tabId) {
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      func: () => {
+        if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+          window.__HUELLAS_BG_RAF_PATCHED__ = true;
+          const nativeRAF = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = (cb) => {
+            if (document.visibilityState === 'hidden') {
+              return window.setTimeout(() => cb(performance.now()), 16);
+            }
+            return nativeRAF(cb);
+          };
+        }
+        const isVis = (el) => {
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const deepQueryAll = (selector, root = document) => {
+          const results = [];
+          const seen = new Set();
+          const visit = (node) => {
+            if (!node) return;
+            try {
+              const matched = node.querySelectorAll ? node.querySelectorAll(selector) : [];
+              for (const el of matched) {
+                if (!seen.has(el)) {
+                  seen.add(el);
+                  results.push(el);
+                }
+              }
+            } catch {}
+            try {
+              const all = node.querySelectorAll ? node.querySelectorAll('*') : [];
+              for (const el of all) {
+                if (el.shadowRoot) visit(el.shadowRoot);
+              }
+            } catch {}
+          };
+          visit(root);
+          return results;
+        };
+
+        const url = window.location.href || '';
+        try {
+          document
+            .querySelectorAll(
+              'button[data-testid="fre-text-forward-close-button"], button[aria-label="Descartar alerta" i], button[aria-label="Dismiss alert" i]'
+            )
+            .forEach((b) => {
+              if (isVis(b)) b.click();
+            });
+        } catch {}
+        const composerSelectors = [
+          '#m365-chat-editor-target-element',
+          '#m365-chat-input-shared-id',
+          'span#m365-chat-editor-target-element[role="textbox"]',
+          'textarea#userInput',
+          'textarea[data-testid="composer-input"]',
+          'textarea[data-testid*="composer" i]',
+          'textarea[data-testid*="chat-input" i]',
+          '[data-testid*="chat-input" i] [contenteditable="true"]',
+          '[data-testid*="composer" i] [contenteditable="true"]',
+          'textarea[placeholder*="Copilot" i]',
+          'textarea[placeholder*="Message" i]',
+          'textarea[placeholder*="Mensaje" i]',
+          'textarea[placeholder*="Ask" i]',
+          'textarea[placeholder*="Pregunta" i]',
+          '#userInput[contenteditable="true"]',
+          '[data-testid="composer-input"][contenteditable="true"]',
+          'div[role="textbox"][contenteditable="true"]',
+          'span[role="textbox"][contenteditable="true"]',
+          'span[role="textbox"]',
+          'textarea',
+        ];
+        let composer = null;
+        for (const sel of composerSelectors) {
+          const els = deepQueryAll(sel);
+          for (const el of els) {
+            if (isVis(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true') {
+              composer = el;
+              break;
+            }
+          }
+          if (composer) break;
+        }
+
+        let blockReason = '';
+        if (/login\.live\.com|login\.microsoftonline\.com|account\.microsoft\.com\/auth|\/login\?/i.test(url)) {
+          blockReason =
+            'No hay sesión iniciada en Microsoft Copilot Web dentro de Google Chrome. Inicia sesión en la pestaña abierta de Copilot e inténtalo de nuevo.';
+        } else if (
+          !composer &&
+          (document.querySelector('link[href*="unauth-copilotcom" i], script[src*="unauth-copilotcom" i]') ||
+            (/copilot\.com\/([a-z]{2}-[a-z]{2,}\/?)?$/i.test(url) &&
+              /\b(iniciar\s+sesi[oó]n|sign\s*in)\b/i.test(document.title || '')))
+        ) {
+          blockReason =
+            'No hay sesión iniciada en Microsoft Copilot Web dentro de Google Chrome (Microsoft Copilot requiere sesión gratuita iniciada). Inicia sesión en la pestaña de Copilot y avísame.';
+        } else if (
+          document.querySelector(
+            'iframe[src*="challenges.cloudflare.com" i], iframe[src*="turnstile" i], iframe[src*="arkoselabs" i], iframe[src*="hcaptcha" i], #challenge-running, #cf-challenge-running, [data-testid*="captcha" i]'
+          ) ||
+          /\b(verificaci[oó]n\s+necesaria|verification\s+required|verify\s+you\s+are\s+human)\b/i.test(
+            document.body ? document.body.innerText || '' : ''
+          )
+        ) {
+          blockReason =
+            'Microsoft Copilot Web mostró una verificación de seguridad/anti-bot ("Verificación necesaria") en el navegador. Complétala manualmente en Chrome.';
+        }
+
+        const stopSelectors = [
+          'button.fai-SendButton[aria-label*="Detener" i]',
+          'button.fai-SendButton[aria-label*="Stop" i]',
+          'button.fai-SendButton[title*="Detener" i]',
+          'button.fai-SendButton[title*="Stop" i]',
+          'button[data-testid="stop-button"]',
+          'button[aria-label="Stop responding" i]',
+          'button[aria-label*="Stop responding" i]',
+          'button[aria-label*="Stop generating" i]',
+          'button[aria-label*="Detener" i]',
+          'button[title*="Stop" i]',
+          'button[title*="Detener" i]',
+        ];
+        let hasExplicitStopBtn = false;
+        for (const s of stopSelectors) {
+          const stopEls = deepQueryAll(s);
+          for (const stEl of stopEls) {
+            if (isVis(stEl) && !stEl.disabled && stEl.getAttribute('aria-disabled') !== 'true') {
+              hasExplicitStopBtn = true;
+              break;
+            }
+          }
+          if (hasExplicitStopBtn) break;
+        }
+        let generating =
+          hasExplicitStopBtn ||
+          Boolean(
+            document.querySelector(
+              '[data-is-streaming="true"], [aria-busy="true"][data-content="ai-message"], [aria-busy="true"][class*="fai-" i]'
+            )
+          );
+
+        let verifiedModel = 'Microsoft Copilot Web';
+        const modeBtns = deepQueryAll(
+          'button[aria-label*="Selector de modelos" i], button[aria-label*="Model selector" i], button[data-testid*="mode-selector" i], button[data-testid*="model-selector" i], button[data-testid*="composer-mode" i], button[aria-label*="Think Deeper" i], button[aria-label*="Quick response" i], button[aria-label*="Smart" i]'
+        );
+        for (const mb of modeBtns) {
+          if (isVis(mb)) {
+            const txt = (mb.innerText || mb.textContent || mb.getAttribute('aria-label') || '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (txt && txt.length <= 50) {
+              verifiedModel = `Microsoft Copilot Web (${txt})`;
+              break;
+            }
+          }
+        }
+
+        const rawUserNodes = deepQueryAll(
+          '[data-content="user-message"], [data-testid="user-message"], [data-testid*="user-message" i], [data-author="user"], [data-message-author-role="user"], [class*="fai-UserMessage" i], [class*="UserMessage" i], cib-message-group[source="user"]'
+        );
+        const uniqUsers = rawUserNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+        const userQueries = uniqUsers.filter(
+          (el, _i, arr) => !arr.some((other) => other !== el && other.contains(el))
+        ).length;
+
+        const rawNodes = deepQueryAll(
+          '[data-content="ai-message"], [data-testid="ai-message"], [data-testid="bot-message"], [data-testid*="copilot-message" i], [data-testid*="assistant-message" i], [class*="fai-CopilotMessage" i], [class*="CopilotMessage" i], [class*="fai-BotMessage" i], [class*="fai-AgentMessage" i], [role="article"][aria-label*="Copilot" i], div[class*="group/ai-message-item"], div[class*="group/ai-message"], [data-message-author-role="assistant"], cib-message-group[source="bot"]'
+        );
+        const uniqNodes = rawNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+        const nodes = uniqNodes.filter(
+          (el, _i, arr) => !arr.some((other) => other !== el && other.contains(el))
+        );
+
+        const extractCleanText = (rootEl) => {
+          if (!rootEl) return '';
+          const clone = rootEl.cloneNode(true);
+          clone
+            .querySelectorAll(
+              '.sr-only, button, [role="button"], [role="toolbar"], [role="menu"], nav, sup, .copy-code-button, [data-testid*="copy" i], [data-testid*="reaction" i], [data-testid*="feedback" i], [data-testid*="citation" i], [data-testid*="source" i], [data-testid*="suggestion" i], [data-testid*="followup" i], [class*="followup" i], [class*="citation" i], script, style, svg'
+            )
+            .forEach((el) => el.remove());
+          clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
+          clone
+            .querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, tr, blockquote, hr')
+            .forEach((el) => {
+              el.prepend('\n');
+              el.append('\n');
+            });
+          return (clone.textContent || '')
+            .replace(/^(?:\s*(?:Copilot\s*(?:said|dijo)?)\s*:?\s*)+/i, '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        };
+
+        let text = '';
+        let hasFinishActions = false;
+        if (nodes.length > 0) {
+          const lastNode = nodes[nodes.length - 1];
+          hasFinishActions = Boolean(
+            lastNode.querySelector &&
+              lastNode.querySelector(
+                'button[aria-label*="Copy" i], button[aria-label*="Copiar" i], button[data-testid*="copy" i], button[aria-label*="Like" i], button[aria-label*="Thumbs" i], button[data-testid*="reaction" i], button[data-testid*="feedback" i]'
+              )
+          );
+          const mdSelector = '[class*="markdown" i], [class*="prose" i], [data-testid*="markdown" i]';
+          const rawMd = [
+            ...(lastNode.matches && lastNode.matches(mdSelector) ? [lastNode] : []),
+            ...Array.from(lastNode.querySelectorAll ? lastNode.querySelectorAll(mdSelector) : []),
+          ];
+          const markdownBlocks = rawMd.filter(
+            (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
+          );
+          if (markdownBlocks.length > 0) {
+            text = markdownBlocks
+              .map((b) => extractCleanText(b))
+              .filter(Boolean)
+              .join('\n\n')
+              .trim();
+          }
+          if (!text) {
+            text = extractCleanText(lastNode);
+          }
+          if (
+            /^(?:thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|searching\.{0,3}|buscando\.{0,3}|generating\.{0,3})$/i.test(
+              text
+            )
+          ) {
+            text = '';
+          }
+        }
+
+        if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
+          generating = true;
+        }
+
+        const msgBar = document.querySelector('.fui-MessageBar');
+        const needsReload = Boolean(
+          msgBar && isVis(msgBar) && /\b(actualice|actualizar|refresh|reload)\b/i.test(msgBar.innerText || '')
+        );
+
+        return {
+          url,
+          blockReason,
+          needsReload,
+          hasComposer: Boolean(composer),
+          userQueries,
+          generating,
+          verifiedModel,
+          count: nodes.length,
+          hasFinishActions,
+          text,
+        };
+      },
+    });
+    if (!Array.isArray(res) || res.length === 0) return null;
+    const frames = res.map((r) => r && r.result).filter(Boolean);
+    const withComposer = frames.find((f) => f.hasComposer);
+    if (withComposer) return withComposer;
+    const withBlock = frames.find((f) => f.blockReason);
+    if (withBlock) return withBlock;
+    return frames[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function forceSubmitPromptInCopilotTab(tabId, promptText) {
+  try {
+    const snapBefore = await inspectCopilotTabLatestResponse(tabId);
+    const beforeUrl = (snapBefore && snapBefore.url) || '';
+    const beforeUserQueries = (snapBefore && snapBefore.userQueries) || 0;
+    const beforeCount = (snapBefore && snapBefore.count) || 0;
+
+    const mainRes = await chrome.scripting
+      .executeScript({
+        target: { tabId, allFrames: true },
+        world: 'MAIN',
+        args: [String(promptText || '')],
+        func: async (rawText) => {
+          const isVis = (el) => {
+            if (!el) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const deepQueryAll = (selector, root = document) => {
+            const out = [];
+            const seen = new Set();
+            const visit = (n) => {
+              if (!n) return;
+              try {
+                for (const el of n.querySelectorAll ? n.querySelectorAll(selector) : []) {
+                  if (!seen.has(el)) {
+                    seen.add(el);
+                    out.push(el);
+                  }
+                }
+              } catch {}
+              try {
+                for (const el of n.querySelectorAll ? n.querySelectorAll('*') : []) {
+                  if (el.shadowRoot) visit(el.shadowRoot);
+                }
+              } catch {}
+            };
+            visit(root);
+            return out;
+          };
+
+          const composerSels = [
+            '#m365-chat-editor-target-element',
+            '#m365-chat-input-shared-id',
+            'span#m365-chat-editor-target-element[role="textbox"]',
+            'textarea#userInput',
+            'textarea[data-testid="composer-input"]',
+            'textarea[data-testid*="composer" i]',
+            'textarea[placeholder*="Copilot" i]',
+            'textarea[placeholder*="Message" i]',
+            'textarea[placeholder*="Mensaje" i]',
+            'textarea[placeholder*="Ask" i]',
+            '#userInput[contenteditable="true"]',
+            'div[role="textbox"][contenteditable="true"]',
+            'span[role="textbox"][contenteditable="true"]',
+            'span[role="textbox"]',
+            'textarea',
+          ];
+          let inputEl = null;
+          for (const s of composerSels) {
+            for (const c of deepQueryAll(s)) {
+              if (isVis(c) && !c.disabled) {
+                inputEl = c;
+                break;
+              }
+            }
+            if (inputEl) break;
+          }
+          if (!inputEl) return { ok: false, reason: 'no_input' };
+
+          inputEl.focus();
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            const proto =
+              inputEl.tagName === 'TEXTAREA'
+                ? window.HTMLTextAreaElement.prototype
+                : window.HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            const tracker = inputEl._valueTracker;
+            if (tracker && typeof tracker.setValue === 'function') {
+              try {
+                tracker.setValue('');
+              } catch {}
+            }
+            if (setter) setter.call(inputEl, rawText);
+            else inputEl.value = rawText;
+            inputEl.dispatchEvent(
+              new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+            );
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            try {
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(inputEl);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('delete', false);
+            } catch {}
+            let pastedOk = false;
+            try {
+              const dt = new DataTransfer();
+              dt.setData('text/plain', rawText);
+              inputEl.dispatchEvent(
+                new ClipboardEvent('paste', {
+                  bubbles: true,
+                  cancelable: true,
+                  clipboardData: dt,
+                })
+              );
+              pastedOk = ((inputEl.innerText || inputEl.textContent || '').trim().length >= Math.min(8, rawText.length));
+            } catch {}
+            if (!pastedOk) {
+              try {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand('insertText', false, rawText);
+              } catch {
+                inputEl.textContent = rawText;
+              }
+              inputEl.dispatchEvent(
+                new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+              );
+            }
+          }
+
+          await new Promise((r) => setTimeout(r, 180));
+
+          const sendSels = [
+            'button.fai-SendButton',
+            'button.fai-BebopLiteChatInput__send',
+            'button[data-testid="submit-button"]',
+            'button[aria-label="Submit message" i]',
+            'button[aria-label*="Submit message" i]',
+            'button[aria-label*="Send message" i]',
+            'button[aria-label*="Enviar mensaje" i]',
+            'button[aria-label="Send" i]',
+            'button[aria-label="Enviar" i]',
+            'button[title*="Submit" i]',
+            'button[title*="Send" i]',
+            'button[title*="Enviar" i]',
+            'button[type="submit"][aria-label*="Enviar" i]',
+            'button[type="submit"][aria-label*="Send" i]',
+            'form button[type="submit"]',
+          ];
+          for (const s of sendSels) {
+            for (const b of deepQueryAll(s)) {
+              if (isVis(b) && !b.disabled && b.getAttribute('aria-disabled') !== 'true') {
+                b.click();
+                return { ok: true, clickedSend: true };
+              }
+            }
+          }
+
+          inputEl.dispatchEvent(
+            new KeyboardEvent('keydown', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+          return { ok: true, clickedSend: false };
+        },
+      })
+      .catch(() => null);
+
+    await sleep(600);
+    const snapAfter = await inspectCopilotTabLatestResponse(tabId);
+    const submittedInMain = Boolean(
+      snapAfter &&
+        (snapAfter.generating ||
+          snapAfter.userQueries > beforeUserQueries ||
+          snapAfter.count > beforeCount ||
+          (snapAfter.url && snapAfter.url !== beforeUrl && /\/chats\//i.test(snapAfter.url)))
+    );
+
+    if (!submittedInMain) {
+      const target = { tabId };
+      try {
+        await chrome.debugger.attach(target, '1.3');
+      } catch {}
+      try {
+        const inputCoordsRes = await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const sels = [
+                '#m365-chat-editor-target-element',
+                'span#m365-chat-editor-target-element[role="textbox"]',
+                'textarea#userInput',
+                'textarea[data-testid="composer-input"]',
+                'div[role="textbox"][contenteditable="true"]',
+                'span[role="textbox"][contenteditable="true"]',
+                'textarea',
+              ];
+              for (const s of sels) {
+                const el = document.querySelector(s);
+                if (el && !el.disabled) {
+                  el.focus();
+                  try {
+                    const sel = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(el);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    document.execCommand('delete', false);
+                  } catch {}
+                  if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                    el.value = '';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                  }
+                  const r = el.getBoundingClientRect();
+                  if (r.width > 0 && r.height > 0) {
+                    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+                  }
+                  return { x: 0, y: 0 };
+                }
+              }
+              return null;
+            },
+          })
+          .catch(() => null);
+        const inputCoords = (inputCoordsRes && inputCoordsRes[0] && inputCoordsRes[0].result) || null;
+        if (inputCoords && inputCoords.x > 0 && inputCoords.y > 0) {
+          await dispatchHardwareClick(target, inputCoords.x, inputCoords.y).catch(() => {});
+          await sleep(100);
+        }
+        // Clear any leftover text inside Lexical via SelectAll + Backspace before inserting
+        await cdpSendWithTimeout(
+          target,
+          'Input.dispatchKeyEvent',
+          {
+            type: 'rawKeyDown',
+            key: 'a',
+            code: 'KeyA',
+            modifiers: 4,
+            commands: ['selectAll'],
+            windowsVirtualKeyCode: 65,
+            nativeVirtualKeyCode: 65,
+          },
+          300
+        ).catch(() => {});
+        await cdpSendWithTimeout(
+          target,
+          'Input.dispatchKeyEvent',
+          {
+            type: 'keyUp',
+            key: 'a',
+            code: 'KeyA',
+            windowsVirtualKeyCode: 65,
+            nativeVirtualKeyCode: 65,
+          },
+          300
+        ).catch(() => {});
+        await cdpSendWithTimeout(
+          target,
+          'Input.dispatchKeyEvent',
+          {
+            type: 'rawKeyDown',
+            key: 'Backspace',
+            code: 'Backspace',
+            windowsVirtualKeyCode: 8,
+            nativeVirtualKeyCode: 8,
+          },
+          300
+        ).catch(() => {});
+        await cdpSendWithTimeout(
+          target,
+          'Input.dispatchKeyEvent',
+          {
+            type: 'keyUp',
+            key: 'Backspace',
+            code: 'Backspace',
+            windowsVirtualKeyCode: 8,
+            nativeVirtualKeyCode: 8,
+          },
+          300
+        ).catch(() => {});
+        await sleep(80);
+        await cdpSendWithTimeout(target, 'Input.insertText', { text: String(promptText || '') }, 3000).catch(
+          () => {}
+        );
+        await sleep(320);
+
+        const btnCoordsRes = await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const sels = [
+                'button.fai-SendButton',
+                'button.fai-BebopLiteChatInput__send',
+                'button[data-testid="submit-button"]',
+                'button[aria-label*="Submit message" i]',
+                'button[aria-label*="Send message" i]',
+                'button[aria-label*="Enviar mensaje" i]',
+                'button[aria-label="Send" i]',
+                'button[aria-label="Enviar" i]',
+                'button[title*="Send" i]',
+                'button[title*="Enviar" i]',
+                'form button[type="submit"]',
+              ];
+              for (const s of sels) {
+                const b = document.querySelector(s);
+                if (b && !b.disabled && b.getAttribute('aria-disabled') !== 'true') {
+                  try {
+                    b.click();
+                  } catch {}
+                  const r = b.getBoundingClientRect();
+                  if (r.width > 0 && r.height > 0) {
+                    return {
+                      clickedDom: true,
+                      x: Math.round(r.left + r.width / 2),
+                      y: Math.round(r.top + r.height / 2),
+                    };
+                  }
+                  return { clickedDom: true, x: 0, y: 0 };
+                }
+              }
+              return null;
+            },
+          })
+          .catch(() => null);
+        const btnCoords = (btnCoordsRes && btnCoordsRes[0] && btnCoordsRes[0].result) || null;
+        if (!btnCoords?.clickedDom && btnCoords && btnCoords.x > 0 && btnCoords.y > 0) {
+          await dispatchHardwareClick(target, btnCoords.x, btnCoords.y).catch(() => {});
+        } else if (!btnCoords?.clickedDom) {
+          await cdpSendWithTimeout(
+            target,
+            'Input.dispatchKeyEvent',
+            {
+              type: 'rawKeyDown',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+              text: '\r',
+              unmodifiedText: '\r',
+            },
+            450
+          ).catch(() => {});
+          await cdpSendWithTimeout(
+            target,
+            'Input.dispatchKeyEvent',
+            {
+              type: 'keyUp',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+              nativeVirtualKeyCode: 13,
+            },
+            450
+          ).catch(() => {});
+        }
+        await sleep(350);
+      } finally {
+        await chrome.debugger.detach(target).catch(() => {});
+      }
+    }
+    return Boolean((mainRes && mainRes[0] && mainRes[0].result && mainRes[0].result.ok) || true);
+  } catch {
+    return false;
+  }
+}
+
+let copilotAcquireLockChain = Promise.resolve();
+function withCopilotAcquireLock(fn) {
+  const next = copilotAcquireLockChain.then(fn, fn);
+  copilotAcquireLockChain = next.catch(() => {});
+  return next;
+}
+
+async function acquireCopilotTabForExternalAsk(requestId) {
+  return withCopilotAcquireLock(async () => {
+    const presence = await getHuellasBrowserProfilePresence();
+    if (!presence.hasAppWindow && !presence.hasWorkspace) {
+      throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+    }
+
+    const busyTabIds = new Set();
+    for (const [reqId, v] of activeExternalAskMap.entries()) {
+      if (reqId !== requestId && v && v.tabId) busyTabIds.add(v.tabId);
+    }
+    const storedMap = await getStoredExternalAskMap();
+    const nowMs = Date.now();
+    for (const [reqId, v] of Object.entries(storedMap)) {
+      if (!v || !v.tabId || reqId === requestId) continue;
+      const ageMs = nowMs - Number(v.startedAt || 0);
+      if (
+        ageMs < 360000 &&
+        ((latestServerActiveExternalAskIds && latestServerActiveExternalAskIds.has(reqId)) || ageMs < 20000)
+      ) {
+        busyTabIds.add(v.tabId);
+      }
+    }
+
+    const openCopilotTabs = (
+      await chrome.tabs.query({ url: COPILOT_TAB_URL_PATTERNS }).catch(() => [])
+    ).filter((t) => t && t.id && !busyTabIds.has(t.id));
+
+    if (openCopilotTabs.length > 0) {
+      openCopilotTabs.sort((a, b) => {
+        if (Boolean(a.active) !== Boolean(b.active)) return Number(Boolean(a.active)) - Number(Boolean(b.active));
+        const aInAppWin = a.windowId === presence.anchorWindowId ? 1 : 0;
+        const bInAppWin = b.windowId === presence.anchorWindowId ? 1 : 0;
+        if (bInAppWin !== aInAppWin) return bInAppWin - aInAppWin;
+        return (b.lastAccessed || b.id || 0) - (a.lastAccessed || a.id || 0);
+      });
+
+      for (const candidateTab of openCopilotTabs) {
+        const tabId = candidateTab.id;
+        const curSnap = await inspectCopilotTabLatestResponse(tabId);
+        if (curSnap && curSnap.generating) {
+          continue;
+        }
+
+        await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+
+        if (curSnap && curSnap.needsReload) {
+          await chrome.tabs.update(tabId, { url: 'https://copilot.com/chat' }).catch(() => {});
+          await sleep(1200);
+        } else {
+          const isAlreadyFreshNewChat =
+            curSnap && curSnap.userQueries === 0 && curSnap.count === 0 && !curSnap.generating && curSnap.hasComposer;
+
+          if (!isAlreadyFreshNewChat) {
+            const clickedNewChatRes = await chrome.scripting
+              .executeScript({
+                target: { tabId },
+                world: 'MAIN',
+                func: () => {
+                  const isVis = (el) => {
+                    if (!el) return false;
+                    const r = el.getBoundingClientRect();
+                    return r.width > 0 && r.height > 0;
+                  };
+                  const selectors = [
+                    'button.fai-CopilotNavItem[aria-label="Chat" i]',
+                    'a.fai-CopilotNavItem[aria-label*="Nuevo chat" i]',
+                    'a.fai-CopilotNavItem[aria-label*="New chat" i]',
+                    'a[aria-label*="Nuevo chat" i]',
+                    'a[aria-label*="New chat" i]',
+                    'button[data-testid="new-chat-button"]',
+                    'button[data-testid*="new-chat" i]',
+                    'button[aria-label*="New chat" i]',
+                    'button[aria-label*="Nuevo chat" i]',
+                    'button[aria-label*="Start new chat" i]',
+                    'button[title*="New chat" i]',
+                    'button[title*="Nuevo chat" i]',
+                    'a[data-testid*="new-chat" i]',
+                  ];
+                  for (const sel of selectors) {
+                    const el = document.querySelector(sel);
+                    if (isVis(el)) {
+                      el.click();
+                      return true;
+                    }
+                  }
+                  return false;
+                },
+              })
+              .catch(() => null);
+
+            const clickedNewChat = Boolean(clickedNewChatRes && clickedNewChatRes[0] && clickedNewChatRes[0].result);
+            let switchedCleanly = false;
+            if (clickedNewChat) {
+              for (let poll = 0; poll < 8; poll++) {
+                await sleep(250);
+                const s = await inspectCopilotTabLatestResponse(tabId);
+                if (s && s.userQueries === 0 && s.count === 0 && !s.generating && s.hasComposer && !s.needsReload) {
+                  switchedCleanly = true;
+                  break;
+                }
+              }
+            }
+            if (!switchedCleanly) {
+              await chrome.tabs.update(tabId, { url: 'https://copilot.com/chat' }).catch(() => {});
+            }
+          }
+        }
+
+        if (requestId) {
+          await registerActiveExternalAskWindow(requestId, null, tabId, {
+            keepOpenOnCleanup: true,
+          });
+        }
+        return {
+          createdWindowId: null,
+          tabId,
+          reusedExisting: true,
+          hasAppWindow: presence.hasAppWindow,
+        };
+      }
+    }
+
+    const opened = await createTemporaryTabInAppWindow('https://copilot.com/chat');
+    if (requestId) {
+      await registerActiveExternalAskWindow(requestId, opened.createdWindowId, opened.tabId, {
+        keepOpenOnCleanup: false,
+      });
+    }
+    return {
+      createdWindowId: opened.createdWindowId,
+      tabId: opened.tabId,
+      reusedExisting: false,
+      hasAppWindow: opened.hasAppWindow,
+    };
+  });
+}
+
+async function runExternalCopilotAskOrder(task) {
+  if (!task || !task.id || !task.prompt) return;
+  if (task.prompt === '__READ_CURRENT__') {
+    const copTabs = await chrome.tabs.query({ url: COPILOT_TAB_URL_PATTERNS }).catch(() => []);
+    const preferredTab = copTabs[copTabs.length - 1] || copTabs[0] || null;
+    if (!preferredTab || !preferredTab.id) {
+      await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: task.id, ok: false, error: 'No hay pestaña de Copilot abierta.' }),
+      }).catch(() => {});
+      return;
+    }
+    const snap = await inspectCopilotTabLatestResponse(preferredTab.id);
+    await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: task.id,
+        ok: Boolean(snap && snap.text),
+        reusedExisting: true,
+        verifiedModel: (snap && snap.verifiedModel) || 'Microsoft Copilot Web',
+        response: (snap && snap.text) || '',
+        chatUrl: (snap && snap.url) || preferredTab.url || '',
+        error: snap && !snap.text ? 'Respuesta vacía en la pestaña actual de Copilot.' : undefined,
+      }),
+    }).catch(() => {});
+    return;
+  }
+
+  activeExternalAskCount += 1;
+  let createdWindowId = null;
+  let tabId = null;
+  let reusedExisting = false;
+  try {
+    const opened = await acquireCopilotTabForExternalAsk(task.id);
+    createdWindowId = opened.createdWindowId;
+    tabId = opened.tabId;
+    reusedExisting = Boolean(opened.reusedExisting);
+
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpenOnCleanup: reusedExisting,
+    });
+    await fetch('http://localhost:4200/api/copilot-web/ask-external-claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: task.id,
+        windowId: createdWindowId,
+        tabId,
+        reusedExisting,
+        hasAppWindow: opened.hasAppWindow,
+        hasWorkspace: true,
+      }),
+    }).catch(() => {});
+
+    for (let w = 0; w < 40; w++) {
+      await sleep(400);
+      const tInfo = await chrome.tabs.get(tabId).catch(() => null);
+      const curUrl = (tInfo && tInfo.url) || '';
+      if (tInfo && /login\.live\.com|login\.microsoftonline\.com|account\.microsoft\.com\/auth/i.test(curUrl) && w >= 4) {
+        await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            tabId,
+            windowId: createdWindowId,
+            reusedExisting,
+            chatUrl: curUrl,
+            error:
+              'No hay sesión iniciada en Microsoft Copilot Web dentro de Google Chrome. Inicia sesión en la pestaña abierta de Copilot e inténtalo de nuevo.',
+          }),
+        }).catch(() => {});
+        return;
+      }
+      if (
+        tInfo &&
+        tInfo.status === 'complete' &&
+        /^https:\/\/([a-z0-9-]+\.)?(copilot\.microsoft\.com|copilot\.com|cloud\.microsoft)/i.test(curUrl)
+      ) {
+        const snapReady = await inspectCopilotTabLatestResponse(tabId);
+        if (snapReady && snapReady.blockReason && w >= 4) {
+          await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              tabId,
+              windowId: createdWindowId,
+              reusedExisting,
+              chatUrl: snapReady.url || tInfo.url || '',
+              error: snapReady.blockReason,
+            }),
+          }).catch(() => {});
+          return;
+        }
+        if (snapReady && snapReady.hasComposer) {
+          break;
+        }
+      }
+    }
+    await sleep(450);
+
+    const checkBlock = await inspectCopilotTabLatestResponse(tabId);
+    if (checkBlock && checkBlock.blockReason) {
+      await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: task.id,
+          ok: false,
+          tabId,
+          windowId: createdWindowId,
+          reusedExisting,
+          chatUrl: checkBlock.url || '',
+          error: checkBlock.blockReason,
+        }),
+      }).catch(() => {});
+      return;
+    }
+
+    const baselineCount = (checkBlock && checkBlock.count) || 0;
+    const baselineText = ((checkBlock && checkBlock.text) || '').trim();
+
+    const orderPayload = {
+      target: 'COPILOT',
+      action: 'ASK_EXTERNAL_COPILOT',
+      requestId: task.id,
+      prompt: task.prompt,
+    };
+    let deliveredAck = false;
+    for (let tryIdx = 0; tryIdx < 8; tryIdx++) {
+      await ensureScriptInjected(tabId, 'copilot-content.js');
+      await sleep(350);
+      const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
+      if (ack && ack.handled) {
+        deliveredAck = true;
+        break;
+      }
+      await sleep(400);
+    }
+
+    if (!deliveredAck) {
+      await forceSubmitPromptInCopilotTab(tabId, task.prompt);
+    }
+
+    let stableDoneTicks = 0;
+    let lastText = '';
+    for (let i = 0; i < 150; i++) {
+      await sleep(2000);
+      await chrome.runtime.getPlatformInfo().catch(() => null);
+      if (!pendingExternalCheckActive(task.id)) break;
+      const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tStillExists) break;
+      const snap = await inspectCopilotTabLatestResponse(tabId);
+      if (!snap) continue;
+      if (snap.blockReason) {
+        await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            tabId,
+            windowId: createdWindowId,
+            reusedExisting,
+            chatUrl: snap.url || '',
+            error: snap.blockReason,
+          }),
+        }).catch(() => {});
+        return;
+      }
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+        await forceSubmitPromptInCopilotTab(tabId, task.prompt);
+        continue;
+      }
+      const trimmedSnapText = (snap.text || '').trim();
+      const isNewTurn =
+        snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
+      const readyEnough = trimmedSnapText.length >= 2;
+      const neededStableTicks = snap.hasFinishActions ? 2 : 3;
+      if (isNewTurn && !snap.generating && readyEnough) {
+        if (snap.text === lastText) {
+          stableDoneTicks += 1;
+        } else {
+          lastText = snap.text;
+          stableDoneTicks = 1;
+        }
+        if (stableDoneTicks >= neededStableTicks) {
+          await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: true,
+              tabId,
+              windowId: createdWindowId,
+              reusedExisting,
+              verifiedModel: snap.verifiedModel || 'Microsoft Copilot Web',
+              response: snap.text,
+              chatUrl: snap.url,
+            }),
+          }).catch(() => {});
+          return;
+        }
+      } else {
+        lastText = snap.text || '';
+        stableDoneTicks = 0;
+      }
+    }
+  } finally {
+    activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpen: reusedExisting,
+    });
   }
 }
 
@@ -7766,6 +8958,8 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
     });
     if (!res.ok) return;
     const data = await res.json();
+    const serverActiveAskIds = new Set(Array.isArray(data?.activeExternalAskIds) ? data.activeExternalAskIds : []);
+    latestServerActiveExternalAskIds = serverActiveAskIds;
     const canClaimInThisBrowser =
       presence.hasAppWindow || (presence.hasWorkspace && Boolean(data?.allowWorkspaceFallback));
 
@@ -7864,11 +9058,45 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
           claimedExternalAskIds.delete(chatGptTask.id);
         }
       }
+
+      const copilotTasks = Array.isArray(data?.pendingExternalCopilotAsks)
+        ? data.pendingExternalCopilotAsks
+        : data?.pendingExternalCopilotAsk
+          ? [data.pendingExternalCopilotAsk]
+          : [];
+      for (const copilotTask of copilotTasks) {
+        if (!copilotTask || !copilotTask.id || claimedExternalAskIds.has(copilotTask.id)) continue;
+        claimedExternalAskIds.add(copilotTask.id);
+        const claimRes = await fetch('http://localhost:4200/api/copilot-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: copilotTask.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalCopilotAskOrder(copilotTask).catch((err) => {
+            fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: copilotTask.id,
+                ok: false,
+                error: String(err?.message || err),
+              }),
+            }).catch(() => {});
+          });
+        } else {
+          claimedExternalAskIds.delete(copilotTask.id);
+        }
+      }
     }
 
     // Sweep any orphaned temporary Gemini/ChatGPT windows whose server-side ask-external request already finished, timed out, or restarted
-    const serverActiveAskIds = new Set(Array.isArray(data?.activeExternalAskIds) ? data.activeExternalAskIds : []);
-    latestServerActiveExternalAskIds = serverActiveAskIds;
     const storedAsksMap = await getStoredExternalAskMap();
     const nowMs = Date.now();
     let hasRunningExternalAsk = activeExternalAskCount > 0;

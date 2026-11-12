@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+export DISPLAY="${DISPLAY:-:1}"
+export HOME="/config"
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+
+mkdir -p /config/.config/google-chrome/Default
+mkdir -p /config/.config/gtk-3.0
+
+# Add 1-tap GTK sidebar bookmark to the read-only macOS Documentaries folder
+if ! grep -q "/mnt/huellas_videos" /config/.config/gtk-3.0/bookmarks 2>/dev/null; then
+  echo "file:///mnt/huellas_videos Documentales_Huellas" >> /config/.config/gtk-3.0/bookmarks
+fi
+
+# Set comfortable mobile-friendly 1280x800 desktop resolution by default
+xrandr -s 1280x800 2>/dev/null || true
+xset s off -dpms 2>/dev/null || true
+
+CHROME_PREFS="/config/.config/google-chrome/Default/Preferences"
+if [ ! -f "$CHROME_PREFS" ]; then
+  echo '{}' > "$CHROME_PREFS"
+fi
+
+# Ensure clean exit status (no "Restore pages?" bubble) and automatic downloads to /downloads
+if command -v jq >/dev/null 2>&1; then
+  TMP_PREFS="/tmp/chrome_prefs_$$.json"
+  if jq '
+    .profile.exit_type = "Normal" |
+    .profile.exited_cleanly = true |
+    .download.default_directory = "/downloads" |
+    .download.prompt_for_download = false |
+    .download.directory_upgrade = true |
+    .selectfile.last_directory = "/mnt/huellas_videos"
+  ' "$CHROME_PREFS" > "$TMP_PREFS" 2>/dev/null; then
+    mv "$TMP_PREFS" "$CHROME_PREFS"
+  else
+    rm -f "$TMP_PREFS"
+  fi
+fi
+
+# Clean stale Singleton locks if Chrome is not currently running
+if ! pgrep -x chrome >/dev/null 2>&1; then
+  rm -f /config/.config/google-chrome/SingletonLock \
+        /config/.config/google-chrome/SingletonCookie \
+        /config/.config/google-chrome/SingletonSocket
+fi
+
+rm -f /tmp/.huellas_stopping_chrome
+
+# Keep Chrome alive on Google Flow unless graceful shutdown is requested
+(
+  while [ ! -f /tmp/.huellas_stopping_chrome ]; do
+    if ! pgrep -x chrome >/dev/null 2>&1; then
+      /usr/bin/google-chrome-stable \
+        --password-store=basic \
+        --no-first-run \
+        --no-default-browser-check \
+        --disable-dev-shm-usage \
+        --start-maximized \
+        "https://labs.google/fx/tools/flow" >/dev/null 2>&1 &
+    fi
+    sleep 3
+  done
+) &
