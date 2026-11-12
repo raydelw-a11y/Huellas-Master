@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-12T12:14:54.038Z",
+    "updatedAt": "2026-11-12T12:24:25.959Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -1048,7 +1048,7 @@
     "rawReferencePrompts": "Usa Nano Banana 2.1. Genera cada imagen como una lámina de referencia con exactamente 6 vistas en una sola imagen (6 views en cuadrícula 3x2) y cambia obligatoriamente el nombre de cada imagen generada exactamente al identificador @Nombre_Con_Guiones_Bajos indicado en cada prompt.\nImage @Charles_Fletcher [Image Name: @Charles_Fletcher]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a tall slender 29-year-old British male clinical physician in 1941 Oxford, England with short neatly parted dark brown hair, clean-shaven fatigued pale face, attentive hazel eyes, dressed head-to-toe in a knee-length white cotton hospital coat worn over a charcoal-gray three-piece wool suit, white collared shirt, dark silk necktie, tailored wool trousers, and black lace-up leather Oxford shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Charles_Fletcher\nImage @Albert_Alexander [Image Name: @Albert_Alexander]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a sturdy 43-year-old British male reserve police patient in 1941 Oxford, England with short combed brown hair, gaunt weathered facial features, and a clean white sterile gauze bandage neatly covering his left eye, dressed head-to-toe in a long vintage 1941 off-white linen hospital gown tied with cotton strings, loose white cotton pajama trousers, wool socks, and simple brown felt hospital slippers against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Albert_Alexander\nImage @Alexander_Fleming [Image Name: @Alexander_Fleming]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 47-year-old Scottish male bacteriologist in 1928 London, England with angular austere facial bone structure, prominent nose, observant pale blue-gray eyes, and silver-gray hair combed straight back, dressed head-to-toe in a white cotton laboratory coat over a medium-gray British three-piece wool suit, stiff white detachable collar shirt, dark navy polka-dot bow tie, cuffed wool trousers, and polished dark brown leather brogues against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Alexander_Fleming\nImage @Almroth_Wright [Image Name: @Almroth_Wright] Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting an imposing 67-year-old British male medical institute director in 1929 London, England with thick silver-white hair, full clipped white mustache, oval wire pince-nez eyeglasses, and stern authoritative expression, dressed head-to-toe in a formal black wool Edwardian-style frock coat, double-breasted gray waistcoat, high starched white wing collar, dark gray silk cravat, striped charcoal trousers, and black leather dress shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Almroth_Wright\nImage @Howard_Florey [Image Name: @Howard_Florey]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 42-year-old Australian male pathology professor in 1940 Oxford, England with an oval resolute face, neat light-brown hair combed back, thin round gold wire-rimmed spectacles, and intense pragmatic gaze, dressed head-to-toe in a white cotton laboratory coat worn over a brown herringbone tweed waistcoat, white poplin shirt, dark striped tie, charcoal flannel trousers, and dark brown leather Oxford shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Howard_Florey\nImage @Ernst_Chain [Image Name: @Ernst_Chain]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 33-year-old Central European male biochemist in 1939 Oxford, England with expressive features, broad high forehead, thick dark wavy hair fuller at the temples, and a prominent dark bushy mustache, dressed head-to-toe in a white laboratory coat with sleeves slightly turned at the cuffs over a dark navy wool vest, white shirt, burgundy necktie, pleated dark gray wool trousers, and black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Ernst_Chain\nImage @Norman_Heatley [Image Name: @Norman_Heatley]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a slender 28-year-old British male experimental biochemist in 1940 Oxford, England with an approachable modest face, straight medium-brown hair with a clean side part, and focused inventive eyes, dressed head-to-toe in a white laboratory coat over a heather-brown knitted wool V-neck pullover sweater, cream collared shirt, dark wool tie, tan corduroy trousers, and sturdy brown leather work shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Norman_Heatley\nImage @Ruth_Callow [Image Name: @Ruth_Callow] Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 22-year-old British female laboratory technician in 1941 Oxford, England with natural fair skin, chestnut hair tucked neatly beneath a tied white linen protective cap, and calm disciplined expression, dressed head-to-toe in a high-buttoned white cotton wrap laboratory coat reaching below the knee, vintage tan rubber laboratory gloves, navy wool skirt hem, beige lisle stockings, and sensible low-heeled black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Ruth_Callow\nImage @Andrew_Moyer [Image Name: @Andrew_Moyer] Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a methodical 60-year-old American male agricultural mycologist in 1942 Peoria, Illinois with thin receding gray hair, clean-shaven lined Midwestern face, and silver metal-rimmed round spectacles, dressed head-to-toe in a crisp white cotton laboratory coat over a white dress shirt, narrow 1940s geometric-patterned tie, high-waisted brown wool slacks, and dark brown leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Andrew_Moyer\nImage @Mary_Hunt [Image Name: @Mary_Hunt]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 25-year-old American female bacteriological assistant in 1943 Peoria, Illinois with observant bright eyes, warm natural complexion, and shoulder-length medium-brown hair styled in authentic 1943 pinned waves, dressed head-to-toe in a knee-length white cotton laboratory coat worn open over a pastel blue 1940s collared blouse, tailored navy A-line knee-length wool skirt, seamed stockings, and classic brown leather low-heeled oxfords against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mary_Hunt\nImage @Salvador_Mazza [Image Name: @Salvador_Mazza] Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a stocky 58-year-old Argentine male bacteriologist in 1944 Buenos Aires with receding dark gray hair, clipped mustache, round tortoiseshell glasses, and passionate resolute expression, dressed head-to-toe in a buttoned white clinical laboratory coat over a dark navy double-breasted 1940s wool suit, white collar shirt, dark silk tie, and polished black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Salvador_Mazza\nImage @Historiador_Antiguo [Image Name: @Historiador_Antiguo]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a dignified 60-year-old male documentary historian with weathered skin, neatly trimmed silver-white beard and mustache, and thin antique reading spectacles, dressed head-to-toe in a dark olive-brown heavy tweed jacket with suede elbow patches, matching wool waistcoat, cream cotton Oxford shirt, dark burgundy knit tie, charcoal wool trousers, and worn dark brown leather lace-up boots against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Historiador_Antiguo\nImage @Enfermeria_Radcliffe [Image Name: @Enfermeria_Radcliffe]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1941 wartime clinical hospital ward in Oxford, England featuring tall Georgian sash windows draped with thick black air-raid blackout curtains, muted sage-and-cream plaster walls, white enameled iron hospital beds made with crisp white linen sheets, stainless steel surgical bedside trays holding clear empty glass vials, cast-iron steam radiators, and dim warm tungsten pendant lamps casting dramatic chiaroscuro shadows, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Enfermeria_Radcliffe\nImage @Mesa_Historiador [Image Name: @Mesa_Historiador]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a classic early-20th-century archival historian study room featuring a carved dark mahogany desk surrounded by floor-to-ceiling oak bookshelves packed with leather-bound tomes, an antique brass-and-green-glass banker lamp casting warm golden chiaroscuro light over aged parchment manuscripts, quill pens, glass inkpot, brass magnifying glass, and early amber glass medicine vials, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mesa_Historiador\nImage @Laboratorio_St_Mary [Image Name: @Laboratorio_St_Mary]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the cramped September 1928 basement microbiology laboratory in Paddington, London, England with a soot-grimed sash window slightly ajar letting in cool gray autumn daylight over a dark stained wooden workbench cluttered with stacked glass Petri dishes above a shallow metal antiseptic tray, brass monocular microscope, cast-iron Bunsen gas burner, brass tweezers, and wooden shelves of glass reagent bottles, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Laboratorio_St_Mary\nImage @Sala_Medica_Londres [Image Name: @Sala_Medica_Londres]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting an austere 1929 London medical society lecture hall constructed with dark polished mahogany wall paneling, curved tiered oak seating benches, a carved wooden speaker lectern at the center, tall leaded-glass windows admitting overcast gray London daylight, and warm brass wall sconces, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Sala_Medica_Londres\nImage @Escuela_Dunn_Oxford [Image Name: @Escuela_Dunn_Oxford]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1940 wartime pathology incubation and extraction laboratory in Oxford, England featuring red-brick exterior architecture and interior rooms lined with wooden racks holding white enameled hospital bedpans, square tin biscuit containers, hundreds of stackable rectangular glazed ceramic culture vessels with side spouts, and a makeshift extraction rig built from reclaimed oak library shelving, copper coils, glass pipes, milk bottles, and an antique brass electric doorbell under warm tungsten bulbs, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Escuela_Dunn_Oxford\nImage @Laboratorio_Peoria [Image Name: @Laboratorio_Peoria]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1941 to 1943 agricultural fermentation research laboratory in Peoria, Illinois, United States with a modern limestone building exterior surrounded by Midwestern summer greenery and crisp white ceramic-tiled interior laboratories equipped with mechanical rotary shaker tables holding glass Erlenmeyer flasks of golden-brown corn steep broth, pilot submerged steel fermentation drums with glass sight-ports, and bright 1940s overhead laboratory fixtures, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Laboratorio_Peoria\nImage @Planta_Pfizer_Brooklyn [Image Name: @Planta_Pfizer_Brooklyn]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1943 converted brick ice plant deep-fermentation facility in Brooklyn, New York, United States housing fourteen colossal ten-thousand-gallon vertical riveted steel fermentation tanks, dense overhead networks of insulated steam pipes, brass pressure dials, heavy cast-iron air compressors, elevated steel catwalks, and high industrial windows casting dramatic volumetric shafts of light through light steam, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Planta_Pfizer_Brooklyn\nImage @Playas_Normandia_1944 [Image Name: @Playas_Normandia_1944]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a June 1944 Allied field medical aid station pitched on the wet sandy dunes of Normandy, France with olive-drab canvas military tents, open wooden medical supply crates filled with racks of sealed amber glass ampoules, steel field surgical tables, canvas stretchers on wooden trestles, steel beach obstacles along the shoreline, and moody overcast gray Channel skies, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Playas_Normandia_1944\nImage @Boticas_Hospitales_Latam [Image Name: @Boticas_Hospitales_Latam]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a classic 1944 Latin American neighborhood pharmacy and colonial stone hospital arcade inspired by Mexico City, Havana, and Buenos Aires, featuring tall carved cedar apothecary shelving lined with white porcelain jars and amber glass vials, brass apothecary scales on a marble-topped wooden counter, tall louvered wooden shutters, wrought-iron glass entrance doors, and warm golden afternoon sunlight across patterned tile floors, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Boticas_Hospitales_Latam\nImage @Salon_Nobel_Estocolmo [Image Name: @Salon_Nobel_Estocolmo]: Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the December 1945 neoclassical ceremonial concert hall in Stockholm, Sweden featuring towering fluted marble columns, gilded architectural moldings, massive sparkling crystal chandeliers casting rich golden light over rows of crimson velvet auditorium seats, a carved dark oak speaker lectern on the polished wooden stage, and snow-covered Nordic twilight streets outside the grand stone entrance, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Salon_Nobel_Estocolmo",
     "references": [
       {
-        "id": "ref-1794485694001-1",
+        "id": "ref-1794486265919-1",
         "tag": "@Charles_Fletcher",
         "category": "persona",
         "description": "Charles Fletcher",
@@ -1056,7 +1056,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694004-2",
+        "id": "ref-1794486265923-2",
         "tag": "@Albert_Alexander",
         "category": "persona",
         "description": "Albert Alexander",
@@ -1064,7 +1064,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694007-3",
+        "id": "ref-1794486265926-3",
         "tag": "@Alexander_Fleming",
         "category": "persona",
         "description": "Alexander Fleming",
@@ -1072,7 +1072,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694011-4",
+        "id": "ref-1794486265930-4",
         "tag": "@Almroth_Wright",
         "category": "persona",
         "description": "Almroth Wright",
@@ -1080,7 +1080,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694014-5",
+        "id": "ref-1794486265934-5",
         "tag": "@Howard_Florey",
         "category": "persona",
         "description": "Howard Florey",
@@ -1088,7 +1088,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694017-6",
+        "id": "ref-1794486265937-6",
         "tag": "@Ernst_Chain",
         "category": "persona",
         "description": "Ernst Chain",
@@ -1096,7 +1096,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694021-7",
+        "id": "ref-1794486265941-7",
         "tag": "@Norman_Heatley",
         "category": "persona",
         "description": "Norman Heatley",
@@ -1104,7 +1104,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694025-8",
+        "id": "ref-1794486265944-8",
         "tag": "@Ruth_Callow",
         "category": "persona",
         "description": "Ruth Callow",
@@ -1112,7 +1112,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694028-9",
+        "id": "ref-1794486265948-9",
         "tag": "@Andrew_Moyer",
         "category": "persona",
         "description": "Andrew Moyer",
@@ -1120,7 +1120,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694032-10",
+        "id": "ref-1794486265952-10",
         "tag": "@Mary_Hunt",
         "category": "persona",
         "description": "Mary Hunt",
@@ -1128,7 +1128,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694035-11",
+        "id": "ref-1794486265955-11",
         "tag": "@Salvador_Mazza",
         "category": "persona",
         "description": "Salvador Mazza",
@@ -1136,7 +1136,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-12",
+        "id": "ref-1794486265959-12",
         "tag": "@Historiador_Antiguo",
         "category": "persona",
         "description": "Historiador Antiguo",
@@ -1144,7 +1144,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-13",
+        "id": "ref-1794486265959-13",
         "tag": "@Enfermeria_Radcliffe",
         "category": "lugar",
         "description": "Enfermeria Radcliffe",
@@ -1152,7 +1152,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-14",
+        "id": "ref-1794486265959-14",
         "tag": "@Mesa_Historiador",
         "category": "lugar",
         "description": "Mesa Historiador",
@@ -1160,7 +1160,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-15",
+        "id": "ref-1794486265959-15",
         "tag": "@Laboratorio_St_Mary",
         "category": "lugar",
         "description": "Laboratorio St Mary",
@@ -1168,7 +1168,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-16",
+        "id": "ref-1794486265959-16",
         "tag": "@Sala_Medica_Londres",
         "category": "lugar",
         "description": "Sala Medica Londres",
@@ -1176,7 +1176,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-17",
+        "id": "ref-1794486265959-17",
         "tag": "@Escuela_Dunn_Oxford",
         "category": "lugar",
         "description": "Escuela Dunn Oxford",
@@ -1184,7 +1184,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-18",
+        "id": "ref-1794486265959-18",
         "tag": "@Laboratorio_Peoria",
         "category": "lugar",
         "description": "Laboratorio Peoria",
@@ -1192,7 +1192,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-19",
+        "id": "ref-1794486265959-19",
         "tag": "@Planta_Pfizer_Brooklyn",
         "category": "lugar",
         "description": "Planta Pfizer Brooklyn",
@@ -1200,7 +1200,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-20",
+        "id": "ref-1794486265959-20",
         "tag": "@Playas_Normandia_1944",
         "category": "lugar",
         "description": "Playas Normandia 1944",
@@ -1208,7 +1208,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-21",
+        "id": "ref-1794486265959-21",
         "tag": "@Boticas_Hospitales_Latam",
         "category": "lugar",
         "description": "Boticas Hospitales Latam",
@@ -1216,7 +1216,7 @@
         "isCreated": false
       },
       {
-        "id": "ref-1794485694038-22",
+        "id": "ref-1794486265959-22",
         "tag": "@Salon_Nobel_Estocolmo",
         "category": "lugar",
         "description": "Salon Nobel Estocolmo",
