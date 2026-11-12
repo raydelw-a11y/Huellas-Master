@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "alg": "AES-256-GCM-PBKDF2-SHA256",
+  "iter": 210000,
+  "kdfSaltB64": "nwZDbawW3J53+Yf1xElFZw==",
+  "ivB64": "hxw2vMJ155Nrtf4y",
+  "ctB64": "RUFo3EDLlBlW1G51G0wMxKYA8ltj4n0keBvW7kpcPjHmwY9df9gGJltGbRiTlFz+sh8aTEHlIlwEY6Oaoru8ZShhoQBBojEVmn32+99ErD6A8KFFj1XjtIloT/INwUq3owK7aZUkWFs+KsPJRKaqf1K8n3uGsf2dZs+kbxMZeVDUvNPRlTCslmFMjR4sy5B0dxfPR+xooeJUW9Xqh0R9KsWHzziRyw+YoK2yZCJMlnM=",
+  "updatedAt": 1794502933044
+}
