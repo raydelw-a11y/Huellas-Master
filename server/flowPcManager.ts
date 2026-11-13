@@ -878,7 +878,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     if (/^@|^ref[_\-\s]|personaje|character|escenario|referencia/i.test(base)) {
       return '04_Referencias';
     }
-    if (/^(?:0*\d+[_\-\s.]|(?:clip|video|image|imagen|scene|escena)[_\-\s.]*0*\d+(?:[_\-\s.(]|$))/i.test(base)) {
+    if (/^(?:0*\d+[_\-\s.]|(?:clip|video|inicial|initial|broll|b[\-_]?roll|image|imagen|scene|escena)[_\-\s.]*0*\d+(?:[_\-\s.(]|$))/i.test(base)) {
       return '05_Clips_Video';
     }
     if (['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) {

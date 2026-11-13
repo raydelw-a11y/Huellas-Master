@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:07 PM - 11/12/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:49 PM - 11/12/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -491,7 +491,7 @@ function resolveSubfolderForDocumentaryAsset(
   if (/^Miniatura_|^Logo_|miniatura/i.test(clean)) return '03_Miniaturas';
   if (/\.(mp3|wav|m4a|ogg)$/i.test(clean)) return '02_Audio';
   if (/^@|^Ref_|referencia/i.test(clean)) return '04_Referencias';
-  if (/^(?:0*\d+[_\-\s.]|clip[_\-\s.]*0*\d+)/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {
+  if (/^(?:0*\d+[_\-\s.]|(?:clip|video|inicial|initial|broll|b[\-_]?roll|image|imagen|scene|escena)[_\-\s.]*0*\d+(?:[_\-\s.(]|$))/i.test(clean) && /\.(mp4|webm|mov|png|jpg|jpeg|webp)$/i.test(clean)) {
     return '05_Clips_Video';
   }
   if (/^Documental_|_Master|_Final/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {

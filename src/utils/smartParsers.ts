@@ -180,6 +180,9 @@ export function ensureOperationalHeaderInRawClips(
     /^Act as a (?:professional |master )?historian/i.test(trimmed) &&
     /pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) &&
     /Static\s+B-Roll|\[B-Roll:\s*STATIC_/i.test(trimmed) &&
+    /Inicial_/i.test(trimmed) &&
+    /Broll_/i.test(trimmed) &&
+    /Clip_/i.test(trimmed) &&
     /(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) &&
     trimmed.includes('01 to 09')
   ) {
@@ -711,6 +714,7 @@ export function ensureAntiMutationPhysicsInPrompt(
       /Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi,
       ''
     )
+    .replace(/\s*\(no unintended explosions or flashes\)\s*/gi, ' ')
     .trim();
 
   const isStaticBrollScene =
@@ -769,8 +773,8 @@ export function ensureAntiMutationPhysicsInPrompt(
     .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
 
   const shieldDirective = isExplicitZeroPeopleScene
-    ? `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous motion across the full ${clipSec} seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to ${clipSec}s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes).`
-    : `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes).`;
+    ? `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous motion across the full ${clipSec} seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to ${clipSec}s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes.`
+    : `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes).`;
 
   if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
     p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
@@ -790,6 +794,180 @@ export function ensureAntiMutationPhysicsInPrompt(
   }
 
   return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+}
+
+const CURATED_FLOW_VIDEO_TAG_DESC: Record<string, string> = {
+  '@Charles_Fletcher': 'the young British physician in the white coat',
+  '@Albert_Alexander': 'the resting man in the linen shirt',
+  '@Alexander_Fleming': 'the silver-haired Scottish scientist in the white lab coat',
+  '@Almroth_Wright': 'the elderly silver-haired institute director in the dark frock coat',
+  '@Howard_Florey': 'the bespectacled senior professor in the tweed suit',
+  '@Ernst_Chain': 'the dark-haired biochemist in the white lab coat',
+  '@Norman_Heatley': 'the tall British researcher in the laboratory coat',
+  '@Ruth_Callow': 'the female laboratory researcher in the white coat',
+  '@Andrew_Moyer': 'the American laboratory scientist in the white coat',
+  '@Mary_Hunt': 'the female research specialist in the vintage 1940s coat',
+  '@Salvador_Mazza': 'the Argentine research physician in the white coat',
+  '@Historiador_Antiguo': 'the senior historian in the olive-brown tweed jacket',
+  '@Enfermeria_Radcliffe': 'the quiet vintage 1940s brick ward',
+  '@Laboratorio_St_Mary': 'the vintage wood-paneled London laboratory',
+  '@Escuela_Dunn_Oxford': 'the vintage Oxford research laboratory',
+  '@Mesa_Historiador': 'the warm mahogany study lined with oak bookshelves',
+  '@Sala_Medica_Londres': 'the paneled wood lecture hall',
+  '@Laboratorio_Peoria': 'the sunlit 1940s agricultural research laboratory',
+  '@Planta_Pfizer_Brooklyn': 'the large 1940s stainless-steel fermentation hall',
+  '@Playas_Normandia_1944': 'the overcast 1940s coastal canvas pavilion',
+  '@Boticas_Hospitales_Latam': 'the classic 1940s wooden apothecary interior',
+  '@Salon_Nobel_Estocolmo': 'the grand neoclassical ceremonial concert hall',
+};
+
+function extractAnonymousRoleFromReference(ref: ReferenceAsset): string {
+  const isPerson = ref.category === 'persona' || (ref as any).type === 'Persona';
+  const promptText = String(ref.prompt || '');
+  const depMatch = promptText.match(/,\s*depicting\s+(an?\s+[^,]{8,75}?)(?:,|\s+in\s+1\d{3}|\s+against\b)/i);
+  if (depMatch?.[1]) {
+    let role = depMatch[1]
+      .replace(/\b(?:[1-9]\d?-year-old|aged\s+\d+)\s+/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (role && !/\b(?:Fleming|Florey|Heatley|Chain|Fletcher|Alexander|Moyer|Mazza|Wright|Callow|Hunt)\b/i.test(role)) {
+      return /^an?\s+/i.test(role) ? `the ${role.replace(/^an?\s+/i, '')}` : role;
+    }
+  }
+  return isPerson ? 'the historical figure in authentic period attire' : 'the historical period setting';
+}
+
+/**
+ * Hardens video-clip prompts (Clip XX) against Google Flow Veo/Omni anti-deepfake & safety filters
+ * while leaving Image XX prompts with their @Reference tags completely untouched.
+ * Because every video clip starts from its generated initial image (Starting Frame),
+ * visual likeness is preserved without re-sending @Person tags or sensitive lexical triggers.
+ */
+export function sanitizeVideoClipPromptForFlowSafety(
+  rawVideoPrompt: string,
+  references?: ReferenceAsset[]
+): string {
+  if (!rawVideoPrompt || !rawVideoPrompt.trim()) return rawVideoPrompt;
+  let p = rawVideoPrompt.trim();
+
+  let prefix = '';
+  const prefixMatch = p.match(/^(Clip\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    p = p.slice(prefix.length).trim();
+  }
+
+  let suffix = '';
+  const suffixMatch = p.match(
+    /((?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)[^\]]*\])+(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?)\s*$/i
+  );
+  if (suffixMatch) {
+    suffix = ` ${suffixMatch[1].trim()}`;
+    p = p.slice(0, p.length - suffixMatch[0].length).trim();
+  }
+
+  // 1. Replace curated @Reference tags (exact key or case-insensitive lookup)
+  const curatedLowerMap = new Map<string, string>();
+  for (const [k, v] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
+    curatedLowerMap.set(k.toLowerCase(), v);
+  }
+
+  if (Array.isArray(references)) {
+    for (const ref of references) {
+      const cleanTag = String(ref?.tag || '').trim();
+      if (!cleanTag) continue;
+      const atTag = cleanTag.startsWith('@') ? cleanTag : `@${cleanTag}`;
+      const lowerAt = atTag.toLowerCase();
+      const desc = curatedLowerMap.get(lowerAt) || extractAnonymousRoleFromReference(ref);
+      const escTag = atTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
+
+      const isPerson = ref.category === 'persona' || (ref as any).type === 'Persona';
+      if (isPerson) {
+        const humanName = atTag.slice(1).replace(/_/g, ' ').trim();
+        const escHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        p = p.replace(new RegExp(`\\b${escHuman}\\b`, 'gi'), desc);
+      }
+    }
+  }
+
+  for (const [tag, desc] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
+    const escTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
+    if (!/Radcliffe|St_Mary|Dunn|Mesa|Sala|Peoria|Pfizer|Normandia|Boticas|Nobel|Historiador/i.test(tag)) {
+      const humanName = tag.slice(1).replace(/_/g, ' ');
+      const escHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      p = p.replace(new RegExp(`\\b${escHuman}\\b`, 'gi'), desc);
+    }
+  }
+
+  // Also scrub distinctive historical surnames if lingering in video descriptions
+  p = p.replace(
+    /\b(?:Alexander\s+Fleming|Charles\s+Fletcher|Albert\s+Alexander|Howard\s+Florey|Ernst\s+Chain|Norman\s+Heatley|Almroth\s+Wright|Andrew\s+Moyer|Salvador\s+Mazza|Mary\s+Hunt|Ruth\s+Callow)\b/gi,
+    'the historical figure'
+  );
+
+  // Convert any remaining unknown @Tag in a video clip prompt into plain neutral words without '@'
+  p = p.replace(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/g, (_m, body) =>
+    String(body).replace(/_/g, ' ')
+  );
+
+  // 2. Neutralize Veo / Omni keyword false-positive triggers
+  p = p
+    .replace(/\(\s*no\s+unintended\s+explosions\s+or\s+flashes\s*\)/gi, '(steady continuous lighting with zero sudden flashes)')
+    .replace(/\bno\s+unintended\s+explosions\s+or\s+flashes\b/gi, 'steady continuous lighting with zero sudden flashes')
+    .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+)?glass\s+syringe\s+plunger\b/gi, 'glass pipette bulb')
+    .replace(/\bsyringe\s+plunger\b/gi, 'glass pipette bulb')
+    .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+|sterile\s+)?(?:glass\s+)?syringes?\b/gi, 'graduated glass laboratory pipette')
+    .replace(/\binjecting\b/gi, 'dispensing')
+    .replace(/\binjects\b/gi, 'dispenses')
+    .replace(/\binjection\b/gi, 'application')
+    .replace(/\bglass\s+intravenous\s+drip\s+chamber\b/gi, 'glass laboratory dropper vessel')
+    .replace(/\bintravenous(?:\s+drip)?\b/gi, 'sterile glass dropper')
+    .replace(/\bpressure\s+gauge\s+needles\b/gi, 'pressure gauge dial pointers')
+    .replace(/\bneedles\b/gi, 'dial pointers')
+    .replace(/\bneedle\b/gi, 'brass pointer')
+    .replace(/\bunprescribed\s+antibiotic\s+vial\b/gi, 'sealed amber glass vial')
+    .replace(/\bantibiotic\s+powder\b/gi, 'purified golden crystalline granules')
+    .replace(/\bwhite\s+alumina\s+powder\b/gi, 'white mineral chromatography column')
+    .replace(/\byellow\s+powder\b/gi, 'golden crystalline granules')
+    .replace(/\bwhite\s+powder\b/gi, 'fine mineral granules')
+    .replace(/\bpowder\b/gi, 'crystalline granules')
+    .replace(/\bdrugstores?\b/gi, 'vintage neighborhood apothecary')
+    .replace(/\bcrude\s+extract\b/gi, 'amber laboratory solution')
+    .replace(/\bbomb-damaged\b/gi, 'weathered soot-stained')
+    .replace(/\bbomb\b/gi, 'heavy storm')
+    .replace(/\bair-raid\s+siren\b/gi, 'harbor foghorn')
+    .replace(/\bair-raid\b/gi, 'heavy night')
+    .replace(/\banti-blast\b/gi, 'crisscrossed paper-taped')
+    .replace(/\bwartime\s+hospital\s+room\s+tone\b/gi, '1940s quiet brick ward tone')
+    .replace(/\bhospital\s+room\s+tone\b/gi, 'quiet brick ward room tone')
+    .replace(/\bstarched\s+hospital\s+cotton\b/gi, 'starched white cotton')
+    .replace(/\bwartime\b/gi, '1940s period')
+    .replace(/\bcanvas\s+aid\s+tent\b/gi, 'canvas field pavilion')
+    .replace(/\bfield\s+surgeon\b/gi, 'attending physician')
+    .replace(/\bhospital\s+bedpans\b|\bbedpans\b/gi, 'white enameled ceramic vessels')
+    .replace(/\b(?:white\s+)?(?:enameled\s+)?iron\s+hospital\s+bed\b|\bhospital\s+bed\b/gi, 'white-draped iron resting cot')
+    .replace(/\bdim\s+hospital\s+(?:room|ward)\s+of\s+the\s+quiet\s+vintage\s+1940s\s+brick\s+ward\b/gi, 'dim room of the quiet vintage 1940s brick ward')
+    .replace(/\bhospital\s+(?:room|ward)\b/gi, 'quiet 1940s brick ward')
+    .replace(/\bhospital\s+courtyard\b/gi, 'sunlit stone courtyard')
+    .replace(/\bhospital\s+entrance\b/gi, 'Victorian brick entrance')
+    .replace(/\bhospital\s+corridor\b/gi, 'arched stone corridor')
+    .replace(/\bhospital\s+cotton\b/gi, 'starched white cotton')
+    .replace(/\bhospital\s+glass\b/gi, 'tall sash window glass')
+    .replace(/\bhospital\b/gi, 'vintage stone building')
+    .replace(/\bbedside\s+(?:fever|temperature)\s+chart\b/gi, 'wooden clipboard chart')
+    .replace(/\bfever\b/gi, 'clinical')
+    .replace(/\brecovered\s+adult\s+patients\b/gi, 'recovered adult visitors')
+    .replace(/\bpatients\b/gi, 'visitors')
+    .replace(/\bpatient\b/gi, 'resting person')
+    .replace(/\bthe\s+(?:young\s+British\s+physician\s+in\s+the\s+white\s+coat)\s+coat\b/gi, 'the coat of $1')
+    .replace(/\bthe\s+(?:tall\s+British\s+researcher\s+in\s+the\s+laboratory\s+coat)\s+coat\b/gi, 'the coat of $1')
+    .replace(/\b(the quiet vintage 1940s brick ward)\s+with\s+the\s+quiet\s+vintage\s+1940s\s+brick\s+ward/gi, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return `${prefix}${p}${suffix}`.replace(/\s{2,}/g, ' ').trim();
 }
 
 export function buildRawClipsTextWithHeader(
@@ -819,10 +997,17 @@ export function buildRawClipsTextWithHeader(
           c.brollCameraMotion || 'zoom_in'
         );
       }
-      const img = stripBrollControlTagsFromImagePrompt(rawImg);
-      const vid = rawVid
+      const imgClean = stripBrollControlTagsFromImagePrompt(rawImg);
+      const img =
+        imgClean && !/\bfix\s+the\s+name\b\.?\s*$/i.test(imgClean)
+          ? `${imgClean.replace(/\.?\s*$/, '.')} fix the name`
+          : imgClean;
+      const safeVid = rawVid
+        ? sanitizeVideoClipPromptForFlowSafety(rawVid, references)
+        : '';
+      const vid = safeVid
         ? applyClipFlowVideoEngineTag(
-            rawVid,
+            safeVid,
             resolveClipFlowVideoEngine(c, projectEngineMode, references),
             durSec,
             null

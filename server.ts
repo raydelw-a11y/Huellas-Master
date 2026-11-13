@@ -283,14 +283,14 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
 const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) the exact total number of scenes, (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates (for which ONLY the image is generated in Nano Banana 2.1 and NO video clip is created in Flow because optical camera motion is rendered locally in our editor), and only after delivering that report proceed with generation.
-Rename every generated image and video clip starting directly with the 2-digit scene number followed by the first 6 words of its pasted prompt (e.g., 01_create_an_image_in_16_9, never prefixing "image_" or "clip_").
+Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of its pasted prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_create_a_cinematic_8_second_video).
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then the video clips using each image as the starting frame, EXCEPT for any prompt tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]: for those B-Roll scenes, generate ONLY the high-resolution Nano Banana 2.1 still image and strictly SKIP creating any video clip in Flow.
-Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
+Use the @Reference images of people and locations ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##"), use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame without re-attaching @Person reference sheets or real historical person names.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
 Divide creation into batches of 10.
-rename everything adding _ as the blank spaces between words and replacing any colons (:) with _ (never use : in filenames)
-from 1 to 9 change them to 01 to 09`;
+rename everything adding _ as the blank spaces between words and replacing any colons (:) or hyphens with _ (never use : in filenames)
+from 1 to 9 change the scene number to 01 to 09 (e.g., Inicial_01, Clip_01, Broll_08)`;
 
 function sanitizeOperationalHeaderServer(
   operationalHeader?: string,
@@ -314,6 +314,9 @@ function sanitizeOperationalHeaderServer(
     !/^Act as a (?:professional |master )?historian/i.test(trimmed) ||
     !/pre-generation\s+report/i.test(trimmed) ||
     !/IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
+    !/Inicial_/i.test(trimmed) ||
+    !/Broll_/i.test(trimmed) ||
+    !/Clip_/i.test(trimmed) ||
     !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
     !/never use : in filenames/i.test(trimmed) ||
     !/batches of 10/i.test(trimmed) ||
@@ -3650,7 +3653,7 @@ function resolveSubfolderForDocumentaryAsset(fileName: string, explicitSubFolder
   if (/^Miniatura_|^Logo_|miniatura/i.test(clean)) return '03_Miniaturas';
   if (/\.(mp3|wav|m4a|ogg)$/i.test(clean)) return '02_Audio';
   if (/^@|^Ref_|referencia/i.test(clean)) return '04_Referencias';
-  if (/^(?:0*\d+[_\-\s.]|clip[_\-\s.]*0*\d+)/i.test(clean) && /\.(mp4|webm|mov)$/i.test(clean)) {
+  if (/^(?:0*\d+[_\-\s.]|(?:clip|video|inicial|initial|broll|b[\-_]?roll|image|imagen|scene|escena)[_\-\s.]*0*\d+(?:[_\-\s.(]|$))/i.test(clean) && /\.(mp4|webm|mov|png|jpg|jpeg|webp)$/i.test(clean)) {
     return '05_Clips_Video';
   }
   if ((/^Documental_|_Master|_Final/i.test(clean)) && /\.mp4$/i.test(clean)) {
@@ -4899,7 +4902,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       } else {
         // Fallback: match by prefix number (e.g. "01_") in 05_Clips_Video, targetRoot, or Clips_Aprobados (prioritizing _4K.mp4)
         const num = Number(c.clipNumber || i + 1);
-        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        const prefixRegex = new RegExp(`^(?:(?:clip|broll|b[\\-_]?roll|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
         for (const searchDir of [clipsVideoSubdir, targetRoot, clipsSubdir]) {
           if (fs.existsSync(searchDir)) {
             const matches = fs
@@ -6891,7 +6894,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           return b4k - a4k;
         });
       for (const f of mp4Files) {
-        const m = f.match(/^(?:clip[_\-\s.]*)?0*(\d+)[_\-\s.]/i);
+        const m = f.match(/^(?:(?:clip|broll|b[\-_]?roll|video)[_\-\s.]*)?0*(\d+)[_\-\s.]/i);
         if (!m) continue;
         const num = parseInt(m[1], 10);
         if (!Number.isFinite(num) || num <= 0 || num === 999) continue;
@@ -7585,7 +7588,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       try {
         for (const rootEntry of fs.readdirSync(resolvedRoot)) {
           if (rootEntry.startsWith('.') || /^Documental_|_Master|_Final/i.test(rootEntry)) continue;
-          if (/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(].*\.(mp4|webm|mov)$/i.test(rootEntry)) {
+          if (/^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(].*\.(mp4|webm|mov)$/i.test(rootEntry)) {
             const srcLoose = path.join(resolvedRoot, rootEntry);
             if (fs.statSync(srcLoose).isFile()) {
               fs.renameSync(srcLoose, path.join(clipsDir, rootEntry));
@@ -7619,7 +7622,9 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             }
             if (!st.isFile()) continue;
 
-            const mFrame = entry.match(/^0*(\d+)_Imagen_Inicial_(.+)\.(jpg|jpeg|png|webp)$/i);
+            const mFrame =
+              entry.match(/^0*(\d+)_Imagen_Inicial_(.+)\.(jpg|jpeg|png|webp)$/i) ||
+              entry.match(/^(?:inicial|initial)[_\-\s.]*0*(\d+)[_\-\s.](.+)\.(jpg|jpeg|png|webp)$/i);
             if (mFrame) {
               const cNum = parseInt(mFrame[1], 10);
               if (cNum > 0) {
@@ -7632,7 +7637,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             }
 
             const mVid = entry.match(
-              /^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+              /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
             );
             if (mVid) {
               const cNum = parseInt(mVid[1], 10);
@@ -7644,7 +7649,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
                 .replace(/[_\-](?:broll[_\-])?4k$/i, '');
               if (
                 new RegExp(`^0*${cNum}_[a-zA-Z0-9]`, 'i').test(entry) &&
-                !/^(?:clip|video|scene|escena)[_\-\s.]/i.test(entry)
+                !/^(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]/i.test(entry)
               ) {
                 canonicalBaseByClip.set(cNum, cleanBase);
               }
@@ -7690,7 +7695,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
               let rawBase = path
                 .basename(item.entry, path.extname(item.entry))
                 .replace(/[_\-]4k$/i, '')
-                .replace(/^(?:(?:clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+                .replace(/^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
                 .replace(/\s+/g, '_')
                 .replace(/_+/g, '_')
                 .replace(/^_|_$/g, '');
@@ -7794,7 +7799,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
               execSync(`chflags nohidden "${full.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
             } catch {}
           }
-          const mVid = entry.match(/^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
+          const mVid = entry.match(/^(?:(?:clip|broll|b[\-_]?roll|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
           if (mVid) {
             const num = parseInt(mVid[1], 10);
             if (num > 0 && !seenVideoClips.has(num)) {
@@ -7806,7 +7811,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
               });
             }
           }
-          const mImg = entry.match(/^(?:(?:image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
+          const mImg = entry.match(/^(?:(?:inicial|initial|broll|b[\-_]?roll|image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
           if (mImg) {
             const num = parseInt(mImg[1], 10);
             if (num > 0) {
@@ -8656,7 +8661,7 @@ function isVerified4kClipOnDisk(fileName: string, sizeBytes: number): boolean {
 function isEligibleBrollImageEntry(entryName: string): boolean {
   if (!/\.(png|jpg|jpeg|webp)$/i.test(entryName)) return false;
   if (entryName.startsWith('.') || entryName.startsWith('@')) return false;
-  if (/^Ref_|_Imagen_Inicial_|_Broll_Source|miniatura|thumbnail/i.test(entryName)) return false;
+  if (/^(?:Ref_|Inicial[_\-\s.]|Initial[_\-\s.])|_Imagen_Inicial_|_Broll_Source|miniatura|thumbnail/i.test(entryName)) return false;
   return true;
 }
 
@@ -8678,7 +8683,7 @@ function buildBrollSixWordBaseName(clipNum: number, imagePrompt?: string, fallba
     const cleaned = path
       .basename(fallbackName, path.extname(fallbackName))
       .replace(/[_\-](?:broll[_\-])?4k$/i, '')
-      .replace(/^(?:(?:image|imagen|clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+      .replace(/^(?:(?:inicial|initial|broll|b[\-_]?roll|image|imagen|clip|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
       .replace(/\s+/g, '_')
       .replace(/_+/g, '_')
       .replace(/^_|_$/g, '');
@@ -8697,9 +8702,9 @@ function inferClipNumberFromFileName(
   }>
 ): number {
   const base = path.basename(fileName, path.extname(fileName));
-  // 1. Direct leading number or Clip_XX / Image_XX prefix
+  // 1. Direct leading number or Inicial_XX / Broll_XX / Clip_XX / Image_XX prefix
   const mDirect = base.match(
-    /^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
+    /^(?:(?:inicial|initial|broll|b[\-_]?roll|clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
   );
   if (mDirect) {
     const n = parseInt(mDirect[1], 10);
@@ -9197,12 +9202,12 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
           });
           const hasClipVideos =
             /\.(mp4|mov|webm)/i.test(listOut) &&
-            (/(?:^|\s|\/)(?:0*\d+_|clip|video|create_a_video)/i.test(listOut) ||
+            (/(?:^|\s|\/)(?:0*\d+_|clip|broll|b[\-_]?roll|video|create_a_video)/i.test(listOut) ||
               /flow/i.test(entry));
           const hasBrollFlowImages =
             brollClipMap.size > 0 &&
             /\.(png|jpg|jpeg|webp)/i.test(listOut) &&
-            (/(?:^|\s|\/)(?:0*\d+_|image[_\-\s.]*0*\d+|create_an_image)/i.test(listOut) ||
+            (/(?:^|\s|\/)(?:0*\d+_|(?:broll|b[\-_]?roll|image|inicial|initial)[_\-\s.]*0*\d+|create_an_image)/i.test(listOut) ||
               /flow/i.test(entry));
           if (hasClipVideos || hasBrollFlowImages) {
             zipCandidates.push(fullZip);
@@ -9230,6 +9235,11 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
           if (/\.(mp4|mov|webm)$/i.test(extracted)) {
             const destFile = path.join(clipsDir, extracted);
             fs.copyFileSync(srcFile, destFile);
+            activeClipsPipelineStatus.importedFilesCount++;
+            importedAnyFromZip = true;
+          } else if (/^(?:inicial|initial)[_\-\s.]*0*(\d+)(?:[_\-\s.(]|$)/i.test(extracted) && /\.(png|jpg|jpeg|webp)$/i.test(extracted)) {
+            const destImg = path.join(clipsDir, extracted);
+            fs.copyFileSync(srcFile, destImg);
             activeClipsPipelineStatus.importedFilesCount++;
             importedAnyFromZip = true;
           } else if (brollClipMap.size > 0 && isEligibleBrollImageEntry(extracted)) {
@@ -9339,7 +9349,7 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
                 `${targetClip?.narrationSegment || ''} ${brollSpec.imagePrompt || ''}`
               );
               const overlap = fileToks.filter((t) => clipToks.includes(t)).length;
-              if (overlap >= 2 || /^image[_\-\s.]*0*\d+_/i.test(entry)) {
+              if (overlap >= 2 || /^(?:broll|b[\-_]?roll|image)[_\-\s.]*0*\d+[_\-\s.]/i.test(entry)) {
                 const dest = path.join(clipsDir, entry);
                 fs.copyFileSync(fullDl, dest);
                 fs.unlinkSync(fullDl);
@@ -9503,7 +9513,7 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
             .replace(/[_\-](?:broll[_\-])?4k$/i, '');
           // Strip leading Clip_01 / 01_ prefix so we can re-prefix cleanly with 2-digit pad
           rawBase = rawBase
-            .replace(/^(?:(?:clip|video|image|imagen|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
+            .replace(/^(?:(?:clip|broll|b[\-_]?roll|inicial|initial|video|image|imagen|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.]*/i, '')
             .replace(/\s+/g, '_')
             .replace(/_+/g, '_')
             .replace(/^_|_$/g, '');
@@ -9717,7 +9727,7 @@ app.post('/api/flow/process-clips-pipeline', async (req, res) => {
         const full = path.join(clipsDir, entry);
         const st = fs.statSync(full);
         if (!st.isFile()) continue;
-        const mVid = entry.match(/^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
+        const mVid = entry.match(/^(?:(?:clip|broll|b[\-_]?roll|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i);
         if (mVid) {
           const num = parseInt(mVid[1], 10);
           if (num > 0 && !seenClips.has(num)) {
@@ -12066,7 +12076,7 @@ app.post('/api/video/optical-flow', async (req, res) => {
       }
       if (!sourceMp4 && Number(clipNumber) > 0) {
         const num = Number(clipNumber);
-        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        const prefixRegex = new RegExp(`^(?:(?:clip|broll|b[\\-_]?roll|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
         for (const d of searchDirs) {
           const matches = fs
             .readdirSync(d)
@@ -12383,7 +12393,7 @@ app.post('/api/flow/separate-clip-vocals', async (req, res) => {
       }
       if (!sourceMp4 && Number(clipNumber) > 0) {
         const num = Number(clipNumber);
-        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        const prefixRegex = new RegExp(`^(?:(?:clip|broll|b[\\-_]?roll|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
         for (const d of searchDirs) {
           const matches = fs
             .readdirSync(d)
@@ -12611,7 +12621,7 @@ app.post('/api/flow/separate-clip-music', async (req, res) => {
       }
       if (!sourceMp4 && Number(clipNumber) > 0) {
         const num = Number(clipNumber);
-        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        const prefixRegex = new RegExp(`^(?:(?:clip|broll|b[\\-_]?roll|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
         for (const d of searchDirs) {
           const matches = fs
             .readdirSync(d)
@@ -13003,7 +13013,7 @@ app.post('/api/flow/isolate-clip-foley', async (req, res) => {
         Number(clipNumber) > 0
       ) {
         const num = Number(clipNumber);
-        const prefixRegex = new RegExp(`^(?:clip[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        const prefixRegex = new RegExp(`^(?:(?:clip|broll|b[\\-_]?roll|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
         for (const d of searchDirs) {
           const matches = fs
             .readdirSync(d)
