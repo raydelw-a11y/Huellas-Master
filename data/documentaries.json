@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-13T10:32:11.609Z",
+    "updatedAt": "2026-11-13T10:37:58.029Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -1267,7 +1267,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar prompts de Imagen Inicial y Video en Gemini (pulsa el botón \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Sin locución en el tramo inicial (00:08 - 00:16)",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4"
       },
@@ -1285,7 +1285,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "02_create_a_cinematic_8_second_582c5ae1_4K.mp4"
       },
@@ -1303,7 +1303,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4"
       },
@@ -1321,7 +1321,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4"
       },
@@ -1339,7 +1339,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4"
       },
@@ -1357,7 +1357,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4"
       },
@@ -1375,7 +1375,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4"
       },
@@ -1393,7 +1393,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4"
       },
@@ -1411,7 +1411,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4"
       },
@@ -1429,7 +1429,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4"
       },
@@ -1447,7 +1447,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 1.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4"
       },
@@ -1465,7 +1465,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4"
       },
@@ -1483,7 +1483,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "13_create_a_cinematic_8_second_3fd9b933_4K.mp4"
       },
@@ -1501,7 +1501,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4"
       },
@@ -1519,7 +1519,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4"
       },
@@ -1537,7 +1537,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "16_create_a_cinematic_8_second_11719428_4K.mp4"
       },
@@ -1555,7 +1555,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.8s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4"
       },
@@ -1573,7 +1573,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -1591,7 +1591,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.7s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4"
       },
@@ -1609,7 +1609,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4"
       },
@@ -1627,7 +1627,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4"
       },
@@ -1645,7 +1645,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4"
       },
@@ -1663,7 +1663,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4"
       },
@@ -1681,7 +1681,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4"
       },
@@ -1699,7 +1699,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4"
       },
@@ -1717,7 +1717,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4"
       },
@@ -1735,7 +1735,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4"
       },
@@ -1753,7 +1753,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -1771,7 +1771,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4"
       },
@@ -1789,7 +1789,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4"
       },
@@ -1807,7 +1807,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4"
       },
@@ -1825,7 +1825,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "32_create_a_cinematic_8_second_video_88f264df_4K.mp4"
       },
@@ -1839,11 +1839,11 @@
         "videoPrompt": "",
         "narrationSegment": "la Universidad de Oxford. A su lado investigaba Ernst Chain, un bioquímico de origen judío nacido",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -1860,7 +1860,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4"
       },
@@ -1878,7 +1878,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4"
       },
@@ -1896,7 +1896,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4"
       },
@@ -1914,7 +1914,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4"
       },
@@ -1932,7 +1932,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4"
       },
@@ -1950,7 +1950,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "39_create_a_cinematic_8_second_video_86daa842_4K.mp4"
       },
@@ -1968,7 +1968,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4"
       },
@@ -1986,7 +1986,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4"
       },
@@ -2004,7 +2004,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4"
       },
@@ -2022,7 +2022,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -2040,7 +2040,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "44_create_a_cinematic_8_second_video_0ba0dbfa_4K.mp4"
       },
@@ -2058,7 +2058,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4"
       },
@@ -2076,7 +2076,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4"
       },
@@ -2094,7 +2094,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -2112,7 +2112,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "48_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -2130,7 +2130,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "49_create_a_cinematic_8_second_video_2d8d8198_4K.mp4"
       },
@@ -2148,7 +2148,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "50_create_a_cinematic_8_second_video_cfafe45a_4K.mp4"
       },
@@ -2166,7 +2166,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "51_create_a_cinematic_8_second_video_f90207df_4K.mp4"
       },
@@ -2184,7 +2184,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "52_create_a_cinematic_8_second_video_95768583_4K.mp4"
       },
@@ -2202,7 +2202,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "53_create_a_cinematic_8_second_video_6e8653fa_4K.mp4"
       },
@@ -2220,7 +2220,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "54_create_a_cinematic_8_second_video_e4ea9943_4K.mp4"
       },
@@ -2238,7 +2238,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "55_create_a_cinematic_8_second_video_ecc14744_4K.mp4"
       },
@@ -2256,7 +2256,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "56_create_a_cinematic_8_second_video_7c00d5a4_4K.mp4"
       },
@@ -2274,7 +2274,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "57_create_a_cinematic_8_second_video_e840344b_4K.mp4"
       },
@@ -2292,7 +2292,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "58_create_a_cinematic_8_second_video_dba5a797_4K.mp4"
       },
@@ -2310,7 +2310,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "59_create_a_cinematic_8_second_video_5c88b959_4K.mp4"
       },
@@ -2328,7 +2328,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "60_create_a_cinematic_8_second_video_366ec892_4K.mp4"
       },
@@ -2346,7 +2346,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "61_Create_an_image_in_16_Broll_4K.mp4"
       },
@@ -2364,7 +2364,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "62_62_Medium_shot_of_researcher_1efcbd92_4K.mp4"
       },
@@ -2382,7 +2382,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "63_63_Close_up_of_scientist_643dbd17_4K.mp4"
       },
@@ -2400,7 +2400,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 1.1s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "64_64_Close_up_of_hands_26ff7fdf_4K.mp4"
       },
@@ -2418,7 +2418,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "65_65_Wide_shot_of_historic_19e830f2_4K.mp4"
       },
@@ -2436,7 +2436,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "66_66_Detail_shot_of_old_d843192e_4K.mp4"
       },
@@ -2450,11 +2450,11 @@
         "videoPrompt": "",
         "narrationSegment": "otorgada desde el extranjero por la Fundación Rockefeller en noviembre de 1939. El segundo portazo provino de las grandes",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2471,7 +2471,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4"
       },
@@ -2489,7 +2489,7 @@
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "69_69_Wide_shot_of_researchers_6555187a_4K.mp4"
       },
@@ -2503,11 +2503,11 @@
         "videoPrompt": "",
         "narrationSegment": "de acero y vidrio, sus directores observaron con espanto la exigencia de cultivar veinte mil litros de caldo en botellas",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2520,11 +2520,11 @@
         "videoPrompt": "",
         "narrationSegment": "manuales apenas para extraer un gramo inestable, declarando inviable cualquier intento de producción a gran escala. El",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2537,11 +2537,11 @@
         "videoPrompt": "",
         "narrationSegment": "tercer rechazo brotó de la soberbia tecnológica de los colosos químicos imperiales como Imperial Chemical Industries y",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2554,11 +2554,11 @@
         "videoPrompt": "",
         "narrationSegment": "May and Baker. Embriagados por el éxito comercial de las sulfonamidas fabricadas en tubos de ensayo, sus jefes de laboratorio",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2571,11 +2571,11 @@
         "videoPrompt": "",
         "narrationSegment": "despreciaron la fermentación con hongos vivos calificándola de método arcaico propio de cerveceros medievales,",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2588,11 +2588,11 @@
         "videoPrompt": "",
         "narrationSegment": "convencidos de que sus químicos lograrían sintetizar la molécula artificialmente en pocas semanas. Acorralados por las bombas",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2605,11 +2605,11 @@
         "videoPrompt": "",
         "narrationSegment": "y ante el temor real de que el ejército alemán invadiera las costas inglesas en cualquier momento de 1941, Florey y su equipo",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2622,11 +2622,11 @@
         "videoPrompt": "",
         "narrationSegment": "tomaron una determinación clandestina digna de una novela de espionaje. Si las instalaciones de Oxford caían en manos",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2639,11 +2639,11 @@
         "videoPrompt": "",
         "narrationSegment": "enemigas o eran arrasadas por el fuego, era imperativo destruir todos los aparatos, pero la cepa viva jamás debía extinguirse.",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2656,11 +2656,11 @@
         "videoPrompt": "",
         "narrationSegment": "Al aterrizar bajo el calor sofocante de julio de 1941 en Estados Unidos, un país que aún no había entrado formalmente en",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2673,11 +2673,11 @@
         "videoPrompt": "",
         "narrationSegment": "la contienda, fueron remitidos a un rincón inesperado del corazón agrícola norteamericano: el Laboratorio Regional de",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2690,11 +2690,11 @@
         "videoPrompt": "",
         "narrationSegment": "Investigación del Norte del Departamento de Agricultura en Peoria, estado de Illinois. Dirigido por Orville May y Robert",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2707,11 +2707,11 @@
         "videoPrompt": "",
         "narrationSegment": "Coghill, aquel centro en medio de interminables maizales poseía la llave maestra que Europa ignoraba: una maestría absoluta",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2724,11 +2724,11 @@
         "videoPrompt": "",
         "narrationSegment": "en fermentaciones industriales. En Peoria, tres golpes de ingenio pulverizaron en 24 meses el cuello de botella que",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2741,11 +2741,11 @@
         "videoPrompt": "",
         "narrationSegment": "había paralizado a la ciencia durante 13 años. El primero llegó de las manos del veterano micólogo de 60 años Andrew Jackson",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2758,11 +2758,11 @@
         "videoPrompt": "",
         "narrationSegment": "Moyer. El segundo salto consistió en arrancar al hongo de las bandejas planas. En lugar de dejarlo flotar perezosamente",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2775,11 +2775,11 @@
         "videoPrompt": "",
         "narrationSegment": "en la superficie de miles de frascos, los ingenieros de Peoria diseñaron tambores giratorios y tanques sumergidos donde",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2792,11 +2792,11 @@
         "videoPrompt": "",
         "narrationSegment": "inyectaban torrentes de aire comprimido completamente estéril mediante hélices mecánicas, obligando al microorganismo a",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2809,11 +2809,11 @@
         "videoPrompt": "",
         "narrationSegment": "crecer en las profundidades de todo el líquido al mismo tiempo. Sin embargo, la cepa original traída desde el sótano",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2826,11 +2826,11 @@
         "videoPrompt": "",
         "narrationSegment": "londinense de Fleming detestaba vivir sumergida. En el verano de 1943, una asistente técnica de unos 25 años llamada Mary Hunt",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2843,11 +2843,11 @@
         "videoPrompt": "",
         "narrationSegment": "tenía el encargo diario de recorrer las fruterías y almacenes de barrio de Peoria pidiendo a los comerciantes que le guardaran",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2860,11 +2860,11 @@
         "videoPrompt": "",
         "narrationSegment": "sus piezas más descompuestas. Un día de 1943, Mary Hunt regresó al laboratorio sosteniendo un melón cantalupo común",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2877,11 +2877,11 @@
         "videoPrompt": "",
         "narrationSegment": "comprado en un mercado local, cuya cáscara exhibía una llamativa cicatriz de moho bonito y dorado. [pausa: 2.1s]",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2894,11 +2894,11 @@
         "videoPrompt": "",
         "narrationSegment": "Ahora solo faltaba construir monstruos de acero de 10 mil galones antes de que comenzara el desembarco en Normandía.",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2911,11 +2911,11 @@
         "videoPrompt": "",
         "narrationSegment": "[pausa: 2.5s] El ataque a Pearl Harbor en diciembre de 1941 había convertido a aquel polvo amarillo en un secreto militar",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.5s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2928,11 +2928,11 @@
         "videoPrompt": "",
         "narrationSegment": "de prioridad equivalente al desarrollo de las armas estratégicas. Todavía en marzo de 1942, cuando salvaron en un hospital de Connecticut",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2945,11 +2945,11 @@
         "videoPrompt": "",
         "narrationSegment": "a Anne Miller, la esposa de un directivo universitario que agonizaba tras trece días con fiebre superior a 40 grados por una infección",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2962,11 +2962,11 @@
         "videoPrompt": "",
         "narrationSegment": "posparto, se consumió casi la mitad de toda la reserva existente en el país. Fue entonces cuando el ingeniero químico Jasper Kane y los",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2979,11 +2979,11 @@
         "videoPrompt": "",
         "narrationSegment": "directivos de Pfizer en Nueva York ejecutaron una apuesta colosal que amenazaba con llevarlos a la bancarrota si fallaba. Compraron una",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -2996,11 +2996,11 @@
         "videoPrompt": "",
         "narrationSegment": "gigantesca planta abandonada de fabricación de hielo en el barrio de Brooklyn y en tiempo récord la llenaron con catorce tanques verticales",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3013,11 +3013,11 @@
         "videoPrompt": "",
         "narrationSegment": "de acero de 10 mil galones de capacidad cada uno, rodeados de kilómetros de tuberías de vapor, compresores gigantes para evitar cualquier",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3030,11 +3030,11 @@
         "videoPrompt": "",
         "narrationSegment": "bacteria intrusa y enfriadores industriales. La fábrica de hielo reconvertida funcionó las 24 horas del día. El salto estadístico",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3047,11 +3047,11 @@
         "videoPrompt": "",
         "narrationSegment": "no tuvo precedentes en la historia manufacturera: de producir apenas unos pocos cientos de millones de unidades en los primeros meses de",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3064,11 +3064,11 @@
         "videoPrompt": "",
         "narrationSegment": "1943, las 21 plantas aliadas pasaron a envasar más de 650 mil millones de unidades mensuales hacia el final de la guerra. Por primera vez",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3081,11 +3081,11 @@
         "videoPrompt": "",
         "narrationSegment": "desde el origen de las guerras humanas, los proyectiles dejaron de tener como aliada segura a la gangrena gaseosa. Al liberarse su venta",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3098,11 +3098,11 @@
         "videoPrompt": "",
         "narrationSegment": "comercial civil el 15 de marzo de 1945, el costo de una ampolla de 100 mil unidades, que en 1943 ascendía a 20 dólares, se desplomó a 55 centavos",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3115,11 +3115,11 @@
         "videoPrompt": "",
         "narrationSegment": "en 1946 y poco después a centavos por frasco. [pausa: 2.2s] Al mismo tiempo que el antibiótico transformaba",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3132,11 +3132,11 @@
         "videoPrompt": "",
         "narrationSegment": "los frentes europeos, una onda expansiva de urgencia, contrabando y esperanza sacudía a toda América Latina entre 1943 y 1945.",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3149,11 +3149,11 @@
         "videoPrompt": "",
         "narrationSegment": "En una gestión diplomática contrarreloj, el gobernador de Nuevo León, Arturo B. de la Garza, consiguió que Washington despachara",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3166,11 +3166,11 @@
         "videoPrompt": "",
         "narrationSegment": "en avión 1 millón 200 mil unidades del fármaco restringido, arrebatándolo de la agonía. La conmoción pública llevó al presidente",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3183,11 +3183,11 @@
         "videoPrompt": "",
         "narrationSegment": "mexicano Manuel Ávila Camacho a firmar en marzo de 1944 un decreto en el Diario Oficial de la Federación declarando a la penicilina",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3200,11 +3200,11 @@
         "videoPrompt": "",
         "narrationSegment": "recurso de interés público para la salubridad general de la República y creando una comisión nacional para vigilar cada ampolleta",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3217,11 +3217,11 @@
         "videoPrompt": "",
         "narrationSegment": "contra la especulación. Para el 5 de agosto de 1944 los periódicos celebraban su primera aplicación provincial en Colima, y en noviembre",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3234,11 +3234,11 @@
         "videoPrompt": "",
         "narrationSegment": "de ese mismo año el psiquiatra Manuel Guevara Oropesa la introdujo en los pabellones del legendario Manicomio General de La Castañeda",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3251,11 +3251,11 @@
         "videoPrompt": "",
         "narrationSegment": "en la capital mexicana, vaciando celdas enteras al extinguir la demencia provocada por la neurosífilis. En la isla de Cuba, en",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3268,11 +3268,11 @@
         "videoPrompt": "",
         "narrationSegment": "medio del racionamiento estricto de 1944, la llegada de las primeras cajas salvó en una clínica de Cienfuegos a un paciente de 13 años",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3285,11 +3285,11 @@
         "videoPrompt": "",
         "narrationSegment": "llamado Laureano Rodríguez González de una gangrena apendicular fulminante que había resistido a todas las sulfamidas, mientras en",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3302,11 +3302,11 @@
         "videoPrompt": "",
         "narrationSegment": "La Habana la curación instantánea de René Llanes Mérida causó tal asombro en la prensa caribeña que el pueblo lo bautizó como Míster",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3319,11 +3319,11 @@
         "videoPrompt": "",
         "narrationSegment": "Penicilina. Nueve años más tarde, en abril de 1953, invitado por su discípula cubana Margarita Tamargo, el propio Alexander Fleming",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3336,11 +3336,11 @@
         "videoPrompt": "",
         "narrationSegment": "viajaría a La Habana junto a su segunda esposa, la doctora griega Amalia Koutsouri, alojándose en el Hotel Nacional rodeado de multitudes",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3353,11 +3353,11 @@
         "videoPrompt": "",
         "narrationSegment": "agradecidas. Sin embargo, más al sur, en el Río de la Plata, el arribo del medicamento desnudó de nuevo el viejo fantasma de la",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3370,11 +3370,11 @@
         "videoPrompt": "",
         "narrationSegment": "ceguera burocrática. Entusiasmado, Mazza escribió una súplica formal al rector universitario, el premio Nobel de la Paz Carlos",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3387,11 +3387,11 @@
         "videoPrompt": "",
         "narrationSegment": "Saavedra Lamas, pidiendo fondos mínimos para levantar una planta nacional. [pausa: 2.2s] En octubre de 1945, la",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3404,11 +3404,11 @@
         "videoPrompt": "",
         "narrationSegment": "Academia Sueca anunció que el Premio Nobel de Fisiología o Medicina sería compartido por Alexander Fleming, Howard Florey y Ernst",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3421,11 +3421,11 @@
         "videoPrompt": "",
         "narrationSegment": "Chain. No sería sino hasta medio siglo después cuando la historia repararía simbólicamente aquel silencio y Sir Henry Harris",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3438,11 +3438,11 @@
         "videoPrompt": "",
         "narrationSegment": "sentenciaría en Oxford una verdad irrefutable: sin Heatley, jamás habría existido la penicilina. Paralelamente estalló una profunda",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3455,11 +3455,11 @@
         "videoPrompt": "",
         "narrationSegment": "herida ética entre las dos orillas del Atlántico. Cuando Ernst Chain había sugerido proteger legalmente sus procesos en Inglaterra",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3472,11 +3472,11 @@
         "videoPrompt": "",
         "narrationSegment": "en 1941, Howard Florey y los mandarines del Consejo Médico británico se negaron con indignación, afirmando que patentar un",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3489,11 +3489,11 @@
         "videoPrompt": "",
         "narrationSegment": "salvavidas médico para lucrar con el sufrimiento humano violaba el código de honor de la ciencia. Con todo, la advertencia más inquietante",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3506,11 +3506,11 @@
         "videoPrompt": "",
         "narrationSegment": "de esta epopeya resonó la tarde del 11 de diciembre de 1945 bajo los candelabros de Estocolmo, Suecia. Mientras el planeta",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3523,11 +3523,11 @@
         "videoPrompt": "",
         "narrationSegment": "celebraba eufórico el fin de las plagas bacterianas y las farmacias vendían pastillas, chicles y cremas dentales con penicilina sin",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3540,11 +3540,11 @@
         "videoPrompt": "",
         "narrationSegment": "receta, un envejecido Alexander Fleming de 64 años, vestido de frac negro, subió al estrado de la Fundación Nobel y leyó las líneas",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3557,11 +3557,11 @@
         "videoPrompt": "",
         "narrationSegment": "registradas en la página 93 de las actas oficiales que helaron el entusiasmo de los presentes. [pausa: 2.2s] Fleming",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3574,11 +3574,11 @@
         "videoPrompt": "",
         "narrationSegment": "pronosticó que llegaría el momento en que cualquiera podría comprar penicilina libremente en las tiendas. Advirtió entonces el peligro",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3591,11 +3591,11 @@
         "videoPrompt": "",
         "narrationSegment": "mortal de que una persona desinformada se aplicara por cuenta propia una dosis insuficiente y, al exponer a sus microbios a cantidades",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3608,11 +3608,11 @@
         "videoPrompt": "",
         "narrationSegment": "no letales de la sustancia, los educara para volverse resistentes y transmitir esa armadura genética a sus descendientes, condenando a",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3625,11 +3625,11 @@
         "videoPrompt": "",
         "narrationSegment": "muerte al siguiente enfermo contagiado. No fue una exageración teórica. Apenas dos años más tarde, en 1947, los análisis de la doctora",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3642,11 +3642,11 @@
         "videoPrompt": "",
         "narrationSegment": "Mary Barber en el Hospital Hammersmith de Londres y los primeros reportes clínicos en Ciudad de México confirmaban que casi cuatro de cada diez",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3659,11 +3659,11 @@
         "videoPrompt": "",
         "narrationSegment": "infecciones hospitalarias por estafilococos ya habían aprendido a destruir la molécula que antes las aniquilaba. Desde aquel frasco",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3676,11 +3676,11 @@
         "videoPrompt": "",
         "narrationSegment": "vacío sobre la mesa metálica de Oxford en marzo de 1941 hasta nuestro presente en el siglo XXI, aquel hallazgo salvado de una bandeja de desinfectante",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3693,11 +3693,11 @@
         "videoPrompt": "",
         "narrationSegment": "ha rescatado de la muerte a más de 500 millones de seres humanos. Déjanos saber en los comentarios qué crees que pesa más en el destino",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3710,11 +3710,11 @@
         "videoPrompt": "",
         "narrationSegment": "de la humanidad: los golpes de azar como aquella ventana abierta en Londres, o la terquedad de quienes se niegan a rendirse cuando todos los",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3727,11 +3727,11 @@
         "videoPrompt": "",
         "narrationSegment": "imperios les cierran la puerta. [pausa: 2.4s] Cada historia deja una huella. Aquí seguimos",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "Contiene [pausa: 2.4s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       },
       {
@@ -3744,11 +3744,11 @@
         "videoPrompt": "",
         "narrationSegment": "sus rastros.",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "auditStatus": "warning",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false
       }
     ],
