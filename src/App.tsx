@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:28 AM - 11/13/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:13 AM - 11/13/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1846,13 +1846,22 @@ export default function App() {
   const [ttsCustomSegmentText, setTtsCustomSegmentText] = useState('');
   const [ttsCustomLabel, setTtsCustomLabel] = useState('');
   const [timelineExtracting, setTimelineExtracting] = useState(false);
+  const attemptedPromptHydrationRef = useRef<Set<string>>(new Set());
+  const [clipBatchSize, setClipBatchSize] = useState<10 | 15 | 20>(() => {
+    const saved = parseInt(localStorage.getItem('huellas_master_clip_batch_size') || '15', 10);
+    return saved === 10 || saved === 20 ? saved : 15;
+  });
   const [clipBatchFilter, setClipBatchFilter] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('huellas_master_clip_batch_filter') || '0', 10);
     return Number.isFinite(saved) && saved >= 0 ? saved : 0;
-  }); // 0 = All, 1 = 1-10, 2 = 11-20...
+  }); // 0 = All, 1 = 1-N, 2 = (N+1)-2N...
   const [clipStatusFilter, setClipStatusFilter] = useState<string>(() => {
     return localStorage.getItem('huellas_master_clip_status_filter') || 'ALL';
   });
+
+  useEffect(() => {
+    localStorage.setItem('huellas_master_clip_batch_size', String(clipBatchSize));
+  }, [clipBatchSize]);
 
   useEffect(() => {
     localStorage.setItem('huellas_master_clip_batch_filter', String(clipBatchFilter));
@@ -3855,6 +3864,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeStage,
     activeDoc?.id,
     activeDoc?.clips?.length,
+    clipBatchSize,
     clipBatchFilter,
     clipStatusFilter,
     stage8AvailableVideosSig,
@@ -4344,7 +4354,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
     }
 
-    // 2. Structural guard against skeleton clips[] overwriting real authored prompts
+    // 2. Structural guard against skeleton/partial clips[] overwriting real authored prompts
     if (
       Array.isArray(sanitizedPatch.clips) &&
       !allowedClearSet.has('clips') &&
@@ -4352,7 +4362,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     ) {
       const prevAuthoredCount = countRealAuthoredClips(currentBaseDoc.clips);
       const nextAuthoredCount = countRealAuthoredClips(sanitizedPatch.clips);
-      if (prevAuthoredCount > 0 && nextAuthoredCount === 0) {
+      if (prevAuthoredCount > 0 && nextAuthoredCount < prevAuthoredCount) {
         const prevByNum = new Map<number, DocumentaryClip>();
         for (const pc of currentBaseDoc.clips || []) {
           if (isClipRealAuthored(pc)) {
@@ -4361,16 +4371,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
         sanitizedPatch.clips = sanitizedPatch.clips.map((nc) => {
           const prev = prevByNum.get(Number(nc.clipNumber));
-          if (!prev) return nc;
+          if (!prev || isClipRealAuthored(nc)) return nc;
+          const staleAudit = /^(?:pendiente de generar|prompt no detectado)/i.test(
+            String(nc.auditReason || '').trim()
+          );
           return {
             ...nc,
-            imagePrompt: isClipRealAuthored(nc) && nc.imagePrompt ? nc.imagePrompt : prev.imagePrompt,
-            videoPrompt: isClipRealAuthored(nc) && nc.videoPrompt ? nc.videoPrompt : prev.videoPrompt,
+            imagePrompt: nc.imagePrompt || prev.imagePrompt,
+            videoPrompt: prev.isStaticBroll ? nc.videoPrompt : nc.videoPrompt || prev.videoPrompt,
             cameraSelection: nc.cameraSelection || prev.cameraSelection,
             visualExplanation: nc.visualExplanation || prev.visualExplanation,
             isStaticBroll: nc.isStaticBroll ?? prev.isStaticBroll,
             brollCameraMotion: nc.brollCameraMotion || prev.brollCameraMotion,
             flowClipEngine: nc.flowClipEngine || prev.flowClipEngine,
+            ...(staleAudit ? { auditStatus: 'ok' as const, auditReason: '' } : {}),
           };
         });
       }
@@ -4413,6 +4427,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           tombstonePatch[`FIELD_CLEARED_AT_${tk}`] = '0';
         }
       }
+    }
+    const writingTier2Raw =
+      Object.prototype.hasOwnProperty.call(sanitizedPatch, 'rawClipsText') &&
+      getRawClipsQualityTier(sanitizedPatch.rawClipsText) >= 2 &&
+      !allowedClearSet.has('rawClipsText');
+    const writingAuthoredClips =
+      Array.isArray(sanitizedPatch.clips) &&
+      countRealAuthoredClips(sanitizedPatch.clips) > 0 &&
+      !allowedClearSet.has('clips') &&
+      !allowedClearSet.has('rawClipsText');
+    if (writingTier2Raw || writingAuthoredClips) {
+      tombstonePatch.PROMPTS_RESTORED_AT = String(nowMs);
+      tombstonePatch.FIELD_CLEARED_AT_rawClipsText = '0';
     }
     const mergedPromptConfig =
       Object.keys(tombstonePatch).length > 0 || sanitizedPatch.promptConfig
@@ -8238,7 +8265,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ).trim();
       const folderName = rawFolderName;
       const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
-      const queryParams = `docId=${encodeURIComponent(targetDocId)}&folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}&includePrompts=0`;
+      const totalClipsInDoc = currentDoc?.clips?.length || 0;
+      const authoredClipsInDoc = countRealAuthoredClips(currentDoc?.clips);
+      const isRawClipsTombstoned =
+        Number(currentDoc?.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0) >
+        Number(currentDoc?.promptConfig?.PROMPTS_RESTORED_AT || 0);
+      const hydrationKey = `${targetDocId}:${currentDoc?.updatedAt || ''}:${authoredClipsInDoc}/${totalClipsInDoc}`;
+      const needPromptsFromDisk =
+        !isRawClipsTombstoned &&
+        totalClipsInDoc > 0 &&
+        authoredClipsInDoc < totalClipsInDoc &&
+        !attemptedPromptHydrationRef.current.has(hydrationKey);
+      const queryParams = `docId=${encodeURIComponent(targetDocId)}&folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}&includePrompts=${needPromptsFromDisk ? '1' : '0'}`;
 
       const apiBases = getMacMediaBridgeBases();
 
@@ -8262,6 +8300,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
 
           const hasServerRoot = Boolean(data?.resolvedRoot);
+          if (hasServerRoot && needPromptsFromDisk) {
+            attemptedPromptHydrationRef.current.add(hydrationKey);
+          }
           if (hasServerRoot || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
             serverResolvedFolder = true;
             if (baseOrigin && /^https:\/\//i.test(baseOrigin)) {
@@ -8399,12 +8440,29 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             });
           }
 
+          const diskClipPrompts: Record<
+            number,
+            {
+              imagePrompt?: string;
+              videoPrompt?: string;
+              isStaticBroll?: boolean;
+              brollCameraMotion?: string;
+            }
+          > =
+            needPromptsFromDisk && data.clipPrompts && typeof data.clipPrompts === 'object'
+              ? data.clipPrompts
+              : {};
+          const hasDiskPromptsPayload = Object.keys(diskClipPrompts).length > 0;
+
           if (
             !isStale() &&
             currentDoc?.clips?.length &&
-            (Object.keys(nextFileNames).length > 0 || Object.keys(frameUrlByClip).length > 0)
+            (Object.keys(nextFileNames).length > 0 ||
+              Object.keys(frameUrlByClip).length > 0 ||
+              hasDiskPromptsPayload)
           ) {
             let clipsChanged = false;
+            let rescuedPromptsCount = 0;
             const mergedClips = currentDoc.clips.map((c) => {
               const diskName = nextFileNames[c.clipNumber];
               const freshImgUrl = frameUrlByClip[c.clipNumber];
@@ -8419,10 +8477,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               const needsFrameUpdate = Boolean(
                 freshImgUrl && !isEphemeralBridgeUrl && c.imagePreviewUrl !== freshImgUrl
               );
-              if (!needsNameUpdate && !needsFrameUpdate) {
+              const diskPrompt = diskClipPrompts[c.clipNumber];
+              const diskImgP = String(diskPrompt?.imagePrompt || '').trim();
+              const diskVidP = String(diskPrompt?.videoPrompt || '').trim();
+              const needsPromptRescue = Boolean(
+                diskPrompt &&
+                  !isClipRealAuthored(c) &&
+                  (diskImgP.length > 0 || diskVidP.length > 0)
+              );
+              if (!needsNameUpdate && !needsFrameUpdate && !needsPromptRescue) {
                 return c;
               }
               clipsChanged = true;
+              if (needsPromptRescue) rescuedPromptsCount++;
+              const nextStatic = needsPromptRescue
+                ? Boolean(diskPrompt?.isStaticBroll || c.isStaticBroll)
+                : c.isStaticBroll;
+              const staleAudit = /^(?:pendiente de generar|prompt no detectado)/i.test(
+                String(c.auditReason || '').trim()
+              );
               return {
                 ...c,
                 ...(needsNameUpdate
@@ -8440,10 +8513,61 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       reviewedForEditor: true,
                     }
                   : {}),
+                ...(needsPromptRescue
+                  ? {
+                      imagePrompt: diskImgP || c.imagePrompt,
+                      videoPrompt: nextStatic ? '' : diskVidP || c.videoPrompt,
+                      ...(nextStatic
+                        ? {
+                            isStaticBroll: true,
+                            brollCameraMotion:
+                              (diskPrompt?.brollCameraMotion as DocumentaryClip['brollCameraMotion']) ||
+                              c.brollCameraMotion ||
+                              'zoom_in',
+                          }
+                        : {}),
+                      ...(staleAudit ? { auditStatus: 'ok' as const, auditReason: '' } : {}),
+                    }
+                  : {}),
               };
             });
             if (clipsChanged && !isStale()) {
-              updateActiveDoc({ clips: mergedClips });
+              let rebuiltRaw = '';
+              if (rescuedPromptsCount > 0 && getRawClipsQualityTier(currentDoc.rawClipsText) < 2) {
+                const activeEngine =
+                  currentDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                const currentHeader = applyFlowVideoEngineToDirectiveText(
+                  currentDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                  activeEngine
+                );
+                const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+                rebuiltRaw = safeRebuildRawClipsText({
+                  clips: mergedClips,
+                  previousRawText: currentDoc.rawClipsText || '',
+                  operationalHeader: currentHeader,
+                  engineMode: activeEngine,
+                  clip1Sec,
+                  standardClipSec,
+                });
+              }
+              updateActiveDoc({
+                clips: mergedClips,
+                ...(rebuiltRaw ? { rawClipsText: rebuiltRaw } : {}),
+                ...(rescuedPromptsCount > 0
+                  ? {
+                      promptConfig: {
+                        ...(currentDoc.promptConfig || {}),
+                        PROMPTS_RESTORED_AT: String(Date.now()),
+                        FIELD_CLEARED_AT_rawClipsText: '0',
+                      },
+                    }
+                  : {}),
+              });
+              if (rescuedPromptsCount > 0) {
+                setFlowStatusLog(
+                  `🛡️ Auto-restaurados ${rescuedPromptsCount} prompts desde Prompts_Clips_Flow.txt.`
+                );
+              }
             }
           }
 
@@ -20358,6 +20482,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             return;
                           }
                           copyText(textToCopy, 'copy-prod-raw-clips');
+                          if ((activeDoc.clips?.length || 0) > 20) {
+                            setFlowStatusLog(
+                              `⚠️ Copiaste ${activeDoc.clips?.length || 0} clips de golpe (~${Math.round(textToCopy.length / 1000)} KB). Google Flow puede omitir escenas o perder los slugs si pegas más de 20 juntos: recomendamos usar "Lotes de 15 clips" en un chat nuevo de Flow por lote.`
+                            );
+                          }
                         }}
                         className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow"
                       >
@@ -20994,10 +21123,41 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     );
                   })()}
 
-                {/* Batch Filter Tabs (Batches of 10) */}
+                {/* Batch Filter Tabs (Batches of 10 / 15 / 20 for safe Google Flow threads) */}
                 {(activeDoc.clips?.length || 0) > 0 && (
                   <div className="flex items-center justify-between flex-wrap gap-3 bg-[#14120f] border border-slate-800 rounded-xl p-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-400 mr-1">Lote Flow:</span>
+                      {([10, 15, 20] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            setClipBatchSize(sz);
+                            setClipBatchFilter((prev) => {
+                              if (prev === 0) return 0;
+                              const maxBatches = Math.max(
+                                1,
+                                Math.ceil((activeDoc.clips?.length || 1) / sz)
+                              );
+                              return Math.min(prev, maxBatches);
+                            });
+                          }}
+                          className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer border ${
+                            clipBatchSize === sz
+                              ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200'
+                              : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                          }`}
+                          title={
+                            sz === 15
+                              ? 'Tamaño óptimo recomendado para Google Flow sin saltos de escena ni deriva de contexto'
+                              : `Agrupar de ${sz} en ${sz} clips`
+                          }
+                        >
+                          {sz === 15 ? '15 (Óptimo Flow)' : sz}
+                        </button>
+                      ))}
+                      <span className="text-slate-700 mx-1">|</span>
                       <button
                         onClick={() => setClipBatchFilter(0)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
@@ -21009,11 +21169,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Todos ({activeDoc.clips.length})
                       </button>
                       {Array.from(
-                        { length: Math.ceil(activeDoc.clips.length / 10) },
+                        { length: Math.ceil(activeDoc.clips.length / clipBatchSize) },
                         (_, bIdx) => bIdx + 1
                       ).map((batchNum) => {
-                        const startClip = (batchNum - 1) * 10 + 1;
-                        const endClip = Math.min(batchNum * 10, activeDoc.clips.length);
+                        const startClip = (batchNum - 1) * clipBatchSize + 1;
+                        const endClip = Math.min(batchNum * clipBatchSize, activeDoc.clips.length);
                         return (
                           <button
                             key={batchNum}
@@ -21075,10 +21235,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           const visible = activeDoc.clips.filter((_, idx) =>
                             clipBatchFilter === 0
                               ? true
-                              : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10
+                              : idx >= (clipBatchFilter - 1) * clipBatchSize &&
+                                idx < clipBatchFilter * clipBatchSize
                           );
-                          const headerPrefix =
-                            clipBatchFilter <= 1 ? `${currentHeader}\n\n` : '';
+                          const totalBatches = Math.max(
+                            1,
+                            Math.ceil(activeDoc.clips.length / clipBatchSize)
+                          );
+                          const firstVisibleNum = visible[0]?.clipNumber || 1;
+                          const lastVisibleNum =
+                            visible[visible.length - 1]?.clipNumber || activeDoc.clips.length;
+                          const batchGuardNote =
+                            clipBatchFilter >= 1
+                              ? `[FLOW BATCH ${clipBatchFilter}/${totalBatches} — GENERATE STRICTLY SCENES ${firstVisibleNum} TO ${lastVisibleNum} IN EXACT SEQUENTIAL ORDER WITHOUT SKIPPING ANY SCENE OR PARAPHRASING TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
+                              : '';
+                          const headerPrefix = `${currentHeader}\n\n${batchGuardNote}`;
                           const body = visible
                             .map((c) => {
                               const durForClip = c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
@@ -21121,7 +21292,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         clipStatusFilter === 'OBSERVACION_ERROR' ||
                         clipStatusFilter === 'STATIC_BROLL'
                           ? true
-                          : idx >= (clipBatchFilter - 1) * 10 && idx < clipBatchFilter * 10;
+                          : idx >= (clipBatchFilter - 1) * clipBatchSize &&
+                            idx < clipBatchFilter * clipBatchSize;
                       if (!batchOk) return false;
                       const isRec = Boolean(
                         clip.recreated || (clip.videoAttempts && clip.videoAttempts > 1)

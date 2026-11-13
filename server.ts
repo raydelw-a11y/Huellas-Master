@@ -683,6 +683,7 @@ function mergeServerClipsPreservingAuthored(
       otherClipByNum.set(c.clipNumber, c);
     }
   }
+  const STALE_PENDING_AUDIT_RE = /pendiente\s+de\s+generar|falta\s+el\s+prompt/i;
   return wClips.map((c: any) => {
     const o = otherClipByNum.get(c.clipNumber);
     if (!o) return c;
@@ -694,13 +695,36 @@ function mergeServerClipsPreservingAuthored(
         ? o.isStaticBroll
         : c.isStaticBroll
       : c.isStaticBroll;
+    const hasAuthoredAfterMerge = wHasReal || rescuePrompts;
+    const cAuditReason = String(c.auditReason || '');
+    const oAuditReason = String(o.auditReason || '');
+    const needsAuditCleanup =
+      hasAuthoredAfterMerge &&
+      (rescuePrompts || c.auditStatus === 'warning' || STALE_PENDING_AUDIT_RE.test(cAuditReason));
+    const cleanAuditPatch = needsAuditCleanup
+      ? oAuditReason && !STALE_PENDING_AUDIT_RE.test(oAuditReason)
+        ? {
+            auditStatus: o.auditStatus && o.auditStatus !== 'warning' ? o.auditStatus : 'ok',
+            auditReason: oAuditReason,
+          }
+        : {
+            auditStatus: 'ok',
+            auditReason: resolvedIsBroll
+              ? '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.'
+              : 'Sincronizado con el tramo de voz narrativa.',
+          }
+      : {};
+    const preservedPrevVid =
+      c.previousVideoPrompt ||
+      o.previousVideoPrompt ||
+      (resolvedIsBroll && (c.videoPrompt || o.videoPrompt) ? c.videoPrompt || o.videoPrompt : undefined);
     return {
       ...c,
       ...(rescuePrompts
         ? {
             imagePrompt: o.imagePrompt || c.imagePrompt,
             videoPrompt: resolvedIsBroll ? '' : o.videoPrompt || c.videoPrompt,
-            previousVideoPrompt: o.previousVideoPrompt || c.previousVideoPrompt,
+            ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
             isStaticBroll: resolvedIsBroll,
             brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
             flowClipEngine: o.flowClipEngine || c.flowClipEngine,
@@ -710,9 +734,10 @@ function mergeServerClipsPreservingAuthored(
         : resolvedIsBroll
           ? {
               videoPrompt: '',
-              previousVideoPrompt: c.previousVideoPrompt || o.previousVideoPrompt,
+              ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
             }
           : {}),
+      ...cleanAuditPatch,
       reviewedForEditor:
         c.reviewedForEditor !== undefined
           ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
@@ -786,9 +811,22 @@ function mergeServerDocObjects(winner: any, other: any) {
     }
     const otherSavedMs = toMs(other.updatedAt || other.createdAt);
     const stage1Tombstoned = clearedAt > 0 && clearedAt >= otherSavedMs;
+    const wHasAuthoredPrompts =
+      getServerRawClipsQualityTier(baseWinner.rawClipsText) === 2 ||
+      countServerRealAuthoredClips(baseWinner.clips) > 0;
+    const oHasAuthoredPrompts =
+      getServerRawClipsQualityTier(other.rawClipsText) === 2 ||
+      countServerRealAuthoredClips(other.clips) > 0;
+    const wClearedRaw = Number(baseWinner.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0);
+    const oClearedRaw = Number(other.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0);
+    const implicitRestoredMs = Math.max(
+      wHasAuthoredPrompts && wClearedRaw === 0 ? toMs(baseWinner.updatedAt || baseWinner.createdAt) : 0,
+      oHasAuthoredPrompts && oClearedRaw === 0 ? toMs(other.updatedAt || other.createdAt) : 0
+    );
     const promptsRestoredAt = Math.max(
       Number(baseWinner.promptConfig?.PROMPTS_RESTORED_AT || 0),
-      Number(other.promptConfig?.PROMPTS_RESTORED_AT || 0)
+      Number(other.promptConfig?.PROMPTS_RESTORED_AT || 0),
+      implicitRestoredMs > Math.max(wClearedRaw, oClearedRaw) + 1000 ? implicitRestoredMs : 0
     );
     if (promptsRestoredAt > 0) {
       baseWinner.promptConfig = {
@@ -980,11 +1018,78 @@ function mergeServerDocObjects(winner: any, other: any) {
         ? oCleanDoc.audioTracks
         : wCleanDoc.audioTracks || [];
   } catch {}
-  const mergedClips = mergeServerClipsPreservingAuthored(
+  let mergedClips = mergeServerClipsPreservingAuthored(
     baseWinner.clips,
     other.clips,
     outerRawClipsLegitimatelyTombstoned
   );
+  if (!outerRawClipsLegitimatelyTombstoned) {
+    try {
+      const rawTier = getServerRawClipsQualityTier(baseWinner.rawClipsText);
+      const rawBlocks = countServerAuthoredBlocksInRawText(baseWinner.rawClipsText);
+      const authoredCount = countServerRealAuthoredClips(mergedClips);
+      if (rawTier === 2 && authoredCount < rawBlocks && mergedClips.length > 0) {
+        const parsedByNum = new Map<number, { imagePrompt?: string; videoPrompt?: string; isStaticBroll?: boolean; brollCameraMotion?: string }>();
+        for (const rawLine of String(baseWinner.rawClipsText || '').split(/\r?\n/)) {
+          const line = rawLine.trim();
+          const mImg = line.match(/^(?:Image|Imagen)\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mImg) {
+            const num = parseInt(mImg[1], 10);
+            if (num > 0) {
+              const broll = parseServerBrollMotionFromText(line);
+              parsedByNum.set(num, {
+                ...(parsedByNum.get(num) || {}),
+                imagePrompt: line,
+                ...(broll.isStaticBroll
+                  ? { isStaticBroll: true, brollCameraMotion: broll.brollCameraMotion || 'zoom_in' }
+                  : {}),
+              });
+            }
+            continue;
+          }
+          const mClip = line.match(/^Clip\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mClip) {
+            const num = parseInt(mClip[1], 10);
+            if (num > 0) {
+              parsedByNum.set(num, { ...(parsedByNum.get(num) || {}), videoPrompt: line });
+            }
+          }
+        }
+        if (parsedByNum.size > 0) {
+          mergedClips = mergedClips.map((mc: any) => {
+            if (isServerClipRealAuthored(mc)) return mc;
+            const pc = parsedByNum.get(Number(mc?.clipNumber));
+            if (!pc || (!pc.imagePrompt && !pc.videoPrompt)) return mc;
+            const nextIsBroll = typeof pc.isStaticBroll === 'boolean' ? pc.isStaticBroll : Boolean(mc?.isStaticBroll);
+            return {
+              ...mc,
+              imagePrompt: pc.imagePrompt || mc.imagePrompt || '',
+              videoPrompt: nextIsBroll ? '' : pc.videoPrompt || mc.videoPrompt || '',
+              isStaticBroll: nextIsBroll,
+              brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
+              auditStatus: 'ok',
+              auditReason: nextIsBroll
+                ? '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.'
+                : 'Sincronizado con el tramo de voz narrativa.',
+            };
+          });
+        }
+      } else if (authoredCount > 0 && (rawTier < 2 || rawBlocks < authoredCount)) {
+        const blocks = mergedClips
+          .map((c: any) => {
+            const img = String(c?.imagePrompt || '').trim();
+            const vid = c?.isStaticBroll ? '' : String(c?.videoPrompt || '').trim();
+            if (!img && !vid) return '';
+            return [img, vid].filter(Boolean).join('\n');
+          })
+          .filter(Boolean);
+        if (blocks.length > 0) {
+          const opHeader = String(baseWinner.operationalHeader || '').trim();
+          baseWinner.rawClipsText = [opHeader, ...blocks].filter(Boolean).join('\n\n');
+        }
+      }
+    } catch {}
+  }
   return { ...baseWinner, clips: mergedClips };
 }
 
@@ -1043,83 +1148,118 @@ function stripHeavyMediaForGitHubServer(list: any[], stripReferenceImages = fals
   }));
 }
 
+function mergeServerDocumentariesLists(localList: any[], remoteList: any[]): any[] {
+  const byId = new Map<string, any>();
+  for (const r of remoteList || []) {
+    if (r && r.id) byId.set(r.id, r);
+  }
+  for (const l of localList || []) {
+    if (!l || !l.id) continue;
+    const existing = byId.get(l.id);
+    if (!existing) {
+      byId.set(l.id, l);
+    } else {
+      const lTime = Date.parse(l.updatedAt || l.createdAt || '') || 0;
+      const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+      if (lTime >= rTime) {
+        byId.set(l.id, mergeServerDocObjects(l, existing));
+      } else {
+        byId.set(l.id, mergeServerDocObjects(existing, l));
+      }
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+    const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    return tB - tA;
+  });
+}
+
+async function fetchRemoteDocsBlobFromTree(
+  token: string,
+  headers: Record<string, string>
+): Promise<{
+  latestCommitSha: string | null;
+  baseTreeSha: string | null;
+  remoteList: any[] | null;
+  remoteRawText: string | null;
+}> {
+  const refRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}?t=${Date.now()}`,
+    { headers }
+  );
+  if (refRes.status === 404) {
+    return { latestCommitSha: null, baseTreeSha: null, remoteList: [], remoteRawText: null };
+  }
+  if (!refRes.ok) {
+    throw new Error(`Git ref fetch failed (${refRes.status})`);
+  }
+  const refData: any = await refRes.json();
+  const latestCommitSha = String(refData?.object?.sha || '').trim();
+  if (!latestCommitSha) {
+    throw new Error('Git ref response missing HEAD commit SHA');
+  }
+  const commitRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}?t=${Date.now()}`,
+    { headers }
+  );
+  if (!commitRes.ok) {
+    throw new Error(`Git commit fetch failed (${commitRes.status})`);
+  }
+  const commitData: any = await commitRes.json();
+  const baseTreeSha = String(commitData?.tree?.sha || '').trim();
+  if (!baseTreeSha) {
+    throw new Error('Git commit response missing tree SHA');
+  }
+  const treeRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${baseTreeSha}?recursive=1&t=${Date.now()}`,
+    { headers }
+  );
+  if (!treeRes.ok) {
+    throw new Error(`Git tree fetch failed (${treeRes.status})`);
+  }
+  const treeData: any = await treeRes.json();
+  const entry = Array.isArray(treeData?.tree)
+    ? treeData.tree.find((t: any) => t?.path === 'data/documentaries.json' && t?.sha)
+    : null;
+  if (!entry) {
+    return { latestCommitSha, baseTreeSha, remoteList: [], remoteRawText: null };
+  }
+  const blobRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs/${entry.sha}?t=${Date.now()}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github.raw+json',
+        Authorization: `token ${token}`,
+        'User-Agent': 'HuellasMaster-Studio',
+      },
+    }
+  );
+  if (!blobRes.ok) {
+    throw new Error(`Git blob fetch failed (${blobRes.status})`);
+  }
+  const remoteRawText = await blobRes.text();
+  const parsed = JSON.parse(remoteRawText);
+  if (!Array.isArray(parsed)) {
+    throw new Error('Remote documentaries blob is not an array');
+  }
+  return { latestCommitSha, baseTreeSha, remoteList: parsed, remoteRawText };
+}
+
+let githubSyncMutexPromise: Promise<any> | null = null;
+
 async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
   synced: boolean;
   total: number;
   error?: string;
 }> {
-  const token = getLocalGitHubToken();
-  const initialLocalList = readDocumentaries();
-  if (!token) {
-    return { synced: false, total: initialLocalList.length, error: 'No GitHub token found' };
-  }
+  const runCore = async (): Promise<{ synced: boolean; total: number; error?: string }> => {
+    const token = getLocalGitHubToken();
+    const initialLocalList = readDocumentaries();
+    if (!token) {
+      return { synced: false, total: initialLocalList.length, error: 'No GitHub token found' };
+    }
 
-  let mergedList = initialLocalList;
-  if (pullFirst) {
-    try {
-      const sha = await getServerGitHubFileSha('data/documentaries.json', token);
-      if (sha) {
-        const blobRes = await fetch(
-          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs/${sha}?t=${Date.now()}`,
-          {
-            headers: {
-              Accept: 'application/vnd.github.raw+json',
-              Authorization: `token ${token}`,
-              'User-Agent': 'HuellasMaster-Studio',
-            },
-          }
-        );
-        if (blobRes.ok) {
-          const remoteList: any = await blobRes.json();
-          if (Array.isArray(remoteList)) {
-            // Re-read localList AFTER network await so concurrent PUT /api/documentaries/:id writes are never overwritten!
-            const latestLocalList = readDocumentaries();
-            const byId = new Map<string, any>();
-            for (const r of remoteList) {
-              if (r && r.id) byId.set(r.id, r);
-            }
-            for (const l of latestLocalList) {
-              if (!l || !l.id) continue;
-              const existing = byId.get(l.id);
-              if (!existing) {
-                byId.set(l.id, l);
-              } else {
-                const lTime = Date.parse(l.updatedAt || l.createdAt || '') || 0;
-                const rTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
-                if (lTime >= rTime) {
-                  byId.set(l.id, mergeServerDocObjects(l, existing));
-                } else {
-                  byId.set(l.id, mergeServerDocObjects(existing, l));
-                }
-              }
-            }
-            mergedList = Array.from(byId.values()).sort((a, b) => {
-              const tA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
-              const tB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
-              return tB - tA;
-            });
-            if (JSON.stringify(mergedList) !== JSON.stringify(latestLocalList)) {
-              writeDocumentaries(mergedList, true);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[CloudSync] Pull warning:', e);
-    }
-    return { synced: true, total: mergedList.length };
-  }
-
-  try {
-    const freshLocalList = readDocumentaries();
-    let jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, false), null, 2);
-    if (jsonStr.length > 3500000) {
-      jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(freshLocalList, true), null, 2);
-    }
-    if (jsonStr === lastPushedGitHubJson) {
-      return { synced: true, total: freshLocalList.length };
-    }
-    lastPushedGitHubJson = jsonStr;
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       Authorization: `token ${token}`,
@@ -1127,101 +1267,169 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
       'User-Agent': 'HuellasMaster-Studio',
     };
 
-    try {
-      const refRes = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}`,
-        { headers }
-      );
-      if (refRes.ok) {
-        const refData: any = await refRes.json();
-        const latestCommitSha = refData?.object?.sha;
-        if (latestCommitSha) {
-          const commitRes = await fetch(
-            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}`,
-            { headers }
-          );
-          const commitData: any = await commitRes.json();
-          const baseTreeSha = commitData?.tree?.sha;
-
-          const blobRes = await fetch(
-            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
-            {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
-            }
-          );
-          const blobData: any = await blobRes.json();
-          const newBlobSha = blobData?.sha;
-
-          if (baseTreeSha && newBlobSha) {
-            const treeRes = await fetch(
-              `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
-              {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  base_tree: baseTreeSha,
-                  tree: [
-                    { path: 'data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
-                    { path: 'docs/data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
-                  ],
-                }),
-              }
-            );
-            const treeData: any = await treeRes.json();
-            if (treeData?.sha) {
-              const newCommitRes = await fetch(
-                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
-                {
-                  method: 'POST',
-                  headers,
-                  body: JSON.stringify({
-                    message: `Sync documentaries.json (${freshLocalList.length} documentales)`,
-                    tree: treeData.sha,
-                    parents: [latestCommitSha],
-                  }),
-                }
-              );
-              const newCommitData: any = await newCommitRes.json();
-              if (newCommitData?.sha) {
-                const patchRes = await fetch(
-                  `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
-                  {
-                    method: 'PATCH',
-                    headers,
-                    body: JSON.stringify({ sha: newCommitData.sha, force: false }),
-                  }
-                );
-                if (patchRes.ok) {
-                  return { synced: true, total: freshLocalList.length };
-                }
-              }
-            }
+    if (pullFirst) {
+      let mergedList = initialLocalList;
+      try {
+        const { remoteList } = await fetchRemoteDocsBlobFromTree(token, headers);
+        if (Array.isArray(remoteList) && remoteList.length > 0) {
+          const latestLocalList = readDocumentaries();
+          mergedList = mergeServerDocumentariesLists(latestLocalList, remoteList);
+          if (JSON.stringify(mergedList) !== JSON.stringify(latestLocalList)) {
+            writeDocumentaries(mergedList, true);
+          }
+          // Auto-heal GitHub if remote lost authored prompts that local disk still preserves
+          const remoteById = new Map<string, any>();
+          for (const rd of remoteList) {
+            if (rd?.id) remoteById.set(rd.id, rd);
+          }
+          const remoteLostPrompts = mergedList.some((md: any) => {
+            const rd = remoteById.get(md?.id);
+            if (!rd) return false;
+            return countServerRealAuthoredClips(md?.clips) > countServerRealAuthoredClips(rd?.clips);
+          });
+          if (remoteLostPrompts) {
+            console.warn('[CloudSync] Remote blob is missing authored Stage 6 prompts present locally — scheduling heal push.');
+            scheduleGitHubPush();
           }
         }
+      } catch (e: any) {
+        console.warn('[CloudSync] Pull warning:', e?.message || e);
       }
-    } catch {}
-
-    const encodedContent = Buffer.from(jsonStr, 'utf8').toString('base64');
-    for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
-      const existingSha = await getServerGitHubFileSha(targetPath, token);
-      const bodyObj: Record<string, any> = {
-        message: `Sync ${targetPath} (${freshLocalList.length} documentales)`,
-        content: encodedContent,
-        branch: GITHUB_BRANCH,
-      };
-      if (existingSha) bodyObj.sha = existingSha;
-
-      await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${targetPath}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(bodyObj),
-      });
+      return { synced: true, total: mergedList.length };
     }
-    return { synced: true, total: freshLocalList.length };
-  } catch (e: any) {
-    return { synced: false, total: mergedList.length, error: e?.message || 'Error pushing to GitHub' };
+
+    // PULL-MERGE-PUSH CAS LOOP (max 3 attempts; fail-closed if remote cannot be read)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { latestCommitSha, baseTreeSha, remoteList, remoteRawText } =
+          await fetchRemoteDocsBlobFromTree(token, headers);
+        const latestLocalList = readDocumentaries();
+        const mergedList =
+          Array.isArray(remoteList) && remoteList.length > 0
+            ? mergeServerDocumentariesLists(latestLocalList, remoteList)
+            : latestLocalList;
+
+        if (JSON.stringify(mergedList) !== JSON.stringify(latestLocalList)) {
+          writeDocumentaries(mergedList, true);
+        }
+
+        let jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(mergedList, false), null, 2);
+        if (jsonStr.length > 3500000) {
+          jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(mergedList, true), null, 2);
+        }
+
+        if (
+          (remoteRawText && remoteRawText.trim() === jsonStr.trim()) ||
+          (jsonStr === lastPushedGitHubJson && attempt === 1 && !remoteList?.length)
+        ) {
+          lastPushedGitHubJson = jsonStr;
+          return { synced: true, total: mergedList.length };
+        }
+
+        if (!latestCommitSha || !baseTreeSha) {
+          return { synced: false, total: mergedList.length, error: 'Missing base commit on remote branch' };
+        }
+
+        const blobRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+          }
+        );
+        if (!blobRes.ok) {
+          return { synced: false, total: mergedList.length, error: `Blob create failed (${blobRes.status})` };
+        }
+        const blobData: any = await blobRes.json();
+        const newBlobSha = blobData?.sha;
+        if (!newBlobSha) {
+          return { synced: false, total: mergedList.length, error: 'Blob create missing SHA' };
+        }
+
+        const treeRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              base_tree: baseTreeSha,
+              tree: [
+                { path: 'data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
+                { path: 'docs/data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
+              ],
+            }),
+          }
+        );
+        if (!treeRes.ok) {
+          return { synced: false, total: mergedList.length, error: `Tree create failed (${treeRes.status})` };
+        }
+        const treeData: any = await treeRes.json();
+        if (!treeData?.sha) {
+          return { synced: false, total: mergedList.length, error: 'Tree create missing SHA' };
+        }
+
+        const newCommitRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: `Sync documentaries.json (${mergedList.length} documentales)`,
+              tree: treeData.sha,
+              parents: [latestCommitSha],
+            }),
+          }
+        );
+        if (!newCommitRes.ok) {
+          return { synced: false, total: mergedList.length, error: `Commit create failed (${newCommitRes.status})` };
+        }
+        const newCommitData: any = await newCommitRes.json();
+        if (!newCommitData?.sha) {
+          return { synced: false, total: mergedList.length, error: 'Commit create missing SHA' };
+        }
+
+        const patchRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ sha: newCommitData.sha, force: false }),
+          }
+        );
+        if (patchRes.ok) {
+          lastPushedGitHubJson = jsonStr;
+          return { synced: true, total: mergedList.length };
+        }
+        if ((patchRes.status === 422 || patchRes.status === 409) && attempt < 3) {
+          await new Promise((r) => setTimeout(r, 250 * attempt));
+          continue;
+        }
+        return { synced: false, total: mergedList.length, error: `Ref PATCH failed (${patchRes.status})` };
+      } catch (e: any) {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 250 * attempt));
+          continue;
+        }
+        return {
+          synced: false,
+          total: readDocumentaries().length,
+          error: e?.message || 'Fail-closed error pushing to GitHub',
+        };
+      }
+    }
+    return { synced: false, total: readDocumentaries().length, error: 'CAS retry limit exceeded' };
+  };
+
+  const prev = githubSyncMutexPromise || Promise.resolve();
+  const current = prev.catch(() => null).then(() => runCore());
+  githubSyncMutexPromise = current;
+  try {
+    return await current;
+  } finally {
+    if (githubSyncMutexPromise === current) {
+      githubSyncMutexPromise = null;
+    }
   }
 }
 
@@ -1539,6 +1747,20 @@ app.put('/api/documentaries/:id', (req, res) => {
         currentDiskDoc.clips,
         hasValidExplicitPromptClear
       );
+    }
+
+    const patchBringsAuthoredPrompts =
+      getServerRawClipsQualityTier(surgicalPatch.rawClipsText) === 2 ||
+      ('clips' in surgicalPatch &&
+        countServerRealAuthoredClips(surgicalPatch.clips) > 0 &&
+        !hasValidExplicitPromptClear);
+    if (patchBringsAuthoredPrompts) {
+      surgicalPatch.promptConfig = {
+        ...(currentDiskDoc.promptConfig || {}),
+        ...(surgicalPatch.promptConfig || {}),
+        PROMPTS_RESTORED_AT: String(Date.now()),
+        FIELD_CLEARED_AT_rawClipsText: '0',
+      };
     }
 
     updated = {
@@ -7734,7 +7956,7 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
         updatedAt: new Date().toISOString(),
       };
       writeDocumentaries(list);
-      syncDocumentariesWithGitHubServer(true).catch(() => null);
+      syncDocumentariesWithGitHubServer(false).catch(() => null);
       publishRemoteMacAck({
         commandId: String(list[idx].promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID || ''),
         docId: list[idx].id,
@@ -7787,7 +8009,7 @@ app.post('/api/gemini-web/fail-captured-thumbnail', async (req, res) => {
         updatedAt: new Date().toISOString(),
       };
       writeDocumentaries(list);
-      syncDocumentariesWithGitHubServer(true).catch(() => null);
+      syncDocumentariesWithGitHubServer(false).catch(() => null);
       publishRemoteMacAck({
         commandId: resolvedCmdId,
         docId: list[idx].id,
@@ -8172,7 +8394,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       if (txt) {
         for (const rawLine of txt.split(/\r?\n/)) {
           const line = rawLine.trim();
-          const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          const mImg = line.match(/^(?:Image|Imagen)\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
           if (mImg) {
             const num = parseInt(mImg[1], 10);
             if (num > 0) {
@@ -8190,7 +8412,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             }
             continue;
           }
-          const mClip = line.match(/^Clip\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          const mClip = line.match(/^Clip\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
           if (mClip) {
             const num = parseInt(mClip[1], 10);
             if (num > 0) {
@@ -17150,7 +17372,7 @@ function expireStaleRunningStage3JobsServer(): void {
     }
     if (mutated) {
       writeDocumentaries(list);
-      syncDocumentariesWithGitHubServer(true).catch(() => null);
+      syncDocumentariesWithGitHubServer(false).catch(() => null);
     }
   } catch {}
 }
@@ -17739,7 +17961,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
       };
       writeDocumentaries(list);
       console.log(`[RemoteGeminiStage] Resultado etapa ${stageNumber} (${fieldKey}, ${text.length} chars, partial=${isPartialContinuation}) guardado en ${docId}`);
-      await syncDocumentariesWithGitHubServer(true).catch(() => null);
+      await syncDocumentariesWithGitHubServer(false).catch(() => null);
     }
   } catch (e) {
     console.warn('[RemoteGeminiStage] Error guardando resultado:', e);

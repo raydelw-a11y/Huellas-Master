@@ -1681,9 +1681,22 @@ function mergeTwoDocumentaryObjects(
   const otherSavedAt = toMs((oNorm as any).updatedAt || (oNorm as any).createdAt);
   const stage1Tombstoned = stage1ClearedAt > 0 && stage1ClearedAt >= otherSavedAt;
   const STAGE1_TEXT_KEYS = ['deepResearchResult', 'deepResearchPrompt', 'sectionsStructure'];
+  const wHasAuthoredPrompts =
+    getRawClipsQualityTier(baseWinner.rawClipsText) === 2 ||
+    countRealAuthoredClips(baseWinner.clips) > 0;
+  const oHasAuthoredPrompts =
+    getRawClipsQualityTier(oNorm.rawClipsText) === 2 ||
+    countRealAuthoredClips(oNorm.clips) > 0;
+  const wClearedRaw = Number(baseWinner.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0);
+  const oClearedRaw = Number(oNorm.promptConfig?.FIELD_CLEARED_AT_rawClipsText || 0);
+  const implicitRestoredAt = Math.max(
+    wHasAuthoredPrompts && wClearedRaw === 0 ? toMs((baseWinner as any).updatedAt || (baseWinner as any).createdAt) : 0,
+    oHasAuthoredPrompts && oClearedRaw === 0 ? toMs((oNorm as any).updatedAt || (oNorm as any).createdAt) : 0
+  );
   const promptsRestoredAt = Math.max(
     Number(baseWinner.promptConfig?.PROMPTS_RESTORED_AT || 0),
-    Number(oNorm.promptConfig?.PROMPTS_RESTORED_AT || 0)
+    Number(oNorm.promptConfig?.PROMPTS_RESTORED_AT || 0),
+    implicitRestoredAt > Math.max(wClearedRaw, oClearedRaw) + 1000 ? implicitRestoredAt : 0
   );
   if (promptsRestoredAt > 0) {
     baseWinner = {
@@ -2102,6 +2115,7 @@ function mergeTwoDocumentaryObjects(
         otherClipByNum.set(c.clipNumber, c);
       }
     }
+    const STALE_PENDING_AUDIT_RE = /pendiente\s+de\s+generar|falta\s+el\s+prompt/i;
     mergedClips = wClipsInit.map((c) => {
       const o = otherClipByNum.get(c.clipNumber);
       if (!o) return c;
@@ -2111,6 +2125,25 @@ function mergeTwoDocumentaryObjects(
       const effectiveStaticBroll = rescuePrompts
         ? (typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll)
         : c.isStaticBroll;
+      const hasAuthoredAfterMerge = wHasReal || rescuePrompts;
+      const cAuditReason = String(c.auditReason || '');
+      const oAuditReason = String(o.auditReason || '');
+      const needsAuditCleanup =
+        hasAuthoredAfterMerge &&
+        (rescuePrompts || c.auditStatus === 'warning' || STALE_PENDING_AUDIT_RE.test(cAuditReason));
+      const cleanAuditPatch = needsAuditCleanup
+        ? oAuditReason && !STALE_PENDING_AUDIT_RE.test(oAuditReason)
+          ? {
+              auditStatus: o.auditStatus && o.auditStatus !== 'warning' ? o.auditStatus : ('ok' as const),
+              auditReason: oAuditReason,
+            }
+          : {
+              auditStatus: 'ok' as const,
+              auditReason: effectiveStaticBroll
+                ? '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.'
+                : 'Sincronizado con el tramo de voz narrativa.',
+            }
+        : {};
       return {
         ...c,
         ...(rescuePrompts
@@ -2136,6 +2169,7 @@ function mergeTwoDocumentaryObjects(
                 o.previousVideoPrompt ||
                 (c.isStaticBroll && o.videoPrompt ? o.videoPrompt : undefined),
             }),
+        ...cleanAuditPatch,
         reviewedForEditor:
           c.reviewedForEditor !== undefined
             ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
@@ -2155,8 +2189,9 @@ function mergeTwoDocumentaryObjects(
   let finalRawClipsText = baseWinner.rawClipsText || '';
   if (!rawClipsLegitimatelyTombstoned) {
     const rawTier = getRawClipsQualityTier(finalRawClipsText);
+    const rawBlocks = countAuthoredBlocksInRawText(finalRawClipsText);
     const authoredClips = countRealAuthoredClips(mergedClips);
-    if (rawTier === 2 && authoredClips === 0) {
+    if (rawTier === 2 && authoredClips < rawBlocks) {
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(baseWinner);
       const parsed = parseClipsFromRawText(
         finalRawClipsText,
@@ -2170,6 +2205,7 @@ function mergeTwoDocumentaryObjects(
         mergedClips =
           mergedClips.length > 0
             ? mergedClips.map((mc) => {
+                if (isClipRealAuthored(mc)) return mc;
                 const pc = parsedByNum.get(mc.clipNumber);
                 if (!pc || !isClipRealAuthored(pc)) return mc;
                 const nextIsBroll =
@@ -2185,11 +2221,15 @@ function mergeTwoDocumentaryObjects(
                   isStaticBroll: nextIsBroll,
                   brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
                   flowClipEngine: pc.flowClipEngine || mc.flowClipEngine,
+                  auditStatus: 'ok' as const,
+                  auditReason: nextIsBroll
+                    ? '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.'
+                    : 'Sincronizado con el tramo de voz narrativa.',
                 };
               })
             : parsed;
       }
-    } else if (rawTier === 0 && authoredClips > 0) {
+    } else if (authoredClips > 0 && (rawTier < 2 || rawBlocks < authoredClips)) {
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(baseWinner);
       finalRawClipsText = safeRebuildRawClipsText(
         mergedClips,
@@ -2373,142 +2413,231 @@ export async function fetchRemoteDocumentariesFromGitHub(): Promise<DocumentaryP
   return null;
 }
 
+let browserGitHubPushMutex: Promise<{ synced: boolean; error?: string }> | null = null;
+
+async function fetchRemoteDocsBlobForBrowserPush(
+  ghToken: string,
+  headers: Record<string, string>
+): Promise<{
+  latestCommitSha: string | null;
+  baseTreeSha: string | null;
+  remoteDocs: DocumentaryProject[];
+  remoteRawText: string | null;
+}> {
+  const refRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}?t=${Date.now()}`,
+    { headers, cache: 'no-store' }
+  );
+  if (refRes.status === 404) {
+    return { latestCommitSha: null, baseTreeSha: null, remoteDocs: [], remoteRawText: null };
+  }
+  if (!refRes.ok) {
+    throw new Error(`GitHub ref HTTP ${refRes.status}`);
+  }
+  const refData = await refRes.json();
+  const latestCommitSha = String(refData?.object?.sha || '').trim();
+  if (!latestCommitSha) {
+    throw new Error('Missing remote HEAD commit SHA');
+  }
+
+  const commitRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}?t=${Date.now()}`,
+    { headers, cache: 'no-store' }
+  );
+  if (!commitRes.ok) {
+    throw new Error(`GitHub commit HTTP ${commitRes.status}`);
+  }
+  const commitData = await commitRes.json();
+  const baseTreeSha = String(commitData?.tree?.sha || '').trim();
+  if (!baseTreeSha) {
+    throw new Error('Missing remote base tree SHA');
+  }
+
+  const treeRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${baseTreeSha}?recursive=1&t=${Date.now()}`,
+    { headers, cache: 'no-store' }
+  );
+  if (!treeRes.ok) {
+    throw new Error(`GitHub tree HTTP ${treeRes.status}`);
+  }
+  const treeData = await treeRes.json();
+  const entry = Array.isArray(treeData?.tree)
+    ? treeData.tree.find((t: any) => t?.path === 'data/documentaries.json' && t?.sha)
+    : null;
+  if (!entry) {
+    return { latestCommitSha, baseTreeSha, remoteDocs: [], remoteRawText: null };
+  }
+
+  const blobRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs/${entry.sha}?t=${Date.now()}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github.raw+json',
+        Authorization: `token ${ghToken}`,
+      },
+      cache: 'no-store',
+    }
+  );
+  if (!blobRes.ok) {
+    throw new Error(`GitHub blob HTTP ${blobRes.status}`);
+  }
+  const remoteRawText = await blobRes.text();
+  const parsed = JSON.parse(remoteRawText);
+  if (!Array.isArray(parsed)) {
+    throw new Error('Remote documentaries blob is not an array');
+  }
+  return { latestCommitSha, baseTreeSha, remoteDocs: parsed, remoteRawText };
+}
+
 export async function pushDocumentariesToGitHub(
   docsList: DocumentaryProject[]
 ): Promise<{ synced: boolean; error?: string }> {
-  const ghToken = getBrowserGitHubToken();
-  if (!ghToken) {
-    return { synced: false, error: 'Sin GitHub Token configurado en este dispositivo.' };
-  }
-
-  try {
-    let jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, false), null, 2);
-    if (jsonStr.length > 3500000) {
-      jsonStr = JSON.stringify(stripHeavyMediaForStorage(docsList, true), null, 2);
+  const executePush = async (): Promise<{ synced: boolean; error?: string }> => {
+    const ghToken = getBrowserGitHubToken();
+    if (!ghToken) {
+      return { synced: false, error: 'Sin GitHub Token configurado en este dispositivo.' };
     }
+
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       Authorization: `token ${ghToken}`,
       'Content-Type': 'application/json',
     };
 
-    // Primary method: Git Data API (supports up to 100 MB & commits both paths atomically)
-    try {
-      const refRes = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}?t=${Date.now()}`,
-        { headers, cache: 'no-store' }
-      );
-      if (refRes.ok) {
-        const refData = await refRes.json();
-        const latestCommitSha = refData?.object?.sha;
-        if (latestCommitSha) {
-          const commitRes = await fetch(
-            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits/${latestCommitSha}`,
-            { headers, cache: 'no-store' }
-          );
-          const commitData = await commitRes.json();
-          const baseTreeSha = commitData?.tree?.sha;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { latestCommitSha, baseTreeSha, remoteDocs, remoteRawText } =
+          await fetchRemoteDocsBlobForBrowserPush(ghToken, headers);
 
-          const blobRes = await fetch(
-            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
-            {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
-            }
-          );
-          const blobData = await blobRes.json();
-          const newBlobSha = blobData?.sha;
+        const mergedList =
+          remoteDocs.length > 0
+            ? mergeDocumentariesLists(docsList, remoteDocs, getLocalDeletedDocIds())
+            : docsList;
 
-          if (baseTreeSha && newBlobSha) {
-            const treeRes = await fetch(
-              `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
-              {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  base_tree: baseTreeSha,
-                  tree: [
-                    {
-                      path: 'data/documentaries.json',
-                      mode: '100644',
-                      type: 'blob',
-                      sha: newBlobSha,
-                    },
-                    {
-                      path: 'docs/data/documentaries.json',
-                      mode: '100644',
-                      type: 'blob',
-                      sha: newBlobSha,
-                    },
-                  ],
-                }),
-              }
-            );
-            const treeData = await treeRes.json();
-            const newTreeSha = treeData?.sha;
+        try {
+          saveLocalCachedDocumentaries(mergedList);
+        } catch {}
 
-            if (newTreeSha) {
-              const newCommitRes = await fetch(
-                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
-                {
-                  method: 'POST',
-                  headers,
-                  body: JSON.stringify({
-                    message: `Sync documentaries.json (${docsList.length} documentales)`,
-                    tree: newTreeSha,
-                    parents: [latestCommitSha],
-                  }),
-                }
-              );
-              const newCommitData = await newCommitRes.json();
-              if (newCommitData?.sha) {
-                const updateRefRes = await fetch(
-                  `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
-                  {
-                    method: 'PATCH',
-                    headers,
-                    body: JSON.stringify({ sha: newCommitData.sha, force: false }),
-                  }
-                );
-                if (updateRefRes.ok) {
-                  return { synced: true };
-                }
-              }
-            }
-          }
+        let jsonStr = JSON.stringify(stripHeavyMediaForStorage(mergedList, false), null, 2);
+        if (jsonStr.length > 3500000) {
+          jsonStr = JSON.stringify(stripHeavyMediaForStorage(mergedList, true), null, 2);
         }
+
+        if (remoteRawText && remoteRawText.trim() === jsonStr.trim()) {
+          return { synced: true };
+        }
+
+        if (!latestCommitSha || !baseTreeSha) {
+          return { synced: false, error: 'Sin commit base remoto para sincronizar.' };
+        }
+
+        const blobRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+          }
+        );
+        if (!blobRes.ok) {
+          return { synced: false, error: `GitHub blob HTTP ${blobRes.status}` };
+        }
+        const blobData = await blobRes.json();
+        const newBlobSha = blobData?.sha;
+        if (!newBlobSha) {
+          return { synced: false, error: 'GitHub blob sin SHA' };
+        }
+
+        const treeRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              base_tree: baseTreeSha,
+              tree: [
+                {
+                  path: 'data/documentaries.json',
+                  mode: '100644',
+                  type: 'blob',
+                  sha: newBlobSha,
+                },
+                {
+                  path: 'docs/data/documentaries.json',
+                  mode: '100644',
+                  type: 'blob',
+                  sha: newBlobSha,
+                },
+              ],
+            }),
+          }
+        );
+        if (!treeRes.ok) {
+          return { synced: false, error: `GitHub tree HTTP ${treeRes.status}` };
+        }
+        const treeData = await treeRes.json();
+        const newTreeSha = treeData?.sha;
+        if (!newTreeSha) {
+          return { synced: false, error: 'GitHub tree sin SHA' };
+        }
+
+        const newCommitRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: `Sync documentaries.json (${mergedList.length} documentales)`,
+              tree: newTreeSha,
+              parents: [latestCommitSha],
+            }),
+          }
+        );
+        if (!newCommitRes.ok) {
+          return { synced: false, error: `GitHub commit HTTP ${newCommitRes.status}` };
+        }
+        const newCommitData = await newCommitRes.json();
+        if (!newCommitData?.sha) {
+          return { synced: false, error: 'GitHub commit sin SHA' };
+        }
+
+        const updateRefRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ sha: newCommitData.sha, force: false }),
+          }
+        );
+        if (updateRefRes.ok) {
+          return { synced: true };
+        }
+        if ((updateRefRes.status === 422 || updateRefRes.status === 409) && attempt < 3) {
+          await new Promise((r) => setTimeout(r, 250 * attempt));
+          continue;
+        }
+        return { synced: false, error: `GitHub ref PATCH HTTP ${updateRefRes.status}` };
+      } catch (e: any) {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 250 * attempt));
+          continue;
+        }
+        console.warn('Error pushing documentaries to GitHub (fail-closed):', e);
+        return { synced: false, error: e?.message || 'Error al sincronizar con GitHub' };
       }
-    } catch (gitApiErr) {
-      console.warn('Git Data API fallback to Contents API:', gitApiErr);
     }
+    return { synced: false, error: 'Límite de reintentos CAS alcanzado en GitHub.' };
+  };
 
-    // Fallback: Contents API (for files < 900 KB)
-    const encodedContent = btoa(unescape(encodeURIComponent(jsonStr)));
-    for (const targetPath of ['data/documentaries.json', 'docs/data/documentaries.json']) {
-      const existingSha = await getGitHubFileSha(targetPath, ghToken);
-      const bodyObj: Record<string, any> = {
-        message: `Sync ${targetPath} (${docsList.length} documentales)`,
-        content: encodedContent,
-        branch: GITHUB_BRANCH,
-      };
-      if (existingSha) bodyObj.sha = existingSha;
-
-      const putUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${targetPath}`;
-      const putRes = await fetch(putUrl, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(bodyObj),
-      });
-      if (!putRes.ok && targetPath === 'data/documentaries.json') {
-        throw new Error(`GitHub HTTP ${putRes.status}`);
-      }
+  const prev = browserGitHubPushMutex || Promise.resolve({ synced: true });
+  const current = prev.catch(() => ({ synced: true })).then(() => executePush());
+  browserGitHubPushMutex = current;
+  try {
+    return await current;
+  } finally {
+    if (browserGitHubPushMutex === current) {
+      browserGitHubPushMutex = null;
     }
-
-    return { synced: true };
-  } catch (e: any) {
-    console.warn('Error pushing documentaries to GitHub:', e);
-    return { synced: false, error: e?.message || 'Error al sincronizar con GitHub' };
   }
 }
 
