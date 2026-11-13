@@ -3234,11 +3234,48 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
-      const qs = `docId=${encodeURIComponent(activeDoc?.id || '')}&folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}`;
+      const qs = `docId=${encodeURIComponent(activeDoc?.id || '')}&folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}&includePrompts=0`;
+      const host = typeof window !== 'undefined' ? window.location.hostname || '' : '';
       const isLocal =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const bases = isLocal ? [''] : ['http://localhost:4200', ''];
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.endsWith('.trycloudflare.com');
+      let liveTunnel = '';
+      let savedSessionBase = '';
+      try {
+        liveTunnel = String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
+          .trim()
+          .replace(/\/+$/, '');
+        const rawSession = localStorage.getItem('huellas_flow_pc_session_v1');
+        if (rawSession) {
+          const parsed = JSON.parse(rawSession);
+          const rawUrl = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
+          if (rawUrl && /^https?:\/\//i.test(rawUrl)) savedSessionBase = rawUrl;
+        }
+      } catch {}
+      const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      const usableRemote = (u: string) =>
+        Boolean(
+          u &&
+            (!isHttpsPage ||
+              !/^http:\/\//i.test(u) ||
+              /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(u))
+        );
+      const isRealMobile =
+        typeof navigator !== 'undefined' &&
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
+        !/^Mac/i.test(navigator.platform || '');
+      const bases = isLocal
+        ? ['']
+        : isRealMobile
+        ? Array.from(new Set([...([liveTunnel, savedSessionBase].filter(usableRemote)), '']))
+        : Array.from(
+            new Set([
+              'http://localhost:4200',
+              ...([liveTunnel, savedSessionBase].filter(usableRemote)),
+              '',
+            ])
+          );
       for (const base of bases) {
         if (cancelled) return;
         try {

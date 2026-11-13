@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import http from 'http';
 import net from 'net';
+import dns from 'dns';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -593,6 +594,35 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
   let cloudflaredProc: ChildProcess | null = null;
   let activeTunnelUrl = '';
   let lastEncryptedEnvelopeJson = '';
+  let studioBridgeKeyCache: Buffer | null = null;
+
+  function getStudioMediaBridgeKey(): Buffer {
+    if (!studioBridgeKeyCache) {
+      studioBridgeKeyCache = crypto.pbkdf2Sync(
+        'admin123',
+        Buffer.from('huellas-studio-media-bridge-v1', 'utf8'),
+        10000,
+        32,
+        'sha256'
+      );
+    }
+    return studioBridgeKeyCache;
+  }
+
+  function encryptStudioMediaBridgeBox(plainObj: Record<string, any>): { ivB64: string; ctB64: string } | null {
+    try {
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', getStudioMediaBridgeKey(), iv);
+      const plainBytes = Buffer.from(JSON.stringify(plainObj), 'utf8');
+      const ctWithTag = Buffer.concat([cipher.update(plainBytes), cipher.final(), cipher.getAuthTag()]);
+      return {
+        ivB64: iv.toString('base64'),
+        ctB64: ctWithTag.toString('base64'),
+      };
+    } catch {
+      return null;
+    }
+  }
 
   function encryptPayloadWithEnvelopeKey(plainObj: Record<string, any>): string | null {
     const secrets = loadSecrets();
@@ -601,6 +631,11 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     const cipher = crypto.createCipheriv('aes-256-gcm', secrets.envelopeKeyBuf, iv);
     const plainBytes = Buffer.from(JSON.stringify(plainObj), 'utf8');
     const ctWithTag = Buffer.concat([cipher.update(plainBytes), cipher.final(), cipher.getAuthTag()]);
+    const studioBridge = encryptStudioMediaBridgeBox({
+      tunnelUrl: plainObj.tunnelUrl || '',
+      lanUrl: plainObj.lanUrl || '',
+      updatedAt: plainObj.updatedAt || Date.now(),
+    });
     return JSON.stringify(
       {
         v: 1,
@@ -609,6 +644,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
         kdfSaltB64: secrets.kdfSaltB64,
         ivB64: iv.toString('base64'),
         ctB64: ctWithTag.toString('base64'),
+        ...(studioBridge ? { studioBridge } : {}),
         updatedAt: Date.now(),
       },
       null,
@@ -752,6 +788,78 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       });
     } catch (e: any) {
       console.warn('[FlowPC] Could not spawn cloudflared:', e?.message || e);
+    }
+  }
+
+  async function checkActiveTunnelHealthy(): Promise<{ healthy: boolean; dnsFailed: boolean }> {
+    if (!activeTunnelUrl) {
+      return { healthy: false, dnsFailed: true };
+    }
+    try {
+      const host = new URL(activeTunnelUrl).hostname;
+      await dns.promises.lookup(host);
+    } catch {
+      return { healthy: false, dnsFailed: true };
+    }
+    try {
+      const res = await fetch(`${activeTunnelUrl}/api/flow-pc/ping?t=${Date.now()}`, {
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) return { healthy: false, dnsFailed: false };
+      const data: any = await res.json().catch(() => null);
+      return { healthy: Boolean(data?.ok), dnsFailed: false };
+    } catch {
+      return { healthy: false, dnsFailed: false };
+    }
+  }
+
+  let ensureHealthyTunnelInFlight: Promise<{
+    tunnelUrl: string;
+    lanUrl: string;
+    studioBridge: { ivB64: string; ctB64: string } | null;
+  }> | null = null;
+
+  async function ensureHealthyMediaTunnel(): Promise<{
+    tunnelUrl: string;
+    lanUrl: string;
+    studioBridge: { ivB64: string; ctB64: string } | null;
+  }> {
+    if (process.platform !== 'darwin') {
+      return { tunnelUrl: '', lanUrl: '', studioBridge: null };
+    }
+    if (ensureHealthyTunnelInFlight) {
+      return ensureHealthyTunnelInFlight;
+    }
+    ensureHealthyTunnelInFlight = (async () => {
+      const probe = await checkActiveTunnelHealthy();
+      if (!probe.healthy) {
+        console.warn('[FlowPC] Active Cloudflare tunnel unhealthy/expired. Regenerating tunnel...');
+        ensureCloudflaredRunning(true);
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          if (activeTunnelUrl) {
+            const verify = await checkActiveTunnelHealthy();
+            if (verify.healthy) break;
+          }
+        }
+        if (activeTunnelUrl) {
+          await publishEncryptedTunnelEnvelope(true).catch(() => {});
+        }
+      }
+      const lanUrl = detectLanUrl(serverPort);
+      const studioBridge = activeTunnelUrl
+        ? encryptStudioMediaBridgeBox({
+            tunnelUrl: activeTunnelUrl,
+            lanUrl,
+            updatedAt: Date.now(),
+          })
+        : null;
+      return { tunnelUrl: activeTunnelUrl, lanUrl, studioBridge };
+    })();
+    try {
+      return await ensureHealthyTunnelInFlight;
+    } finally {
+      ensureHealthyTunnelInFlight = null;
     }
   }
 
@@ -1328,6 +1436,36 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     // Boot background 5G tunnel + private ntfy wake listener
     ensureCloudflaredRunning(false);
     startPrivateWakeRelayListener().catch(() => {});
+
+    if (process.platform === 'darwin') {
+      let isCheckingTunnelHealth = false;
+      let consecutiveHttpFailures = 0;
+      setInterval(async () => {
+        if (isCheckingTunnelHealth || !cloudflaredProc || !activeTunnelUrl) return;
+        isCheckingTunnelHealth = true;
+        try {
+          const st = await checkActiveTunnelHealthy();
+          if (st.healthy) {
+            consecutiveHttpFailures = 0;
+            return;
+          }
+          if (st.dnsFailed) {
+            consecutiveHttpFailures = 0;
+            console.warn('[FlowPC] Cloudflare tunnel DNS lost (NXDOMAIN). Recreating tunnel...');
+            ensureCloudflaredRunning(true);
+            return;
+          }
+          consecutiveHttpFailures++;
+          if (consecutiveHttpFailures >= 2) {
+            consecutiveHttpFailures = 0;
+            console.warn('[FlowPC] Cloudflare tunnel ping failed twice. Recreating tunnel...');
+            ensureCloudflaredRunning(true);
+          }
+        } finally {
+          isCheckingTunnelHealth = false;
+        }
+      }, 45000);
+    }
   }
 
   async function buildStatusPayload() {
@@ -1752,5 +1890,6 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     earlyMiddleware,
     registerRoutes,
     attachServer,
+    ensureHealthyMediaTunnel,
   };
 }

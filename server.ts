@@ -7262,7 +7262,7 @@ let lastIcloudDirEnumAttemptAt = 0;
 function refreshIcloudVideosDirCacheAsync(icloudVideosDir: string) {
   if (icloudDirEnumInFlight) return;
   const now = Date.now();
-  if (now - lastIcloudDirEnumAttemptAt < 15000) return;
+  if (now - lastIcloudDirEnumAttemptAt < 120000) return;
   lastIcloudDirEnumAttemptAt = now;
   icloudDirEnumInFlight = true;
   try {
@@ -7307,7 +7307,7 @@ function refreshIcloudVideosDirCacheAsync(icloudVideosDir: string) {
 
 function listIcloudVideosDirCached(icloudVideosDir: string): string[] {
   const now = Date.now();
-  if (now - lastIcloudDirEnumAttemptAt >= 15000) {
+  if (now - lastIcloudDirEnumAttemptAt >= 120000) {
     refreshIcloudVideosDirCacheAsync(icloudVideosDir);
   }
   const combined = new Set<string>(cachedIcloudVideosEntries);
@@ -7338,6 +7338,27 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
   if (now - lastIcloudProbeAttemptAt < 10000) return Promise.resolve(false);
   lastIcloudProbeAttemptAt = now;
   icloudDriveProbeInFlight = true;
+  const candidateSubdirs: string[] = [];
+  const seenCandidates = new Set<string>();
+  try {
+    const docs = readDocumentaries();
+    for (const doc of docs) {
+      if (candidateSubdirs.length >= 6) break;
+      const names = [
+        String(doc?.downloadFolderName || '').trim(),
+        String(doc?.title || '').trim(),
+        doc?.downloadFolderPath ? path.basename(String(doc.downloadFolderPath)).trim() : '',
+      ];
+      for (const name of names) {
+        if (!name || name === '.' || name === '..' || seenCandidates.has(name)) continue;
+        seenCandidates.add(name);
+        candidateSubdirs.push(path.join(icloudVideosDir, name));
+        if (candidateSubdirs.length >= 6) break;
+      }
+    }
+  } catch {}
+  const probeScript =
+    'const fs=require("fs");const base=process.argv[1];if(!fs.statSync(base).isDirectory())process.exit(1);const subs=JSON.parse(process.argv[2]||"[]");for(const s of subs){try{if(fs.statSync(s).isDirectory()){fs.readdirSync(s);process.stdout.write("{\\"ok\\":true}");process.exit(0);}}catch(e){if(e&&(e.code==="EPERM"||e.code==="EACCES"))process.exit(2);}}const e=fs.readdirSync(base);process.stdout.write(JSON.stringify(e));process.exit(0)';
   icloudDriveProbePromise = new Promise<boolean>((resolve) => {
     let settled = false;
     const finish = (ok: boolean) => {
@@ -7350,20 +7371,29 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
     try {
       const proc = spawn(
         process.execPath,
-        ['-e', 'process.exit(require("fs").statSync(process.argv[1]).isDirectory()?0:1)', icloudVideosDir],
-        { stdio: 'ignore' }
+        ['-e', probeScript, icloudVideosDir, JSON.stringify(candidateSubdirs)],
+        { stdio: ['ignore', 'pipe', 'ignore'] }
       );
+      const chunks: Buffer[] = [];
+      proc.stdout?.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
       const killTimer = setTimeout(() => {
         try {
           proc.kill('SIGKILL');
         } catch {}
-      }, 1500);
+      }, 2000);
       proc.on('close', (code) => {
         clearTimeout(killTimer);
         if (code === 0) {
+          try {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              cachedIcloudVideosEntries = parsed.map((x) => String(x || '').trim()).filter(Boolean);
+              cachedIcloudVideosEntriesAt = Date.now();
+            }
+          } catch {}
           icloudDriveVerifiedReady = true;
           icloudLastProbeFailed = false;
-          refreshIcloudVideosDirCacheAsync(icloudVideosDir);
           setTimeout(() => {
             try {
               void runAutonomousClipsWatcherTick();
@@ -8136,7 +8166,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         brollCameraMotion?: string;
       }
     > = {};
-    if (resolvedRoot) {
+    if (resolvedRoot && String(req.query.includePrompts || '') !== '0') {
       const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
       const txt = readTextFileIfMaterializedSafe(promptsTxtPath);
       if (txt) {
@@ -17794,12 +17824,35 @@ app.post('/api/gemini-web/link-chat', (req, res) => {
   }
 });
 
+let lastMediaBridgeRelayAt = 0;
+let ensureHealthyMediaTunnelRef:
+  | (() => Promise<{ tunnelUrl: string; lanUrl: string; studioBridge: any }>)
+  | null = null;
+
 function handleIncomingRemoteRelayLine(line: string) {
   if (!line || !line.trim()) return;
   try {
     const evt = JSON.parse(line);
     if (evt?.event !== 'message' || !evt.message) return;
     const cmd = JSON.parse(evt.message);
+    if (process.platform === 'darwin' && cmd && cmd.type === 'REQUEST_MEDIA_BRIDGE') {
+      const now = Date.now();
+      if (now - lastMediaBridgeRelayAt >= 8000 && ensureHealthyMediaTunnelRef) {
+        lastMediaBridgeRelayAt = now;
+        ensureHealthyMediaTunnelRef()
+          .then((res) => {
+            if (res?.studioBridge) {
+              publishRemoteMacAck({
+                type: 'MEDIA_BRIDGE_ACK',
+                requestId: String(cmd.requestId || ''),
+                studioBridge: res.studioBridge,
+              });
+            }
+          })
+          .catch(() => {});
+      }
+      return;
+    }
     if (cmd && cmd.type === 'REMOTE_GEMINI_STAGE' && cmd.commandId && cmd.docId) {
       console.log(`[RemoteRelay] Orden remota de Gemini (etapa ${cmd.stageNumber}) ${cmd.commandId}`);
       handleRemoteGeminiStageTrigger(cmd).catch(() => {});
@@ -18384,6 +18437,7 @@ const flowPcManager = createFlowPcManager(
   PORT
 );
 flowCapEarlyHandler = flowPcManager.earlyMiddleware;
+ensureHealthyMediaTunnelRef = flowPcManager.ensureHealthyMediaTunnel;
 flowPcManager.registerRoutes(app);
 
 // Setup Vite Dev Server or Production static serving

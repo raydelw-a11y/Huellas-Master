@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:26 AM - 11/13/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '5:28 AM - 11/13/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1914,10 +1914,15 @@ export default function App() {
   capturedClipVideosMapRef.current = capturedClipVideosMap;
   const lastActiveStage8VideoRef = useRef<HTMLVideoElement | null>(null);
   const hoveredStage8ClipRef = useRef<number | null>(null);
-  // Keep up to 16 viewport-nearest <video> players mounted automatically using poster + preload="none" (0 idle HTTP sockets)
-  const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>([
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-  ]);
+  // Keep up to 16 (desktop) / 6 (mobile) viewport-nearest <video> players mounted automatically
+  const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>(() => {
+    const isMobInit =
+      typeof window !== 'undefined' &&
+      (window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''));
+    return isMobInit
+      ? [1, 2, 3, 4, 5, 6]
+      : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  });
   const stage8AvailableVideosSig = useMemo(
     () =>
       Object.keys(capturedClipVideosMap)
@@ -1935,6 +1940,19 @@ export default function App() {
   const stage6PollEpochRef = useRef<number>(0);
   const stage6InFlightEpochRef = useRef<number>(0);
   const stage6AbortRef = useRef<AbortController | null>(null);
+  const discoveredMacTunnelUrlRef = useRef<string>(
+    (() => {
+      try {
+        return String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
+          .trim()
+          .replace(/\/+$/, '');
+      } catch {
+        return '';
+      }
+    })()
+  );
+  const lastTunnelDiscoveryAttemptRef = useRef<number>(0);
+  const inFlightTunnelDiscoveryRef = useRef<Promise<string> | null>(null);
   const [loadingSingleClipMap, setLoadingSingleClipMap] = useState<
     Record<number, 'loading' | 'done'>
   >({});
@@ -3381,6 +3399,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   }, [mainView, activeStage]);
 
+  const getEffectiveStage8VideoPoolLimit = () => {
+    if (typeof window === 'undefined') return MAX_STAGE8_MOUNTED_VIDEOS;
+    const isNarrowOrMobileUa =
+      window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+    return isNarrowOrMobileUa ? 6 : MAX_STAGE8_MOUNTED_VIDEOS;
+  };
+
   const recomputeStage8VideoPool = useCallback(() => {
     const videosMap = capturedClipVideosMapRef.current;
     const availableNums = Object.keys(videosMap)
@@ -3389,6 +3414,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       .sort((a, b) => a - b);
     if (availableNums.length === 0) return;
 
+    const poolLimit = getEffectiveStage8VideoPoolLimit();
     const availableSet = new Set(availableNums);
     const pinnedNums: number[] = [];
     const pinNum = (n: number | null | undefined) => {
@@ -3438,7 +3464,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const nextPool: number[] = [...pinnedNums];
     const appendDistinct = (num: number) => {
-      if (nextPool.length < MAX_STAGE8_MOUNTED_VIDEOS && !nextPool.includes(num)) {
+      if (nextPool.length < poolLimit && !nextPool.includes(num)) {
         nextPool.push(num);
       }
     };
@@ -3457,12 +3483,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
+    const poolLimit = getEffectiveStage8VideoPoolLimit();
     hoveredStage8ClipRef.current = clipNum;
     if (shouldAutoPlay) {
       autoPlayStage8ClipRef.current = clipNum;
     }
     setActiveStage8VideoPool((prev) => {
-      if (prev.includes(clipNum) && prev.length <= MAX_STAGE8_MOUNTED_VIDEOS) return prev;
+      if (prev.includes(clipNum) && prev.length <= poolLimit) return prev;
       const playingNums = new Set<number>();
       document
         .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
@@ -3478,7 +3505,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         clipNum,
         ...Array.from(playingNums).filter((n) => n !== clipNum),
         ...prev.filter((n) => n !== clipNum && !playingNums.has(n)),
-      ].slice(0, MAX_STAGE8_MOUNTED_VIDEOS);
+      ].slice(0, poolLimit);
       if (
         prioritized.length === prev.length &&
         prioritized.every((val, idx) => val === prev[idx])
@@ -7590,6 +7617,179 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusMsg(msg);
   };
 
+  // Decrypt live Mac media bridge endpoint encrypted in flow_pc_tunnel.enc.json / MEDIA_BRIDGE_ACK
+  const decryptStudioMediaBridgeBox = async (
+    box: { ivB64?: string; ctB64?: string } | null | undefined
+  ): Promise<{ tunnelUrl: string; lanUrl: string; updatedAt: number } | null> => {
+    try {
+      if (!box?.ivB64 || !box?.ctB64 || !window.crypto?.subtle) return null;
+      const b64ToBuf = (b64: string) => {
+        const bin = atob(b64);
+        const ab = new ArrayBuffer(bin.length);
+        const u8 = new Uint8Array(ab);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        return u8;
+      };
+      const enc = new TextEncoder();
+      const baseKey = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode('admin123'),
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+      const aesKey = await window.crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: enc.encode('huellas-studio-media-bridge-v1'),
+          iterations: 10000,
+          hash: 'SHA-256',
+        },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      const plainBuf = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: b64ToBuf(box.ivB64), tagLength: 128 },
+        aesKey,
+        b64ToBuf(box.ctB64)
+      );
+      const parsed = JSON.parse(new TextDecoder().decode(plainBuf));
+      return {
+        tunnelUrl: String(parsed?.tunnelUrl || '')
+          .trim()
+          .replace(/\/+$/, ''),
+        lanUrl: String(parsed?.lanUrl || '')
+          .trim()
+          .replace(/\/+$/, ''),
+        updatedAt: Number(parsed?.updatedAt || 0),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const probeMediaBridgeOrigin = async (origin: string, timeoutMs = 4500): Promise<boolean> => {
+    const clean = String(origin || '').trim().replace(/\/+$/, '');
+    if (!clean || !/^https?:\/\//i.test(clean)) return false;
+    if (
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      /^http:\/\//i.test(clean) &&
+      !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(clean)
+    ) {
+      return false;
+    }
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${clean}/api/flow-pc/ping?t=${Date.now()}`, {
+        signal: ctrl.signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      const d = await res.json().catch(() => null);
+      return Boolean(d?.ok);
+    } catch {
+      return false;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  };
+
+  const persistDiscoveredMacTunnel = (url: string) => {
+    const clean = String(url || '').trim().replace(/\/+$/, '');
+    if (!clean) return;
+    discoveredMacTunnelUrlRef.current = clean;
+    try {
+      localStorage.setItem('huellas_live_media_tunnel_v1', clean);
+    } catch {}
+  };
+
+  const refreshLiveMacMediaTunnelUrl = async (allowRelayWake = false): Promise<string> => {
+    if (inFlightTunnelDiscoveryRef.current) {
+      return inFlightTunnelDiscoveryRef.current;
+    }
+    const task = (async () => {
+      const candidates = [
+        `./data/flow_pc_tunnel.enc.json?t=${Date.now()}`,
+        `https://raw.githubusercontent.com/raydelw-a11y/Huellas-Master/main/data/flow_pc_tunnel.enc.json?t=${Date.now()}`,
+      ];
+      const tested = new Set<string>();
+      for (const metaUrl of candidates) {
+        try {
+          const res = await fetch(metaUrl, { cache: 'no-store' });
+          if (!res.ok) continue;
+          const json = await res.json().catch(() => null);
+          if (!json?.studioBridge) continue;
+          const dec = await decryptStudioMediaBridgeBox(json.studioBridge);
+          if (!dec) continue;
+          for (const url of [dec.lanUrl, dec.tunnelUrl]) {
+            if (!url || tested.has(url)) continue;
+            tested.add(url);
+            if (await probeMediaBridgeOrigin(url, 4500)) {
+              persistDiscoveredMacTunnel(url);
+              return url;
+            }
+          }
+        } catch {}
+      }
+
+      if (!allowRelayWake) return '';
+      const now = Date.now();
+      if (now - lastTunnelDiscoveryAttemptRef.current < 20000) return '';
+      lastTunnelDiscoveryAttemptRef.current = now;
+
+      const requestId = `mb_${now}_${Math.random().toString(36).slice(2, 6)}`;
+      try {
+        await fetch(REMOTE_MAC_RELAY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ type: 'REQUEST_MEDIA_BRIDGE', requestId, ts: now }),
+        }).catch(() => {});
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await new Promise((r) => window.setTimeout(r, 2500));
+          const ackRes = await fetch(`${REMOTE_MAC_ACK_URL}/json?poll=1&since=35s`, {
+            cache: 'no-store',
+          }).catch(() => null);
+          if (!ackRes || !ackRes.ok) continue;
+          const rawText = await ackRes.text();
+          const lines = rawText
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .reverse();
+          for (const line of lines) {
+            try {
+              const ev = JSON.parse(line);
+              if (ev?.event !== 'message' || !ev.message) continue;
+              const ack = JSON.parse(ev.message);
+              if (ack?.type === 'MEDIA_BRIDGE_ACK' && ack?.studioBridge) {
+                const dec = await decryptStudioMediaBridgeBox(ack.studioBridge);
+                if (dec?.tunnelUrl && (await probeMediaBridgeOrigin(dec.tunnelUrl, 4500))) {
+                  persistDiscoveredMacTunnel(dec.tunnelUrl);
+                  return dec.tunnelUrl;
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+      return '';
+    })();
+
+    inFlightTunnelDiscoveryRef.current = task;
+    try {
+      return await task;
+    } finally {
+      if (inFlightTunnelDiscoveryRef.current === task) {
+        inFlightTunnelDiscoveryRef.current = null;
+      }
+    }
+  };
+
   // Resolve ordered local/tunnel server base URLs for 4K media polling and folder endpoints
   const getMacMediaBridgeBases = (): string[] => {
     if (typeof window === 'undefined') return [''];
@@ -7608,13 +7808,41 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       }
     } catch {}
-    const isIosDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent || '');
-    if (!isIosDevice) {
+    let liveTunnel = discoveredMacTunnelUrlRef.current || '';
+    if (!liveTunnel) {
+      try {
+        liveTunnel = String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
+          .trim()
+          .replace(/\/+$/, '');
+      } catch {}
+    }
+    const isHttpsPage = window.location.protocol === 'https:';
+    const isUsableRemoteOrigin = (u: string) => {
+      if (!u) return false;
+      if (
+        isHttpsPage &&
+        /^http:\/\//i.test(u) &&
+        !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(u)
+      ) {
+        return false;
+      }
+      return true;
+    };
+    const isRealMobileDevice =
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
+      !/^Mac/i.test(navigator.platform || '');
+    if (isRealMobileDevice) {
       return Array.from(
-        new Set(['http://localhost:4200', ...(savedBase ? [savedBase] : []), ''])
+        new Set([...([liveTunnel, savedBase].filter(isUsableRemoteOrigin)), ''])
       );
     }
-    return Array.from(new Set([...(savedBase ? [savedBase] : []), '']));
+    return Array.from(
+      new Set([
+        'http://localhost:4200',
+        ...([liveTunnel, savedBase].filter(isUsableRemoteOrigin)),
+        '',
+      ])
+    );
   };
 
   // Load .MP4 video file directly from 05_Clips_Video subfolder so integrated <video> player works for all existing clips
@@ -8010,7 +8238,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ).trim();
       const folderName = rawFolderName;
       const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
-      const queryParams = `docId=${encodeURIComponent(targetDocId)}&folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
+      const queryParams = `docId=${encodeURIComponent(targetDocId)}&folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}&includePrompts=0`;
 
       const apiBases = getMacMediaBridgeBases();
 
@@ -8018,7 +8246,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         if (isStale()) return 0;
         const stepController = new AbortController();
         const isLocalCandidate = baseOrigin === '' || baseOrigin === 'http://localhost:4200';
-        const timeoutMs = isLocalCandidate ? 6000 : 3000;
+        const timeoutMs = isLocalCandidate ? 6000 : 8500;
         const onMasterAbort = () => stepController.abort();
         masterController.signal.addEventListener('abort', onMasterAbort);
         const timerId = window.setTimeout(() => stepController.abort(), timeoutMs);
@@ -8036,6 +8264,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           const hasServerRoot = Boolean(data?.resolvedRoot);
           if (hasServerRoot || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
             serverResolvedFolder = true;
+            if (baseOrigin && /^https:\/\//i.test(baseOrigin)) {
+              persistDiscoveredMacTunnel(baseOrigin);
+            }
           }
 
           const nextClipUrls: Record<number, string> = {};
@@ -8179,7 +8410,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               const freshImgUrl = frameUrlByClip[c.clipNumber];
               const is4kDiskName = Boolean(diskName && /[_\-]4k\.(mp4|webm|mov)$/i.test(diskName));
               const needsNameUpdate = is4kDiskName && (c.videoSavedFileName !== diskName || !c.videoReady);
-              const needsFrameUpdate = Boolean(freshImgUrl && c.imagePreviewUrl !== freshImgUrl);
+              const isEphemeralBridgeUrl = Boolean(
+                freshImgUrl &&
+                  /^https?:\/\/(localhost|127\.0\.0\.1)\b|\.trycloudflare\.com\b|\/api\/flow\/serve-folder-file\b/i.test(
+                    freshImgUrl
+                  )
+              );
+              const needsFrameUpdate = Boolean(
+                freshImgUrl && !isEphemeralBridgeUrl && c.imagePreviewUrl !== freshImgUrl
+              );
               if (!needsNameUpdate && !needsFrameUpdate) {
                 return c;
               }
@@ -8257,6 +8496,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
 
       if (isStale()) return 0;
+
+      if (!serverResolvedFolder && !isLocalRuntimeOrigin() && isAuthenticated) {
+        const nowTs = Date.now();
+        if (nowTs - lastTunnelDiscoveryAttemptRef.current >= 20000) {
+          void refreshLiveMacMediaTunnelUrl(true).then((freshUrl) => {
+            if (freshUrl && !isStale()) {
+              void handleAutoLoadAllFolderMedia(true, false, { force: true });
+            }
+          });
+        }
+      }
 
       if (activeHandle && !serverResolvedFolder) {
         let perm = 'granted';
@@ -21454,20 +21704,59 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               <div
                                 data-stage8-clip-slot={clip.clipNumber}
                                 onMouseEnter={() => activateStage8ClipInPool(clip.clipNumber, false)}
+                                onTouchStart={() => activateStage8ClipInPool(clip.clipNumber, false)}
                                 className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
                                   activeDoc.productionType === 'REEL_9X16' ||
                                   activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
-                                    ? 'w-full max-w-[calc((100vh-245px)*0.5625)] max-h-[calc(100vh-245px)] mx-auto aspect-[9/16]'
-                                    : 'w-full max-w-[calc((100vh-245px)*1.7778)] max-h-[calc(100vh-245px)] mx-auto aspect-video'
+                                    ? 'w-full max-w-[300px] sm:max-w-[calc((100vh-245px)*0.5625)] sm:max-h-[calc(100vh-245px)] min-h-[300px] mx-auto aspect-[9/16]'
+                                    : 'w-full sm:max-w-[calc((100vh-245px)*1.7778)] sm:max-h-[calc(100vh-245px)] min-h-[185px] mx-auto aspect-video'
                                 }`}
                               >
                                 {(() => {
                                   const videoUrl = capturedClipVideosMap[clip.clipNumber];
-                                  const posterUrl =
-                                    capturedClipFramesMap[clip.clipNumber] ||
-                                    clip.videoFrames?.[0] ||
-                                    clip.imagePreviewUrl ||
-                                    undefined;
+                                  const rawStoredFrameUrl =
+                                    clip.videoFrames?.[0] || clip.imagePreviewUrl || '';
+                                  const resolvePosterUrl = (): string | undefined => {
+                                    const liveCaptured = capturedClipFramesMap[clip.clipNumber];
+                                    if (liveCaptured) return liveCaptured;
+                                    if (!rawStoredFrameUrl) return undefined;
+                                    if (isLocalRuntimeOrigin()) return rawStoredFrameUrl;
+                                    const isStaleLocalOrTunnel =
+                                      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\b/i.test(
+                                        rawStoredFrameUrl
+                                      ) ||
+                                      /https?:\/\/[a-z0-9-]+\.trycloudflare\.com\b/i.test(
+                                        rawStoredFrameUrl
+                                      );
+                                    if (!isStaleLocalOrTunnel) return rawStoredFrameUrl;
+                                    const activeTunnel = (
+                                      discoveredMacTunnelUrlRef.current ||
+                                      (() => {
+                                        try {
+                                          return (
+                                            localStorage.getItem('huellas_live_media_tunnel_v1') ||
+                                            ''
+                                          );
+                                        } catch {
+                                          return '';
+                                        }
+                                      })()
+                                    )
+                                      .trim()
+                                      .replace(/\/+$/, '');
+                                    const apiIdx = rawStoredFrameUrl.indexOf(
+                                      '/api/flow/serve-folder-file'
+                                    );
+                                    if (apiIdx >= 0 && activeTunnel) {
+                                      return `${activeTunnel}${rawStoredFrameUrl.slice(apiIdx)}`;
+                                    }
+                                    return undefined;
+                                  };
+                                  const posterUrl = resolvePosterUrl();
+                                  const effectiveVideoSrc =
+                                    videoUrl && !posterUrl && !videoUrl.includes('#')
+                                      ? `${videoUrl}#t=0.001`
+                                      : videoUrl;
                                   const isUpscalingClip =
                                     pending4kClipNumbers.includes(clip.clipNumber) ||
                                     Boolean(
@@ -21484,7 +21773,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         <video
                                           key={`stage8-vid-${clip.clipNumber}`}
                                           data-stage8-clip-video="true"
-                                          src={videoUrl}
+                                          src={effectiveVideoSrc}
                                           poster={posterUrl}
                                           controls
                                           playsInline
@@ -21532,7 +21821,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           onPause={(e) => {
                                             lastActiveStage8VideoRef.current = e.currentTarget;
                                           }}
-                                          className="w-full h-full object-contain block bg-black"
+                                          className="absolute inset-0 w-full h-full object-contain block bg-black"
                                         />
                                         {isUpscalingClip && (
                                           <div className="pointer-events-none absolute top-2 right-2 z-10 px-2.5 py-1 rounded-full bg-slate-950/85 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
@@ -21544,7 +21833,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     ) : (
                                       <div
                                         onClick={() => activateStage8ClipInPool(clip.clipNumber, true)}
-                                        className="w-full h-full relative flex flex-col items-center justify-center bg-slate-950 cursor-pointer group"
+                                        className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-950 cursor-pointer group"
                                         title={`Haz clic para reproducir el Clip ${paddedNum}`}
                                       >
                                         {posterUrl && (
@@ -21558,6 +21847,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           <Play className="w-4 h-4 fill-current" />
                                           ▶️ Reproducir Clip {paddedNum} (.MP4)
                                         </div>
+                                        {!posterUrl && (
+                                          <span className="relative z-10 mt-2 px-2.5 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-slate-300">
+                                            Listo en Mac • Toca para reproducir
+                                          </span>
+                                        )}
                                       </div>
                                     );
                                   }
