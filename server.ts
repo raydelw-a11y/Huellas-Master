@@ -283,13 +283,13 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
 const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) the exact total number of scenes, (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates (for which ONLY the image is generated in Nano Banana 2.1 and NO video clip is created in Flow because optical camera motion is rendered locally in our editor), and only after delivering that report proceed with generation.
-Rename every generated image and video clip to the literal first 6 words of its pasted prompt, including the numbering.
+Rename every generated image and video clip starting directly with the 2-digit scene number followed by the first 6 words of its pasted prompt (e.g., 01_create_an_image_in_16_9, never prefixing "image_" or "clip_").
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then the video clips using each image as the starting frame, EXCEPT for any prompt tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]: for those B-Roll scenes, generate ONLY the high-resolution Nano Banana 2.1 still image and strictly SKIP creating any video clip in Flow.
 Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
 Divide creation into batches of 10.
-rename everything adding _ as the blank spaces between words
+rename everything adding _ as the blank spaces between words and replacing any colons (:) with _ (never use : in filenames)
 from 1 to 9 change them to 01 to 09`;
 
 function sanitizeOperationalHeaderServer(
@@ -315,6 +315,7 @@ function sanitizeOperationalHeaderServer(
     !/pre-generation\s+report/i.test(trimmed) ||
     !/IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
     !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
+    !/never use : in filenames/i.test(trimmed) ||
     !/batches of 10/i.test(trimmed) ||
     !trimmed.includes('01 to 09');
   const base = isCorruptedOrIncomplete ? DEFAULT_OPERATIONAL_HEADER_SERVER : trimmed;

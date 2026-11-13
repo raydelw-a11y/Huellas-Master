@@ -371,13 +371,13 @@ export interface ThumbnailPsychTriggerOption {
 }
 
 export const DEFAULT_OPERATIONAL_HEADER = `Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.
-Rename all generated images and video clips to the literal first 6 words of the provided pasted and submitted prompt, including the numbering.
+Rename all generated images and video clips starting directly with the 2-digit scene number followed by the first 6 words of the prompt (e.g., 01_create_an_image_in_16_9, never prefixing "image_" or "clip_").
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then create video clips ONLY for scenes that include a "Clip XX:" prompt (using each corresponding image as the starting frame). STRICT RULE FOR STATIC B-ROLL PLATES: Whenever an "Image XX:" prompt is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] (with no "Clip XX:" prompt), generate ONLY the still image with Nano Banana 2.1 and DO NOT generate any video clip for that scene number (4K 60fps camera motion is applied locally in our video editor).
 Use the reference images of people and locations to generate the initial images and clips to maintain visual fidelity.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each video clip.
 Divide creation into batches of 10.
-rename everything adding _ as the blank spaces between words
+rename everything adding _ as the blank spaces between words and replacing any colons (:) with _ (never use : in filenames)
 from 1 to 9 change them to 01 to 09`;
 
 export function sanitizeOperationalHeader(
@@ -403,6 +403,7 @@ export function sanitizeOperationalHeader(
     !/pre-generation\s+report|how\s+many\s+(?:video\s+)?clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) ||
     !/IMAGE\s+ONLY\s*[—–-]\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
     !/(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) ||
+    !/never use : in filenames/i.test(trimmed) ||
     !/batches of 10/i.test(trimmed) ||
     !trimmed.includes('01 to 09');
 

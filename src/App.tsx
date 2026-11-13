@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:25 PM - 11/12/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:07 PM - 11/12/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -6414,7 +6414,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const evadeFlowPolicyFilterInPrompt = (
     rawPrompt: string,
     doc?: DocumentaryProject | null,
-    retryAttempt: number = 1
+    retryAttempt: number = 1,
+    stripAtTags: boolean = false
   ): string => {
     if (!rawPrompt || !rawPrompt.trim()) return '';
     let p = rawPrompt.trim();
@@ -6434,8 +6435,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (!cleanTag) continue;
       const humanName = cleanTag.replace(/_/g, ' ').trim();
       const nameParts = humanName.split(/\s+/).filter((w) => w.length >= 4);
+      const isPersonRef =
+        ref.category === 'persona' ||
+        (ref as any).type === 'Persona' ||
+        /queen|king|princess|prince|pope|emperor|reina|rey|princesa|papa/i.test(ref.prompt || humanName);
+      const isPlaceRef = ref.category === 'lugar' || (ref as any).type === 'Lugar';
 
-      if (ref.type === 'Persona' || /queen|king|princess|prince|pope|emperor|reina|rey|princesa|papa/i.test(ref.prompt || humanName)) {
+      if (isPersonRef) {
         // Extract clean physical/wardrobe traits from ref.prompt without proper names
         let anonDesc = (ref.prompt || '')
           .replace(/^@[^\s:]+\s*:?\s*/i, '')
@@ -6466,13 +6472,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         }
 
-        // Replace @Tag
         const escapedTag = cleanTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        p = p.replace(new RegExp(`@${escapedTag}\\b`, 'gi'), anonDesc);
-        // Replace full humanName
+        if (stripAtTags) {
+          p = p.replace(new RegExp(`@${escapedTag}\\b`, 'gi'), anonDesc);
+        }
+        // Replace full humanName only when not prefixed by @
         const escapedHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        p = p.replace(new RegExp(`\\b${escapedHuman}\\b`, 'gi'), anonDesc);
-        // Replace distinctive first/last name tokens (>= 5 chars, not common words)
+        p = p.replace(new RegExp(`(?<!@)\\b${escapedHuman}\\b`, 'gi'), anonDesc);
+        // Replace distinctive first/last name tokens (>= 5 chars, not common words), never touching @Tag tokens
         for (const part of nameParts) {
           if (
             part.length >= 5 &&
@@ -6482,19 +6489,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           ) {
             const escPart = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             p = p.replace(
-              new RegExp(`\\b${escPart}\\b`, 'gi'),
+              new RegExp(`(?<!@_)\\b${escPart}\\b`, 'gi'),
               isFemale ? 'the adult noblewoman' : 'the adult historical sovereign'
             );
           }
         }
       } else {
-        // For Lugar / Objeto @Tags, replace @Tag with clean architectural/object description so Google Flow doesn't misread capitalized foreign names as people
+        // For Lugar / Objeto @Tags, preserve @Tag unless caller explicitly requests stripAtTags === true
         const escapedTag = cleanTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const placeLabel =
-          ref.type === 'Lugar'
-            ? 'the historical stone fortress chamber'
-            : 'the period historical artifact';
-        if (retryAttempt >= 2) {
+        const placeLabel = isPlaceRef
+          ? 'the historical stone fortress chamber'
+          : 'the period historical artifact';
+        if (stripAtTags && retryAttempt >= 2) {
           p = p.replace(new RegExp(`@${escapedTag}\\b`, 'gi'), placeLabel);
         }
       }
@@ -7016,8 +7022,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const hadErraticActing =
       modeSet.has('ERRATIC_ACTING') || /STRICT\s*CALM\s*COMPOSED\s*NATURAL\s*HUMAN\s*ACTING/i.test(rawPrompt);
 
-    // 1. Apply Anti-Filtro "Prominent People" & Policy Shield (using Stage 6 character traits when available)
-    let p = evadeFlowPolicyFilterInPrompt(rawPrompt.trim(), currentDoc, 2);
+    // 1. Preserve original @Persona and @Lugar tags during physics shielding
+    let p = rawPrompt.trim();
 
     let prefix = '';
     const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
