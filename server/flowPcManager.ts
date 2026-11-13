@@ -20,6 +20,13 @@ export interface FlowPcManagerDeps {
   githubOwner: string;
   githubRepo: string;
   githubBranch: string;
+  onAssetRouted?: (info: {
+    rootDocFolder: string;
+    subFolder: string;
+    finalPath: string;
+    fileName: string;
+    docTitle: string;
+  }) => void;
 }
 
 export type FlowRoutingMode = 'auto' | '05_Clips_Video' | '04_Referencias' | '03_Miniaturas';
@@ -1049,6 +1056,15 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     recentDownloads = [record, ...recentDownloads].slice(0, 40);
     saveLocalState();
     console.log(`[FlowPC] Routed download -> ${finalDest}`);
+    try {
+      deps.onAssetRouted?.({
+        rootDocFolder,
+        subFolder,
+        finalPath: finalDest,
+        fileName: finalFileName,
+        docTitle: routing.targetDocTitle || path.basename(rootDocFolder),
+      });
+    } catch {}
   }
 
   async function extractAndRouteZipFile(zipPath: string) {

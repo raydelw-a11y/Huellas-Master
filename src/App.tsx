@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:49 PM - 11/12/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:36 PM - 11/12/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -7449,6 +7449,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusMsg(msg);
   };
 
+  // Resolve ordered local/tunnel server base URLs for 4K media polling and folder endpoints
+  const getMacMediaBridgeBases = (): string[] => {
+    if (typeof window === 'undefined') return [''];
+    const host = window.location.hostname || '';
+    const isHttps = window.location.protocol === 'https:';
+    if (isLocalRuntimeOrigin() || host.endsWith('.trycloudflare.com')) {
+      return [''];
+    }
+    const candidates: string[] = [];
+    try {
+      const rawSession = localStorage.getItem('huellas_flow_pc_session_v1');
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession);
+        const savedBase = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
+        if (savedBase && /^https?:\/\//i.test(savedBase)) {
+          candidates.push(savedBase);
+        }
+      }
+    } catch {}
+    const isIosDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent || '');
+    if (!isHttps) {
+      candidates.push('', 'http://localhost:4200');
+    } else if (isCloudMode) {
+      if (!isIosDevice) candidates.push('http://localhost:4200');
+    } else {
+      candidates.push('');
+      if (!isIosDevice) candidates.push('http://localhost:4200');
+    }
+    return Array.from(new Set(candidates));
+  };
+
   // Load .MP4 video file directly from 05_Clips_Video subfolder so integrated <video> player works for all existing clips
   const handleLoadClipVideoFromFolder = async (
     clip: DocumentaryClip,
@@ -7513,19 +7544,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const is4kFile =
           isBroll4kFile ||
           (/[_\-]4k\.(mp4|webm|mov)$/i.test(matchedFile.name) &&
-            matchedFile.size >= 12 * 1024 * 1024);
+            matchedFile.size >= 2 * 1024 * 1024);
         const isRecentRegen = Date.now() - matchedFile.lastModified <= 3 * 3600 * 1000;
 
         // If the clip file in 05_Clips_Video was recently regenerated manually and is not yet 4K, upscale it to 4K first on the local server before loading
         if (!is4kFile && isRecentRegen) {
-          const isLocalhostOrigin =
-            typeof window !== 'undefined' &&
-            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-          const apiBases = isLocalhostOrigin
-            ? ['']
-            : isCloudMode
-            ? ['http://localhost:4200']
-            : ['', 'http://localhost:4200'];
+          const apiBases = getMacMediaBridgeBases();
           const rawFolderPath = (
             flowServerFolderPath ||
             currentDoc?.downloadFolderPath ||
@@ -7646,18 +7670,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const aspectRatio = isVertical ? '9:16' : '16:9';
       const expectedFileName = buildClipSixWordFileName(clip, currentDoc || null);
 
-      const isLocalhostOrigin = isLocalRuntimeOrigin();
-      const isHttpsOrigin =
-        typeof window !== 'undefined' && window.location.protocol === 'https:';
-      const apiBases = isLocalhostOrigin
-        ? ['']
-        : isHttpsOrigin
-        ? isCloudMode
-          ? []
-          : ['']
-        : isCloudMode
-        ? ['http://localhost:4200']
-        : ['', 'http://localhost:4200'];
+      const apiBases = getMacMediaBridgeBases();
 
       const { clip1Sec: loadClip1Sec, standardClipSec: loadStdSec } =
         getStage1ClipDurations(currentDoc);
@@ -7772,6 +7785,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
+  const [pending4kClipNumbers, setPending4kClipNumbers] = useState<number[]>([]);
+  const wasAuto4kRunningRef = useRef<boolean>(false);
+  const stage6MediaPollInFlightRef = useRef<boolean>(false);
+
   // Automatically scan 05_Clips_Video & 02_Audio from chosen folder (Browser Handle OR Local Server Folder)
   const handleAutoLoadAllFolderMedia = async (
     silent: boolean = true,
@@ -7842,7 +7859,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     const is4kCandidate =
                       isBroll4kCandidate ||
                       (/[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
-                        file.size >= 12 * 1024 * 1024);
+                        file.size >= 2 * 1024 * 1024);
                     const isRecentNon4k =
                       !is4kCandidate && Date.now() - file.lastModified <= 3 * 3600 * 1000;
                     // Skip loading a recently regenerated non-4K clip via raw browser handle so /api/flow/list-folder-media upscales it to 4K first
@@ -7945,18 +7962,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
       const queryParams = `folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
 
-      const isLocalhostOrigin = isLocalRuntimeOrigin();
-      const isHttpsOrigin =
-        typeof window !== 'undefined' && window.location.protocol === 'https:';
-      const apiBases = isLocalhostOrigin
-        ? ['']
-        : isHttpsOrigin
-        ? isCloudMode
-          ? []
-          : ['']
-        : isCloudMode
-        ? ['http://localhost:4200']
-        : ['', 'http://localhost:4200'];
+      const apiBases = getMacMediaBridgeBases();
 
       for (const baseOrigin of apiBases) {
         try {
@@ -7966,87 +7972,185 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           const prefixUrl = (u: string) =>
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
 
+          const nextClipUrls: Record<number, string> = {};
+          const nextFileNames: Record<number, string> = {};
           if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
-            const nextFileNames: Record<number, string> = {};
-            setCapturedClipVideosMap((prev) => {
-              const next = { ...prev };
-              for (const item of data.clipVideos) {
-                const fullUrl = prefixUrl(item.url);
-                if (item.clipNumber > 0 && item.fileName) {
-                  nextFileNames[item.clipNumber] = item.fileName;
-                }
-                if (item.clipNumber > 0 && fullUrl) {
-                  next[item.clipNumber] = fullUrl;
-                  loadedCount++;
-                }
+            for (const item of data.clipVideos) {
+              const cNum = Number(item?.clipNumber || 0);
+              const fullUrl = prefixUrl(String(item?.url || ''));
+              if (cNum > 0 && item?.fileName) {
+                nextFileNames[cNum] = String(item.fileName);
               }
-              return next;
-            });
+              if (cNum > 0 && fullUrl) {
+                nextClipUrls[cNum] = fullUrl;
+                loadedCount++;
+              }
+            }
+
+            if (Object.keys(nextClipUrls).length > 0) {
+              setCapturedClipVideosMap((prev) => {
+                let changed = false;
+                const next = { ...prev };
+                for (const [kStr, url] of Object.entries(nextClipUrls)) {
+                  const k = Number(kStr);
+                  if (next[k] !== url) {
+                    next[k] = url;
+                    changed = true;
+                  }
+                }
+                return changed ? next : prev;
+              });
+
+              const arrivedNums = Object.keys(nextClipUrls)
+                .map(Number)
+                .filter((n) => n > 0)
+                .sort((a, b) => a - b);
+              if (arrivedNums.length > 0) {
+                setActiveStage8VideoPool((prev) => {
+                  const arrivedSet = new Set(arrivedNums);
+                  const validInPool = prev.filter((n) => arrivedSet.has(n));
+                  if (validInPool.length >= Math.min(6, arrivedNums.length)) {
+                    return prev;
+                  }
+                  const next = [...validInPool];
+                  for (const n of arrivedNums) {
+                    if (next.length >= 6) break;
+                    if (!next.includes(n)) next.push(n);
+                  }
+                  if (next.length === prev.length && next.every((v, idx) => v === prev[idx])) {
+                    return prev;
+                  }
+                  return next;
+                });
+              }
+            }
+
             if (Object.keys(nextFileNames).length > 0) {
-              setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextFileNames }));
-              if (currentDoc?.clips?.length) {
-                let docNamesChanged = false;
-                const syncedClips = currentDoc.clips.map((c) => {
-                  const diskName = nextFileNames[c.clipNumber];
-                  if (
-                    diskName &&
-                    /[_\-]4k\.(mp4|webm|mov)$/i.test(diskName) &&
-                    c.videoSavedFileName !== diskName
-                  ) {
-                    docNamesChanged = true;
-                    return {
-                      ...c,
+              setFolderClipFileNamesMap((prev) => {
+                let changed = false;
+                const next = { ...prev };
+                for (const [kStr, fName] of Object.entries(nextFileNames)) {
+                  const k = Number(kStr);
+                  if (next[k] !== fName) {
+                    next[k] = fName;
+                    changed = true;
+                  }
+                }
+                return changed ? next : prev;
+              });
+            }
+          }
+
+          const serverPendingNums: number[] = Array.isArray(data.pending4kClipNumbers)
+            ? Array.from(
+                new Set(
+                  data.pending4kClipNumbers
+                    .map((n: any) => Number(n))
+                    .filter((n: number) => n > 0 && !nextClipUrls[n])
+                )
+              ).sort((a: number, b: number) => a - b)
+            : [];
+          setPending4kClipNumbers((prev) => {
+            if (
+              prev.length === serverPendingNums.length &&
+              prev.every((v, idx) => v === serverPendingNums[idx])
+            ) {
+              return prev;
+            }
+            return serverPendingNums;
+          });
+
+          const st = data.pipelineStatus;
+          if (st && st.running) {
+            wasAuto4kRunningRef.current = true;
+            setIsProcessingClips4K(true);
+            setClipsPipelineProgress({
+              phase: String(st.phase || 'upscaling_4k'),
+              current: Number(st.current || 0),
+              total: Number(st.total || 0),
+              currentFileName: String(st.currentFileName || ''),
+              message: String(st.message || 'Mejorando automáticamente clips a 4K...'),
+            });
+          } else if (wasAuto4kRunningRef.current && (!st || !st.running)) {
+            wasAuto4kRunningRef.current = false;
+            setIsProcessingClips4K(false);
+            const doneMsg = String(
+              st?.message ||
+                'Conversión automática a 4K completada y clips cargados en sus visores.'
+            );
+            setClipsPipelineProgress({
+              phase: 'completed',
+              current: Number(st?.total || 0),
+              total: Number(st?.total || 0),
+              currentFileName: '',
+              message: doneMsg,
+            });
+            if (doneMsg) {
+              setFlowStatusLog(doneMsg);
+            }
+          }
+
+          const frameUrlByClip: Record<number, string> = {};
+          if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0) {
+            for (const fItem of data.clipFrames) {
+              const cNum = Number(fItem?.clipNumber || 0);
+              if (cNum > 0 && fItem?.url && !frameUrlByClip[cNum]) {
+                frameUrlByClip[cNum] = prefixUrl(String(fItem.url));
+              }
+            }
+          }
+
+          if (
+            currentDoc?.clips?.length &&
+            (Object.keys(nextFileNames).length > 0 || Object.keys(frameUrlByClip).length > 0)
+          ) {
+            let clipsChanged = false;
+            const mergedClips = currentDoc.clips.map((c) => {
+              const diskName = nextFileNames[c.clipNumber];
+              const freshImgUrl = frameUrlByClip[c.clipNumber];
+              const is4kDiskName = Boolean(diskName && /[_\-]4k\.(mp4|webm|mov)$/i.test(diskName));
+              const needsNameUpdate = is4kDiskName && (c.videoSavedFileName !== diskName || !c.videoReady);
+              const needsFrameUpdate = Boolean(freshImgUrl && c.imagePreviewUrl !== freshImgUrl);
+              if (!needsNameUpdate && !needsFrameUpdate) {
+                return c;
+              }
+              clipsChanged = true;
+              return {
+                ...c,
+                ...(needsNameUpdate
+                  ? {
                       videoSavedFileName: diskName,
                       videoReady: true,
-                    };
-                  }
-                  return c;
-                });
-                if (docNamesChanged) {
-                  updateActiveDoc({ clips: syncedClips });
-                }
-              }
+                    }
+                  : {}),
+                ...(needsFrameUpdate
+                  ? {
+                      imagePreviewUrl: freshImgUrl,
+                      videoFrames: [freshImgUrl, freshImgUrl, freshImgUrl],
+                      imageReady: true,
+                      videoReady: true,
+                      reviewedForEditor: true,
+                    }
+                  : {}),
+              };
+            });
+            if (clipsChanged) {
+              updateActiveDoc({ clips: mergedClips });
             }
           }
-          if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0 && currentDoc?.clips?.length) {
-            const frameUrlByClip: Record<number, string> = {};
-            for (const fItem of data.clipFrames) {
-              if (fItem.clipNumber > 0 && fItem.url && !frameUrlByClip[fItem.clipNumber]) {
-                frameUrlByClip[fItem.clipNumber] = prefixUrl(fItem.url);
-              }
-            }
-            if (Object.keys(frameUrlByClip).length > 0) {
-              let clipsChanged = false;
-              const updatedClips = currentDoc.clips.map((c) => {
-                const freshImgUrl = frameUrlByClip[c.clipNumber];
-                if (freshImgUrl && c.imagePreviewUrl !== freshImgUrl) {
-                  clipsChanged = true;
-                  return {
-                    ...c,
-                    imagePreviewUrl: freshImgUrl,
-                    videoFrames: [freshImgUrl, freshImgUrl, freshImgUrl],
-                    imageReady: true,
-                    videoReady: true,
-                    reviewedForEditor: true,
-                  };
-                }
-                return c;
-              });
-              if (clipsChanged) {
-                updateActiveDoc({ clips: updatedClips });
-              }
-            }
-          }
+
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
             setCapturedSunoAudioMap((prev) => {
+              let changed = false;
               const next = { ...prev };
               for (const s of data.sunoFiles) {
                 const fullUrl = prefixUrl(s.url);
                 if (s.trackNumber > 0 && fullUrl && !next[s.trackNumber]) {
                   next[s.trackNumber] = fullUrl;
+                  changed = true;
                 }
               }
-              return next;
+              return changed ? next : prev;
             });
           }
           if (Array.isArray(data.voiceoverFiles) && data.voiceoverFiles.length > 0) {
@@ -8064,7 +8168,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setFolderVoiceoverUrl((prev) => prev || candidateLocalTtsUrl);
             }
           }
-          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+          if (data?.icloudTccPending && loadedCount === 0 && !data?.pipelineStatus?.running) {
+            setFlowStatusLog(
+              '⚠️ macOS bloqueó el acceso a iCloud Drive para /usr/local/Cellar/node/26.0.0/bin/node. Actívalo en Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco (o abre con Iniciar_Huellas_Master.command desde Terminal).'
+            );
+          }
+          if (data?.ok || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
             break;
           }
         } catch {}
@@ -8124,14 +8233,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? '9:16'
         : '16:9';
 
-    const isLocalhostOrigin =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const apiBases = isLocalhostOrigin
-      ? ['']
-      : isCloudMode
-      ? ['http://localhost:4200']
-      : ['', 'http://localhost:4200'];
+    const apiBases = getMacMediaBridgeBases();
 
     let pollTimer: any = null;
     try {
@@ -8254,9 +8356,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
 
   useEffect(() => {
-    if (mainView === 'capcut_editor' || activeStage === 8) {
-      handleAutoLoadAllFolderMedia(true);
-    }
+    if (mainView !== 'capcut_editor' && activeStage !== 8) return;
+
+    const triggerStage6Refresh = () => {
+      if (stage6MediaPollInFlightRef.current) return;
+      stage6MediaPollInFlightRef.current = true;
+      void handleAutoLoadAllFolderMedia(true).finally(() => {
+        stage6MediaPollInFlightRef.current = false;
+      });
+    };
+
+    triggerStage6Refresh();
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        triggerStage6Refresh();
+      }
+    }, 3500);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        triggerStage6Refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [
     activeDoc?.id,
     activeDoc?.title,
@@ -9208,14 +9338,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     ).trim();
     const docTitle = `${currentDoc.title || ''} ${currentDoc.topic || ''}`.trim();
 
-    const isLocalhostOrigin =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const apiBases = isLocalhostOrigin
-      ? ['']
-      : isCloudMode
-      ? ['http://localhost:4200']
-      : ['', 'http://localhost:4200'];
+    const apiBases = getMacMediaBridgeBases();
 
     syncRefsInFlightRef.current = true;
     try {
@@ -19801,15 +19924,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="space-y-0.5 max-w-3xl">
                       <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
-                        ⚡ Procesamiento Automático de Clips (ZIP → 4K → Sustitución → Timeline del Editor)
+                        ⚡ Procesamiento Automático 4K en Tiempo Real (Descarga → 4K → Visor → Timeline)
                       </h4>
                       <p className="text-xs text-slate-300 leading-relaxed">
-                        Descarga tus clips de Google Flow en <code className="text-amber-300">05_Clips_Video</code> (o en{' '}
-                        <code className="text-amber-300">.zip</code>) y pulsa{' '}
-                        <strong className="text-emerald-300">⚡ Procesar Clips</strong>: localiza los videos, descomprime y
-                        borra el <code className="text-amber-300">.zip</code>, los mejora a{' '}
-                        <strong className="text-amber-300">4K (_4K.mp4)</strong>, elimina los originales antiguos y los
-                        sitúa automáticamente en el Timeline del Editor de Video.
+                        Cada clip o lámina B-Roll descargada desde Google Flow en{' '}
+                        <code className="text-amber-300">05_Clips_Video</code> (o en{' '}
+                        <code className="text-amber-300">.zip</code>) se detecta, se mejora{' '}
+                        <strong className="text-emerald-300">automáticamente en segundo plano a 4K UHD</strong>{' '}
+                        (<code className="text-amber-300">_4K.mp4</code> /{' '}
+                        <code className="text-amber-300">_Broll_4K.mp4</code>), borra los originales antiguos y se
+                        sube sola a su visor y al Timeline del Editor. También puedes pulsar{' '}
+                        <strong className="text-emerald-300">⚡ Procesar Clips</strong> en cualquier momento como
+                        refuerzo manual.
                       </p>
                     </div>
 
@@ -21195,10 +21321,36 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   )
                                 ) : (
                                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-                                    <Film className="w-9 h-9 text-amber-400/70" />
-                                    <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-                                      El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí completo en pantalla junto a los botones Revisado y Cargar Clip.
-                                    </p>
+                                    {pending4kClipNumbers.includes(clip.clipNumber) ||
+                                    Boolean(
+                                      isProcessingClips4K &&
+                                        clipsPipelineProgress?.currentFileName &&
+                                        new RegExp(
+                                          `^(?:(?:clip|broll|b[\\-_]?roll|video|image|imagen)[_\\-\\s.]*)?0*${clip.clipNumber}(?:[_\\-\\s.(]|$)`,
+                                          'i'
+                                        ).test(clipsPipelineProgress.currentFileName)
+                                    ) ? (
+                                      <>
+                                        <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center shadow-lg shadow-emerald-500/15">
+                                          <RefreshCw className="w-5 h-5 text-emerald-300 animate-spin" />
+                                        </div>
+                                        <p className="text-xs sm:text-sm font-bold text-emerald-300 max-w-md">
+                                          ⚡ Mejorando automáticamente el Clip {paddedNum} a 4K UHD y subiendo a este visor...
+                                        </p>
+                                        {clipsPipelineProgress?.message && (
+                                          <p className="text-[11px] text-amber-200/80 max-w-md">
+                                            {clipsPipelineProgress.message}
+                                          </p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Film className="w-9 h-9 text-amber-400/70" />
+                                        <p className="text-xs sm:text-sm text-slate-300 max-w-md">
+                                          El video .MP4 del <strong>Clip {paddedNum}</strong> se reproduce aquí completo en pantalla junto a los botones Revisado y Cargar Clip.
+                                        </p>
+                                      </>
+                                    )}
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
                                       <button
                                         type="button"
