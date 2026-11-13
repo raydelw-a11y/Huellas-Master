@@ -16,6 +16,7 @@ if [ -n "$EXISTING_PIDS" ]; then
 fi
 
 export PATH="$HOME/.huellas-runtime/node/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export UV_THREADPOOL_SIZE=32
 echo "🎬 Iniciando Huellas Master en http://localhost:4200 ..."
 (sleep 2 && open "http://localhost:4200") &
 if [ -x "$HOME/.huellas-runtime/node/bin/node" ]; then

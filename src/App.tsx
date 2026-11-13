@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:26 AM - 11/13/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:26 AM - 11/13/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1907,11 +1907,34 @@ export default function App() {
   const [flowDownloadResolution, setFlowDownloadResolution] =
     useState<ExportResolutionPreset>('8K_4320P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
+  const MAX_STAGE8_MOUNTED_VIDEOS = 16;
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
+  const [capturedClipFramesMap, setCapturedClipFramesMap] = useState<Record<number, string>>({});
+  const capturedClipVideosMapRef = useRef<Record<number, string>>({});
+  capturedClipVideosMapRef.current = capturedClipVideosMap;
   const lastActiveStage8VideoRef = useRef<HTMLVideoElement | null>(null);
-  // Keep at most 6 active <video> WebMediaPlayer instances mounted simultaneously in Stage 8 so Chrome never hits its 75-player limit or 6-socket HTTP/1.1 deadlock
-  const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+  const hoveredStage8ClipRef = useRef<number | null>(null);
+  // Keep up to 16 viewport-nearest <video> players mounted automatically using poster + preload="none" (0 idle HTTP sockets)
+  const [activeStage8VideoPool, setActiveStage8VideoPool] = useState<number[]>([
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+  ]);
+  const stage8AvailableVideosSig = useMemo(
+    () =>
+      Object.keys(capturedClipVideosMap)
+        .map(Number)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b)
+        .join(','),
+    [capturedClipVideosMap]
+  );
   const autoPlayStage8ClipRef = useRef<number | null>(null);
+  const [folderClipFileNamesMap, setFolderClipFileNamesMap] = useState<Record<number, string>>({});
+  const [pending4kClipNumbers, setPending4kClipNumbers] = useState<number[]>([]);
+  const wasAuto4kRunningRef = useRef<boolean>(false);
+  const prevStage6DocIdRef = useRef<string | null>(null);
+  const stage6PollEpochRef = useRef<number>(0);
+  const stage6InFlightEpochRef = useRef<number>(0);
+  const stage6AbortRef = useRef<AbortController | null>(null);
   const [loadingSingleClipMap, setLoadingSingleClipMap] = useState<
     Record<number, 'loading' | 'done'>
   >({});
@@ -3358,60 +3381,113 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   }, [mainView, activeStage]);
 
+  const recomputeStage8VideoPool = useCallback(() => {
+    const videosMap = capturedClipVideosMapRef.current;
+    const availableNums = Object.keys(videosMap)
+      .map(Number)
+      .filter((n) => n > 0 && Boolean(videosMap[n]))
+      .sort((a, b) => a - b);
+    if (availableNums.length === 0) return;
+
+    const availableSet = new Set(availableNums);
+    const pinnedNums: number[] = [];
+    const pinNum = (n: number | null | undefined) => {
+      if (n && n > 0 && availableSet.has(n) && !pinnedNums.includes(n)) {
+        pinnedNums.push(n);
+      }
+    };
+
+    // Never evict an actively playing <video>, autoplay target, or hovered clip
+    document
+      .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
+      .forEach((v) => {
+        if (!v.paused && !v.ended) {
+          const slotEl = v.closest('[data-stage8-clip-slot]');
+          const num = Number(slotEl?.getAttribute('data-stage8-clip-slot') || 0);
+          pinNum(num);
+        }
+      });
+    pinNum(autoPlayStage8ClipRef.current);
+    pinNum(hoveredStage8ClipRef.current);
+
+    const vh = typeof window !== 'undefined' ? window.innerHeight || 900 : 900;
+    const centerY = vh / 2;
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-stage8-clip-slot]'));
+    const tier0: Array<{ num: number; dist: number }> = [];
+    const tier1: Array<{ num: number; dist: number }> = [];
+    const tier2: Array<{ num: number; dist: number }> = [];
+
+    for (const el of slots) {
+      const num = Number(el.getAttribute('data-stage8-clip-slot') || 0);
+      if (!num || !availableSet.has(num) || pinnedNums.includes(num)) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      const dist = Math.abs((rect.top + rect.bottom) / 2 - centerY);
+      if (rect.bottom > 0 && rect.top < vh) {
+        tier0.push({ num, dist });
+      } else if (rect.bottom > -650 && rect.top < vh + 650) {
+        tier1.push({ num, dist });
+      } else {
+        tier2.push({ num, dist });
+      }
+    }
+
+    tier0.sort((a, b) => a.dist - b.dist);
+    tier1.sort((a, b) => a.dist - b.dist);
+    tier2.sort((a, b) => a.dist - b.dist);
+
+    const nextPool: number[] = [...pinnedNums];
+    const appendDistinct = (num: number) => {
+      if (nextPool.length < MAX_STAGE8_MOUNTED_VIDEOS && !nextPool.includes(num)) {
+        nextPool.push(num);
+      }
+    };
+    for (const item of tier0) appendDistinct(item.num);
+    for (const item of tier1) appendDistinct(item.num);
+    for (const item of tier2) appendDistinct(item.num);
+    for (const n of availableNums) appendDistinct(n);
+
+    setActiveStage8VideoPool((prev) => {
+      if (prev.length === nextPool.length && nextPool.every((val, idx) => val === prev[idx])) {
+        return prev;
+      }
+      return nextPool;
+    });
+  }, []);
+
   const activateStage8ClipInPool = (clipNum: number, shouldAutoPlay = false) => {
     if (!clipNum || clipNum <= 0) return;
+    hoveredStage8ClipRef.current = clipNum;
     if (shouldAutoPlay) {
       autoPlayStage8ClipRef.current = clipNum;
     }
     setActiveStage8VideoPool((prev) => {
-      if (prev[0] === clipNum && prev.length <= 6) return prev;
-      const next = [clipNum, ...prev.filter((n) => n !== clipNum)].slice(0, 6);
-      return next;
+      if (prev.includes(clipNum) && prev.length <= MAX_STAGE8_MOUNTED_VIDEOS) return prev;
+      const playingNums = new Set<number>();
+      document
+        .querySelectorAll<HTMLVideoElement>('video[data-stage8-clip-video="true"]')
+        .forEach((v) => {
+          if (!v.paused && !v.ended) {
+            const slotNum = Number(
+              v.closest('[data-stage8-clip-slot]')?.getAttribute('data-stage8-clip-slot') || 0
+            );
+            if (slotNum > 0) playingNums.add(slotNum);
+          }
+        });
+      const prioritized = [
+        clipNum,
+        ...Array.from(playingNums).filter((n) => n !== clipNum),
+        ...prev.filter((n) => n !== clipNum && !playingNums.has(n)),
+      ].slice(0, MAX_STAGE8_MOUNTED_VIDEOS);
+      if (
+        prioritized.length === prev.length &&
+        prioritized.every((val, idx) => val === prev[idx])
+      ) {
+        return prev;
+      }
+      return prioritized;
     });
   };
-
-  // Automatically mount <video> players for Stage 8 clip cards as they enter the viewport
-  useEffect(() => {
-    if (mainView !== 'studio' || activeStage !== 8) return;
-    const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-stage8-clip-slot]'));
-    if (slots.length === 0 || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entering: number[] = [];
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const num = Number(entry.target.getAttribute('data-stage8-clip-slot') || 0);
-            if (num > 0) entering.push(num);
-          }
-        }
-        if (entering.length > 0) {
-          setActiveStage8VideoPool((prev) => {
-            const combined = [...entering, ...prev.filter((n) => !entering.includes(n))].slice(
-              0,
-              6
-            );
-            if (
-              combined.length === prev.length &&
-              combined.every((val, idx) => val === prev[idx])
-            ) {
-              return prev;
-            }
-            return combined;
-          });
-        }
-      },
-      { rootMargin: '300px 0px', threshold: 0.05 }
-    );
-    slots.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [
-    mainView,
-    activeStage,
-    activeDocId,
-    clipBatchFilter,
-    clipStatusFilter,
-    Object.keys(capturedClipVideosMap).length,
-  ]);
 
   // Space bar Play / Pause shortcut + Fullscreen ArrowLeft / ArrowRight (-10s / +10s) for Stage 8 & WebStudioDrawer video viewers (when outside CapCutEditor)
   useEffect(() => {
@@ -3706,6 +3782,57 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
     return null;
   }, [documentaries, activeDocId, mainView]);
+
+  // Automatically mount <video> players for all visible and near-viewport Stage 8 clip cards
+  useEffect(() => {
+    if (mainView !== 'studio' || activeStage !== 8) return;
+    recomputeStage8VideoPool();
+    let rafId = window.requestAnimationFrame(() => {
+      recomputeStage8VideoPool();
+    });
+    const scheduleRecompute = () => {
+      window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(() => {
+        recomputeStage8VideoPool();
+      });
+    };
+
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-stage8-clip-slot]'));
+    let observer: IntersectionObserver | null = null;
+    if (slots.length > 0 && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        () => {
+          scheduleRecompute();
+        },
+        { rootMargin: '650px 0px', threshold: [0, 0.05] }
+      );
+      slots.forEach((el) => observer?.observe(el));
+    }
+
+    const scrollContainer = document.querySelector<HTMLElement>(
+      '[data-stage-scroll-container="true"]'
+    );
+    scrollContainer?.addEventListener('scroll', scheduleRecompute, { passive: true });
+    window.addEventListener('scroll', scheduleRecompute, { passive: true, capture: true });
+    window.addEventListener('resize', scheduleRecompute, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      observer?.disconnect();
+      scrollContainer?.removeEventListener('scroll', scheduleRecompute);
+      window.removeEventListener('scroll', scheduleRecompute, { capture: true });
+      window.removeEventListener('resize', scheduleRecompute);
+    };
+  }, [
+    mainView,
+    activeStage,
+    activeDoc?.id,
+    activeDoc?.clips?.length,
+    clipBatchFilter,
+    clipStatusFilter,
+    stage8AvailableVideosSig,
+    recomputeStage8VideoPool,
+  ]);
 
   useEffect(() => {
     activeDocRef.current = activeDoc;
@@ -5523,10 +5650,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   useEffect(() => {
     if (!activeDoc) return;
     let isCancelled = false;
-    // Clear in-memory media maps when switching documentaries so clips from different documentaries never mix
-    setCapturedClipVideosMap({});
-    setCapturedSunoAudioMap({});
-    setFolderVoiceoverUrl('');
+    const isRealDocSwitch = Boolean(
+      prevStage6DocIdRef.current && prevStage6DocIdRef.current !== activeDoc.id
+    );
+    prevStage6DocIdRef.current = activeDoc.id;
+    // Clear in-memory media maps only when switching between two distinct documentaries (never on initial hydration)
+    if (isRealDocSwitch) {
+      stage6PollEpochRef.current += 1;
+      stage6AbortRef.current?.abort();
+      stage6AbortRef.current = null;
+      stage6InFlightEpochRef.current = 0;
+      setCapturedClipVideosMap({});
+      setCapturedClipFramesMap({});
+      setFolderClipFileNamesMap({});
+      setPending4kClipNumbers([]);
+      setCapturedSunoAudioMap({});
+      setFolderVoiceoverUrl('');
+    }
     if (
       flowDownloadDirHandleRef.current &&
       !doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, activeDoc)
@@ -7454,31 +7594,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const getMacMediaBridgeBases = (): string[] => {
     if (typeof window === 'undefined') return [''];
     const host = window.location.hostname || '';
-    const isHttps = window.location.protocol === 'https:';
     if (isLocalRuntimeOrigin() || host.endsWith('.trycloudflare.com')) {
       return [''];
     }
-    const candidates: string[] = [];
+    let savedBase = '';
     try {
       const rawSession = localStorage.getItem('huellas_flow_pc_session_v1');
       if (rawSession) {
         const parsed = JSON.parse(rawSession);
-        const savedBase = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
-        if (savedBase && /^https?:\/\//i.test(savedBase)) {
-          candidates.push(savedBase);
+        const rawUrl = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
+        if (rawUrl && /^https?:\/\//i.test(rawUrl)) {
+          savedBase = rawUrl;
         }
       }
     } catch {}
     const isIosDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent || '');
-    if (!isHttps) {
-      candidates.push('', 'http://localhost:4200');
-    } else if (isCloudMode) {
-      if (!isIosDevice) candidates.push('http://localhost:4200');
-    } else {
-      candidates.push('');
-      if (!isIosDevice) candidates.push('http://localhost:4200');
+    if (!isIosDevice) {
+      return Array.from(
+        new Set(['http://localhost:4200', ...(savedBase ? [savedBase] : []), ''])
+      );
     }
-    return Array.from(new Set(candidates));
+    return Array.from(new Set([...(savedBase ? [savedBase] : []), '']));
   };
 
   // Load .MP4 video file directly from 05_Clips_Video subfolder so integrated <video> player works for all existing clips
@@ -7705,13 +7841,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           if (data?.ok && data.url) {
             const prefixUrl = (u: string) =>
               u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
-            const fullVideoUrl = `${prefixUrl(data.url)}&r=${Date.now()}`;
-            const fullFrameUrl = data.frameUrl ? `${prefixUrl(data.frameUrl)}&r=${Date.now()}` : '';
+            const fullVideoUrl = prefixUrl(data.url);
+            const fullFrameUrl = data.frameUrl ? prefixUrl(data.frameUrl) : '';
 
             setCapturedClipVideosMap((prev) => ({
               ...prev,
               [clipNum]: fullVideoUrl,
             }));
+            if (fullFrameUrl) {
+              setCapturedClipFramesMap((prev) =>
+                prev[clipNum] === fullFrameUrl ? prev : { ...prev, [clipNum]: fullFrameUrl }
+              );
+            }
             if (data.fileName) {
               setFolderClipFileNamesMap((prev) => ({
                 ...prev,
@@ -7786,18 +7927,39 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
-  const [pending4kClipNumbers, setPending4kClipNumbers] = useState<number[]>([]);
-  const wasAuto4kRunningRef = useRef<boolean>(false);
-  const stage6MediaPollInFlightRef = useRef<boolean>(false);
-
   // Automatically scan 05_Clips_Video & 02_Audio from chosen folder (Browser Handle OR Local Server Folder)
   const handleAutoLoadAllFolderMedia = async (
     silent: boolean = true,
-    requestReadOnExistingHandle: boolean = false
+    requestReadOnExistingHandle: boolean = false,
+    options?: { force?: boolean }
   ): Promise<number> => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    const targetDocId = currentDoc?.id || '';
+    if (!targetDocId) return 0;
+
+    if (
+      !options?.force &&
+      stage6InFlightEpochRef.current === stage6PollEpochRef.current &&
+      stage6AbortRef.current
+    ) {
+      return 0;
+    }
+    if (options?.force && stage6AbortRef.current) {
+      stage6AbortRef.current.abort();
+      stage6AbortRef.current = null;
+    }
+
+    const myEpoch = ++stage6PollEpochRef.current;
+    const masterController = new AbortController();
+    stage6AbortRef.current = masterController;
+    stage6InFlightEpochRef.current = myEpoch;
+    const isStale = () =>
+      masterController.signal.aborted ||
+      myEpoch !== stage6PollEpochRef.current ||
+      (activeDocRef.current?.id || activeDoc?.id) !== targetDocId;
+
     let loadedCount = 0;
     try {
-      const currentDoc = activeDocRef.current || activeDoc;
       if (
         flowDownloadDirHandleRef.current &&
         !doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
@@ -7805,13 +7967,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         flowDownloadDirHandleRef.current = null;
       }
       if (!flowDownloadDirHandleRef.current) {
-        const restored = await loadDirHandleFromIndexedDB(currentDoc?.id);
+        const restored = await loadDirHandleFromIndexedDB(targetDocId);
+        if (isStale()) return 0;
         if (restored && doesFolderMatchDoc(restored.name, currentDoc)) {
           flowDownloadDirHandleRef.current = restored;
         }
       }
       if (!flowDownloadDirHandleRef.current && !silent) {
         await ensureSingleDownloadFolderReadyOnGesture();
+        if (isStale()) return 0;
       }
 
       const activeHandle =
@@ -7846,25 +8010,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ).trim();
       const folderName = rawFolderName;
       const docTitle = `${currentDoc?.title || ''} ${currentDoc?.topic || ''}`.trim();
-      const queryParams = `folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
+      const queryParams = `docId=${encodeURIComponent(targetDocId)}&folderPath=${encodeURIComponent(folderPath)}&folderName=${encodeURIComponent(folderName)}&docTitle=${encodeURIComponent(docTitle)}`;
 
       const apiBases = getMacMediaBridgeBases();
 
       for (const baseOrigin of apiBases) {
+        if (isStale()) return 0;
+        const stepController = new AbortController();
+        const isLocalCandidate = baseOrigin === '' || baseOrigin === 'http://localhost:4200';
+        const timeoutMs = isLocalCandidate ? 6000 : 3000;
+        const onMasterAbort = () => stepController.abort();
+        masterController.signal.addEventListener('abort', onMasterAbort);
+        const timerId = window.setTimeout(() => stepController.abort(), timeoutMs);
         try {
-          const res = await fetch(`${baseOrigin}/api/flow/list-folder-media?${queryParams}`);
+          const res = await fetch(`${baseOrigin}/api/flow/list-folder-media?${queryParams}`, {
+            signal: stepController.signal,
+            cache: 'no-store',
+          });
           if (!res.ok) continue;
           const data = await res.json();
+          if (isStale()) return 0;
           const prefixUrl = (u: string) =>
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
 
-          if (Boolean(data?.resolvedRoot) || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
+          const hasServerRoot = Boolean(data?.resolvedRoot);
+          if (hasServerRoot || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
             serverResolvedFolder = true;
           }
 
           const nextClipUrls: Record<number, string> = {};
           const nextFileNames: Record<number, string> = {};
-          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
+          if (Array.isArray(data.clipVideos)) {
             for (const item of data.clipVideos) {
               const cNum = Number(item?.clipNumber || 0);
               const fullUrl = prefixUrl(String(item?.url || ''));
@@ -7876,59 +8052,48 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 loadedCount++;
               }
             }
+          }
 
-            if (Object.keys(nextClipUrls).length > 0) {
-              setCapturedClipVideosMap((prev) => {
-                let changed = false;
-                const next = { ...prev };
-                for (const [kStr, url] of Object.entries(nextClipUrls)) {
-                  const k = Number(kStr);
-                  if (next[k] !== url) {
-                    next[k] = url;
-                    changed = true;
-                  }
+          if (serverResolvedFolder) {
+            setCapturedClipVideosMap((prev) => {
+              const merged: Record<number, string> = {};
+              for (const [kStr, val] of Object.entries(prev)) {
+                const k = Number(kStr);
+                if (
+                  k > 0 &&
+                  !nextClipUrls[k] &&
+                  typeof val === 'string' &&
+                  (val.startsWith('blob:') || val.startsWith('data:'))
+                ) {
+                  merged[k] = val;
                 }
-                return changed ? next : prev;
-              });
-
-              const arrivedNums = Object.keys(nextClipUrls)
-                .map(Number)
-                .filter((n) => n > 0)
-                .sort((a, b) => a - b);
-              if (arrivedNums.length > 0) {
-                setActiveStage8VideoPool((prev) => {
-                  const arrivedSet = new Set(arrivedNums);
-                  const validInPool = prev.filter((n) => arrivedSet.has(n));
-                  if (validInPool.length >= Math.min(6, arrivedNums.length)) {
-                    return prev;
-                  }
-                  const next = [...validInPool];
-                  for (const n of arrivedNums) {
-                    if (next.length >= 6) break;
-                    if (!next.includes(n)) next.push(n);
-                  }
-                  if (next.length === prev.length && next.every((v, idx) => v === prev[idx])) {
-                    return prev;
-                  }
-                  return next;
-                });
               }
-            }
+              for (const [kStr, url] of Object.entries(nextClipUrls)) {
+                const k = Number(kStr);
+                if (k > 0 && url) merged[k] = url;
+              }
+              const prevKeys = Object.keys(prev);
+              const mergedKeys = Object.keys(merged);
+              if (
+                prevKeys.length === mergedKeys.length &&
+                mergedKeys.every((kStr) => prev[Number(kStr)] === merged[Number(kStr)])
+              ) {
+                return prev;
+              }
+              return merged;
+            });
 
-            if (Object.keys(nextFileNames).length > 0) {
-              setFolderClipFileNamesMap((prev) => {
-                let changed = false;
-                const next = { ...prev };
-                for (const [kStr, fName] of Object.entries(nextFileNames)) {
-                  const k = Number(kStr);
-                  if (next[k] !== fName) {
-                    next[k] = fName;
-                    changed = true;
-                  }
-                }
-                return changed ? next : prev;
-              });
-            }
+            setFolderClipFileNamesMap((prev) => {
+              const prevKeys = Object.keys(prev);
+              const nextKeys = Object.keys(nextFileNames);
+              if (
+                prevKeys.length === nextKeys.length &&
+                nextKeys.every((kStr) => prev[Number(kStr)] === nextFileNames[Number(kStr)])
+              ) {
+                return prev;
+              }
+              return nextFileNames;
+            });
           }
 
           const serverPendingNums: number[] = Array.isArray(data.pending4kClipNumbers)
@@ -7936,7 +8101,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 new Set<number>(
                   data.pending4kClipNumbers
                     .map((n: any) => Number(n))
-                    .filter((n: number) => n > 0 && !nextClipUrls[n])
+                    .filter((n: number) => n > 0)
                 )
               ).sort((a: number, b: number) => a - b)
             : [];
@@ -7989,8 +8154,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }
             }
           }
+          if (serverResolvedFolder) {
+            setCapturedClipFramesMap((prev) => {
+              const prevKeys = Object.keys(prev);
+              const nextKeys = Object.keys(frameUrlByClip);
+              if (
+                prevKeys.length === nextKeys.length &&
+                nextKeys.every((kStr) => prev[Number(kStr)] === frameUrlByClip[Number(kStr)])
+              ) {
+                return prev;
+              }
+              return frameUrlByClip;
+            });
+          }
 
           if (
+            !isStale() &&
             currentDoc?.clips?.length &&
             (Object.keys(nextFileNames).length > 0 || Object.keys(frameUrlByClip).length > 0)
           ) {
@@ -8024,7 +8203,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   : {}),
               };
             });
-            if (clipsChanged) {
+            if (clipsChanged && !isStale()) {
               updateActiveDoc({ clips: mergedClips });
             }
           }
@@ -8063,11 +8242,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               '⚠️ macOS bloqueó el acceso a iCloud Drive para el servicio local. Usa `~/.huellas-runtime/node/bin/node` con Acceso total al disco o inicia mediante `Iniciar_Huellas_Master.command` desde Terminal.'
             );
           }
-          if (serverResolvedFolder || data?.ok) {
+          if (
+            serverResolvedFolder ||
+            (Boolean(data?.icloudTccPending) && isLocalCandidate)
+          ) {
             break;
           }
-        } catch {}
+        } catch {
+          // Next bridge candidate
+        } finally {
+          window.clearTimeout(timerId);
+          masterController.signal.removeEventListener('abort', onMasterAbort);
+        }
       }
+
+      if (isStale()) return 0;
 
       if (activeHandle && !serverResolvedFolder) {
         let perm = 'granted';
@@ -8207,11 +8396,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         }
       }
-    } catch {}
+    } catch {
+      // Ignored poll error
+    } finally {
+      if (stage6InFlightEpochRef.current === myEpoch) {
+        stage6InFlightEpochRef.current = 0;
+        stage6AbortRef.current = null;
+      }
+    }
     return loadedCount;
   };
 
-  const [folderClipFileNamesMap, setFolderClipFileNamesMap] = useState<Record<number, string>>({});
   const [isProcessingClips4K, setIsProcessingClips4K] = useState<boolean>(false);
   const [clipsPipelineProgress, setClipsPipelineProgress] = useState<{
     phase: string;
@@ -8385,27 +8580,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
 
   useEffect(() => {
-    if (mainView !== 'capcut_editor' && activeStage !== 8) return;
+    if (!activeDoc?.id) return;
+    if (mainView !== 'capcut_editor' && !(mainView === 'studio' && activeStage === 8)) return;
 
-    const triggerStage6Refresh = () => {
-      if (stage6MediaPollInFlightRef.current) return;
-      stage6MediaPollInFlightRef.current = true;
-      void handleAutoLoadAllFolderMedia(true).finally(() => {
-        stage6MediaPollInFlightRef.current = false;
-      });
-    };
-
-    triggerStage6Refresh();
+    void handleAutoLoadAllFolderMedia(true, false, { force: true });
 
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        triggerStage6Refresh();
+        void handleAutoLoadAllFolderMedia(true, false, { force: false });
       }
     }, 3500);
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
-        triggerStage6Refresh();
+        void handleAutoLoadAllFolderMedia(true, false, { force: false });
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -8415,6 +8603,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
+      stage6AbortRef.current?.abort();
     };
   }, [
     activeDoc?.id,
@@ -8558,13 +8747,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   }, [activeDoc?.id, activeDoc?.clips?.length, activeDoc?.references?.length, activeDoc?.productionFormat]);
 
-  // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed
-  useEffect(() => {
-    if (activeStage !== 8 || !activeDoc) return;
-    if (!stage6MediaPollInFlightRef.current) {
-      void handleAutoLoadAllFolderMedia(true);
-    }
-  }, [activeStage, activeDoc?.id]);
   const saveApprovedClipVideoToFolder = async (
     clipObj: DocumentaryClip,
     videoDataUrl?: string
@@ -21279,69 +21461,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     : 'w-full max-w-[calc((100vh-245px)*1.7778)] max-h-[calc(100vh-245px)] mx-auto aspect-video'
                                 }`}
                               >
-                                {capturedClipVideosMap[clip.clipNumber] ? (
-                                  activeStage8VideoPool.includes(clip.clipNumber) ? (
-                                    <video
-                                      key={capturedClipVideosMap[clip.clipNumber]}
-                                      data-stage8-clip-video="true"
-                                      src={capturedClipVideosMap[clip.clipNumber]}
-                                      poster={
-                                        clip.videoFrames?.[0] || clip.imagePreviewUrl || undefined
-                                      }
-                                      controls
-                                      playsInline
-                                      loop
-                                      preload="metadata"
-                                      onLoadedData={(e) => {
-                                        if (autoPlayStage8ClipRef.current === clip.clipNumber) {
-                                          autoPlayStage8ClipRef.current = null;
-                                          lastActiveStage8VideoRef.current = e.currentTarget;
-                                          e.currentTarget.play().catch(() => {});
-                                        }
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        lastActiveStage8VideoRef.current = e.currentTarget;
-                                      }}
-                                      onPlay={(e) => {
-                                        const currentVid = e.currentTarget;
-                                        lastActiveStage8VideoRef.current = currentVid;
-                                        document
-                                          .querySelectorAll<HTMLVideoElement>(
-                                            'video[data-stage8-clip-video="true"]'
-                                          )
-                                          .forEach((v) => {
-                                            if (v !== currentVid && !v.paused) {
-                                              v.pause();
-                                            }
-                                          });
-                                      }}
-                                      onPause={(e) => {
-                                        lastActiveStage8VideoRef.current = e.currentTarget;
-                                      }}
-                                      className="w-full h-full object-contain block bg-black"
-                                    />
-                                  ) : (
-                                    <div
-                                      onClick={() => activateStage8ClipInPool(clip.clipNumber, true)}
-                                      className="w-full h-full relative flex flex-col items-center justify-center bg-slate-950 cursor-pointer group"
-                                      title={`Haz clic para reproducir el Clip ${paddedNum}`}
-                                    >
-                                      {(clip.videoFrames?.[0] || clip.imagePreviewUrl) && (
-                                        <img
-                                          src={clip.videoFrames?.[0] || clip.imagePreviewUrl}
-                                          alt={`Clip ${paddedNum}`}
-                                          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition"
-                                        />
-                                      )}
-                                      <div className="relative z-10 px-4 py-2 rounded-full bg-amber-500 group-hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-xl">
-                                        <Play className="w-4 h-4 fill-current" />
-                                        ▶️ Reproducir Clip {paddedNum} (.MP4)
-                                      </div>
-                                    </div>
-                                  )
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-                                    {pending4kClipNumbers.includes(clip.clipNumber) ||
+                                {(() => {
+                                  const videoUrl = capturedClipVideosMap[clip.clipNumber];
+                                  const posterUrl =
+                                    capturedClipFramesMap[clip.clipNumber] ||
+                                    clip.videoFrames?.[0] ||
+                                    clip.imagePreviewUrl ||
+                                    undefined;
+                                  const isUpscalingClip =
+                                    pending4kClipNumbers.includes(clip.clipNumber) ||
                                     Boolean(
                                       isProcessingClips4K &&
                                         clipsPipelineProgress?.currentFileName &&
@@ -21349,7 +21477,93 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           `^(?:(?:clip|broll|b[\\-_]?roll|video|image|imagen)[_\\-\\s.]*)?0*${clip.clipNumber}(?:[_\\-\\s.(]|$)`,
                                           'i'
                                         ).test(clipsPipelineProgress.currentFileName)
-                                    ) ? (
+                                    );
+                                  if (videoUrl) {
+                                    return activeStage8VideoPool.includes(clip.clipNumber) ? (
+                                      <>
+                                        <video
+                                          key={`stage8-vid-${clip.clipNumber}`}
+                                          data-stage8-clip-video="true"
+                                          src={videoUrl}
+                                          poster={posterUrl}
+                                          controls
+                                          playsInline
+                                          loop
+                                          preload={
+                                            autoPlayStage8ClipRef.current === clip.clipNumber ||
+                                            !posterUrl
+                                              ? 'metadata'
+                                              : 'none'
+                                          }
+                                          onLoadedMetadata={(e) => {
+                                            if (
+                                              !posterUrl &&
+                                              e.currentTarget.paused &&
+                                              e.currentTarget.currentTime === 0
+                                            ) {
+                                              try {
+                                                e.currentTarget.currentTime = 0.05;
+                                              } catch {}
+                                            }
+                                          }}
+                                          onLoadedData={(e) => {
+                                            if (autoPlayStage8ClipRef.current === clip.clipNumber) {
+                                              autoPlayStage8ClipRef.current = null;
+                                              lastActiveStage8VideoRef.current = e.currentTarget;
+                                              e.currentTarget.play().catch(() => {});
+                                            }
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            lastActiveStage8VideoRef.current = e.currentTarget;
+                                          }}
+                                          onPlay={(e) => {
+                                            const currentVid = e.currentTarget;
+                                            lastActiveStage8VideoRef.current = currentVid;
+                                            document
+                                              .querySelectorAll<HTMLVideoElement>(
+                                                'video[data-stage8-clip-video="true"]'
+                                              )
+                                              .forEach((v) => {
+                                                if (v !== currentVid && !v.paused) {
+                                                  v.pause();
+                                                }
+                                              });
+                                          }}
+                                          onPause={(e) => {
+                                            lastActiveStage8VideoRef.current = e.currentTarget;
+                                          }}
+                                          className="w-full h-full object-contain block bg-black"
+                                        />
+                                        {isUpscalingClip && (
+                                          <div className="pointer-events-none absolute top-2 right-2 z-10 px-2.5 py-1 rounded-full bg-slate-950/85 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
+                                            <RefreshCw className="w-3 h-3 animate-spin" />
+                                            <span>⚡ Escalando a 4K...</span>
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <div
+                                        onClick={() => activateStage8ClipInPool(clip.clipNumber, true)}
+                                        className="w-full h-full relative flex flex-col items-center justify-center bg-slate-950 cursor-pointer group"
+                                        title={`Haz clic para reproducir el Clip ${paddedNum}`}
+                                      >
+                                        {posterUrl && (
+                                          <img
+                                            src={posterUrl}
+                                            alt={`Clip ${paddedNum}`}
+                                            className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition"
+                                          />
+                                        )}
+                                        <div className="relative z-10 px-4 py-2 rounded-full bg-amber-500 group-hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-xl">
+                                          <Play className="w-4 h-4 fill-current" />
+                                          ▶️ Reproducir Clip {paddedNum} (.MP4)
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                                    {isUpscalingClip ? (
                                       <>
                                         <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center shadow-lg shadow-emerald-500/15">
                                           <RefreshCw className="w-5 h-5 text-emerald-300 animate-spin" />
@@ -21412,7 +21626,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       )}
                                     </div>
                                   </div>
-                                )}
+                                  );
+                                })()}
                                 <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
                                   {clip.isStaticBroll ? '🖼️ B-Roll' : '🎬 Clip'} {paddedNum} ({clip.timeRange || 'S/T'})
                                   {clip.videoAttempts && clip.videoAttempts > 1

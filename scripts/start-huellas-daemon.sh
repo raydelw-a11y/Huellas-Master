@@ -10,5 +10,6 @@ if printf '%s' "$STATUS_JSON" | grep -q '"icloudTccPending":false'; then
   exit 0
 fi
 export PATH="$HOME/.huellas-runtime/node/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export UV_THREADPOOL_SIZE=32
 cd "$APP_DIR"
 exec "$NODE_BIN" "$APP_DIR/node_modules/.bin/tsx" "$APP_DIR/server.ts"

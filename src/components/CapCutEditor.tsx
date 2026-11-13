@@ -3234,11 +3234,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
-      const qs = `folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}`;
+      const qs = `docId=${encodeURIComponent(activeDoc?.id || '')}&folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}`;
       const isLocal =
         typeof window !== 'undefined' &&
         (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+      const bases = isLocal ? [''] : ['http://localhost:4200', ''];
       for (const base of bases) {
         if (cancelled) return;
         try {

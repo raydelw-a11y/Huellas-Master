@@ -31,6 +31,9 @@ import {
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 
+// Ensure sufficient libuv I/O worker threads for local + iCloud operations
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
+
 // Load local .env first
 dotenv.config();
 
@@ -68,7 +71,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4200;
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, Range, Access-Control-Request-Private-Network'
@@ -7326,48 +7329,84 @@ function listIcloudVideosDirCached(icloudVideosDir: string): string[] {
   return Array.from(combined);
 }
 
-function probeIcloudDriveReadyAsync(icloudVideosDir: string) {
-  if (icloudDriveVerifiedReady || icloudDriveProbeInFlight) return;
+let icloudDriveProbePromise: Promise<boolean> | null = null;
+
+function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
+  if (icloudDriveVerifiedReady) return Promise.resolve(true);
+  if (icloudDriveProbePromise) return icloudDriveProbePromise;
   const now = Date.now();
-  if (now - lastIcloudProbeAttemptAt < 10000) return;
+  if (now - lastIcloudProbeAttemptAt < 10000) return Promise.resolve(false);
   lastIcloudProbeAttemptAt = now;
   icloudDriveProbeInFlight = true;
-  try {
-    const proc = spawn(
-      process.execPath,
-      ['-e', 'process.exit(require("fs").statSync(process.argv[1]).isDirectory()?0:1)', icloudVideosDir],
-      { stdio: 'ignore' }
-    );
-    const killTimer = setTimeout(() => {
-      try {
-        proc.kill('SIGKILL');
-      } catch {}
-    }, 1500);
-    proc.on('close', (code) => {
-      clearTimeout(killTimer);
+  icloudDriveProbePromise = new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
       icloudDriveProbeInFlight = false;
-      if (code === 0) {
-        icloudDriveVerifiedReady = true;
-        icloudLastProbeFailed = false;
-        refreshIcloudVideosDirCacheAsync(icloudVideosDir);
-        setTimeout(() => {
-          try {
-            runAutonomousClipsWatcherTick();
-          } catch {}
-        }, 250);
-      } else {
+      icloudDriveProbePromise = null;
+      resolve(ok);
+    };
+    try {
+      const proc = spawn(
+        process.execPath,
+        ['-e', 'process.exit(require("fs").statSync(process.argv[1]).isDirectory()?0:1)', icloudVideosDir],
+        { stdio: 'ignore' }
+      );
+      const killTimer = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {}
+      }, 1500);
+      proc.on('close', (code) => {
+        clearTimeout(killTimer);
+        if (code === 0) {
+          icloudDriveVerifiedReady = true;
+          icloudLastProbeFailed = false;
+          refreshIcloudVideosDirCacheAsync(icloudVideosDir);
+          setTimeout(() => {
+            try {
+              void runAutonomousClipsWatcherTick();
+            } catch {}
+          }, 250);
+          finish(true);
+        } else {
+          icloudLastProbeFailed = true;
+          finish(false);
+        }
+      });
+      proc.on('error', () => {
+        clearTimeout(killTimer);
         icloudLastProbeFailed = true;
-      }
-    });
-    proc.on('error', () => {
-      clearTimeout(killTimer);
-      icloudDriveProbeInFlight = false;
+        finish(false);
+      });
+    } catch {
       icloudLastProbeFailed = true;
-    });
-  } catch {
-    icloudDriveProbeInFlight = false;
-    icloudLastProbeFailed = true;
-  }
+      finish(false);
+    }
+  });
+  return icloudDriveProbePromise;
+}
+
+async function waitForIcloudDriveReady(maxWaitMs = 1500): Promise<boolean> {
+  if (icloudDriveVerifiedReady) return true;
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  if (!homeDir) return false;
+  const icloudVideosDir = path.join(
+    homeDir,
+    'Library',
+    'Mobile Documents',
+    'com~apple~CloudDocs',
+    '0YouTube',
+    'Huellas de la Humanidad',
+    'Videos'
+  );
+  return await Promise.race([
+    probeIcloudDriveReadyAsync(icloudVideosDir),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(icloudDriveVerifiedReady), maxWaitMs)
+    ),
+  ]);
 }
 
 let downloadsDirVerifiedReady = false;
@@ -7734,10 +7773,32 @@ app.post('/api/gemini-web/fail-captured-thumbnail', async (req, res) => {
 
 app.get('/api/flow/list-folder-media', async (req, res) => {
   try {
-    const folderPath = String(req.query.folderPath || '');
-    const folderName = String(req.query.folderName || '');
-    const docTitle = String(req.query.docTitle || '');
-    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const reqDocId = String(req.query.docId || '').trim();
+    let folderPath = String(req.query.folderPath || '');
+    let folderName = String(req.query.folderName || '');
+    let docTitle = String(req.query.docTitle || '');
+
+    if (!icloudDriveVerifiedReady) {
+      await waitForIcloudDriveReady(1500);
+    }
+
+    if (reqDocId && (!folderPath || !folderName || !docTitle)) {
+      try {
+        const docs = readDocumentaries();
+        const matched = Array.isArray(docs) ? docs.find((d: any) => d?.id === reqDocId) : null;
+        if (matched) {
+          if (!folderPath && matched.downloadFolderPath) folderPath = String(matched.downloadFolderPath);
+          if (!folderName && matched.downloadFolderName) folderName = String(matched.downloadFolderName);
+          if (!docTitle && matched.title) docTitle = String(matched.title);
+        }
+      } catch {}
+    }
+
+    const rawResolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    const rootOpenable = rawResolvedRoot
+      ? await ensureDocRootOpenable(rawResolvedRoot, 1500, 3000)
+      : false;
+    const resolvedRoot = rootOpenable ? rawResolvedRoot : '';
 
     const clipVideos: Array<{ clipNumber: number; fileName: string; url: string }> = [];
     const clipFrames: Array<{ clipNumber: number; fileName: string; url: string }> = [];
@@ -7770,14 +7831,14 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           ) {
             const srcLoose = path.join(resolvedRoot, rootEntry);
             const looseSt = fs.statSync(srcLoose);
-            if (looseSt.isFile() && Date.now() - looseSt.mtimeMs >= 1500) {
+            if (isMaterializedLocalFile(looseSt) && Date.now() - looseSt.mtimeMs >= 1500) {
               fs.renameSync(srcLoose, path.join(clipsDir, rootEntry));
             }
           }
         }
       } catch {}
 
-      const hydratedMeta = resolveDocPipelineContext(resolvedRoot, '', docTitle);
+      const hydratedMeta = resolveDocPipelineContext(resolvedRoot, reqDocId, docTitle);
       const brollClipNumsSet = new Set<number>();
       for (const c of hydratedMeta.clips) {
         const cNum = Number(c?.clipNumber);
@@ -7914,7 +7975,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           } catch {
             continue;
           }
-          if (!st.isFile()) continue;
+          if (!isMaterializedLocalFile(st)) continue;
           const mVid = entry.match(
             /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
           );
@@ -8077,38 +8138,36 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     > = {};
     if (resolvedRoot) {
       const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-      if (fs.existsSync(promptsTxtPath)) {
-        try {
-          const txt = fs.readFileSync(promptsTxtPath, 'utf8');
-          for (const rawLine of txt.split(/\r?\n/)) {
-            const line = rawLine.trim();
-            const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-            if (mImg) {
-              const num = parseInt(mImg[1], 10);
-              if (num > 0) {
-                const parsedBroll = parseServerBrollMotionFromText(line);
-                clipPrompts[num] = {
-                  ...(clipPrompts[num] || {}),
-                  imagePrompt: line,
-                  ...(parsedBroll.isStaticBroll
-                    ? {
-                        isStaticBroll: true,
-                        brollCameraMotion: parsedBroll.brollCameraMotion || 'zoom_in',
-                      }
-                    : {}),
-                };
-              }
-              continue;
+      const txt = readTextFileIfMaterializedSafe(promptsTxtPath);
+      if (txt) {
+        for (const rawLine of txt.split(/\r?\n/)) {
+          const line = rawLine.trim();
+          const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mImg) {
+            const num = parseInt(mImg[1], 10);
+            if (num > 0) {
+              const parsedBroll = parseServerBrollMotionFromText(line);
+              clipPrompts[num] = {
+                ...(clipPrompts[num] || {}),
+                imagePrompt: line,
+                ...(parsedBroll.isStaticBroll
+                  ? {
+                      isStaticBroll: true,
+                      brollCameraMotion: parsedBroll.brollCameraMotion || 'zoom_in',
+                    }
+                  : {}),
+              };
             }
-            const mClip = line.match(/^Clip\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-            if (mClip) {
-              const num = parseInt(mClip[1], 10);
-              if (num > 0) {
-                clipPrompts[num] = { ...(clipPrompts[num] || {}), videoPrompt: line };
-              }
+            continue;
+          }
+          const mClip = line.match(/^Clip\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mClip) {
+            const num = parseInt(mClip[1], 10);
+            if (num > 0) {
+              clipPrompts[num] = { ...(clipPrompts[num] || {}), videoPrompt: line };
             }
           }
-        } catch {}
+        }
       }
     }
 
@@ -8123,7 +8182,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       clipPrompts,
       pending4kClipNumbers: Array.from(pending4kSet).sort((a, b) => a - b),
       pipelineStatus: activeClipsPipelineStatus,
-      icloudTccPending: !icloudDriveVerifiedReady && (icloudDriveProbeInFlight || icloudLastProbeFailed),
+      icloudTccPending: !icloudDriveVerifiedReady && icloudLastProbeFailed,
     });
   } catch (err: any) {
     res.json({
@@ -8185,7 +8244,7 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       }
     }
 
-    if (!resolvedRoot) {
+    if (!resolvedRoot || !(await ensureDocRootOpenable(resolvedRoot, 1500, 3000))) {
       res.json({
         ok: true,
         resolvedRoot: '',
@@ -8205,12 +8264,7 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
 
     if (typeof promptsTxtContent === 'string' && promptsTxtContent.trim()) {
       const promptsPath = path.join(refsDir, 'Prompts_Referencias.txt');
-      let existingTxt = '';
-      try {
-        if (fs.existsSync(promptsPath)) {
-          existingTxt = fs.readFileSync(promptsPath, 'utf8');
-        }
-      } catch {}
+      const existingTxt = readTextFileIfMaterializedSafe(promptsPath);
       if (existingTxt !== promptsTxtContent) {
         fs.writeFileSync(promptsPath, promptsTxtContent, 'utf8');
       }
@@ -8625,6 +8679,11 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
 
 app.get('/api/flow/serve-folder-file', (req, res) => {
   try {
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader(
+      'Access-Control-Expose-Headers',
+      'Content-Range, Accept-Ranges, Content-Length'
+    );
     let filePath = String(req.query.filePath || '').trim();
     if (!filePath) {
       res.status(404).send('Archivo no encontrado');
@@ -8661,7 +8720,7 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       }
     }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4 or _Broll_4K.mp4, redirect safely via 302
+      // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4 or _Broll_4K.mp4, redirect safely via 302 only on initial byte ranges
       const ext = path.extname(filePath);
       const baseNoExt = path
         .basename(filePath, ext)
@@ -8695,7 +8754,18 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       }
       if (matched4kFull) {
         const st4k = fs.statSync(matched4kFull);
+        if (!isMaterializedLocalFile(st4k)) {
+          res.setHeader('Cache-Control', 'no-store');
+          res.status(503).send('Archivo 4K en sincronización de iCloud Drive.');
+          return;
+        }
+        const reqRange = String(req.headers.range || '').trim();
+        const isInitialRange = !reqRange || /^bytes=0-(?:\d+)?$/i.test(reqRange);
         res.setHeader('Cache-Control', 'no-store');
+        if (!isInitialRange) {
+          res.status(410).send('Clip actualizado a 4K; recargando stream.');
+          return;
+        }
         res.redirect(
           302,
           `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(st4k.mtimeMs)}`
@@ -8717,30 +8787,43 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
     }
     // Allow browser to cache final 4K MP4 range chunks in memory; never cache transient non-4K clips
     const resolvedFilePath = path.resolve(filePath);
-    try {
-      const fileSize = fs.statSync(resolvedFilePath).size;
-      const rangeHeader = req.headers.range;
-      if (typeof rangeHeader === 'string') {
-        const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-        if (m) {
-          const start = m[1] ? parseInt(m[1], 10) : 0;
-          const end = m[2] ? parseInt(m[2], 10) : fileSize - 1;
-          if (start >= fileSize || start < 0) {
-            delete req.headers.range;
-          } else if (m[2] && end >= fileSize) {
-            req.headers.range = `bytes=${start}-${Math.max(start, fileSize - 1)}`;
-          }
+    const stFinal = fs.statSync(resolvedFilePath);
+    if (!isMaterializedLocalFile(stFinal)) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(503).send('Archivo en sincronización de iCloud Drive.');
+      return;
+    }
+    const fileSize = stFinal.size;
+    const rangeHeader = req.headers.range;
+    if (typeof rangeHeader === 'string') {
+      const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+      if (m) {
+        const start = m[1] ? parseInt(m[1], 10) : 0;
+        const end = m[2] ? parseInt(m[2], 10) : fileSize - 1;
+        if (fileSize === 0 || start >= fileSize || start < 0) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`);
+          res.status(416).end();
+          return;
+        } else if (m[2] && end >= fileSize) {
+          req.headers.range = `bytes=${start}-${Math.max(start, fileSize - 1)}`;
         }
       }
-    } catch {
-      // ignore stat errors
     }
     const isTransientRawVideo =
       /\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
       !/[_\-]4k\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
       !/(?:_WebPreview|_foley_v\d+|Intro|Outro)\.mp4$/i.test(resolvedFilePath);
     res.setHeader('Cache-Control', isTransientRawVideo ? 'no-store' : 'private, max-age=3600');
-    res.sendFile(resolvedFilePath, { dotfiles: 'allow' });
+    res.sendFile(resolvedFilePath, { dotfiles: 'allow' }, (err: any) => {
+      if (err && !res.headersSent) {
+        if (err.statusCode === 416) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`);
+          res.status(416).end();
+        } else {
+          res.status(err.statusCode || 500).end();
+        }
+      }
+    });
   } catch (err: any) {
     res.status(500).send(err.message || 'Error sirviendo archivo');
   }
@@ -9609,6 +9692,13 @@ async function runClips4kPipelineCore(params: Clips4kPipelineParams): Promise<an
 
   const runPromise = (async () => {
     try {
+      if (!(await ensureDocRootOpenable(resolvedRoot, 2000, 3000))) {
+        return {
+          ok: false,
+          statusCode: 503,
+          error: 'La carpeta del documental en iCloud Drive no está lista todavía.',
+        };
+      }
       ensureDocumentarySubfolders(resolvedRoot);
       const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
       // Clean stale __rendering_ or __incoming_ temp files older than 10 minutes
@@ -9663,26 +9753,24 @@ async function runClips4kPipelineCore(params: Clips4kPipelineParams): Promise<an
         }
       }
       const promptsTxtFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-      if (fs.existsSync(promptsTxtFallback)) {
-        try {
-          const rawTxt = fs.readFileSync(promptsTxtFallback, 'utf8');
-          for (const rawLine of rawTxt.split(/\r?\n/)) {
-            const line = rawLine.trim();
-            const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-            if (mImg) {
-              const cNum = parseInt(mImg[1], 10);
-              const parsed = parseServerBrollMotionFromText(line);
-              if (cNum > 0 && parsed.isStaticBroll && !brollClipMap.has(cNum)) {
-                const durMatch = line.match(/\[Duration\s*:\s*(\d+)s\]/i);
-                brollClipMap.set(cNum, {
-                  motion: parsed.brollCameraMotion || 'zoom_in',
-                  durationSec: durMatch ? parseInt(durMatch[1], 10) : cNum === 1 ? 6 : 8,
-                  imagePrompt: line,
-                });
-              }
+      const rawTxtFallback = readTextFileIfMaterializedSafe(promptsTxtFallback);
+      if (rawTxtFallback) {
+        for (const rawLine of rawTxtFallback.split(/\r?\n/)) {
+          const line = rawLine.trim();
+          const mImg = line.match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+          if (mImg) {
+            const cNum = parseInt(mImg[1], 10);
+            const parsed = parseServerBrollMotionFromText(line);
+            if (cNum > 0 && parsed.isStaticBroll && !brollClipMap.has(cNum)) {
+              const durMatch = line.match(/\[Duration\s*:\s*(\d+)s\]/i);
+              brollClipMap.set(cNum, {
+                motion: parsed.brollCameraMotion || 'zoom_in',
+                durationSec: durMatch ? parseInt(durMatch[1], 10) : cNum === 1 ? 6 : 8,
+                imagePrompt: line,
+              });
             }
           }
-        } catch {}
+        }
       }
 
       const ensureBrollMapForExplicitImage = (imgEntryName: string): number => {
@@ -10490,9 +10578,95 @@ function triggerAutonomousClips4kForFolder(
 }
 
 const zipInspectNegativeCache = new Map<string, boolean>();
+const verifiedOpenableDocRoots = new Map<string, number>();
+const inFlightDocRootProbePromises = new Map<string, Promise<boolean>>();
+const lastDocRootFailAt = new Map<string, number>();
 
-function hasPendingRawClipsInFolder(resolvedRoot: string): boolean {
-  if (!resolvedRoot || !fs.existsSync(resolvedRoot)) return false;
+function isMaterializedLocalFile(st: fs.Stats | null | undefined): boolean {
+  if (!st || !st.isFile()) return false;
+  if (st.size === 0) return true;
+  const blocks = (st as any).blocks;
+  return typeof blocks !== 'number' || blocks > 0;
+}
+
+function readTextFileIfMaterializedSafe(filePath: string): string {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return '';
+    const st = fs.statSync(filePath);
+    if (!isMaterializedLocalFile(st) || st.size === 0) return '';
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+function ensureDocRootOpenable(
+  resolvedRoot: string,
+  timeoutMs = 1500,
+  failCooldownMs = 3000
+): Promise<boolean> {
+  if (!resolvedRoot) return Promise.resolve(false);
+  const key = path.resolve(resolvedRoot);
+  const now = Date.now();
+  if ((verifiedOpenableDocRoots.get(key) || 0) > now) {
+    return Promise.resolve(true);
+  }
+  const existing = inFlightDocRootProbePromises.get(key);
+  if (existing) return existing;
+  const prevFail = lastDocRootFailAt.get(key) || 0;
+  if (now - prevFail < failCooldownMs) {
+    return Promise.resolve(false);
+  }
+
+  const probePromise = new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      inFlightDocRootProbePromises.delete(key);
+      if (ok) {
+        verifiedOpenableDocRoots.set(key, Date.now() + 5 * 60 * 1000);
+        lastDocRootFailAt.delete(key);
+      } else {
+        lastDocRootFailAt.set(key, Date.now());
+      }
+      resolve(ok);
+    };
+    try {
+      const proc = spawn(
+        process.execPath,
+        [
+          '-e',
+          'const fs=require("fs"),p=require("path"),r=process.argv[1];fs.readdirSync(r);const c=p.join(r,"05_Clips_Video");if(fs.existsSync(c))fs.readdirSync(c);process.exit(0);',
+          key,
+        ],
+        { stdio: 'ignore' }
+      );
+      const kt = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {}
+      }, timeoutMs);
+      proc.on('close', (code) => {
+        clearTimeout(kt);
+        finish(code === 0);
+      });
+      proc.on('error', () => {
+        clearTimeout(kt);
+        finish(false);
+      });
+    } catch {
+      finish(false);
+    }
+  });
+  inFlightDocRootProbePromises.set(key, probePromise);
+  return probePromise;
+}
+
+async function hasPendingRawClipsInFolder(resolvedRoot: string): Promise<boolean> {
+  if (!resolvedRoot || !(await ensureDocRootOpenable(resolvedRoot, 1500, 15000)) || !fs.existsSync(resolvedRoot)) {
+    return false;
+  }
   const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
   const hydrated = resolveDocPipelineContext(resolvedRoot);
   const clipsList = hydrated.clips || [];
@@ -10505,18 +10679,16 @@ function hasPendingRawClipsInFolder(resolvedRoot: string): boolean {
     if (c.isStaticBroll || parsed.isStaticBroll) brollNums.add(cNum);
   }
   const promptsTxtFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-  if (fs.existsSync(promptsTxtFallback)) {
-    try {
-      const rawTxt = fs.readFileSync(promptsTxtFallback, 'utf8');
-      for (const line of rawTxt.split(/\r?\n/)) {
-        const mImg = line.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-        if (mImg) {
-          const cNum = parseInt(mImg[1], 10);
-          const parsed = parseServerBrollMotionFromText(line);
-          if (cNum > 0 && parsed.isStaticBroll) brollNums.add(cNum);
-        }
+  const rawTxt = readTextFileIfMaterializedSafe(promptsTxtFallback);
+  if (rawTxt) {
+    for (const line of rawTxt.split(/\r?\n/)) {
+      const mImg = line.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+      if (mImg) {
+        const cNum = parseInt(mImg[1], 10);
+        const parsed = parseServerBrollMotionFromText(line);
+        if (cNum > 0 && parsed.isStaticBroll) brollNums.add(cNum);
       }
-    } catch {}
+    }
   }
 
   for (const dir of [clipsDir, resolvedRoot]) {
@@ -10625,32 +10797,49 @@ function hasPendingRawClipsInFolder(resolvedRoot: string): boolean {
   return false;
 }
 
-function runAutonomousClipsWatcherTick() {
-  if (activeClipsPipelinePromise || activeClipsPipelineStatus.running) return;
+let autonomousWatcherTickInFlight = false;
+
+async function runAutonomousClipsWatcherTick() {
+  if (
+    autonomousWatcherTickInFlight ||
+    activeClipsPipelinePromise ||
+    activeClipsPipelineStatus.running
+  ) {
+    return;
+  }
+  autonomousWatcherTickInFlight = true;
   try {
     const candidateRoots = new Map<string, string>();
+    const nowMs = Date.now();
     for (const [folderPath, meta] of watchedStage6DocFolders.entries()) {
+      const lastSeenAt = Number(meta?.lastSeenAt || 0);
+      if (lastSeenAt > 0 && nowMs - lastSeenAt > 6 * 3600 * 1000) {
+        continue;
+      }
       if (folderPath && fs.existsSync(folderPath)) {
         candidateRoots.set(path.resolve(folderPath), meta?.docTitle || '');
       }
     }
+
+    // Only inspect the most recent project automatically if no active folder was registered
     const docs = readDocumentaries();
-    for (const doc of docs) {
-      const resolved = resolveLocalDocumentaryFolder(
-        doc?.downloadFolderPath || '',
-        doc?.downloadFolderName || '',
-        doc?.title || ''
+    const latestDoc = Array.isArray(docs) && docs.length > 0 ? docs[0] : null;
+    if (latestDoc) {
+      const resolvedLatest = resolveLocalDocumentaryFolder(
+        latestDoc?.downloadFolderPath || '',
+        latestDoc?.downloadFolderName || '',
+        latestDoc?.title || ''
       );
-      if (resolved && fs.existsSync(resolved)) {
-        const key = path.resolve(resolved);
+      if (resolvedLatest && fs.existsSync(resolvedLatest)) {
+        const key = path.resolve(resolvedLatest);
         if (!candidateRoots.has(key)) {
-          candidateRoots.set(key, String(doc?.title || ''));
+          candidateRoots.set(key, String(latestDoc?.title || ''));
         }
       }
     }
 
     for (const [rootFolder, docTitle] of candidateRoots.entries()) {
-      if (hasPendingRawClipsInFolder(rootFolder)) {
+      if (await hasPendingRawClipsInFolder(rootFolder)) {
         console.log(
           `[Auto4kWatcher] Detectados clips o láminas B-Roll pendientes en "${path.basename(rootFolder)}". Iniciando conversión automática a 4K...`
         );
@@ -10660,11 +10849,17 @@ function runAutonomousClipsWatcherTick() {
     }
   } catch (err) {
     console.warn('[Auto4kWatcher] Tick warning:', err);
+  } finally {
+    autonomousWatcherTickInFlight = false;
   }
 }
 
-setInterval(runAutonomousClipsWatcherTick, 3500);
-setTimeout(runAutonomousClipsWatcherTick, 2000);
+setInterval(() => {
+  void runAutonomousClipsWatcherTick();
+}, 3500);
+setTimeout(() => {
+  void runAutonomousClipsWatcherTick();
+}, 2000);
 
 app.post('/api/flow/process-clips-pipeline', async (req, res) => {
   const result = await runClips4kPipelineCore({
@@ -10699,11 +10894,15 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       return;
     }
 
+    if (!icloudDriveVerifiedReady) {
+      await waitForIcloudDriveReady(1500);
+    }
     const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
-    if (!resolvedRoot || !fs.existsSync(resolvedRoot)) {
+    const rootOpenable = resolvedRoot ? await ensureDocRootOpenable(resolvedRoot, 1500, 3000) : false;
+    if (!resolvedRoot || !rootOpenable || !fs.existsSync(resolvedRoot)) {
       res.status(400).json({
         ok: false,
-        error: 'No se encontró la carpeta local del documental en tu Mac.',
+        error: 'No se encontró la carpeta local accesible del documental en tu Mac.',
       });
       return;
     }
@@ -10735,15 +10934,14 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     const knownProjectBrollNums = new Set<number>();
     if (isSingleStaticBroll) knownProjectBrollNums.add(clipNumber);
     const singlePromptsFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-    if (fs.existsSync(singlePromptsFallback)) {
-      try {
-        for (const rawLine of fs.readFileSync(singlePromptsFallback, 'utf8').split(/\r?\n/)) {
-          const mImg = rawLine.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-          if (mImg && parseServerBrollMotionFromText(rawLine).isStaticBroll) {
-            knownProjectBrollNums.add(parseInt(mImg[1], 10));
-          }
+    const singlePromptsRaw = readTextFileIfMaterializedSafe(singlePromptsFallback);
+    if (singlePromptsRaw) {
+      for (const rawLine of singlePromptsRaw.split(/\r?\n/)) {
+        const mImg = rawLine.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+        if (mImg && parseServerBrollMotionFromText(rawLine).isStaticBroll) {
+          knownProjectBrollNums.add(parseInt(mImg[1], 10));
         }
-      } catch {}
+      }
     }
     if (fs.existsSync(DOCS_FILE)) {
       try {
