@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-13T09:54:06.691Z",
+    "updatedAt": "2026-11-13T09:55:02.467Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -1249,9 +1249,9 @@
         "pauseNotes": "Sin locución en el tramo inicial (00:08 - 00:16)",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
         "isStaticBroll": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4"
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-2-1794442731165-p25y",
@@ -1269,8 +1269,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "02_create_a_cinematic_8_second_582c5ae1_4K.mp4"
+        "videoSavedFileName": "02_create_a_cinematic_8_second_582c5ae1_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-3-1794442731175-5puj",
@@ -1288,8 +1288,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4"
+        "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-4-1794442731185-oogs",
@@ -1307,8 +1307,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4"
+        "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-5-1794442731196-lbnk",
@@ -1326,8 +1326,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4"
+        "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-6-1794442731207-xswg",
@@ -1345,8 +1345,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4"
+        "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-7-1794442731217-3c0i",
@@ -1364,8 +1364,8 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4"
+        "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-8-1794442731227-k4l8",
@@ -1383,8 +1383,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4"
+        "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-9-1794442731237-p9r9",
@@ -1402,8 +1402,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4"
+        "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-10-1794442731248-4ctv",
@@ -1421,8 +1421,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4"
+        "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-11-1794442731258-u43d",
@@ -1440,8 +1440,8 @@
         "pauseNotes": "Contiene [pausa: 1.2s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4"
+        "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-12-1794442731269-szpx",
@@ -1459,8 +1459,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4"
+        "videoSavedFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-13-1794442731279-62ej",
@@ -1478,8 +1478,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "13_create_a_cinematic_8_second_3fd9b933_4K.mp4"
+        "videoSavedFileName": "13_create_a_cinematic_8_second_3fd9b933_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-14-1794442731290-gj5t",
@@ -1497,8 +1497,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4"
+        "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-15-1794442731300-zjsg",
@@ -1516,8 +1516,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4"
+        "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-16-1794442731310-1oob",
@@ -1535,8 +1535,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "16_create_a_cinematic_8_second_11719428_4K.mp4"
+        "videoSavedFileName": "16_create_a_cinematic_8_second_11719428_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-17-1794442731321-hp1z",
@@ -1554,8 +1554,8 @@
         "pauseNotes": "Contiene [pausa: 2.8s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4"
+        "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-18-1794442731331-b44g",
@@ -1573,10 +1573,10 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
-        "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4"
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-19-1794442731341-phaw",
@@ -1594,8 +1594,8 @@
         "pauseNotes": "Contiene [pausa: 2.7s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4"
+        "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-20-1794442731352-xt0y",
@@ -1613,8 +1613,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4"
+        "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-21-1794442731362-gggd",
@@ -1632,8 +1632,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4"
+        "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-22-1794442731372-yoqz",
@@ -1651,8 +1651,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4"
+        "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-23-1794442731382-trx5",
@@ -1670,8 +1670,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4"
+        "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-24-1794442731393-v2r1",
@@ -1689,8 +1689,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4"
+        "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-25-1794442731403-pd0o",
@@ -1708,8 +1708,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4"
+        "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-26-1794442731413-x9gl",
@@ -1727,8 +1727,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4"
+        "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-27-1794442731423-3exw",
@@ -1746,8 +1746,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4"
+        "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-28-1794442731434-q1gg",
@@ -1765,10 +1765,10 @@
         "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_out",
-        "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4"
+        "brollCameraMotion": "zoom_out"
       },
       {
         "id": "clip-29-1794442731445-pba0",
@@ -1786,8 +1786,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4"
+        "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-30-1794442731455-7f9y",
@@ -1805,8 +1805,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4"
+        "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-31-1794442731466-enz2",
@@ -1824,8 +1824,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4"
+        "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-32-1794442731476-jirb",
@@ -1843,8 +1843,8 @@
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "32_create_a_cinematic_8_second_video_88f264df_4K.mp4"
+        "videoSavedFileName": "32_create_a_cinematic_8_second_video_88f264df_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-33-1794442731487-7ng7",
@@ -1880,8 +1880,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4"
+        "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-35-1794442731509-otas",
@@ -1899,8 +1899,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4"
+        "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-36-1794442731519-xlej",
@@ -1918,8 +1918,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4"
+        "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-37-1794442731530-acku",
@@ -1937,8 +1937,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4"
+        "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-38-1794442731541-yayn",
@@ -1956,8 +1956,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4"
+        "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-39-1794442731552-ehq1",
@@ -1975,8 +1975,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "39_create_a_cinematic_8_second_video_86daa842_4K.mp4"
+        "videoSavedFileName": "39_create_a_cinematic_8_second_video_86daa842_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-40-1794442731564-hlpz",
@@ -1994,8 +1994,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4"
+        "videoSavedFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-41-1794442731575-fc3o",
@@ -2013,8 +2013,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4"
+        "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-42-1794442731586-of1g",
@@ -2032,8 +2032,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4"
+        "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-43-1794442731599-cg5y",
@@ -2051,10 +2051,10 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
-        "brollCameraMotion": "tilt_up",
-        "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4"
+        "brollCameraMotion": "tilt_up"
       },
       {
         "id": "clip-44-1794442731610-w47n",
@@ -2072,8 +2072,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "44_create_a_cinematic_8_second_video_0ba0dbfa_4K.mp4"
+        "videoSavedFileName": "44_create_a_cinematic_8_second_video_0ba0dbfa_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-45-1794442731621-fnyp",
@@ -2091,8 +2091,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4"
+        "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-46-1794442731633-e6ac",
@@ -2110,8 +2110,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4"
+        "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-47-1794442731644-ywek",
@@ -2129,8 +2129,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4"
+        "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-48-1794442731654-m6ir",
@@ -2148,10 +2148,10 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "48_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
-        "brollCameraMotion": "tilt_up",
-        "videoSavedFileName": "48_Create_an_image_in_16_Broll_4K.mp4"
+        "brollCameraMotion": "tilt_up"
       },
       {
         "id": "clip-49-1794442731666-cfvg",
@@ -2169,8 +2169,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "49_create_a_cinematic_8_second_video_2d8d8198_4K.mp4"
+        "videoSavedFileName": "49_create_a_cinematic_8_second_video_2d8d8198_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-50-1794442731676-b8ih",
@@ -2188,8 +2188,8 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "50_create_a_cinematic_8_second_video_cfafe45a_4K.mp4"
+        "videoSavedFileName": "50_create_a_cinematic_8_second_video_cfafe45a_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-51-1794442731688-pq81",
@@ -2207,8 +2207,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "51_create_a_cinematic_8_second_video_f90207df_4K.mp4"
+        "videoSavedFileName": "51_create_a_cinematic_8_second_video_f90207df_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-52-1794442731699-6uh0",
@@ -2226,8 +2226,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "52_create_a_cinematic_8_second_video_95768583_4K.mp4"
+        "videoSavedFileName": "52_create_a_cinematic_8_second_video_95768583_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-53-1794442731709-4sk9",
@@ -2245,8 +2245,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "53_create_a_cinematic_8_second_video_6e8653fa_4K.mp4"
+        "videoSavedFileName": "53_create_a_cinematic_8_second_video_6e8653fa_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-54-1794442731720-3ejb",
@@ -2264,8 +2264,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "54_create_a_cinematic_8_second_video_e4ea9943_4K.mp4"
+        "videoSavedFileName": "54_create_a_cinematic_8_second_video_e4ea9943_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-55-1794442731732-p5pv",
@@ -2283,8 +2283,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "55_create_a_cinematic_8_second_video_ecc14744_4K.mp4"
+        "videoSavedFileName": "55_create_a_cinematic_8_second_video_ecc14744_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-56-1794442731742-n1x9",
@@ -2302,8 +2302,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "56_create_a_cinematic_8_second_video_7c00d5a4_4K.mp4"
+        "videoSavedFileName": "56_create_a_cinematic_8_second_video_7c00d5a4_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-57-1794442731753-3p0f",
@@ -2321,8 +2321,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "57_create_a_cinematic_8_second_video_e840344b_4K.mp4"
+        "videoSavedFileName": "57_create_a_cinematic_8_second_video_e840344b_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-58-1794442731764-8ly5",
@@ -2340,8 +2340,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "58_create_a_cinematic_8_second_video_dba5a797_4K.mp4"
+        "videoSavedFileName": "58_create_a_cinematic_8_second_video_dba5a797_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-59-1794442731775-xu0d",
@@ -2359,8 +2359,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "59_create_a_cinematic_8_second_video_5c88b959_4K.mp4"
+        "videoSavedFileName": "59_create_a_cinematic_8_second_video_5c88b959_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-60-1794442731786-dixj",
@@ -2378,8 +2378,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "60_create_a_cinematic_8_second_video_366ec892_4K.mp4"
+        "videoSavedFileName": "60_create_a_cinematic_8_second_video_366ec892_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-61-1794442731797-nx38",
@@ -2397,10 +2397,10 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
+        "videoSavedFileName": "61_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
-        "videoSavedFileName": "61_Create_an_image_in_16_Broll_4K.mp4"
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-62-1794442731808-jvta",
@@ -2418,8 +2418,8 @@
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "62_62_Medium_shot_of_researcher_1efcbd92_4K.mp4"
+        "videoSavedFileName": "62_62_Medium_shot_of_researcher_1efcbd92_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-63-1794442731820-w4pm",
@@ -2437,8 +2437,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "63_63_Close_up_of_scientist_643dbd17_4K.mp4"
+        "videoSavedFileName": "63_63_Close_up_of_scientist_643dbd17_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-64-1794442731831-o2eo",
@@ -2456,8 +2456,8 @@
         "pauseNotes": "Contiene [pausa: 1.1s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "64_64_Close_up_of_hands_26ff7fdf_4K.mp4"
+        "videoSavedFileName": "64_64_Close_up_of_hands_26ff7fdf_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-65-1794442731842-ehl6",
@@ -2475,8 +2475,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "65_65_Wide_shot_of_historic_19e830f2_4K.mp4"
+        "videoSavedFileName": "65_65_Wide_shot_of_historic_19e830f2_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-66-1794442731853-yf0x",
@@ -2494,8 +2494,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "66_66_Detail_shot_of_old_d843192e_4K.mp4"
+        "videoSavedFileName": "66_66_Detail_shot_of_old_d843192e_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-67-1794442731863-n024",
@@ -2531,8 +2531,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
-        "videoSavedFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4"
+        "videoSavedFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
+        "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY"
       },
       {
         "id": "clip-69-1794442731885-nk42",
@@ -2550,8 +2550,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "flowClipEngine": "OMNI_1_1_FLASH",
-        "videoSavedFileName": "69_69_Wide_shot_of_researchers_6555187a_4K.mp4"
+        "videoSavedFileName": "69_69_Wide_shot_of_researchers_6555187a_4K.mp4",
+        "flowClipEngine": "OMNI_1_1_FLASH"
       },
       {
         "id": "clip-70-1794442731896-6f4i",
