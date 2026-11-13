@@ -53,6 +53,10 @@ interface StoredClipStatusEntry {
   videoReady?: boolean;
   imageReady?: boolean;
   videoSavedFileName?: string;
+  videoAuditStatus?: string;
+  discardedVideoFileName?: string;
+  videoDiscardedAt?: number;
+  videoSavedAt?: number;
   updatedAt: number;
 }
 
@@ -82,18 +86,33 @@ export function saveClipReviewStateForDoc(
     for (const c of clips) {
       if (!c || typeof c.clipNumber !== 'number') continue;
       const prev = docMap[c.clipNumber];
-      const nextRev = Boolean(c.reviewedForEditor);
+      const isRejectedEmpty =
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
+        !String(c.videoSavedFileName || '').trim();
+      const effDiscFile = c.discardedVideoFileName || prev?.discardedVideoFileName || '';
+      const effDiscAt = Math.max(Number(c.videoDiscardedAt || 0), Number(prev?.videoDiscardedAt || 0));
+      const nextRev = isRejectedEmpty ? false : Boolean(c.reviewedForEditor);
       const nextRec = Boolean(c.recreated);
-      const nextVid = Boolean(c.videoReady);
-      const nextImg = Boolean(c.imageReady);
-      const nextFile = c.videoSavedFileName || prev?.videoSavedFileName;
+      const nextVid = isRejectedEmpty ? false : Boolean(c.videoReady);
+      const nextImg = isRejectedEmpty ? false : Boolean(c.imageReady);
+      const prevValidFile =
+        prev?.videoSavedFileName && prev.videoSavedFileName !== effDiscFile
+          ? prev.videoSavedFileName
+          : undefined;
+      const nextFile = isRejectedEmpty ? '' : c.videoSavedFileName || prevValidFile || '';
+      const nextAuditStatus = c.videoAuditStatus || (isRejectedEmpty ? 'rejected' : prev?.videoAuditStatus);
+      const nextSavedAt = Number(c.videoSavedAt || prev?.videoSavedAt || 0);
       if (
         !prev ||
         prev.reviewedForEditor !== nextRev ||
         Boolean(prev.recreated) !== nextRec ||
         Boolean(prev.videoReady) !== nextVid ||
         Boolean(prev.imageReady) !== nextImg ||
-        prev.videoSavedFileName !== nextFile
+        (prev.videoSavedFileName || '') !== nextFile ||
+        prev.videoAuditStatus !== nextAuditStatus ||
+        (prev.discardedVideoFileName || '') !== effDiscFile ||
+        Number(prev.videoDiscardedAt || 0) !== effDiscAt ||
+        Number(prev.videoSavedAt || 0) !== nextSavedAt
       ) {
         docMap[c.clipNumber] = {
           reviewedForEditor: nextRev,
@@ -101,6 +120,10 @@ export function saveClipReviewStateForDoc(
           videoReady: nextVid,
           imageReady: nextImg,
           ...(nextFile ? { videoSavedFileName: nextFile } : {}),
+          ...(nextAuditStatus ? { videoAuditStatus: nextAuditStatus } : {}),
+          ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
+          ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+          ...(nextSavedAt > 0 ? { videoSavedAt: nextSavedAt } : {}),
           updatedAt: now,
         };
       }
@@ -115,8 +138,9 @@ export function applyStoredClipReviewStateToDocs(
 ): DocumentaryProject[] {
   if (!Array.isArray(list) || list.length === 0) return list;
   const map = loadStoredClipReviewStateMap() || {};
+  let storeMutated = false;
 
-  return list.map((doc) => {
+  const updatedList = list.map((doc) => {
     if (!doc || !doc.id) return doc;
     const baseDoc = normalizeDocumentaryVoiceoverAudio(doc);
     if (!Array.isArray(baseDoc.clips) || baseDoc.clips.length === 0) return baseDoc;
@@ -126,17 +150,67 @@ export function applyStoredClipReviewStateToDocs(
     const nextClips = baseDoc.clips.map((c) => {
       const saved = docMap[c.clipNumber];
       if (!saved) return c;
-      const mergedRev = Boolean(saved.reviewedForEditor);
+      const effDiscFile = c.discardedVideoFileName || saved.discardedVideoFileName || '';
+      const effDiscAt = Math.max(Number(c.videoDiscardedAt || 0), Number(saved.videoDiscardedAt || 0));
+      const cFile = String(c.videoSavedFileName || '').trim();
+      const sFile = String(saved.videoSavedFileName || '').trim();
+      const isSavedRevokedByFile = Boolean(effDiscFile && sFile && sFile === effDiscFile);
+      const isClipRejectedEmpty =
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') && !cFile;
+      const savedHasNewerValidFile = Boolean(
+        sFile &&
+          !isSavedRevokedByFile &&
+          Number(saved.videoSavedAt || saved.updatedAt || 0) > effDiscAt
+      );
+
+      if (isClipRejectedEmpty && !savedHasNewerValidFile) {
+        if (saved.reviewedForEditor || saved.videoReady || saved.imageReady || sFile) {
+          docMap[c.clipNumber] = {
+            ...saved,
+            reviewedForEditor: false,
+            videoReady: false,
+            imageReady: false,
+            videoSavedFileName: '',
+            videoAuditStatus: 'rejected',
+            ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
+            ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+          };
+          storeMutated = true;
+        }
+        return c;
+      }
+
+      if (isSavedRevokedByFile) {
+        docMap[c.clipNumber] = {
+          ...saved,
+          videoSavedFileName: cFile || '',
+          ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
+          ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+        };
+        storeMutated = true;
+        if (cFile) {
+          // Clip already has a non-revoked replacement file on server (e.g. #68 shifted)
+          return c;
+        }
+      }
+
+      const mergedRev = Boolean(
+        cFile && effDiscFile && sFile === effDiscFile ? c.reviewedForEditor : saved.reviewedForEditor
+      );
       const mergedRec = Boolean(c.recreated || saved.recreated);
-      const mergedVid = Boolean(c.videoReady || saved.videoReady);
-      const mergedImg = Boolean(c.imageReady || saved.imageReady);
-      const mergedFile = c.videoSavedFileName || saved.videoSavedFileName;
+      const mergedVid = Boolean(
+        c.videoReady || (!isSavedRevokedByFile && (!effDiscAt || Number(saved.updatedAt || 0) > effDiscAt) && saved.videoReady)
+      );
+      const mergedImg = Boolean(
+        c.imageReady || (!isSavedRevokedByFile && (!effDiscAt || Number(saved.updatedAt || 0) > effDiscAt) && saved.imageReady)
+      );
+      const mergedFile = cFile || (!isSavedRevokedByFile ? sFile : '');
       if (
         Boolean(c.reviewedForEditor) !== mergedRev ||
         Boolean(c.recreated) !== mergedRec ||
         Boolean(c.videoReady) !== mergedVid ||
         Boolean(c.imageReady) !== mergedImg ||
-        c.videoSavedFileName !== mergedFile
+        (c.videoSavedFileName || '') !== mergedFile
       ) {
         changed = true;
         return {
@@ -153,6 +227,13 @@ export function applyStoredClipReviewStateToDocs(
     const updatedDoc = changed ? { ...baseDoc, clips: nextClips } : baseDoc;
     return updatedDoc;
   });
+
+  if (storeMutated) {
+    try {
+      localStorage.setItem(LOCAL_CLIP_REVIEW_STATE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+  return updatedList;
 }
 
 export function isLocalRuntimeOrigin(): boolean {
@@ -2122,13 +2203,56 @@ function mergeTwoDocumentaryObjects(
       const wHasReal = isClipRealAuthored(c);
       const oHasReal = isClipRealAuthored(o);
       const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
-      const effectiveStaticBroll = rescuePrompts
+      const useOtherPrompt =
+        rescuePrompts ||
+        (oHasReal && Number(o.promptUpdatedAt || 0) > Number(c.promptUpdatedAt || 0));
+      const effectiveStaticBroll = useOtherPrompt
         ? (typeof o.isStaticBroll === 'boolean' ? o.isStaticBroll : c.isStaticBroll)
         : c.isStaticBroll;
       const hasAuthoredAfterMerge = wHasReal || rescuePrompts;
+
+      const cDiscAt = Number(c.videoDiscardedAt || 0);
+      const oDiscAt = Number(o.videoDiscardedAt || 0);
+      const effDiscardedAt = Math.max(cDiscAt, oDiscAt);
+      const effDiscardedFile =
+        (cDiscAt >= oDiscAt
+          ? c.discardedVideoFileName || o.discardedVideoFileName
+          : o.discardedVideoFileName || c.discardedVideoFileName) || '';
+      const anySideRejectedEmpty =
+        (c.videoAuditStatus === 'rejected' && !String(c.videoSavedFileName || '').trim()) ||
+        (o.videoAuditStatus === 'rejected' && !String(o.videoSavedFileName || '').trim());
+      const isSideFileRevoked = (side: DocumentaryProject['clips'][number]) => {
+        const f = String(side?.videoSavedFileName || '').trim();
+        if (!f) return true;
+        if (effDiscardedFile && f === effDiscardedFile) return true;
+        if (
+          effDiscardedAt > 0 &&
+          anySideRejectedEmpty &&
+          Number(side?.videoSavedAt || 0) < effDiscardedAt
+        ) {
+          return true;
+        }
+        return false;
+      };
+      const cRevoked = isSideFileRevoked(c);
+      const oRevoked = isSideFileRevoked(o);
+      const cValidFile = cRevoked ? '' : String(c.videoSavedFileName || '').trim();
+      const oValidFile = oRevoked ? '' : String(o.videoSavedFileName || '').trim();
+      const isActivelyRejected =
+        (c.videoAuditStatus === 'rejected' ||
+          o.videoAuditStatus === 'rejected' ||
+          c.auditStatus === 'mismatch' ||
+          o.auditStatus === 'mismatch') &&
+        effDiscardedAt > 0 &&
+        !cValidFile &&
+        !oValidFile;
+
       const cAuditReason = String(c.auditReason || '');
       const oAuditReason = String(o.auditReason || '');
       const needsAuditCleanup =
+        !isActivelyRejected &&
+        c.auditStatus !== 'mismatch' &&
+        o.auditStatus !== 'mismatch' &&
         hasAuthoredAfterMerge &&
         (rescuePrompts || c.auditStatus === 'warning' || STALE_PENDING_AUDIT_RE.test(cAuditReason));
       const cleanAuditPatch = needsAuditCleanup
@@ -2144,42 +2268,114 @@ function mergeTwoDocumentaryObjects(
                 : 'Sincronizado con el tramo de voz narrativa.',
             }
         : {};
+
+      const promptWinnerMeta = useOtherPrompt
+        ? {
+            imagePrompt: o.imagePrompt || c.imagePrompt,
+            videoPrompt: effectiveStaticBroll ? '' : o.videoPrompt || c.videoPrompt,
+            previousVideoPrompt: effectiveStaticBroll
+              ? c.previousVideoPrompt ||
+                o.previousVideoPrompt ||
+                (c.videoPrompt || o.videoPrompt || undefined)
+              : undefined,
+            isStaticBroll: effectiveStaticBroll,
+            brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
+            flowClipEngine: o.flowClipEngine || c.flowClipEngine,
+            cameraSelection: useOtherPrompt ? o.cameraSelection || c.cameraSelection : c.cameraSelection,
+            visualExplanation: useOtherPrompt
+              ? o.visualExplanation || c.visualExplanation
+              : c.visualExplanation,
+            ...(Math.max(Number(c.promptUpdatedAt || 0), Number(o.promptUpdatedAt || 0)) > 0
+              ? {
+                  promptUpdatedAt: Math.max(
+                    Number(c.promptUpdatedAt || 0),
+                    Number(o.promptUpdatedAt || 0)
+                  ),
+                }
+              : {}),
+          }
+        : {
+            videoPrompt: c.isStaticBroll ? '' : c.videoPrompt,
+            previousVideoPrompt: c.isStaticBroll
+              ? c.previousVideoPrompt || o.previousVideoPrompt || (o.videoPrompt || undefined)
+              : undefined,
+          };
+
+      if (isActivelyRejected) {
+        const rejSide = oDiscAt > cDiscAt ? o : c;
+        return {
+          ...c,
+          ...promptWinnerMeta,
+          reviewedForEditor: false,
+          recreated: Boolean(c.recreated || o.recreated),
+          videoReady: false,
+          imageReady: false,
+          videoSavedFileName: '',
+          videoSavedAt: 0,
+          imagePreviewUrl: '',
+          videoFrames: [],
+          auditStatus: 'mismatch' as const,
+          videoAuditStatus: 'rejected' as const,
+          auditReason: rejSide.auditReason || c.auditReason || o.auditReason,
+          videoAuditReason: rejSide.videoAuditReason || c.videoAuditReason || o.videoAuditReason,
+          ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
+          videoDiscardedAt: effDiscardedAt,
+        };
+      }
+
+      const winningFile =
+        cValidFile && oValidFile && cValidFile !== oValidFile
+          ? Number(o.videoSavedAt || 0) > Number(c.videoSavedAt || 0)
+            ? oValidFile
+            : cValidFile
+          : cValidFile || oValidFile || '';
+      const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
+      const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
+      const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
+      const mergedAuditStatus =
+        winningFile &&
+        effDiscardedAt > 0 &&
+        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
+          ? ('ok' as const)
+          : c.auditStatus;
+      const mergedVideoAuditStatus =
+        winningFile &&
+        effDiscardedAt > 0 &&
+        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
+          ? ('approved' as const)
+          : c.videoAuditStatus || o.videoAuditStatus;
+
       return {
         ...c,
-        ...(rescuePrompts
-          ? {
-              imagePrompt: o.imagePrompt || c.imagePrompt,
-              videoPrompt: effectiveStaticBroll ? '' : (o.videoPrompt || c.videoPrompt),
-              previousVideoPrompt:
-                c.previousVideoPrompt ||
-                o.previousVideoPrompt ||
-                (effectiveStaticBroll && (c.videoPrompt || o.videoPrompt)
-                  ? c.videoPrompt || o.videoPrompt
-                  : undefined),
-              isStaticBroll: effectiveStaticBroll,
-              brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
-              flowClipEngine: o.flowClipEngine || c.flowClipEngine,
-              cameraSelection: c.cameraSelection || o.cameraSelection,
-              visualExplanation: c.visualExplanation || o.visualExplanation,
-            }
-          : {
-              videoPrompt: c.isStaticBroll ? '' : c.videoPrompt,
-              previousVideoPrompt:
-                c.previousVideoPrompt ||
-                o.previousVideoPrompt ||
-                (c.isStaticBroll && o.videoPrompt ? o.videoPrompt : undefined),
-            }),
+        ...promptWinnerMeta,
         ...cleanAuditPatch,
+        ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),
+        ...(mergedVideoAuditStatus ? { videoAuditStatus: mergedVideoAuditStatus } : {}),
         reviewedForEditor:
-          c.reviewedForEditor !== undefined
+          effDiscardedAt > 0
+            ? Boolean((cSideOk && c.reviewedForEditor) || (oSideOk && o.reviewedForEditor))
+            : c.reviewedForEditor !== undefined
             ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
             : Boolean(o.reviewedForEditor),
         recreated: Boolean(c.recreated || o.recreated),
-        videoReady: Boolean(c.videoReady || o.videoReady),
-        imageReady: Boolean(c.imageReady || o.imageReady),
-        videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+        videoReady: effDiscardedAt > 0
+          ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))
+          : Boolean(c.videoReady || o.videoReady),
+        imageReady: effDiscardedAt > 0
+          ? Boolean(winningFile || (cSideOk && c.imageReady) || (oSideOk && o.imageReady))
+          : Boolean(c.imageReady || o.imageReady),
+        videoSavedFileName: winningFile || undefined,
+        ...(winningSavedAt > 0 ? { videoSavedAt: winningSavedAt } : {}),
+        ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
+        ...(effDiscardedAt > 0 ? { videoDiscardedAt: effDiscardedAt } : {}),
         videoFrames:
-          Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+          effDiscardedAt > 0
+            ? !cRevoked && Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+              ? c.videoFrames
+              : !oRevoked && Array.isArray(o.videoFrames) && o.videoFrames.length > 0
+              ? o.videoFrames
+              : []
+            : Array.isArray(c.videoFrames) && c.videoFrames.length > 0
             ? c.videoFrames
             : o.videoFrames,
       };
@@ -2210,6 +2406,8 @@ function mergeTwoDocumentaryObjects(
                 if (!pc || !isClipRealAuthored(pc)) return mc;
                 const nextIsBroll =
                   typeof pc.isStaticBroll === 'boolean' ? pc.isStaticBroll : mc.isStaticBroll;
+                const keepMismatch =
+                  mc.videoAuditStatus === 'rejected' || mc.auditStatus === 'mismatch';
                 return {
                   ...mc,
                   imagePrompt: pc.imagePrompt || mc.imagePrompt,
@@ -2221,8 +2419,10 @@ function mergeTwoDocumentaryObjects(
                   isStaticBroll: nextIsBroll,
                   brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
                   flowClipEngine: pc.flowClipEngine || mc.flowClipEngine,
-                  auditStatus: 'ok' as const,
-                  auditReason: nextIsBroll
+                  auditStatus: keepMismatch ? ('mismatch' as const) : ('ok' as const),
+                  auditReason: keepMismatch
+                    ? mc.auditReason || pc.auditReason
+                    : nextIsBroll
                     ? '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.'
                     : 'Sincronizado con el tramo de voz narrativa.',
                 };

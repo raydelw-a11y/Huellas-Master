@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:13 AM - 11/13/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:16 AM - 11/13/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -8118,20 +8118,36 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
             const latestDoc = activeDocRef.current || activeDoc;
             if (latestDoc && Array.isArray(latestDoc.clips)) {
-              const nextClips = latestDoc.clips.map((c) =>
-                c.clipNumber === clipNum
-                  ? {
-                      ...c,
-                      videoSavedFileName: data.fileName || c.videoSavedFileName,
-                      videoReady: true,
-                      imageReady: true,
-                      imagePreviewUrl: fullFrameUrl || c.imagePreviewUrl,
-                      videoFrames: fullFrameUrl
-                        ? [fullFrameUrl, fullFrameUrl, fullFrameUrl]
-                        : c.videoFrames,
-                    }
-                  : c
-              );
+              const nowMs = Date.now();
+              const nextClips = latestDoc.clips.map((c) => {
+                if (c.clipNumber !== clipNum) return c;
+                const nextName = data.fileName || c.videoSavedFileName;
+                const isRegenPromotion =
+                  Boolean(nextName && nextName !== c.discardedVideoFileName) &&
+                  (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch');
+                return {
+                  ...c,
+                  videoSavedFileName: nextName,
+                  videoSavedAt: nowMs,
+                  videoReady: true,
+                  imageReady: true,
+                  imagePreviewUrl: fullFrameUrl || c.imagePreviewUrl,
+                  videoFrames: fullFrameUrl
+                    ? [fullFrameUrl, fullFrameUrl, fullFrameUrl]
+                    : c.videoFrames,
+                  ...(isRegenPromotion
+                    ? {
+                        recreated: true,
+                        videoAttempts: Math.max(2, (c.videoAttempts || 1) + 1),
+                        auditStatus: 'ok' as const,
+                        auditReason: '✅ Clip regenerado y escalado a 4K.',
+                        videoAuditStatus: 'approved' as const,
+                        videoAuditReason: '',
+                        videoAuditIssues: [],
+                      }
+                    : {}),
+                };
+              });
               updateActiveDoc({ clips: nextClips });
             }
 
@@ -8327,6 +8343,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
 
           if (serverResolvedFolder) {
+            const rejectedOrDiscardedNums = new Set<number>();
+            for (const c of currentDoc?.clips || []) {
+              if (
+                c.videoAuditStatus === 'rejected' ||
+                c.auditStatus === 'mismatch' ||
+                (c.discardedVideoFileName && c.videoSavedFileName === c.discardedVideoFileName)
+              ) {
+                rejectedOrDiscardedNums.add(c.clipNumber);
+              }
+            }
             setCapturedClipVideosMap((prev) => {
               const merged: Record<number, string> = {};
               for (const [kStr, val] of Object.entries(prev)) {
@@ -8334,8 +8360,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 if (
                   k > 0 &&
                   !nextClipUrls[k] &&
+                  !rejectedOrDiscardedNums.has(k) &&
                   typeof val === 'string' &&
-                  (val.startsWith('blob:') || val.startsWith('data:'))
+                  val.startsWith('data:')
                 ) {
                   merged[k] = val;
                 }
@@ -8459,15 +8486,42 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             currentDoc?.clips?.length &&
             (Object.keys(nextFileNames).length > 0 ||
               Object.keys(frameUrlByClip).length > 0 ||
-              hasDiskPromptsPayload)
+              hasDiskPromptsPayload ||
+              serverResolvedFolder)
           ) {
             let clipsChanged = false;
             let rescuedPromptsCount = 0;
+            const nowLoadMs = Date.now();
+            const hasDiskClipsArray = Array.isArray(data.clipVideos);
             const mergedClips = currentDoc.clips.map((c) => {
-              const diskName = nextFileNames[c.clipNumber];
-              const freshImgUrl = frameUrlByClip[c.clipNumber];
+              const rawDiskName = nextFileNames[c.clipNumber];
+              const isRevokedDiskFile = Boolean(
+                rawDiskName &&
+                  c.discardedVideoFileName &&
+                  rawDiskName === c.discardedVideoFileName
+              );
+              const diskName = isRevokedDiskFile ? '' : rawDiskName;
+              const freshImgUrl = isRevokedDiskFile ? '' : frameUrlByClip[c.clipNumber];
               const is4kDiskName = Boolean(diskName && /[_\-]4k\.(mp4|webm|mov)$/i.test(diskName));
-              const needsNameUpdate = is4kDiskName && (c.videoSavedFileName !== diskName || !c.videoReady);
+              const isRegenPromotion = Boolean(
+                is4kDiskName &&
+                  diskName &&
+                  diskName !== c.discardedVideoFileName &&
+                  (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch')
+              );
+              const needsNameUpdate =
+                is4kDiskName &&
+                (c.videoSavedFileName !== diskName || !c.videoReady || isRegenPromotion);
+              const needsQuarantineCleanup = Boolean(
+                serverResolvedFolder &&
+                  hasDiskClipsArray &&
+                  !diskName &&
+                  (c.videoAuditStatus === 'rejected' ||
+                    c.auditStatus === 'mismatch' ||
+                    (c.discardedVideoFileName &&
+                      c.videoSavedFileName === c.discardedVideoFileName)) &&
+                  (c.videoSavedFileName || c.videoReady)
+              );
               const isEphemeralBridgeUrl = Boolean(
                 freshImgUrl &&
                   /^https?:\/\/(localhost|127\.0\.0\.1)\b|\.trycloudflare\.com\b|\/api\/flow\/serve-folder-file\b/i.test(
@@ -8485,7 +8539,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   !isClipRealAuthored(c) &&
                   (diskImgP.length > 0 || diskVidP.length > 0)
               );
-              if (!needsNameUpdate && !needsFrameUpdate && !needsPromptRescue) {
+              if (
+                !needsNameUpdate &&
+                !needsQuarantineCleanup &&
+                !needsFrameUpdate &&
+                !needsPromptRescue
+              ) {
                 return c;
               }
               clipsChanged = true;
@@ -8501,7 +8560,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ...(needsNameUpdate
                   ? {
                       videoSavedFileName: diskName,
+                      videoSavedAt: nowLoadMs,
                       videoReady: true,
+                      imageReady: true,
+                      ...(isRegenPromotion
+                        ? {
+                            recreated: true,
+                            videoAttempts: Math.max(2, (c.videoAttempts || 1) + 1),
+                            auditStatus: 'ok' as const,
+                            auditReason: '✅ Clip regenerado y escalado a 4K.',
+                            videoAuditStatus: 'approved' as const,
+                            videoAuditReason: '',
+                            videoAuditIssues: [],
+                          }
+                        : {}),
+                    }
+                  : {}),
+                ...(needsQuarantineCleanup
+                  ? {
+                      videoSavedFileName: '',
+                      videoReady: false,
+                      imageReady: false,
                     }
                   : {}),
                 ...(needsFrameUpdate
@@ -8712,12 +8791,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             } catch {}
           }
 
-          if (Object.keys(newClipUrls).length > 0) {
-            setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
-          }
-          if (Object.keys(newClipFileNames).length > 0) {
-            setFolderClipFileNamesMap((prev) => ({ ...prev, ...newClipFileNames }));
-          }
+          setCapturedClipVideosMap(newClipUrls);
+          setFolderClipFileNamesMap(newClipFileNames);
 
           // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
           const audioSubCandidates = ['02_Audio', 'Audio', ''];
@@ -8905,17 +8980,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             }
           }
         }
-        setCapturedClipVideosMap((prev) => ({ ...prev, ...nextMap }));
-        setFolderClipFileNamesMap((prev) => ({ ...prev, ...nextNames }));
+        setCapturedClipVideosMap(nextMap);
+        setFolderClipFileNamesMap(nextNames);
 
         if (Array.isArray(currentDoc.clips) && currentDoc.clips.length > 0) {
+          const pipeNowMs = Date.now();
           const updatedClips = currentDoc.clips.map((c) => {
             const fName = nextNames[c.clipNumber];
-            if (fName) {
+            if (fName && fName !== c.discardedVideoFileName) {
+              const isRegenPromotion =
+                c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch';
               return {
                 ...c,
                 videoReady: true,
+                imageReady: true,
                 videoSavedFileName: fName,
+                videoSavedAt: pipeNowMs,
+                ...(isRegenPromotion
+                  ? {
+                      recreated: true,
+                      videoAttempts: Math.max(2, (c.videoAttempts || 1) + 1),
+                      auditStatus: 'ok' as const,
+                      auditReason: '✅ Clip regenerado y escalado a 4K.',
+                      videoAuditStatus: 'approved' as const,
+                      videoAuditReason: '',
+                      videoAuditIssues: [],
+                    }
+                  : {}),
               };
             }
             return c;
@@ -20608,11 +20699,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 {(activeDoc.clips?.length || 0) > 0 &&
                   (() => {
                     const clipsList = activeDoc.clips || [];
-                    const okCount = clipsList.filter((c) => c.auditStatus === 'ok').length;
-                    const warnCount = clipsList.filter((c) => c.auditStatus === 'warning').length;
-                    const mismatchCount = clipsList.filter((c) => c.auditStatus === 'mismatch').length;
-                    const videoIssueCount = clipsList.filter(
-                      (c) => c.videoAuditStatus === 'warning' || c.videoAuditStatus === 'rejected'
+                    const isRowRejectedOrMismatch = (c: DocumentaryClip) =>
+                      c.auditStatus === 'mismatch' || c.videoAuditStatus === 'rejected';
+                    const isRowWarnOnly = (c: DocumentaryClip) =>
+                      !isRowRejectedOrMismatch(c) &&
+                      (c.auditStatus === 'warning' || c.videoAuditStatus === 'warning');
+                    const rejectedOrMismatchCount = clipsList.filter(isRowRejectedOrMismatch).length;
+                    const warnCount = clipsList.filter(isRowWarnOnly).length;
+                    const okCount = clipsList.filter(
+                      (c) =>
+                        !isRowRejectedOrMismatch(c) &&
+                        !isRowWarnOnly(c) &&
+                        Boolean(
+                          c.videoReady ||
+                            capturedClipVideosMap[c.clipNumber] ||
+                            c.videoSavedFileName
+                        ) &&
+                        (c.videoAuditStatus === 'approved' || c.auditStatus === 'ok')
                     ).length;
                     const flaggedClips = clipsList.filter(
                       (c) =>
@@ -20629,8 +20732,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     if (
                       suggestionsCount === 0 &&
                       warnCount === 0 &&
-                      mismatchCount === 0 &&
-                      videoIssueCount === 0 &&
+                      rejectedOrMismatchCount === 0 &&
                       !auditSummary
                     ) {
                       return null;
@@ -20650,7 +20752,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               ⚠️ {warnCount} Con Observación
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold">
-                              🚨 {mismatchCount + videoIssueCount} No coinciden / Rechazados
+                              🚨 {rejectedOrMismatchCount} No coinciden / Rechazados
                             </span>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -20743,7 +20845,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     const isClipGenerating = (c: DocumentaryClip) =>
                       c.videoAuditStatus === 'generating' || c.videoAuditStatus === 'auditing';
                     const isClipApproved = (c: DocumentaryClip) =>
-                      c.videoAuditStatus === 'approved' || c.auditStatus === 'ok';
+                      isClipVideoReady(c) &&
+                      !isClipIssue(c) &&
+                      (c.videoAuditStatus === 'approved' || c.auditStatus === 'ok');
                     const isClipIssue = (c: DocumentaryClip) =>
                       c.videoAuditStatus === 'warning' ||
                       c.videoAuditStatus === 'rejected' ||
@@ -20751,6 +20855,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       c.auditStatus === 'mismatch' ||
                       Boolean(c.suggestedImagePrompt || c.suggestedVideoPrompt);
                     const isClipPending = (c: DocumentaryClip) =>
+                      !isClipIssue(c) &&
                       !c.imageReady &&
                       !isClipVideoReady(c) &&
                       !isClipRecreated(c) &&
@@ -20921,9 +21026,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 type="button"
                                 onClick={() => {
                                   setClipStatusFilter(opt.key);
-                                  if (opt.key === 'OBSERVACION_ERROR') {
-                                    setClipBatchFilter(0);
-                                  }
+                                  setClipBatchFilter(0);
                                 }}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
                                   isActive ? opt.activeClass : opt.idleClass
@@ -20941,7 +21044,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             No hay clips con el estado seleccionado.{' '}
                             <button
                               type="button"
-                              onClick={() => setClipStatusFilter('ALL')}
+                              onClick={() => {
+                                setClipStatusFilter('ALL');
+                                setClipBatchFilter(0);
+                              }}
                               className="text-amber-300 underline font-bold ml-1 cursor-pointer"
                             >
                               Ver todos los clips ({allClipsList.length})
@@ -21123,213 +21229,54 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     );
                   })()}
 
-                {/* Batch Filter Tabs (Batches of 10 / 15 / 20 for safe Google Flow threads) */}
-                {(activeDoc.clips?.length || 0) > 0 && (
-                  <div className="flex items-center justify-between flex-wrap gap-3 bg-[#14120f] border border-slate-800 rounded-xl p-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-bold text-slate-400 mr-1">Lote Flow:</span>
-                      {([10, 15, 20] as const).map((sz) => (
-                        <button
-                          key={sz}
-                          type="button"
-                          onClick={() => {
-                            setClipBatchSize(sz);
-                            setClipBatchFilter((prev) => {
-                              if (prev === 0) return 0;
-                              const maxBatches = Math.max(
-                                1,
-                                Math.ceil((activeDoc.clips?.length || 1) / sz)
-                              );
-                              return Math.min(prev, maxBatches);
-                            });
-                          }}
-                          className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer border ${
-                            clipBatchSize === sz
-                              ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200'
-                              : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
-                          }`}
-                          title={
-                            sz === 15
-                              ? 'Tamaño óptimo recomendado para Google Flow sin saltos de escena ni deriva de contexto'
-                              : `Agrupar de ${sz} en ${sz} clips`
-                          }
-                        >
-                          {sz === 15 ? '15 (Óptimo Flow)' : sz}
-                        </button>
-                      ))}
-                      <span className="text-slate-700 mx-1">|</span>
-                      <button
-                        onClick={() => setClipBatchFilter(0)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                          clipBatchFilter === 0
-                            ? 'bg-amber-500 text-slate-950'
-                            : 'bg-slate-900 text-slate-300'
-                        }`}
-                      >
-                        Todos ({activeDoc.clips.length})
-                      </button>
-                      {Array.from(
-                        { length: Math.ceil(activeDoc.clips.length / clipBatchSize) },
-                        (_, bIdx) => bIdx + 1
-                      ).map((batchNum) => {
-                        const startClip = (batchNum - 1) * clipBatchSize + 1;
-                        const endClip = Math.min(batchNum * clipBatchSize, activeDoc.clips.length);
-                        return (
-                          <button
-                            key={batchNum}
-                            onClick={() => setClipBatchFilter(batchNum)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
-                              clipBatchFilter === batchNum
-                                ? 'bg-amber-500 text-slate-950'
-                                : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
-                            }`}
-                          >
-                            Lote {batchNum} (Clips {String(startClip).padStart(2, '0')}-
-                            {String(endClip).padStart(2, '0')})
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const allReviewed = activeDoc.clips.every((c) => c.reviewedForEditor);
-                          const next = activeDoc.clips.map((c) => ({
-                            ...c,
-                            reviewedForEditor: !allReviewed,
-                            videoReady: !allReviewed ? true : c.videoReady,
-                          }));
-                          updateActiveDoc({ clips: next });
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
-                        title="Marca o desmarca todos los clips como Revisados para enviarlos al Editor de Video"
-                      >
-                        ☑️ Revisados en Editor de Video ({activeDoc.clips.filter((c) => c.reviewedForEditor).length}/{activeDoc.clips.length})
-                      </button>
-
-                      <span
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
-                        title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación con la duración exacta elegida en la Etapa 1 y el Escudo Anti-Violencia"
-                      >
-                        ✅ Todos los Blindajes Activos Automáticamente (Anti-Filtro Flow + Física Anti-Mutación{' '}
-                        {(() => {
-                          const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
-                          return `Clip 1: ${clip1Sec}s / Clips 2+: ${standardClipSec}s`;
-                        })()}
-                        )
-                      </span>
-
-                      <button
-                        onClick={() => {
-                          const activeEngine =
-                            activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
-                          const currentHeader = applyFlowVideoEngineToDirectiveText(
-                            activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
-                            activeEngine
-                          );
-                          const { clip1Sec: batchClip1Sec, standardClipSec: batchStdSec } =
-                            getStage1ClipDurations(activeDoc);
-                          const docRefsList = activeDoc.references || [];
-                          const visible = activeDoc.clips.filter((_, idx) =>
-                            clipBatchFilter === 0
-                              ? true
-                              : idx >= (clipBatchFilter - 1) * clipBatchSize &&
-                                idx < clipBatchFilter * clipBatchSize
-                          );
-                          const totalBatches = Math.max(
-                            1,
-                            Math.ceil(activeDoc.clips.length / clipBatchSize)
-                          );
-                          const firstVisibleNum = visible[0]?.clipNumber || 1;
-                          const lastVisibleNum =
-                            visible[visible.length - 1]?.clipNumber || activeDoc.clips.length;
-                          const batchGuardNote =
-                            clipBatchFilter >= 1
-                              ? `[FLOW BATCH ${clipBatchFilter}/${totalBatches} — GENERATE STRICTLY SCENES ${firstVisibleNum} TO ${lastVisibleNum} IN EXACT SEQUENTIAL ORDER WITHOUT SKIPPING ANY SCENE OR PARAPHRASING TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
-                              : '';
-                          const headerPrefix = `${currentHeader}\n\n${batchGuardNote}`;
-                          const body = visible
-                            .map((c) => {
-                              const durForClip = c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
-                              if (c.isStaticBroll) {
-                                return normalizeBrollImagePrompt(
-                                  c.imagePrompt || '',
-                                  c.clipNumber,
-                                  c.timeRange,
-                                  durForClip,
-                                  c.brollCameraMotion || 'zoom_in'
-                                );
-                              }
-                              const resolved = resolveClipFlowVideoEngine(c, activeEngine, docRefsList);
-                              const taggedVid = applyClipFlowVideoEngineTag(
-                                c.videoPrompt || '',
-                                resolved,
-                                durForClip
-                              );
-                              return `${c.imagePrompt}\n${taggedVid}`;
-                            })
-                            .join('\n\n');
-                          copyText(headerPrefix + body, 'copy-batch-clips');
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer"
-                      >
-                        {copiedId === 'copy-batch-clips'
-                          ? '✓ Lote Copiado al Portapapeles'
-                          : '📋 Copiar Prompts de este Lote'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Individual Clip Cards with Voiceover Alignment, Audit Status & 1-Click Suggestions */}
-                <div className="space-y-4">
-                  {(activeDoc.clips || [])
-                    .filter((clip, idx) => {
-                      const batchOk =
-                        clipBatchFilter === 0 ||
-                        clipStatusFilter === 'OBSERVACION_ERROR' ||
-                        clipStatusFilter === 'STATIC_BROLL'
-                          ? true
-                          : idx >= (clipBatchFilter - 1) * clipBatchSize &&
-                            idx < clipBatchFilter * clipBatchSize;
-                      if (!batchOk) return false;
-                      const isRec = Boolean(
-                        clip.recreated || (clip.videoAttempts && clip.videoAttempts > 1)
+                {/* Batch Filter Tabs (Batches of 10 / 15 / 20 over active status filter) + Individual Clip Cards */}
+                {(activeDoc.clips?.length || 0) > 0 &&
+                  (() => {
+                    const allDocClips = activeDoc.clips || [];
+                    const isCardRec = (c: DocumentaryClip) =>
+                      Boolean(c.recreated || (c.videoAttempts && c.videoAttempts > 1));
+                    const isCardVid = (c: DocumentaryClip) =>
+                      Boolean(
+                        c.videoReady ||
+                          capturedClipVideosMap[c.clipNumber] ||
+                          c.videoSavedFileName
                       );
-                      const isVid = Boolean(
-                        clip.videoReady ||
-                          capturedClipVideosMap[clip.clipNumber] ||
-                          clip.videoSavedFileName
-                      );
-                      const isGen =
-                        clip.videoAuditStatus === 'generating' || clip.videoAuditStatus === 'auditing';
-                      const isApp = clip.videoAuditStatus === 'approved' || clip.auditStatus === 'ok';
-                      const isIss =
-                        clip.videoAuditStatus === 'warning' ||
-                        clip.videoAuditStatus === 'rejected' ||
-                        clip.auditStatus === 'warning' ||
-                        clip.auditStatus === 'mismatch' ||
-                        Boolean(clip.suggestedImagePrompt || clip.suggestedVideoPrompt);
-                      const isPend =
-                        !clip.imageReady && !isVid && !isRec && !clip.reviewedForEditor && !isGen;
+                    const isCardGen = (c: DocumentaryClip) =>
+                      c.videoAuditStatus === 'generating' || c.videoAuditStatus === 'auditing';
+                    const isCardIss = (c: DocumentaryClip) =>
+                      c.videoAuditStatus === 'warning' ||
+                      c.videoAuditStatus === 'rejected' ||
+                      c.auditStatus === 'warning' ||
+                      c.auditStatus === 'mismatch' ||
+                      Boolean(c.suggestedImagePrompt || c.suggestedVideoPrompt);
+                    const isCardApp = (c: DocumentaryClip) =>
+                      isCardVid(c) &&
+                      !isCardIss(c) &&
+                      (c.videoAuditStatus === 'approved' || c.auditStatus === 'ok');
+                    const isCardPend = (c: DocumentaryClip) =>
+                      !isCardIss(c) &&
+                      !c.imageReady &&
+                      !isCardVid(c) &&
+                      !isCardRec(c) &&
+                      !c.reviewedForEditor &&
+                      !isCardGen(c);
 
+                    const statusFilteredClips = allDocClips.filter((clip) => {
                       switch (clipStatusFilter) {
                         case 'PENDIENTE':
-                          return isPend;
+                          return isCardPend(clip);
                         case 'IMAGEN_LISTA':
                           return Boolean(clip.imageReady);
                         case 'GENERANDO':
-                          return isGen;
+                          return isCardGen(clip);
                         case 'VIDEO_LISTO':
-                          return isVid;
+                          return isCardVid(clip);
                         case 'APROBADO_IA':
-                          return isApp;
+                          return isCardApp(clip);
                         case 'OBSERVACION_ERROR':
-                          return isIss;
+                          return isCardIss(clip);
                         case 'RECREADO':
-                          return isRec;
+                          return isCardRec(clip);
                         case 'REVISADO':
                           return Boolean(clip.reviewedForEditor);
                         case 'SIN_REVISAR':
@@ -21339,8 +21286,215 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         default:
                           return true;
                       }
-                    })
-                    .map((clip) => {
+                    });
+
+                    const totalFilteredBatches = Math.max(
+                      1,
+                      Math.ceil(statusFilteredClips.length / clipBatchSize)
+                    );
+                    const effectiveBatchFilter =
+                      clipBatchFilter > totalFilteredBatches ? 0 : clipBatchFilter;
+                    const visibleFilteredClips =
+                      effectiveBatchFilter === 0
+                        ? statusFilteredClips
+                        : statusFilteredClips.slice(
+                            (effectiveBatchFilter - 1) * clipBatchSize,
+                            effectiveBatchFilter * clipBatchSize
+                          );
+
+                    return (
+                      <>
+                        <div className="flex items-center justify-between flex-wrap gap-3 bg-[#14120f] border border-slate-800 rounded-xl p-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-bold text-slate-400 mr-1">
+                              Lote Flow:
+                            </span>
+                            {([10, 15, 20] as const).map((sz) => (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => {
+                                  setClipBatchSize(sz);
+                                  setClipBatchFilter((prev) => {
+                                    if (prev === 0) return 0;
+                                    const maxBatches = Math.max(
+                                      1,
+                                      Math.ceil((statusFilteredClips.length || 1) / sz)
+                                    );
+                                    return Math.min(prev, maxBatches);
+                                  });
+                                }}
+                                className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer border ${
+                                  clipBatchSize === sz
+                                    ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200'
+                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                                }`}
+                                title={
+                                  sz === 15
+                                    ? 'Tamaño óptimo recomendado para Google Flow sin saltos de escena ni deriva de contexto'
+                                    : `Agrupar de ${sz} en ${sz} clips`
+                                }
+                              >
+                                {sz === 15 ? '15 (Óptimo Flow)' : sz}
+                              </button>
+                            ))}
+                            <span className="text-slate-700 mx-1">|</span>
+                            <button
+                              onClick={() => setClipBatchFilter(0)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                                effectiveBatchFilter === 0
+                                  ? 'bg-amber-500 text-slate-950'
+                                  : 'bg-slate-900 text-slate-300'
+                              }`}
+                            >
+                              Todos ({statusFilteredClips.length})
+                            </button>
+                            {Array.from(
+                              {
+                                length: Math.ceil(statusFilteredClips.length / clipBatchSize),
+                              },
+                              (_, bIdx) => bIdx + 1
+                            ).map((batchNum) => {
+                              const slice = statusFilteredClips.slice(
+                                (batchNum - 1) * clipBatchSize,
+                                batchNum * clipBatchSize
+                              );
+                              if (slice.length === 0) return null;
+                              const firstNum = slice[0].clipNumber;
+                              const lastNum = slice[slice.length - 1].clipNumber;
+                              const isContiguous = slice.every(
+                                (c, idx) =>
+                                  idx === 0 || c.clipNumber === slice[idx - 1].clipNumber + 1
+                              );
+                              const label = isContiguous
+                                ? `Lote ${batchNum} (Clips ${String(firstNum).padStart(2, '0')}-${String(lastNum).padStart(2, '0')})`
+                                : `Lote ${batchNum} (${slice.length} clips: #${String(firstNum).padStart(2, '0')}–#${String(lastNum).padStart(2, '0')})`;
+                              return (
+                                <button
+                                  key={batchNum}
+                                  onClick={() => setClipBatchFilter(batchNum)}
+                                  title={`Escenas incluidas: ${slice.map((c) => `#${String(c.clipNumber).padStart(2, '0')}`).join(', ')}`}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                                    effectiveBatchFilter === batchNum
+                                      ? 'bg-amber-500 text-slate-950'
+                                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allReviewed = allDocClips.every((c) => c.reviewedForEditor);
+                                const next = allDocClips.map((c) => ({
+                                  ...c,
+                                  reviewedForEditor: !allReviewed,
+                                  videoReady: !allReviewed ? true : c.videoReady,
+                                }));
+                                updateActiveDoc({ clips: next });
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-200 text-xs font-black cursor-pointer"
+                              title="Marca o desmarca todos los clips como Revisados para enviarlos al Editor de Video"
+                            >
+                              ☑️ Revisados en Editor de Video (
+                              {allDocClips.filter((c) => c.reviewedForEditor).length}/
+                              {allDocClips.length})
+                            </button>
+
+                            <span
+                              className="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold"
+                              title="Todos los prompts (Miniaturas, Referencias, Imágenes y Videos) incluyen automáticamente desde su construcción el blindaje Anti-Filtro 'Prominent People', el blindaje de Física + Anti-Mutación con la duración exacta elegida en la Etapa 1 y el Escudo Anti-Violencia"
+                            >
+                              ✅ Todos los Blindajes Activos Automáticamente (Anti-Filtro Flow + Física Anti-Mutación{' '}
+                              {(() => {
+                                const { clip1Sec, standardClipSec } =
+                                  getStage1ClipDurations(activeDoc);
+                                return `Clip 1: ${clip1Sec}s / Clips 2+: ${standardClipSec}s`;
+                              })()}
+                              )
+                            </span>
+
+                            <button
+                              onClick={() => {
+                                const activeEngine =
+                                  activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+                                const baseHeader = applyFlowVideoEngineToDirectiveText(
+                                  activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                  activeEngine
+                                );
+                                const { clip1Sec: batchClip1Sec, standardClipSec: batchStdSec } =
+                                  getStage1ClipDurations(activeDoc);
+                                const docRefsList = activeDoc.references || [];
+                                const visible = visibleFilteredClips;
+                                const isVisibleContiguous = visible.every(
+                                  (c, idx) =>
+                                    idx === 0 ||
+                                    c.clipNumber === visible[idx - 1].clipNumber + 1
+                                );
+                                const currentHeader =
+                                  effectiveBatchFilter >= 1 ||
+                                  clipStatusFilter !== 'ALL' ||
+                                  clipBatchSize !== 10
+                                    ? baseHeader.replace(
+                                        /Divide creation into batches of \d+\./gi,
+                                        `Divide creation into batches of ${Math.max(1, visible.length)}.`
+                                      )
+                                    : baseHeader;
+                                const firstVisibleNum = visible[0]?.clipNumber || 1;
+                                const lastVisibleNum =
+                                  visible[visible.length - 1]?.clipNumber || allDocClips.length;
+                                const batchGuardNote =
+                                  visible.length > 0 && !isVisibleContiguous
+                                    ? `[FLOW TARGETED REGENERATION BATCH ${effectiveBatchFilter || 1}/${effectiveBatchFilter ? totalFilteredBatches : 1} (${visible.length} SPECIFIC SCENES: [${visible.map((c) => c.clipNumber).join(', ')}]) — GENERATE ONLY THESE EXACT ${visible.length} LISTED SCENES IN THIS EXACT ORDER. KEEP EVERY ORIGINAL SCENE NUMBER ("Image N" / "Clip N" AND FILE PREFIX "NN_") 100% UNCHANGED — NEVER RENUMBER 1..${visible.length}, NEVER GENERATE SKIPPED INTERMEDIATE SCENES, AND NEVER PARAPHRASE TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
+                                    : effectiveBatchFilter >= 1
+                                    ? `[FLOW BATCH ${effectiveBatchFilter}/${totalFilteredBatches} — GENERATE STRICTLY SCENES ${firstVisibleNum} TO ${lastVisibleNum} IN EXACT SEQUENTIAL ORDER WITHOUT SKIPPING ANY SCENE OR PARAPHRASING TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
+                                    : '';
+                                const headerPrefix = `${currentHeader}\n\n${batchGuardNote}`;
+                                const body = visible
+                                  .map((c) => {
+                                    const durForClip =
+                                      c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
+                                    if (c.isStaticBroll) {
+                                      return normalizeBrollImagePrompt(
+                                        c.imagePrompt || '',
+                                        c.clipNumber,
+                                        c.timeRange,
+                                        durForClip,
+                                        c.brollCameraMotion || 'zoom_in'
+                                      );
+                                    }
+                                    const resolved = resolveClipFlowVideoEngine(
+                                      c,
+                                      activeEngine,
+                                      docRefsList
+                                    );
+                                    const taggedVid = applyClipFlowVideoEngineTag(
+                                      c.videoPrompt || '',
+                                      resolved,
+                                      durForClip
+                                    );
+                                    return `${c.imagePrompt}\n${taggedVid}`;
+                                  })
+                                  .join('\n\n');
+                                copyText(headerPrefix + body, 'copy-batch-clips');
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer"
+                            >
+                              {copiedId === 'copy-batch-clips'
+                                ? `✓ Lote Copiado (${visibleFilteredClips.length} clips)`
+                                : `📋 Copiar Prompts de este Lote (${visibleFilteredClips.length})`}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Individual Clip Cards with Voiceover Alignment, Audit Status & 1-Click Suggestions */}
+                        <div className="space-y-4">
+                          {visibleFilteredClips.map((clip) => {
                       const realIdx = activeDoc.clips.findIndex((c) => c.id === clip.id);
                       const paddedNum = String(clip.clipNumber).padStart(2, '0');
                       const hasSuggestion = !!(clip.suggestedImagePrompt || clip.suggestedVideoPrompt);
@@ -22365,7 +22519,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </div>
                       );
                     })}
-                </div>
+                        </div>
+                      </>
+                    );
+                  })()}
               </div>
             )}
 

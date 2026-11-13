@@ -2253,6 +2253,13 @@ export function syncAndAuditProductionClips(
         if (c1Issues.length > 0) {
           auditStatus = 'mismatch';
           auditReason = c1Issues.join(' ');
+        } else if (
+          existing?.videoAuditStatus === 'rejected' &&
+          !existing?.videoSavedFileName &&
+          existing?.auditStatus === 'mismatch'
+        ) {
+          auditStatus = 'mismatch';
+          auditReason = existing.auditReason || 'Video rechazado en auditoría visual.';
         } else {
           auditStatus = 'ok';
           auditReason =
@@ -2451,6 +2458,13 @@ export function syncAndAuditProductionClips(
       if (issues.length > 0) {
         auditStatus = hasMismatch ? 'mismatch' : 'warning';
         auditReason = issues.join(' ');
+      } else if (
+        existing?.videoAuditStatus === 'rejected' &&
+        !existing?.videoSavedFileName &&
+        existing?.auditStatus === 'mismatch'
+      ) {
+        auditStatus = 'mismatch';
+        auditReason = existing.auditReason || 'Video rechazado o faltante — pendiente de regenerar en Flow.';
       } else {
         auditStatus = 'ok';
         auditReason = 'Sincronizado con el tramo de voz narrativa.';
@@ -2482,6 +2496,10 @@ export function syncAndAuditProductionClips(
       videoAuditIssues: existing?.videoAuditIssues,
       videoAttempts: existing?.videoAttempts,
       videoSavedFileName: existing?.videoSavedFileName,
+      discardedVideoFileName: existing?.discardedVideoFileName,
+      videoDiscardedAt: existing?.videoDiscardedAt,
+      videoSavedAt: existing?.videoSavedAt,
+      promptUpdatedAt: existing?.promptUpdatedAt,
       auditStatus,
       auditReason,
       suggestedImagePrompt: existing?.suggestedImagePrompt,

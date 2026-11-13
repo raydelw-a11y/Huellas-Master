@@ -690,15 +690,58 @@ function mergeServerClipsPreservingAuthored(
     const wHasReal = isServerClipRealAuthored(c);
     const oHasReal = isServerClipRealAuthored(o);
     const rescuePrompts = !wHasReal && oHasReal && !rawClipsLegitimatelyTombstoned;
-    const resolvedIsBroll = rescuePrompts
+    const useOtherPrompt =
+      rescuePrompts ||
+      (oHasReal && Number(o.promptUpdatedAt || 0) > Number(c.promptUpdatedAt || 0));
+    const resolvedIsBroll = useOtherPrompt
       ? typeof o.isStaticBroll === 'boolean'
         ? o.isStaticBroll
         : c.isStaticBroll
       : c.isStaticBroll;
     const hasAuthoredAfterMerge = wHasReal || rescuePrompts;
+
+    const cDiscAt = Number(c.videoDiscardedAt || 0);
+    const oDiscAt = Number(o.videoDiscardedAt || 0);
+    const effDiscardedAt = Math.max(cDiscAt, oDiscAt);
+    const effDiscardedFile =
+      (cDiscAt >= oDiscAt
+        ? c.discardedVideoFileName || o.discardedVideoFileName
+        : o.discardedVideoFileName || c.discardedVideoFileName) || '';
+    const anySideRejectedEmpty =
+      (c.videoAuditStatus === 'rejected' && !String(c.videoSavedFileName || '').trim()) ||
+      (o.videoAuditStatus === 'rejected' && !String(o.videoSavedFileName || '').trim());
+    const isSideFileRevoked = (side: any) => {
+      const f = String(side?.videoSavedFileName || '').trim();
+      if (!f) return true;
+      if (effDiscardedFile && f === effDiscardedFile) return true;
+      if (
+        effDiscardedAt > 0 &&
+        anySideRejectedEmpty &&
+        Number(side?.videoSavedAt || 0) < effDiscardedAt
+      ) {
+        return true;
+      }
+      return false;
+    };
+    const cRevoked = isSideFileRevoked(c);
+    const oRevoked = isSideFileRevoked(o);
+    const cValidFile = cRevoked ? '' : String(c.videoSavedFileName || '').trim();
+    const oValidFile = oRevoked ? '' : String(o.videoSavedFileName || '').trim();
+    const isActivelyRejected =
+      (c.videoAuditStatus === 'rejected' ||
+        o.videoAuditStatus === 'rejected' ||
+        c.auditStatus === 'mismatch' ||
+        o.auditStatus === 'mismatch') &&
+      effDiscardedAt > 0 &&
+      !cValidFile &&
+      !oValidFile;
+
     const cAuditReason = String(c.auditReason || '');
     const oAuditReason = String(o.auditReason || '');
     const needsAuditCleanup =
+      !isActivelyRejected &&
+      c.auditStatus !== 'mismatch' &&
+      o.auditStatus !== 'mismatch' &&
       hasAuthoredAfterMerge &&
       (rescuePrompts || c.auditStatus === 'warning' || STALE_PENDING_AUDIT_RE.test(cAuditReason));
     const cleanAuditPatch = needsAuditCleanup
@@ -718,36 +761,111 @@ function mergeServerClipsPreservingAuthored(
       c.previousVideoPrompt ||
       o.previousVideoPrompt ||
       (resolvedIsBroll && (c.videoPrompt || o.videoPrompt) ? c.videoPrompt || o.videoPrompt : undefined);
+    const promptWinnerMeta = useOtherPrompt
+      ? {
+          imagePrompt: o.imagePrompt || c.imagePrompt,
+          videoPrompt: resolvedIsBroll ? '' : o.videoPrompt || c.videoPrompt,
+          ...(resolvedIsBroll && preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
+          isStaticBroll: resolvedIsBroll,
+          brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
+          flowClipEngine: o.flowClipEngine || c.flowClipEngine,
+          cameraSelection: o.cameraSelection || c.cameraSelection,
+          visualExplanation: o.visualExplanation || c.visualExplanation,
+          ...(Math.max(Number(c.promptUpdatedAt || 0), Number(o.promptUpdatedAt || 0)) > 0
+            ? {
+                promptUpdatedAt: Math.max(
+                  Number(c.promptUpdatedAt || 0),
+                  Number(o.promptUpdatedAt || 0)
+                ),
+              }
+            : {}),
+        }
+      : resolvedIsBroll
+        ? {
+            videoPrompt: '',
+            ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
+          }
+        : {};
+
+    if (isActivelyRejected) {
+      const rejSide = oDiscAt > cDiscAt ? o : c;
+      return {
+        ...c,
+        ...promptWinnerMeta,
+        reviewedForEditor: false,
+        recreated: Boolean(c.recreated || o.recreated),
+        videoReady: false,
+        imageReady: false,
+        videoSavedFileName: '',
+        videoSavedAt: 0,
+        imagePreviewUrl: '',
+        videoFrames: [],
+        auditStatus: 'mismatch',
+        videoAuditStatus: 'rejected',
+        auditReason: rejSide.auditReason || c.auditReason || o.auditReason,
+        videoAuditReason: rejSide.videoAuditReason || c.videoAuditReason || o.videoAuditReason,
+        ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
+        videoDiscardedAt: effDiscardedAt,
+      };
+    }
+
+    const winningFile =
+      cValidFile && oValidFile && cValidFile !== oValidFile
+        ? Number(o.videoSavedAt || 0) > Number(c.videoSavedAt || 0)
+          ? oValidFile
+          : cValidFile
+        : cValidFile || oValidFile || '';
+    const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
+    const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
+    const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
+    const mergedAuditStatus =
+      winningFile &&
+      effDiscardedAt > 0 &&
+      (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
+        ? 'ok'
+        : c.auditStatus;
+    const mergedVideoAuditStatus =
+      winningFile &&
+      effDiscardedAt > 0 &&
+      (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
+        ? 'approved'
+        : c.videoAuditStatus || o.videoAuditStatus;
+
     return {
       ...c,
-      ...(rescuePrompts
-        ? {
-            imagePrompt: o.imagePrompt || c.imagePrompt,
-            videoPrompt: resolvedIsBroll ? '' : o.videoPrompt || c.videoPrompt,
-            ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
-            isStaticBroll: resolvedIsBroll,
-            brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
-            flowClipEngine: o.flowClipEngine || c.flowClipEngine,
-            cameraSelection: c.cameraSelection || o.cameraSelection,
-            visualExplanation: c.visualExplanation || o.visualExplanation,
-          }
-        : resolvedIsBroll
-          ? {
-              videoPrompt: '',
-              ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
-            }
-          : {}),
+      ...promptWinnerMeta,
       ...cleanAuditPatch,
+      ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),
+      ...(mergedVideoAuditStatus ? { videoAuditStatus: mergedVideoAuditStatus } : {}),
       reviewedForEditor:
-        c.reviewedForEditor !== undefined
+        effDiscardedAt > 0
+          ? Boolean((cSideOk && c.reviewedForEditor) || (oSideOk && o.reviewedForEditor))
+          : c.reviewedForEditor !== undefined
           ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
           : Boolean(o.reviewedForEditor),
       recreated: Boolean(c.recreated || o.recreated),
-      videoReady: Boolean(c.videoReady || o.videoReady),
-      imageReady: Boolean(c.imageReady || o.imageReady),
-      videoSavedFileName: c.videoSavedFileName || o.videoSavedFileName,
+      videoReady:
+        effDiscardedAt > 0
+          ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))
+          : Boolean(c.videoReady || o.videoReady),
+      imageReady:
+        effDiscardedAt > 0
+          ? Boolean(winningFile || (cSideOk && c.imageReady) || (oSideOk && o.imageReady))
+          : Boolean(c.imageReady || o.imageReady),
+      videoSavedFileName: winningFile || undefined,
+      ...(winningSavedAt > 0 ? { videoSavedAt: winningSavedAt } : {}),
+      ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
+      ...(effDiscardedAt > 0 ? { videoDiscardedAt: effDiscardedAt } : {}),
       videoFrames:
-        Array.isArray(c.videoFrames) && c.videoFrames.length > 0 ? c.videoFrames : o.videoFrames,
+        effDiscardedAt > 0
+          ? !cRevoked && Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+            ? c.videoFrames
+            : !oRevoked && Array.isArray(o.videoFrames) && o.videoFrames.length > 0
+            ? o.videoFrames
+            : []
+          : Array.isArray(c.videoFrames) && c.videoFrames.length > 0
+          ? c.videoFrames
+          : o.videoFrames,
     };
   });
 }
@@ -1708,6 +1826,17 @@ app.put('/api/documentaries/:id', (req, res) => {
           ...(currentDiskDoc.timelineSettings || {}),
           ...incomingBody.timelineSettings,
         };
+      } else if (
+        key === 'clips' &&
+        Array.isArray(incomingBody.clips) &&
+        Array.isArray(currentDiskDoc.clips) &&
+        currentDiskDoc.clips.length > 0
+      ) {
+        surgicalPatch.clips = mergeServerClipsPreservingAuthored(
+          incomingBody.clips,
+          currentDiskDoc.clips,
+          hasValidExplicitPromptClear
+        );
       } else if (key in incomingBody) {
         surgicalPatch[key] = incomingBody[key];
       }
@@ -9235,15 +9364,40 @@ function syncUpscaledClipsToDocumentariesJson(
     if (byNum.size === 0) return;
 
     let changed = false;
+    const nowMs = Date.now();
     const nextClips = targetDoc.clips.map((c: any) => {
       const fName = byNum.get(Number(c.clipNumber));
-      if (fName && (c.videoSavedFileName !== fName || !c.videoReady || !c.imageReady)) {
+      if (!fName) return c;
+      if (c.discardedVideoFileName && fName === c.discardedVideoFileName) {
+        return c;
+      }
+      const isRegenPromotion =
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
+        fName !== c.discardedVideoFileName;
+      if (
+        c.videoSavedFileName !== fName ||
+        !c.videoReady ||
+        !c.imageReady ||
+        isRegenPromotion
+      ) {
         changed = true;
         return {
           ...c,
           videoSavedFileName: fName,
+          videoSavedAt: nowMs,
           videoReady: true,
           imageReady: true,
+          ...(isRegenPromotion
+            ? {
+                recreated: true,
+                videoAttempts: Math.max(2, Number(c.videoAttempts || 1) + 1),
+                auditStatus: 'ok',
+                auditReason: '✅ Clip regenerado y escalado a 4K.',
+                videoAuditStatus: 'approved',
+                videoAuditReason: '',
+                videoAuditIssues: [],
+              }
+            : {}),
         };
       }
       return c;
@@ -9327,7 +9481,13 @@ function parseServerBrollMotionFromText(text?: string | null): {
 
 function isTransientStagingEntry(entryName: string): boolean {
   if (!entryName) return true;
-  if (entryName.startsWith('.') || entryName.startsWith('__rendering_') || entryName.startsWith('__incoming_') || entryName.startsWith('~incoming_')) {
+  if (
+    entryName.startsWith('.') ||
+    entryName.startsWith('_') ||
+    entryName.startsWith('__rendering_') ||
+    entryName.startsWith('__incoming_') ||
+    entryName.startsWith('~incoming_')
+  ) {
     return true;
   }
   return /\.(?:tmp|part|crdownload|download)(?:\.(?:mp4|webm|mov|jpg|jpeg|png|webp))?$/i.test(entryName);
@@ -11746,6 +11906,15 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
                     c.brollCameraMotion = motion;
                     c.videoPrompt = '';
                     c.videoSavedFileName = finalBrollName;
+                    c.videoSavedAt = Date.now();
+                    c.videoReady = true;
+                    c.imageReady = true;
+                    if (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') {
+                      c.auditStatus = 'ok';
+                      c.auditReason = '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';
+                      c.videoAuditStatus = 'approved';
+                      c.videoAuditReason = '';
+                    }
                     if (typeof c.imagePrompt === 'string' && /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(c.imagePrompt)) {
                       c.imagePrompt = c.imagePrompt.replace(/\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, nextTag);
                     }

@@ -205,6 +205,10 @@ export interface DocumentaryClip {
   videoFrames?: string[];
   videoAttempts?: number;
   videoSavedFileName?: string;
+  discardedVideoFileName?: string;
+  videoDiscardedAt?: number;
+  videoSavedAt?: number;
+  promptUpdatedAt?: number;
   // Smart Auto-Reframe 9:16 (Vertical Dual Format)
   reframe9x16Mode?: 'auto_center' | 'auto_focus' | 'auto_pan' | 'manual' | 'fit_blur';
   reframeFocusXStart?: number; // 0 to 100 (50 = center)
