@@ -7891,35 +7891,6 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
     } else if (chatGptTabs[0] && chatGptTabs[0].id && chatGptTabs[0].autoDiscardable !== false) {
       await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
     }
-
-    // 3. Always keep at least 1 Microsoft Copilot tab open and alive (autoDiscardable: false)
-    const copilotTabs = await chrome.tabs
-      .query({
-        url: [
-          'https://copilot.microsoft.com/*',
-          'https://*.copilot.microsoft.com/*',
-          'https://copilot.com/*',
-          'https://*.copilot.com/*',
-          'https://m365.cloud.microsoft/*',
-          'https://copilot.cloud.microsoft/*',
-        ],
-      })
-      .catch(() => []);
-    if (copilotTabs.length === 0) {
-      const createdCop = await chrome.tabs
-        .create({
-          url: 'https://copilot.microsoft.com/',
-          active: false,
-          ...winOpt,
-        })
-        .catch(() => null);
-      if (createdCop && createdCop.id) {
-        reusedExternalTabIds.add(createdCop.id);
-        await chrome.tabs.update(createdCop.id, { autoDiscardable: false }).catch(() => {});
-      }
-    } else if (copilotTabs[0] && copilotTabs[0].id && copilotTabs[0].autoDiscardable !== false) {
-      await chrome.tabs.update(copilotTabs[0].id, { autoDiscardable: false }).catch(() => {});
-    }
   } catch {
   } finally {
     isEnsuringResidentTabs = false;
@@ -8083,7 +8054,7 @@ async function inspectCopilotTabLatestResponse(tabId) {
 
         let verifiedModel = 'Microsoft Copilot Web';
         const modeBtns = deepQueryAll(
-          'button[aria-label*="Selector de modelos" i], button[aria-label*="Model selector" i], button[data-testid*="mode-selector" i], button[data-testid*="model-selector" i], button[data-testid*="composer-mode" i], button[aria-label*="Think Deeper" i], button[aria-label*="Quick response" i], button[aria-label*="Smart" i]'
+          'button[aria-label*="Selector de modelos" i], button[aria-label*="Model selector" i], button[data-testid*="mode-selector" i], button[data-testid*="model-selector" i], button[data-testid*="composer-mode" i], button[aria-label*="Auto" i], button[aria-label*="Think Deeper" i], button[aria-label*="Quick response" i], button[aria-label*="Respuesta rápida" i], button[aria-label*="Smart" i]'
         );
         for (const mb of modeBtns) {
           if (isVis(mb)) {
@@ -8248,6 +8219,82 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
             return out;
           };
 
+          // Switch Auto / Smart / Think Deeper -> Quick response (Respuesta rápida)
+          try {
+            const modeTriggerSels = [
+              'button[aria-label*="Selector de modelos" i]',
+              'button[aria-label*="Model selector" i]',
+              'button[data-testid*="mode-selector" i]',
+              'button[data-testid*="model-selector" i]',
+              'button[data-testid*="composer-mode" i]',
+              'button[aria-label*="Auto" i]',
+              'button[aria-label*="Think Deeper" i]',
+              'button[aria-label*="Quick response" i]',
+              'button[aria-label*="Respuesta rápida" i]',
+              'button[aria-label*="Smart" i]',
+            ];
+            let mBtn = null;
+            for (const ms of modeTriggerSels) {
+              for (const el of deepQueryAll(ms)) {
+                if (isVis(el) && !el.disabled) {
+                  mBtn = el;
+                  break;
+                }
+              }
+              if (mBtn) break;
+            }
+            if (!mBtn) {
+              for (const b of deepQueryAll('button')) {
+                if (!isVis(b) || b.disabled) continue;
+                const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+                if (/^(Auto|Smart|Think Deeper|Think deeper|Profundizar)$/i.test(t)) {
+                  mBtn = b;
+                  break;
+                }
+              }
+            }
+            if (mBtn) {
+              const curModeLabel = (mBtn.innerText || mBtn.textContent || mBtn.getAttribute('aria-label') || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (!/quick\s*response|respuesta\s*r[aá]pida/i.test(curModeLabel)) {
+                for (const evType of ['pointerdown', 'mousedown', 'mouseup']) {
+                  mBtn.dispatchEvent(new MouseEvent(evType, { bubbles: true, cancelable: true, view: window }));
+                }
+                mBtn.click();
+                let pickedMode = false;
+                for (let poll = 0; poll < 8; poll++) {
+                  await new Promise((r) => setTimeout(r, 90));
+                  const items = deepQueryAll(
+                    '[role="menuitem"], [role="menuitemradio"], [role="option"], [data-radix-collection-item], [data-testid*="quick" i], [class*="MenuItem" i], li, button'
+                  ).filter((el) => el !== mBtn && isVis(el) && !mBtn.contains(el));
+                  const matching = items.filter((el) => {
+                    const txt = (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    return txt.length <= 140 && /quick\s*response|respuesta\s*r[aá]pida/i.test(txt);
+                  });
+                  const innermost = matching.filter(
+                    (el, _i, arr) => !arr.some((other) => other !== el && el.contains(other))
+                  );
+                  const pick = innermost[0] || matching[0];
+                  if (pick) {
+                    for (const evType of ['pointerdown', 'mousedown', 'mouseup']) {
+                      pick.dispatchEvent(new MouseEvent(evType, { bubbles: true, cancelable: true, view: window }));
+                    }
+                    pick.click();
+                    pickedMode = true;
+                    await new Promise((r) => setTimeout(r, 200));
+                    break;
+                  }
+                }
+                if (!pickedMode) {
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+                }
+              }
+            }
+          } catch {}
+
           const composerSels = [
             '#m365-chat-editor-target-element',
             '#m365-chat-input-shared-id',
@@ -8335,16 +8382,21 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
             }
           }
 
-          await new Promise((r) => setTimeout(r, 180));
+          await new Promise((r) => setTimeout(r, 350));
 
           const sendSels = [
             'button.fai-SendButton',
             'button.fai-BebopLiteChatInput__send',
             'button[data-testid="submit-button"]',
+            'button[data-testid*="submit" i]',
+            'button[data-testid*="send" i]',
             'button[aria-label="Submit message" i]',
             'button[aria-label*="Submit message" i]',
             'button[aria-label*="Send message" i]',
             'button[aria-label*="Enviar mensaje" i]',
+            'button[aria-label*="Submit" i]',
+            'button[aria-label*="Send" i]',
+            'button[aria-label*="Enviar" i]',
             'button[aria-label="Send" i]',
             'button[aria-label="Enviar" i]',
             'button[title*="Submit" i]',
@@ -8378,17 +8430,19 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
       })
       .catch(() => null);
 
-    await sleep(600);
+    await sleep(900);
     const snapAfter = await inspectCopilotTabLatestResponse(tabId);
     const submittedInMain = Boolean(
       snapAfter &&
         (snapAfter.generating ||
           snapAfter.userQueries > beforeUserQueries ||
           snapAfter.count > beforeCount ||
-          (snapAfter.url && snapAfter.url !== beforeUrl && /\/chats\//i.test(snapAfter.url)))
+          (snapAfter.url && snapAfter.url !== beforeUrl && /\/(chats?|c)\//i.test(snapAfter.url)))
     );
 
     if (!submittedInMain) {
+      const tabInfo = await chrome.tabs.get(tabId).catch(() => null);
+      const isHiddenTab = Boolean(tabInfo && !tabInfo.active);
       const target = { tabId };
       try {
         await chrome.debugger.attach(target, '1.3');
@@ -8436,10 +8490,35 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
           })
           .catch(() => null);
         const inputCoords = (inputCoordsRes && inputCoordsRes[0] && inputCoordsRes[0].result) || null;
-        if (inputCoords && inputCoords.x > 0 && inputCoords.y > 0) {
+        if (!isHiddenTab && inputCoords && inputCoords.x > 0 && inputCoords.y > 0) {
           await dispatchHardwareClick(target, inputCoords.x, inputCoords.y).catch(() => {});
           await sleep(100);
         }
+        await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const sels = [
+                '#m365-chat-editor-target-element',
+                'span#m365-chat-editor-target-element[role="textbox"]',
+                'textarea#userInput',
+                'textarea[data-testid="composer-input"]',
+                'div[role="textbox"][contenteditable="true"]',
+                'span[role="textbox"][contenteditable="true"]',
+                'textarea',
+              ];
+              for (const s of sels) {
+                const el = document.querySelector(s);
+                if (el && !el.disabled) {
+                  el.focus();
+                  return true;
+                }
+              }
+              return false;
+            },
+          })
+          .catch(() => null);
         // Clear any leftover text inside Lexical via SelectAll + Backspace before inserting
         await cdpSendWithTimeout(
           target,
@@ -8572,7 +8651,15 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
         await chrome.debugger.detach(target).catch(() => {});
       }
     }
-    return Boolean((mainRes && mainRes[0] && mainRes[0].result && mainRes[0].result.ok) || true);
+    const finalSnap = await inspectCopilotTabLatestResponse(tabId);
+    return Boolean(
+      submittedInMain ||
+        (finalSnap &&
+          (finalSnap.generating ||
+            finalSnap.userQueries > beforeUserQueries ||
+            finalSnap.count > beforeCount ||
+            (finalSnap.url && finalSnap.url !== beforeUrl && /\/(chats?|c)\//i.test(finalSnap.url))))
+    );
   } catch {
     return false;
   }
@@ -8727,8 +8814,7 @@ async function runExternalCopilotAskOrder(task) {
   if (!task || !task.id || !task.prompt) return;
   if (task.prompt === '__READ_CURRENT__') {
     const copTabs = await chrome.tabs.query({ url: COPILOT_TAB_URL_PATTERNS }).catch(() => []);
-    const preferredTab = copTabs[copTabs.length - 1] || copTabs[0] || null;
-    if (!preferredTab || !preferredTab.id) {
+    if (!copTabs || copTabs.length === 0) {
       await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -8736,18 +8822,38 @@ async function runExternalCopilotAskOrder(task) {
       }).catch(() => {});
       return;
     }
-    const snap = await inspectCopilotTabLatestResponse(preferredTab.id);
+    const orderedTabs = [...copTabs].sort((a, b) => {
+      const aHasChat = /\/(chats?|c)\//i.test(a.url || '') ? 1 : 0;
+      const bHasChat = /\/(chats?|c)\//i.test(b.url || '') ? 1 : 0;
+      if (bHasChat !== aHasChat) return bHasChat - aHasChat;
+      return Number(Boolean(b.active)) - Number(Boolean(a.active));
+    });
+    let chosenTab = orderedTabs[0];
+    let chosenSnap = null;
+    for (const candidate of orderedTabs) {
+      if (!candidate.id) continue;
+      const s = await inspectCopilotTabLatestResponse(candidate.id);
+      if (!chosenSnap) {
+        chosenTab = candidate;
+        chosenSnap = s;
+      }
+      if (s && s.text) {
+        chosenTab = candidate;
+        chosenSnap = s;
+        break;
+      }
+    }
     await fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         requestId: task.id,
-        ok: Boolean(snap && snap.text),
+        ok: Boolean(chosenSnap && chosenSnap.text),
         reusedExisting: true,
-        verifiedModel: (snap && snap.verifiedModel) || 'Microsoft Copilot Web',
-        response: (snap && snap.text) || '',
-        chatUrl: (snap && snap.url) || preferredTab.url || '',
-        error: snap && !snap.text ? 'Respuesta vacía en la pestaña actual de Copilot.' : undefined,
+        verifiedModel: (chosenSnap && chosenSnap.verifiedModel) || 'Microsoft Copilot Web',
+        response: (chosenSnap && chosenSnap.text) || '',
+        chatUrl: (chosenSnap && chosenSnap.url) || chosenTab.url || '',
+        error: chosenSnap && !chosenSnap.text ? 'Respuesta vacía en la pestaña actual de Copilot.' : undefined,
       }),
     }).catch(() => {});
     return;
@@ -9056,42 +9162,6 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
           });
         } else {
           claimedExternalAskIds.delete(chatGptTask.id);
-        }
-      }
-
-      const copilotTasks = Array.isArray(data?.pendingExternalCopilotAsks)
-        ? data.pendingExternalCopilotAsks
-        : data?.pendingExternalCopilotAsk
-          ? [data.pendingExternalCopilotAsk]
-          : [];
-      for (const copilotTask of copilotTasks) {
-        if (!copilotTask || !copilotTask.id || claimedExternalAskIds.has(copilotTask.id)) continue;
-        claimedExternalAskIds.add(copilotTask.id);
-        const claimRes = await fetch('http://localhost:4200/api/copilot-web/ask-external-claim', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: copilotTask.id,
-            hasAppWindow: presence.hasAppWindow,
-            hasWorkspace: presence.hasWorkspace,
-          }),
-        })
-          .then((r) => r.json())
-          .catch(() => null);
-        if (claimRes && claimRes.ok) {
-          runExternalCopilotAskOrder(copilotTask).catch((err) => {
-            fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                requestId: copilotTask.id,
-                ok: false,
-                error: String(err?.message || err),
-              }),
-            }).catch(() => {});
-          });
-        } else {
-          claimedExternalAskIds.delete(copilotTask.id);
         }
       }
     }

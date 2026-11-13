@@ -163,7 +163,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:36 PM - 11/12/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:26 AM - 11/13/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1893,6 +1893,7 @@ export default function App() {
 
   // Google Flow 100% Automatic Production + Visual Video Audit + Chosen Folder Auto-Download
   const flowDownloadDirHandleRef = React.useRef<any>(null);
+  const folderBlobUrlCacheRef = React.useRef<Map<string, { fingerprint: string; url: string }>>(new Map());
   const [flowDownloadFolderName, setFlowDownloadFolderName] = useState<string>('');
   const [flowServerFolderPath, setFlowServerFolderPath] = useState<string>('');
   const [flowAutoPilotActive, setFlowAutoPilotActive] = useState<boolean>(false);
@@ -7601,7 +7602,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               if (data?.ok && data.url) {
                 const prefixUrl = (u: string) =>
                   u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
-                const fullVideoUrl = `${prefixUrl(data.url)}&r=${Date.now()}`;
+                const fullVideoUrl = prefixUrl(data.url);
                 setCapturedClipVideosMap((prev) => ({
                   ...prev,
                   [clip.clipNumber]: fullVideoUrl,
@@ -7818,125 +7819,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, currentDoc)
           ? flowDownloadDirHandleRef.current
           : null;
-      if (activeHandle) {
-        let perm = 'granted';
-        if (typeof activeHandle.queryPermission === 'function') {
-          perm = await activeHandle.queryPermission({ mode: 'read' });
-          if (
-            perm !== 'granted' &&
-            (!silent || requestReadOnExistingHandle) &&
-            typeof activeHandle.requestPermission === 'function'
-          ) {
-            try {
-              perm = await activeHandle.requestPermission({ mode: 'read' });
-            } catch {}
-          }
-        }
 
-        if (perm === 'granted') {
-          const newClipUrls: Record<number, string> = {};
-          const newClipFileNames: Record<number, string> = {};
-          const bestFileMtimeByClip: Record<number, number> = {};
-          const bestFileIs4kByClip: Record<number, boolean> = {};
-          const subCandidates = ['05_Clips_Video', 'Clips_Aprobados', ''];
-          for (const sub of subCandidates) {
-            try {
-              const targetDir = sub
-                ? await activeHandle.getDirectoryHandle(sub, { create: false })
-                : activeHandle;
-              for await (const [entryName, entryHandle] of (targetDir as any).entries()) {
-                if (entryHandle.kind !== 'file') continue;
-                const m = String(entryName).match(
-                  /^(?:(?:clip|video)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
-                );
-                if (m) {
-                  const num = parseInt(m[1], 10);
-                  if (num > 0) {
-                    const file = await entryHandle.getFile();
-                    const isBroll4kCandidate =
-                      /_broll_4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
-                      file.size >= 512 * 1024;
-                    const is4kCandidate =
-                      isBroll4kCandidate ||
-                      (/[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
-                        file.size >= 2 * 1024 * 1024);
-                    const isRecentNon4k =
-                      !is4kCandidate && Date.now() - file.lastModified <= 3 * 3600 * 1000;
-                    // Skip loading a recently regenerated non-4K clip via raw browser handle so /api/flow/list-folder-media upscales it to 4K first
-                    if (isRecentNon4k) continue;
+      let serverResolvedFolder = false;
 
-                    const prevIs4k = Boolean(bestFileIs4kByClip[num]);
-                    const shouldTake =
-                      !bestFileMtimeByClip[num] ||
-                      (is4kCandidate && !prevIs4k) ||
-                      (is4kCandidate === prevIs4k && file.lastModified >= bestFileMtimeByClip[num]);
-                    if (shouldTake) {
-                      if (!bestFileMtimeByClip[num]) loadedCount++;
-                      bestFileMtimeByClip[num] = file.lastModified;
-                      bestFileIs4kByClip[num] = is4kCandidate;
-                      newClipUrls[num] = URL.createObjectURL(file);
-                      newClipFileNames[num] = String(entryName);
-                    }
-                  }
-                }
-              }
-            } catch {}
-          }
-
-          if (Object.keys(newClipUrls).length > 0) {
-            setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
-          }
-          if (Object.keys(newClipFileNames).length > 0) {
-            setFolderClipFileNamesMap((prev) => ({ ...prev, ...newClipFileNames }));
-          }
-
-          // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
-          const audioSubCandidates = ['02_Audio', 'Audio', ''];
-          const newSunoUrls: Record<number, string> = {};
-          for (const sub of audioSubCandidates) {
-            try {
-              const audioDir = sub
-                ? await activeHandle.getDirectoryHandle(sub, { create: false })
-                : activeHandle;
-              const legacySunoEntriesToDelete: string[] = [];
-              for await (const [entryName, entryHandle] of (audioDir as any).entries()) {
-                if (entryHandle.kind !== 'file') continue;
-                if (!/\.(mp3|wav|m4a|ogg)$/i.test(entryName)) continue;
-                if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(entryName)) {
-                  legacySunoEntriesToDelete.push(String(entryName));
-                }
-                const sunoMatch = String(entryName).match(
-                  /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
-                );
-                if (sunoMatch) {
-                  const tNum = parseInt(sunoMatch[1], 10) || 1;
-                  const isFlowMusicName = /^(?:flowmusic|flow_music)/i.test(String(entryName));
-                  const file = await entryHandle.getFile();
-                  if (file.size >= 1024 && (!newSunoUrls[tNum] || isFlowMusicName)) {
-                    newSunoUrls[tNum] = URL.createObjectURL(file);
-                  }
-                } else {
-                  const file = await entryHandle.getFile();
-                  const voObjUrl = URL.createObjectURL(file);
-                  setFolderVoiceoverUrl((prev) => prev || voObjUrl);
-                }
-              }
-              for (const oldSunoName of legacySunoEntriesToDelete) {
-                try {
-                  if (typeof (audioDir as any).removeEntry === 'function') {
-                    await (audioDir as any).removeEntry(oldSunoName);
-                  }
-                } catch {}
-              }
-            } catch {}
-          }
-          if (Object.keys(newSunoUrls).length > 0) {
-            setCapturedSunoAudioMap((prev) => ({ ...prev, ...newSunoUrls }));
-          }
-        }
-      }
-
-      // Also query local server folder media & local /tts-files fallback (supports both localhost and local bridge from cloud URL)
+      // First query local server folder media & local /tts-files (authoritative source when daemon runs locally or over bridge)
       const rawFolderPath = (
         flowServerFolderPath ||
         currentDoc?.downloadFolderPath ||
@@ -7971,6 +7857,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           const data = await res.json();
           const prefixUrl = (u: string) =>
             u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+
+          if (Boolean(data?.resolvedRoot) || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
+            serverResolvedFolder = true;
+          }
 
           const nextClipUrls: Record<number, string> = {};
           const nextFileNames: Record<number, string> = {};
@@ -8043,7 +7933,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
           const serverPendingNums: number[] = Array.isArray(data.pending4kClipNumbers)
             ? Array.from(
-                new Set(
+                new Set<number>(
                   data.pending4kClipNumbers
                     .map((n: any) => Number(n))
                     .filter((n: number) => n > 0 && !nextClipUrls[n])
@@ -8170,13 +8060,152 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
           if (data?.icloudTccPending && loadedCount === 0 && !data?.pipelineStatus?.running) {
             setFlowStatusLog(
-              '⚠️ macOS bloqueó el acceso a iCloud Drive para /usr/local/Cellar/node/26.0.0/bin/node. Actívalo en Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco (o abre con Iniciar_Huellas_Master.command desde Terminal).'
+              '⚠️ macOS bloqueó el acceso a iCloud Drive para el servicio local. Usa `~/.huellas-runtime/node/bin/node` con Acceso total al disco o inicia mediante `Iniciar_Huellas_Master.command` desde Terminal.'
             );
           }
-          if (data?.ok || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
+          if (serverResolvedFolder || data?.ok) {
             break;
           }
         } catch {}
+      }
+
+      if (activeHandle && !serverResolvedFolder) {
+        let perm = 'granted';
+        if (typeof activeHandle.queryPermission === 'function') {
+          perm = await activeHandle.queryPermission({ mode: 'read' });
+          if (
+            perm !== 'granted' &&
+            (!silent || requestReadOnExistingHandle) &&
+            typeof activeHandle.requestPermission === 'function'
+          ) {
+            try {
+              perm = await activeHandle.requestPermission({ mode: 'read' });
+            } catch {}
+          }
+        }
+
+        if (perm === 'granted') {
+          const getCachedBlobUrl = (cacheKey: string, file: File): string => {
+            const fp = `${file.size}:${file.lastModified}`;
+            const cached = folderBlobUrlCacheRef.current.get(cacheKey);
+            if (cached && cached.fingerprint === fp) {
+              return cached.url;
+            }
+            if (cached?.url) {
+              try {
+                URL.revokeObjectURL(cached.url);
+              } catch {}
+            }
+            const nextUrl = URL.createObjectURL(file);
+            folderBlobUrlCacheRef.current.set(cacheKey, { fingerprint: fp, url: nextUrl });
+            return nextUrl;
+          };
+
+          const newClipUrls: Record<number, string> = {};
+          const newClipFileNames: Record<number, string> = {};
+          const bestFileMtimeByClip: Record<number, number> = {};
+          const bestFileIs4kByClip: Record<number, boolean> = {};
+          const subCandidates = ['05_Clips_Video', 'Clips_Aprobados', ''];
+          for (const sub of subCandidates) {
+            try {
+              const targetDir = sub
+                ? await activeHandle.getDirectoryHandle(sub, { create: false })
+                : activeHandle;
+              for await (const [entryName, entryHandle] of (targetDir as any).entries()) {
+                if (entryHandle.kind !== 'file') continue;
+                const m = String(entryName).match(
+                  /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+                );
+                if (m) {
+                  const num = parseInt(m[1], 10);
+                  if (num > 0) {
+                    const file = await entryHandle.getFile();
+                    const isBroll4kCandidate =
+                      /_broll_4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
+                      file.size >= 512 * 1024;
+                    const is4kCandidate =
+                      isBroll4kCandidate ||
+                      (/[_\-]4k\.(mp4|webm|mov)$/i.test(String(entryName)) &&
+                        file.size >= 2 * 1024 * 1024);
+
+                    const prevIs4k = Boolean(bestFileIs4kByClip[num]);
+                    const shouldTake =
+                      !bestFileMtimeByClip[num] ||
+                      (is4kCandidate && !prevIs4k) ||
+                      (is4kCandidate === prevIs4k && file.lastModified >= bestFileMtimeByClip[num]);
+                    if (shouldTake) {
+                      if (!bestFileMtimeByClip[num]) loadedCount++;
+                      bestFileMtimeByClip[num] = file.lastModified;
+                      bestFileIs4kByClip[num] = is4kCandidate;
+                      newClipUrls[num] = getCachedBlobUrl(
+                        `${currentDoc?.id || ''}:${sub}:${entryName}`,
+                        file
+                      );
+                      newClipFileNames[num] = String(entryName);
+                    }
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          if (Object.keys(newClipUrls).length > 0) {
+            setCapturedClipVideosMap((prev) => ({ ...prev, ...newClipUrls }));
+          }
+          if (Object.keys(newClipFileNames).length > 0) {
+            setFolderClipFileNamesMap((prev) => ({ ...prev, ...newClipFileNames }));
+          }
+
+          // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
+          const audioSubCandidates = ['02_Audio', 'Audio', ''];
+          const newSunoUrls: Record<number, string> = {};
+          for (const sub of audioSubCandidates) {
+            try {
+              const audioDir = sub
+                ? await activeHandle.getDirectoryHandle(sub, { create: false })
+                : activeHandle;
+              const legacySunoEntriesToDelete: string[] = [];
+              for await (const [entryName, entryHandle] of (audioDir as any).entries()) {
+                if (entryHandle.kind !== 'file') continue;
+                if (!/\.(mp3|wav|m4a|ogg)$/i.test(entryName)) continue;
+                if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(entryName)) {
+                  legacySunoEntriesToDelete.push(String(entryName));
+                }
+                const sunoMatch = String(entryName).match(
+                  /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
+                );
+                if (sunoMatch) {
+                  const tNum = parseInt(sunoMatch[1], 10) || 1;
+                  const isFlowMusicName = /^(?:flowmusic|flow_music)/i.test(String(entryName));
+                  const file = await entryHandle.getFile();
+                  if (file.size >= 1024 && (!newSunoUrls[tNum] || isFlowMusicName)) {
+                    newSunoUrls[tNum] = getCachedBlobUrl(
+                      `${currentDoc?.id || ''}:${sub}:${entryName}`,
+                      file
+                    );
+                  }
+                } else {
+                  const file = await entryHandle.getFile();
+                  const voObjUrl = getCachedBlobUrl(
+                    `${currentDoc?.id || ''}:${sub}:${entryName}`,
+                    file
+                  );
+                  setFolderVoiceoverUrl((prev) => prev || voObjUrl);
+                }
+              }
+              for (const oldSunoName of legacySunoEntriesToDelete) {
+                try {
+                  if (typeof (audioDir as any).removeEntry === 'function') {
+                    await (audioDir as any).removeEntry(oldSunoName);
+                  }
+                } catch {}
+              }
+            } catch {}
+          }
+          if (Object.keys(newSunoUrls).length > 0) {
+            setCapturedSunoAudioMap((prev) => ({ ...prev, ...newSunoUrls }));
+          }
+        }
       }
     } catch {}
     return loadedCount;
@@ -8531,20 +8560,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Automatically populate integrated .MP4 players from 05_Clips_Video when Stage 8 is viewed
   useEffect(() => {
-    if (activeStage !== 8 || !activeDoc || !Array.isArray(activeDoc.clips)) return;
-    let cancelled = false;
-    (async () => {
-      for (const clip of activeDoc.clips) {
-        if (cancelled) return;
-        if (!capturedClipVideosMap[clip.clipNumber]) {
-          await handleLoadClipVideoFromFolder(clip, true);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeStage, activeDoc?.id, activeDoc?.clips?.length]);
+    if (activeStage !== 8 || !activeDoc) return;
+    if (!stage6MediaPollInFlightRef.current) {
+      void handleAutoLoadAllFolderMedia(true);
+    }
+  }, [activeStage, activeDoc?.id]);
   const saveApprovedClipVideoToFolder = async (
     clipObj: DocumentaryClip,
     videoDataUrl?: string

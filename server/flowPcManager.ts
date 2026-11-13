@@ -1012,7 +1012,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       counter += 1;
     }
 
-    const tempDest = path.join(destDir, `.incoming_${Date.now()}_${finalFileName}`);
+    const tempDest = path.join(destDir, `__incoming_${process.pid}_${Date.now()}_${finalFileName}.part`);
     const finalDest = path.join(destDir, finalFileName);
 
     fs.copyFileSync(sourceFilePath, tempDest);
@@ -1022,13 +1022,12 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     } finally {
       fs.closeSync(fd);
     }
+    await execCmd('xattr', ['-c', tempDest], 3000).catch(() => {});
+    await execCmd('chflags', ['nohidden', tempDest], 3000).catch(() => {});
     fs.renameSync(tempDest, finalDest);
     try {
       fs.unlinkSync(sourceFilePath);
     } catch {}
-
-    await execCmd('xattr', ['-c', finalDest], 3000).catch(() => {});
-    await execCmd('chflags', ['nohidden', finalDest], 3000).catch(() => {});
 
     const stat = fs.statSync(finalDest);
     const sha256 = await computeFileSha256(finalDest).catch(() => '');
