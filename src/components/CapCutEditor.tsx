@@ -50,6 +50,18 @@ import {
   BROLL_MOTION_UI_LABEL_ES,
   normalizeBrollImagePrompt,
 } from '../utils/smartParsers';
+import {
+  getMediaBridgeSnapshot,
+  subscribeMediaBridge,
+  getOrderedMediaBridgeBases,
+  getMediaBridgeCandidateTimeoutMs,
+  evictDeadMediaBridgeOrigin,
+  refreshLiveMacMediaTunnelUrl,
+  stripEphemeralMediaBridgeOrigin,
+  rewriteMediaBridgeUrl,
+  appendMediaFrameProbeParam,
+  persistDiscoveredMacTunnel,
+} from '../utils/mediaBridge';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
 export type EditorAspectRatio = '16:9' | '9:16';
@@ -62,57 +74,13 @@ export type ClipTransitionType =
   | 'flash_sepia';
 
 function getEditorMediaBridgeBases(): string[] {
-  if (typeof window === 'undefined') return [''];
-  const host = window.location.hostname || '';
-  const isLocalOrTunnel =
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '::1' ||
-    host.endsWith('.trycloudflare.com');
-  if (isLocalOrTunnel) return [''];
-  let liveTunnel = '';
-  let savedSessionBase = '';
-  try {
-    liveTunnel = String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
-      .trim()
-      .replace(/\/+$/, '');
-  } catch {}
-  try {
-    const rawSess = localStorage.getItem('huellas_flow_pc_session_v1');
-    if (rawSess) {
-      const parsed = JSON.parse(rawSess);
-      const u = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
-      if (/^https?:\/\//i.test(u)) savedSessionBase = u;
-    }
-  } catch {}
-  const isHttpsPage = window.location.protocol === 'https:';
-  const isUsableOrigin = (u: string) =>
-    Boolean(u) &&
-    !(
-      isHttpsPage &&
-      /^http:\/\//i.test(u) &&
-      !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(u)
-    );
-  const isRealMobile =
-    typeof navigator !== 'undefined' &&
-    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
-    !/^Mac/i.test(navigator.platform || '');
-  if (isRealMobile) {
-    return Array.from(
-      new Set([...([liveTunnel, savedSessionBase].filter(isUsableOrigin)), ''])
-    );
-  }
-  return Array.from(
-    new Set([
-      'http://localhost:4200',
-      ...([liveTunnel, savedSessionBase].filter(isUsableOrigin)),
-      '',
-    ])
-  );
+  return getOrderedMediaBridgeBases();
 }
 
 function getEditorPrimaryServerOrigin(): string {
-  const bases = getEditorMediaBridgeBases();
+  const snap = getMediaBridgeSnapshot();
+  if (snap.activeOrigin) return snap.activeOrigin;
+  const bases = getOrderedMediaBridgeBases();
   return bases[0] || '';
 }
 
@@ -198,48 +166,27 @@ function isEditorFolderItemDiscarded(
 }
 
 function buildOfficialIntroOutroUrls() {
-  const primaryOrigin = getEditorPrimaryServerOrigin();
-  const isLocalOrTunnel =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname === '::1' ||
-      window.location.hostname.endsWith('.trycloudflare.com'));
-  const isRealMobile =
-    typeof navigator !== 'undefined' &&
-    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
-    !/^Mac/i.test(navigator.platform || '');
-  const canServeLocalFolder =
-    isLocalOrTunnel ||
-    (Boolean(primaryOrigin) &&
-      !(isRealMobile && /^http:\/\/(localhost|127\.0\.0\.1)/i.test(primaryOrigin)));
-  const mediaBase = isLocalOrTunnel ? '' : canServeLocalFolder ? primaryOrigin : '';
   const introOutroBasePath =
     '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
+  const rawIntroUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+    `${introOutroBasePath}/Intro.mp4`
+  )}&v=clean_native_audio_v2`;
+  const rawIntroPosterUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+    `${introOutroBasePath}/.Intro_Poster.jpg`
+  )}&v=clean_native_audio_v2`;
+  const rawOutroUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+    `${introOutroBasePath}/Outro.mp4`
+  )}&v=clean_native_audio_v2`;
+  const rawOutroPosterUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+    `${introOutroBasePath}/.Outro_Poster.jpg`
+  )}&v=clean_native_audio_v2`;
   const introVideoUrl =
-    mediaBase || isLocalOrTunnel
-      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-          `${introOutroBasePath}/Intro.mp4`
-        )}&v=clean_native_audio_v2`
-      : '/api/assets/official-intro-stream';
-  const introPosterUrl =
-    mediaBase || isLocalOrTunnel
-      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-          `${introOutroBasePath}/.Intro_Poster.jpg`
-        )}&v=clean_native_audio_v2`
-      : '';
-  const outroVideoUrl =
-    mediaBase || isLocalOrTunnel
-      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-          `${introOutroBasePath}/Outro.mp4`
-        )}&v=clean_native_audio_v2`
-      : '';
-  const outroPosterUrl =
-    mediaBase || isLocalOrTunnel
-      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-          `${introOutroBasePath}/.Outro_Poster.jpg`
-        )}&v=clean_native_audio_v2`
-      : '';
+    rewriteMediaBridgeUrl(rawIntroUrl) ||
+    rewriteMediaBridgeUrl('/api/assets/official-intro-stream') ||
+    '/api/assets/official-intro-stream';
+  const introPosterUrl = rewriteMediaBridgeUrl(rawIntroPosterUrl);
+  const outroVideoUrl = rewriteMediaBridgeUrl(rawOutroUrl);
+  const outroPosterUrl = rewriteMediaBridgeUrl(rawOutroPosterUrl);
   return { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl };
 }
 
@@ -2270,8 +2217,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!Array.isArray(clips)) return clips;
     return clips.map((c) => ({
       ...c,
-      posterUrl: c.posterUrl && c.posterUrl.startsWith('data:') ? '' : c.posterUrl,
-      videoUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? '' : c.videoUrl,
+      posterUrl:
+        c.posterUrl && c.posterUrl.startsWith('data:')
+          ? ''
+          : stripEphemeralMediaBridgeOrigin(c.posterUrl),
+      videoUrl:
+        c.videoUrl && c.videoUrl.startsWith('data:')
+          ? ''
+          : stripEphemeralMediaBridgeOrigin(c.videoUrl),
+      ...(c.originalVideoUrlBeforeSeparation
+        ? {
+            originalVideoUrlBeforeSeparation: stripEphemeralMediaBridgeOrigin(
+              c.originalVideoUrlBeforeSeparation
+            ),
+          }
+        : {}),
+      ...(c.opticalFlowUrl
+        ? { opticalFlowUrl: stripEphemeralMediaBridgeOrigin(c.opticalFlowUrl) }
+        : {}),
+      ...(c.originalOpticalFlowUrlBeforeSeparation
+        ? {
+            originalOpticalFlowUrlBeforeSeparation: stripEphemeralMediaBridgeOrigin(
+              c.originalOpticalFlowUrlBeforeSeparation
+            ),
+          }
+        : {}),
     }));
   };
 
@@ -3358,6 +3328,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
   const [localServerClipVideosMap, setLocalServerClipVideosMap] = useState<Record<number, string>>({});
   const [localServerSunoMap, setLocalServerSunoMap] = useState<Record<number, string>>({});
+  const [mediaBridgeGen, setMediaBridgeGen] = useState<number>(
+    () => getMediaBridgeSnapshot().generation
+  );
+
+  useEffect(() => {
+    return subscribeMediaBridge(() => {
+      setMediaBridgeGen(getMediaBridgeSnapshot().generation);
+    });
+  }, []);
+
+  const deckErrorRetryRef = useRef<Record<string, number>>({});
+  const triggerEditorFolderMediaRescanRef = useRef<() => void>(() => {});
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const deckAVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -3835,20 +3817,51 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     let cancelled = false;
-    const fetchFolderMedia = async () => {
+    let activeCtrl: AbortController | null = null;
+    let retryTimer: number | null = null;
+    let coldStartRetryIdx = 0;
+
+    const fetchFolderMedia = async (allowTunnelRefresh = true): Promise<void> => {
       const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
       const qs = `docId=${encodeURIComponent(activeDoc?.id || '')}&folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}&includePrompts=0`;
       const bases = getEditorMediaBridgeBases();
+      let resolvedAny = false;
+      let needsColdStartBackoff = false;
+
       for (const base of bases) {
         if (cancelled) return;
+        const ctrl = new AbortController();
+        activeCtrl = ctrl;
+        const timeoutMs = getMediaBridgeCandidateTimeoutMs(base);
+        const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
         try {
-          const res = await fetch(`${base}/api/flow/list-folder-media?${qs}`);
-          if (!res.ok) continue;
+          const res = await fetch(`${base}/api/flow/list-folder-media?${qs}`, {
+            signal: ctrl.signal,
+            cache: 'no-store',
+          });
+          if (!res.ok) {
+            if (
+              base &&
+              /^https?:\/\//i.test(base) &&
+              (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 530)
+            ) {
+              evictDeadMediaBridgeOrigin(base);
+            }
+            continue;
+          }
           const data = await res.json();
           if (cancelled) return;
-          const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+          if (
+            base &&
+            /^https:\/\//i.test(base) &&
+            (data?.resolvedRoot || (Array.isArray(data?.clipVideos) && data.clipVideos.length > 0))
+          ) {
+            persistDiscoveredMacTunnel(base);
+          }
+          const prefix = (u: string) =>
+            rewriteMediaBridgeUrl(u && u.startsWith('/') && base ? `${base}${u}` : u, base);
           const latestDocClips = activeDocRef.current?.clips || activeDoc?.clips || [];
           const docClipByNum = new Map<number, DocumentaryClip>();
           for (const dc of latestDocClips) {
@@ -3871,7 +3884,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ) {
                 continue;
               }
-              nextVids[cNum] = prefix(String(item.url));
+              const resolvedVidUrl = prefix(String(item.url));
+              if (resolvedVidUrl) {
+                nextVids[cNum] = resolvedVidUrl;
+              }
             }
             if (data.resolvedRoot || data.clipVideos.length > 0) {
               setLocalServerClipVideosMap((prev) => {
@@ -3896,7 +3912,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               if (isEditorClipRejectedOrQuarantined(docClip) && !nextVids[fNum]) {
                 continue;
               }
-              nextFrames[fNum] = prefix(String(f.url));
+              const resolvedFrameUrl = prefix(String(f.url));
+              if (resolvedFrameUrl) {
+                nextFrames[fNum] = resolvedFrameUrl;
+              }
             }
             if (Object.keys(nextFrames).length > 0) {
               setFirstFrameByClip((prev) => {
@@ -3909,7 +3928,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             const nextSuno: Record<number, string> = {};
             for (const s of data.sunoFiles) {
               if (s.trackNumber > 0 && s.url && !nextSuno[s.trackNumber]) {
-                nextSuno[s.trackNumber] = prefix(s.url);
+                const resolvedSunoUrl = prefix(s.url);
+                if (resolvedSunoUrl) {
+                  nextSuno[s.trackNumber] = resolvedSunoUrl;
+                }
               }
             }
             setLocalServerSunoMap((prev) => {
@@ -3957,41 +3979,114 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             }
           }
           if (data?.resolvedRoot || (Array.isArray(data.clipVideos) && data.clipVideos.length > 0)) {
+            resolvedAny = true;
+            coldStartRetryIdx = 0;
             break;
           }
-        } catch {}
+          if (
+            data?.icloudTccPending ||
+            (!data?.resolvedRoot && (!Array.isArray(data?.clipVideos) || data.clipVideos.length === 0))
+          ) {
+            needsColdStartBackoff = true;
+          }
+        } catch {
+          if (!cancelled && base && /^https?:\/\//i.test(base)) {
+            evictDeadMediaBridgeOrigin(base);
+          }
+        } finally {
+          window.clearTimeout(timer);
+          if (activeCtrl === ctrl) {
+            activeCtrl = null;
+          }
+        }
+      }
+
+      if (!cancelled && !resolvedAny && allowTunnelRefresh) {
+        const freshTunnel = await refreshLiveMacMediaTunnelUrl({
+          force: true,
+          allowRelayWake: true,
+        });
+        if (!cancelled && freshTunnel) {
+          await fetchFolderMedia(false);
+          return;
+        }
+      }
+
+      if (!cancelled && !resolvedAny && needsColdStartBackoff && coldStartRetryIdx < 3) {
+        const retryDelays = [1800, 3500, 7000];
+        const delayMs = retryDelays[coldStartRetryIdx] || 7000;
+        coldStartRetryIdx += 1;
+        if (retryTimer) window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(() => {
+          if (!cancelled && isEditorActive) {
+            void fetchFolderMedia(false);
+          }
+        }, delayMs);
       }
     };
 
-    fetchFolderMedia();
+    triggerEditorFolderMediaRescanRef.current = () => {
+      if (!cancelled) {
+        void fetchFolderMedia(true);
+      }
+    };
+
+    void fetchFolderMedia(true);
     const onWinFocus = () => {
-      if (isEditorActive) fetchFolderMedia();
+      if (isEditorActive) void fetchFolderMedia(true);
     };
     window.addEventListener('focus', onWinFocus);
     const pollTimer = window.setInterval(() => {
       if (isEditorActive && !document.hidden) {
-        fetchFolderMedia();
+        void fetchFolderMedia(true);
       }
     }, 6000);
 
     return () => {
       cancelled = true;
+      activeCtrl?.abort();
+      if (retryTimer) window.clearTimeout(retryTimer);
       window.removeEventListener('focus', onWinFocus);
       window.clearInterval(pollTimer);
     };
-  }, [activeDoc?.id, activeDoc?.title, downloadFolderName, downloadFolderPath, isEditorActive]);
+  }, [
+    activeDoc?.id,
+    activeDoc?.title,
+    downloadFolderName,
+    downloadFolderPath,
+    isEditorActive,
+    mediaBridgeGen,
+  ]);
+
+  const missingFrameTargetsSignature = useMemo(() => {
+    if (!isEditorActive || isPlaying) return '';
+    const seen = new Set<number>();
+    const entries: string[] = [];
+    for (const c of timelineClips) {
+      if (!c || c.clipNumber <= 0 || c.clipNumber === 999 || seen.has(c.clipNumber)) continue;
+      const resolvedUrl = rewriteMediaBridgeUrl(c.videoUrl);
+      if (!resolvedUrl || c.posterUrl || firstFrameByClip[c.clipNumber]) continue;
+      if (extractedVideoUrlByClipRef.current[c.clipNumber] === resolvedUrl) continue;
+      seen.add(c.clipNumber);
+      entries.push(`${c.clipNumber}\t${resolvedUrl}`);
+    }
+    return entries.join('\n');
+  }, [timelineClips, firstFrameByClip, isEditorActive, isPlaying, mediaBridgeGen]);
 
   // Automatically extract the exact FIRST FRAME (t = 0.08s) of each clip's .MP4 video ONLY when editor is active & paused, without saturating Chrome's 6-socket pool
   useEffect(() => {
-    if (!isEditorActive || isPlaying) return;
+    if (!isEditorActive || isPlaying || !missingFrameTargetsSignature) return;
     let cancelled = false;
-    const clipsToExtract = timelineClips.filter(
-      (c) =>
-        c.videoUrl &&
-        !c.posterUrl &&
-        !firstFrameByClip[c.clipNumber] &&
-        extractedVideoUrlByClipRef.current[c.clipNumber] !== c.videoUrl
-    );
+    const clipsToExtract = missingFrameTargetsSignature
+      .split('\n')
+      .map((row) => {
+        const tabIdx = row.indexOf('\t');
+        if (tabIdx <= 0) return null;
+        const clipNumber = Number(row.slice(0, tabIdx));
+        const videoUrl = row.slice(tabIdx + 1);
+        return clipNumber > 0 && videoUrl ? { clipNumber, videoUrl } : null;
+      })
+      .filter((x): x is { clipNumber: number; videoUrl: string } => Boolean(x));
     if (clipsToExtract.length === 0) return;
 
     const extractFirstFrameFromVideoUrl = (videoUrl: string): Promise<string> =>
@@ -4048,35 +4143,47 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           clearTimeout(timer);
           finish('');
         };
-        vid.src = videoUrl;
+        vid.src = appendMediaFrameProbeParam(videoUrl);
       });
 
-    (async () => {
-      for (const item of clipsToExtract) {
-        if (cancelled || !item.videoUrl) return;
+    let cursor = 0;
+    const runWorker = async () => {
+      while (!cancelled && cursor < clipsToExtract.length) {
+        const idx = cursor++;
+        const item = clipsToExtract[idx];
+        if (!item || !item.videoUrl) continue;
         const frameDataUrl = await extractFirstFrameFromVideoUrl(item.videoUrl);
         if (cancelled) return;
-        extractedVideoUrlByClipRef.current[item.clipNumber] = item.videoUrl;
         if (frameDataUrl) {
-          setFirstFrameByClip((prev) => ({
-            ...prev,
-            [item.clipNumber]: frameDataUrl,
-          }));
+          extractedVideoUrlByClipRef.current[item.clipNumber] = item.videoUrl;
+          setFirstFrameByClip((prev) =>
+            prev[item.clipNumber] === frameDataUrl
+              ? prev
+              : {
+                  ...prev,
+                  [item.clipNumber]: frameDataUrl,
+                }
+          );
         }
         await new Promise((r) => setTimeout(r, 80));
       }
-    })();
+    };
+
+    const workerCount = Math.min(2, clipsToExtract.length);
+    for (let i = 0; i < workerCount; i++) {
+      void runWorker();
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [timelineClips, isPlaying, isEditorActive]);
+  }, [missingFrameTargetsSignature, isPlaying, isEditorActive]);
 
   // Resolve Voiceover URL across masterAudioUrl, audioTracks, folderVoiceoverUrl, or pre-bundled TTS files
   const effectiveVoiceoverUrl = useMemo(() => {
     const norm = (u?: string) => {
       if (!u || typeof u !== 'string') return '';
-      let t = u.trim();
+      let t = rewriteMediaBridgeUrl(u.trim());
       if (/^\/?tts-files\/(.+)\.wav$/i.test(t)) {
         t = t.replace(/^\/?tts-files\/(.+)\.wav$/i, 'tts-files/$1.mp3');
       }
@@ -4128,6 +4235,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeDoc?.downloadFolderName,
     activeDoc?.voiceoverScript,
     folderVoiceoverUrl,
+    mediaBridgeGen,
   ]);
 
   useEffect(() => {
@@ -4813,8 +4921,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     const combinedClipVideosMap: Record<number, string> = {};
-    for (const [kStr, srvUrl] of Object.entries(localServerClipVideosMap)) {
+    for (const [kStr, rawSrvUrl] of Object.entries(localServerClipVideosMap)) {
       const kNum = Number(kStr);
+      const srvUrl = rewriteMediaBridgeUrl(rawSrvUrl);
       if (!srvUrl) continue;
       const srvMeta = extractEditorMediaUrlMeta(srvUrl);
       if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), srvMeta.fileName, srvMeta.mtimeMs, srvUrl)) {
@@ -4822,8 +4931,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
       combinedClipVideosMap[kNum] = srvUrl;
     }
-    for (const [kStr, capUrl] of Object.entries(capturedClipVideosMap)) {
+    for (const [kStr, rawCapUrl] of Object.entries(capturedClipVideosMap)) {
       const kNum = Number(kStr);
+      const capUrl = rewriteMediaBridgeUrl(rawCapUrl);
       if (!capUrl) continue;
       const capMeta = extractEditorMediaUrlMeta(capUrl);
       if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), capMeta.fileName, capMeta.mtimeMs, capUrl)) {
@@ -4846,10 +4956,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         combinedClipVideosMap[kNum] = capUrl;
       }
     }
-    const combinedSunoAudioMap: Record<number, string> = {
+    const combinedSunoAudioMap: Record<number, string> = {};
+    for (const [kStr, rawAudioUrl] of Object.entries({
       ...localServerSunoMap,
       ...capturedSunoAudioMap,
-    };
+    })) {
+      const kNum = Number(kStr);
+      const rewrittenAudio = rewriteMediaBridgeUrl(rawAudioUrl);
+      if (rewrittenAudio) combinedSunoAudioMap[kNum] = rewrittenAudio;
+    }
 
     const bodyClips: TimelineClipItem[] = docClips.map((c, idx) => {
       const isClip1 = hasStage6ScriptClips ? c.clipNumber === 1 : c.clipNumber === 1 || idx === 0;
@@ -4867,24 +4982,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           !tc.id.endsWith('-slogan-partB')
       );
       const activeCombinedUrl = combinedClipVideosMap[c.clipNumber] || '';
-      const existingMeta = extractEditorMediaUrlMeta(existingItem?.videoUrl);
+      const existingRewrittenUrl = rewriteMediaBridgeUrl(existingItem?.videoUrl);
+      const existingMeta = extractEditorMediaUrlMeta(existingRewrittenUrl);
       const canReuseExistingUrl =
-        Boolean(existingItem?.videoUrl) &&
+        Boolean(existingRewrittenUrl) &&
         !isEditorClipRejectedOrQuarantined(c) &&
         !isEditorFolderItemDiscarded(
           c,
           existingMeta.fileName,
           existingMeta.mtimeMs,
-          existingItem?.videoUrl
+          existingRewrittenUrl
         );
-      const videoUrl = activeCombinedUrl || (canReuseExistingUrl ? existingItem?.videoUrl || '' : '');
+      const videoUrl = activeCombinedUrl || (canReuseExistingUrl ? existingRewrittenUrl : '');
 
       // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
-      const posterUrl =
+      const posterUrl = rewriteMediaBridgeUrl(
         firstFrameByClip[c.clipNumber] ||
-        (c.videoFrames && c.videoFrames[0]) ||
-        c.imagePreviewUrl ||
-        '';
+          (c.videoFrames && c.videoFrames[0]) ||
+          c.imagePreviewUrl ||
+          ''
+      );
 
       const computedFileName = c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc);
       const isBrollClip = Boolean(
@@ -4909,7 +5026,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           existingItem?.smoothSlowMo !== undefined
             ? existingItem.smoothSlowMo
             : Boolean(existingItem && existingItem.speed < 1),
-        opticalFlowUrl: existingItem?.opticalFlowUrl,
+        opticalFlowUrl: existingItem?.opticalFlowUrl
+          ? rewriteMediaBridgeUrl(existingItem.opticalFlowUrl)
+          : undefined,
         opticalFlowBakedKey: existingItem?.opticalFlowBakedKey,
         parentGroupId: existingItem?.parentGroupId,
         originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
@@ -4955,7 +5074,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sortedNums.forEach((num, idx) => {
         const isClip1 = num === 1 || idx === 0;
         const srcDur = isClip1 ? clip1HookDur : standardDur;
-        const rawVidUrl = combinedClipVideosMap[num] || '';
+        const rawVidUrl = rewriteMediaBridgeUrl(combinedClipVideosMap[num] || '');
         let extractedFileName = `${String(num).padStart(2, '0')}_Clip_Documental.mp4`;
         try {
           const decoded = decodeURIComponent(rawVidUrl);
@@ -4981,7 +5100,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           audioMuted: isFolderBroll || undefined,
           transition: isClip1 ? 'dip_black' : defaultTransition,
           videoUrl: rawVidUrl,
-          posterUrl: firstFrameByClip[num] || '',
+          posterUrl: rewriteMediaBridgeUrl(firstFrameByClip[num] || ''),
           reviewedForEditor: true,
         });
       });
@@ -5174,14 +5293,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           (tc) => {
           const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
           const activeCombinedUrl = combinedClipVideosMap[tc.clipNumber] || '';
-          const tcMeta = extractEditorMediaUrlMeta(tc.videoUrl);
+          const rewrittenTcVideoUrl = rewriteMediaBridgeUrl(tc.videoUrl);
+          const rewrittenOrigVideoUrl = rewriteMediaBridgeUrl(tc.originalVideoUrlBeforeSeparation);
+          const rewrittenOpticalFlowUrl = rewriteMediaBridgeUrl(tc.opticalFlowUrl);
+          const rewrittenOrigOpticalFlowUrl = rewriteMediaBridgeUrl(
+            tc.originalOpticalFlowUrlBeforeSeparation
+          );
+          const tcMeta = extractEditorMediaUrlMeta(rewrittenTcVideoUrl);
           const canReuseSavedTcUrl =
-            Boolean(tc.videoUrl) &&
+            Boolean(rewrittenTcVideoUrl) &&
             !isEditorClipRejectedOrQuarantined(docClipMatch) &&
-            !isEditorFolderItemDiscarded(docClipMatch, tcMeta.fileName, tcMeta.mtimeMs, tc.videoUrl);
-          const freshVideoUrl = activeCombinedUrl || (canReuseSavedTcUrl ? tc.videoUrl || '' : '');
-          const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
-          const prevBaseVideoUrl = tc.originalVideoUrlBeforeSeparation || tc.videoUrl || '';
+            !isEditorFolderItemDiscarded(
+              docClipMatch,
+              tcMeta.fileName,
+              tcMeta.mtimeMs,
+              rewrittenTcVideoUrl
+            );
+          const freshVideoUrl =
+            activeCombinedUrl || (canReuseSavedTcUrl ? rewrittenTcVideoUrl : '');
+          const freshPosterUrl = rewriteMediaBridgeUrl(
+            firstFrameByClip[tc.clipNumber] ||
+              tc.posterUrl ||
+              (docClipMatch?.videoFrames && docClipMatch.videoFrames[0]) ||
+              docClipMatch?.imagePreviewUrl ||
+              ''
+          );
+          const prevBaseVideoUrl = rewrittenOrigVideoUrl || rewrittenTcVideoUrl || '';
           const freshTs = getUrlTimestampMs(freshVideoUrl);
           const prevBaseTs = getUrlTimestampMs(prevBaseVideoUrl);
           const isNewerDiskVideo =
@@ -5191,42 +5328,41 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             !freshVideoUrl.includes('.foley_only_cache') &&
             !freshVideoUrl.includes('.optical_flow_cache');
 
-          const opticalFlowTs = getUrlTimestampMs(tc.opticalFlowUrl);
+          const opticalFlowTs = getUrlTimestampMs(rewrittenOpticalFlowUrl);
           const opticalFlowStillValid =
-            Boolean(tc.opticalFlowUrl) &&
+            Boolean(rewrittenOpticalFlowUrl) &&
             !isNewerDiskVideo &&
             (freshTs === 0 || opticalFlowTs === 0 || opticalFlowTs >= freshTs - 1000);
 
-          const origMeta = extractEditorMediaUrlMeta(tc.originalVideoUrlBeforeSeparation);
+          const origMeta = extractEditorMediaUrlMeta(rewrittenOrigVideoUrl);
           const canReuseOrigUrl =
-            Boolean(tc.originalVideoUrlBeforeSeparation) &&
-            !tc.originalVideoUrlBeforeSeparation!.includes('.foley_only_cache') &&
-            !tc.originalVideoUrlBeforeSeparation!.includes('.vocals_clean_cache') &&
-            !tc.originalVideoUrlBeforeSeparation!.includes('.music_clean_cache') &&
+            Boolean(rewrittenOrigVideoUrl) &&
+            !rewrittenOrigVideoUrl.includes('.foley_only_cache') &&
+            !rewrittenOrigVideoUrl.includes('.vocals_clean_cache') &&
+            !rewrittenOrigVideoUrl.includes('.music_clean_cache') &&
             !isEditorClipRejectedOrQuarantined(docClipMatch) &&
             !isEditorFolderItemDiscarded(
               docClipMatch,
               origMeta.fileName,
               origMeta.mtimeMs,
-              tc.originalVideoUrlBeforeSeparation
+              rewrittenOrigVideoUrl
             );
           const cleanBaseVideoUrl =
             activeCombinedUrl ||
             (canReuseOrigUrl
-              ? tc.originalVideoUrlBeforeSeparation
+              ? rewrittenOrigVideoUrl
               : canReuseSavedTcUrl
-                ? tc.videoUrl
+                ? rewrittenTcVideoUrl
                 : '');
 
-          const effectiveVideoUrl = cleanBaseVideoUrl || freshVideoUrl;
-          const baseOpticalFlowUrl =
-            tc.originalOpticalFlowUrlBeforeSeparation || tc.opticalFlowUrl;
+          const effectiveVideoUrl = rewriteMediaBridgeUrl(cleanBaseVideoUrl || freshVideoUrl);
+          const baseOpticalFlowUrl = rewrittenOrigOpticalFlowUrl || rewrittenOpticalFlowUrl;
           const effectiveOpticalFlowUrl =
             opticalFlowStillValid &&
             baseOpticalFlowUrl &&
             !baseOpticalFlowUrl.includes('.foley_only_cache') &&
             !baseOpticalFlowUrl.includes('_foley_')
-              ? baseOpticalFlowUrl
+              ? rewriteMediaBridgeUrl(baseOpticalFlowUrl)
               : undefined;
 
           const isRestoredBroll = Boolean(
@@ -5841,25 +5977,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     .filter((n) => n > 0)
     .sort((a, b) => a - b);
 
-  const capturedClipVideosSignature = allKnownClipNums
+  const capturedClipVideosSignature = `${mediaBridgeGen}:${getMediaBridgeSnapshot().activeOrigin}|` + allKnownClipNums
     .map(
       (k) =>
-        `${k}:${(localServerClipVideosMap[k] || '').slice(-28)}:${(
+        `${k}:${rewriteMediaBridgeUrl(localServerClipVideosMap[k] || '').slice(-36)}:${rewriteMediaBridgeUrl(
           capturedClipVideosMap[k] || ''
-        ).slice(-28)}:${(firstFrameByClip[k] || '').slice(-20)}`
+        ).slice(-36)}:${rewriteMediaBridgeUrl(firstFrameByClip[k] || '').slice(-24)}`
     )
     .join('|');
 
   const sunoTracksSignature = (activeDoc?.sunoTracks || [])
-    .map((t, i) => `${i + 1}:${t.title || ''}:${t.videoTimeRange || ''}:${t.duration || ''}:${(t.audioUrl || '').slice(-24)}`)
+    .map((t, i) => `${i + 1}:${t.title || ''}:${t.videoTimeRange || ''}:${t.duration || ''}:${rewriteMediaBridgeUrl(t.audioUrl || '').slice(-28)}`)
     .join('|');
 
-  const capturedSunoSignature = Object.entries({
+  const capturedSunoSignature = `${mediaBridgeGen}|` + Object.entries({
     ...localServerSunoMap,
     ...capturedSunoAudioMap,
   })
     .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([k, v]) => `${k}:${v ? v.slice(-24) : ''}`)
+    .map(([k, v]) => `${k}:${v ? rewriteMediaBridgeUrl(v).slice(-28) : ''}`)
     .join('|');
 
   useEffect(() => {
@@ -5875,6 +6011,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     folderVoiceoverUrl,
     effectiveVoiceDurationSec,
     sloganSplitAudioSec,
+    mediaBridgeGen,
   ]);
 
   const prealignedVideo76SrtRef = useRef<string>('');
@@ -7619,9 +7756,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       clip.smoothSlowMo !== false &&
       Number(clip.speed ?? 1) < 0.99
     ) {
-      return clip.opticalFlowUrl;
+      return rewriteMediaBridgeUrl(clip.opticalFlowUrl);
     }
-    return clip.videoUrl;
+    return rewriteMediaBridgeUrl(clip.videoUrl);
   };
 
   // Synchronous Dual-Deck (A/B Ping-Pong) assignment: when activeClipAtPlayhead advances to nextClipAtPlayhead,
@@ -14048,13 +14185,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             e.currentTarget.pause();
                           } catch {}
                         }}
-                        onError={() => {
-                          if (deckAssignRef.current.activeSlot !== slotIdx) return;
-                          const clipNum = activeClipAtPlayhead?.clipNumber;
+                        onError={(e) => {
+                          const vidEl = e.currentTarget;
+                          const isActiveSlotErr = deckAssignRef.current.activeSlot === slotIdx;
+                          const targetClip = isActiveSlotErr
+                            ? activeClipAtPlayhead
+                            : nextClipAtPlayhead;
+                          const clipNum = targetClip?.clipNumber;
+                          const failedSrc = slotSrc || targetClip?.videoUrl || '';
+                          const retryKey = `${clipNum ?? slotIdx}:${failedSrc.slice(-64)}`;
+                          const attempts = (deckErrorRetryRef.current[retryKey] || 0) + 1;
+                          deckErrorRetryRef.current[retryKey] = attempts;
+                          if (attempts > 3) return;
+
+                          if (/^https?:\/\//i.test(failedSrc)) {
+                            evictDeadMediaBridgeOrigin(failedSrc);
+                          }
+                          void refreshLiveMacMediaTunnelUrl({ force: true }).then((freshOrigin) => {
+                            if (freshOrigin) {
+                              triggerEditorFolderMediaRescanRef.current();
+                            }
+                          });
+
                           const docClip = clipNum
                             ? activeDoc?.clips?.find((dc) => dc.clipNumber === clipNum)
                             : undefined;
-                          const rawFallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                          const rawFallbackUrl = clipNum
+                            ? rewriteMediaBridgeUrl(localServerClipVideosMap[clipNum] || '')
+                            : '';
                           const fbMeta = extractEditorMediaUrlMeta(rawFallbackUrl);
                           const fallbackUrl =
                             rawFallbackUrl &&
@@ -14069,13 +14227,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           if (
                             clipNum &&
                             fallbackUrl &&
-                            activeClipAtPlayhead?.videoUrl !== fallbackUrl
+                            targetClip?.videoUrl !== fallbackUrl
                           ) {
                             setTimelineClips((prev) =>
                               prev.map((tc) =>
                                 tc.clipNumber === clipNum ? { ...tc, videoUrl: fallbackUrl } : tc
                               )
                             );
+                          } else {
+                            triggerEditorFolderMediaRescanRef.current();
+                            try {
+                              vidEl.load();
+                            } catch {}
                           }
                         }}
                       />
@@ -14083,10 +14246,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   })}
                 </div>
               ) : (
-                /* Animated Cinematic Storyboard Canvas when no .MP4 or image is loaded yet */
+                /* Animated Cinematic Storyboard Canvas (with Poster / Static B-Roll image fallback) when no .MP4 is loaded yet */
                 <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-6 text-center">
+                  {activeClipAtPlayhead?.posterUrl && (
+                    <img
+                      src={rewriteMediaBridgeUrl(activeClipAtPlayhead.posterUrl)}
+                      alt={activeClipAtPlayhead.fileName || `Escena ${activeClipAtPlayhead.clipNumber}`}
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none opacity-85 transition-transform duration-150 ease-linear"
+                      style={{
+                        transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
+                      }}
+                      onError={(e) => {
+                        const failedImgSrc = e.currentTarget.currentSrc || activeClipAtPlayhead.posterUrl || '';
+                        if (/^https?:\/\//i.test(failedImgSrc)) {
+                          evictDeadMediaBridgeOrigin(failedImgSrc);
+                          void refreshLiveMacMediaTunnelUrl({ force: true });
+                        }
+                      }}
+                    />
+                  )}
                   <div
-                    className="absolute inset-0 opacity-35 pointer-events-none transition-transform duration-150 ease-linear"
+                    className={`absolute inset-0 ${
+                      activeClipAtPlayhead?.posterUrl ? 'bg-black/35 opacity-60' : 'opacity-35'
+                    } pointer-events-none transition-transform duration-150 ease-linear`}
                     style={{
                       transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
                       backgroundImage:
@@ -18099,9 +18281,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           <>
                             {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
                               <img
-                                src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
+                                src={rewriteMediaBridgeUrl(
+                                  firstFrameByClip[clip.clipNumber] || clip.posterUrl
+                                )}
                                 alt={clip.fileName}
                                 className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
+                                onError={(e) => {
+                                  const failedThumb = e.currentTarget.currentSrc || '';
+                                  if (/^https?:\/\//i.test(failedThumb)) {
+                                    evictDeadMediaBridgeOrigin(failedThumb);
+                                    void refreshLiveMacMediaTunnelUrl({ force: true });
+                                  }
+                                }}
                               />
                             ) : null}
                             <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
@@ -18191,9 +18382,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
                               <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-black border border-slate-800">
                                 <img
-                                  src={firstFrameByClip[clip.clipNumber] || clip.posterUrl}
+                                  src={rewriteMediaBridgeUrl(
+                                    firstFrameByClip[clip.clipNumber] || clip.posterUrl
+                                  )}
                                   alt={clip.fileName}
                                   className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const failedThumb = e.currentTarget.currentSrc || '';
+                                    if (/^https?:\/\//i.test(failedThumb)) {
+                                      evictDeadMediaBridgeOrigin(failedThumb);
+                                      void refreshLiveMacMediaTunnelUrl({ force: true });
+                                    }
+                                  }}
                                 />
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
                                   <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-sky-500/90 text-[8px] font-black text-slate-950 shadow">

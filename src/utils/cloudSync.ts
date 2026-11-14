@@ -87,6 +87,22 @@ export function loadStoredClipReviewStateMap(): StoredClipStatusMap {
   }
 }
 
+export function hasBackingForVideoReady(
+  c?: Partial<DocumentaryProject['clips'][number]> | StoredClipStatusEntry | null
+): boolean {
+  if (!c) return false;
+  const fName = String(c.videoSavedFileName || '').trim();
+  if (fName) return true;
+  if (c.reviewedForEditor) return true;
+  if (c.recreated) return true;
+  if (c.imageReady) return true;
+  if (Number((c as any).videoSavedAt || 0) > 0) return true;
+  if (String((c as any).imagePreviewUrl || '').trim()) return true;
+  if (Array.isArray((c as any).videoFrames) && (c as any).videoFrames.length > 0) return true;
+  if (c.videoAuditStatus === 'approved') return true;
+  return false;
+}
+
 export function saveClipReviewStateForDoc(
   docId: string,
   clips: DocumentaryProject['clips'],
@@ -132,7 +148,7 @@ export function saveClipReviewStateForDoc(
             prev && prev.reviewedForEditor === rawNextRev ? prevRevAt : 0
           );
       const nextRec = Boolean(c.recreated);
-      const nextVid = isRejectedEmpty ? false : Boolean(c.videoReady);
+      const nextVid = isRejectedEmpty ? false : Boolean(c.videoReady && hasBackingForVideoReady(c));
       const nextImg = isRejectedEmpty ? false : Boolean(c.imageReady);
       const prevValidFile =
         prev?.videoSavedFileName && prev.videoSavedFileName !== effDiscFile
@@ -294,6 +310,15 @@ export function applyStoredClipReviewStateToDocs(
         return c;
       }
 
+      const savedHasVideoBacking = hasBackingForVideoReady(saved) || hasBackingForVideoReady(c);
+      if (saved.videoReady && !savedHasVideoBacking) {
+        docMap[c.clipNumber] = {
+          ...saved,
+          videoReady: false,
+        };
+        storeMutated = true;
+      }
+
       const cRevAt = Number(c.reviewedUpdatedAt || 0);
       const sRevAt =
         !isSavedRevokedByFile && savedAfterDiscard ? Number(saved.reviewedUpdatedAt || 0) : 0;
@@ -317,9 +342,10 @@ export function applyStoredClipReviewStateToDocs(
         );
       }
       const mergedRec = Boolean(c.recreated || saved.recreated);
-      const mergedVid = Boolean(
+      const rawMergedVid = Boolean(
         c.videoReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.videoReady)
       );
+      const mergedVid = rawMergedVid && (hasBackingForVideoReady(c) || hasBackingForVideoReady(saved));
       const mergedImg = Boolean(
         c.imageReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.imageReady)
       );
@@ -2630,8 +2656,16 @@ function mergeTwoDocumentaryObjects(
           : {}),
         recreated: Boolean(c.recreated || o.recreated),
         videoReady: effDiscardedAt > 0
-          ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))
-          : Boolean(winningFile || c.videoReady || o.videoReady),
+          ? Boolean(
+              winningFile ||
+                (((cSideOk && c.videoReady) || (oSideOk && o.videoReady)) &&
+                  (hasBackingForVideoReady(c) || hasBackingForVideoReady(o)))
+            )
+          : Boolean(
+              winningFile ||
+                ((c.videoReady || o.videoReady) &&
+                  (hasBackingForVideoReady(c) || hasBackingForVideoReady(o)))
+            ),
         imageReady: effDiscardedAt > 0
           ? Boolean(winningFile || (cSideOk && c.imageReady) || (oSideOk && o.imageReady))
           : Boolean(winningFile || c.imageReady || o.imageReady),

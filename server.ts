@@ -71,6 +71,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4200;
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -85,7 +86,8 @@ app.use((req, res, next) => {
   if (
     req.method === 'GET' &&
     !req.path.startsWith('/api/flow/serve-folder-file') &&
-    !req.path.startsWith('/flow-cap/')
+    !req.path.startsWith('/flow-cap/') &&
+    !req.path.startsWith('/api/assets/official-intro-stream')
   ) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -706,15 +708,29 @@ function countServerAuthoredBlocksInRawText(raw?: any): number {
   return uniqueSceneNums.size;
 }
 
+function hasServerClipBackingForVideoReady(clip: any): boolean {
+  return Boolean(
+    clip &&
+      (String(clip.videoSavedFileName || '').trim() ||
+        clip.reviewedForEditor ||
+        clip.imageReady ||
+        Number(clip.videoSavedAt || 0) > 0 ||
+        String(clip.imagePreviewUrl || '').trim() ||
+        (Array.isArray(clip.videoFrames) && clip.videoFrames.length > 0))
+  );
+}
+
 function sanitizeServerClipSkeleton(clip: any): any {
   if (!clip || typeof clip !== 'object') return clip;
   const badImg = isServerAutoSkeletonPromptText(clip.imagePrompt);
   const badVid = isServerAutoSkeletonPromptText(clip.videoPrompt);
-  if (!badImg && !badVid) return clip;
+  const unbackedVideoReady = Boolean(clip.videoReady) && !hasServerClipBackingForVideoReady(clip);
+  if (!badImg && !badVid && !unbackedVideoReady) return clip;
   return {
     ...clip,
     ...(badImg ? { imagePrompt: '' } : {}),
     ...(badVid ? { videoPrompt: '' } : {}),
+    ...(unbackedVideoReady ? { videoReady: false } : {}),
   };
 }
 
@@ -1028,8 +1044,16 @@ function mergeServerClipsPreservingAuthored(
       recreated: Boolean(c.recreated || o.recreated),
       videoReady:
         effDiscardedAt > 0
-          ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))
-          : Boolean(c.videoReady || o.videoReady),
+          ? Boolean(
+              winningFile ||
+                (cSideOk && c.videoReady && hasServerClipBackingForVideoReady(c)) ||
+                (oSideOk && o.videoReady && hasServerClipBackingForVideoReady(o))
+            )
+          : Boolean(
+              winningFile ||
+                (c.videoReady && hasServerClipBackingForVideoReady(c)) ||
+                (o.videoReady && hasServerClipBackingForVideoReady(o))
+            ),
       imageReady:
         effDiscardedAt > 0
           ? Boolean(winningFile || (cSideOk && c.imageReady) || (oSideOk && o.imageReady))
@@ -8547,6 +8571,8 @@ app.get('/api/assets/official-intro-stream', (_req, res) => {
       return;
     }
     res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
     res.sendFile(OFFICIAL_INTRO_MP4_FILE);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Error sirviendo Intro Oficial.' });
@@ -8600,6 +8626,7 @@ let icloudDriveVerifiedReady = false;
 let icloudDriveProbeInFlight = false;
 let lastIcloudProbeAttemptAt = 0;
 let icloudLastProbeFailed = false;
+let icloudLastProbePermissionDenied = false;
 let cachedIcloudVideosEntries: string[] = [];
 let cachedIcloudVideosEntriesAt = 0;
 let icloudDirEnumInFlight = false;
@@ -8608,7 +8635,8 @@ let lastIcloudDirEnumAttemptAt = 0;
 function refreshIcloudVideosDirCacheAsync(icloudVideosDir: string) {
   if (icloudDirEnumInFlight) return;
   const now = Date.now();
-  if (now - lastIcloudDirEnumAttemptAt < 120000) return;
+  const minCooldownMs = cachedIcloudVideosEntries.length === 0 ? 15000 : 120000;
+  if (now - lastIcloudDirEnumAttemptAt < minCooldownMs) return;
   lastIcloudDirEnumAttemptAt = now;
   icloudDirEnumInFlight = true;
   try {
@@ -8627,7 +8655,7 @@ function refreshIcloudVideosDirCacheAsync(icloudVideosDir: string) {
       try {
         proc.kill('SIGKILL');
       } catch {}
-    }, 2500);
+    }, 5000);
     proc.on('close', (code) => {
       clearTimeout(killTimer);
       icloudDirEnumInFlight = false;
@@ -8681,7 +8709,8 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
   if (icloudDriveVerifiedReady) return Promise.resolve(true);
   if (icloudDriveProbePromise) return icloudDriveProbePromise;
   const now = Date.now();
-  if (now - lastIcloudProbeAttemptAt < 10000) return Promise.resolve(false);
+  const cooldownMs = icloudLastProbePermissionDenied ? 10000 : 4000;
+  if (now - lastIcloudProbeAttemptAt < cooldownMs) return Promise.resolve(false);
   lastIcloudProbeAttemptAt = now;
   icloudDriveProbeInFlight = true;
   const candidateSubdirs: string[] = [];
@@ -8740,6 +8769,7 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
           } catch {}
           icloudDriveVerifiedReady = true;
           icloudLastProbeFailed = false;
+          icloudLastProbePermissionDenied = false;
           setTimeout(() => {
             try {
               void runAutonomousClipsWatcherTick();
@@ -8748,23 +8778,26 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
           finish(true);
         } else {
           icloudLastProbeFailed = true;
+          icloudLastProbePermissionDenied = code === 2;
           finish(false);
         }
       });
       proc.on('error', () => {
         clearTimeout(killTimer);
         icloudLastProbeFailed = true;
+        icloudLastProbePermissionDenied = false;
         finish(false);
       });
     } catch {
       icloudLastProbeFailed = true;
+      icloudLastProbePermissionDenied = false;
       finish(false);
     }
   });
   return icloudDriveProbePromise;
 }
 
-async function waitForIcloudDriveReady(maxWaitMs = 1500): Promise<boolean> {
+async function waitForIcloudDriveReady(maxWaitMs = 2800): Promise<boolean> {
   if (icloudDriveVerifiedReady) return true;
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   if (!homeDir) return false;
@@ -8865,10 +8898,15 @@ function resolveLocalDocumentaryFolder(
     fs.statSync(icloudVideosDir).isDirectory()
   ) {
     const prefixRegex = new RegExp(`^video\\s*0*${titleVidNum}\\b`, 'i');
+    const checkedFull = new Set<string>();
     for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
       if (prefixRegex.test(entry.normalize('NFC'))) {
-        const full = path.join(icloudVideosDir, entry);
-        if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+        for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
+          const full = path.join(icloudVideosDir, variant);
+          if (checkedFull.has(full)) continue;
+          checkedFull.add(full);
+          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+        }
       }
     }
   }
@@ -8879,39 +8917,53 @@ function resolveLocalDocumentaryFolder(
   if (
     !pathContradictsTitle &&
     rawPath &&
-    (!pathRequiresTcc || downloadsDirVerifiedReady) &&
-    fs.existsSync(rawPath) &&
-    fs.statSync(rawPath).isDirectory()
+    (!pathRequiresTcc || downloadsDirVerifiedReady)
   ) {
-    return rawPath;
+    for (const pathVariant of Array.from(new Set([rawPath, rawPath.normalize('NFC'), rawPath.normalize('NFD')]))) {
+      if (fs.existsSync(pathVariant) && fs.statSync(pathVariant).isDirectory()) {
+        return pathVariant;
+      }
+    }
   }
 
   const nameContradictsTitle = Boolean(titleVidNum && nameVidNum && titleVidNum !== nameVidNum);
-  if (!nameContradictsTitle && rawName) {
+  const titleLabel = rawTitle
+    .split(/\r?\n/)[0]
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 90);
+  if (!nameContradictsTitle && (rawName || titleLabel)) {
+    const directNames = Array.from(
+      new Set([
+        ...(rawName ? [rawName, rawName.normalize('NFD'), rawName.normalize('NFC')] : []),
+        ...(titleLabel ? [titleLabel, titleLabel.normalize('NFD'), titleLabel.normalize('NFC')] : []),
+      ])
+    );
     const candidates = [
-      path.join(icloudVideosDir, rawName),
-      path.join(icloudVideosDir, rawName.normalize('NFD')),
-      path.join(icloudVideosDir, rawName.normalize('NFC')),
-      ...(downloadsDirVerifiedReady
+      ...directNames.map((n) => path.join(icloudVideosDir, n)),
+      ...(downloadsDirVerifiedReady && rawName
         ? [
             path.join(homeDir, 'Desktop', rawName),
             path.join(homeDir, 'Downloads', rawName),
             path.join(homeDir, 'Documents', rawName),
           ]
         : []),
-      path.join(homeDir, rawName),
+      ...(rawName ? [path.join(homeDir, rawName)] : []),
     ];
     for (const c of candidates) {
       if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
         return c;
       }
     }
-    if (fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+    if (rawName && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
       const targetNorm = rawName.normalize('NFC').toLowerCase();
       for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
         if (entry.normalize('NFC').toLowerCase() === targetNorm) {
-          const full = path.join(icloudVideosDir, entry);
-          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+          for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
+            const full = path.join(icloudVideosDir, variant);
+            if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+          }
         }
       }
     }
@@ -8922,10 +8974,15 @@ function resolveLocalDocumentaryFolder(
     const combinedVidNum = nameVidNum || pathVidNum;
     if (combinedVidNum) {
       const prefixRegex = new RegExp(`^video\\s*0*${combinedVidNum}\\b`, 'i');
+      const checkedFull = new Set<string>();
       for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
         if (prefixRegex.test(entry.normalize('NFC'))) {
-          const full = path.join(icloudVideosDir, entry);
-          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+          for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
+            const full = path.join(icloudVideosDir, variant);
+            if (checkedFull.has(full)) continue;
+            checkedFull.add(full);
+            if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
+          }
         }
       }
     }
@@ -9155,7 +9212,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     let docTitle = String(req.query.docTitle || '');
 
     if (!icloudDriveVerifiedReady) {
-      await waitForIcloudDriveReady(1500);
+      await waitForIcloudDriveReady(2800);
     }
 
     if (reqDocId && (!folderPath || !folderName || !docTitle)) {
@@ -9166,13 +9223,42 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           if (!folderPath && matched.downloadFolderPath) folderPath = String(matched.downloadFolderPath);
           if (!folderName && matched.downloadFolderName) folderName = String(matched.downloadFolderName);
           if (!docTitle && matched.title) docTitle = String(matched.title);
+          if (!folderPath && Array.isArray(matched.clips)) {
+            for (const mc of matched.clips) {
+              const candidateUrls = [
+                String(mc?.imagePreviewUrl || ''),
+                ...(Array.isArray(mc?.videoFrames) ? mc.videoFrames.map((u: any) => String(u || '')) : []),
+              ];
+              for (const rawMediaUrl of candidateUrls) {
+                const mFp = rawMediaUrl.match(/[?&]filePath=([^&]+)/i);
+                if (!mFp?.[1]) continue;
+                try {
+                  const decodedFp = decodeURIComponent(mFp[1]);
+                  const rootFromPreview = decodedFp.replace(
+                    /[\/\\](?:01_Guion|02_Imagenes|03_Miniaturas|04_Audio|05_Clips_Video|06_Exports)(?:[\/\\].*)?$/i,
+                    ''
+                  );
+                  if (
+                    rootFromPreview &&
+                    rootFromPreview !== decodedFp &&
+                    fs.existsSync(rootFromPreview) &&
+                    fs.statSync(rootFromPreview).isDirectory()
+                  ) {
+                    folderPath = rootFromPreview;
+                    break;
+                  }
+                } catch {}
+              }
+              if (folderPath) break;
+            }
+          }
         }
       } catch {}
     }
 
     const rawResolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
     const rootOpenable = rawResolvedRoot
-      ? await ensureDocRootOpenable(rawResolvedRoot, 1500, 3000)
+      ? await ensureDocRootOpenable(rawResolvedRoot, 3000, 3000)
       : false;
     const resolvedRoot = rootOpenable ? rawResolvedRoot : '';
 
@@ -9730,7 +9816,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       clipPrompts,
       pending4kClipNumbers: Array.from(pending4kSet).sort((a, b) => a - b),
       pipelineStatus: activeClipsPipelineStatus,
-      icloudTccPending: !icloudDriveVerifiedReady && icloudLastProbeFailed,
+      icloudTccPending: !icloudDriveVerifiedReady && (icloudDriveProbeInFlight || icloudLastProbeFailed),
     });
   } catch (err: any) {
     res.json({
@@ -10317,9 +10403,12 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
           res.status(410).send('Clip actualizado a 4K; recargando stream.');
           return;
         }
+        const frameProbeSuffix = req.query.frameProbe
+          ? `&frameProbe=${encodeURIComponent(String(req.query.frameProbe))}`
+          : '';
         res.redirect(
           302,
-          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(st4k.mtimeMs)}`
+          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(st4k.mtimeMs)}${frameProbeSuffix}`
         );
         return;
       } else if (/^\.(?:wav|mp3|m4a)$/i.test(ext)) {
@@ -20932,6 +21021,8 @@ flowPcManager.registerRoutes(app);
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   const httpServer = http.createServer(app);
+  httpServer.keepAliveTimeout = 65000;
+  httpServer.headersTimeout = 66000;
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -20952,10 +21043,20 @@ async function bootstrap() {
     });
   }
 
-  flowPcManager.attachServer(httpServer);
+  httpServer.on('error', (err: any) => {
+    if (err?.code === 'EADDRINUSE' || err?.code === 'EACCES') {
+      console.error(
+        `[Huellas Master Server] Fatal bind error (${err.code}) on port ${PORT}:`,
+        err?.message || err
+      );
+      process.exit(1);
+    }
+    console.error('[Huellas Master Server] HTTP server error:', err);
+  });
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Huellas Master running at http://localhost:${PORT}`);
+    flowPcManager.attachServer(httpServer);
   });
 }
 

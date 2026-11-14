@@ -712,22 +712,34 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
   }
 
+  let latestPublishedEnvelopeUpdatedAt = 0;
+  let githubEnvelopePushChain: Promise<void> = Promise.resolve();
+  let cloudflaredRestartTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function writeFileAtomicSync(targetPath: string, contentUtf8: string) {
+    const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    fs.writeFileSync(tmpPath, contentUtf8, 'utf8');
+    fs.renameSync(tmpPath, targetPath);
+  }
+
   async function publishEncryptedTunnelEnvelope(pushToGitHub = true) {
     if (!activeTunnelUrl) return;
     const lanUrl = detectLanUrl(serverPort);
+    const updatedAt = Math.max(Date.now(), latestPublishedEnvelopeUpdatedAt + 1);
+    latestPublishedEnvelopeUpdatedAt = updatedAt;
     const encJson = encryptPayloadWithEnvelopeKey({
       tunnelUrl: activeTunnelUrl,
       lanUrl,
-      updatedAt: Date.now(),
-      expiresAt: Date.now() + 24 * 3600 * 1000,
+      updatedAt,
+      expiresAt: updatedAt + 24 * 3600 * 1000,
     });
     if (!encJson) return;
     lastEncryptedEnvelopeJson = encJson;
     try {
-      fs.writeFileSync(tunnelEnvelopeDataFile, encJson, 'utf8');
+      writeFileAtomicSync(tunnelEnvelopeDataFile, encJson);
       const docsDir = path.dirname(tunnelEnvelopeDocsFile);
       if (fs.existsSync(docsDir)) {
-        fs.writeFileSync(tunnelEnvelopeDocsFile, encJson, 'utf8');
+        writeFileAtomicSync(tunnelEnvelopeDocsFile, encJson);
       }
     } catch {}
 
@@ -741,12 +753,23 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
 
     if (pushToGitHub) {
-      await putGitHubEncryptedFile('data/flow_pc_tunnel.enc.json', encJson);
-      await putGitHubEncryptedFile('docs/data/flow_pc_tunnel.enc.json', encJson);
+      githubEnvelopePushChain = githubEnvelopePushChain
+        .catch(() => {})
+        .then(async () => {
+          if (updatedAt < latestPublishedEnvelopeUpdatedAt) return;
+          await putGitHubEncryptedFile('data/flow_pc_tunnel.enc.json', encJson);
+          if (updatedAt < latestPublishedEnvelopeUpdatedAt) return;
+          await putGitHubEncryptedFile('docs/data/flow_pc_tunnel.enc.json', encJson);
+        });
+      await githubEnvelopePushChain;
     }
   }
 
   function ensureCloudflaredRunning(forceRestart = false) {
+    if (cloudflaredRestartTimer) {
+      clearTimeout(cloudflaredRestartTimer);
+      cloudflaredRestartTimer = null;
+    }
     if (forceRestart && cloudflaredProc) {
       try {
         cloudflaredProc.kill('SIGTERM');
@@ -780,11 +803,19 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       proc.on('close', () => {
         if (cloudflaredProc === proc) {
           cloudflaredProc = null;
-          setTimeout(() => ensureCloudflaredRunning(false), 6000);
+          activeTunnelUrl = '';
+          if (cloudflaredRestartTimer) clearTimeout(cloudflaredRestartTimer);
+          cloudflaredRestartTimer = setTimeout(() => {
+            cloudflaredRestartTimer = null;
+            ensureCloudflaredRunning(false);
+          }, 6000);
         }
       });
       proc.on('error', () => {
-        if (cloudflaredProc === proc) cloudflaredProc = null;
+        if (cloudflaredProc === proc) {
+          cloudflaredProc = null;
+          activeTunnelUrl = '';
+        }
       });
     } catch (e: any) {
       console.warn('[FlowPC] Could not spawn cloudflared:', e?.message || e);
@@ -864,8 +895,13 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
   }
 
   const cleanupCloudflared = () => {
+    if (cloudflaredRestartTimer) {
+      clearTimeout(cloudflaredRestartTimer);
+      cloudflaredRestartTimer = null;
+    }
     const p = cloudflaredProc;
     cloudflaredProc = null;
+    activeTunnelUrl = '';
     if (p) {
       try {
         p.kill('SIGTERM');
