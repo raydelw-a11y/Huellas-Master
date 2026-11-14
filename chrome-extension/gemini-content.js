@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 20) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 20;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 22) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 22;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
@@ -697,7 +697,16 @@
     }
   }
 
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms) => {
+    const waitMs = Math.max(0, Number(ms) || 0);
+    if (document.visibilityState === 'hidden' && typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
+      return chrome.runtime
+        .sendMessage({ type: 'HUELLAS_UNTHROTTLED_SLEEP', ms: waitMs })
+        .then(() => undefined)
+        .catch(() => new Promise((resolve) => setTimeout(resolve, waitMs)));
+    }
+    return new Promise((resolve) => setTimeout(resolve, waitMs));
+  };
 
   function findDeepResearchStartPlanButton() {
     const allButtons = Array.from(
@@ -750,10 +759,12 @@
     enableDeepResearch,
     enableArgonLow,
     enableCreateImage = false,
-    aspectRatio = ''
+    aspectRatio = '',
+    enableQuickAnswers = false
   ) {
-    const wantHigh = Boolean(enableHighModel) && !Boolean(enableArgonLow);
-    const targetLevel = wantHigh ? 'HIGH' : 'LOW';
+    const wantQuickAnswers = Boolean(enableQuickAnswers);
+    const wantHigh = !wantQuickAnswers && Boolean(enableHighModel) && !Boolean(enableArgonLow);
+    const targetLevel = wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'HIGH' : 'LOW';
 
     const triggerHoverAndClick = (el, alsoClick = true) => {
       if (!el) return;
@@ -874,14 +885,18 @@
           const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
             .replace(/\s+/g, ' ')
             .trim();
-          return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+          return /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(
+            t
+          );
         });
         if (nearMatch) return nearMatch;
       }
       return (
         allBtns.find((el) => {
           const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+          return /^(?:quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido)$|^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(
+            t
+          );
         }) || document.querySelector('bard-mode-switcher button')
       );
     };
@@ -942,26 +957,73 @@
       );
     };
 
-    // STEP A: Select "4 Carbon" AND set "Thinking level" -> targetLevel ("Low" for app, "High" for MODO DUO/TRIO)
+    // STEP A: Select target model ("Quick answers" OR "4 Carbon" + "Thinking level")
+    const isQuickAnswersMenuItem = (el, preferExactOnly = false) => {
+      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      const val = (el.getAttribute('value') || el.getAttribute('data-test-id') || '').trim().toLowerCase();
+      if (
+        val === 'low' ||
+        val === 'medium' ||
+        val === 'high' ||
+        /^(?:[✓✔]\s*)?(?:low|bajo|medium|medio|high|alto)\b/i.test(txt) ||
+        /\b(thinking\s*level|nivel\s*de\s*pensamiento|carbon|argon|most\s+complex\s+work|extra\s+thorough)\b/i.test(txt)
+      ) {
+        return false;
+      }
+      if (/\bquick\s*answers?\b|\brespuestas?\s*r[aá]pidas?\b/i.test(txt) || /quick[_-]?answers?/i.test(val)) {
+        return true;
+      }
+      if (preferExactOnly) return false;
+      return (
+        !/(?:fast|quick)\s+and\s+efficient|\bpro\b/i.test(txt) &&
+        (/\b(?:\d+(?:\.\d+)?\s*)?flash(?:-lite)?\b/i.test(txt) ||
+          /^(?:[✓✔]\s*)?(?:fast|r[aá]pido)\b/i.test(txt) ||
+          /^(?:fast|flash(?:_lite)?)$/.test(val))
+      );
+    };
+
     const ensureArgon4AndThinkingLevel = async () => {
       await closeAnyOpenOverlayMenus();
 
       const switcherBtn = findModelSwitcherBtn();
-      if (!switcherBtn) return;
+      if (!switcherBtn) return false;
 
       const ariaLabel = (switcherBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
       const innerLabel = (switcherBtn.innerText || switcherBtn.textContent || '')
         .replace(/\s+/g, ' ')
         .trim();
       const currentLabel = `${ariaLabel} ${innerLabel}`.trim();
+      if (wantQuickAnswers) {
+        if (
+          /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(currentLabel) &&
+          !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(currentLabel)
+        ) {
+          return true;
+        }
+        triggerHoverAndClick(switcherBtn, true);
+        await sleep(340);
+        const qaItems = getVisibleMenuItems();
+        const qaOpt =
+          qaItems.find((el) => isQuickAnswersMenuItem(el, true)) ||
+          qaItems.find((el) => isQuickAnswersMenuItem(el, false));
+        if (qaOpt) {
+          triggerHoverAndClick(qaOpt, true);
+          await sleep(300);
+          await closeAnyOpenOverlayMenus();
+          return true;
+        }
+        await closeAnyOpenOverlayMenus();
+        return false;
+      }
       if (
         wantHigh
           ? /\bcarbon\b[^,]*\bhigh\b/i.test(currentLabel)
           : /\bcarbon\b[^,]*\blow\b/i.test(currentLabel)
       ) {
-        return;
+        return true;
       }
-      const isCurrentlyCarbon = /\bcarbon\b/i.test(currentLabel) && !/\bargon|pro|flash\b/i.test(currentLabel);
+      const isCurrentlyCarbon =
+        /\bcarbon\b/i.test(currentLabel) && !/\bargon|pro|flash|quick\s*answers?\b/i.test(currentLabel);
 
       // 1. Open the model switcher menu ("Carbon ^")
       triggerHoverAndClick(switcherBtn, true);
@@ -1061,6 +1123,7 @@
       }
 
       await closeAnyOpenOverlayMenus();
+      return Boolean(targetLevelOption || isCurrentlyCarbon);
     };
 
     // STEP B: Activate or Deactivate "Deep research" via "+" button -> "... More tools >" -> "Deep research" (Photo 2)
@@ -1178,12 +1241,14 @@
       try {
         hwConfig = await chrome.runtime.sendMessage({
           type: 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS',
+          targetModel: wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'CARBON_HIGH' : 'CARBON_LOW',
+          enableQuickAnswers: wantQuickAnswers,
           enableHighModel: wantHigh,
           enableDeepResearch: Boolean(enableDeepResearch),
           enableCreateImage: Boolean(enableCreateImage),
           aspectRatio: String(aspectRatio || ''),
-          enableArgonLow: !wantHigh,
-          enableCarbonLow: !wantHigh,
+          enableArgonLow: !wantQuickAnswers && !wantHigh,
+          enableCarbonLow: !wantQuickAnswers && !wantHigh,
           thinkingLevel: targetLevel,
         });
       } catch {}
@@ -1203,9 +1268,16 @@
       // Fallbacks ONLY when the hardware step could not complete (model first, then tool)
       if (!result.thinkingOk) {
         try {
-          await ensureArgon4AndThinkingLevel();
-          result.thinkingOk = true;
-          result.diag.push('Thinking: aplicado vía fallback DOM');
+          const fallbackModelOk = await ensureArgon4AndThinkingLevel();
+          if (fallbackModelOk || !wantQuickAnswers) {
+            result.thinkingOk = true;
+            if (!result.verifiedModel && wantQuickAnswers && fallbackModelOk) {
+              result.verifiedModel = 'Quick answers';
+            }
+            result.diag.push(
+              wantQuickAnswers ? 'Quick answers: aplicado vía fallback DOM' : 'Thinking: aplicado vía fallback DOM'
+            );
+          }
         } catch {}
       }
       if (!result.deepResearchOk && enableDeepResearch && !hwConfig) {
@@ -4806,14 +4878,29 @@
     }
 
     if (
+      msg.action === 'ASK_EXTERNAL_QUICK_ANSWERS' ||
       msg.action === 'ASK_EXTERNAL_CARBON_LOW' ||
       msg.action === 'ASK_EXTERNAL_CARBON_HIGH' ||
       msg.action === 'ASK_EXTERNAL_ARGON_HIGH'
     ) {
       const requestId = String(msg.requestId || '').trim();
       const rawPrompt = String(msg.prompt || '').trim();
-      const wantHigh = String(msg.thinkingLevel || 'LOW').toUpperCase() === 'HIGH';
-      const expectedCanonicalLabel = wantHigh ? '4 Carbon · High' : '4 Carbon · Low';
+      const reqTargetModel = String(msg.targetModel || '').trim().toUpperCase();
+      const wantQuickAnswers =
+        msg.action === 'ASK_EXTERNAL_QUICK_ANSWERS' ||
+        reqTargetModel === 'QUICK_ANSWERS' ||
+        String(msg.thinkingLevel || '').toUpperCase() === 'QUICK_ANSWERS';
+      const wantHigh =
+        !wantQuickAnswers &&
+        (reqTargetModel === 'CARBON_HIGH' ||
+          msg.action === 'ASK_EXTERNAL_CARBON_HIGH' ||
+          msg.action === 'ASK_EXTERNAL_ARGON_HIGH' ||
+          String(msg.thinkingLevel || '').toUpperCase() === 'HIGH');
+      const expectedCanonicalLabel = wantQuickAnswers
+        ? 'Quick answers'
+        : wantHigh
+          ? '4 Carbon · High'
+          : '4 Carbon · Low';
       sendResponse({ handled: true, requestId });
       (async () => {
         try {
@@ -4884,14 +4971,16 @@
                     const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
                       .replace(/\s+/g, ' ')
                       .trim();
-                    return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+                    return /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(
+                      t
+                    );
                   }) || null;
               }
               if (!btn) {
                 btn =
                   allBtns.find((el) => {
                     const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                    return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(
+                    return /^(?:quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido)$|^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(
                       t
                     );
                   }) || null;
@@ -4903,12 +4992,26 @@
             return [aria, inner].filter(Boolean).join(' · ');
           };
           const isVerifiedTargetModelLabel = (lbl) =>
-            wantHigh
-              ? /\b(carbon|argon)\b/i.test(lbl) && /\b(high|alto)\b/i.test(lbl) && !/\b(low|bajo|flash)\b/i.test(lbl)
-              : /\b(carbon|argon)\b/i.test(lbl) && /\b(low|bajo)\b/i.test(lbl) && !/\b(high|alto|medium|medio|flash)\b/i.test(lbl);
+            wantQuickAnswers
+              ? /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(lbl) &&
+                !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(lbl)
+              : wantHigh
+                ? /\b(carbon|argon)\b/i.test(lbl) &&
+                  /\b(high|alto)\b/i.test(lbl) &&
+                  !/\b(low|bajo|flash|quick\s*answers?)\b/i.test(lbl)
+                : /\b(carbon|argon)\b/i.test(lbl) &&
+                  /\b(low|bajo)\b/i.test(lbl) &&
+                  !/\b(high|alto|medium|medio|flash|quick\s*answers?)\b/i.test(lbl);
 
           let cfgRes = await Promise.race([
-            configureGeminiModelAndDeepResearch(wantHigh, false, !wantHigh),
+            configureGeminiModelAndDeepResearch(
+              wantHigh,
+              false,
+              !wantQuickAnswers && !wantHigh,
+              false,
+              '',
+              wantQuickAnswers
+            ),
             sleep(25000),
           ]);
           let verifiedModeBeforeSend =
@@ -4916,7 +5019,14 @@
           if (!isVerifiedTargetModelLabel(verifiedModeBeforeSend) && !(cfgRes && cfgRes.thinkingVerified)) {
             await sleep(500);
             cfgRes = await Promise.race([
-              configureGeminiModelAndDeepResearch(wantHigh, false, !wantHigh),
+              configureGeminiModelAndDeepResearch(
+                wantHigh,
+                false,
+                !wantQuickAnswers && !wantHigh,
+                false,
+                '',
+                wantQuickAnswers
+              ),
               sleep(20000),
             ]);
             verifiedModeBeforeSend =
@@ -4936,9 +5046,11 @@
           await sleep(350);
 
           const liveDomLabel = readCurrentGeminiModeLabel();
-          const hasExplicitWrongModelInPill = wantHigh
-            ? /\b(low|bajo|flash)\b/i.test(liveDomLabel)
-            : /\b(high|alto|medium|medio|flash)\b/i.test(liveDomLabel);
+          const hasExplicitWrongModelInPill = wantQuickAnswers
+            ? /\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(liveDomLabel)
+            : wantHigh
+              ? /\b(low|bajo|flash|quick\s*answers?|respuestas?\s*r[aá]pidas?)\b/i.test(liveDomLabel)
+              : /\b(high|alto|medium|medio|flash|quick\s*answers?|respuestas?\s*r[aá]pidas?)\b/i.test(liveDomLabel);
           verifiedModeBeforeSend =
             (isVerifiedTargetModelLabel(liveDomLabel) ? liveDomLabel : '') ||
             (cfgRes && cfgRes.verifiedModel) ||

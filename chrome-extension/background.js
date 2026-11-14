@@ -4069,15 +4069,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS' && sender?.tab?.id) {
     const geminiTabId = sender.tab.id;
+    const rawTargetModel = String(message.targetModel || '').trim().toUpperCase();
+    const wantQuickAnswers =
+      rawTargetModel === 'QUICK_ANSWERS' ||
+      String(message.thinkingLevel || '').toUpperCase() === 'QUICK_ANSWERS' ||
+      Boolean(message.enableQuickAnswers);
     const wantHigh =
-      String(message.thinkingLevel || '').toUpperCase() === 'HIGH' ||
-      (Boolean(message.enableHighModel) &&
-        !Boolean(message.enableCarbonLow) &&
-        !Boolean(message.enableArgonLow));
+      !wantQuickAnswers &&
+      (rawTargetModel === 'CARBON_HIGH' ||
+        String(message.thinkingLevel || '').toUpperCase() === 'HIGH' ||
+        (Boolean(message.enableHighModel) &&
+          !Boolean(message.enableCarbonLow) &&
+          !Boolean(message.enableArgonLow)));
     const enableDeepResearch = Boolean(message.enableDeepResearch);
     const enableCreateImage = Boolean(message.enableCreateImage);
     const aspectRatio = String(message.aspectRatio || '').trim();
-    const targetLevel = wantHigh ? 'HIGH' : 'LOW';
+    const targetLevel = wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'HIGH' : 'LOW';
 
     (async () => {
       const target = { tabId: geminiTabId };
@@ -4410,6 +4417,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   );
                 };
 
+                const findQuickAnswersItem = (nodes) => {
+                  const clean = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  const valOf = (el) =>
+                    (el.getAttribute('value') || el.getAttribute('data-test-id') || '').trim().toLowerCase();
+                  const visiblePool = nodes.filter((el) => {
+                    const r = el.getBoundingClientRect();
+                    return r.width > 10 && r.height > 10;
+                  });
+                  const searchPool = visiblePool.length > 0 ? visiblePool : nodes;
+                  const isExcludedSubItem = (el, txt) => {
+                    if (!txt || txt.length > 160) return true;
+                    const val = valOf(el);
+                    if (val === 'low' || val === 'medium' || val === 'high' || val === 'thinking_level') return true;
+                    if (/^(?:[✓✔]\s*)?(?:low|bajo|medium|medio|high|alto)\b/i.test(txt)) return true;
+                    return /\b(thinking\s*level|nivel\s*de\s*pensamiento|carbon|argon|most\s+complex\s+work|extra\s+thorough)\b/i.test(
+                      txt
+                    );
+                  };
+                  const pickSmallest = (matches) => {
+                    if (!matches.length) return null;
+                    matches.sort((a, b) => {
+                      const ra = a.getBoundingClientRect();
+                      const rb = b.getBoundingClientRect();
+                      return ra.width * ra.height - rb.width * rb.height;
+                    });
+                    return (
+                      matches.find((el) => el.matches('button, [role="menuitemradio"], [role="menuitem"]')) ||
+                      matches[0]
+                    );
+                  };
+                  const exactMatches = searchPool.filter((el) => {
+                    const txt = clean(el);
+                    const val = valOf(el);
+                    return (
+                      !isExcludedSubItem(el, txt) &&
+                      (/\bquick\s*answers?\b|\brespuestas?\s*r[aá]pidas?\b/i.test(txt) ||
+                        /quick[_-]?answers?/i.test(val))
+                    );
+                  });
+                  if (exactMatches.length > 0) return pickSmallest(exactMatches);
+                  const fallbackMatches = searchPool.filter((el) => {
+                    const txt = clean(el);
+                    const val = valOf(el);
+                    return (
+                      !isExcludedSubItem(el, txt) &&
+                      !/(?:fast|quick)\s+and\s+efficient|\bpro\b/i.test(txt) &&
+                      (/\b(?:\d+(?:\.\d+)?\s*)?flash(?:-lite)?\b/i.test(txt) ||
+                        /^(?:[✓✔]\s*)?(?:fast|r[aá]pido)\b/i.test(txt) ||
+                        /^(?:fast|flash(?:_lite)?)$/.test(val))
+                    );
+                  });
+                  return pickSmallest(fallbackMatches);
+                };
+
                 if (op === 'CLOSE_MENUS') {
                   document
                     .querySelectorAll(
@@ -4511,14 +4572,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       const t = `${el.getAttribute('aria-label') || ''} ${el.innerText || el.textContent || ''}`
                         .replace(/\s+/g, ' ')
                         .trim();
-                      return /\b(carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(t);
+                      return /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|carbon|argon|flash|pro|high|low|medium|mode|modo|thinking)\b/i.test(
+                        t
+                      );
                     });
                     if (nearMatch) return nearMatch;
                   }
                   const pillMatch = allBtns.find((el) => {
                     if (el.closest('bard-mode-switcher, header')) return false;
                     const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                    return /^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(t);
+                    return /^(?:quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido)$|^(?:4\s*)?(?:carbon|argon)(?:\s*(?:high|medium|low))?$|^3\.\d+\s*(?:pro|flash(?:-lite)?)$/i.test(
+                      t
+                    );
                   });
                   if (pillMatch) return pillMatch;
                   const fallbackHeader = document.querySelector('bard-mode-switcher button');
@@ -4658,7 +4723,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     );
                     return it ? isItemChecked(it) : null;
                   };
+                  const qaItem = findQuickAnswersItem(pool);
+                  const debugItems = pool
+                    .slice(0, 12)
+                    .map((el) => {
+                      const rr = el.getBoundingClientRect();
+                      const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 45);
+                      const val = el.getAttribute('value') || el.getAttribute('data-test-id') || '';
+                      const ariaChk = el.getAttribute('aria-checked') || '';
+                      return `${el.tagName.toLowerCase()}[v=${val},ac=${ariaChk},chk=${isItemChecked(el)},${Math.round(rr.width)}x${Math.round(rr.height)}]:${txt}`;
+                    })
+                    .join(' || ');
                   return {
+                    quickAnswers: qaItem ? isItemChecked(qaItem) : null,
+                    quickAnswersText: qaItem
+                      ? (qaItem.innerText || qaItem.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)
+                      : '',
+                    debugItems,
                     carbon: read(/\b4\s*carbon\b|most\s+complex\s+work/i),
                     low: read(/^(?:[✓✔]\s*)?(?:low|bajo)\b/i),
                     medium: read(/^(?:[✓✔]\s*)?(?:medium|medio)\b/i),
@@ -4729,6 +4810,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     } catch {}
                   }
                   return { clicked: true, alreadyChecked: isItemChecked(c4) };
+                }
+
+                if (op === 'CLICK_QUICK_ANSWERS_DOM') {
+                  const allItems = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-popover gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container [role="menuitemradio"], .cdk-overlay-container [role="menuitem"]'
+                    )
+                  );
+                  const pool = allItems.length > 0 ? allItems : getOverlayMenuItems();
+                  const qaItem = findQuickAnswersItem(pool);
+                  if (!qaItem) return { clicked: false };
+                  const clickTarget =
+                    qaItem.matches('button, [role="menuitemradio"], [role="menuitem"]')
+                      ? qaItem
+                      : qaItem.querySelector('button, [role="menuitemradio"], [role="menuitem"]') || qaItem;
+                  const r = clickTarget.getBoundingClientRect();
+                  const evOpts = {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: Math.round(r.left + Math.max(4, r.width / 2)),
+                    clientY: Math.round(r.top + Math.max(4, r.height / 2)),
+                    view: window,
+                  };
+                  try {
+                    clickTarget.dispatchEvent(new PointerEvent('pointerdown', evOpts));
+                    clickTarget.dispatchEvent(new MouseEvent('mousedown', evOpts));
+                    clickTarget.dispatchEvent(new PointerEvent('pointerup', evOpts));
+                    clickTarget.dispatchEvent(new MouseEvent('mouseup', evOpts));
+                    clickTarget.click();
+                  } catch {}
+                  return {
+                    clicked: true,
+                    alreadyChecked: isItemChecked(qaItem),
+                    matchedText: (qaItem.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+                  };
                 }
 
                 if (op === 'CLICK_THINKING_OPTION_DOM') {
@@ -4964,12 +5080,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     .replace(/\s+/g, ' ')
                     .trim();
                   const label = `${ariaLabel} ${innerLabel}`.trim();
-                  const isAlreadyCarbon = /\bcarbon\b/i.test(label) && !/\bargon|pro|flash\b/i.test(label);
+                  const isAlreadyCarbon = /\bcarbon\b/i.test(label) && !/\bargon|pro|flash|quick\s*answers?\b/i.test(label);
+                  const isAlreadyQuickAnswers =
+                    /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(label) &&
+                    !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(label);
                   return {
                     ...triggerAngularElement(switcherBtn, false),
                     isAlreadyCarbon,
+                    isAlreadyQuickAnswers,
                     label,
                   };
+                }
+
+                if (op === 'FIND_QUICK_ANSWERS_IN_OVERLAY') {
+                  const items = getOverlayMenuItems();
+                  const qaItem = findQuickAnswersItem(items);
+                  return qaItem
+                    ? {
+                        ...triggerAngularElement(qaItem, false),
+                        alreadyChecked: isItemChecked(qaItem),
+                        matchedText: (qaItem.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+                      }
+                    : {
+                        found: false,
+                        items: items.map((i) => (i.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 50)),
+                      };
                 }
 
                 if (op === 'FIND_CARBON4_IN_OVERLAY') {
@@ -5089,6 +5224,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await sleep(180);
           await runMainStep('ENSURE_MODEL_MENU_EXPANDED_DOM');
           await sleep(160);
+          if (wantQuickAnswers) {
+            return { sw, thinkingFound: false, th: { found: false } };
+          }
           const directOpt = await runMainStep('FIND_THINKING_OPTION_IN_OVERLAY', targetLevel);
           if (directOpt && directOpt.found) {
             return { sw, thinkingFound: false, th: { found: false }, directOpt };
@@ -5117,16 +5255,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return opt;
         };
 
-        // --- PART 1: MODEL "4 Carbon" + "Thinking level" -> targetLevel (LOW for app, HIGH for MODO DUO/TRIO/CUATRO) ---
+        // --- PART 1: MODEL SELECTION ("Quick answers" OR "4 Carbon" + "Thinking level") ---
         let thinkingOk = false;
         let thinkingVerified = false;
         let verifiedModelLabel = '';
-        const canonicalTargetLabel = targetLevel === 'HIGH' ? '4 Carbon · High' : '4 Carbon · Low';
+        const canonicalTargetLabel = wantQuickAnswers
+          ? 'Quick answers'
+          : targetLevel === 'HIGH'
+            ? '4 Carbon · High'
+            : '4 Carbon · Low';
+        const isQuickAnswersPillLabel = (lbl) =>
+          /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(lbl) &&
+          !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(lbl);
         const modeMatchesTarget = async () => {
           const ml = await runMainStep('READ_MODE_LABEL');
           const label = String((ml && ml.label) || '');
-          const re = targetLevel === 'HIGH' ? /\bcarbon\b[^,]*\bhigh\b/i : /\bcarbon\b[^,]*\blow\b/i;
-          if (re.test(label)) {
+          const matched = wantQuickAnswers
+            ? isQuickAnswersPillLabel(label)
+            : (targetLevel === 'HIGH' ? /\bcarbon\b[^,]*\bhigh\b/i : /\bcarbon\b[^,]*\blow\b/i).test(label);
+          if (matched) {
             verifiedModelLabel = canonicalTargetLabel;
             return true;
           }
@@ -5142,6 +5289,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (!menu) {
             diag.push(`T${attempt}: switcher no encontrado`);
             await sleep(350);
+            continue;
+          }
+
+          if (wantQuickAnswers) {
+            const qaOpt = await waitFound('FIND_QUICK_ANSWERS_IN_OVERLAY', '', 5, 130);
+            if (qaOpt.found) {
+              await hardwareHoverAndClick(qaOpt.x, qaOpt.y);
+              await sleep(320);
+            } else {
+              diag.push(`T${attempt}: Quick answers no apareció en menú [${(qaOpt.items || []).join(' | ')}]`);
+            }
+            if (await modeMatchesTarget()) {
+              thinkingOk = true;
+              thinkingVerified = true;
+              break;
+            }
+            const domQaClick = await runMainStep('CLICK_QUICK_ANSWERS_DOM');
+            await sleep(320);
+            await closeMenus();
+            if (await modeMatchesTarget()) {
+              thinkingOk = true;
+              thinkingVerified = true;
+              break;
+            }
+            const vMenuQa = await openModelMenu();
+            if (vMenuQa) {
+              const afterQa = await runMainStep('READ_THINKING_OPTIONS');
+              if (afterQa?.quickAnswers === true && afterQa?.carbon !== true) {
+                thinkingOk = true;
+                thinkingVerified = true;
+                verifiedModelLabel = canonicalTargetLabel;
+                break;
+              }
+              diag.push(
+                `T${attempt}: verificación Quick answers falló (quickAnswers=${afterQa?.quickAnswers}, qaText="${afterQa?.quickAnswersText || qaOpt?.matchedText || domQaClick?.matchedText || ''}", carbon=${afterQa?.carbon}, label=${vMenuQa.sw?.label || ''}, items=${afterQa?.debugItems || ''})`
+              );
+            }
             continue;
           }
 
@@ -6354,7 +6538,7 @@ async function inspectGeminiTabLatestResponse(tabId) {
         let modeLabel = '';
         const modeBtn =
           document.querySelector(
-            'bard-mode-switcher button, [data-test-id*="bard-mode" i] button, button[data-test-id*="bard-mode" i], button[aria-label*="mode picker" i], button[aria-label*="selector de modo" i]'
+            'bard-mode-switcher button, [data-test-id="bard-mode-menu-button"], [data-test-id*="bard-mode" i] button, button[data-test-id*="bard-mode" i], button.input-area-switch, button[aria-label*="mode picker" i], button[aria-label*="selector de modo" i]'
           ) || null;
         if (modeBtn) {
           const aria = (modeBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
@@ -6727,10 +6911,45 @@ async function runExternalGeminiAskOrder(task) {
     }
     await sleep(600);
 
+    const resolvedTargetModel = String(task.targetModel || 'QUICK_ANSWERS').trim().toUpperCase();
+    const isQuickTarget = resolvedTargetModel === 'QUICK_ANSWERS';
+    const isHighTarget = resolvedTargetModel === 'CARBON_HIGH';
+    const expectedCanonicalModel = isQuickTarget
+      ? 'Quick answers'
+      : isHighTarget
+        ? '4 Carbon · High'
+        : '4 Carbon · Low';
+    const isExpectedModeLabel = (rawLbl) => {
+      const lbl = String(rawLbl || '');
+      if (isQuickTarget) {
+        return (
+          /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(lbl) &&
+          !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(lbl)
+        );
+      }
+      if (isHighTarget) {
+        return (
+          /\b(carbon|argon)\b/i.test(lbl) &&
+          /\b(high|alto)\b/i.test(lbl) &&
+          !/\b(low|bajo|flash|quick\s*answers?)\b/i.test(lbl)
+        );
+      }
+      return (
+        /\b(carbon|argon)\b/i.test(lbl) &&
+        /\b(low|bajo)\b/i.test(lbl) &&
+        !/\b(high|alto|medium|medio|flash|quick\s*answers?)\b/i.test(lbl)
+      );
+    };
+
     const orderPayload = {
       target: 'GEMINI',
-      action: 'ASK_EXTERNAL_CARBON_LOW',
-      thinkingLevel: 'LOW',
+      action: isQuickTarget
+        ? 'ASK_EXTERNAL_QUICK_ANSWERS'
+        : isHighTarget
+          ? 'ASK_EXTERNAL_CARBON_HIGH'
+          : 'ASK_EXTERNAL_CARBON_LOW',
+      targetModel: resolvedTargetModel,
+      thinkingLevel: isQuickTarget ? 'QUICK_ANSWERS' : isHighTarget ? 'HIGH' : 'LOW',
       requestId: task.id,
       prompt: task.prompt,
     };
@@ -6749,9 +6968,7 @@ async function runExternalGeminiAskOrder(task) {
     if (!deliveredAck) {
       const snapCheck = await inspectGeminiTabLatestResponse(tabId);
       const lbl = String((snapCheck && snapCheck.modeLabel) || '');
-      const alreadyCarbonLow =
-        /\b(carbon|argon)\b/i.test(lbl) && /\b(low|bajo)\b/i.test(lbl) && !/\b(high|alto|medium|medio|flash)\b/i.test(lbl);
-      if (!alreadyCarbonLow) {
+      if (!isExpectedModeLabel(lbl)) {
         await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -6759,7 +6976,7 @@ async function runExternalGeminiAskOrder(task) {
             requestId: task.id,
             ok: false,
             verifiedModel: lbl || 'sin_confirmar',
-            error: `No se pudo inyectar el selector de 4 Carbon · Low en Gemini Web (quedó en "${
+            error: `No se pudo inyectar el selector de ${expectedCanonicalModel} en Gemini Web (quedó en "${
               lbl || 'desconocido'
             }"). Envío bloqueado para evitar usar un modelo distinto.`,
           }),
@@ -6784,8 +7001,7 @@ async function runExternalGeminiAskOrder(task) {
         snap.count === 0 &&
         !snap.generating &&
         (i === 6 || i === 12) &&
-        /\b(carbon|argon)\b/i.test(String(snap.modeLabel || '')) &&
-        !/\b(high|alto|medium|medio|flash)\b/i.test(String(snap.modeLabel || ''))
+        isExpectedModeLabel(snap.modeLabel)
       ) {
         await forceSubmitPromptInGeminiTab(tabId, task.prompt);
         continue;
@@ -6798,10 +7014,11 @@ async function runExternalGeminiAskOrder(task) {
           stableDoneTicks = 1;
         }
         if (stableDoneTicks >= 3) {
+          const cachedVerified = verifiedExternalGeminiModels.get(tabId);
           const resolvedGemModel =
-            verifiedExternalGeminiModels.get(tabId) ||
-            (/\blow|bajo\b/i.test(String(snap.modeLabel || '')) ? snap.modeLabel : '') ||
-            '4 Carbon · Low';
+            (isExpectedModeLabel(cachedVerified) ? cachedVerified : '') ||
+            (isExpectedModeLabel(snap.modeLabel) ? snap.modeLabel : '') ||
+            expectedCanonicalModel;
           await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
