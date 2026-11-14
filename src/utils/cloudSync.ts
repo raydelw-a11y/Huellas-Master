@@ -69,6 +69,7 @@ interface StoredClipStatusEntry {
   videoAuditStatus?: string;
   discardedVideoFileName?: string;
   videoDiscardedAt?: number;
+  videoDiscardOverriddenAt?: number;
   videoSavedAt?: number;
   updatedAt: number;
 }
@@ -99,11 +100,24 @@ export function saveClipReviewStateForDoc(
     for (const c of clips) {
       if (!c || typeof c.clipNumber !== 'number') continue;
       const prev = docMap[c.clipNumber];
+      const cDiscAt = Number(c.videoDiscardedAt || 0);
+      const pDiscAt = Number(prev?.videoDiscardedAt || 0);
+      const rawDiscAt = Math.max(cDiscAt, pDiscAt);
+      const rawDiscFile =
+        (cDiscAt >= pDiscAt
+          ? c.discardedVideoFileName || prev?.discardedVideoFileName
+          : prev?.discardedVideoFileName || c.discardedVideoFileName) || '';
+      const effOverrideAt = Math.max(
+        Number(c.videoDiscardOverriddenAt || 0),
+        Number(prev?.videoDiscardOverriddenAt || 0)
+      );
+      const isDiscardOverridden = effOverrideAt > 0 && effOverrideAt >= rawDiscAt;
       const isRejectedEmpty =
+        !isDiscardOverridden &&
         (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
         !String(c.videoSavedFileName || '').trim();
-      const effDiscFile = c.discardedVideoFileName || prev?.discardedVideoFileName || '';
-      const effDiscAt = Math.max(Number(c.videoDiscardedAt || 0), Number(prev?.videoDiscardedAt || 0));
+      const effDiscFile = isDiscardOverridden ? '' : rawDiscFile;
+      const effDiscAt = isDiscardOverridden ? 0 : rawDiscAt;
       const rawNextRev = isRejectedEmpty ? false : Boolean(c.reviewedForEditor);
       const clipRevAt = Number(c.reviewedUpdatedAt || 0);
       const prevRevAt = Number(prev?.reviewedUpdatedAt || 0);
@@ -125,8 +139,12 @@ export function saveClipReviewStateForDoc(
           ? prev.videoSavedFileName
           : undefined;
       const nextFile = isRejectedEmpty ? '' : c.videoSavedFileName || prevValidFile || '';
-      const nextAuditStatus = c.videoAuditStatus || (isRejectedEmpty ? 'rejected' : prev?.videoAuditStatus);
-      const nextSavedAt = Number(c.videoSavedAt || prev?.videoSavedAt || 0);
+      const nextAuditStatus = isDiscardOverridden && c.videoAuditStatus === 'rejected'
+        ? 'approved'
+        : c.videoAuditStatus || (isRejectedEmpty ? 'rejected' : prev?.videoAuditStatus);
+      const nextSavedAt = isRejectedEmpty
+        ? 0
+        : Math.max(Number(c.videoSavedAt || 0), Number(prev?.videoSavedAt || 0));
       if (
         !prev ||
         prev.reviewedForEditor !== nextRev ||
@@ -138,6 +156,7 @@ export function saveClipReviewStateForDoc(
         prev.videoAuditStatus !== nextAuditStatus ||
         (prev.discardedVideoFileName || '') !== effDiscFile ||
         Number(prev.videoDiscardedAt || 0) !== effDiscAt ||
+        Number(prev.videoDiscardOverriddenAt || 0) !== effOverrideAt ||
         Number(prev.videoSavedAt || 0) !== nextSavedAt
       ) {
         docMap[c.clipNumber] = {
@@ -150,6 +169,7 @@ export function saveClipReviewStateForDoc(
           ...(nextAuditStatus ? { videoAuditStatus: nextAuditStatus } : {}),
           ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
           ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+          ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
           ...(nextSavedAt > 0 ? { videoSavedAt: nextSavedAt } : {}),
           updatedAt: now,
         };
@@ -177,17 +197,36 @@ export function applyStoredClipReviewStateToDocs(
     const nextClips = baseDoc.clips.map((c) => {
       const saved = docMap[c.clipNumber];
       if (!saved) return c;
-      const effDiscFile = c.discardedVideoFileName || saved.discardedVideoFileName || '';
-      const effDiscAt = Math.max(Number(c.videoDiscardedAt || 0), Number(saved.videoDiscardedAt || 0));
+      const cDiscAt = Number(c.videoDiscardedAt || 0);
+      const sDiscAt = Number(saved.videoDiscardedAt || 0);
+      const rawDiscAt = Math.max(cDiscAt, sDiscAt);
+      const rawDiscFile =
+        (cDiscAt >= sDiscAt
+          ? c.discardedVideoFileName || saved.discardedVideoFileName
+          : saved.discardedVideoFileName || c.discardedVideoFileName) || '';
+      const effOverrideAt = Math.max(
+        Number(c.videoDiscardOverriddenAt || 0),
+        Number(saved.videoDiscardOverriddenAt || 0)
+      );
+      const isDiscardOverridden = effOverrideAt > 0 && effOverrideAt >= rawDiscAt;
+      const effDiscFile = isDiscardOverridden ? '' : rawDiscFile;
+      const effDiscAt = isDiscardOverridden ? 0 : rawDiscAt;
       const cFile = String(c.videoSavedFileName || '').trim();
       const sFile = String(saved.videoSavedFileName || '').trim();
       const isSavedRevokedByFile = Boolean(effDiscFile && sFile && sFile === effDiscFile);
       const isClipRejectedEmpty =
-        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') && !cFile;
+        !isDiscardOverridden &&
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
+        !cFile;
       const savedHasNewerValidFile = Boolean(
         sFile &&
           !isSavedRevokedByFile &&
-          Number(saved.videoSavedAt || saved.updatedAt || 0) > effDiscAt
+          (isDiscardOverridden ||
+            Math.max(
+              Number(saved.videoSavedAt || 0),
+              Number(saved.videoDiscardOverriddenAt || 0),
+              Number(saved.updatedAt || 0)
+            ) > effDiscAt)
       );
 
       if (isClipRejectedEmpty && !savedHasNewerValidFile) {
@@ -201,6 +240,7 @@ export function applyStoredClipReviewStateToDocs(
             videoAuditStatus: 'rejected',
             ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
             ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+            ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
           };
           storeMutated = true;
         }
@@ -213,6 +253,7 @@ export function applyStoredClipReviewStateToDocs(
           videoSavedFileName: cFile || '',
           ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
           ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
+          ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
         };
         storeMutated = true;
         if (cFile) {
@@ -221,7 +262,14 @@ export function applyStoredClipReviewStateToDocs(
         }
       }
 
-      const savedAfterDiscard = !effDiscAt || Number(saved.updatedAt || 0) > effDiscAt;
+      const savedAfterDiscard =
+        !effDiscAt ||
+        isDiscardOverridden ||
+        Math.max(
+          Number(saved.updatedAt || 0),
+          Number(saved.videoDiscardOverriddenAt || 0),
+          Number(saved.videoSavedAt || 0)
+        ) > effDiscAt;
       if (effDiscAt > 0 && !savedAfterDiscard && !cFile && !c.videoReady && !c.reviewedForEditor) {
         if (
           saved.reviewedForEditor ||
@@ -238,6 +286,7 @@ export function applyStoredClipReviewStateToDocs(
             videoSavedFileName: '',
             ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
             videoDiscardedAt: effDiscAt,
+            ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
             updatedAt: effDiscAt,
           };
           storeMutated = true;
@@ -275,13 +324,22 @@ export function applyStoredClipReviewStateToDocs(
         c.imageReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.imageReady)
       );
       const mergedFile = cFile || (!isSavedRevokedByFile ? sFile : '');
+      const mergedSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(saved.videoSavedAt || 0));
+      const shouldClearStaleRejectionOnClip =
+        isDiscardOverridden &&
+        (c.videoAuditStatus === 'rejected' ||
+          c.auditStatus === 'mismatch' ||
+          Boolean(c.discardedVideoFileName) ||
+          Number(c.videoDiscardedAt || 0) > 0);
       if (
         Boolean(c.reviewedForEditor) !== mergedRev ||
         cRevAt !== mergedRevAt ||
         Boolean(c.recreated) !== mergedRec ||
         Boolean(c.videoReady) !== mergedVid ||
         Boolean(c.imageReady) !== mergedImg ||
-        (c.videoSavedFileName || '') !== mergedFile
+        (c.videoSavedFileName || '') !== mergedFile ||
+        Number(c.videoDiscardOverriddenAt || 0) !== effOverrideAt ||
+        shouldClearStaleRejectionOnClip
       ) {
         changed = true;
         return {
@@ -292,6 +350,25 @@ export function applyStoredClipReviewStateToDocs(
           videoReady: mergedVid,
           imageReady: mergedImg,
           ...(mergedFile ? { videoSavedFileName: mergedFile } : {}),
+          ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
+          ...(mergedSavedAt > 0 ? { videoSavedAt: mergedSavedAt } : {}),
+          ...(isDiscardOverridden
+            ? { discardedVideoFileName: undefined, videoDiscardedAt: undefined }
+            : {}),
+          ...(shouldClearStaleRejectionOnClip && c.videoAuditStatus === 'rejected'
+            ? {
+                videoAuditStatus: 'approved' as const,
+                videoAuditReason: '',
+                videoAuditIssues: [],
+              }
+            : {}),
+          ...(shouldClearStaleRejectionOnClip && c.auditStatus === 'mismatch'
+            ? {
+                auditStatus: 'ok' as const,
+                auditReason:
+                  '✅ Descarte sobreescrito manualmente — clip movido a 05_Clips_Video.',
+              }
+            : {}),
         };
       }
       return c;
@@ -2306,23 +2383,31 @@ function mergeTwoDocumentaryObjects(
 
       const cDiscAt = Number(c.videoDiscardedAt || 0);
       const oDiscAt = Number(o.videoDiscardedAt || 0);
-      const effDiscardedAt = Math.max(cDiscAt, oDiscAt);
-      const effDiscardedFile =
+      const rawDiscAt = Math.max(cDiscAt, oDiscAt);
+      const rawDiscFile =
         (cDiscAt >= oDiscAt
           ? c.discardedVideoFileName || o.discardedVideoFileName
           : o.discardedVideoFileName || c.discardedVideoFileName) || '';
+      const effOverrideAt = Math.max(
+        Number(c.videoDiscardOverriddenAt || 0),
+        Number(o.videoDiscardOverriddenAt || 0)
+      );
+      const isDiscardOverridden = effOverrideAt > 0 && effOverrideAt >= rawDiscAt;
+      const effDiscardedAt = isDiscardOverridden ? 0 : rawDiscAt;
+      const effDiscardedFile = isDiscardOverridden ? '' : rawDiscFile;
       const anySideRejectedEmpty =
-        (c.videoAuditStatus === 'rejected' && !String(c.videoSavedFileName || '').trim()) ||
-        (o.videoAuditStatus === 'rejected' && !String(o.videoSavedFileName || '').trim());
+        !isDiscardOverridden &&
+        ((c.videoAuditStatus === 'rejected' && !String(c.videoSavedFileName || '').trim()) ||
+          (o.videoAuditStatus === 'rejected' && !String(o.videoSavedFileName || '').trim()));
       const isSideFileRevoked = (side: DocumentaryProject['clips'][number]) => {
         const f = String(side?.videoSavedFileName || '').trim();
         if (!f) return true;
         if (effDiscardedFile && f === effDiscardedFile) return true;
-        if (
-          effDiscardedAt > 0 &&
-          anySideRejectedEmpty &&
-          Number(side?.videoSavedAt || 0) < effDiscardedAt
-        ) {
+        const sideAcceptAt = Math.max(
+          Number(side?.videoSavedAt || 0),
+          Number(side?.videoDiscardOverriddenAt || 0)
+        );
+        if (effDiscardedAt > 0 && anySideRejectedEmpty && sideAcceptAt < effDiscardedAt) {
           return true;
         }
         return false;
@@ -2338,6 +2423,7 @@ function mergeTwoDocumentaryObjects(
           ? 1
           : 0;
       const isActivelyRejected =
+        !isDiscardOverridden &&
         (c.videoAuditStatus === 'rejected' ||
           o.videoAuditStatus === 'rejected' ||
           c.auditStatus === 'mismatch' ||
@@ -2350,12 +2436,17 @@ function mergeTwoDocumentaryObjects(
       const oAuditReason = String(o.auditReason || '');
       const needsAuditCleanup =
         !isActivelyRejected &&
-        c.auditStatus !== 'mismatch' &&
-        o.auditStatus !== 'mismatch' &&
+        (isDiscardOverridden || (c.auditStatus !== 'mismatch' && o.auditStatus !== 'mismatch')) &&
         hasAuthoredAfterMerge &&
-        (rescuePrompts || c.auditStatus === 'warning' || STALE_PENDING_AUDIT_RE.test(cAuditReason));
+        (rescuePrompts ||
+          isDiscardOverridden ||
+          c.auditStatus === 'warning' ||
+          STALE_PENDING_AUDIT_RE.test(cAuditReason));
       const cleanAuditPatch = needsAuditCleanup
-        ? oAuditReason && !STALE_PENDING_AUDIT_RE.test(oAuditReason)
+        ? oAuditReason &&
+          !STALE_PENDING_AUDIT_RE.test(oAuditReason) &&
+          o.auditStatus !== 'mismatch' &&
+          o.videoAuditStatus !== 'rejected'
           ? {
               auditStatus: o.auditStatus && o.auditStatus !== 'warning' ? o.auditStatus : ('ok' as const),
               auditReason: oAuditReason,
@@ -2425,6 +2516,7 @@ function mergeTwoDocumentaryObjects(
           videoAuditReason: rejSide.videoAuditReason || c.videoAuditReason || o.videoAuditReason,
           ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
           videoDiscardedAt: effectiveDiscAtForRejection,
+          ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
         };
       }
 
@@ -2484,11 +2576,15 @@ function mergeTwoDocumentaryObjects(
             ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
             : Boolean(o.reviewedForEditor);
       }
+      const isRejectionSuperseded =
+        Boolean(winningFile) &&
+        (isDiscardOverridden || (rawDiscAt > 0 && winningSavedAt > rawDiscAt));
       const isApprovedWithValidFile =
         Boolean(winningFile) &&
-        c.auditStatus !== 'mismatch' &&
-        o.auditStatus !== 'mismatch' &&
-        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved');
+        (isRejectionSuperseded ||
+          (c.auditStatus !== 'mismatch' &&
+            o.auditStatus !== 'mismatch' &&
+            (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')));
       const cleanedAuditStatus = (
         cleanAuditPatch as { auditStatus?: 'ok' | 'warning' | 'mismatch' }
       ).auditStatus;
@@ -2501,11 +2597,29 @@ function mergeTwoDocumentaryObjects(
       const mergedVideoAuditStatus = isApprovedWithValidFile
         ? ('approved' as const)
         : c.videoAuditStatus || o.videoAuditStatus;
+      const approvedAuditReasonPatch =
+        isRejectionSuperseded &&
+        (c.auditStatus === 'mismatch' ||
+          o.auditStatus === 'mismatch' ||
+          c.videoAuditStatus === 'rejected' ||
+          o.videoAuditStatus === 'rejected')
+          ? {
+              auditReason:
+                c.auditStatus === 'ok' && cAuditReason
+                  ? cAuditReason
+                  : o.auditStatus === 'ok' && oAuditReason
+                  ? oAuditReason
+                  : '✅ Descarte sobreescrito manualmente — clip movido a 05_Clips_Video.',
+              videoAuditReason: '',
+              videoAuditIssues: [],
+            }
+          : {};
 
       return {
         ...c,
         ...promptWinnerMeta,
         ...cleanAuditPatch,
+        ...approvedAuditReasonPatch,
         ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),
         ...(mergedVideoAuditStatus ? { videoAuditStatus: mergedVideoAuditStatus } : {}),
         reviewedForEditor: mergedReviewedForEditor,
@@ -2517,14 +2631,15 @@ function mergeTwoDocumentaryObjects(
         recreated: Boolean(c.recreated || o.recreated),
         videoReady: effDiscardedAt > 0
           ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))
-          : Boolean(c.videoReady || o.videoReady),
+          : Boolean(winningFile || c.videoReady || o.videoReady),
         imageReady: effDiscardedAt > 0
           ? Boolean(winningFile || (cSideOk && c.imageReady) || (oSideOk && o.imageReady))
-          : Boolean(c.imageReady || o.imageReady),
+          : Boolean(winningFile || c.imageReady || o.imageReady),
         videoSavedFileName: winningFile || undefined,
         ...(winningSavedAt > 0 ? { videoSavedAt: winningSavedAt } : {}),
-        ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
-        ...(effDiscardedAt > 0 ? { videoDiscardedAt: effDiscardedAt } : {}),
+        discardedVideoFileName: effDiscardedFile || undefined,
+        videoDiscardedAt: effDiscardedAt > 0 ? effDiscardedAt : undefined,
+        ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
         videoFrames:
           effDiscardedAt > 0
             ? !cRevoked && Array.isArray(c.videoFrames) && c.videoFrames.length > 0

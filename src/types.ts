@@ -208,6 +208,7 @@ export interface DocumentaryClip {
   videoSavedFileName?: string;
   discardedVideoFileName?: string;
   videoDiscardedAt?: number;
+  videoDiscardOverriddenAt?: number;
   videoSavedAt?: number;
   promptUpdatedAt?: number;
   // Smart Auto-Reframe 9:16 (Vertical Dual Format)
@@ -472,3 +473,51 @@ export function sanitizeOperationalHeader(
     : DEFAULT_OPERATIONAL_HEADER.replace(lineRegex, engineLine);
   return outHeader.replace(/\bnano\s+banana\s+2\.1\b/gi, 'Nano Banana 2.1');
 }
+
+export function isClipDiscardOverridden(
+  clip?: {
+    videoDiscardedAt?: unknown;
+    videoDiscardOverriddenAt?: unknown;
+    videoSavedAt?: unknown;
+    videoSavedFileName?: unknown;
+  } | null
+): boolean {
+  if (!clip) return false;
+  const rawDiscAt = Number(clip.videoDiscardedAt || 0);
+  const ovrAt = Number(clip.videoDiscardOverriddenAt || 0);
+  const hasSavedFile = Boolean(String(clip.videoSavedFileName || '').trim());
+  const savedAt = hasSavedFile ? Number(clip.videoSavedAt || 0) : 0;
+  return (ovrAt > 0 && ovrAt >= rawDiscAt) || (savedAt > 0 && savedAt > rawDiscAt);
+}
+
+export function getEffectiveClipDiscardedFileName(
+  clip?: {
+    discardedVideoFileName?: unknown;
+    videoDiscardedAt?: unknown;
+    videoDiscardOverriddenAt?: unknown;
+    videoSavedAt?: unknown;
+    videoSavedFileName?: unknown;
+  } | null
+): string {
+  if (!clip || isClipDiscardOverridden(clip)) return '';
+  return String(clip.discardedVideoFileName || '').trim();
+}
+
+export function getEffectiveClipDiscardedAt(
+  clip?: {
+    discardedVideoFileName?: unknown;
+    videoDiscardedAt?: unknown;
+    videoDiscardOverriddenAt?: unknown;
+    videoSavedAt?: unknown;
+    videoSavedFileName?: unknown;
+    videoAuditStatus?: unknown;
+    auditStatus?: unknown;
+  } | null
+): number {
+  if (!clip || isClipDiscardOverridden(clip)) return 0;
+  const hasDiscFile = Boolean(String(clip.discardedVideoFileName || '').trim());
+  const isRej = clip.videoAuditStatus === 'rejected' || clip.auditStatus === 'mismatch';
+  if (!hasDiscFile && !isRej) return 0;
+  return Number(clip.videoDiscardedAt || 0);
+}
+

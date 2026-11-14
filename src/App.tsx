@@ -68,6 +68,9 @@ import {
   TTSSegmentTiming,
   ThumbnailPsychTriggerOption,
   BrollCameraMotion,
+  isClipDiscardOverridden,
+  getEffectiveClipDiscardedFileName,
+  getEffectiveClipDiscardedAt,
 } from './types';
 import {
   generateTimelineText,
@@ -166,7 +169,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:20 AM - 11/14/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:07 AM - 11/14/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1957,6 +1960,8 @@ export default function App() {
   }, [capturedClipVideosMap, discardedClipVideosMap]);
   const autoPlayStage8ClipRef = useRef<number | null>(null);
   const [folderClipFileNamesMap, setFolderClipFileNamesMap] = useState<Record<number, string>>({});
+  const folderClipFileNamesMapRef = useRef<Record<number, string>>({});
+  folderClipFileNamesMapRef.current = folderClipFileNamesMap;
   const [pending4kClipNumbers, setPending4kClipNumbers] = useState<number[]>([]);
   const wasAuto4kRunningRef = useRef<boolean>(false);
   const prevStage6DocIdRef = useRef<string | null>(null);
@@ -1979,6 +1984,11 @@ export default function App() {
   const [loadingSingleClipMap, setLoadingSingleClipMap] = useState<
     Record<number, 'loading' | 'done'>
   >({});
+  const [overridingDiscardClipMap, setOverridingDiscardClipMap] = useState<
+    Record<number, 'loading' | 'done'>
+  >({});
+  const quarantinedClipSigRef = useRef<Set<string>>(new Set());
+  const purgedDiscardedClipSigRef = useRef<Set<string>>(new Set());
 
   // Stage 1 Unified ("Prompt Maestro"): Analyzed Videos Library, Deduplicated Comments & Deep Research Mode
   const STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK = useMemo(
@@ -5724,10 +5734,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return activeDoc.clips
       .filter(
         (c) =>
-          (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
-          (!c.videoSavedFileName || c.videoSavedFileName === c.discardedVideoFileName)
+          !isClipDiscardOverridden(c) &&
+          (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch')
       )
-      .map((c) => `${c.clipNumber}:${c.discardedVideoFileName || ''}:${c.videoDiscardedAt || 0}`)
+      .map(
+        (c) =>
+          `${c.clipNumber}:${getEffectiveClipDiscardedFileName(c)}:${getEffectiveClipDiscardedAt(c)}:${c.videoDiscardOverriddenAt || 0}:${c.videoSavedFileName || ''}`
+      )
       .join('|');
   }, [activeDoc?.clips]);
 
@@ -5739,8 +5752,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (
         c &&
         c.clipNumber > 0 &&
-        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
-        (!c.videoSavedFileName || c.videoSavedFileName === c.discardedVideoFileName)
+        !isClipDiscardOverridden(c) &&
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch')
       ) {
         rejectedSet.add(c.clipNumber);
       }
@@ -5768,6 +5781,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         return changed ? next : prev;
       });
       setCapturedClipVideosMap((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const num of rejectedSet) {
+          if (num in next) {
+            delete next[num];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setFolderClipFileNamesMap((prev) => {
         let changed = false;
         const next = { ...prev };
         for (const num of rejectedSet) {
@@ -5833,6 +5857,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       setDiscardedClipVideosMap({});
       setDiscardedClipFramesMap({});
       setFolderClipFileNamesMap({});
+      setOverridingDiscardClipMap({});
       setPending4kClipNumbers([]);
       setCapturedSunoAudioMap({});
       setFolderVoiceoverUrl('');
@@ -8060,10 +8085,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       let matchedFile: File | null = null;
       let matchedDiscardedFile: File | null = null;
       let matchedDiscardedExact = false;
-      const discardedName = String(clip.discardedVideoFileName || '').trim();
+      const discardedName = getEffectiveClipDiscardedFileName(clip);
+      const effectiveDiscAt = getEffectiveClipDiscardedAt(clip);
       const clipIsActivelyRejected =
+        !isClipDiscardOverridden(clip) &&
         (clip.videoAuditStatus === 'rejected' || clip.auditStatus === 'mismatch') &&
-        Number(clip.videoDiscardedAt || 0) > 0;
+        effectiveDiscAt > 0;
       const recordDiscardedCandidate = (cand: File, entryNameStr: string) => {
         const isExact = Boolean(discardedName && entryNameStr === discardedName);
         if (
@@ -8084,11 +8111,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             );
             if (mEntry && parseInt(mEntry[1], 10) === clip.clipNumber) {
               const candidate = await entryHandle.getFile();
-              if (discardedName && String(entryName) === discardedName) {
+              if (
+                discardedName &&
+                String(entryName) === discardedName &&
+                (effectiveDiscAt <= 0 || candidate.lastModified <= effectiveDiscAt)
+              ) {
                 recordDiscardedCandidate(candidate, String(entryName));
                 continue;
               }
-              if (clipIsActivelyRejected && candidate.lastModified <= Number(clip.videoDiscardedAt || 0)) {
+              if (clipIsActivelyRejected && candidate.lastModified <= effectiveDiscAt) {
                 recordDiscardedCandidate(candidate, String(entryName));
                 continue;
               }
@@ -8099,11 +8130,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         }
       } catch {}
-      if (!matchedFile && expectedName && expectedName !== discardedName) {
+      if (!matchedFile && expectedName) {
         try {
           const fh = await clipsDir.getFileHandle(expectedName, { create: false });
           const candidate = await fh.getFile();
-          if (!clipIsActivelyRejected || candidate.lastModified > Number(clip.videoDiscardedAt || 0)) {
+          const isSameRevokedName =
+            Boolean(discardedName && expectedName === discardedName) &&
+            (effectiveDiscAt <= 0 || candidate.lastModified <= effectiveDiscAt);
+          if (!isSameRevokedName && (!clipIsActivelyRejected || candidate.lastModified > effectiveDiscAt)) {
             matchedFile = candidate;
           } else {
             recordDiscardedCandidate(candidate, expectedName);
@@ -8182,8 +8216,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     isStaticBroll: Boolean(clip.isStaticBroll),
                     brollCameraMotion: clip.brollCameraMotion || 'zoom_in',
                     durationSeconds: singleDurSec,
-                    discardedVideoFileName: clip.discardedVideoFileName || '',
-                    videoDiscardedAt: Number(clip.videoDiscardedAt || 0),
+                    discardedVideoFileName: discardedName,
+                    videoDiscardedAt: effectiveDiscAt,
                   },
                 }),
               });
@@ -8193,6 +8227,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const prefixUrl = (u: string) =>
                   u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
                 const fullVideoUrl = prefixUrl(data.url);
+                setDiscardedClipVideosMap((prev) => {
+                  if (!(clip.clipNumber in prev)) return prev;
+                  const next = { ...prev };
+                  delete next[clip.clipNumber];
+                  return next;
+                });
+                setDiscardedClipFramesMap((prev) => {
+                  if (!(clip.clipNumber in prev)) return prev;
+                  const next = { ...prev };
+                  delete next[clip.clipNumber];
+                  return next;
+                });
                 setCapturedClipVideosMap((prev) => ({
                   ...prev,
                   [clip.clipNumber]: fullVideoUrl,
@@ -8210,6 +8256,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
 
         const objUrl = URL.createObjectURL(matchedFile);
+        setDiscardedClipVideosMap((prev) => {
+          if (!(clip.clipNumber in prev)) return prev;
+          const next = { ...prev };
+          delete next[clip.clipNumber];
+          return next;
+        });
+        setDiscardedClipFramesMap((prev) => {
+          if (!(clip.clipNumber in prev)) return prev;
+          const next = { ...prev };
+          delete next[clip.clipNumber];
+          return next;
+        });
         setCapturedClipVideosMap((prev) => ({
           ...prev,
           [clip.clipNumber]: objUrl,
@@ -8232,6 +8290,495 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
     } catch {}
     return '';
+  };
+
+  const appendMediaVersionParam = (rawUrl: string, versionToken: number | string): string => {
+    if (!rawUrl || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) return rawUrl;
+    const [withoutHash, hashPart] = rawUrl.split('#');
+    const cleaned = withoutHash
+      .replace(/([?&])v=[^&]*/g, '$1')
+      .replace(/\?&/g, '?')
+      .replace(/&&+/g, '&')
+      .replace(/[?&]+$/, '');
+    const sep = cleaned.includes('?') ? '&' : '?';
+    return `${cleaned}${sep}v=${encodeURIComponent(String(versionToken))}${
+      hashPart ? `#${hashPart}` : ''
+    }`;
+  };
+
+  const resolveDocServerFolderContext = (docObj?: DocumentaryProject | null) => {
+    const targetDoc = docObj || activeDocRef.current || activeDoc;
+    const rawFolderPath = (
+      flowServerFolderPath ||
+      targetDoc?.downloadFolderPath ||
+      localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
+      ''
+    ).trim();
+    const folderPath = doesFolderMatchDoc(rawFolderPath, targetDoc) ? rawFolderPath : '';
+    const folderName = (
+      (flowDownloadDirHandleRef.current?.name &&
+      doesFolderMatchDoc(flowDownloadDirHandleRef.current.name, targetDoc)
+        ? flowDownloadDirHandleRef.current.name
+        : '') ||
+      (doesFolderMatchDoc(flowDownloadFolderName, targetDoc) ? flowDownloadFolderName : '') ||
+      (doesFolderMatchDoc(targetDoc?.downloadFolderName, targetDoc)
+        ? targetDoc?.downloadFolderName
+        : '') ||
+      getCanonicalFolderNameForDoc(targetDoc) ||
+      ''
+    ).trim();
+    const docTitle = `${targetDoc?.title || ''} ${targetDoc?.topic || ''}`.trim();
+    const isVertical =
+      targetDoc?.productionType === 'REEL_9X16' ||
+      targetDoc?.promptConfig?.SUB_OPCION_REELS === '9X16';
+    const aspectRatio = isVertical ? '9:16' : '16:9';
+    return {
+      docId: targetDoc?.id || '',
+      folderPath,
+      folderName,
+      docTitle,
+      aspectRatio,
+    };
+  };
+
+  const canOverrideClipDiscard = (clip?: DocumentaryClip | null): boolean => {
+    if (!clip || clip.clipNumber <= 0) return false;
+    if (loadingSingleClipMap[clip.clipNumber] === 'loading') return false;
+    if (isClipDiscardOverridden(clip)) return false;
+    const clipNum = clip.clipNumber;
+    const effDiscFile = getEffectiveClipDiscardedFileName(clip);
+    const hasDiscardOrRejection =
+      Boolean(discardedClipVideosMap[clipNum]) ||
+      Boolean(effDiscFile) ||
+      clip.videoAuditStatus === 'rejected' ||
+      clip.auditStatus === 'mismatch';
+    if (!hasDiscardOrRejection) return false;
+    const hasAnyStoredMedia = Boolean(
+      discardedClipVideosMap[clipNum] ||
+        capturedClipVideosMap[clipNum] ||
+        folderClipFileNamesMap[clipNum] ||
+        effDiscFile ||
+        clip.videoSavedFileName
+    );
+    return hasAnyStoredMedia;
+  };
+
+  const purgeDiscardedClipOnServer = async (
+    clipNumber: number,
+    acceptedFileName?: string
+  ): Promise<void> => {
+    if (!clipNumber || clipNumber <= 0) return;
+    const currentDoc = activeDocRef.current || activeDoc;
+    const ctx = resolveDocServerFolderContext(currentDoc);
+    if (!ctx.folderPath && !ctx.folderName && !ctx.docTitle) return;
+    const sig = `${ctx.docId}:${clipNumber}:${acceptedFileName || ''}`;
+    if (purgedDiscardedClipSigRef.current.has(sig)) return;
+    purgedDiscardedClipSigRef.current.add(sig);
+
+    setDiscardedClipVideosMap((prev) => {
+      if (!(clipNumber in prev)) return prev;
+      const next = { ...prev };
+      delete next[clipNumber];
+      return next;
+    });
+    setDiscardedClipFramesMap((prev) => {
+      if (!(clipNumber in prev)) return prev;
+      const next = { ...prev };
+      delete next[clipNumber];
+      return next;
+    });
+
+    const apiBases = getMacMediaBridgeBases();
+    for (const baseOrigin of apiBases) {
+      try {
+        const res = await fetch(`${baseOrigin}/api/flow/purge-discarded-clip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            docId: ctx.docId,
+            folderPath: ctx.folderPath,
+            folderName: ctx.folderName,
+            docTitle: ctx.docTitle,
+            clipNumber,
+            acceptedFileName: acceptedFileName || '',
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.ok) break;
+        }
+      } catch {}
+    }
+  };
+
+  const quarantineRejectedClipOnServer = async (
+    clip: DocumentaryClip,
+    opts?: {
+      rejectedFileName?: string;
+      auditReason?: string;
+      videoAuditReason?: string;
+      videoAuditIssues?: string[];
+      videoAuditScore?: number;
+      discardedAtHint?: number;
+      force?: boolean;
+    }
+  ): Promise<void> => {
+    const clipNum = clip?.clipNumber || 0;
+    if (clipNum <= 0) return;
+    if (!opts?.force && isClipDiscardOverridden(clip)) return;
+
+    const candidateActiveFile = String(
+      opts?.rejectedFileName ||
+        folderClipFileNamesMapRef.current[clipNum] ||
+        clip.videoSavedFileName ||
+        ''
+    ).trim();
+    const hasActiveMediaToQuarantine = Boolean(
+      opts?.force ||
+        candidateActiveFile ||
+        capturedClipVideosMapRef.current[clipNum] ||
+        clip.videoReady
+    );
+    if (!hasActiveMediaToQuarantine) return;
+
+    const currentDoc = activeDocRef.current || activeDoc;
+    const ctx = resolveDocServerFolderContext(currentDoc);
+    if (!ctx.folderPath && !ctx.folderName && !ctx.docTitle) return;
+
+    const sig = `${ctx.docId}:${clipNum}:${candidateActiveFile}:${
+      opts?.discardedAtHint || getEffectiveClipDiscardedAt(clip) || 0
+    }`;
+    if (quarantinedClipSigRef.current.has(sig)) return;
+    quarantinedClipSigRef.current.add(sig);
+
+    const apiBases = getMacMediaBridgeBases();
+    for (const baseOrigin of apiBases) {
+      try {
+        const res = await fetch(`${baseOrigin}/api/flow/quarantine-rejected-clip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            docId: ctx.docId,
+            folderPath: ctx.folderPath,
+            folderName: ctx.folderName,
+            docTitle: ctx.docTitle,
+            clipNumber: clipNum,
+            rejectedFileName: candidateActiveFile,
+            auditReason: opts?.auditReason ?? clip.auditReason,
+            videoAuditReason: opts?.videoAuditReason ?? clip.videoAuditReason,
+            videoAuditIssues: opts?.videoAuditIssues ?? clip.videoAuditIssues,
+            videoAuditScore: opts?.videoAuditScore ?? clip.videoAuditScore,
+          }),
+        });
+        if (!res.ok) continue;
+        const data = await res.json().catch(() => null);
+        if (!data?.ok) continue;
+
+        const prefixUrl = (u: string) =>
+          u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+        const nextDiscAt = Math.max(
+          Date.now(),
+          Number(data.discardedAt || 0),
+          Number(opts?.discardedAtHint || 0),
+          Number(clip.videoDiscardedAt || 0) + 1,
+          Number(clip.videoDiscardOverriddenAt || 0) + 1,
+          Number(clip.videoSavedAt || 0) + 1
+        );
+
+        setCapturedClipVideosMap((prev) => {
+          if (!(clipNum in prev)) return prev;
+          const next = { ...prev };
+          delete next[clipNum];
+          return next;
+        });
+        setCapturedClipFramesMap((prev) => {
+          if (!(clipNum in prev)) return prev;
+          const next = { ...prev };
+          delete next[clipNum];
+          return next;
+        });
+        setFolderClipFileNamesMap((prev) => {
+          if (!(clipNum in prev)) return prev;
+          const next = { ...prev };
+          delete next[clipNum];
+          return next;
+        });
+
+        if (data.url) {
+          const discVidUrl = appendMediaVersionParam(prefixUrl(String(data.url)), nextDiscAt);
+          setDiscardedClipVideosMap((prev) => ({
+            ...prev,
+            [clipNum]: discVidUrl,
+          }));
+        }
+        if (data.frameUrl) {
+          const discFrameUrl = appendMediaVersionParam(
+            prefixUrl(String(data.frameUrl)),
+            nextDiscAt
+          );
+          setDiscardedClipFramesMap((prev) => ({
+            ...prev,
+            [clipNum]: discFrameUrl,
+          }));
+        }
+
+        const latestDoc = activeDocRef.current || activeDoc;
+        if (latestDoc && Array.isArray(latestDoc.clips) && (!ctx.docId || latestDoc.id === ctx.docId)) {
+          let didChange = false;
+          const nextClips = latestDoc.clips.map((c) => {
+            if (c.clipNumber !== clipNum) return c;
+            if (isClipDiscardOverridden(c) && Number(c.videoDiscardOverriddenAt || 0) > nextDiscAt) {
+              return c;
+            }
+            const resolvedDiscName =
+              String(data.discardedFileName || candidateActiveFile || c.discardedVideoFileName || '').trim();
+            if (
+              c.videoReady === false &&
+              !c.videoSavedFileName &&
+              c.discardedVideoFileName === resolvedDiscName &&
+              Number(c.videoDiscardedAt || 0) >= nextDiscAt
+            ) {
+              return c;
+            }
+            didChange = true;
+            return {
+              ...c,
+              discardedVideoFileName: resolvedDiscName || c.discardedVideoFileName,
+              videoDiscardedAt: Math.max(nextDiscAt, Number(c.videoDiscardedAt || 0)),
+              videoSavedFileName: '',
+              videoSavedAt: 0,
+              videoReady: false,
+              imageReady: false,
+              reviewedForEditor: false,
+              reviewedUpdatedAt: Math.max(nextDiscAt, Number(c.reviewedUpdatedAt || 0) + 1),
+            };
+          });
+          if (didChange) {
+            updateActiveDoc({ clips: nextClips });
+          }
+        }
+        break;
+      } catch {}
+    }
+  };
+
+  // Ensure any newly rejected clip that still has an active file in 05_Clips_Video is physically moved to _Descartados_Auditoria (replacing any older discarded version)
+  useEffect(() => {
+    if (!rejectedInMemoryClipsSig || !activeDoc?.clips?.length) return;
+    for (const c of activeDoc.clips) {
+      if (
+        c &&
+        c.clipNumber > 0 &&
+        !isClipDiscardOverridden(c) &&
+        (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') &&
+        Boolean(
+          folderClipFileNamesMapRef.current[c.clipNumber] ||
+            (c.videoSavedFileName && c.videoSavedFileName !== c.discardedVideoFileName)
+        )
+      ) {
+        void quarantineRejectedClipOnServer(c);
+      }
+    }
+  }, [activeDoc?.id, rejectedInMemoryClipsSig]);
+
+  // Stage 6 Button ("Sobreescribir Descarte / Aceptar Clip"): Accepts the stored clip without regenerating, moving it from _Descartados_Auditoria back to 05_Clips_Video
+  const handleOverrideClipDiscard = async (clip: DocumentaryClip) => {
+    const clipNum = clip.clipNumber;
+    const padded = String(clipNum).padStart(2, '0');
+    if (overridingDiscardClipMap[clipNum] === 'loading') return;
+
+    setOverridingDiscardClipMap((prev) => ({ ...prev, [clipNum]: 'loading' }));
+    setFlowStatusLog(
+      `⏳ Aceptando el Clip ${padded} guardado: moviéndolo de _Descartados_Auditoria a 05_Clips_Video...`
+    );
+
+    try {
+      const currentDoc = activeDocRef.current || activeDoc;
+      const ctx = resolveDocServerFolderContext(currentDoc);
+      const expectedFileName = buildClipSixWordFileName(clip, currentDoc || null);
+      const apiBases = getMacMediaBridgeBases();
+
+      let serverHandled = false;
+      let lastServerError = '';
+
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/override-discarded-clip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: ctx.docId,
+              folderPath: ctx.folderPath,
+              folderName: ctx.folderName,
+              docTitle: ctx.docTitle,
+              aspectRatio: ctx.aspectRatio,
+              clipNumber: clipNum,
+              expectedFileName,
+              isStaticBroll: Boolean(clip.isStaticBroll),
+            }),
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.ok) {
+            if (data?.error) lastServerError = String(data.error);
+            if (res.status === 503 || res.status === 404) {
+              // Authoritative server responded with concrete status; keep message if no other bridge succeeds
+              continue;
+            }
+            continue;
+          }
+
+          const overrideTs = Math.max(
+            Date.now(),
+            Number(data.overriddenAt || 0),
+            Number(clip.videoDiscardedAt || 0) + 1,
+            Number(clip.videoDiscardOverriddenAt || 0) + 1,
+            Number(clip.videoSavedAt || 0) + 1
+          );
+          const prefixUrl = (u: string) =>
+            u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+          const fullVideoUrl = appendMediaVersionParam(
+            prefixUrl(String(data.url || '')),
+            overrideTs
+          );
+          const rawRelFrameUrl = typeof data.frameUrl === 'string' ? data.frameUrl : '';
+          const fullFrameUrl = rawRelFrameUrl
+            ? appendMediaVersionParam(prefixUrl(rawRelFrameUrl), overrideTs)
+            : '';
+
+          if (typeof document !== 'undefined') {
+            const slotVid = document.querySelector<HTMLVideoElement>(
+              `[data-stage8-clip-slot="${clipNum}"] video[data-stage8-clip-video="true"]`
+            );
+            if (slotVid) {
+              const wasPlaying = !slotVid.paused && !slotVid.ended;
+              try {
+                slotVid.pause();
+              } catch {}
+              if (wasPlaying) {
+                autoPlayStage8ClipRef.current = clipNum;
+              }
+            }
+          }
+
+          setDiscardedClipVideosMap((prev) => {
+            if (!(clipNum in prev)) return prev;
+            const next = { ...prev };
+            delete next[clipNum];
+            return next;
+          });
+          setDiscardedClipFramesMap((prev) => {
+            if (!(clipNum in prev)) return prev;
+            const next = { ...prev };
+            delete next[clipNum];
+            return next;
+          });
+          if (fullVideoUrl) {
+            setCapturedClipVideosMap((prev) => ({
+              ...prev,
+              [clipNum]: fullVideoUrl,
+            }));
+          }
+          if (fullFrameUrl) {
+            setCapturedClipFramesMap((prev) => ({
+              ...prev,
+              [clipNum]: fullFrameUrl,
+            }));
+          }
+          if (data.fileName) {
+            setFolderClipFileNamesMap((prev) => ({
+              ...prev,
+              [clipNum]: String(data.fileName),
+            }));
+          }
+          activateStage8ClipInPool(clipNum, false);
+
+          const latestDoc = activeDocRef.current || activeDoc;
+          if (latestDoc && Array.isArray(latestDoc.clips)) {
+            const safeRelFrameForDoc =
+              rawRelFrameUrl && rawRelFrameUrl.startsWith('/')
+                ? appendMediaVersionParam(rawRelFrameUrl, overrideTs)
+                : '';
+            const nextClips = latestDoc.clips.map((c) => {
+              if (c.clipNumber !== clipNum) return c;
+              const nextName = String(data.fileName || c.videoSavedFileName || expectedFileName);
+              const cleanedPrevImg = /_Descartados_Auditoria/i.test(String(c.imagePreviewUrl || ''))
+                ? ''
+                : c.imagePreviewUrl;
+              const cleanedPrevFrames = Array.isArray(c.videoFrames)
+                ? c.videoFrames.filter((f) => !/_Descartados_Auditoria/i.test(String(f || '')))
+                : undefined;
+              return {
+                ...c,
+                videoSavedFileName: nextName,
+                videoSavedAt: overrideTs,
+                videoDiscardOverriddenAt: overrideTs,
+                discardedVideoFileName: undefined,
+                videoDiscardedAt: undefined,
+                videoReady: true,
+                imageReady: true,
+                imagePreviewUrl: safeRelFrameForDoc || cleanedPrevImg,
+                videoFrames: safeRelFrameForDoc
+                  ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
+                  : cleanedPrevFrames,
+                auditStatus: 'ok' as const,
+                auditReason:
+                  '✅ Descarte sobreescrito manualmente — clip aceptado y movido a 05_Clips_Video.',
+                videoAuditStatus: 'approved' as const,
+                videoAuditReason: '',
+                videoAuditIssues: [],
+                suggestedImagePrompt: undefined,
+                suggestedVideoPrompt: undefined,
+              };
+            });
+            updateActiveDoc({ clips: nextClips });
+          }
+
+          const okMsg = `✅ Clip ${padded} aceptado sin regenerar: sacado de _Descartados_Auditoria y movido a 05_Clips_Video (${data.fileName || expectedFileName}).`;
+          setFlowStatusLog(okMsg);
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(okMsg);
+          serverHandled = true;
+          break;
+        } catch (bridgeErr: any) {
+          if (!lastServerError && bridgeErr?.message) {
+            lastServerError = String(bridgeErr.message);
+          }
+        }
+      }
+
+      if (!serverHandled) {
+        const errMsg = lastServerError
+          ? `⚠️ No se pudo restaurar el Clip ${padded}: ${lastServerError}`
+          : `⚠️ No se encontró el archivo descartado del Clip ${padded} en _Descartados_Auditoria ni conexión activa con el servidor Mac.`;
+        setFlowStatusLog(errMsg);
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(errMsg);
+        setOverridingDiscardClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+        return;
+      }
+
+      setOverridingDiscardClipMap((prev) => ({ ...prev, [clipNum]: 'done' }));
+      setTimeout(() => {
+        setOverridingDiscardClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+      }, 3000);
+    } catch (err: any) {
+      setOverridingDiscardClipMap((prev) => {
+        const copy = { ...prev };
+        delete copy[clipNum];
+        return copy;
+      });
+      setFlowStatusLog(
+        `❌ Error al sobreescribir el descarte del Clip ${padded}: ${err?.message || 'Error'}`
+      );
+    }
   };
 
   // Single Clip Button ("Cargar Clip"): Finds latest generated version of the clip in 05_Clips_Video / Downloads, upscales it to 4K (_4K.mp4), and updates the documentary & Video Editor
@@ -8297,18 +8844,32 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 isStaticBroll: Boolean(clip.isStaticBroll),
                 brollCameraMotion: clip.brollCameraMotion || 'zoom_in',
                 durationSeconds: loadDurSec,
-                discardedVideoFileName: clip.discardedVideoFileName || '',
-                videoDiscardedAt: Number(clip.videoDiscardedAt || 0),
+                discardedVideoFileName: getEffectiveClipDiscardedFileName(clip),
+                videoDiscardedAt: getEffectiveClipDiscardedAt(clip),
+                videoDiscardOverriddenAt: Number(clip.videoDiscardOverriddenAt || 0),
               },
             }),
           });
           if (!res.ok) continue;
           const data = await res.json();
           if (data?.ok && data.url) {
+            const promoNowMs = Math.max(
+              Date.now(),
+              Number(clip.videoDiscardedAt || 0) + 1,
+              Number(clip.videoDiscardOverriddenAt || 0) + 1,
+              Number(clip.videoSavedAt || 0) + 1
+            );
             const prefixUrl = (u: string) =>
               u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
-            const fullVideoUrl = prefixUrl(data.url);
-            const fullFrameUrl = data.frameUrl ? prefixUrl(data.frameUrl) : '';
+            const fullVideoUrl = appendMediaVersionParam(prefixUrl(data.url), promoNowMs);
+            const rawRelFrameUrl = typeof data.frameUrl === 'string' ? data.frameUrl : '';
+            const fullFrameUrl = rawRelFrameUrl
+              ? appendMediaVersionParam(prefixUrl(rawRelFrameUrl), promoNowMs)
+              : '';
+            const safeRelFrameForDoc =
+              rawRelFrameUrl && rawRelFrameUrl.startsWith('/')
+                ? appendMediaVersionParam(rawRelFrameUrl, promoNowMs)
+                : '';
 
             if (typeof document !== 'undefined') {
               const slotVid = document.querySelector<HTMLVideoElement>(
@@ -8319,6 +8880,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }
             }
 
+            setDiscardedClipVideosMap((prev) => {
+              if (!(clipNum in prev)) return prev;
+              const next = { ...prev };
+              delete next[clipNum];
+              return next;
+            });
+            setDiscardedClipFramesMap((prev) => {
+              if (!(clipNum in prev)) return prev;
+              const next = { ...prev };
+              delete next[clipNum];
+              return next;
+            });
             setCapturedClipVideosMap((prev) => ({
               ...prev,
               [clipNum]: fullVideoUrl,
@@ -8338,33 +8911,48 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
             const latestDoc = activeDocRef.current || activeDoc;
             let clipRemainsReviewed = false;
+            let shouldPurgeOldDiscarded = false;
             if (latestDoc && Array.isArray(latestDoc.clips)) {
-              const nowMs = Date.now();
               const nextClips = latestDoc.clips.map((c) => {
                 if (c.clipNumber !== clipNum) return c;
                 const nextName = data.fileName || c.videoSavedFileName;
-                const isRegenPromotion =
-                  Boolean(nextName && nextName !== c.discardedVideoFileName) &&
-                  (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch');
+                const hadPriorDiscard =
+                  !isClipDiscardOverridden(c) &&
+                  (c.videoAuditStatus === 'rejected' ||
+                    c.auditStatus === 'mismatch' ||
+                    Boolean(getEffectiveClipDiscardedFileName(c)));
+                if (hadPriorDiscard || c.discardedVideoFileName) {
+                  shouldPurgeOldDiscarded = true;
+                }
+                const isRegenPromotion = Boolean(nextName) && hadPriorDiscard;
                 const isReplacedWithDifferentFile = Boolean(
                   c.videoSavedFileName && nextName && nextName !== c.videoSavedFileName
                 );
                 const shouldRevokeReview = isRegenPromotion || isReplacedWithDifferentFile;
                 clipRemainsReviewed = shouldRevokeReview ? false : Boolean(c.reviewedForEditor);
+                const rowPromoMs = Math.max(
+                  promoNowMs,
+                  Number(c.videoDiscardedAt || 0) + 1,
+                  Number(c.videoDiscardOverriddenAt || 0) + 1,
+                  Number(c.videoSavedAt || 0) + 1
+                );
                 return {
                   ...c,
                   videoSavedFileName: nextName,
-                  videoSavedAt: nowMs,
+                  videoSavedAt: rowPromoMs,
+                  videoDiscardOverriddenAt: rowPromoMs,
+                  discardedVideoFileName: undefined,
+                  videoDiscardedAt: undefined,
                   videoReady: true,
                   imageReady: true,
-                  imagePreviewUrl: fullFrameUrl || c.imagePreviewUrl,
-                  videoFrames: fullFrameUrl
-                    ? [fullFrameUrl, fullFrameUrl, fullFrameUrl]
+                  imagePreviewUrl: safeRelFrameForDoc || c.imagePreviewUrl,
+                  videoFrames: safeRelFrameForDoc
+                    ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
                     : c.videoFrames,
                   ...(shouldRevokeReview
                     ? {
                         reviewedForEditor: false,
-                        reviewedUpdatedAt: Math.max(nowMs, Number(c.reviewedUpdatedAt || 0) + 1),
+                        reviewedUpdatedAt: Math.max(rowPromoMs, Number(c.reviewedUpdatedAt || 0) + 1),
                       }
                     : {}),
                   ...(isRegenPromotion
@@ -8381,6 +8969,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 };
               });
               updateActiveDoc({ clips: nextClips });
+            }
+            if (shouldPurgeOldDiscarded) {
+              void purgeDiscardedClipOnServer(clipNum, data.fileName);
             }
 
             const okMsg = clipRemainsReviewed
@@ -8580,15 +9171,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
           const isDiscardedOrRejectedClipItem = (cNum: number, fileNameRaw?: unknown, mtimeRaw?: unknown) => {
             const docClip = docClipByNum.get(cNum);
-            if (!docClip) return false;
+            if (!docClip || isClipDiscardOverridden(docClip)) return false;
             const fName = String(fileNameRaw || '').trim();
-            const discName = String(docClip.discardedVideoFileName || '').trim();
-            if (discName && fName === discName) return true;
+            const discName = getEffectiveClipDiscardedFileName(docClip);
+            const discAt = getEffectiveClipDiscardedAt(docClip);
+            const itemMtime = Number(mtimeRaw || 0);
+            if (discName && fName === discName) {
+              if (discAt > 0 && itemMtime > discAt) return false;
+              return true;
+            }
             const isRej =
               docClip.videoAuditStatus === 'rejected' || docClip.auditStatus === 'mismatch';
             if (!isRej) return false;
-            const discAt = Number(docClip.videoDiscardedAt || 0);
-            const itemMtime = Number(mtimeRaw || 0);
             if (itemMtime > 0 && discAt > 0 && itemMtime <= discAt) return true;
             if (!docClip.videoSavedFileName && (!fName || fName === discName)) return true;
             return false;
@@ -8596,13 +9190,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
           const nextClipUrls: Record<number, string> = {};
           const nextFileNames: Record<number, string> = {};
+          const nextItemMtimeByClip: Record<number, number> = {};
           const nextDiscardedClipUrls: Record<number, string> = {};
           const nextDiscardedExactMatch: Record<number, boolean> = {};
           const recordDiscardedServerClip = (cNum: number, fNameRaw: unknown, urlRaw: unknown) => {
             const fullDiscUrl = prefixUrl(String(urlRaw || ''));
             if (!fullDiscUrl) return;
             const docClip = docClipByNum.get(cNum);
-            const discName = String(docClip?.discardedVideoFileName || '').trim();
+            const discName = getEffectiveClipDiscardedFileName(docClip);
             const isExact = Boolean(discName && String(fNameRaw || '').trim() === discName);
             if (!nextDiscardedClipUrls[cNum] || (isExact && !nextDiscardedExactMatch[cNum])) {
               nextDiscardedClipUrls[cNum] = fullDiscUrl;
@@ -8614,13 +9209,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             for (const item of data.clipVideos) {
               const cNum = Number(item?.clipNumber || 0);
               if (cNum <= 0) continue;
-              if (isDiscardedOrRejectedClipItem(cNum, item?.fileName, item?.mtimeMs ?? item?.lastModified)) {
+              const rawMtime = Number(item?.mtimeMs ?? item?.lastModified ?? 0);
+              if (isDiscardedOrRejectedClipItem(cNum, item?.fileName, rawMtime)) {
                 recordDiscardedServerClip(cNum, item?.fileName, item?.url);
                 continue;
               }
               const fullUrl = prefixUrl(String(item?.url || ''));
               if (item?.fileName) {
                 nextFileNames[cNum] = String(item.fileName);
+              }
+              if (rawMtime > 0) {
+                nextItemMtimeByClip[cNum] = rawMtime;
               }
               if (fullUrl) {
                 nextClipUrls[cNum] = fullUrl;
@@ -8633,6 +9232,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             for (const dItem of data.discardedClipVideos) {
               const cNum = Number(dItem?.clipNumber || 0);
               if (cNum <= 0 || nextClipUrls[cNum]) continue;
+              const docClip = docClipByNum.get(cNum);
+              if (docClip && isClipDiscardOverridden(docClip)) continue;
               recordDiscardedServerClip(cNum, dItem?.fileName, dItem?.url);
             }
           }
@@ -8662,10 +9263,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
             const rejectedOrDiscardedNums = new Set<number>();
             for (const c of latestDoc?.clips || []) {
+              const effDiscFile = getEffectiveClipDiscardedFileName(c);
               if (
-                c.videoAuditStatus === 'rejected' ||
-                c.auditStatus === 'mismatch' ||
-                (c.discardedVideoFileName && c.videoSavedFileName === c.discardedVideoFileName)
+                !isClipDiscardOverridden(c) &&
+                (c.videoAuditStatus === 'rejected' ||
+                  c.auditStatus === 'mismatch' ||
+                  Boolean(effDiscFile && c.videoSavedFileName === effDiscFile))
               ) {
                 rejectedOrDiscardedNums.add(c.clipNumber);
               }
@@ -8782,6 +9385,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const docClip = docClipByNum.get(cNum);
                 const isActivelyRej =
                   docClip &&
+                  !isClipDiscardOverridden(docClip) &&
                   (docClip.videoAuditStatus === 'rejected' || docClip.auditStatus === 'mismatch') &&
                   !nextClipUrls[cNum] &&
                   !docClip.videoSavedFileName;
@@ -8798,6 +9402,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           if (Array.isArray(data.discardedClipFrames) && data.discardedClipFrames.length > 0) {
             for (const dfItem of data.discardedClipFrames) {
               const cNum = Number(dfItem?.clipNumber || 0);
+              const docClip = docClipByNum.get(cNum);
+              if (docClip && isClipDiscardOverridden(docClip)) continue;
               if (cNum > 0 && dfItem?.url && !frameUrlByClip[cNum] && !nextDiscardedFrameUrls[cNum]) {
                 nextDiscardedFrameUrls[cNum] = prefixUrl(String(dfItem.url));
               }
@@ -8852,14 +9458,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           ) {
             let clipsChanged = false;
             let rescuedPromptsCount = 0;
+            const promotedToPurge: Array<{ clipNumber: number; fileName: string }> = [];
             const nowLoadMs = Date.now();
             const hasDiskClipsArray = Array.isArray(data.clipVideos);
             const mergedClips = latestDoc.clips.map((c) => {
               const rawDiskName = nextFileNames[c.clipNumber];
+              const effDiscName = getEffectiveClipDiscardedFileName(c);
+              const effDiscAt = getEffectiveClipDiscardedAt(c);
+              const diskMtime = nextItemMtimeByClip[c.clipNumber] || 0;
               const isRevokedDiskFile = Boolean(
                 rawDiskName &&
-                  c.discardedVideoFileName &&
-                  rawDiskName === c.discardedVideoFileName
+                  effDiscName &&
+                  rawDiskName === effDiscName &&
+                  (effDiscAt <= 0 || diskMtime <= 0 || diskMtime <= effDiscAt)
               );
               const diskName = isRevokedDiskFile ? '' : rawDiskName;
               const freshImgUrl = isRevokedDiskFile ? '' : frameUrlByClip[c.clipNumber];
@@ -8867,8 +9478,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               const isRegenPromotion = Boolean(
                 is4kDiskName &&
                   diskName &&
-                  diskName !== c.discardedVideoFileName &&
-                  (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch')
+                  !isClipDiscardOverridden(c) &&
+                  (c.videoAuditStatus === 'rejected' ||
+                    c.auditStatus === 'mismatch' ||
+                    Boolean(effDiscName))
               );
               const needsNameUpdate =
                 is4kDiskName &&
@@ -8877,10 +9490,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 serverResolvedFolder &&
                   hasDiskClipsArray &&
                   !diskName &&
+                  !isClipDiscardOverridden(c) &&
                   (c.videoAuditStatus === 'rejected' ||
                     c.auditStatus === 'mismatch' ||
-                    (c.discardedVideoFileName &&
-                      c.videoSavedFileName === c.discardedVideoFileName)) &&
+                    Boolean(effDiscName && c.videoSavedFileName === effDiscName)) &&
                   (c.videoSavedFileName || c.videoReady)
               );
               const isEphemeralBridgeUrl = Boolean(
@@ -8910,6 +9523,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }
               clipsChanged = true;
               if (needsPromptRescue) rescuedPromptsCount++;
+              if (isRegenPromotion && diskName) {
+                promotedToPurge.push({ clipNumber: c.clipNumber, fileName: diskName });
+              }
+              const rowPromoMs = Math.max(
+                nowLoadMs,
+                Number(c.videoDiscardedAt || 0) + 1,
+                Number(c.videoDiscardOverriddenAt || 0) + 1,
+                Number(c.videoSavedAt || 0) + 1
+              );
               const nextStatic = needsPromptRescue
                 ? Boolean(diskPrompt?.isStaticBroll || c.isStaticBroll)
                 : c.isStaticBroll;
@@ -8921,14 +9543,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ...(needsNameUpdate
                   ? {
                       videoSavedFileName: diskName,
-                      videoSavedAt: nowLoadMs,
+                      videoSavedAt: isRegenPromotion ? rowPromoMs : nowLoadMs,
                       videoReady: true,
                       imageReady: true,
                       ...(isRegenPromotion
                         ? {
+                            videoDiscardOverriddenAt: rowPromoMs,
+                            discardedVideoFileName: undefined,
+                            videoDiscardedAt: undefined,
                             reviewedForEditor: false,
                             reviewedUpdatedAt: Math.max(
-                              nowLoadMs,
+                              rowPromoMs,
                               Number(c.reviewedUpdatedAt || 0) + 1
                             ),
                             recreated: true,
@@ -9016,6 +9641,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     }
                   : {}),
               });
+              for (const pItem of promotedToPurge) {
+                void purgeDiscardedClipOnServer(pItem.clipNumber, pItem.fileName);
+              }
               if (rescuedPromptsCount > 0) {
                 setFlowStatusLog(
                   `🛡️ Auto-restaurados ${rescuedPromptsCount} prompts desde Prompts_Clips_Flow.txt.`
@@ -9135,9 +9763,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           const newDiscardedFrameMtime: Record<number, number> = {};
           const recordHandleDiscardedVid = (num: number, entryNameStr: string, file: File, cacheScope: string) => {
             const docClip = docClipByNumScan.get(num);
-            const isExact = Boolean(
-              docClip?.discardedVideoFileName && entryNameStr === docClip.discardedVideoFileName
-            );
+            if (docClip && isClipDiscardOverridden(docClip)) return;
+            const effDiscName = getEffectiveClipDiscardedFileName(docClip);
+            const isExact = Boolean(effDiscName && entryNameStr === effDiscName);
             const prevExact = Boolean(newDiscardedClipExact[num]);
             const prevMtime = newDiscardedClipMtime[num] || 0;
             if (
@@ -9171,18 +9799,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   if (num > 0) {
                     const docClip = docClipByNumScan.get(num);
                     const file = await entryHandle.getFile();
+                    const effDiscName = getEffectiveClipDiscardedFileName(docClip);
+                    const effDiscAt = getEffectiveClipDiscardedAt(docClip);
                     if (
-                      docClip?.discardedVideoFileName &&
-                      String(entryName) === docClip.discardedVideoFileName
+                      effDiscName &&
+                      String(entryName) === effDiscName &&
+                      (effDiscAt <= 0 || file.lastModified <= effDiscAt)
                     ) {
                       recordHandleDiscardedVid(num, String(entryName), file, sub);
                       continue;
                     }
                     if (
                       docClip &&
+                      !isClipDiscardOverridden(docClip) &&
                       (docClip.videoAuditStatus === 'rejected' || docClip.auditStatus === 'mismatch') &&
-                      Number(docClip.videoDiscardedAt || 0) > 0 &&
-                      file.lastModified <= Number(docClip.videoDiscardedAt)
+                      effDiscAt > 0 &&
+                      file.lastModified <= effDiscAt
                     ) {
                       recordHandleDiscardedVid(num, String(entryName), file, sub);
                       continue;
@@ -9483,7 +10115,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         for (const item of data.clipVideos) {
           const docClip = docClipByNumPipe.get(Number(item?.clipNumber || 0));
           const fName = String(item?.fileName || '').trim();
-          if (docClip?.discardedVideoFileName && fName === docClip.discardedVideoFileName) {
+          const effDiscName = getEffectiveClipDiscardedFileName(docClip);
+          const effDiscAt = getEffectiveClipDiscardedAt(docClip);
+          const itemMtime = Number(item?.mtimeMs ?? item?.lastModified ?? 0);
+          if (
+            effDiscName &&
+            fName === effDiscName &&
+            (effDiscAt <= 0 || itemMtime <= 0 || itemMtime <= effDiscAt)
+          ) {
             continue;
           }
           if (item.clipNumber > 0 && item.url) {
@@ -9494,25 +10133,66 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         }
         setCapturedClipVideosMap(nextMap);
+        setDiscardedClipVideosMap((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const kStr of Object.keys(nextMap)) {
+            const k = Number(kStr);
+            if (k in next) {
+              delete next[k];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+        setDiscardedClipFramesMap((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const kStr of Object.keys(nextMap)) {
+            const k = Number(kStr);
+            if (k in next) {
+              delete next[k];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
         setFolderClipFileNamesMap(nextNames);
 
         if (Array.isArray(currentDoc.clips) && currentDoc.clips.length > 0) {
           const pipeNowMs = Date.now();
+          const pipePromotedToPurge: Array<{ clipNumber: number; fileName: string }> = [];
           const updatedClips = currentDoc.clips.map((c) => {
             const fName = nextNames[c.clipNumber];
-            if (fName && fName !== c.discardedVideoFileName) {
+            if (fName) {
+              const effDiscName = getEffectiveClipDiscardedFileName(c);
               const isRegenPromotion =
-                c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch';
+                !isClipDiscardOverridden(c) &&
+                (c.videoAuditStatus === 'rejected' ||
+                  c.auditStatus === 'mismatch' ||
+                  Boolean(effDiscName));
+              const rowPipeMs = Math.max(
+                pipeNowMs,
+                Number(c.videoDiscardedAt || 0) + 1,
+                Number(c.videoDiscardOverriddenAt || 0) + 1,
+                Number(c.videoSavedAt || 0) + 1
+              );
+              if (isRegenPromotion) {
+                pipePromotedToPurge.push({ clipNumber: c.clipNumber, fileName: fName });
+              }
               return {
                 ...c,
                 videoReady: true,
                 imageReady: true,
                 videoSavedFileName: fName,
-                videoSavedAt: pipeNowMs,
+                videoSavedAt: isRegenPromotion ? rowPipeMs : pipeNowMs,
                 ...(isRegenPromotion
                   ? {
+                      videoDiscardOverriddenAt: rowPipeMs,
+                      discardedVideoFileName: undefined,
+                      videoDiscardedAt: undefined,
                       reviewedForEditor: false,
-                      reviewedUpdatedAt: Math.max(pipeNowMs, Number(c.reviewedUpdatedAt || 0) + 1),
+                      reviewedUpdatedAt: Math.max(rowPipeMs, Number(c.reviewedUpdatedAt || 0) + 1),
                       recreated: true,
                       videoAttempts: Math.max(2, (c.videoAttempts || 1) + 1),
                       auditStatus: 'ok' as const,
@@ -9527,6 +10207,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             return c;
           });
           updateActiveDoc({ clips: updatedClips });
+          for (const pItem of pipePromotedToPurge) {
+            void purgeDiscardedClipOnServer(pItem.clipNumber, pItem.fileName);
+          }
         }
       }
 
@@ -9777,8 +10460,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             if (data?.ok) {
               const prefixUrl = (u: string) =>
                 u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
-              const final4kUrl = data.url ? `${prefixUrl(data.url)}&r=${Date.now()}` : videoDataUrl;
+              const final4kUrl = data.url
+                ? appendMediaVersionParam(prefixUrl(data.url), Date.now())
+                : videoDataUrl;
               const finalName = data.fileName || fileName;
+              setDiscardedClipVideosMap((prev) => {
+                if (!(clipObj.clipNumber in prev)) return prev;
+                const next = { ...prev };
+                delete next[clipObj.clipNumber];
+                return next;
+              });
+              setDiscardedClipFramesMap((prev) => {
+                if (!(clipObj.clipNumber in prev)) return prev;
+                const next = { ...prev };
+                delete next[clipObj.clipNumber];
+                return next;
+              });
               setCapturedClipVideosMap((prev) => ({
                 ...prev,
                 [clipObj.clipNumber]: final4kUrl,
@@ -10155,23 +10852,44 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
 
       const latestDoc = activeDocRef.current || currentDoc;
-      const finalClips = (latestDoc.clips || []).map((c) =>
-        c.id === targetClip.id
-          ? {
-              ...c,
-              videoReady: true,
-              videoAuditStatus: verdict,
-              videoAuditScore: score,
-              videoAuditReason: reason,
-              videoAuditIssues: issues,
-              videoFrames: distinctFrames.length > 0 ? distinctFrames : c.videoFrames,
-              videoAttempts: attempt,
-              videoSavedFileName: savedFileName || c.videoSavedFileName,
-            }
-          : c
+      let shouldPurgeCapturedClip = Boolean(
+        targetClip.discardedVideoFileName || discardedClipVideosMapRef.current[targetClip.clipNumber]
       );
+      const finalClips = (latestDoc.clips || []).map((c) => {
+        if (c.id !== targetClip.id) return c;
+        if (c.discardedVideoFileName) shouldPurgeCapturedClip = true;
+        const capSavedMs = Math.max(
+          Date.now(),
+          Number(c.videoDiscardedAt || 0) + 1,
+          Number(c.videoDiscardOverriddenAt || 0) + 1,
+          Number(c.videoSavedAt || 0) + 1
+        );
+        return {
+          ...c,
+          videoReady: true,
+          imageReady: true,
+          auditStatus: c.auditStatus === 'mismatch' ? ('ok' as const) : c.auditStatus,
+          videoAuditStatus: verdict,
+          videoAuditScore: score,
+          videoAuditReason: reason,
+          videoAuditIssues: issues,
+          videoFrames: distinctFrames.length > 0 ? distinctFrames : c.videoFrames,
+          videoAttempts: attempt,
+          videoSavedFileName: savedFileName || c.videoSavedFileName,
+          videoSavedAt: capSavedMs,
+          videoDiscardOverriddenAt: capSavedMs,
+          discardedVideoFileName: undefined,
+          videoDiscardedAt: undefined,
+        };
+      });
 
       updateActiveDoc({ clips: finalClips });
+      if (shouldPurgeCapturedClip) {
+        void purgeDiscardedClipOnServer(
+          targetClip.clipNumber,
+          savedFileName || targetClip.videoSavedFileName
+        );
+      }
 
       setBridgeStatusType('SUCCESS');
       const msgDone = `✅ Clip #${padded} capturado de Google Flow${
@@ -12345,15 +13063,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }, 1100);
             } else {
               const padded = String(targetClip.clipNumber).padStart(2, '0');
-              const failNowMs = Date.now();
+              const hasActiveVideoFile = Boolean(
+                folderClipFileNamesMapRef.current[targetClip.clipNumber] ||
+                  targetClip.videoSavedFileName ||
+                  capturedClipVideosMapRef.current[targetClip.clipNumber]
+              );
+              const failNowMs = Math.max(
+                Date.now(),
+                Number(targetClip.videoDiscardedAt || 0) + 1,
+                Number(targetClip.videoDiscardOverriddenAt || 0) + 1,
+                Number(targetClip.videoSavedAt || 0) + 1
+              );
+              const failReasonText = `⚠️ Google Flow rechazó el Clip #${padded} tras ${prevAttempt} intentos (${
+                msg.errorText || 'Filtro de políticas'
+              }). Usa el botón "🛡️ Evadir Filtro y Re-enviar" en la tarjeta del clip.`;
+              const activeNameForReject =
+                folderClipFileNamesMapRef.current[targetClip.clipNumber] ||
+                targetClip.videoSavedFileName ||
+                '';
               const failClips = currentDoc.clips.map((c) =>
                 c.id === targetClip.id
                   ? {
                       ...c,
                       videoAuditStatus: 'rejected' as const,
-                      videoAuditReason: `⚠️ Google Flow rechazó el Clip #${padded} tras ${prevAttempt} intentos (${
-                        msg.errorText || 'Filtro de políticas'
-                      }). Usa el botón "🛡️ Evadir Filtro y Re-enviar" en la tarjeta del clip.`,
+                      videoAuditReason: failReasonText,
+                      ...(hasActiveVideoFile
+                        ? {
+                            discardedVideoFileName:
+                              activeNameForReject || c.discardedVideoFileName,
+                            videoDiscardedAt: failNowMs,
+                            videoSavedFileName: '',
+                            videoSavedAt: 0,
+                            videoReady: false,
+                          }
+                        : {}),
                       ...(c.reviewedForEditor
                         ? {
                             reviewedForEditor: false,
@@ -12364,6 +13107,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   : c
               );
               updateActiveDoc({ clips: failClips });
+              if (hasActiveVideoFile) {
+                void quarantineRejectedClipOnServer(targetClip, {
+                  rejectedFileName: activeNameForReject,
+                  videoAuditReason: failReasonText,
+                  discardedAtHint: failNowMs,
+                  force: true,
+                });
+              }
               setBridgeStatusType('ERROR');
               setBridgeStatusMsg(
                 `⚠️ Clip #${padded}: bloqueado por Google Flow tras ${prevAttempt} intentos. Usa "🛡️ Evadir Filtro y Re-enviar".`
@@ -13434,13 +14185,60 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         suggestedVideoPrompt?: string;
       }> = Array.isArray(data.audits) ? data.audits : [];
 
+      const clipsToQuarantineFromAudit: Array<{
+        clip: DocumentaryClip;
+        rejectedFileName: string;
+        auditReason: string;
+        discardedAt: number;
+      }> = [];
+      const auditNowMs = Date.now();
       const merged = baseClips.map((c) => {
         const found = audits.find((a) => Number(a.clipNumber) === c.clipNumber);
         if (!found) return c;
+        const wasExplicitManualOverride =
+          isClipDiscardOverridden(c) &&
+          c.videoReady &&
+          /Descarte sobreescrito manualmente/i.test(String(c.auditReason || ''));
+        const nextAuditStatus: 'ok' | 'warning' | 'mismatch' =
+          found.auditStatus === 'mismatch' && wasExplicitManualOverride
+            ? 'warning'
+            : found.auditStatus || c.auditStatus || 'ok';
+        const activeFile =
+          folderClipFileNamesMapRef.current[c.clipNumber] || c.videoSavedFileName || '';
+        const shouldQuarantineNewMismatch =
+          nextAuditStatus === 'mismatch' &&
+          Boolean(activeFile || capturedClipVideosMapRef.current[c.clipNumber]);
+        const rowDiscAt = Math.max(
+          auditNowMs,
+          Number(c.videoDiscardedAt || 0) + 1,
+          Number(c.videoDiscardOverriddenAt || 0) + 1,
+          Number(c.videoSavedAt || 0) + 1
+        );
+        if (shouldQuarantineNewMismatch) {
+          clipsToQuarantineFromAudit.push({
+            clip: c,
+            rejectedFileName: activeFile,
+            auditReason: found.auditReason || c.auditReason || '',
+            discardedAt: rowDiscAt,
+          });
+        }
         return {
           ...c,
-          auditStatus: found.auditStatus || c.auditStatus || 'ok',
+          auditStatus: nextAuditStatus,
           auditReason: found.auditReason || c.auditReason || '',
+          ...(shouldQuarantineNewMismatch
+            ? {
+                videoAuditStatus: 'rejected' as const,
+                discardedVideoFileName: activeFile || c.discardedVideoFileName,
+                videoDiscardedAt: rowDiscAt,
+                videoSavedFileName: '',
+                videoSavedAt: 0,
+                videoReady: false,
+                imageReady: false,
+                reviewedForEditor: false,
+                reviewedUpdatedAt: Math.max(rowDiscAt, Number(c.reviewedUpdatedAt || 0) + 1),
+              }
+            : {}),
           suggestedImagePrompt:
             found.suggestedImagePrompt && found.suggestedImagePrompt.trim()
               ? found.suggestedImagePrompt.trim()
@@ -13456,6 +14254,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setAuditSummary(data.summary);
       }
       updateActiveDoc({ clips: merged });
+      for (const qItem of clipsToQuarantineFromAudit) {
+        void quarantineRejectedClipOnServer(qItem.clip, {
+          rejectedFileName: qItem.rejectedFileName,
+          auditReason: qItem.auditReason,
+          discardedAtHint: qItem.discardedAt,
+          force: true,
+        });
+      }
     } catch (e: any) {
       alert('Error en la auditoría de producción: ' + e.message);
     } finally {
@@ -21761,19 +22567,46 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     >
                                       {isRecreated ? '🔄 Recreado ✓' : '🔄 Recreado'}
                                     </button>
+                                    {(canOverrideClipDiscard(clip) ||
+                                      Boolean(overridingDiscardClipMap[clip.clipNumber])) && (
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                        }
+                                        onClick={() => handleOverrideClipDiscard(clip)}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition ${
+                                          overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                            ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50 animate-pulse cursor-wait'
+                                            : overridingDiscardClipMap[clip.clipNumber] === 'done'
+                                            ? 'bg-emerald-500 text-slate-950 border-emerald-300'
+                                            : 'bg-emerald-950/80 hover:bg-emerald-800/80 text-emerald-200 border-emerald-400/60'
+                                        }`}
+                                        title={`Sobreescribir descarte del Clip ${padded}: acepta el video guardado y lo mueve de _Descartados_Auditoria a la carpeta de aceptados`}
+                                      >
+                                        {overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                          ? '⏳ Restaurando...'
+                                          : overridingDiscardClipMap[clip.clipNumber] === 'done'
+                                          ? '✨ Aceptado ✓'
+                                          : '✅ Sobreescribir Descarte'}
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => {
                                         const nextRev = !clip.reviewedForEditor;
+                                        const effDiscName = getEffectiveClipDiscardedFileName(clip);
                                         const isQuarantinedNoActive =
+                                          !isClipDiscardOverridden(clip) &&
                                           (clip.videoAuditStatus === 'rejected' ||
-                                            clip.auditStatus === 'mismatch') &&
+                                            clip.auditStatus === 'mismatch' ||
+                                            Boolean(effDiscName)) &&
                                           !capturedClipVideosMap[clip.clipNumber] &&
                                           (!clip.videoSavedFileName ||
-                                            clip.videoSavedFileName === clip.discardedVideoFileName);
+                                            clip.videoSavedFileName === effDiscName);
                                         if (nextRev && isQuarantinedNoActive) {
                                           setFlowStatusLog(
-                                            `⚠️ El Clip ${padded} solo tiene su versión descartada de referencia; regenera y carga el nuevo clip 4K antes de marcarlo como Revisado.`
+                                            `⚠️ El Clip ${padded} está descartado; pulsa "✅ Sobreescribir Descarte" para aceptar el guardado o regénéralo antes de marcarlo como Revisado.`
                                           );
                                           return;
                                         }
@@ -21978,13 +22811,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               onClick={() => {
                                 const isEligible = (c: DocumentaryClip) => {
                                   const isRejected =
-                                    c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch';
+                                    !isClipDiscardOverridden(c) &&
+                                    (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch');
                                   if (isRejected) return false;
+                                  const effDiscFile = getEffectiveClipDiscardedFileName(c);
                                   const hasActiveDiscard =
-                                    Boolean(c.videoDiscardedAt) &&
+                                    getEffectiveClipDiscardedAt(c) > 0 &&
                                     !capturedClipVideosMap[c.clipNumber] &&
                                     (!c.videoSavedFileName ||
-                                      c.videoSavedFileName === c.discardedVideoFileName);
+                                      c.videoSavedFileName === effDiscFile);
                                   if (hasActiveDiscard) return false;
                                   const hasRealMedia = Boolean(
                                     c.videoReady ||
@@ -22208,15 +23043,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     type="button"
                                     onClick={() => {
                                       const nextChecked = !clip.reviewedForEditor;
+                                      const effDiscName = getEffectiveClipDiscardedFileName(clip);
                                       const isQuarantinedNoActive =
+                                        !isClipDiscardOverridden(clip) &&
                                         (clip.videoAuditStatus === 'rejected' ||
-                                          clip.auditStatus === 'mismatch') &&
+                                          clip.auditStatus === 'mismatch' ||
+                                          Boolean(effDiscName)) &&
                                         !capturedClipVideosMap[clip.clipNumber] &&
                                         (!clip.videoSavedFileName ||
-                                          clip.videoSavedFileName === clip.discardedVideoFileName);
+                                          clip.videoSavedFileName === effDiscName);
                                       if (nextChecked && isQuarantinedNoActive) {
                                         setFlowStatusLog(
-                                          `⚠️ El Clip ${paddedNum} solo tiene su versión descartada de referencia; regenera y carga el nuevo clip 4K antes de enviarlo al Editor de Video.`
+                                          `⚠️ El Clip ${paddedNum} está en la carpeta de descartados; pulsa "✅ Sobreescribir Descarte" para aceptar el guardado o regénéralo y cárgalo en 4K antes de enviarlo al Editor de Video.`
                                         );
                                         return;
                                       }
@@ -22249,6 +23087,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       ? `✅ Clip ${paddedNum} Revisado`
                                       : `☑️ Marcar Revisado Clip ${paddedNum}`}
                                   </button>
+
+                                  {/* Botón Sobreescribir Descarte: Acepta el clip guardado sin regenerar y lo mueve de _Descartados_Auditoria a 05_Clips_Video */}
+                                  {(canOverrideClipDiscard(clip) ||
+                                    Boolean(overridingDiscardClipMap[clip.clipNumber])) && (
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                      }
+                                      onClick={() => handleOverrideClipDiscard(clip)}
+                                      className={`py-1 px-3 rounded-lg border text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow shrink-0 ${
+                                        overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                          ? 'bg-emerald-500/30 border-emerald-400 text-emerald-200 animate-pulse cursor-wait'
+                                          : overridingDiscardClipMap[clip.clipNumber] === 'done'
+                                          ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-emerald-500/25'
+                                          : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/25'
+                                      }`}
+                                      title={`Aceptar el Clip ${paddedNum} guardado sin regenerar: lo saca de _Descartados_Auditoria y lo mueve a 05_Clips_Video con los demás aceptados`}
+                                    >
+                                      {overridingDiscardClipMap[clip.clipNumber] === 'loading' ? (
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                      )}
+                                      {overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                        ? `Restaurando Clip ${paddedNum}...`
+                                        : overridingDiscardClipMap[clip.clipNumber] === 'done'
+                                        ? '✨ Descarte Sobreescrito'
+                                        : '✅ Sobreescribir Descarte'}
+                                    </button>
+                                  )}
 
                                   {/* Botón Cargar Clip: Busca la última versión generada en la carpeta de clips, la mejora a 4K y la actualiza en el documental */}
                                   <button
@@ -22643,11 +23512,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       ? `🚨 Problema Detectado en el Clip ${paddedNum} (${clip.timeRange || 'S/T'})`
                                       : `⚠️ Observación en el Clip ${paddedNum} (${clip.timeRange || 'S/T'})`}
                                   </span>
-                                  {clip.pauseNotes && (
-                                    <span className="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-slate-300">
-                                      🎙️ {clip.pauseNotes}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {canOverrideClipDiscard(clip) && (
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                        }
+                                        onClick={() => handleOverrideClipDiscard(clip)}
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] border border-emerald-200 cursor-pointer transition flex items-center gap-1 shadow-md"
+                                        title={`Aceptar el Clip ${paddedNum} guardado tal como está: lo saca de _Descartados_Auditoria y lo mueve a la carpeta con los clips aceptados`}
+                                      >
+                                        {overridingDiscardClipMap[clip.clipNumber] === 'loading' ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 className="w-3 h-3" />
+                                        )}
+                                        {overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                          ? 'Moviendo a Aceptados...'
+                                          : '✅ Sobreescribir Descarte y Aceptar Guardado'}
+                                      </button>
+                                    )}
+                                    {clip.pauseNotes && (
+                                      <span className="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-slate-300">
+                                        🎙️ {clip.pauseNotes}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 {clip.auditReason && (
                                   <p className="leading-relaxed">
@@ -22794,8 +23685,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           className="absolute inset-0 w-full h-full object-contain block bg-black"
                                         />
                                         {isShowingDiscardedVideo && (
-                                          <div className="pointer-events-none absolute top-9 left-2 z-10 px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
-                                            <span>⚠️ Video descartado — referencia visual</span>
+                                          <div className="pointer-events-auto absolute top-9 left-2 z-10 flex items-center gap-1.5 flex-wrap max-w-[calc(100%-1rem)]">
+                                            <div className="px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
+                                              <span>⚠️ Video descartado — referencia visual</span>
+                                            </div>
+                                            {canOverrideClipDiscard(clip) && (
+                                              <button
+                                                type="button"
+                                                disabled={
+                                                  overridingDiscardClipMap[clip.clipNumber] ===
+                                                  'loading'
+                                                }
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleOverrideClipDiscard(clip);
+                                                }}
+                                                className="px-2.5 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-200 text-[10px] font-black cursor-pointer transition flex items-center gap-1 shadow-lg"
+                                                title="Aceptar este clip guardado y moverlo de _Descartados_Auditoria a la carpeta de clips aceptados"
+                                              >
+                                                {overridingDiscardClipMap[clip.clipNumber] ===
+                                                'loading' ? (
+                                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                  <CheckCircle2 className="w-3 h-3" />
+                                                )}
+                                                <span>
+                                                  {overridingDiscardClipMap[clip.clipNumber] ===
+                                                  'loading'
+                                                    ? 'Moviendo a aceptados...'
+                                                    : '✅ Aceptar Este Clip (Sacar de Descartados)'}
+                                                </span>
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                         {isUpscalingClip && (
@@ -22819,8 +23740,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           />
                                         )}
                                         {isShowingDiscardedVideo && (
-                                          <div className="pointer-events-none absolute top-9 left-2 z-10 px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
-                                            <span>⚠️ Video descartado — referencia visual</span>
+                                          <div className="pointer-events-auto absolute top-9 left-2 z-10 flex items-center gap-1.5 flex-wrap max-w-[calc(100%-1rem)]">
+                                            <div className="px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
+                                              <span>⚠️ Video descartado — referencia visual</span>
+                                            </div>
+                                            {canOverrideClipDiscard(clip) && (
+                                              <button
+                                                type="button"
+                                                disabled={
+                                                  overridingDiscardClipMap[clip.clipNumber] ===
+                                                  'loading'
+                                                }
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleOverrideClipDiscard(clip);
+                                                }}
+                                                className="px-2.5 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-200 text-[10px] font-black cursor-pointer transition flex items-center gap-1 shadow-lg"
+                                                title="Aceptar este clip guardado y moverlo de _Descartados_Auditoria a la carpeta de clips aceptados"
+                                              >
+                                                {overridingDiscardClipMap[clip.clipNumber] ===
+                                                'loading' ? (
+                                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                  <CheckCircle2 className="w-3 h-3" />
+                                                )}
+                                                <span>
+                                                  {overridingDiscardClipMap[clip.clipNumber] ===
+                                                  'loading'
+                                                    ? 'Moviendo a aceptados...'
+                                                    : '✅ Aceptar Este Clip (Sacar de Descartados)'}
+                                                </span>
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                         <div className="relative z-10 px-4 py-2 rounded-full bg-amber-500 group-hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-xl">
@@ -22860,6 +23811,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       </>
                                     )}
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
+                                      {canOverrideClipDiscard(clip) && (
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                          }
+                                          onClick={() => handleOverrideClipDiscard(clip)}
+                                          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+                                          title={`Aceptar el Clip ${paddedNum} guardado en _Descartados_Auditoria y moverlo a la carpeta de aceptados`}
+                                        >
+                                          {overridingDiscardClipMap[clip.clipNumber] ===
+                                          'loading' ? (
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                          ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                          )}
+                                          {overridingDiscardClipMap[clip.clipNumber] === 'loading'
+                                            ? `Restaurando Clip ${paddedNum}...`
+                                            : '✅ Sobreescribir Descarte (Aceptar Guardado)'}
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         disabled={loadingSingleClipMap[clip.clipNumber] === 'loading'}

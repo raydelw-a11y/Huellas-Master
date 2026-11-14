@@ -6,6 +6,7 @@ import {
   Sentence,
   DEFAULT_OPERATIONAL_HEADER,
   sanitizeOperationalHeader,
+  isClipDiscardOverridden,
 } from '../types';
 import { formatMMSS } from './formatTime';
 
@@ -2482,11 +2483,19 @@ export function syncAndAuditProductionClips(
         }
       }
 
+      const isDiscardOverriddenForExisting = Boolean(
+        existing &&
+          isClipDiscardOverridden(existing) &&
+          existing.videoReady &&
+          existing.imagePrompt === imgP &&
+          existing.videoPrompt === vidP
+      );
       if (issues.length > 0) {
-        auditStatus = hasMismatch ? 'mismatch' : 'warning';
+        auditStatus = hasMismatch && !isDiscardOverriddenForExisting ? 'mismatch' : 'warning';
         auditReason = issues.join(' ');
       } else if (
         existing?.videoAuditStatus === 'rejected' &&
+        !isClipDiscardOverridden(existing) &&
         !existing?.videoSavedFileName &&
         existing?.auditStatus === 'mismatch'
       ) {
@@ -2526,6 +2535,7 @@ export function syncAndAuditProductionClips(
       videoSavedFileName: existing?.videoSavedFileName,
       discardedVideoFileName: existing?.discardedVideoFileName,
       videoDiscardedAt: existing?.videoDiscardedAt,
+      videoDiscardOverriddenAt: existing?.videoDiscardOverriddenAt,
       videoSavedAt: existing?.videoSavedAt,
       promptUpdatedAt: existing?.promptUpdatedAt,
       auditStatus,
@@ -3616,6 +3626,320 @@ export function fixCapcutSrtWithVoiceover(
   };
 }
 
+export type CaptionBreakFlag = 0 | 1 | 2 | 3 | 4;
+
+export interface CaptionTimedWord {
+  text: string;
+  audioStartSec: number;
+  audioEndSec: number;
+  breakFlag?: CaptionBreakFlag;
+}
+
+export interface CaptionItemLike {
+  id: string;
+  index: number;
+  start: number;
+  end: number;
+  text: string;
+  audioStartSec?: number;
+  audioEndSec?: number;
+  words?: CaptionTimedWord[];
+  alignSource?: 'vosk-v2' | 'webaudio-v2' | 'video76-srt' | 'manual';
+  [key: string]: any;
+}
+
+export function computeVoiceScriptAlignHash(rawScript: string): string {
+  const norm = String(rawScript || '')
+    .replace(/[\[{]\s*(?:pausa|pause|silencio)\s*[:=]?\s*\d+(?:[.,]\d+)?\s*s?\s*[\]}]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  const bytes = new TextEncoder().encode(norm);
+  let h1 = 0x811c9dc5 >>> 0;
+  for (let i = 0; i < bytes.length; i++) {
+    h1 ^= bytes[i];
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, '0')}_${bytes.length}`;
+}
+
+export function spanishPhoneticKey(raw: string): string {
+  const s0 = String(raw || '').toLowerCase().normalize('NFD');
+  const outChars: string[] = [];
+  for (let i = 0; i < s0.length; i++) {
+    const ch = s0[i];
+    if (ch === '\u0303') {
+      if (outChars.length > 0 && outChars[outChars.length - 1] === 'n') {
+        outChars[outChars.length - 1] = 'ñ';
+      }
+      continue;
+    }
+    if (/[\u0300-\u036f]/.test(ch)) continue;
+    if (ch >= 'a' && ch <= 'z') outChars.push(ch);
+  }
+  let s = outChars.join('');
+  if (!s) return '';
+
+  s = s.replace(/ch/g, 'X');
+  s = s.replace(/h/g, '');
+  s = s.replace(/X/g, 'C');
+  s = s.replace(/qu/g, 'k');
+  s = s.replace(/gu/g, 'g');
+  s = s.replace(/c([ei])/g, 's$1');
+  s = s.replace(/c/g, 'k');
+  s = s.replace(/z/g, 's');
+  s = s.replace(/v/g, 'b');
+  s = s.replace(/w/g, 'u');
+  s = s.replace(/g([ei])/g, 'j$1');
+  s = s.replace(/ll/g, 'y');
+  s = s.replace(/x/g, 'ks');
+  s = s.replace(/ñ/g, 'ny');
+
+  const dedup: string[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (dedup.length === 0 || dedup[dedup.length - 1] !== c) {
+      dedup.push(c);
+    }
+  }
+  return dedup.join('');
+}
+
+const SPANISH_ROMAN_MAP: Record<string, string> = {
+  XXII: 'veintidós', XXI: 'veintiuno', XX: 'veinte', XIX: 'diecinueve', XVIII: 'dieciocho',
+  XVII: 'diecisiete', XVI: 'dieciséis', XV: 'quince', XIV: 'catorce', XIII: 'trece',
+  XII: 'doce', XI: 'once', X: 'diez', IX: 'nueve', VIII: 'ocho', VII: 'siete',
+  VI: 'seis', V: 'cinco', IV: 'cuatro', III: 'tres', II: 'dos', I: 'uno'
+};
+
+function integerToSpanishWords(n: number): string {
+  if (n < 0) return 'menos ' + integerToSpanishWords(-n);
+  if (n === 0) return 'cero';
+  const ones = [
+    '', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve',
+    'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete',
+    'dieciocho', 'diecinueve', 'veinte', 'veintiuno', 'veintidós', 'veintitrés',
+    'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve'
+  ];
+  const tens: Record<number, string> = {
+    30: 'treinta', 40: 'cuarenta', 50: 'cincuenta', 60: 'sesenta',
+    70: 'setenta', 80: 'ochenta', 90: 'noventa'
+  };
+  const hundreds: Record<number, string> = {
+    100: 'ciento', 200: 'doscientos', 300: 'trescientos', 400: 'cuatrocientos',
+    500: 'quinientos', 600: 'seiscientos', 700: 'setecientos', 800: 'ochocientos', 900: 'novecientos'
+  };
+  if (n < 30) return ones[n];
+  if (n < 100) {
+    const t = Math.floor(n / 10) * 10;
+    const u = n % 10;
+    return u === 0 ? tens[t] : `${tens[t]} y ${ones[u]}`;
+  }
+  if (n === 100) return 'cien';
+  if (n < 1000) {
+    const h = Math.floor(n / 100) * 100;
+    const rem = n % 100;
+    return rem === 0 ? hundreds[h] : `${hundreds[h]} ${integerToSpanishWords(rem)}`;
+  }
+  if (n < 1000000) {
+    const th = Math.floor(n / 1000);
+    const rem = n % 1000;
+    const thPrefix = th === 1 ? 'mil' : `${integerToSpanishWords(th).replace(/\buno$/, 'un')} mil`;
+    return rem === 0 ? thPrefix : `${thPrefix} ${integerToSpanishWords(rem)}`;
+  }
+  if (n < 1000000000) {
+    const mill = Math.floor(n / 1000000);
+    const rem = n % 1000000;
+    const millPrefix = mill === 1 ? 'un millón' : `${integerToSpanishWords(mill).replace(/\buno$/, 'un')} millones`;
+    return rem === 0 ? millPrefix : `${millPrefix} ${integerToSpanishWords(rem)}`;
+  }
+  return String(n);
+}
+
+export function spokenSpanishSyllableWeight(text: string): number {
+  if (!text || typeof text !== 'string') return 0;
+  let t = text.replace(/[\[{]\s*(?:pausa|pause|silencio)[^\]}]*[\]}]/gi, ' ');
+
+  t = t.replace(/\bkm²\b/gi, 'kilómetros cuadrados');
+  t = t.replace(/\bm²\b/gi, 'metros cuadrados');
+  t = t.replace(/\ba\.C\.\b/gi, 'antes de cristo');
+  t = t.replace(/\bd\.C\.\b/gi, 'después de cristo');
+  t = t.replace(/\bEE\.UU\.\b/gi, 'estados unidos');
+  t = t.replace(/\bDr\.\b/gi, 'doctor');
+  t = t.replace(/\bDra\.\b/gi, 'doctora');
+  t = t.replace(/\bSr\.\b/gi, 'señor');
+  t = t.replace(/\bSra\.\b/gi, 'señora');
+
+  t = t.replace(/(\d+)\s*%/g, (_, n) => `${integerToSpanishWords(parseInt(n, 10))} por ciento`);
+  t = t.replace(/\b(XXII|XXI|XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/g, (m) => SPANISH_ROMAN_MAP[m] || m);
+  t = t.replace(/(\d+)[.,](\d+)/g, (_, a, b) => `${integerToSpanishWords(parseInt(a, 10))} punto ${integerToSpanishWords(parseInt(b, 10))}`);
+  t = t.replace(/\b(\d{1,3})\.(\d{3})\b/g, (_, a, b) => integerToSpanishWords(parseInt(a + b, 10)));
+  t = t.replace(/\b\d+\b/g, (m) => integerToSpanishWords(parseInt(m, 10)));
+
+  const letters = t.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, '').length;
+  const commas = (text.match(/[,]/g) || []).length;
+  const semicolons = (text.match(/[;:]/g) || []).length;
+  const periods = (text.match(/[.!?…]/g) || []).length;
+  const dashes = (text.match(/[—–]/g) || []).length;
+
+  return Math.max(1, letters + commas * 2 + semicolons * 3 + periods * 4 + dashes * 3.5);
+}
+
+export function buildAudioCaptionsFromSidecarWords(
+  words: Array<[string, number, number, number]>,
+  options?: { maxWordsPerLine?: number; maxCharsPerLine?: number; lineMode?: 'single' | 'wrap' }
+): CaptionItemLike[] {
+  if (!Array.isArray(words) || words.length === 0) return [];
+  const maxWords = typeof options?.maxWordsPerLine === 'number' && options.maxWordsPerLine > 0 ? options.maxWordsPerLine : 6;
+  const maxChars = typeof options?.maxCharsPerLine === 'number' && options.maxCharsPerLine > 0 ? options.maxCharsPerLine : 36;
+  const lineMode = options?.lineMode || 'wrap';
+
+  interface LineWord {
+    text: string;
+    audioStartSec: number;
+    audioEndSec: number;
+    breakFlag?: CaptionBreakFlag;
+  }
+  interface LineGroup {
+    text: string;
+    start: number;
+    end: number;
+    words: LineWord[];
+    lastBreakFlag: CaptionBreakFlag;
+    gapToNext: number;
+  }
+
+  const lines: LineGroup[] = [];
+  let curLineWords: LineWord[] = [];
+  let curLineChars = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const [wText, wStart, wEnd, wBreakRaw] = words[i];
+    const wBreak = (wBreakRaw >= 0 && wBreakRaw <= 4 ? wBreakRaw : 0) as CaptionBreakFlag;
+    const prevW = i > 0 ? words[i - 1] : null;
+    const gapFromPrev = prevW ? Math.max(0, wStart - prevW[2]) : 0;
+    const prevBreak = prevW ? (prevW[3] as CaptionBreakFlag) : 0;
+
+    const mustBreakBefore =
+      curLineWords.length > 0 &&
+      (prevBreak >= 2 ||
+        gapFromPrev >= 0.28 ||
+        (prevBreak === 1 && gapFromPrev >= 0.16) ||
+        curLineWords.length >= maxWords ||
+        curLineChars + 1 + wText.length > maxChars);
+
+    if (mustBreakBefore) {
+      const firstW = curLineWords[0];
+      const lastW = curLineWords[curLineWords.length - 1];
+      lines.push({
+        text: curLineWords.map((w) => w.text).join(' '),
+        start: firstW.audioStartSec,
+        end: lastW.audioEndSec,
+        words: curLineWords,
+        lastBreakFlag: (lastW.breakFlag ?? 0) as CaptionBreakFlag,
+        gapToNext: gapFromPrev,
+      });
+      curLineWords = [];
+      curLineChars = 0;
+    }
+
+    curLineWords.push({
+      text: wText,
+      audioStartSec: wStart,
+      audioEndSec: wEnd,
+      breakFlag: wBreak,
+    });
+    curLineChars += (curLineChars > 0 ? 1 : 0) + wText.length;
+  }
+
+  if (curLineWords.length > 0) {
+    const firstW = curLineWords[0];
+    const lastW = curLineWords[curLineWords.length - 1];
+    lines.push({
+      text: curLineWords.map((w) => w.text).join(' '),
+      start: firstW.audioStartSec,
+      end: lastW.audioEndSec,
+      words: curLineWords,
+      lastBreakFlag: (lastW.breakFlag ?? 0) as CaptionBreakFlag,
+      gapToNext: 0,
+    });
+  }
+
+  interface RawCaption {
+    text: string;
+    start: number;
+    end: number;
+    words: LineWord[];
+  }
+  const rawCaptions: RawCaption[] = [];
+
+  if (lineMode === 'wrap') {
+    let k = 0;
+    while (k < lines.length) {
+      const l1 = lines[k];
+      const l2 = k + 1 < lines.length ? lines[k + 1] : null;
+      const canPair =
+        Boolean(l2) &&
+        l1.lastBreakFlag < 2 &&
+        l1.gapToNext < 0.28 &&
+        !(l1.lastBreakFlag === 1 && l1.gapToNext >= 0.16);
+
+      if (canPair && l2) {
+        rawCaptions.push({
+          text: `${l1.text}\n${l2.text}`,
+          start: l1.start,
+          end: l2.end,
+          words: [...l1.words, ...l2.words],
+        });
+        k += 2;
+      } else {
+        rawCaptions.push({
+          text: l1.text,
+          start: l1.start,
+          end: l1.end,
+          words: l1.words,
+        });
+        k += 1;
+      }
+    }
+  } else {
+    for (const l of lines) {
+      rawCaptions.push({
+        text: l.text,
+        start: l.start,
+        end: l.end,
+        words: l.words,
+      });
+    }
+  }
+
+  const result: CaptionItemLike[] = rawCaptions.map((c, idx) => ({
+    id: `cap-vosk-${idx + 1}`,
+    index: idx + 1,
+    start: Number(c.start.toFixed(3)),
+    end: Number(Math.max(c.start + 0.25, c.end).toFixed(3)),
+    text: c.text,
+    audioStartSec: Number(c.start.toFixed(3)),
+    audioEndSec: Number(Math.max(c.start + 0.25, c.end).toFixed(3)),
+    words: c.words.map((w) => ({
+      text: w.text,
+      audioStartSec: Number(w.audioStartSec.toFixed(3)),
+      audioEndSec: Number(w.audioEndSec.toFixed(3)),
+      breakFlag: w.breakFlag,
+    })),
+    alignSource: 'vosk-v2',
+  }));
+
+  for (let i = 0; i < result.length - 1; i++) {
+    if (result[i].end > result[i + 1].start) {
+      result[i].end = Number(Math.max(result[i].start + 0.2, result[i + 1].start - 0.01).toFixed(3));
+      result[i].audioEndSec = result[i].end;
+    }
+  }
+
+  return result;
+}
+
 export function reformatCaptionItems<
   T extends { id?: string; index?: number; start: number; end: number; text: string }
 >(
@@ -3634,33 +3958,16 @@ export function reformatCaptionItems<
   const effChars = lineMode === 'original' ? 46 : maxCharsPerLine;
   const effWords = lineMode === 'original' && maxWordsPerLine <= 0 ? 8 : maxWordsPerLine;
 
-  const wordWeight = (w: string): number => {
-    const expanded = w
-      .replace(/\b1880\b/g, 'milochocientosochenta')
-      .replace(/\b1930\b/g, 'milnovecientostreinta')
-      .replace(/\b1940\b/g, 'milnovecientoscuarenta')
-      .replace(/\b1[89]\d\d\b/g, 'milochocientoscincuenta')
-      .replace(/\b\d{4}\b/g, 'milochocientos')
-      .replace(/\b\d{3}\b/g, 'quinientos')
-      .replace(/\b\d{2}\b/g, 'cuarenta')
-      .replace(/\b\d\b/g, 'cinco');
-    const chars = expanded.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, '').length;
-    const punctBonus = /[.?!:;…]$/.test(w) ? 4 : /[,]$/.test(w) ? 2 : 0;
-    return Math.max(1, chars + punctBonus);
-  };
-
   interface TimedWord {
     word: string;
     start: number;
     end: number;
+    audioStartSec: number;
+    audioEndSec: number;
+    breakFlag?: CaptionBreakFlag;
   }
 
-  // Group contiguous caption blocks (gap <= 0.08s and not ending a sentence) into speech islands,
-  // while anchoring every word's exact [start, end] inside the original block it came from.
-  const islands: TimedWord[][] = [];
-  let currentIsland: TimedWord[] = [];
-  let prevBlockEnd = -1;
-  let prevEndedSentence = false;
+  const allTimedWords: TimedWord[] = [];
 
   for (let i = 0; i < rawItems.length; i++) {
     const it = rawItems[i];
@@ -3675,90 +3982,202 @@ export function reformatCaptionItems<
 
     const bStart = Number(it.start || 0);
     const bEnd = Math.max(bStart + 0.15, Number(it.end || bStart + 0.5));
-    const bSpan = bEnd - bStart;
+    const bAudioStart = typeof (it as any).audioStartSec === 'number' ? Number((it as any).audioStartSec) : bStart;
+    const bAudioEnd = typeof (it as any).audioEndSec === 'number' ? Number((it as any).audioEndSec) : bEnd;
+    const timelineDelta = bStart - bAudioStart;
 
-    const weights = words.map((w) => wordWeight(w));
-    const totalW = Math.max(1, weights.reduce((a, b) => a + b, 0));
-    let accW = 0;
-    const blockTimedWords: TimedWord[] = words.map((w, wIdx) => {
-      const wS = bStart + (accW / totalW) * bSpan;
-      accW += weights[wIdx];
-      const wE = wIdx === words.length - 1 ? bEnd : bStart + (accW / totalW) * bSpan;
-      return { word: w, start: wS, end: wE };
-    });
-
-    const gapFromPrev = prevBlockEnd >= 0 ? bStart - prevBlockEnd : 999;
-    const islandStart = currentIsland.length > 0 ? currentIsland[0].start : bStart;
-    const canMergeIntoIsland =
-      currentIsland.length > 0 &&
-      gapFromPrev <= 0.08 &&
-      !prevEndedSentence &&
-      bEnd - islandStart <= 14.0;
-
-    if (canMergeIntoIsland) {
-      currentIsland.push(...blockTimedWords);
-    } else {
-      if (currentIsland.length > 0) {
-        islands.push(currentIsland);
+    const itWords = (it as any).words;
+    if (Array.isArray(itWords) && itWords.length === words.length) {
+      for (let wIdx = 0; wIdx < words.length; wIdx++) {
+        const tw = itWords[wIdx];
+        const aS = Number(tw.audioStartSec ?? bAudioStart);
+        const aE = Number(tw.audioEndSec ?? bAudioEnd);
+        allTimedWords.push({
+          word: words[wIdx],
+          start: aS + timelineDelta,
+          end: aE + timelineDelta,
+          audioStartSec: aS,
+          audioEndSec: aE,
+          breakFlag: tw.breakFlag ?? (wIdx === words.length - 1 && /[.?!:;…]$/.test(words[wIdx]) ? 2 : 0),
+        });
       }
-      currentIsland = [...blockTimedWords];
+    } else {
+      const bSpan = bEnd - bStart;
+      const bAudioSpan = bAudioEnd - bAudioStart;
+      const weights = words.map((w) => spokenSpanishSyllableWeight(w));
+      const totalW = Math.max(1, weights.reduce((a, b) => a + b, 0));
+      let accW = 0;
+      for (let wIdx = 0; wIdx < words.length; wIdx++) {
+        const fracStart = accW / totalW;
+        accW += weights[wIdx];
+        const fracEnd = wIdx === words.length - 1 ? 1 : accW / totalW;
+        const wS = bStart + fracStart * bSpan;
+        const wE = bStart + fracEnd * bSpan;
+        const aS = bAudioStart + fracStart * bAudioSpan;
+        const aE = bAudioStart + fracEnd * bAudioSpan;
+        const isLast = wIdx === words.length - 1;
+        allTimedWords.push({
+          word: words[wIdx],
+          start: wS,
+          end: wE,
+          audioStartSec: aS,
+          audioEndSec: aE,
+          breakFlag: isLast && /[.?!:;…]$/.test(words[wIdx]) ? 2 : 0,
+        });
+      }
     }
+  }
 
-    prevBlockEnd = bEnd;
-    prevEndedSentence = /[.?!:;…]["'»”)]*$/.test(cleanText);
+  if (allTimedWords.length === 0) return [];
+
+  // Group contiguous words into speech islands, breaking island strictly when:
+  // - previous word had breakFlag >= 2 (.?!, \n\n, pause tag)
+  // - gap from previous word >= 0.28s
+  // - previous word had breakFlag === 1 AND gap from previous >= 0.16s
+  // - island span > 14.0s
+  const islands: TimedWord[][] = [];
+  let curIsland: TimedWord[] = [];
+
+  for (let i = 0; i < allTimedWords.length; i++) {
+    const tw = allTimedWords[i];
+    const prevTw = curIsland.length > 0 ? curIsland[curIsland.length - 1] : null;
+    const gapFromPrev = prevTw ? Math.max(0, tw.start - prevTw.end) : 0;
+    const prevBreak = prevTw ? (prevTw.breakFlag ?? 0) : 0;
+
+    const mustBreak =
+      curIsland.length > 0 &&
+      (prevBreak >= 2 ||
+        gapFromPrev >= 0.28 ||
+        (prevBreak === 1 && gapFromPrev >= 0.16) ||
+        tw.end - curIsland[0].start > 14.0);
+
+    if (mustBreak) {
+      islands.push(curIsland);
+      curIsland = [];
+    }
+    curIsland.push(tw);
   }
-  if (currentIsland.length > 0) {
-    islands.push(currentIsland);
-  }
+  if (curIsland.length > 0) islands.push(curIsland);
 
   const rebuilt: T[] = [];
   const templateItem = rawItems[0];
 
   for (const isl of islands) {
-    const islWords = isl.map((tw) => tw.word);
-    const chunks = splitWordsIntoShortLines(islWords, effChars, effWords);
-    let wordCursor = 0;
-    const chunkItems: Array<{ text: string; start: number; end: number }> = [];
+    // Split island into lines
+    const islLines: TimedWord[][] = [];
+    let curLine: TimedWord[] = [];
+    let curLineChars = 0;
 
-    for (const ch of chunks) {
-      if (ch.length === 0) continue;
-      const firstTw = isl[wordCursor] || isl[0];
-      const lastTw = isl[Math.min(isl.length - 1, wordCursor + ch.length - 1)] || isl[isl.length - 1];
-      wordCursor += ch.length;
-      const cStart = firstTw.start;
-      const cEnd = Math.max(cStart + 0.2, lastTw.end);
-      chunkItems.push({
-        text: ch.join(' '),
-        start: cStart,
-        end: cEnd,
-      });
+    for (let i = 0; i < isl.length; i++) {
+      const tw = isl[i];
+      const prev = curLine.length > 0 ? curLine[curLine.length - 1] : null;
+      const gap = prev ? Math.max(0, tw.start - prev.end) : 0;
+      const prevBreak = prev ? (prev.breakFlag ?? 0) : 0;
+
+      const lineBreak =
+        curLine.length > 0 &&
+        (prevBreak >= 2 ||
+          gap >= 0.28 ||
+          (prevBreak === 1 && gap >= 0.16) ||
+          (effWords > 0 && curLine.length >= effWords) ||
+          curLineChars + 1 + tw.word.length > effChars);
+
+      if (lineBreak) {
+        islLines.push(curLine);
+        curLine = [];
+        curLineChars = 0;
+      }
+      curLine.push(tw);
+      curLineChars += (curLineChars > 0 ? 1 : 0) + tw.word.length;
     }
+    if (curLine.length > 0) islLines.push(curLine);
 
     if (lineMode === 'wrap') {
-      for (let k = 0; k < chunkItems.length; k += 2) {
-        const line1 = chunkItems[k];
-        const line2 = k + 1 < chunkItems.length ? chunkItems[k + 1] : null;
+      let k = 0;
+      while (k < islLines.length) {
+        const l1 = islLines[k];
+        const l2 = k + 1 < islLines.length ? islLines[k + 1] : null;
+        const lastL1 = l1[l1.length - 1];
+        const firstL2 = l2 ? l2[0] : null;
+        const gapL1L2 = firstL2 ? Math.max(0, firstL2.start - lastL1.end) : 999;
+        const lastL1Break = lastL1.breakFlag ?? 0;
+
+        const canPair =
+          Boolean(l2) &&
+          lastL1Break < 2 &&
+          gapL1L2 < 0.28 &&
+          !(lastL1Break === 1 && gapL1L2 >= 0.16);
+
+        const wordsToEmit = canPair && l2 ? [...l1, ...l2] : l1;
+        const textToEmit = canPair && l2
+          ? `${l1.map((w) => w.word).join(' ')}\n${l2.map((w) => w.word).join(' ')}`
+          : l1.map((w) => w.word).join(' ');
+
+        const fTw = wordsToEmit[0];
+        const lTw = wordsToEmit[wordsToEmit.length - 1];
         const idx = rebuilt.length + 1;
-        rebuilt.push({
-          ...templateItem,
+
+        const newItem: any = {
           id: `cap-fmt-${idx}`,
           index: idx,
-          start: Number(line1.start.toFixed(2)),
-          end: Number((line2 ? line2.end : line1.end).toFixed(2)),
-          text: line2 ? `${line1.text}\n${line2.text}` : line1.text,
-        });
+          start: Number(fTw.start.toFixed(3)),
+          end: Number(Math.max(fTw.start + 0.2, lTw.end).toFixed(3)),
+          text: textToEmit,
+          audioStartSec: Number(fTw.audioStartSec.toFixed(3)),
+          audioEndSec: Number(Math.max(fTw.audioStartSec + 0.2, lTw.audioEndSec).toFixed(3)),
+          words: wordsToEmit.map((w) => ({
+            text: w.word,
+            audioStartSec: Number(w.audioStartSec.toFixed(3)),
+            audioEndSec: Number(w.audioEndSec.toFixed(3)),
+            breakFlag: w.breakFlag,
+          })),
+          alignSource: (templateItem as any)?.alignSource || 'vosk-v2',
+        };
+
+        if (templateItem && typeof templateItem === 'object') {
+          for (const key of Object.keys(templateItem)) {
+            if (!['id', 'index', 'start', 'end', 'text', 'audioStartSec', 'audioEndSec', 'words', 'alignSource'].includes(key)) {
+              newItem[key] = (templateItem as any)[key];
+            }
+          }
+        }
+
+        rebuilt.push(newItem as T);
+        k += canPair ? 2 : 1;
       }
     } else {
-      for (const ci of chunkItems) {
+      for (const line of islLines) {
+        const fTw = line[0];
+        const lTw = line[line.length - 1];
         const idx = rebuilt.length + 1;
-        rebuilt.push({
-          ...templateItem,
+        const textToEmit = line.map((w) => w.word).join(' ');
+
+        const newItem: any = {
           id: `cap-fmt-${idx}`,
           index: idx,
-          start: Number(ci.start.toFixed(2)),
-          end: Number(ci.end.toFixed(2)),
-          text: ci.text,
-        });
+          start: Number(fTw.start.toFixed(3)),
+          end: Number(Math.max(fTw.start + 0.2, lTw.end).toFixed(3)),
+          text: textToEmit,
+          audioStartSec: Number(fTw.audioStartSec.toFixed(3)),
+          audioEndSec: Number(Math.max(fTw.audioStartSec + 0.2, lTw.audioEndSec).toFixed(3)),
+          words: line.map((w) => ({
+            text: w.word,
+            audioStartSec: Number(w.audioStartSec.toFixed(3)),
+            audioEndSec: Number(w.audioEndSec.toFixed(3)),
+            breakFlag: w.breakFlag,
+          })),
+          alignSource: (templateItem as any)?.alignSource || 'vosk-v2',
+        };
+
+        if (templateItem && typeof templateItem === 'object') {
+          for (const key of Object.keys(templateItem)) {
+            if (!['id', 'index', 'start', 'end', 'text', 'audioStartSec', 'audioEndSec', 'words', 'alignSource'].includes(key)) {
+              newItem[key] = (templateItem as any)[key];
+            }
+          }
+        }
+
+        rebuilt.push(newItem as T);
       }
     }
   }
@@ -3766,8 +4185,13 @@ export function reformatCaptionItems<
   for (let i = 0; i < rebuilt.length - 1; i++) {
     if (rebuilt[i].end > rebuilt[i + 1].start) {
       rebuilt[i].end = Number(
-        Math.max(rebuilt[i].start + 0.15, rebuilt[i + 1].start - 0.01).toFixed(2)
+        Math.max(rebuilt[i].start + 0.15, rebuilt[i + 1].start - 0.01).toFixed(3)
       );
+      if (typeof (rebuilt[i] as any).audioEndSec === 'number' && typeof (rebuilt[i + 1] as any).audioStartSec === 'number') {
+        (rebuilt[i] as any).audioEndSec = Number(
+          Math.max((rebuilt[i] as any).audioStartSec + 0.15, (rebuilt[i + 1] as any).audioStartSec - 0.01).toFixed(3)
+        );
+      }
     }
   }
 
@@ -4701,6 +5125,170 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+export interface CaptionTimedWord {
+  text: string;
+  audioStartSec: number;
+  audioEndSec: number;
+  breakAfter?: 0 | 1 | 2 | 3 | 4;
+  breakFlag?: 0 | 1 | 2 | 3 | 4;
+}
+
+const ALIGN_HASH_PAUSE_RE = /[\[{]\s*(?:pausa|pause|silencio)\s*[:=]?\s*\d+(?:[.,]\d+)?\s*s?\s*[\]}]/gi;
+
+/** Computes the exact UTF-8 FNV-1a hash shared with scripts/align_voiceover_vosk.py. */
+export function computeVoiceScriptAlignHash(rawScript: string): string {
+  const norm = String(rawScript || '')
+    .replace(ALIGN_HASH_PAUSE_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  const bytes = new TextEncoder().encode(norm);
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    h1 ^= bytes[i];
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, '0')}_${bytes.length}`;
+}
+
+/** Estimates spoken Spanish syllable weight from vowel groups after stripping pause tags. */
+export function spokenSpanishSyllableWeight(raw: string): number {
+  const clean = stripPauseTags(String(raw || '')).replace(/\s+/g, ' ').trim();
+  if (!clean) return 0;
+  const vowelGroups = clean.match(/[aeiouyáéíóúü]+/gi);
+  return Math.max(1, vowelGroups ? vowelGroups.length : 1);
+}
+
+/** Groups word-level Vosk/WebAudio sidecar timings into balanced timeline caption items. */
+export function buildAudioCaptionsFromSidecarWords(
+  rawWords: Array<[string, number, number, (0 | 1 | 2 | 3 | 4 | number)?] | CaptionTimedWord>,
+  opts?: {
+    maxWordsPerLine?: number;
+    maxCharsPerLine?: number;
+    lineMode?: 'single' | 'wrap';
+  }
+): Array<{
+  id: string;
+  index: number;
+  text: string;
+  start: number;
+  end: number;
+  audioStartSec: number;
+  audioEndSec: number;
+  words: CaptionTimedWord[];
+}> {
+  if (!Array.isArray(rawWords) || rawWords.length === 0) return [];
+
+  const maxWords = Math.max(1, Math.round(Number(opts?.maxWordsPerLine) || 6));
+  const maxChars = Math.max(8, Math.round(Number(opts?.maxCharsPerLine) || 32));
+  const lineMode = opts?.lineMode === 'wrap' ? 'wrap' : 'single';
+  const maxBlockWords = lineMode === 'wrap' ? maxWords * 2 : maxWords;
+  const maxBlockChars = lineMode === 'wrap' ? maxChars * 2 : maxChars;
+
+  const words: CaptionTimedWord[] = [];
+  for (const item of rawWords) {
+    if (Array.isArray(item)) {
+      const text = String(item[0] || '').trim();
+      if (!text) continue;
+      const aStart = Number(item[1]);
+      const aEnd = Number(item[2]);
+      const brkNum = Math.max(0, Math.min(4, Math.round(Number(item[3] || 0)))) as 0 | 1 | 2 | 3 | 4;
+      const safeStart = Number.isFinite(aStart) ? Math.max(0, aStart) : 0;
+      const safeEnd = Number.isFinite(aEnd) ? Math.max(safeStart + 0.04, aEnd) : safeStart + 0.12;
+      words.push({
+        text,
+        audioStartSec: Number(safeStart.toFixed(3)),
+        audioEndSec: Number(safeEnd.toFixed(3)),
+        breakAfter: brkNum,
+        breakFlag: brkNum,
+      });
+    } else if (item && typeof item === 'object') {
+      const text = String(item.text || '').trim();
+      if (!text) continue;
+      const safeStart = Number.isFinite(item.audioStartSec) ? Math.max(0, item.audioStartSec) : 0;
+      const safeEnd = Number.isFinite(item.audioEndSec)
+        ? Math.max(safeStart + 0.04, item.audioEndSec)
+        : safeStart + 0.12;
+      const brkNum = Math.max(
+        0,
+        Math.min(4, Math.round(Number(item.breakAfter ?? item.breakFlag ?? 0)))
+      ) as 0 | 1 | 2 | 3 | 4;
+      words.push({
+        text,
+        audioStartSec: Number(safeStart.toFixed(3)),
+        audioEndSec: Number(safeEnd.toFixed(3)),
+        breakAfter: brkNum,
+        breakFlag: brkNum,
+      });
+    }
+  }
+  if (words.length === 0) return [];
+
+  const captions: Array<{
+    id: string;
+    index: number;
+    text: string;
+    start: number;
+    end: number;
+    audioStartSec: number;
+    audioEndSec: number;
+    words: CaptionTimedWord[];
+  }> = [];
+
+  let chunk: CaptionTimedWord[] = [];
+  let chunkChars = 0;
+
+  const flushChunk = () => {
+    if (chunk.length === 0) return;
+    const rawTokens = chunk.map((w) => w.text);
+    let formattedText = rawTokens.join(' ');
+    if (lineMode === 'wrap' && formattedText.length > maxChars && rawTokens.length >= 2) {
+      const lines = splitWordsIntoShortLines(rawTokens, maxChars, maxWords);
+      if (lines.length >= 2) {
+        const line1 = lines[0].join(' ');
+        const line2 = lines.slice(1).flat().join(' ');
+        formattedText = [line1, line2].filter(Boolean).join('\n');
+      }
+    }
+    const startSec = chunk[0].audioStartSec;
+    const endSec = Math.max(startSec + 0.12, chunk[chunk.length - 1].audioEndSec);
+    const idx = captions.length + 1;
+    captions.push({
+      id: `sidecar-cap-${idx}`,
+      index: idx,
+      text: formattedText,
+      start: Number(startSec.toFixed(3)),
+      end: Number(endSec.toFixed(3)),
+      audioStartSec: Number(startSec.toFixed(3)),
+      audioEndSec: Number(endSec.toFixed(3)),
+      words: chunk,
+    });
+    chunk = [];
+    chunkChars = 0;
+  };
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const nextChars = chunk.length === 0 ? w.text.length : chunkChars + 1 + w.text.length;
+    if (chunk.length > 0 && (chunk.length + 1 > maxBlockWords || nextChars > maxBlockChars)) {
+      flushChunk();
+    }
+    chunk.push(w);
+    chunkChars = chunk.length === 1 ? w.text.length : chunkChars + 1 + w.text.length;
+
+    const brk = Number(w.breakAfter || 0);
+    const nextWord = i + 1 < words.length ? words[i + 1] : null;
+    const silenceGap = nextWord ? nextWord.audioStartSec - w.audioEndSec : 0;
+    if (brk >= 2 || silenceGap >= 0.45 || (brk === 1 && chunk.length >= 3)) {
+      flushChunk();
+    }
+  }
+  flushChunk();
+
+  return captions;
+}
+
 
 
 
