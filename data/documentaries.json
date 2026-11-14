@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-14T11:29:21.994Z",
+    "updatedAt": "2026-11-14T11:29:30.980Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794655761994",
+      "PROMPTS_RESTORED_AT": "1794655770980",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1275,6 +1275,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F01_Imagen_Inicial_create_a_cinematic_6_second_4bcd0a45.jpg&v=1794547776907",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 78,
+        "reframeFocusXEnd": 28,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -1289,7 +1295,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Corte de cámara brusco y salto de plano prohibido a mitad del clip.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1322,6 +1328,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F03_Imagen_Inicial_create_a_cinematic_8_second_d8115b23.jpg&v=1794547786224",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1344,6 +1356,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F04_Imagen_Inicial_create_a_cinematic_8_second_9f89be36.jpg&v=1794547787124",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 34,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1366,6 +1384,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F05_Imagen_Inicial_create_a_cinematic_8_second_77a1f962.jpg&v=1794547796992",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 67,
+        "reframeFocusXEnd": 54,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (67% → 54%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1388,6 +1412,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F06_Imagen_Inicial_create_a_cinematic_8_second_fe849478.jpg&v=1794547797807",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1410,6 +1440,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F07_Imagen_Inicial_create_a_cinematic_8_second_8a0e5be8.jpg&v=1794547806711",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 31,
+        "reframeFocusXEnd": 16,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.92,
+        "reframeReason": "Paneo dinámico IA (31% → 16%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1432,6 +1468,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F08_Imagen_Inicial_create_a_cinematic_8_second_3d797e03.jpg&v=1794547807598",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.84,
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1454,6 +1496,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F09_Imagen_Inicial_create_a_cinematic_8_second_0cf4c630.jpg&v=1794547816791",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1476,6 +1524,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F10_Imagen_Inicial_create_a_cinematic_8_second_1fff4388.jpg&v=1794547817909",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 18,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1498,6 +1552,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F11_Imagen_Inicial_create_a_cinematic_8_second_02b868e8.jpg&v=1794547826815",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 58,
+        "reframeFocusXEnd": 32,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.57,
+        "reframeReason": "Paneo dinámico IA (58% → 32%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1512,7 +1572,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Generó a un hombre en escritorio cuando el prompt pide mujer operadora de telégrafo.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1537,7 +1597,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Mutación anatómica severa y salto de plano al levantar la vista del microscopio.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1570,6 +1630,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F14_Imagen_Inicial_create_a_cinematic_8_second_38fa30f9.jpg&v=1794547838834",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1592,6 +1658,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F15_Imagen_Inicial_create_a_cinematic_8_second_6ae2fc0d.jpg&v=1794547850731",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 69,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (69% → 50%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1606,7 +1678,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Aparece una persona de la nada al segundo 4 y la placa de Petri levita sola.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1639,6 +1711,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F17_Imagen_Inicial_create_a_cinematic_8_second_7c7428d8.jpg&v=1794547861505",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1664,6 +1742,12 @@
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F18_Imagen_Inicial_Create_an_image_in_16.jpg&v=1794547563854",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 18,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1686,6 +1770,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F19_Imagen_Inicial_create_a_cinematic_8_second_49483cb1.jpg&v=1794547862922",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 81,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.78,
+        "reframeReason": "Paneo dinámico IA (22% → 81%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1700,7 +1790,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Muestra a un científico de espaldas cuando el prompt exige 0 personas (solo objeto).",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1733,6 +1823,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F21_Imagen_Inicial_create_a_cinematic_8_second_video_4db99d4b.jpg&v=1794547872492",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 76,
+        "reframeFocusXEnd": 31,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.64,
+        "reframeReason": "Paneo dinámico IA (76% → 31%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1755,6 +1851,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F22_Imagen_Inicial_create_a_cinematic_8_second_video_751661e8.jpg&v=1794547880494",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -1777,6 +1879,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F23_Imagen_Inicial_create_a_cinematic_8_second_video_de5f3c8a.jpg&v=1794547881554",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 82,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -1799,6 +1907,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F24_Imagen_Inicial_create_a_cinematic_8_second_video_39bc2cfa.jpg&v=1794547889965",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 66,
+        "reframeFocusXEnd": 46,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (66% → 46%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -1821,6 +1935,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F25_Imagen_Inicial_create_a_cinematic_8_second_video_29287299.jpg&v=1794547891124",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 78,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.86,
+        "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1835,7 +1955,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Muestra placas secas en un estante en vez del fregadero con bandeja de antiséptico.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -1868,6 +1988,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F27_Imagen_Inicial_create_a_cinematic_8_second_video_a1ebeddd.jpg&v=1794547900996",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1893,6 +2019,12 @@
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_out",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F28_Imagen_Inicial_Create_an_image_in_16.jpg&v=1794547633429",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 63,
+        "reframeFocusXEnd": 63,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
         "videoFrames": []
       },
       {
@@ -1915,6 +2047,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F29_Imagen_Inicial_create_a_cinematic_8_second_video_530d5f28.jpg&v=1794547909908",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 64,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.68,
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (64%)",
         "videoFrames": []
       },
       {
@@ -1937,6 +2075,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F30_Imagen_Inicial_Director_examining_flask_in_office_4c723756.jpg&v=1794547910951",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 82,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -1959,6 +2103,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F31_Imagen_Inicial_create_a_cinematic_8_second_video_fcbeeefd.jpg&v=1794547920196",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 82,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.78,
+        "reframeReason": "Paneo dinámico IA (22% → 82%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -1973,7 +2123,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Mutaba de traje a bata blanca a mitad del plano (prompt #32 ya corregido y alineado con @Alexander_Fleming).",
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2032,6 +2182,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F34_Imagen_Inicial_create_a_cinematic_8_second_video_3d55e994.jpg&v=1794547929756",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 66,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.64,
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "videoFrames": []
       },
       {
@@ -2054,6 +2210,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F35_Imagen_Inicial_create_a_cinematic_8_second_video_0edf6ca0.jpg&v=1794547931296",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 72,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.78,
+        "reframeReason": "Paneo dinámico IA (22% → 72%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2076,6 +2238,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F36_Imagen_Inicial_create_a_cinematic_8_second_video_4c1eb370.jpg&v=1794547939764",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 84,
+        "reframeFocusXEnd": 66,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.68,
+        "reframeReason": "Paneo dinámico IA (84% → 66%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2098,6 +2266,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F37_Imagen_Inicial_create_a_cinematic_8_second_video_579ee378.jpg&v=1794547942333",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.92,
+        "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2120,6 +2294,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F38_Imagen_Inicial_create_a_cinematic_8_second_video_85509bae.jpg&v=1794547951395",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 46,
+        "reframeFocusXEnd": 62,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (46% → 62%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2134,7 +2314,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Inyectó texto garabateado ilegible y personas de fondo donde se exigía 0 personas.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2159,7 +2339,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ El calibrador se movía solo en el aire y aparecía un dedo humano al final (prompt #40 ya corregido).",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2194,6 +2374,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F41_Imagen_Inicial_create_a_cinematic_8_second_video_db2bd31c.jpg&v=1794547968356",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.84,
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2216,6 +2402,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F42_Imagen_Inicial_create_a_cinematic_8_second_video_2fde4ec1.jpg&v=1794547976679",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 24,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.84,
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2241,6 +2433,12 @@
         "isStaticBroll": true,
         "brollCameraMotion": "tilt_up",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F43_Imagen_Inicial_Create_an_image_in_16.jpg&v=1794547682986",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2255,7 +2453,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Corte de cámara brusco prohibido (pasa de plano general a primer plano de manos).",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2288,6 +2486,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F45_Imagen_Inicial_create_a_cinematic_8_second_video_7e360369.jpg&v=1794547989457",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 32,
+        "reframeFocusXEnd": 32,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.62,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (32%)",
         "videoFrames": []
       },
       {
@@ -2310,6 +2514,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F46_Imagen_Inicial_create_a_cinematic_8_second_video_ab0c9aae.jpg&v=1794547995292",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 30,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (50% → 30%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2324,7 +2534,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Había quedado como B-Roll estático con una mujer donde iba @Ernst_Chain (prompt #47 ya corregido a video dinámico con 2 varones).",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2362,6 +2572,12 @@
         "isStaticBroll": true,
         "brollCameraMotion": "tilt_up",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F48_Imagen_Inicial_Create_an_image_in_16.jpg&v=1794547767412",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 28,
+        "reframeFocusXEnd": 64,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (28% → 64%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2384,6 +2600,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F49_Imagen_Inicial_create_a_cinematic_8_second_video_2d8d8198.jpg&v=1794548001659",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 68,
+        "reframeFocusXEnd": 68,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.63,
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (68%)",
         "videoFrames": []
       },
       {
@@ -2406,6 +2628,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F50_Imagen_Inicial_create_a_cinematic_8_second_video_cfafe45a.jpg&v=1794548006630",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 42,
+        "reframeFocusXEnd": 60,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.84,
+        "reframeReason": "Paneo dinámico IA (42% → 60%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2428,6 +2656,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F51_Imagen_Inicial_create_a_cinematic_8_second_video_f90207df.jpg&v=1794548013899",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 17,
+        "reframeFocusXEnd": 17,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "videoFrames": []
       },
       {
@@ -2450,6 +2684,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F52_Imagen_Inicial_create_a_cinematic_8_second_video_95768583.jpg&v=1794548018283",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 78,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -2472,6 +2712,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F53_Imagen_Inicial_create_a_cinematic_8_second_video_6e8653fa.jpg&v=1794548025173",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2494,6 +2740,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F54_Imagen_Inicial_create_a_cinematic_8_second_video_e4ea9943.jpg&v=1794548029009",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.57,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2508,7 +2760,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Aparecían manos humanas sirviendo leche cuando el prompt exige estrictamente 0 personas.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2541,6 +2793,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F56_Imagen_Inicial_create_a_cinematic_8_second_video_7c00d5a4.jpg&v=1794548039948",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2563,6 +2821,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F57_Imagen_Inicial_create_a_cinematic_8_second_video_e840344b.jpg&v=1794548047780",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.58,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2585,6 +2849,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F58_Imagen_Inicial_create_a_cinematic_8_second_video_dba5a797.jpg&v=1794548051174",
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2607,6 +2877,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F59_Imagen_Inicial_create_a_cinematic_8_second_video_5c88b959.jpg&v=1794548059591",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 22,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (22%)",
         "videoFrames": []
       },
       {
@@ -2629,6 +2905,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F60_Imagen_Inicial_create_a_cinematic_8_second_video_366ec892.jpg&v=1794548061880",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 78,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -2654,6 +2936,12 @@
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F61_Imagen_Inicial_Create_an_image_in_16.jpg&v=1794549204205",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 82,
+        "reframeFocusXEnd": 28,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.99,
+        "reframeReason": "Paneo dinámico IA (82% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoFrames": []
       },
       {
@@ -2676,6 +2964,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F62_Imagen_Inicial_62_Medium_shot_of_researcher_1efcbd92.jpg&v=1794549218248",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 54,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (54% → 24%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2698,6 +2992,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F63_Imagen_Inicial_63_Close_up_of_scientist_643dbd17.jpg&v=1794549218786",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 18,
+        "reframeFocusXEnd": 76,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2712,7 +3012,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Alucinación anatómica: manos flotando desconectadas sin antebrazos sobre la mesa.",
         "pauseNotes": "Contiene [pausa: 1.1s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2737,7 +3037,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "⛔ Pendiente de generar: su archivo anterior correspondía a la escena #67 y ya fue reubicado.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2762,7 +3062,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "⛔ Pendiente de generar: su archivo anterior correspondía a la escena #68 y ya fue reubicado.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2795,6 +3095,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F67_Imagen_Inicial_Wide_shot_of_historic_19e830f2.jpg&v=1794549232972",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 22,
+        "reframeFocusXEnd": 77,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.96,
+        "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
         "videoFrames": []
       },
       {
@@ -2819,6 +3125,12 @@
         "videoDiscardedAt": 1794572688032,
         "videoSavedAt": 1794573067176,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F68_Imagen_Inicial_Detail_shot_of_old_d843192e.jpg&v=1794549251938",
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 16,
+        "reframeFocusXEnd": 16,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.71,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoFrames": []
       },
       {
@@ -2833,7 +3145,7 @@
         "imageReady": false,
         "videoReady": false,
         "auditStatus": "mismatch",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "❌ Escena equivocada: mostraba carga de cajas en un camión bajo lluvia en vez de soldados en hospital de campaña.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
@@ -2866,6 +3178,12 @@
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F70_Imagen_Inicial_Macro_shot_of_vintage_0fd04ec1.jpg&v=1794549252291",
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 43,
+        "reframeFocusXEnd": 68,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (43% → 68%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
