@@ -881,18 +881,19 @@ function mergeServerClipsPreservingAuthored(
     const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
     const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
     const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
-    const mergedAuditStatus =
-      winningFile &&
-      effDiscardedAt > 0 &&
-      (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
-        ? 'ok'
-        : c.auditStatus;
-    const mergedVideoAuditStatus =
-      winningFile &&
-      effDiscardedAt > 0 &&
-      (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
-        ? 'approved'
-        : c.videoAuditStatus || o.videoAuditStatus;
+    const isApprovedWithValidFile =
+      Boolean(winningFile) &&
+      c.auditStatus !== 'mismatch' &&
+      o.auditStatus !== 'mismatch' &&
+      (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved');
+    const cleanedAuditStatus = (cleanAuditPatch as { auditStatus?: string }).auditStatus;
+    const mergedAuditStatus = isApprovedWithValidFile
+      ? 'ok'
+      : cleanedAuditStatus ||
+        (c.auditStatus === 'warning' && o.auditStatus === 'ok' ? 'ok' : c.auditStatus);
+    const mergedVideoAuditStatus = isApprovedWithValidFile
+      ? 'approved'
+      : c.videoAuditStatus || o.videoAuditStatus;
 
     return {
       ...c,

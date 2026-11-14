@@ -206,15 +206,40 @@ export function applyStoredClipReviewStateToDocs(
         }
       }
 
+      const savedAfterDiscard = !effDiscAt || Number(saved.updatedAt || 0) > effDiscAt;
+      if (effDiscAt > 0 && !savedAfterDiscard && !cFile && !c.videoReady && !c.reviewedForEditor) {
+        if (
+          saved.reviewedForEditor ||
+          saved.videoReady ||
+          saved.imageReady ||
+          sFile ||
+          Number(saved.videoDiscardedAt || 0) < effDiscAt
+        ) {
+          docMap[c.clipNumber] = {
+            ...saved,
+            reviewedForEditor: false,
+            videoReady: false,
+            imageReady: false,
+            videoSavedFileName: '',
+            ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
+            videoDiscardedAt: effDiscAt,
+            updatedAt: effDiscAt,
+          };
+          storeMutated = true;
+        }
+        return c;
+      }
+
       const mergedRev = Boolean(
-        cFile && effDiscFile && sFile === effDiscFile ? c.reviewedForEditor : saved.reviewedForEditor
+        c.reviewedForEditor ||
+          (!isSavedRevokedByFile && savedAfterDiscard && saved.reviewedForEditor)
       );
       const mergedRec = Boolean(c.recreated || saved.recreated);
       const mergedVid = Boolean(
-        c.videoReady || (!isSavedRevokedByFile && (!effDiscAt || Number(saved.updatedAt || 0) > effDiscAt) && saved.videoReady)
+        c.videoReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.videoReady)
       );
       const mergedImg = Boolean(
-        c.imageReady || (!isSavedRevokedByFile && (!effDiscAt || Number(saved.updatedAt || 0) > effDiscAt) && saved.imageReady)
+        c.imageReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.imageReady)
       );
       const mergedFile = cFile || (!isSavedRevokedByFile ? sFile : '');
       if (
@@ -2371,18 +2396,23 @@ function mergeTwoDocumentaryObjects(
       const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
       const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
       const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
-      const mergedAuditStatus =
-        winningFile &&
-        effDiscardedAt > 0 &&
-        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
-          ? ('ok' as const)
-          : c.auditStatus;
-      const mergedVideoAuditStatus =
-        winningFile &&
-        effDiscardedAt > 0 &&
-        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved')
-          ? ('approved' as const)
-          : c.videoAuditStatus || o.videoAuditStatus;
+      const isApprovedWithValidFile =
+        Boolean(winningFile) &&
+        c.auditStatus !== 'mismatch' &&
+        o.auditStatus !== 'mismatch' &&
+        (c.videoAuditStatus === 'approved' || o.videoAuditStatus === 'approved');
+      const cleanedAuditStatus = (
+        cleanAuditPatch as { auditStatus?: 'ok' | 'warning' | 'mismatch' }
+      ).auditStatus;
+      const mergedAuditStatus = isApprovedWithValidFile
+        ? ('ok' as const)
+        : cleanedAuditStatus ||
+          (c.auditStatus === 'warning' && o.auditStatus === 'ok'
+            ? ('ok' as const)
+            : c.auditStatus);
+      const mergedVideoAuditStatus = isApprovedWithValidFile
+        ? ('approved' as const)
+        : c.videoAuditStatus || o.videoAuditStatus;
 
       return {
         ...c,
