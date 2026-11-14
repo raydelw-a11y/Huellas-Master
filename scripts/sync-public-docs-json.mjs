@@ -128,3 +128,24 @@ if (existingPublic !== publicJson) {
 } else {
   console.log(`[sync-public-docs] docs/data/documentaries.json already in sync (${publicDocs.length} projects).`);
 }
+
+const DATA_TTS_DIR = path.join(ROOT, 'data', 'tts-files');
+const PUBLIC_TTS_DIR = path.join(ROOT, 'docs', 'tts-files');
+if (fs.existsSync(DATA_TTS_DIR)) {
+  fs.mkdirSync(PUBLIC_TTS_DIR, { recursive: true });
+  let syncedSidecars = 0;
+  for (const entry of fs.readdirSync(DATA_TTS_DIR, { withFileTypes: true })) {
+    if (!entry.isFile() || !/\.(?:align\.json|srt)$/i.test(entry.name)) continue;
+    const srcPath = path.join(DATA_TTS_DIR, entry.name);
+    const dstPath = path.join(PUBLIC_TTS_DIR, entry.name);
+    const srcText = fs.readFileSync(srcPath, 'utf8');
+    const dstText = fs.existsSync(dstPath) ? fs.readFileSync(dstPath, 'utf8') : '';
+    if (srcText !== dstText) {
+      writeFileAtomicUtf8(dstPath, srcText);
+      syncedSidecars++;
+    }
+  }
+  if (syncedSidecars > 0) {
+    console.log(`[sync-public-docs] Synced ${syncedSidecars} tts-files sidecar(s) (.align.json/.srt) to docs/tts-files/.`);
+  }
+}
