@@ -6273,18 +6273,36 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     [clipsWithTimelineBounds, selectedClipId]
   );
 
+  const isEditorFullScheduleReviewed = useMemo(() => {
+    const allScriptLen = activeDoc?.clips?.length || 0;
+    if (allScriptLen === 0) return true;
+    const uniqueBodyCount = new Set(
+      clipsWithTimelineBounds
+        .filter(
+          (c) =>
+            c.id !== 'fixed-doc-intro' &&
+            c.clipNumber > 0 &&
+            c.id !== 'fixed-doc-outro' &&
+            c.clipNumber < 999
+        )
+        .map((c) => c.clipNumber)
+    ).size;
+    return uniqueBodyCount >= allScriptLen;
+  }, [activeDoc?.clips?.length, clipsWithTimelineBounds]);
+
   // Keep the last song anchored to the exact end of Clip 82 (right before fixed-doc-outro) whenever timeline clip bounds change
   const outroClipStartSec = useMemo(() => {
     const outroClip = clipsWithTimelineBounds.find(
       (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
     );
     if (outroClip && outroClip.start > 20) return Number(outroClip.start.toFixed(2));
+    if (!isEditorFullScheduleReviewed) return 0;
     const lastClip = clipsWithTimelineBounds[clipsWithTimelineBounds.length - 1];
     return lastClip ? Number(lastClip.end.toFixed(2)) : 0;
-  }, [clipsWithTimelineBounds]);
+  }, [clipsWithTimelineBounds, isEditorFullScheduleReviewed]);
 
   useEffect(() => {
-    if (outroClipStartSec <= 30) return;
+    if (!isEditorFullScheduleReviewed || outroClipStartSec <= 30) return;
     setMusicTracks((prev) => {
       if (prev.length === 0) return prev;
       const lastTrack = prev[prev.length - 1];
@@ -6335,7 +6353,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         };
       });
     });
-  }, [outroClipStartSec]);
+  }, [outroClipStartSec, isEditorFullScheduleReviewed]);
 
   // Detect if the 8s Official Intro (fixed-doc-intro) is placed Post-Slogan in the middle of the timeline (Opción B)
   const postSloganIntroBounds = useMemo(() => {
@@ -9784,6 +9802,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Render & Download Final Master Video in HD / 2K / 4K / 8K and 16:9 or 9:16 (Single Unified Action)
   const handleExportMasterVideo = async () => {
+    const reviewedBodyInTimeline = clipsWithTimelineBounds.filter(
+      (c) =>
+        c.id !== 'fixed-doc-intro' &&
+        c.clipNumber !== 0 &&
+        c.id !== 'fixed-doc-outro' &&
+        c.clipNumber !== 999
+    );
+    if (reviewedBodyInTimeline.length === 0) {
+      const emptyMsg =
+        '🔒 No hay clips revisados en el Timeline para exportar. Marca al menos un clip como "✅ Revisado" en la Etapa 6 antes de renderizar.';
+      setStatusMessage(emptyMsg);
+      alert(emptyMsg);
+      return;
+    }
+
     // 1. Mandatory Global Official Logo Check before rendering/downloading
     if (!officialLogoUrl || !officialLogoUrl.trim()) {
       setActiveInspectorTab('branding');
@@ -10581,6 +10614,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             const hasSimIntro = clipsWithTimelineBounds.some(
               (c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0
             );
+            const hasSimOutro = clipsWithTimelineBounds.some(
+              (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
+            );
             const firstSimBodyClip = clipsWithTimelineBounds.find(
               (c) =>
                 c.id !== 'fixed-doc-intro' &&
@@ -10596,6 +10632,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               clip.id === firstSimBodyClip?.id &&
               clip.transition !== 'direct';
             const isSimLastBodyClip =
+              hasSimOutro &&
               clipsWithTimelineBounds.length >= 3 &&
               clip.index === clipsWithTimelineBounds.length - 2;
 
@@ -11057,6 +11094,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const hasTimelineIntro = clipsWithTimelineBounds.some(
     (c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0
   );
+  const hasTimelineOutro = clipsWithTimelineBounds.some(
+    (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
+  );
   const firstTimelineBodyClip = clipsWithTimelineBounds.find(
     (c) =>
       c.id !== 'fixed-doc-intro' &&
@@ -11074,6 +11114,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeClipAtPlayhead?.transition !== 'direct';
   const isLastBodyClipBeforeOutro =
     Boolean(activeClipAtPlayhead) &&
+    hasTimelineOutro &&
     clipsWithTimelineBounds.length >= 3 &&
     activeClipAtPlayhead?.index === clipsWithTimelineBounds.length - 2;
 
@@ -11361,34 +11402,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             Sincronizar
           </button>
 
-          {(activeDoc?.clips || []).some((c) => c.reviewedForEditor) && (
-            <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px]">
-              <button
-                type="button"
-                onClick={() => setShowOnlyReviewedClips(true)}
-                className={`px-2 py-0.5 rounded font-black cursor-pointer transition ${
-                  showOnlyReviewedClips
-                    ? 'bg-emerald-500 text-slate-950 shadow'
-                    : 'text-emerald-300 hover:text-white'
-                }`}
-                title="Mostrar en el Editor de Video los clips marcados como Revisados en la Etapa 8"
-              >
-                ✅ Revisados ({(activeDoc?.clips || []).filter((c) => c.reviewedForEditor).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowOnlyReviewedClips(false)}
-                className={`px-2 py-0.5 rounded font-bold cursor-pointer transition ${
-                  !showOnlyReviewedClips
-                    ? 'bg-amber-500 text-slate-950 shadow'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Mostrar todos los clips del guion en la línea de tiempo"
-              >
-                📋 Todos ({(activeDoc?.clips || []).length})
-              </button>
-            </div>
-          )}
+          {(activeDoc?.clips?.length || 0) > 0 && (() => {
+            const totalScriptCount = activeDoc!.clips.length;
+            const reviewedCount = activeDoc!.clips.filter((c) => c.reviewedForEditor).length;
+            const isAllReviewed = reviewedCount >= totalScriptCount;
+            return (
+              <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAllReviewed && onOpenStage6Review) {
+                      onOpenStage6Review();
+                    }
+                  }}
+                  className={`px-2 py-0.5 rounded font-black transition flex items-center gap-1 ${
+                    isAllReviewed
+                      ? 'bg-emerald-500 text-slate-950 shadow cursor-default'
+                      : reviewedCount === 0
+                      ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 cursor-pointer'
+                      : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 cursor-pointer'
+                  }`}
+                  title={
+                    isAllReviewed
+                      ? `Los ${totalScriptCount} clips de Etapa 6 están revisados y activos en el Timeline`
+                      : `Solo los clips marcados como Revisados en Etapa 6 (${reviewedCount}/${totalScriptCount}) pasan al Timeline. Haz clic para ir a Etapa 6.`
+                  }
+                >
+                  <span>
+                    {reviewedCount === 0 ? '🔒' : '✅'} Revisados en Timeline ({reviewedCount}/{totalScriptCount})
+                  </span>
+                  {!isAllReviewed && onOpenStage6Review && (
+                    <span className="underline opacity-90">• Etapa 6</span>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
@@ -12801,49 +12850,76 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     }}
                   />
                   <div className="relative z-10 max-w-2xl space-y-2.5">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black tracking-wide">
-                      <span>
-                        🎬 ESCENA {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} DE{' '}
-                        {timelineClips.length || 1}
-                      </span>
-                      <span>•</span>
-                      <span className="font-mono">
-                        {activeClipAtPlayhead
-                          ? `${Math.max(0, currentTime - activeClipAtPlayhead.start).toFixed(1)}s / ${activeClipAtPlayhead.duration}s`
-                          : '0.0s'}
-                      </span>
-                    </div>
+                    {(activeDoc?.clips?.length || 0) > 0 && timelineClips.length === 0 ? (
+                      <>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-black tracking-wide">
+                          <span>🔒 0 DE {activeDoc!.clips.length} CLIPS REVISADOS EN ETAPA 6</span>
+                        </div>
+                        <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
+                          En Etapa 6 los videos solo pasan al Timeline del Editor cuando son marcados como &ldquo;✅ Revisado&rdquo;.
+                        </p>
+                        {onOpenStage6Review && (
+                          <div
+                            className="pt-1 flex items-center justify-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={onOpenStage6Review}
+                              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer transition shadow-lg"
+                            >
+                              ✅ Ir a Etapa 6 a revisar clips
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black tracking-wide">
+                          <span>
+                            🎬 ESCENA {String(activeClipAtPlayhead?.clipNumber || 1).padStart(2, '0')} DE{' '}
+                            {timelineClips.length || 1}
+                          </span>
+                          <span>•</span>
+                          <span className="font-mono">
+                            {activeClipAtPlayhead
+                              ? `${Math.max(0, currentTime - activeClipAtPlayhead.start).toFixed(1)}s / ${activeClipAtPlayhead.duration}s`
+                              : '0.0s'}
+                          </span>
+                        </div>
 
-                    <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
-                      {stripPauseTags(
-                        activeClipAtPlayhead?.narrationSegment ||
-                          activeCaptionAtPlayhead?.text ||
-                          clip1Line2 ||
-                          activeDoc?.title ||
-                          'Documental Histórico — Huellas de la Humanidad'
-                      )}
-                    </p>
+                        <p className="text-sm sm:text-base font-bold text-amber-100 leading-relaxed drop-shadow">
+                          {stripPauseTags(
+                            activeClipAtPlayhead?.narrationSegment ||
+                              activeCaptionAtPlayhead?.text ||
+                              clip1Line2 ||
+                              activeDoc?.title ||
+                              'Documental Histórico — Huellas de la Humanidad'
+                          )}
+                        </p>
 
-                    {onReloadFolderMedia && (
-                      <div
-                        className="pt-1 flex items-center justify-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const loaded = await onReloadFolderMedia();
-                            setStatusMessage(
-                              loaded > 0
-                                ? `✅ ¡${loaded} video(s) .MP4 cargados desde 05_Clips_Video!`
-                                : '📂 Selecciona tu carpeta con la subcarpeta 05_Clips_Video o importa tus .MP4.'
-                            );
-                          }}
-                          className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-bold cursor-pointer"
-                        >
-                          📂 Conectar Clips .MP4 de 05_Clips_Video
-                        </button>
-                      </div>
+                        {onReloadFolderMedia && (
+                          <div
+                            className="pt-1 flex items-center justify-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const loaded = await onReloadFolderMedia();
+                                setStatusMessage(
+                                  loaded > 0
+                                    ? `✅ ¡${loaded} video(s) .MP4 cargados desde 05_Clips_Video!`
+                                    : '📂 Selecciona tu carpeta con la subcarpeta 05_Clips_Video o importa tus .MP4.'
+                                );
+                              }}
+                              className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-bold cursor-pointer"
+                            >
+                              📂 Conectar Clips .MP4 de 05_Clips_Video
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -16649,6 +16725,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
                 }`}
               >
+                {clipsWithTimelineBounds.length === 0 && (activeDoc?.clips?.length || 0) > 0 && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 w-full bg-amber-500/5 border border-dashed border-amber-500/30 rounded mx-1">
+                    <span className="text-[11px] font-bold text-amber-200 truncate">
+                      🔒 0/{activeDoc!.clips.length} clips revisados en Etapa 6 — Marca &ldquo;✅ Revisado&rdquo; en Etapa 6 para enviarlos al Timeline
+                    </span>
+                    {onOpenStage6Review && (
+                      <button
+                        type="button"
+                        onClick={onOpenStage6Review}
+                        className="shrink-0 px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer transition shadow"
+                      >
+                        Ir a Etapa 6 →
+                      </button>
+                    )}
+                  </div>
+                )}
                 {clipsWithTimelineBounds.map((clip, idx) => {
                   const isCurrent = currentTime >= clip.start && currentTime < clip.end;
                   const isMultiSelected = selectedClipIds.includes(clip.id);
