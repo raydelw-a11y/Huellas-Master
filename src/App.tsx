@@ -181,7 +181,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:05 PM - 11/14/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '1:22 PM - 11/14/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -2023,6 +2023,9 @@ export default function App() {
     Record<number, 'loading' | 'done'>
   >({});
   const [overridingDiscardClipMap, setOverridingDiscardClipMap] = useState<
+    Record<number, 'loading' | 'done'>
+  >({});
+  const [acceptingBrollClipMap, setAcceptingBrollClipMap] = useState<
     Record<number, 'loading' | 'done'>
   >({});
   const quarantinedClipSigRef = useRef<Set<string>>(new Set());
@@ -8583,6 +8586,502 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       setFlowStatusLog(
         `❌ Error al sobreescribir el descarte del Clip ${padded}: ${err?.message || 'Error'}`
       );
+    }
+  };
+
+  // Stage 6 Button ("Aceptar Imagen como B-Roll"): Converts any clip's best available initial image into a 4K 60fps optical B-Roll MP4 without regenerating in Flow
+  const handleAcceptInitialImageAsBroll = async (
+    clip: DocumentaryClip,
+    explicitMotion?: BrollCameraMotion
+  ) => {
+    const clipNum = clip.clipNumber;
+    const padded = String(clipNum).padStart(2, '0');
+    if (acceptingBrollClipMap[clipNum] === 'loading') return;
+
+    const currentDoc = activeDocRef.current || activeDoc;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const durSec = clipNum === 1 ? clip1Sec : standardClipSec;
+    const motion: BrollCameraMotion =
+      explicitMotion ||
+      clip.brollCameraMotion ||
+      inferBestBrollMotionForNarration(
+        clip.narrationSegment || '',
+        clip.videoPrompt || '',
+        clipNum
+      );
+    const motionLabel = BROLL_MOTION_UI_LABEL_ES[motion] || motion;
+
+    setAcceptingBrollClipMap((prev) => ({ ...prev, [clipNum]: 'loading' }));
+    const workingMsg = `⏳ Creando escena B-Roll 4K · 60fps (${motionLabel}) desde la imagen inicial del Clip ${padded}...`;
+    setFlowStatusLog(workingMsg);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(workingMsg);
+
+    try {
+      const ctx = resolveDocServerFolderContext(currentDoc);
+      const expectedFileName = buildClipSixWordFileName(clip, currentDoc || null);
+      const candidateDataUrl =
+        typeof clip.imagePreviewUrl === 'string' &&
+        /^data:image\/(png|jpeg|jpg|webp);base64,/i.test(clip.imagePreviewUrl)
+          ? clip.imagePreviewUrl
+          : typeof clip.videoFrames?.[0] === 'string' &&
+            /^data:image\/(png|jpeg|jpg|webp);base64,/i.test(clip.videoFrames[0])
+          ? clip.videoFrames[0]
+          : undefined;
+      const apiBases = getMacMediaBridgeBases();
+
+      let serverHandled = false;
+      let lastServerError = '';
+      let lastStatusCode = 0;
+
+      for (const baseOrigin of apiBases) {
+        try {
+          const res = await fetch(`${baseOrigin}/api/flow/accept-initial-image-as-broll`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: ctx.docId,
+              folderPath: ctx.folderPath,
+              folderName: ctx.folderName,
+              docTitle: ctx.docTitle,
+              aspectRatio: ctx.aspectRatio,
+              clipNumber: clipNum,
+              motion,
+              durationSec: durSec,
+              expectedFileName,
+              imagePrompt: clip.imagePrompt || '',
+              videoPrompt: clip.videoPrompt || '',
+              narrationSegment: clip.narrationSegment || '',
+              discardedVideoFileName:
+                getEffectiveClipDiscardedFileName(clip) || clip.discardedVideoFileName || '',
+              videoDiscardedAt:
+                getEffectiveClipDiscardedAt(clip) || clip.videoDiscardedAt || 0,
+              ...(candidateDataUrl ? { imageDataUrl: candidateDataUrl } : {}),
+            }),
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.ok) {
+            if (res.status === 422 || res.status === 503 || !lastStatusCode) {
+              lastStatusCode = res.status;
+              if (data?.error) lastServerError = String(data.error);
+            } else if (!lastServerError && data?.error) {
+              lastServerError = String(data.error);
+            }
+            continue;
+          }
+
+          const acceptedAt = Math.max(
+            Date.now(),
+            Number(data.acceptedAt || 0),
+            Number(clip.videoDiscardedAt || 0) + 1,
+            Number(clip.videoDiscardOverriddenAt || 0) + 1,
+            Number(clip.videoSavedAt || 0) + 1,
+            Number(clip.promptUpdatedAt || 0) + 1
+          );
+          const resolvedMotion: BrollCameraMotion =
+            (data.motion as BrollCameraMotion) || motion;
+          const resolvedMotionLabel = BROLL_MOTION_UI_LABEL_ES[resolvedMotion] || resolvedMotion;
+          const prefixUrl = (u: string) =>
+            u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
+          const rawVideoUrl = prefixUrl(String(data.url || ''));
+          const fullVideoUrl = appendMediaVersionParam(
+            resolveRemoteFolderMediaUrl(rawVideoUrl) || rawVideoUrl,
+            acceptedAt
+          );
+          const rawRelFrameUrl = typeof data.frameUrl === 'string' ? data.frameUrl : '';
+          const prefixedFrameUrl = rawRelFrameUrl ? prefixUrl(rawRelFrameUrl) : '';
+          const fullFrameUrl = prefixedFrameUrl
+            ? appendMediaVersionParam(
+                resolveRemoteFolderMediaUrl(prefixedFrameUrl) || prefixedFrameUrl,
+                acceptedAt
+              )
+            : '';
+
+          if (typeof document !== 'undefined') {
+            const slotVid = document.querySelector<HTMLVideoElement>(
+              `[data-stage8-clip-slot="${clipNum}"] video[data-stage8-clip-video="true"]`
+            );
+            if (slotVid) {
+              const wasPlaying = !slotVid.paused && !slotVid.ended;
+              try {
+                slotVid.pause();
+              } catch {}
+              if (wasPlaying) {
+                autoPlayStage8ClipRef.current = clipNum;
+              }
+            }
+          }
+
+          setDiscardedClipVideosMap((prev) => {
+            if (!(clipNum in prev)) return prev;
+            const next = { ...prev };
+            delete next[clipNum];
+            return next;
+          });
+          setDiscardedClipFramesMap((prev) => {
+            if (!(clipNum in prev)) return prev;
+            const next = { ...prev };
+            delete next[clipNum];
+            return next;
+          });
+          setPending4kClipNumbers((prev) =>
+            prev.includes(clipNum) ? prev.filter((n) => n !== clipNum) : prev
+          );
+          if (fullVideoUrl) {
+            setCapturedClipVideosMap((prev) => ({
+              ...prev,
+              [clipNum]: fullVideoUrl,
+            }));
+          }
+          if (fullFrameUrl) {
+            setCapturedClipFramesMap((prev) => ({
+              ...prev,
+              [clipNum]: fullFrameUrl,
+            }));
+          }
+          if (data.fileName) {
+            setFolderClipFileNamesMap((prev) => ({
+              ...prev,
+              [clipNum]: String(data.fileName),
+            }));
+          }
+          activateStage8ClipInPool(clipNum, false);
+
+          const latestDoc = activeDocRef.current || activeDoc;
+          if (latestDoc) {
+            const { clip1Sec: latestClip1Sec, standardClipSec: latestStdSec } =
+              getStage1ClipDurations(latestDoc);
+            const baseClips = hydrateClipsFromRawIfNeeded(
+              latestDoc,
+              latestClip1Sec,
+              latestStdSec
+            );
+            const safeRelFrameForDoc =
+              rawRelFrameUrl && rawRelFrameUrl.startsWith('/')
+                ? appendMediaVersionParam(rawRelFrameUrl, acceptedAt)
+                : '';
+            const nextClips = baseClips.map((c) => {
+              if (c.clipNumber !== clipNum) return c;
+              const wasRejectedOrDiscarded =
+                !isClipDiscardOverridden(c) &&
+                (c.videoAuditStatus === 'rejected' ||
+                  c.auditStatus === 'mismatch' ||
+                  Boolean(getEffectiveClipDiscardedFileName(c)));
+              const hadHealthyActiveVideo = Boolean(
+                (c.videoReady || c.videoSavedFileName) && !wasRejectedOrDiscarded
+              );
+              const preserveReviewed = Boolean(c.reviewedForEditor && hadHealthyActiveVideo);
+              const nextName = String(
+                data.fileName || c.videoSavedFileName || `${expectedFileName}_Broll_4K.mp4`
+              );
+              const cleanedPrevImg = /_Descartados_Auditoria/i.test(String(c.imagePreviewUrl || ''))
+                ? ''
+                : c.imagePreviewUrl;
+              const cleanedPrevFrames = Array.isArray(c.videoFrames)
+                ? c.videoFrames.filter((f) => !/_Descartados_Auditoria/i.test(String(f || '')))
+                : undefined;
+              const clipDurForRow = c.clipNumber === 1 ? latestClip1Sec : latestStdSec;
+              const brollTransformed = applyStaticBrollMotionToClip(
+                c,
+                true,
+                resolvedMotion,
+                clipDurForRow
+              );
+              return {
+                ...brollTransformed,
+                isStaticBroll: true,
+                brollCameraMotion: resolvedMotion,
+                promptUpdatedAt: acceptedAt,
+                videoSavedFileName: nextName,
+                videoSavedAt: acceptedAt,
+                videoDiscardOverriddenAt: acceptedAt,
+                discardedVideoFileName: undefined,
+                videoDiscardedAt: undefined,
+                videoReady: true,
+                imageReady: true,
+                imagePreviewUrl: safeRelFrameForDoc || cleanedPrevImg,
+                videoFrames: safeRelFrameForDoc
+                  ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
+                  : cleanedPrevFrames,
+                reviewedForEditor: preserveReviewed,
+                ...(preserveReviewed !== Boolean(c.reviewedForEditor)
+                  ? {
+                      reviewedUpdatedAt: Math.max(
+                        acceptedAt,
+                        Number(c.reviewedUpdatedAt || 0) + 1
+                      ),
+                    }
+                  : {}),
+                auditStatus: 'ok' as const,
+                auditReason: '🖼️ Imagen inicial aceptada como B-Roll 4K 60fps.',
+                videoAuditStatus: 'approved' as const,
+                videoAuditReason: '',
+                videoAuditIssues: [],
+                suggestedImagePrompt: undefined,
+                suggestedVideoPrompt: undefined,
+              };
+            });
+            const activeEngine =
+              latestDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+            const nextHeader = applyFlowVideoEngineToDirectiveText(
+              latestDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+              activeEngine
+            );
+            updateActiveDoc({
+              operationalHeader: nextHeader,
+              clips: nextClips,
+              rawClipsText: safeRebuildRawClipsText({
+                clips: nextClips,
+                previousRawText: latestDoc.rawClipsText || '',
+                operationalHeader: nextHeader,
+                engineMode: activeEngine,
+                clip1Sec: latestClip1Sec,
+                standardClipSec: latestStdSec,
+              }),
+            });
+          }
+
+          const okMsg = `🖼️ Clip ${padded} convertido a B-Roll 4K · 60fps (${resolvedMotionLabel}) usando su imagen inicial (${data.fileName || `${expectedFileName}_Broll_4K.mp4`}).`;
+          setFlowStatusLog(okMsg);
+          setBridgeStatusType('SUCCESS');
+          setBridgeStatusMsg(okMsg);
+          serverHandled = true;
+          break;
+        } catch (bridgeErr: any) {
+          if (!lastServerError && bridgeErr?.message) {
+            lastServerError = String(bridgeErr.message);
+          }
+        }
+      }
+
+      if (!serverHandled) {
+        const errMsg =
+          lastStatusCode === 503
+            ? `☁️ La imagen inicial del Clip ${padded} está en iCloud Drive pendiente de descargar en Mac: ${lastServerError || 'Abre la carpeta en Finder y reintenta.'}`
+            : lastStatusCode === 422
+            ? `⚠️ ${lastServerError || `El Clip ${padded} aún no tiene imagen inicial ni video en disco. Genera o descarga primero la imagen en Flow antes de aceptarla como B-Roll.`}`
+            : lastServerError
+            ? `⚠️ No se pudo crear el B-Roll 4K del Clip ${padded}: ${lastServerError}`
+            : `⚠️ No se pudo conectar con el servidor Mac para crear el B-Roll 4K del Clip ${padded}.`;
+        setFlowStatusLog(errMsg);
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(errMsg);
+        setAcceptingBrollClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+        return;
+      }
+
+      setAcceptingBrollClipMap((prev) => ({ ...prev, [clipNum]: 'done' }));
+      setTimeout(() => {
+        setAcceptingBrollClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+      }, 3000);
+    } catch (err: any) {
+      setAcceptingBrollClipMap((prev) => {
+        const copy = { ...prev };
+        delete copy[clipNum];
+        return copy;
+      });
+      const failMsg = `❌ Error al aceptar la imagen inicial del Clip ${padded} como B-Roll: ${err?.message || 'Error'}`;
+      setFlowStatusLog(failMsg);
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg(failMsg);
+    }
+  };
+
+  // Stage 6 Camera Motion Selector: Updates prompt + state and live-rerenders _Broll_4K.mp4 if active on disk
+  const handleChangeStage6BrollMotion = async (
+    clip: DocumentaryClip,
+    realIdx: number,
+    nextMotion: BrollCameraMotion
+  ) => {
+    const currentDoc = activeDocRef.current || activeDoc;
+    if (!currentDoc) return;
+    const clipNum = clip.clipNumber;
+    const padded = String(clipNum).padStart(2, '0');
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(currentDoc);
+    const durSec = clipNum === 1 ? clip1Sec : standardClipSec;
+    const nowTs = Math.max(Date.now(), Number(clip.promptUpdatedAt || 0) + 1);
+    const baseCardClips = hydrateClipsFromRawIfNeeded(currentDoc, clip1Sec, standardClipSec);
+    const hydratedSelf = baseCardClips.find((c) => c.clipNumber === clipNum) || clip;
+    const updatedClip = {
+      ...applyStaticBrollMotionToClip(hydratedSelf, true, nextMotion, durSec),
+      promptUpdatedAt: nowTs,
+    };
+    const nextClips = baseCardClips.map((c, cIdx) =>
+      c.clipNumber === clipNum || cIdx === realIdx ? updatedClip : c
+    );
+    const activeEngine = currentDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+    const nextHeader = applyFlowVideoEngineToDirectiveText(
+      currentDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      activeEngine
+    );
+    updateActiveDoc({
+      operationalHeader: nextHeader,
+      clips: nextClips,
+      rawClipsText: safeRebuildRawClipsText({
+        clips: nextClips,
+        previousRawText: currentDoc.rawClipsText || '',
+        operationalHeader: nextHeader,
+        engineMode: activeEngine,
+        clip1Sec,
+        standardClipSec,
+      }),
+    });
+
+    const currentActiveFileName =
+      folderClipFileNamesMapRef.current[clipNum] || clip.videoSavedFileName || '';
+    const currentActiveUrl = capturedClipVideosMapRef.current[clipNum] || '';
+    const hasActiveBrollVideo =
+      Boolean(currentActiveUrl || currentActiveFileName) &&
+      /_broll_4k\.(mp4|mov|webm)/i.test(`${currentActiveFileName} ${currentActiveUrl}`);
+
+    if (!hasActiveBrollVideo) return;
+
+    const motionLabel = BROLL_MOTION_UI_LABEL_ES[nextMotion] || nextMotion;
+    setAcceptingBrollClipMap((prev) => ({ ...prev, [clipNum]: 'loading' }));
+    setFlowStatusLog(
+      `🎥 Re-renderizando movimiento B-Roll 4K · 60fps (${motionLabel}) para el Clip ${padded}...`
+    );
+
+    try {
+      const ctx = resolveDocServerFolderContext(currentDoc);
+      const apiBases = getMacMediaBridgeBases();
+      let renderedData: any = null;
+      let chosenOrigin = '';
+      let lastErr = '';
+
+      for (const baseOrigin of apiBases) {
+        try {
+          const resp = await fetch(`${baseOrigin}/api/flow/rerender-broll-clip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docId: ctx.docId,
+              folderPath: ctx.folderPath,
+              folderName: ctx.folderName,
+              docTitle: ctx.docTitle,
+              aspectRatio: ctx.aspectRatio,
+              clipNumber: clipNum,
+              motion: nextMotion,
+              durationSec: durSec,
+              imagePrompt: updatedClip.imagePrompt || clip.imagePrompt || '',
+              currentFileName: currentActiveFileName,
+            }),
+          });
+          const data = await resp.json().catch(() => null);
+          if (resp.ok && data?.ok && data.url) {
+            renderedData = data;
+            chosenOrigin = baseOrigin;
+            break;
+          }
+          if (data?.error) lastErr = String(data.error);
+        } catch (e: any) {
+          if (!lastErr && e?.message) lastErr = String(e.message);
+        }
+      }
+
+      if (!renderedData) {
+        const warnMsg = `⚠️ Movimiento B-Roll cambiado a ${motionLabel} en prompts, pero no se pudo re-renderizar el MP4 en vivo: ${lastErr || 'Sin respuesta del servidor Mac'}`;
+        setFlowStatusLog(warnMsg);
+        setAcceptingBrollClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+        return;
+      }
+
+      const rerenderTs = Math.max(
+        Date.now(),
+        Number(renderedData.acceptedAt || 0),
+        nowTs + 1
+      );
+      const prefixUrl = (u: string) =>
+        u && u.startsWith('/') && chosenOrigin ? `${chosenOrigin}${u}` : u;
+      const rawVidUrl = prefixUrl(String(renderedData.url || ''));
+      const fullVidUrl = appendMediaVersionParam(
+        resolveRemoteFolderMediaUrl(rawVidUrl) || rawVidUrl,
+        rerenderTs
+      );
+      const rawFrameRel =
+        typeof renderedData.frameUrl === 'string' ? renderedData.frameUrl : '';
+      const prefFrameUrl = rawFrameRel ? prefixUrl(rawFrameRel) : '';
+      const fullFrameUrl = prefFrameUrl
+        ? appendMediaVersionParam(
+            resolveRemoteFolderMediaUrl(prefFrameUrl) || prefFrameUrl,
+            rerenderTs
+          )
+        : '';
+
+      if (typeof document !== 'undefined') {
+        const slotVid = document.querySelector<HTMLVideoElement>(
+          `[data-stage8-clip-slot="${clipNum}"] video[data-stage8-clip-video="true"]`
+        );
+        if (slotVid) {
+          const wasPlaying = !slotVid.paused && !slotVid.ended;
+          try {
+            slotVid.pause();
+          } catch {}
+          if (wasPlaying) {
+            autoPlayStage8ClipRef.current = clipNum;
+          }
+        }
+      }
+
+      if (fullVidUrl) {
+        setCapturedClipVideosMap((prev) => ({ ...prev, [clipNum]: fullVidUrl }));
+      }
+      if (fullFrameUrl) {
+        setCapturedClipFramesMap((prev) => ({ ...prev, [clipNum]: fullFrameUrl }));
+      }
+      if (renderedData.fileName) {
+        setFolderClipFileNamesMap((prev) => ({
+          ...prev,
+          [clipNum]: String(renderedData.fileName),
+        }));
+      }
+
+      const latestAfter = activeDocRef.current || activeDoc;
+      if (latestAfter && Array.isArray(latestAfter.clips)) {
+        const syncedClips = latestAfter.clips.map((c) =>
+          c.clipNumber === clipNum
+            ? {
+                ...c,
+                brollCameraMotion: nextMotion,
+                promptUpdatedAt: Math.max(rerenderTs, Number(c.promptUpdatedAt || 0)),
+                videoSavedFileName: String(renderedData.fileName || c.videoSavedFileName || ''),
+                videoSavedAt: Math.max(rerenderTs, Number(c.videoSavedAt || 0)),
+              }
+            : c
+        );
+        updateActiveDoc({ clips: syncedClips });
+      }
+
+      const doneMsg = `✅ Cámara óptica B-Roll del Clip ${padded} actualizada en vivo a ${motionLabel} (4K · 60fps).`;
+      setFlowStatusLog(doneMsg);
+      setBridgeStatusType('SUCCESS');
+      setBridgeStatusMsg(doneMsg);
+      setAcceptingBrollClipMap((prev) => ({ ...prev, [clipNum]: 'done' }));
+      setTimeout(() => {
+        setAcceptingBrollClipMap((prev) => {
+          const copy = { ...prev };
+          delete copy[clipNum];
+          return copy;
+        });
+      }, 2500);
+    } catch (err: any) {
+      setAcceptingBrollClipMap((prev) => {
+        const copy = { ...prev };
+        delete copy[clipNum];
+        return copy;
+      });
     }
   };
 
@@ -22405,14 +22904,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       : clip.narrationSegment || '⚠️ Sin fragmento de voz asignado'}
                                   </p>
 
-                                  {/* Quick 1-Click Toggles for Recreado & Revisado directly on the Timeline Card */}
+                                  {/* Quick 1-Click Toggles for Recreado, Img→B-Roll & Revisado directly on the Timeline Card */}
                                   <div
-                                    className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-800/80"
+                                    className="flex items-center justify-between gap-1 flex-wrap pt-1.5 border-t border-slate-800/80"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <button
                                       type="button"
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         const next = allClipsList.map((c) =>
                                           c.id === clip.id ? { ...c, recreated: !isRecreated } : c
                                         );
@@ -22427,6 +22927,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     >
                                       {isRecreated ? '🔄 Recreado ✓' : '🔄 Recreado'}
                                     </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                      }
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void handleAcceptInitialImageAsBroll(clip);
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition ${
+                                        acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                          ? 'bg-cyan-500/25 text-cyan-200 border-cyan-400/50 animate-pulse cursor-wait'
+                                          : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                          ? 'bg-cyan-400 text-slate-950 border-cyan-200'
+                                          : 'bg-cyan-950/80 hover:bg-cyan-800/80 text-cyan-200 border-cyan-400/55'
+                                      }`}
+                                      title={`Aceptar la imagen inicial del Clip ${padded} como escena B-Roll 4K · 60fps sin regenerar en Flow`}
+                                    >
+                                      {acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                        ? '⏳ B-Roll 4K...'
+                                        : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                        ? '✨ B-Roll ✓'
+                                        : '🖼️ Img→B-Roll'}
+                                    </button>
                                     {(canOverrideClipDiscard(clip) ||
                                       Boolean(overridingDiscardClipMap[clip.clipNumber])) && (
                                       <button
@@ -22434,7 +22958,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         disabled={
                                           overridingDiscardClipMap[clip.clipNumber] === 'loading'
                                         }
-                                        onClick={() => handleOverrideClipDiscard(clip)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void handleOverrideClipDiscard(clip);
+                                        }}
                                         className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition ${
                                           overridingDiscardClipMap[clip.clipNumber] === 'loading'
                                             ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50 animate-pulse cursor-wait'
@@ -22980,6 +23507,49 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     </button>
                                   )}
 
+                                  {/* Botón Aceptar Imagen como B-Roll (disponible en TODOS los clips): Renderiza 4K 60fps desde la imagen inicial sin regenerar en Flow */}
+                                  {(() => {
+                                    const isRenderedBrollActive = Boolean(
+                                      clip.isStaticBroll &&
+                                        /_broll_4k\.(mp4|mov|webm)/i.test(
+                                          `${folderClipFileNamesMap[clip.clipNumber] || ''} ${
+                                            clip.videoSavedFileName || ''
+                                          } ${capturedClipVideosMap[clip.clipNumber] || ''}`
+                                        )
+                                    );
+                                    const brollState = acceptingBrollClipMap[clip.clipNumber];
+                                    return (
+                                      <button
+                                        type="button"
+                                        disabled={brollState === 'loading'}
+                                        onClick={() => void handleAcceptInitialImageAsBroll(clip)}
+                                        className={`py-1 px-3 rounded-lg border text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow shrink-0 ${
+                                          brollState === 'loading'
+                                            ? 'bg-cyan-500/30 border-cyan-300 text-cyan-100 animate-pulse cursor-wait'
+                                            : brollState === 'done'
+                                            ? 'bg-cyan-400 text-slate-950 border-cyan-200 shadow-cyan-500/25'
+                                            : isRenderedBrollActive
+                                            ? 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 border-cyan-400/60 shadow-cyan-500/15'
+                                            : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950 border-cyan-200 shadow-cyan-500/20'
+                                        }`}
+                                        title={`Convertir el Clip ${paddedNum} en escena B-Roll 4K · 60fps usando su imagen inicial (o fotograma inicial) sin tener que regenerar video en Google Flow`}
+                                      >
+                                        {brollState === 'loading' ? (
+                                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <ImageIcon className="w-3.5 h-3.5" />
+                                        )}
+                                        {brollState === 'loading'
+                                          ? '⏳ Creando B-Roll 4K...'
+                                          : brollState === 'done'
+                                          ? '✨ B-Roll 4K Listo'
+                                          : isRenderedBrollActive
+                                          ? '🖼️ Re-aplicar Imagen B-Roll'
+                                          : '🖼️ Aceptar Imagen como B-Roll'}
+                                      </button>
+                                    );
+                                  })()}
+
                                   {/* Botón Cargar Clip: Busca la última versión generada en la carpeta de clips, la mejora a 4K y la actualiza en el documental */}
                                   <button
                                     type="button"
@@ -23219,51 +23789,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         ? 'bg-sky-400 text-slate-950 border-sky-200 shadow'
                                         : 'bg-slate-900 hover:bg-slate-800 border-sky-500/40 text-sky-300'
                                     }`}
-                                    title="Convertir este clip en Imagen Estática en B-Roll con movimiento puro de cámara (Zoom In, Zoom Out, Pan o Tilt) en Lower Priority"
+                                    title="Conmutar modo de Prompt B-Roll (solo imagen en Google Flow, sin generar clip de video IA). Para convertir inmediatamente una imagen inicial ya existente en video B-Roll 4K, usa el botón '🖼️ Aceptar Imagen como B-Roll'."
                                   >
-                                    {clip.isStaticBroll ? '🖼️ B-Roll Estático ✓' : '🖼️ B-Roll'}
+                                    {clip.isStaticBroll ? '🖼️ Prompt B-Roll ✓' : '🖼️ Prompt B-Roll'}
                                   </button>
 
                                   {clip.isStaticBroll && (
                                     <select
                                       value={clip.brollCameraMotion || 'zoom_in'}
+                                      disabled={acceptingBrollClipMap[clip.clipNumber] === 'loading'}
                                       onChange={(e) => {
-                                        const nextMotion = e.target.value as BrollCameraMotion;
-                                        const baseCardClips = hydrateClipsFromRawIfNeeded(
-                                          activeDoc,
-                                          cardClip1Sec,
-                                          cardStdSec
+                                        void handleChangeStage6BrollMotion(
+                                          clip,
+                                          realIdx,
+                                          e.target.value as BrollCameraMotion
                                         );
-                                        const hydratedSelf =
-                                          baseCardClips.find((c) => c.clipNumber === clip.clipNumber) || clip;
-                                        const updatedClip = applyStaticBrollMotionToClip(
-                                          hydratedSelf,
-                                          true,
-                                          nextMotion,
-                                          cardClipDurSec
-                                        );
-                                        const nextClips = baseCardClips.map((c, cIdx) =>
-                                          c.clipNumber === clip.clipNumber || cIdx === realIdx ? updatedClip : c
-                                        );
-                                        const nextHeader = applyFlowVideoEngineToDirectiveText(
-                                          activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
-                                          activeEngineMode
-                                        );
-                                        updateActiveDoc({
-                                          operationalHeader: nextHeader,
-                                          clips: nextClips,
-                                          rawClipsText: safeRebuildRawClipsText({
-                                            clips: nextClips,
-                                            previousRawText: activeDoc.rawClipsText || '',
-                                            operationalHeader: nextHeader,
-                                            engineMode: activeEngineMode,
-                                            clip1Sec: cardClip1Sec,
-                                            standardClipSec: cardStdSec,
-                                          }),
-                                        });
                                       }}
-                                      className="bg-sky-950/80 border border-sky-400/60 rounded px-1.5 py-0.5 text-[10px] font-black text-sky-200 cursor-pointer"
-                                      title="Tipo de movimiento de cámara sobre la imagen estática en B-Roll"
+                                      className="bg-sky-950/80 border border-sky-400/60 rounded px-1.5 py-0.5 text-[10px] font-black text-sky-200 cursor-pointer disabled:opacity-60"
+                                      title="Tipo de movimiento óptico 4K · 60fps sobre la imagen B-Roll (si ya tiene MP4 B-Roll activo, lo re-renderiza en vivo)"
                                     >
                                       <option value="zoom_in">🔍 Zoom In</option>
                                       <option value="zoom_out">🔎 Zoom Out</option>
@@ -23374,6 +23917,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       : `⚠️ Observación en el Clip ${paddedNum} (${clip.timeRange || 'S/T'})`}
                                   </span>
                                   <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                      }
+                                      onClick={() => void handleAcceptInitialImageAsBroll(clip)}
+                                      className="px-2.5 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-[11px] border border-cyan-200 cursor-pointer transition flex items-center gap-1 shadow-md disabled:opacity-60"
+                                      title={`Aceptar la imagen inicial del Clip ${paddedNum} como escena B-Roll 4K · 60fps en vez de regenerar el video en Flow`}
+                                    >
+                                      {acceptingBrollClipMap[clip.clipNumber] === 'loading' ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <ImageIcon className="w-3 h-3" />
+                                      )}
+                                      {acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                        ? '⏳ Creando B-Roll 4K...'
+                                        : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                        ? '✨ B-Roll 4K Listo'
+                                        : '🖼️ Aceptar Imagen Inicial como B-Roll'}
+                                    </button>
                                     {canOverrideClipDiscard(clip) && (
                                       <button
                                         type="button"
@@ -23624,6 +24187,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             <div className="px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
                                               <span>⚠️ Video descartado — referencia visual</span>
                                             </div>
+                                            <button
+                                              type="button"
+                                              disabled={
+                                                acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                              }
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleAcceptInitialImageAsBroll(clip);
+                                              }}
+                                              className="px-2.5 py-1 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 border border-cyan-200 text-[10px] font-black cursor-pointer transition flex items-center gap-1 shadow-lg disabled:opacity-60"
+                                              title={`Usar la imagen inicial del Clip ${paddedNum} como escena B-Roll 4K · 60fps en lugar del video descartado`}
+                                            >
+                                              {acceptingBrollClipMap[clip.clipNumber] ===
+                                              'loading' ? (
+                                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                              ) : (
+                                                <ImageIcon className="w-3 h-3" />
+                                              )}
+                                              <span>
+                                                {acceptingBrollClipMap[clip.clipNumber] ===
+                                                'loading'
+                                                  ? '⏳ Creando B-Roll 4K...'
+                                                  : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                                  ? '✨ B-Roll 4K Listo'
+                                                  : '🖼️ Usar Imagen Inicial como B-Roll'}
+                                              </span>
+                                            </button>
                                             {canOverrideClipDiscard(clip) && (
                                               <button
                                                 type="button"
@@ -23688,6 +24278,33 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             <div className="px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-400/60 text-rose-200 text-[10px] font-bold flex items-center gap-1.5 shadow-lg">
                                               <span>⚠️ Video descartado — referencia visual</span>
                                             </div>
+                                            <button
+                                              type="button"
+                                              disabled={
+                                                acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                              }
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleAcceptInitialImageAsBroll(clip);
+                                              }}
+                                              className="px-2.5 py-1 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 border border-cyan-200 text-[10px] font-black cursor-pointer transition flex items-center gap-1 shadow-lg disabled:opacity-60"
+                                              title={`Usar la imagen inicial del Clip ${paddedNum} como escena B-Roll 4K · 60fps en lugar del video descartado`}
+                                            >
+                                              {acceptingBrollClipMap[clip.clipNumber] ===
+                                              'loading' ? (
+                                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                              ) : (
+                                                <ImageIcon className="w-3 h-3" />
+                                              )}
+                                              <span>
+                                                {acceptingBrollClipMap[clip.clipNumber] ===
+                                                'loading'
+                                                  ? '⏳ Creando B-Roll 4K...'
+                                                  : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                                  ? '✨ B-Roll 4K Listo'
+                                                  : '🖼️ Usar Imagen Inicial como B-Roll'}
+                                              </span>
+                                            </button>
                                             {canOverrideClipDiscard(clip) && (
                                               <button
                                                 type="button"
@@ -23780,6 +24397,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       </>
                                     ) : null}
                                     <div className="flex items-center gap-2 flex-wrap justify-center">
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                        }
+                                        onClick={() => void handleAcceptInitialImageAsBroll(clip)}
+                                        className="px-4 py-2 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 border border-cyan-200 text-xs font-black cursor-pointer shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 disabled:opacity-60"
+                                        title={`Convertir la imagen inicial del Clip ${paddedNum} en escena B-Roll 4K · 60fps sin regenerar video en Google Flow`}
+                                      >
+                                        {acceptingBrollClipMap[clip.clipNumber] === 'loading' ? (
+                                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <ImageIcon className="w-3.5 h-3.5" />
+                                        )}
+                                        {acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                          ? '⏳ Creando B-Roll 4K...'
+                                          : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                          ? '✨ B-Roll 4K Listo'
+                                          : '🖼️ Aceptar Imagen Inicial como B-Roll 4K'}
+                                      </button>
                                       {canOverrideClipDiscard(clip) && (
                                         <button
                                           type="button"
@@ -23972,12 +24609,48 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       <span className="text-xs font-black text-amber-300">
                                         🎥 Cámara Óptica Local 4K · 60fps (Sin Clip en Google Flow)
                                       </span>
-                                      <span className="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-400/40 text-[11px] font-bold text-sky-200">
-                                        {BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in']}
-                                      </span>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <select
+                                          value={clip.brollCameraMotion || 'zoom_in'}
+                                          disabled={
+                                            acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                          }
+                                          onChange={(e) => {
+                                            void handleChangeStage6BrollMotion(
+                                              clip,
+                                              realIdx,
+                                              e.target.value as BrollCameraMotion
+                                            );
+                                          }}
+                                          className="px-2 py-0.5 rounded bg-sky-950/90 border border-sky-400/60 text-[11px] font-bold text-sky-200 cursor-pointer disabled:opacity-60"
+                                          title="Cambiar movimiento óptico 4K · 60fps (si el clip ya tiene MP4 B-Roll activo, lo re-renderiza en vivo)"
+                                        >
+                                          <option value="zoom_in">🔍 Zoom In</option>
+                                          <option value="zoom_out">🔎 Zoom Out</option>
+                                          <option value="pan_right">➡️ Pan Derecha</option>
+                                          <option value="pan_left">⬅️ Pan Izquierda</option>
+                                          <option value="tilt_up">⬆️ Tilt Arriba</option>
+                                          <option value="tilt_down">⬇️ Tilt Abajo</option>
+                                        </select>
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                          }
+                                          onClick={() => void handleAcceptInitialImageAsBroll(clip)}
+                                          className="px-2.5 py-0.5 rounded bg-cyan-400 hover:bg-cyan-300 text-slate-950 border border-cyan-200 text-[11px] font-black cursor-pointer transition disabled:opacity-60"
+                                          title={`Materializar o re-aplicar la imagen inicial del Clip ${paddedNum} como video B-Roll 4K · 60fps`}
+                                        >
+                                          {acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                            ? '⏳ Creando B-Roll 4K...'
+                                            : acceptingBrollClipMap[clip.clipNumber] === 'done'
+                                            ? '✨ B-Roll 4K Listo'
+                                            : '🖼️ Generar / Actualizar B-Roll 4K'}
+                                        </button>
+                                      </div>
                                     </div>
                                     <p className="text-xs text-amber-100/90 leading-relaxed">
-                                      Para esta escena B-Roll, <strong>Google Flow solo genera la imagen fija</strong> (Nano Banana 2.1, sin gastar créditos ni tiempo en Veo/Omni). Al pulsar <strong>⚡ Procesar Clips</strong> o <strong>📥 Cargar Clip</strong>, nuestra app aplica localmente el movimiento óptico <strong>{BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in']}</strong> en <strong>4K UHD a 60fps</strong> ({cardClipDurSec}s, audio Foley 0%) y podrás cambiarlo en vivo desde el Editor de Video.
+                                      Para esta escena B-Roll, <strong>Google Flow solo genera la imagen fija</strong> (Nano Banana 2.1, sin gastar créditos ni tiempo en Veo/Omni). Al pulsar <strong>🖼️ Aceptar Imagen como B-Roll</strong>, <strong>⚡ Procesar Clips</strong> o <strong>📥 Cargar Clip</strong>, nuestra app aplica localmente el movimiento óptico <strong>{BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in']}</strong> en <strong>4K UHD a 60fps</strong> ({cardClipDurSec}s, audio Foley 0%) y podrás cambiarlo en vivo aquí o en el Editor de Video.
                                     </p>
                                   </div>
                                   <div className="text-[11px] text-amber-300/80 font-mono">
@@ -23996,6 +24669,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       + Foley)
                                     </span>
                                     <div className="flex items-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                        }
+                                        onClick={() => void handleAcceptInitialImageAsBroll(clip)}
+                                        className="px-2.5 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-[11px] text-cyan-200 font-bold cursor-pointer disabled:opacity-60"
+                                        title={`Si este clip da problema al generar video en Flow, acepta directamente su imagen inicial como escena B-Roll 4K · 60fps`}
+                                      >
+                                        {acceptingBrollClipMap[clip.clipNumber] === 'loading'
+                                          ? '⏳ Creando B-Roll 4K...'
+                                          : '🖼️ Aceptar Imagen como B-Roll'}
+                                      </button>
                                       <button
                                         type="button"
                                         onClick={() =>

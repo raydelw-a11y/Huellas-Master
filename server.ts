@@ -788,11 +788,6 @@ function mergeServerClipsPreservingAuthored(
     const useOtherPrompt =
       rescuePrompts ||
       (oHasReal && Number(o.promptUpdatedAt || 0) > Number(c.promptUpdatedAt || 0));
-    const resolvedIsBroll = useOtherPrompt
-      ? typeof o.isStaticBroll === 'boolean'
-        ? o.isStaticBroll
-        : c.isStaticBroll
-      : c.isStaticBroll;
     const hasAuthoredAfterMerge = wHasReal || rescuePrompts;
 
     const cDiscAt = Number(c.videoDiscardedAt || 0);
@@ -859,6 +854,29 @@ function mergeServerClipsPreservingAuthored(
       !cValidFile &&
       !oValidFile;
 
+    const winningFile =
+      cValidFile && oValidFile && cValidFile !== oValidFile
+        ? Number(o.videoSavedAt || 0) > Number(c.videoSavedAt || 0)
+          ? oValidFile
+          : cValidFile
+        : cValidFile || oValidFile || '';
+    const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
+    const winningFileIsBroll =
+      !isActivelyRejected && Boolean(winningFile && /_broll_4k\.(?:mp4|mov|webm)$/i.test(winningFile));
+    const winningBrollSide = winningFileIsBroll && oValidFile === winningFile ? o : c;
+    const resolvedIsBroll = winningFileIsBroll
+      ? true
+      : useOtherPrompt
+        ? typeof o.isStaticBroll === 'boolean'
+          ? o.isStaticBroll
+          : c.isStaticBroll
+        : c.isStaticBroll;
+    const resolvedBrollMotion = winningFileIsBroll
+      ? winningBrollSide.brollCameraMotion || o.brollCameraMotion || c.brollCameraMotion || 'zoom_in'
+      : useOtherPrompt
+        ? o.brollCameraMotion || c.brollCameraMotion
+        : c.brollCameraMotion || o.brollCameraMotion;
+
     const cAuditReason = String(c.auditReason || '');
     const oAuditReason = String(o.auditReason || '');
     const needsAuditCleanup =
@@ -880,17 +898,30 @@ function mergeServerClipsPreservingAuthored(
               : 'Sincronizado con el tramo de voz narrativa.',
           }
       : {};
+    const nonBrollVidCandidate = [
+      c.previousVideoPrompt,
+      o.previousVideoPrompt,
+      c.videoPrompt,
+      o.videoPrompt,
+    ]
+      .map((v) => String(v || '').trim())
+      .find(
+        (v) =>
+          v.length > 0 &&
+          !/\[B-Roll\s*:\s*STATIC_/i.test(v) &&
+          !/STATIC\s+B-ROLL\s+PLATE\s+LOCK/i.test(v)
+      );
     const preservedPrevVid =
       c.previousVideoPrompt ||
       o.previousVideoPrompt ||
-      (resolvedIsBroll && (c.videoPrompt || o.videoPrompt) ? c.videoPrompt || o.videoPrompt : undefined);
+      (resolvedIsBroll && nonBrollVidCandidate ? nonBrollVidCandidate : undefined);
     const promptWinnerMeta = useOtherPrompt
       ? {
           imagePrompt: o.imagePrompt || c.imagePrompt,
           videoPrompt: resolvedIsBroll ? '' : o.videoPrompt || c.videoPrompt,
           ...(resolvedIsBroll && preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
           isStaticBroll: resolvedIsBroll,
-          brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
+          brollCameraMotion: resolvedBrollMotion,
           flowClipEngine: o.flowClipEngine || c.flowClipEngine,
           cameraSelection: o.cameraSelection || c.cameraSelection,
           visualExplanation: o.visualExplanation || c.visualExplanation,
@@ -905,6 +936,8 @@ function mergeServerClipsPreservingAuthored(
         }
       : resolvedIsBroll
         ? {
+            isStaticBroll: true,
+            ...(resolvedBrollMotion ? { brollCameraMotion: resolvedBrollMotion } : {}),
             videoPrompt: '',
             ...(preservedPrevVid ? { previousVideoPrompt: preservedPrevVid } : {}),
           }
@@ -939,13 +972,6 @@ function mergeServerClipsPreservingAuthored(
       };
     }
 
-    const winningFile =
-      cValidFile && oValidFile && cValidFile !== oValidFile
-        ? Number(o.videoSavedAt || 0) > Number(c.videoSavedAt || 0)
-          ? oValidFile
-          : cValidFile
-        : cValidFile || oValidFile || '';
-    const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
     const isRejectionSuperseded =
       Boolean(winningFile) && (isDiscardOverridden || winningSavedAt > rawDiscAt);
     const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
@@ -13883,9 +13909,227 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
 });
 
 // ============================================================================
-// LIVE B-ROLL CAMERA RE-RENDERER FOR CAPCUT EDITOR (~1.8s 4K 60FPS)
+// LIVE B-ROLL CAMERA RE-RENDERER & ACCEPT INITIAL IMAGE AS B-ROLL (4K 60FPS)
 // ============================================================================
 const activeBrollRerenderLocks = new Map<string, Promise<any>>();
+
+const SERVER_BROLL_MOTION_TAG_MAP: Record<ServerBrollCameraMotion, string> = {
+  zoom_in: 'STATIC_ZOOM_IN',
+  zoom_out: 'STATIC_ZOOM_OUT',
+  pan_right: 'STATIC_PAN_RIGHT',
+  pan_left: 'STATIC_PAN_LEFT',
+  tilt_up: 'STATIC_TILT_UP',
+  tilt_down: 'STATIC_TILT_DOWN',
+};
+
+function inferServerBrollMotion(
+  narration?: string,
+  visualHint?: string,
+  slotIndex: number = 0
+): ServerBrollCameraMotion {
+  const combined = `${narration || ''} ${visualHint || ''}`.toLowerCase();
+  const explicitMatch = combined.match(
+    /\b(?:static[_\s-]*)?(zoom[_\s-]*in|zoom[_\s-]*out|pan[_\s-]*right|pan[_\s-]*left|tilt[_\s-]*up|tilt[_\s-]*down)\b/i
+  );
+  if (explicitMatch) {
+    return normalizeServerBrollMotion(explicitMatch[1]);
+  }
+  if (
+    /\b(map|mapa|territory|territorio|border|frontera|route|ruta|journey|viaje|across|east|west|river|río|rio|horizon|horizonte|panorama|coast|costa)\b/i.test(
+      combined
+    )
+  ) {
+    return slotIndex % 2 === 0 ? 'pan_right' : 'pan_left';
+  }
+  if (
+    /\b(tower|torre|cathedral|catedral|monument|monumento|statue|estatua|column|columna|throne|trono|crown|corona|sky|cielo|ascend|rise|tall|alto)\b/i.test(
+      combined
+    )
+  ) {
+    return 'tilt_up';
+  }
+  if (
+    /\b(ruins|ruinas|grave|tumba|tomb|earth|tierra|ground|suelo|fall|caída|caida|aftermath|ashes|cenizas|foundation|cimientos)\b/i.test(
+      combined
+    )
+  ) {
+    return 'tilt_down';
+  }
+  if (
+    /\b(vast|vasto|empire|imperio|battlefield|overview|aerial|wide|amplio|kingdom|reino|cityscape|ciudad|fleet|flota|legacy|legado)\b/i.test(
+      combined
+    )
+  ) {
+    return 'zoom_out';
+  }
+  const cycle: ServerBrollCameraMotion[] = [
+    'zoom_in',
+    'pan_right',
+    'zoom_out',
+    'pan_left',
+    'tilt_up',
+    'zoom_in',
+  ];
+  return cycle[Math.abs(slotIndex) % cycle.length];
+}
+
+function formatServerBrollImagePromptLine(
+  rawImgPrompt: string,
+  clipNumber: number,
+  timeRange: string,
+  durationSec: number,
+  motion: ServerBrollCameraMotion
+): string {
+  const padded = String(clipNumber).padStart(2, '0');
+  const nextTag = `[B-Roll: ${SERVER_BROLL_MOTION_TAG_MAP[motion]}]`;
+  const trimmed = String(rawImgPrompt || '').trim();
+  if (!trimmed) {
+    const safeRange = String(timeRange || '').trim() || '0:00 - 0:08';
+    return `Image ${padded} (${safeRange} | ${durationSec}s) ${nextTag}: High-detail historical documentary archival plate, 8k photorealistic framing.`;
+  }
+  if (/\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(trimmed)) {
+    return trimmed.replace(/\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, nextTag);
+  }
+  const headerWithParens = trimmed.match(/^(Image\s+\d+\s*\([^)]*\))\s*:\s*(.*)$/is);
+  if (headerWithParens) {
+    return `${headerWithParens[1]} ${nextTag}: ${headerWithParens[2]}`;
+  }
+  const headerSimple = trimmed.match(/^(Image\s+\d+)\s*:\s*(.*)$/is);
+  if (headerSimple) {
+    return `${headerSimple[1]} ${nextTag}: ${headerSimple[2]}`;
+  }
+  return `${trimmed} ${nextTag}`;
+}
+
+function syncPromptsClipsFlowTxtForBrollClip(
+  resolvedRoot: string,
+  clipNumber: number,
+  updatedImagePrompt: string
+): void {
+  const promptsFile = path.join(resolvedRoot, '04_Prompts_Flow', 'Prompts_Clips_Flow.txt');
+  if (!fs.existsSync(promptsFile)) return;
+  try {
+    const rawTxt = fs.readFileSync(promptsFile, 'utf8');
+    let nextTxt = rawTxt.replace(
+      new RegExp(`(^|\\n)Image\\s+0*${clipNumber}\\b[^\\n]*`, 'i'),
+      `$1${updatedImagePrompt}`
+    );
+    nextTxt = nextTxt.replace(
+      new RegExp(`\\n(?:Generate\\s+a\\s+video|Video)\\s+0*${clipNumber}\\b[^\\n]*`, 'gi'),
+      ''
+    );
+    if (nextTxt !== rawTxt) {
+      writeFileAtomicUtf8(promptsFile, nextTxt);
+    }
+  } catch {}
+}
+
+async function extractFrameZeroLosslessPngToTmp(
+  videoPath: string,
+  paddedNum: string
+): Promise<string> {
+  const outPng = path.join(
+    os.tmpdir(),
+    `huellas_broll_frame0_${paddedNum}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`
+  );
+  const ffmpegBin = resolveFfmpegBin();
+  const runExtract = (args: string[]) =>
+    new Promise<void>((resolve, reject) => {
+      const proc = spawn(ffmpegBin, args, { stdio: 'ignore' });
+      proc.on('error', reject);
+      proc.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}`))
+      );
+    });
+  try {
+    await runExtract([
+      '-nostdin',
+      '-y',
+      '-i',
+      videoPath,
+      '-vf',
+      'select=eq(n\\,0)',
+      '-vsync',
+      '0',
+      '-frames:v',
+      '1',
+      outPng,
+    ]);
+  } catch {
+    await runExtract(['-nostdin', '-y', '-i', videoPath, '-frames:v', '1', outPng]);
+  }
+  return outPng;
+}
+
+function isIcloudPlaceholderName(entryName: string, st?: fs.Stats | null): boolean {
+  if (!entryName) return true;
+  if (entryName.endsWith('.icloud')) return true;
+  return st ? isDatalessIcloudStub(entryName, st) : false;
+}
+
+function isLooseClipImageEntryForClip(
+  entryName: string,
+  targetClipNumber: number,
+  clipsMeta: Array<{
+    clipNumber: number;
+    imagePrompt?: string;
+    videoPrompt?: string;
+    narrationSegment?: string;
+    expectedFileName?: string;
+  }> = []
+): boolean {
+  if (!/\.(png|jpg|jpeg|webp)$/i.test(entryName)) return false;
+  if (isTransientStagingEntry(entryName) || entryName.startsWith('@')) return false;
+  if (/^Ref_|_Imagen_Inicial_|_Broll_Source|miniatura|thumbnail/i.test(entryName)) return false;
+  const initMatch = entryName.match(/^(?:inicial|initial)[_\-\s.]*0*(\d+)(?:[_\-\s.(]|$)/i);
+  if (initMatch) return parseInt(initMatch[1], 10) === targetClipNumber;
+  if (!isEligibleBrollImageEntry(entryName)) return false;
+  const explicitBrollNum = parseExplicitBrollClipNumFromImageName(entryName);
+  if (explicitBrollNum > 0) return explicitBrollNum === targetClipNumber;
+  const leadNum = entryName.match(
+    /^(?:(?:clip|image|imagen|scene|escena)[_\-\s.]*)?0*(\d+)(?:[_\-\s.(]|$)/i
+  );
+  if (leadNum) return parseInt(leadNum[1], 10) === targetClipNumber;
+  if (clipsMeta.length > 0) {
+    return inferClipNumberFromFileName(entryName, clipsMeta) === targetClipNumber;
+  }
+  return false;
+}
+
+function extractSingleClipCandidatesFromZip(
+  zipFull: string,
+  targetClipNumber: number,
+  destDir: string,
+  clipsMeta: Array<{
+    clipNumber: number;
+    imagePrompt?: string;
+    videoPrompt?: string;
+    narrationSegment?: string;
+    expectedFileName?: string;
+  }> = []
+): void {
+  if (!fs.existsSync(zipFull)) return;
+  try {
+    const out = execFileSync('unzip', ['-Z1', zipFull], {
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    const matchedEntries = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(
+        (l) =>
+          l &&
+          !l.endsWith('/') &&
+          !l.startsWith('__MACOSX/') &&
+          !path.basename(l).startsWith('.') &&
+          isLooseClipImageEntryForClip(path.basename(l), targetClipNumber, clipsMeta)
+      );
+    if (matchedEntries.length === 0) return;
+    fs.mkdirSync(destDir, { recursive: true });
+    execFileSync('unzip', ['-o', '-j', '-q', zipFull, ...matchedEntries, '-d', destDir]);
+  } catch {}
+}
 
 app.post('/api/flow/rerender-broll-clip', async (req, res) => {
   try {
@@ -13908,11 +14152,21 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
       return;
     }
 
+    await waitForIcloudDriveReady(1500);
     const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
     if (!resolvedRoot || !fs.existsSync(resolvedRoot)) {
       res.status(400).json({
         ok: false,
         error: 'No se encontró la carpeta local del documental en tu Mac.',
+      });
+      return;
+    }
+    const rootReady = await ensureDocRootOpenable(resolvedRoot, 1500, 3000);
+    if (!rootReady) {
+      res.status(503).json({
+        ok: false,
+        code: 'ICLOUD_STUB_PENDING',
+        error: 'La carpeta del documental en iCloud Drive aún se está descargando.',
       });
       return;
     }
@@ -13930,147 +14184,239 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
       } catch {}
     }
 
-    const taskPromise = withClipLifecycleLock(resolvedRoot, clipNumber, async () => {
-      const paddedNum = String(clipNumber).padStart(2, '0');
-      const prefix = `${paddedNum}_`;
+    const taskPromise = withClipLifecycleLock(
+      resolvedRoot,
+      clipNumber,
+      async () => {
+        const paddedNum = String(clipNumber).padStart(2, '0');
+        const prefix = `${paddedNum}_`;
+        const clipNumPrefixRegex = new RegExp(`^0*${clipNumber}_`, 'i');
 
-      // 1. Locate archived high-res source image, or rescue frame 0 from existing video on disk
-      let sourceImgInfo = findArchivedBrollSourceImage(clipsDir, clipNumber);
-      let existingVideoOnDisk = '';
-      if (fs.existsSync(clipsDir)) {
-        for (const entry of fs.readdirSync(clipsDir)) {
-          if (/\.(mp4|mov|webm)$/i.test(entry) && entry.startsWith(prefix)) {
-            existingVideoOnDisk = path.join(clipsDir, entry);
-            break;
+        // 1. Locate archived high-res source image, or rescue frame 0 from existing/discarded video on disk
+        let sourceImgInfo = findArchivedBrollSourceImage(clipsDir, clipNumber);
+        let existingVideoOnDisk = '';
+        if (fs.existsSync(clipsDir)) {
+          for (const entry of fs.readdirSync(clipsDir)) {
+            if (
+              !isIcloudPlaceholderName(entry) &&
+              /\.(mp4|mov|webm)$/i.test(entry) &&
+              clipNumPrefixRegex.test(entry)
+            ) {
+              existingVideoOnDisk = path.join(clipsDir, entry);
+              break;
+            }
           }
         }
-      }
 
-      if (!sourceImgInfo && existingVideoOnDisk && fs.existsSync(existingVideoOnDisk)) {
-        const rescuePng = path.join(
+        if (!sourceImgInfo && existingVideoOnDisk && fs.existsSync(existingVideoOnDisk)) {
+          let rescuePng = '';
+          try {
+            rescuePng = await extractFrameZeroLosslessPngToTmp(existingVideoOnDisk, paddedNum);
+            if (fs.existsSync(rescuePng) && fs.statSync(rescuePng).size > 5000) {
+              const baseForRescue = buildBrollSixWordBaseName(
+                clipNumber,
+                imagePrompt,
+                currentFileName || path.basename(existingVideoOnDisk)
+              );
+              const archivedPath = archiveBrollSourceImage(clipsDir, clipNumber, rescuePng, {
+                motion,
+                durationSec,
+                aspectRatio,
+                baseName: baseForRescue,
+              });
+              sourceImgInfo = { imagePath: archivedPath };
+            }
+          } catch {
+          } finally {
+            try {
+              if (rescuePng && fs.existsSync(rescuePng)) fs.unlinkSync(rescuePng);
+            } catch {}
+          }
+        }
+
+        // Fallback to _Descartados_Auditoria if still no source
+        if (!sourceImgInfo) {
+          const discardedDir = path.join(clipsDir, '_Descartados_Auditoria');
+          if (fs.existsSync(discardedDir)) {
+            const discEntries = fs
+              .readdirSync(discardedDir)
+              .filter((e) => !isIcloudPlaceholderName(e));
+            const discBrollSrc = discEntries.find((e) =>
+              new RegExp(`^0*${clipNumber}_Broll_Source\\.(png|jpg|jpeg|webp)$`, 'i').test(e)
+            );
+            const discInitImg = discEntries
+              .filter((e) =>
+                new RegExp(`^0*${clipNumber}_Imagen_Inicial_.*\\.(png|jpg|jpeg|webp)$`, 'i').test(e)
+              )
+              .sort((a, b) => {
+                try {
+                  return (
+                    fs.statSync(path.join(discardedDir, b)).mtimeMs -
+                    fs.statSync(path.join(discardedDir, a)).mtimeMs
+                  );
+                } catch {
+                  return 0;
+                }
+              })[0];
+            const chosenDiscImg = discBrollSrc || discInitImg;
+            if (chosenDiscImg) {
+              const fullDiscImg = path.join(discardedDir, chosenDiscImg);
+              if (fs.existsSync(fullDiscImg) && fs.statSync(fullDiscImg).size > 5000) {
+                const baseForDisc = buildBrollSixWordBaseName(
+                  clipNumber,
+                  imagePrompt,
+                  currentFileName
+                );
+                const archivedPath = archiveBrollSourceImage(clipsDir, clipNumber, fullDiscImg, {
+                  motion,
+                  durationSec,
+                  aspectRatio,
+                  baseName: baseForDisc,
+                });
+                sourceImgInfo = { imagePath: archivedPath };
+              }
+            }
+          }
+        }
+
+        if (!sourceImgInfo || !fs.existsSync(sourceImgInfo.imagePath)) {
+          throw new Error(
+            `No se encontró la imagen fuente de la Escena B-Roll ${paddedNum} en _broll_sources ni en 05_Clips_Video.`
+          );
+        }
+
+        const canonicalBase =
+          sourceImgInfo.meta?.baseName ||
+          buildBrollSixWordBaseName(
+            clipNumber,
+            imagePrompt,
+            currentFileName || (existingVideoOnDisk ? path.basename(existingVideoOnDisk) : '')
+          );
+
+        archiveBrollSourceImage(clipsDir, clipNumber, sourceImgInfo.imagePath, {
+          motion,
+          durationSec,
+          aspectRatio,
+          baseName: canonicalBase,
+        });
+
+        const finalBrollName = `${canonicalBase}_Broll_4K.mp4`;
+        const finalBrollFull = path.join(clipsDir, finalBrollName);
+        const suffixWithoutNum =
+          canonicalBase.replace(/^\d+_/, '') || `Clip_${paddedNum}_Broll_Escena_Fija`;
+        const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+        const frameFull = path.join(clipsDir, frameFileName);
+        const tmpBrollFull = path.join(
           os.tmpdir(),
-          `huellas_broll_rescue_${paddedNum}_${Date.now()}.png`
+          `huellas_rerender_broll_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
         );
+
         try {
-          const ffmpegBin = resolveFfmpegBin();
-          await new Promise<void>((resolve, reject) => {
-            const proc = spawn(
-              ffmpegBin,
-              ['-nostdin', '-y', '-i', existingVideoOnDisk, '-frames:v', '1', rescuePng],
-              { stdio: 'ignore' }
-            );
-            proc.on('error', reject);
-            proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(String(code)))));
-          });
-          if (fs.existsSync(rescuePng) && fs.statSync(rescuePng).size > 5000) {
-            const baseForRescue = buildBrollSixWordBaseName(
-              clipNumber,
-              imagePrompt,
-              currentFileName || path.basename(existingVideoOnDisk)
-            );
-            const archivedPath = archiveBrollSourceImage(clipsDir, clipNumber, rescuePng, {
-              motion,
-              durationSec,
-              aspectRatio,
-              baseName: baseForRescue,
-            });
-            sourceImgInfo = { imagePath: archivedPath };
+          await renderStaticBrollImageTo4K60OnDisk(
+            sourceImgInfo.imagePath,
+            tmpBrollFull,
+            motion,
+            durationSec,
+            aspectRatio
+          );
+          publishTempFileAtomicallyToDir(tmpBrollFull, clipsDir, finalBrollName);
+          clearMacHiddenFlag(finalBrollFull);
+          touchFileNow(finalBrollFull);
+          await extractInitialFrameAtomically(finalBrollFull, clipsDir, frameFileName);
+          if (fs.existsSync(frameFull)) {
+            clearMacHiddenFlag(frameFull);
+            touchFileNow(frameFull);
           }
         } finally {
           try {
-            if (fs.existsSync(rescuePng)) fs.unlinkSync(rescuePng);
+            if (fs.existsSync(tmpBrollFull)) fs.unlinkSync(tmpBrollFull);
           } catch {}
         }
-      }
 
-      if (!sourceImgInfo || !fs.existsSync(sourceImgInfo.imagePath)) {
-        throw new Error(
-          `No se encontró la imagen fuente de la Escena B-Roll ${paddedNum} en _broll_sources ni en 05_Clips_Video.`
-        );
-      }
+        // Remove older video/frame variants and loose candidate images for this clip
+        for (const existing of fs.readdirSync(clipsDir)) {
+          const fullExisting = path.join(clipsDir, existing);
+          if (
+            path.resolve(fullExisting) !== path.resolve(finalBrollFull) &&
+            /\.(mp4|mov|webm)$/i.test(existing) &&
+            clipNumPrefixRegex.test(existing)
+          ) {
+            try {
+              fs.unlinkSync(fullExisting);
+            } catch {}
+            continue;
+          }
+          if (
+            path.resolve(fullExisting) !== path.resolve(frameFull) &&
+            new RegExp(`^0*${clipNumber}_Imagen_Inicial_`, 'i').test(existing)
+          ) {
+            try {
+              fs.unlinkSync(fullExisting);
+            } catch {}
+            continue;
+          }
+          if (
+            path.resolve(fullExisting) !== path.resolve(frameFull) &&
+            isLooseClipImageEntryForClip(existing, clipNumber)
+          ) {
+            try {
+              fs.unlinkSync(fullExisting);
+            } catch {}
+          }
+        }
+        if (fs.existsSync(resolvedRoot)) {
+          for (const rootEntry of fs.readdirSync(resolvedRoot)) {
+            if (isLooseClipImageEntryForClip(rootEntry, clipNumber)) {
+              try {
+                fs.unlinkSync(path.join(resolvedRoot, rootEntry));
+              } catch {}
+            }
+          }
+        }
+        purgeDiscardedFilesForClip(clipsDir, clipNumber);
+        cleanupClipDerivedCaches(clipsDir, clipNumber);
 
-      const canonicalBase =
-        sourceImgInfo.meta?.baseName ||
-        buildBrollSixWordBaseName(
-          clipNumber,
-          imagePrompt,
-          currentFileName || (existingVideoOnDisk ? path.basename(existingVideoOnDisk) : '')
-        );
-
-      archiveBrollSourceImage(clipsDir, clipNumber, sourceImgInfo.imagePath, {
-        motion,
-        durationSec,
-        aspectRatio,
-        baseName: canonicalBase,
-      });
-
-      const finalBrollName = `${canonicalBase}_Broll_4K.mp4`;
-      const finalBrollFull = path.join(clipsDir, finalBrollName);
-      const tmpBrollFull = path.join(
-        os.tmpdir(),
-        `huellas_rerender_broll_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}.mp4`
-      );
-
-      try {
-        await renderStaticBrollImageTo4K60OnDisk(
-          sourceImgInfo.imagePath,
-          tmpBrollFull,
-          motion,
-          durationSec,
-          aspectRatio
-        );
-        fs.copyFileSync(tmpBrollFull, finalBrollFull);
-        clearMacHiddenFlag(finalBrollFull);
-        touchFileNow(finalBrollFull);
-      } finally {
-        try {
-          if (fs.existsSync(tmpBrollFull)) fs.unlinkSync(tmpBrollFull);
-        } catch {}
-      }
-
-      // Remove older video variants and clear stale discarded/optical-flow/foley caches for this clip
-      for (const existing of fs.readdirSync(clipsDir)) {
-        const fullExisting = path.join(clipsDir, existing);
-        if (
-          path.resolve(fullExisting) !== path.resolve(finalBrollFull) &&
-          /\.(mp4|mov|webm)$/i.test(existing) &&
-          existing.startsWith(prefix)
-        ) {
+        let acceptedAt = Date.now();
+        // Persist updated brollCameraMotion & tag in documentaries.json
+        if (fs.existsSync(DOCS_FILE)) {
           try {
-            fs.unlinkSync(fullExisting);
-          } catch {}
-        }
-      }
-      purgeDiscardedFilesForClip(clipsDir, clipNumber);
-      cleanupClipDerivedCaches(clipsDir, clipNumber);
-
-      // Persist updated brollCameraMotion & tag in documentaries.json if docId was supplied
-      if (docId && fs.existsSync(DOCS_FILE)) {
-        try {
-          const allDocs = readDocumentaries();
-          if (Array.isArray(allDocs)) {
-            const tagMap: Record<ServerBrollCameraMotion, string> = {
-              zoom_in: 'STATIC_ZOOM_IN',
-              zoom_out: 'STATIC_ZOOM_OUT',
-              pan_right: 'STATIC_PAN_RIGHT',
-              pan_left: 'STATIC_PAN_LEFT',
-              tilt_up: 'STATIC_TILT_UP',
-              tilt_down: 'STATIC_TILT_DOWN',
-            };
-            const nextTag = `[B-Roll: ${tagMap[motion]}]`;
-            let changedDb = false;
-            for (const d of allDocs) {
-              if (d && d.id === docId && Array.isArray(d.clips)) {
-                for (const c of d.clips) {
+            const allDocs = readDocumentaries();
+            if (Array.isArray(allDocs)) {
+              const targetDocIdx = findMatchingDocForPipeline(
+                allDocs,
+                resolvedRoot,
+                docId,
+                docTitle
+              );
+              const targetDoc = targetDocIdx >= 0 ? allDocs[targetDocIdx] : null;
+              if (targetDoc && Array.isArray(targetDoc.clips)) {
+                let changedDb = false;
+                let syncedImgPromptLine = '';
+                for (const c of targetDoc.clips) {
                   if (Number(c?.clipNumber) === clipNumber) {
                     const savedAt = Math.max(
                       Date.now(),
+                      Number(c.videoSavedAt || 0) + 1,
                       Number(c.videoDiscardedAt || 0) + 1,
-                      Number(c.videoDiscardOverriddenAt || 0) + 1
+                      Number(c.videoDiscardOverriddenAt || 0) + 1,
+                      Number(c.promptUpdatedAt || 0) + 1
                     );
+                    acceptedAt = savedAt;
+                    const prevNonBroll =
+                      typeof c.videoPrompt === 'string' &&
+                      c.videoPrompt.trim() &&
+                      !/b-roll|escena\s+b-roll|solo\s+imagen/i.test(c.videoPrompt)
+                        ? c.videoPrompt.trim()
+                        : typeof c.previousVideoPrompt === 'string' && c.previousVideoPrompt.trim()
+                          ? c.previousVideoPrompt.trim()
+                          : '';
+                    if (prevNonBroll) {
+                      c.previousVideoPrompt = prevNonBroll;
+                    }
                     c.isStaticBroll = true;
                     c.brollCameraMotion = motion;
                     c.videoPrompt = '';
+                    c.promptUpdatedAt = savedAt;
                     c.videoSavedFileName = finalBrollName;
                     c.videoSavedAt = savedAt;
                     c.videoDiscardOverriddenAt = savedAt;
@@ -14080,40 +14426,73 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
                     c.imageReady = true;
                     if (c.videoAuditStatus === 'rejected' || c.auditStatus === 'mismatch') {
                       c.auditStatus = 'ok';
-                      c.auditReason = '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';
+                      c.auditReason =
+                        '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';
                       c.videoAuditStatus = 'approved';
                       c.videoAuditReason = '';
                       c.videoAuditIssues = [];
                     }
-                    if (typeof c.imagePrompt === 'string' && /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(c.imagePrompt)) {
-                      c.imagePrompt = c.imagePrompt.replace(/\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, nextTag);
-                    }
+                    c.imagePrompt = formatServerBrollImagePromptLine(
+                      c.imagePrompt || imagePrompt,
+                      clipNumber,
+                      c.timeRange || '',
+                      Number(c.duration) || durationSec,
+                      motion
+                    );
+                    syncedImgPromptLine = c.imagePrompt;
                     changedDb = true;
                   }
                 }
-                if (changedDb && typeof d.rawClipsText === 'string') {
-                  d.rawClipsText = d.rawClipsText.replace(
-                    new RegExp(`(^|\\n)(Image\\s+0*${clipNumber}\\b[^\\n]*?)\\[B-Roll\\s*:\\s*STATIC_[A-Z_]+\\]`, 'i'),
-                    `$1$2${nextTag}`
+                if (changedDb) {
+                  if (typeof targetDoc.rawClipsText === 'string' && syncedImgPromptLine) {
+                    let nextRaw = targetDoc.rawClipsText.replace(
+                      new RegExp(`(^|\\n)Image\\s+0*${clipNumber}\\b[^\\n]*`, 'i'),
+                      `$1${syncedImgPromptLine}`
+                    );
+                    nextRaw = nextRaw.replace(
+                      new RegExp(
+                        `\\n(?:Generate\\s+a\\s+video|Video)\\s+0*${clipNumber}\\b[^\\n]*`,
+                        'gi'
+                      ),
+                      ''
+                    );
+                    targetDoc.rawClipsText = nextRaw;
+                  }
+                  if (syncedImgPromptLine) {
+                    syncPromptsClipsFlowTxtForBrollClip(
+                      resolvedRoot,
+                      clipNumber,
+                      syncedImgPromptLine
+                    );
+                  }
+                  targetDoc.updatedAt = Math.max(
+                    Date.now(),
+                    Number(targetDoc.updatedAt || 0) + 1,
+                    acceptedAt
                   );
+                  writeDocumentaries(allDocs, false);
                 }
               }
             }
-            if (changedDb) {
-              writeDocumentaries(allDocs, true);
-            }
-          }
-        } catch {}
-      }
+          } catch {}
+        }
 
-      const st = fs.statSync(finalBrollFull);
-      return {
-        clipNumber,
-        motion,
-        fileName: finalBrollName,
-        url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(finalBrollFull)}&v=${Math.floor(st.mtimeMs)}&t=${Date.now()}`,
-      };
-    });
+        const st = fs.statSync(finalBrollFull);
+        const fst = fs.existsSync(frameFull) ? fs.statSync(frameFull) : null;
+        return {
+          clipNumber,
+          motion,
+          fileName: finalBrollName,
+          frameFileName,
+          url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(finalBrollFull)}&v=${Math.floor(st.mtimeMs)}&t=${acceptedAt}`,
+          frameUrl: fst
+            ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(frameFull)}&v=${Math.floor(fst.mtimeMs)}&t=${acceptedAt}`
+            : '',
+          acceptedAt,
+        };
+      },
+      2000
+    );
 
     activeBrollRerenderLocks.set(lockKey, taskPromise);
     try {
@@ -14128,6 +14507,851 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: err?.message || 'Error al re-renderizar movimiento B-Roll en 4K 60fps.',
+    });
+  }
+});
+
+// ============================================================================
+// ACCEPT INITIAL IMAGE AS 4K 60FPS B-ROLL FOR ANY CLIP (P1-P7 CASCADE)
+// ============================================================================
+app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
+  try {
+    const {
+      docId = '',
+      folderPath = '',
+      folderName = '',
+      docTitle = '',
+      aspectRatio = '16:9',
+      clipNumber: rawClipNum = 0,
+      motion: rawMotion = '',
+      durationSec: rawDurSec = 0,
+      expectedFileName = '',
+      imagePrompt = '',
+      videoPrompt = '',
+      narrationSegment = '',
+      discardedVideoFileName = '',
+      videoDiscardedAt: rawVideoDiscardedAt = 0,
+      imageDataUrl = '',
+    } = req.body || {};
+
+    const clipNumber = Number(rawClipNum || 0);
+    if (!clipNumber || clipNumber <= 0) {
+      res.status(400).json({ ok: false, error: 'Número de clip inválido.' });
+      return;
+    }
+
+    await waitForIcloudDriveReady(1500);
+    const resolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
+    if (!resolvedRoot || !fs.existsSync(resolvedRoot)) {
+      res.status(400).json({
+        ok: false,
+        error: 'No se encontró la carpeta local del documental en tu Mac.',
+      });
+      return;
+    }
+
+    const rootReady = await ensureDocRootOpenable(resolvedRoot, 1500, 3000);
+    if (!rootReady) {
+      res.status(503).json({
+        ok: false,
+        code: 'ICLOUD_STUB_PENDING',
+        error:
+          'La carpeta del documental en iCloud Drive aún se está descargando. Espera unos segundos y vuelve a intentar.',
+      });
+      return;
+    }
+
+    ensureDocumentarySubfolders(resolvedRoot);
+    const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
+    const discardedDir = path.join(clipsDir, '_Descartados_Auditoria');
+    const brollSourcesDir = path.join(clipsDir, '_broll_sources');
+    const lockKey = `${path.resolve(clipsDir)}::${clipNumber}`;
+
+    const prevLock = activeBrollRerenderLocks.get(lockKey);
+    if (prevLock) {
+      try {
+        await prevLock;
+      } catch {}
+    }
+
+    const taskPromise = withClipLifecycleLock(
+      resolvedRoot,
+      clipNumber,
+      async () => {
+        const paddedNum = String(clipNumber).padStart(2, '0');
+        const clipNumPrefixRegex = new RegExp(`^0*${clipNumber}_`, 'i');
+
+        // Look up existing clip record in documentaries.json for context fallback
+        let dbClip: any = null;
+        let docClipsMeta: Array<{
+          clipNumber: number;
+          imagePrompt?: string;
+          videoPrompt?: string;
+          narrationSegment?: string;
+          expectedFileName?: string;
+        }> = [];
+        if (fs.existsSync(DOCS_FILE)) {
+          try {
+            const docsSnap = readDocumentaries();
+            const matchedDocIdx = findMatchingDocForPipeline(
+              docsSnap,
+              resolvedRoot,
+              docId,
+              docTitle
+            );
+            const matchedDoc = matchedDocIdx >= 0 ? docsSnap[matchedDocIdx] : null;
+            if (matchedDoc && Array.isArray(matchedDoc.clips)) {
+              docClipsMeta = matchedDoc.clips;
+              dbClip = matchedDoc.clips.find((c: any) => Number(c?.clipNumber) === clipNumber);
+            }
+          } catch {}
+        }
+
+        const effImagePrompt = String(imagePrompt || dbClip?.imagePrompt || '').trim();
+        const effVideoPrompt = String(
+          videoPrompt || dbClip?.videoPrompt || dbClip?.previousVideoPrompt || ''
+        ).trim();
+        const effNarration = String(narrationSegment || dbClip?.narrationSegment || '').trim();
+        const effExpectedFileName = String(
+          expectedFileName || dbClip?.expectedFileName || dbClip?.videoSavedFileName || ''
+        ).trim();
+        const effDiscardedFile = String(
+          discardedVideoFileName || dbClip?.discardedVideoFileName || ''
+        ).trim();
+        const effDiscardedAt = Math.max(
+          Number(rawVideoDiscardedAt || 0),
+          Number(dbClip?.videoDiscardedAt || 0)
+        );
+        const durationSec = Math.max(
+          2,
+          Math.min(
+            30,
+            Number(rawDurSec) || Number(dbClip?.duration) || (clipNumber === 1 ? 6 : 8)
+          )
+        );
+        const motion: ServerBrollCameraMotion =
+          rawMotion && String(rawMotion).trim()
+            ? normalizeServerBrollMotion(rawMotion)
+            : dbClip?.brollCameraMotion
+              ? normalizeServerBrollMotion(dbClip.brollCameraMotion)
+              : inferServerBrollMotion(
+                  effNarration,
+                  `${effImagePrompt} ${effVideoPrompt}`,
+                  clipNumber - 1
+                );
+
+        let sawIcloudStub = false;
+        const markStubsInDir = (dirPath: string) => {
+          if (!fs.existsSync(dirPath)) return;
+          try {
+            for (const entry of fs.readdirSync(dirPath)) {
+              if (
+                isIcloudPlaceholderName(entry) &&
+                new RegExp(`0*${clipNumber}\\b`, 'i').test(entry)
+              ) {
+                sawIcloudStub = true;
+              }
+            }
+          } catch {}
+        };
+        markStubsInDir(brollSourcesDir);
+        markStubsInDir(clipsDir);
+        markStubsInDir(resolvedRoot);
+        markStubsInDir(discardedDir);
+
+        // Extract any .zip in 05_Clips_Video or resolvedRoot into a temporary directory
+        const tempZipDir = path.join(
+          os.tmpdir(),
+          `huellas_accept_broll_zip_${paddedNum}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+        );
+        const tempCleanupPaths: string[] = [];
+        try {
+          for (const scanDir of [clipsDir, resolvedRoot]) {
+            if (!fs.existsSync(scanDir)) continue;
+            for (const entry of fs.readdirSync(scanDir)) {
+              if (!isIcloudPlaceholderName(entry) && /\.zip$/i.test(entry)) {
+                fs.mkdirSync(tempZipDir, { recursive: true });
+                extractSingleClipCandidatesFromZip(
+                  path.join(scanDir, entry),
+                  clipNumber,
+                  tempZipDir,
+                  docClipsMeta
+                );
+              }
+            }
+          }
+        } catch {}
+
+        try {
+          type ResolvedImageCandidate = {
+            imagePath: string;
+            mtimeMs: number;
+            sourceKind: string;
+            baseNameHint?: string;
+            deleteAfterConsumePath?: string;
+          };
+
+          // Gather P1 candidate (_broll_sources/0*N_Broll_Source.*)
+          let brollSourceCand: ResolvedImageCandidate | null = null;
+          const archivedInfo = findArchivedBrollSourceImage(clipsDir, clipNumber);
+          if (archivedInfo && fs.existsSync(archivedInfo.imagePath)) {
+            try {
+              const st = fs.statSync(archivedInfo.imagePath);
+              if (st.size > 5000) {
+                brollSourceCand = {
+                  imagePath: archivedInfo.imagePath,
+                  mtimeMs: st.mtimeMs,
+                  sourceKind: 'broll_source',
+                  baseNameHint: archivedInfo.meta?.baseName,
+                };
+              }
+            } catch {}
+          }
+
+          // Gather P2a candidate (loose image for clipNumber in 05_Clips_Video, resolvedRoot, or tempZipDir)
+          const looseCandidates: ResolvedImageCandidate[] = [];
+          for (const scanDir of [clipsDir, resolvedRoot, tempZipDir]) {
+            if (!fs.existsSync(scanDir)) continue;
+            try {
+              for (const entry of fs.readdirSync(scanDir)) {
+                if (!isLooseClipImageEntryForClip(entry, clipNumber, docClipsMeta)) continue;
+                const full = path.join(scanDir, entry);
+                const st = fs.statSync(full);
+                if (st.isFile() && st.size > 5000) {
+                  looseCandidates.push({
+                    imagePath: full,
+                    mtimeMs: st.mtimeMs,
+                    sourceKind: 'project_loose_image',
+                  });
+                }
+              }
+            } catch {}
+          }
+          looseCandidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+          const bestProjectLoose = looseCandidates[0] || null;
+
+          // Gather P2b candidate (~/Downloads recent loose image with anti-collision guard)
+          let bestDownloadsCand: ResolvedImageCandidate | null = null;
+          const downloadsDir = path.join(os.homedir(), 'Downloads');
+          if (fs.existsSync(downloadsDir)) {
+            try {
+              const nowMs = Date.now();
+              const maxAgeMs = 12 * 3600 * 1000;
+              const stopWords = new Set([
+                'clip',
+                'video',
+                'image',
+                'imagen',
+                'inicial',
+                'broll',
+                'static',
+                'escena',
+                'fija',
+                'the',
+                'and',
+                'with',
+                'from',
+                'para',
+                'con',
+                'del',
+                'las',
+                'los',
+                'una',
+                'por',
+              ]);
+              const expectedTokens = new Set(
+                `${effExpectedFileName} ${effImagePrompt}`
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\s_]/g, ' ')
+                  .split(/[\s_]+/)
+                  .filter((w) => w.length >= 4 && !stopWords.has(w))
+              );
+              const explicitDlPrefix = new RegExp(
+                `^(?:broll|b[\\-_]?roll|inicial|initial|image|imagen)[_\\-\\s.]*0*${clipNumber}(?:[_\\-\\s.(]|$)`,
+                'i'
+              );
+              const dlCandidates: ResolvedImageCandidate[] = [];
+              for (const entry of fs.readdirSync(downloadsDir)) {
+                if (!isLooseClipImageEntryForClip(entry, clipNumber, docClipsMeta)) continue;
+                const full = path.join(downloadsDir, entry);
+                let st: fs.Stats;
+                try {
+                  st = fs.statSync(full);
+                } catch {
+                  continue;
+                }
+                if (!st.isFile() || st.size <= 5000) continue;
+                if (nowMs - st.mtimeMs > maxAgeMs) continue;
+                if (effDiscardedAt > 0 && st.mtimeMs <= effDiscardedAt) continue;
+
+                const isExplicit = explicitDlPrefix.test(entry);
+                let overlapCount = 0;
+                if (!isExplicit && expectedTokens.size > 0) {
+                  const entryWords = entry
+                    .toLowerCase()
+                    .replace(/\.[^.]+$/, '')
+                    .split(/[^a-z0-9]+/)
+                    .filter((w) => w.length >= 4);
+                  for (const w of entryWords) {
+                    if (expectedTokens.has(w)) overlapCount++;
+                  }
+                }
+                if (isExplicit || overlapCount >= 2) {
+                  dlCandidates.push({
+                    imagePath: full,
+                    mtimeMs: st.mtimeMs,
+                    sourceKind: 'downloads_image',
+                    deleteAfterConsumePath: full,
+                  });
+                }
+              }
+              dlCandidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+              bestDownloadsCand = dlCandidates[0] || null;
+            } catch {}
+          }
+
+          // Gather P3 candidate (05_Clips_Video/0*N_Imagen_Inicial_*)
+          let bestActiveInitImg: ResolvedImageCandidate | null = null;
+          if (fs.existsSync(clipsDir)) {
+            const initRegex = new RegExp(
+              `^0*${clipNumber}_Imagen_Inicial_.*\\.(png|jpg|jpeg|webp)$`,
+              'i'
+            );
+            const initCands: ResolvedImageCandidate[] = [];
+            for (const entry of fs.readdirSync(clipsDir)) {
+              if (isIcloudPlaceholderName(entry) || !initRegex.test(entry)) continue;
+              const full = path.join(clipsDir, entry);
+              try {
+                const st = fs.statSync(full);
+                if (st.isFile() && st.size > 5000) {
+                  initCands.push({
+                    imagePath: full,
+                    mtimeMs: st.mtimeMs,
+                    sourceKind: 'active_initial_image',
+                  });
+                }
+              } catch {}
+            }
+            initCands.sort((a, b) => b.mtimeMs - a.mtimeMs);
+            bestActiveInitImg = initCands[0] || null;
+          }
+
+          // Gather P4 candidates in _Descartados_Auditoria/
+          let bestDiscardedImg: ResolvedImageCandidate | null = null;
+          if (fs.existsSync(discardedDir)) {
+            try {
+              const discEntries = fs
+                .readdirSync(discardedDir)
+                .filter((e) => !isIcloudPlaceholderName(e));
+              let discBrollSrc: { full: string; mtimeMs: number } | null = null;
+              const discBrollRegex = new RegExp(
+                `^0*${clipNumber}_Broll_Source\\.(png|jpg|jpeg|webp)$`,
+                'i'
+              );
+              for (const entry of discEntries) {
+                if (!discBrollRegex.test(entry)) continue;
+                const full = path.join(discardedDir, entry);
+                try {
+                  const st = fs.statSync(full);
+                  if (st.isFile() && st.size > 5000) {
+                    if (!discBrollSrc || st.mtimeMs > discBrollSrc.mtimeMs) {
+                      discBrollSrc = { full, mtimeMs: st.mtimeMs };
+                    }
+                  }
+                } catch {}
+              }
+
+              let discInitImg: { full: string; mtimeMs: number } | null = null;
+              const discInitRegex = new RegExp(
+                `^0*${clipNumber}_Imagen_Inicial_.*\\.(png|jpg|jpeg|webp)$`,
+                'i'
+              );
+              for (const entry of discEntries) {
+                if (
+                  !discInitRegex.test(entry) &&
+                  !isLooseClipImageEntryForClip(entry, clipNumber, docClipsMeta)
+                ) {
+                  continue;
+                }
+                const full = path.join(discardedDir, entry);
+                try {
+                  const st = fs.statSync(full);
+                  if (st.isFile() && st.size > 5000) {
+                    if (!discInitImg || st.mtimeMs > discInitImg.mtimeMs) {
+                      discInitImg = { full, mtimeMs: st.mtimeMs };
+                    }
+                  }
+                } catch {}
+              }
+
+              if (
+                discBrollSrc &&
+                (!discInitImg || discBrollSrc.mtimeMs >= discInitImg.mtimeMs - 60000)
+              ) {
+                bestDiscardedImg = {
+                  imagePath: discBrollSrc.full,
+                  mtimeMs: discBrollSrc.mtimeMs,
+                  sourceKind: 'discarded_broll_source',
+                };
+              } else if (discInitImg) {
+                bestDiscardedImg = {
+                  imagePath: discInitImg.full,
+                  mtimeMs: discInitImg.mtimeMs,
+                  sourceKind: 'discarded_initial_image',
+                };
+              }
+            } catch {}
+          }
+
+          // Gather P5 (active video in 05_Clips_Video) and P6 (discarded video in _Descartados_Auditoria) metadata for freshness comparison
+          let bestActiveVideo: { full: string; name: string; mtimeMs: number } | null = null;
+          if (fs.existsSync(clipsDir)) {
+            const activeVideos: Array<{ full: string; name: string; mtimeMs: number }> = [];
+            for (const entry of fs.readdirSync(clipsDir)) {
+              if (
+                isIcloudPlaceholderName(entry) ||
+                !/\.(mp4|mov|webm)$/i.test(entry) ||
+                !clipNumPrefixRegex.test(entry)
+              ) {
+                continue;
+              }
+              const full = path.join(clipsDir, entry);
+              try {
+                const st = fs.statSync(full);
+                if (st.isFile() && st.size > 50000) {
+                  activeVideos.push({ full, name: entry, mtimeMs: st.mtimeMs });
+                }
+              } catch {}
+            }
+            activeVideos.sort((a, b) => {
+              const a4k = /_4K\.(mp4|mov|webm)$/i.test(a.name) ? 1 : 0;
+              const b4k = /_4K\.(mp4|mov|webm)$/i.test(b.name) ? 1 : 0;
+              if (a4k !== b4k) return b4k - a4k;
+              return b.mtimeMs - a.mtimeMs;
+            });
+            bestActiveVideo = activeVideos[0] || null;
+          }
+
+          let bestDiscardedVideo: { full: string; name: string; mtimeMs: number } | null = null;
+          if (fs.existsSync(discardedDir)) {
+            const discVideos: Array<{ full: string; name: string; mtimeMs: number }> = [];
+            for (const entry of fs.readdirSync(discardedDir)) {
+              if (
+                isIcloudPlaceholderName(entry) ||
+                !/\.(mp4|mov|webm)$/i.test(entry) ||
+                !clipNumPrefixRegex.test(entry)
+              ) {
+                continue;
+              }
+              const full = path.join(discardedDir, entry);
+              try {
+                const st = fs.statSync(full);
+                if (st.isFile() && st.size > 50000) {
+                  discVideos.push({ full, name: entry, mtimeMs: st.mtimeMs });
+                }
+              } catch {}
+            }
+            discVideos.sort((a, b) => {
+              const aExact = effDiscardedFile && a.name === effDiscardedFile ? 1 : 0;
+              const bExact = effDiscardedFile && b.name === effDiscardedFile ? 1 : 0;
+              if (aExact !== bExact) return bExact - aExact;
+              const a4k = /_4K\.(mp4|mov|webm)$/i.test(a.name) ? 1 : 0;
+              const b4k = /_4K\.(mp4|mov|webm)$/i.test(b.name) ? 1 : 0;
+              if (a4k !== b4k) return b4k - a4k;
+              return b.mtimeMs - a.mtimeMs;
+            });
+            bestDiscardedVideo = discVideos[0] || null;
+          }
+
+          // Freshness check for P1: brollSource wins first ONLY if no newer non-B-Roll candidate exists (+5s margin)
+          const maxOtherMtime = Math.max(
+            bestProjectLoose?.mtimeMs || 0,
+            bestDownloadsCand?.mtimeMs || 0,
+            bestActiveInitImg?.mtimeMs || 0,
+            bestDiscardedImg?.mtimeMs || 0,
+            bestActiveVideo && !/_broll_4k\.(mp4|mov|webm)$/i.test(bestActiveVideo.name)
+              ? bestActiveVideo.mtimeMs
+              : 0,
+            bestDiscardedVideo && !/_broll_4k\.(mp4|mov|webm)$/i.test(bestDiscardedVideo.name)
+              ? bestDiscardedVideo.mtimeMs
+              : 0
+          );
+
+          let chosenSource: ResolvedImageCandidate | null = null;
+          if (brollSourceCand && brollSourceCand.mtimeMs + 5000 >= maxOtherMtime) {
+            chosenSource = brollSourceCand;
+          } else if (bestProjectLoose) {
+            chosenSource = bestProjectLoose;
+          } else if (bestDownloadsCand) {
+            chosenSource = bestDownloadsCand;
+          } else if (bestActiveInitImg) {
+            chosenSource = bestActiveInitImg;
+          } else if (bestDiscardedImg) {
+            chosenSource = bestDiscardedImg;
+          }
+
+          // P5: Extract frame 0 from active video if no image candidate won yet
+          if (!chosenSource && bestActiveVideo) {
+            try {
+              const extractedPng = await extractFrameZeroLosslessPngToTmp(
+                bestActiveVideo.full,
+                paddedNum
+              );
+              tempCleanupPaths.push(extractedPng);
+              if (fs.existsSync(extractedPng) && fs.statSync(extractedPng).size > 5000) {
+                chosenSource = {
+                  imagePath: extractedPng,
+                  mtimeMs: bestActiveVideo.mtimeMs,
+                  sourceKind: 'active_video_frame0',
+                };
+              }
+            } catch {}
+          }
+
+          // P6: Extract frame 0 from discarded video in _Descartados_Auditoria/
+          if (!chosenSource && bestDiscardedVideo) {
+            try {
+              const extractedPng = await extractFrameZeroLosslessPngToTmp(
+                bestDiscardedVideo.full,
+                paddedNum
+              );
+              tempCleanupPaths.push(extractedPng);
+              if (fs.existsSync(extractedPng) && fs.statSync(extractedPng).size > 5000) {
+                chosenSource = {
+                  imagePath: extractedPng,
+                  mtimeMs: bestDiscardedVideo.mtimeMs,
+                  sourceKind: 'discarded_video_frame0',
+                };
+              }
+            } catch {}
+          }
+
+          // Fallback to stale P1 brollSource if P2-P6 failed
+          if (!chosenSource && brollSourceCand) {
+            chosenSource = brollSourceCand;
+          }
+
+          // P7: Client-supplied imageDataUrl (base64 data:image/...)
+          if (
+            !chosenSource &&
+            typeof imageDataUrl === 'string' &&
+            /^data:image\/(png|jpeg|jpg|webp);base64,/i.test(imageDataUrl.trim())
+          ) {
+            try {
+              const match = imageDataUrl
+                .trim()
+                .match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+              if (match) {
+                const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+                const buf = Buffer.from(match[2], 'base64');
+                if (buf.length > 5000) {
+                  const dataUrlTmpPath = path.join(
+                    os.tmpdir(),
+                    `huellas_broll_dataurl_${paddedNum}_${Date.now()}.${ext}`
+                  );
+                  fs.writeFileSync(dataUrlTmpPath, buf);
+                  tempCleanupPaths.push(dataUrlTmpPath);
+                  chosenSource = {
+                    imagePath: dataUrlTmpPath,
+                    mtimeMs: Date.now(),
+                    sourceKind: 'client_data_url',
+                  };
+                }
+              }
+            } catch {}
+          }
+
+          if (!chosenSource || !fs.existsSync(chosenSource.imagePath)) {
+            if (sawIcloudStub) {
+              return {
+                httpStatus: 503,
+                payload: {
+                  ok: false,
+                  code: 'ICLOUD_STUB_PENDING',
+                  error: `El archivo de la Escena #${paddedNum} está en iCloud Drive pendiente de descarga local. Espera unos segundos y vuelve a intentar.`,
+                },
+              };
+            }
+            return {
+              httpStatus: 422,
+              payload: {
+                ok: false,
+                code: 'INITIAL_IMAGE_NOT_FOUND',
+                error: `No se encontró imagen inicial ni fotograma rescatable para el Clip #${paddedNum}. Descarga o coloca la imagen en 05_Clips_Video o Descargas e inténtalo de nuevo.`,
+              },
+            };
+          }
+
+          // Stage source image in os.tmpdir() before rendering
+          const srcExt = path.extname(chosenSource.imagePath).toLowerCase() || '.png';
+          const stagedSourcePath = path.join(
+            os.tmpdir(),
+            `huellas_staged_broll_src_${paddedNum}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}${srcExt}`
+          );
+          fs.copyFileSync(chosenSource.imagePath, stagedSourcePath);
+          tempCleanupPaths.push(stagedSourcePath);
+
+          const canonicalBase =
+            chosenSource.baseNameHint ||
+            buildBrollSixWordBaseName(
+              clipNumber,
+              effImagePrompt || effVideoPrompt,
+              effExpectedFileName ||
+                (bestActiveVideo ? bestActiveVideo.name : '') ||
+                (bestDiscardedVideo ? bestDiscardedVideo.name : '')
+            );
+          const finalBrollName = `${canonicalBase}_Broll_4K.mp4`;
+          const finalBrollFull = path.join(clipsDir, finalBrollName);
+          const suffixWithoutNum =
+            canonicalBase.replace(/^\d+_/, '') || `Clip_${paddedNum}_Broll_Escena_Fija`;
+          const frameFileName = `${paddedNum}_Imagen_Inicial_${suffixWithoutNum}.jpg`;
+          const frameFull = path.join(clipsDir, frameFileName);
+
+          const tmpBrollFull = path.join(
+            os.tmpdir(),
+            `huellas_accept_broll_${canonicalBase}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp4`
+          );
+          tempCleanupPaths.push(tmpBrollFull);
+
+          await renderStaticBrollImageTo4K60OnDisk(
+            stagedSourcePath,
+            tmpBrollFull,
+            motion,
+            durationSec,
+            aspectRatio
+          );
+
+          if (!fs.existsSync(tmpBrollFull) || fs.statSync(tmpBrollFull).size < 512 * 1024) {
+            throw new Error(
+              `El render B-Roll 4K 60fps del Clip #${paddedNum} no generó un archivo válido (>= 512KB).`
+            );
+          }
+
+          // Archive high-res source in _broll_sources/ and publish final MP4 + initial frame atomically
+          archiveBrollSourceImage(clipsDir, clipNumber, stagedSourcePath, {
+            motion,
+            durationSec,
+            aspectRatio,
+            baseName: canonicalBase,
+          });
+          publishTempFileAtomicallyToDir(tmpBrollFull, clipsDir, finalBrollName);
+          clearMacHiddenFlag(finalBrollFull);
+          touchFileNow(finalBrollFull);
+
+          await extractInitialFrameAtomically(finalBrollFull, clipsDir, frameFileName);
+          if (fs.existsSync(frameFull)) {
+            clearMacHiddenFlag(frameFull);
+            touchFileNow(frameFull);
+          }
+
+          // Only after verifying publication: clean up older variants, loose images, and discarded quarantine
+          for (const existing of fs.readdirSync(clipsDir)) {
+            const fullExisting = path.join(clipsDir, existing);
+            if (
+              path.resolve(fullExisting) !== path.resolve(finalBrollFull) &&
+              /\.(mp4|mov|webm)$/i.test(existing) &&
+              clipNumPrefixRegex.test(existing)
+            ) {
+              try {
+                fs.unlinkSync(fullExisting);
+              } catch {}
+              continue;
+            }
+            if (
+              path.resolve(fullExisting) !== path.resolve(frameFull) &&
+              new RegExp(`^0*${clipNumber}_Imagen_Inicial_`, 'i').test(existing)
+            ) {
+              try {
+                fs.unlinkSync(fullExisting);
+              } catch {}
+              continue;
+            }
+            if (
+              path.resolve(fullExisting) !== path.resolve(frameFull) &&
+              isLooseClipImageEntryForClip(existing, clipNumber, docClipsMeta)
+            ) {
+              try {
+                fs.unlinkSync(fullExisting);
+              } catch {}
+            }
+          }
+          if (fs.existsSync(resolvedRoot)) {
+            for (const rootEntry of fs.readdirSync(resolvedRoot)) {
+              if (isLooseClipImageEntryForClip(rootEntry, clipNumber, docClipsMeta)) {
+                try {
+                  fs.unlinkSync(path.join(resolvedRoot, rootEntry));
+                } catch {}
+              }
+            }
+          }
+          if (
+            chosenSource.deleteAfterConsumePath &&
+            fs.existsSync(chosenSource.deleteAfterConsumePath)
+          ) {
+            try {
+              fs.unlinkSync(chosenSource.deleteAfterConsumePath);
+            } catch {}
+          }
+
+          purgeDiscardedFilesForClip(clipsDir, clipNumber);
+          cleanupClipDerivedCaches(clipsDir, clipNumber);
+
+          // Persist to documentaries.json & Prompts_Clips_Flow.txt
+          let acceptedAt = Math.max(Date.now(), effDiscardedAt + 1);
+          if (fs.existsSync(DOCS_FILE)) {
+            try {
+              const allDocs = readDocumentaries();
+              if (Array.isArray(allDocs)) {
+                const targetDocIdx = findMatchingDocForPipeline(
+                  allDocs,
+                  resolvedRoot,
+                  docId,
+                  docTitle
+                );
+                const targetDoc = targetDocIdx >= 0 ? allDocs[targetDocIdx] : null;
+                if (targetDoc) {
+                  if (!Array.isArray(targetDoc.clips)) targetDoc.clips = [];
+                  let clipEntry = targetDoc.clips.find(
+                    (c: any) => Number(c?.clipNumber) === clipNumber
+                  );
+                  if (!clipEntry) {
+                    clipEntry = {
+                      clipNumber,
+                      timeRange: '',
+                      duration: durationSec,
+                      narrationSegment: effNarration,
+                      imagePrompt: effImagePrompt,
+                      videoPrompt: '',
+                    };
+                    targetDoc.clips.push(clipEntry);
+                  }
+                  acceptedAt = Math.max(
+                    Date.now(),
+                    Number(clipEntry.videoSavedAt || 0) + 1,
+                    Number(clipEntry.videoDiscardedAt || 0) + 1,
+                    Number(clipEntry.videoDiscardOverriddenAt || 0) + 1,
+                    Number(clipEntry.promptUpdatedAt || 0) + 1,
+                    effDiscardedAt + 1
+                  );
+                  const prevNonBroll =
+                    typeof clipEntry.videoPrompt === 'string' &&
+                    clipEntry.videoPrompt.trim() &&
+                    !/b-roll|escena\s+b-roll|solo\s+imagen/i.test(clipEntry.videoPrompt)
+                      ? clipEntry.videoPrompt.trim()
+                      : effVideoPrompt &&
+                          !/b-roll|escena\s+b-roll|solo\s+imagen/i.test(effVideoPrompt)
+                        ? effVideoPrompt
+                        : typeof clipEntry.previousVideoPrompt === 'string' &&
+                            clipEntry.previousVideoPrompt.trim()
+                          ? clipEntry.previousVideoPrompt.trim()
+                          : '';
+                  if (prevNonBroll) {
+                    clipEntry.previousVideoPrompt = prevNonBroll;
+                  }
+                  clipEntry.isStaticBroll = true;
+                  clipEntry.brollCameraMotion = motion;
+                  clipEntry.videoPrompt = '';
+                  clipEntry.promptUpdatedAt = acceptedAt;
+                  clipEntry.imageReady = true;
+                  clipEntry.videoReady = true;
+                  clipEntry.videoSavedFileName = finalBrollName;
+                  clipEntry.videoSavedAt = acceptedAt;
+                  clipEntry.videoDiscardOverriddenAt = acceptedAt;
+                  delete clipEntry.discardedVideoFileName;
+                  delete clipEntry.videoDiscardedAt;
+                  clipEntry.auditStatus = 'ok';
+                  clipEntry.auditReason =
+                    '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';
+                  clipEntry.videoAuditStatus = 'approved';
+                  clipEntry.videoAuditReason = '';
+                  clipEntry.videoAuditIssues = [];
+                  clipEntry.imagePrompt = formatServerBrollImagePromptLine(
+                    clipEntry.imagePrompt || effImagePrompt,
+                    clipNumber,
+                    clipEntry.timeRange || '',
+                    Number(clipEntry.duration) || durationSec,
+                    motion
+                  );
+
+                  if (typeof targetDoc.rawClipsText === 'string' && clipEntry.imagePrompt) {
+                    let nextRaw = targetDoc.rawClipsText.replace(
+                      new RegExp(`(^|\\n)Image\\s+0*${clipNumber}\\b[^\\n]*`, 'i'),
+                      `$1${clipEntry.imagePrompt}`
+                    );
+                    nextRaw = nextRaw.replace(
+                      new RegExp(
+                        `\\n(?:Generate\\s+a\\s+video|Video)\\s+0*${clipNumber}\\b[^\\n]*`,
+                        'gi'
+                      ),
+                      ''
+                    );
+                    targetDoc.rawClipsText = nextRaw;
+                  }
+                  if (clipEntry.imagePrompt) {
+                    syncPromptsClipsFlowTxtForBrollClip(
+                      resolvedRoot,
+                      clipNumber,
+                      clipEntry.imagePrompt
+                    );
+                  }
+                  targetDoc.updatedAt = Math.max(
+                    Date.now(),
+                    Number(targetDoc.updatedAt || 0) + 1,
+                    acceptedAt
+                  );
+                  writeDocumentaries(allDocs, false);
+                }
+              }
+            } catch {}
+          }
+
+          const st = fs.statSync(finalBrollFull);
+          const fst = fs.existsSync(frameFull) ? fs.statSync(frameFull) : null;
+          return {
+            httpStatus: 200,
+            payload: {
+              ok: true,
+              clipNumber,
+              fileName: finalBrollName,
+              frameFileName,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(finalBrollFull)}&v=${Math.floor(st.mtimeMs)}&t=${acceptedAt}`,
+              frameUrl: fst
+                ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(frameFull)}&v=${Math.floor(fst.mtimeMs)}&t=${acceptedAt}`
+                : '',
+              motion,
+              sourceKind: chosenSource.sourceKind,
+              acceptedAt,
+            },
+          };
+        } finally {
+          for (const tmpP of tempCleanupPaths) {
+            try {
+              if (tmpP && fs.existsSync(tmpP)) fs.unlinkSync(tmpP);
+            } catch {}
+          }
+          try {
+            if (fs.existsSync(tempZipDir)) {
+              fs.rmSync(tempZipDir, { recursive: true, force: true });
+            }
+          } catch {}
+        }
+      },
+      2000
+    );
+
+    activeBrollRerenderLocks.set(lockKey, taskPromise);
+    try {
+      const result = await taskPromise;
+      res.status(result.httpStatus).json(result.payload);
+    } finally {
+      if (activeBrollRerenderLocks.get(lockKey) === taskPromise) {
+        activeBrollRerenderLocks.delete(lockKey);
+      }
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      ok: false,
+      error: err?.message || 'Error al convertir la imagen inicial en clip B-Roll 4K 60fps.',
     });
   }
 });

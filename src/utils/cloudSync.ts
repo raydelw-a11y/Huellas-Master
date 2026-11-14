@@ -6,6 +6,7 @@ import {
   isVerticalProductionDoc,
   TTSRecord,
   TTSSegmentTiming,
+  BrollCameraMotion,
 } from '../types';
 
 export function normalizeFolderServedMediaUrl(rawUrl: string): string {
@@ -71,6 +72,8 @@ interface StoredClipStatusEntry {
   videoDiscardedAt?: number;
   videoDiscardOverriddenAt?: number;
   videoSavedAt?: number;
+  isStaticBroll?: boolean;
+  brollCameraMotion?: BrollCameraMotion;
   updatedAt: number;
 }
 
@@ -161,6 +164,13 @@ export function saveClipReviewStateForDoc(
       const nextSavedAt = isRejectedEmpty
         ? 0
         : Math.max(Number(c.videoSavedAt || 0), Number(prev?.videoSavedAt || 0));
+      const isBrollFile = Boolean(nextFile && /_Broll_4K\.(?:mp4|mov|webm)$/i.test(nextFile));
+      const nextStatic = isRejectedEmpty
+        ? false
+        : isBrollFile || Boolean(c.isStaticBroll && (!nextFile || isBrollFile));
+      const nextBrollMotion = nextStatic
+        ? (c.brollCameraMotion || prev?.brollCameraMotion || 'zoom_in')
+        : undefined;
       if (
         !prev ||
         prev.reviewedForEditor !== nextRev ||
@@ -170,6 +180,8 @@ export function saveClipReviewStateForDoc(
         Boolean(prev.imageReady) !== nextImg ||
         (prev.videoSavedFileName || '') !== nextFile ||
         prev.videoAuditStatus !== nextAuditStatus ||
+        Boolean(prev.isStaticBroll) !== Boolean(nextStatic) ||
+        prev.brollCameraMotion !== nextBrollMotion ||
         (prev.discardedVideoFileName || '') !== effDiscFile ||
         Number(prev.videoDiscardedAt || 0) !== effDiscAt ||
         Number(prev.videoDiscardOverriddenAt || 0) !== effOverrideAt ||
@@ -183,6 +195,7 @@ export function saveClipReviewStateForDoc(
           imageReady: nextImg,
           ...(nextFile ? { videoSavedFileName: nextFile } : {}),
           ...(nextAuditStatus ? { videoAuditStatus: nextAuditStatus } : {}),
+          ...(nextStatic ? { isStaticBroll: true, brollCameraMotion: nextBrollMotion } : {}),
           ...(effDiscFile ? { discardedVideoFileName: effDiscFile } : {}),
           ...(effDiscAt > 0 ? { videoDiscardedAt: effDiscAt } : {}),
           ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
@@ -349,7 +362,23 @@ export function applyStoredClipReviewStateToDocs(
       const mergedImg = Boolean(
         c.imageReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.imageReady)
       );
-      const mergedFile = cFile || (!isSavedRevokedByFile ? sFile : '');
+      const sSavedAt = Number(saved.videoSavedAt || 0);
+      const cSavedAt = Number(c.videoSavedAt || 0);
+      const preferSavedFile =
+        !isSavedRevokedByFile &&
+        Boolean(sFile) &&
+        (sSavedAt > cSavedAt || !cFile);
+      const mergedFile = preferSavedFile
+        ? sFile
+        : cFile || (!isSavedRevokedByFile ? sFile : '');
+      const isMergedBroll = Boolean(
+        mergedFile && /_Broll_4K\.(?:mp4|mov|webm)$/i.test(mergedFile)
+      );
+      const nextBrollMotion = isMergedBroll
+        ? (preferSavedFile && saved.brollCameraMotion
+            ? saved.brollCameraMotion
+            : c.brollCameraMotion || saved.brollCameraMotion || 'zoom_in')
+        : c.brollCameraMotion;
       const mergedSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(saved.videoSavedAt || 0));
       const shouldClearStaleRejectionOnClip =
         isDiscardOverridden &&
@@ -364,6 +393,8 @@ export function applyStoredClipReviewStateToDocs(
         Boolean(c.videoReady) !== mergedVid ||
         Boolean(c.imageReady) !== mergedImg ||
         (c.videoSavedFileName || '') !== mergedFile ||
+        Boolean(c.isStaticBroll) !== Boolean(isMergedBroll) ||
+        (isMergedBroll && c.brollCameraMotion !== nextBrollMotion) ||
         Number(c.videoDiscardOverriddenAt || 0) !== effOverrideAt ||
         shouldClearStaleRejectionOnClip
       ) {
@@ -376,6 +407,17 @@ export function applyStoredClipReviewStateToDocs(
           videoReady: mergedVid,
           imageReady: mergedImg,
           ...(mergedFile ? { videoSavedFileName: mergedFile } : {}),
+          ...(isMergedBroll
+            ? {
+                isStaticBroll: true,
+                brollCameraMotion: nextBrollMotion,
+                videoPrompt: '',
+                previousVideoPrompt:
+                  c.previousVideoPrompt ||
+                  (c.videoPrompt && !c.isStaticBroll ? c.videoPrompt : undefined) ||
+                  undefined,
+              }
+            : {}),
           ...(effOverrideAt > 0 ? { videoDiscardOverriddenAt: effOverrideAt } : {}),
           ...(mergedSavedAt > 0 ? { videoSavedAt: mergedSavedAt } : {}),
           ...(isDiscardOverridden
@@ -2552,6 +2594,26 @@ function mergeTwoDocumentaryObjects(
             ? oValidFile
             : cValidFile
           : cValidFile || oValidFile || '';
+      const isWinningBroll = Boolean(
+        winningFile && /_Broll_4K\.(?:mp4|mov|webm)$/i.test(winningFile)
+      );
+      const winningBrollMotion = isWinningBroll
+        ? (winningFile === oValidFile && o.brollCameraMotion
+            ? o.brollCameraMotion
+            : c.brollCameraMotion || o.brollCameraMotion || 'zoom_in')
+        : undefined;
+      const brollOverrides = isWinningBroll
+        ? {
+            isStaticBroll: true,
+            brollCameraMotion: winningBrollMotion,
+            videoPrompt: '',
+            previousVideoPrompt:
+              c.previousVideoPrompt ||
+              o.previousVideoPrompt ||
+              (c.videoPrompt && !c.isStaticBroll ? c.videoPrompt : undefined) ||
+              (o.videoPrompt && !o.isStaticBroll ? o.videoPrompt : undefined),
+          }
+        : {};
       const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
       const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
       const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
@@ -2644,6 +2706,7 @@ function mergeTwoDocumentaryObjects(
       return {
         ...c,
         ...promptWinnerMeta,
+        ...brollOverrides,
         ...cleanAuditPatch,
         ...approvedAuditReasonPatch,
         ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),

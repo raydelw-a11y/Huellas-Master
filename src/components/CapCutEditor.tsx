@@ -5007,6 +5007,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const isBrollClip = Boolean(
         c.isStaticBroll || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl)
       );
+      const nextVideoTs = getUrlTimestampMs(videoUrl);
+      const prevVideoTs = getUrlTimestampMs(existingRewrittenUrl);
+      const nextVideoMeta = extractEditorMediaUrlMeta(videoUrl);
+      const isNewerBodyVideo =
+        Boolean(videoUrl) &&
+        ((nextVideoTs > 0 && prevVideoTs > 0 && nextVideoTs > prevVideoTs + 1000) ||
+          (Boolean(existingRewrittenUrl) &&
+            Boolean(nextVideoMeta.fileName) &&
+            Boolean(existingMeta.fileName) &&
+            nextVideoMeta.fileName !== existingMeta.fileName));
+      const becameBrollClip = isBrollClip && !existingItem?.isStaticBroll;
+      if (isNewerBodyVideo || becameBrollClip) {
+        delete extractedVideoUrlByClipRef.current[c.clipNumber];
+      }
+      const existingOpticalFlowUrl = existingItem?.opticalFlowUrl
+        ? rewriteMediaBridgeUrl(existingItem.opticalFlowUrl)
+        : undefined;
+      const existingOpticalFlowTs = getUrlTimestampMs(existingOpticalFlowUrl);
+      const keepExistingOpticalFlow =
+        Boolean(existingOpticalFlowUrl) &&
+        !becameBrollClip &&
+        !isNewerBodyVideo &&
+        (nextVideoTs === 0 || existingOpticalFlowTs === 0 || existingOpticalFlowTs >= nextVideoTs - 1000);
 
       return {
         id: c.id || `tl-clip-${c.clipNumber}`,
@@ -5026,22 +5049,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           existingItem?.smoothSlowMo !== undefined
             ? existingItem.smoothSlowMo
             : Boolean(existingItem && existingItem.speed < 1),
-        opticalFlowUrl: existingItem?.opticalFlowUrl
-          ? rewriteMediaBridgeUrl(existingItem.opticalFlowUrl)
-          : undefined,
-        opticalFlowBakedKey: existingItem?.opticalFlowBakedKey,
+        opticalFlowUrl: keepExistingOpticalFlow ? existingOpticalFlowUrl : undefined,
+        opticalFlowBakedKey: keepExistingOpticalFlow ? existingItem?.opticalFlowBakedKey : undefined,
         parentGroupId: existingItem?.parentGroupId,
         originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
         partLabel: existingItem?.partLabel,
-        foleyVolume: existingItem
-          ? existingItem.foleyVolume
-          : isBrollClip
+        foleyVolume:
+          isBrollClip && !existingItem?.customVolumeSet
             ? 0
-            : isClip1
-              ? 80
-              : 20,
+            : existingItem
+              ? existingItem.foleyVolume
+              : isClip1
+                ? 80
+                : 20,
         customVolumeSet: existingItem?.customVolumeSet,
-        audioMuted: existingItem?.audioMuted !== undefined ? existingItem.audioMuted : isBrollClip,
+        audioMuted:
+          isBrollClip && !existingItem?.customVolumeSet
+            ? true
+            : existingItem?.audioMuted !== undefined
+              ? existingItem.audioMuted
+              : isBrollClip,
         audioFadeInSec: existingItem?.audioFadeInSec,
         audioFadeOutSec: existingItem?.audioFadeOutSec,
         transition: existingItem
@@ -5940,7 +5967,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const reviewedClipsSignature = (activeDoc?.clips || [])
     .map(
       (c) =>
-        `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}:${c.videoAuditStatus || ''}:${c.auditStatus || ''}:${c.discardedVideoFileName || ''}:${c.videoDiscardOverriddenAt || 0}`
+        `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}:${c.videoAuditStatus || ''}:${c.auditStatus || ''}:${c.discardedVideoFileName || ''}:${c.videoDiscardOverriddenAt || 0}:${c.isStaticBroll ? 1 : 0}:${c.brollCameraMotion || ''}:${c.videoSavedFileName || ''}`
     )
     .join('|');
 
