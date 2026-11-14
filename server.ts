@@ -14732,8 +14732,8 @@ app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
 
           // Gather P2b candidate (~/Downloads recent loose image with anti-collision guard)
           let bestDownloadsCand: ResolvedImageCandidate | null = null;
-          const downloadsDir = path.join(os.homedir(), 'Downloads');
-          if (fs.existsSync(downloadsDir)) {
+          const downloadsDir = getVerifiedDownloadsDir(true);
+          if (downloadsDir && fs.existsSync(downloadsDir)) {
             try {
               const nowMs = Date.now();
               const maxAgeMs = 12 * 3600 * 1000;
